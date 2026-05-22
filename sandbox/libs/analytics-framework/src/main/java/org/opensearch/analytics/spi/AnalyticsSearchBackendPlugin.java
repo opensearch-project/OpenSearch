@@ -113,4 +113,26 @@ public interface AnalyticsSearchBackendPlugin {
     default void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
         throw new UnsupportedOperationException("configureFilterDelegation not implemented for [" + name() + "]");
     }
+
+    /**
+     * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
+     * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
+     */
+    default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
+
+    /**
+     * Converts a backend-specific exception into an appropriate OpenSearch exception type.
+     *
+     * <p>Called by the engine when a fragment execution fails. If the backend recognizes
+     * the error (e.g., memory limit exceeded, admission rejected), it returns a converted
+     * exception with correct HTTP status semantics. Otherwise returns the original unchanged.
+     *
+     * <p>Default implementation performs no conversion.
+     *
+     * @param original the exception from fragment execution
+     * @return converted exception, or {@code original} if no conversion applies
+     */
+    default Exception convertException(Exception original) {
+        return original;
+    }
 }

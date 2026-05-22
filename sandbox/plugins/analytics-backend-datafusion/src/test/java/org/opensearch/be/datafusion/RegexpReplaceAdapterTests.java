@@ -222,4 +222,41 @@ public class RegexpReplaceAdapterTests extends OpenSearchTestCase {
         assertEquals("pattern unquoted", "^(.*?) (.*?)$", ((RexLiteral) result.getOperands().get(1)).getValueAs(String.class));
         assertEquals("replacement braced", "${1}_${2}", ((RexLiteral) result.getOperands().get(2)).getValueAs(String.class));
     }
+
+    public void testAdapt4ArgRewritesPatternAndPassesFlagsThrough() {
+        // 4-arg REGEXP_REPLACE_PG_4 — emitted by PPL `rex mode=sed` with /g or /i flags.
+        // Pattern + replacement get rewritten as in the 3-arg case; the trailing flags
+        // operand passes through unchanged.
+        RexNode field = rexBuilder.makeInputRef(varcharType, 0);
+        RexNode pattern = rexBuilder.makeLiteral("^\\QFOO\\E");
+        RexNode replacement = rexBuilder.makeLiteral("$1");
+        RexNode flags = rexBuilder.makeLiteral("gi");
+        RexCall original = (RexCall) rexBuilder.makeCall(
+            SqlLibraryOperators.REGEXP_REPLACE_PG_4,
+            List.of(field, pattern, replacement, flags)
+        );
+
+        RexCall result = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertEquals("4-arg call preserved", 4, result.getOperands().size());
+        assertEquals("pattern unquoted", "^FOO", ((RexLiteral) result.getOperands().get(1)).getValueAs(String.class));
+        assertEquals("replacement braced", "${1}", ((RexLiteral) result.getOperands().get(2)).getValueAs(String.class));
+        assertSame("flags operand passes through verbatim", flags, result.getOperands().get(3));
+    }
+
+    public void testAdapt4ArgPassesThroughWhenNoRewriteNeeded() {
+        // 4-arg call with Rust-compatible pattern and no $N — adapter must return identity.
+        RexNode field = rexBuilder.makeInputRef(varcharType, 0);
+        RexNode pattern = rexBuilder.makeLiteral("^foo$");
+        RexNode replacement = rexBuilder.makeLiteral("bar");
+        RexNode flags = rexBuilder.makeLiteral("g");
+        RexCall original = (RexCall) rexBuilder.makeCall(
+            SqlLibraryOperators.REGEXP_REPLACE_PG_4,
+            List.of(field, pattern, replacement, flags)
+        );
+
+        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+
+        assertSame("identity — 4-arg call with no \\Q and no $N passes through", original, adapted);
+    }
 }

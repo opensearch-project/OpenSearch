@@ -57,7 +57,9 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public Map<String, String> getLastCommittedData() {
@@ -88,6 +90,11 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("test stub does not serialize commits");
+        }
+
+        @Override
         public void close() {}
     }
 
@@ -115,7 +122,7 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
 
     public void testThrowsWhenNullEngineConfig() {
         reset();
-        expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(null)));
+        expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(null, () -> {})));
     }
 
     public void testThrowsWhenNullTranslogConfig() throws IOException {
@@ -126,7 +133,7 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
                 .store(store)
                 .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, Collections.emptyList()))
                 .build();
-            expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(ec)));
+            expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(ec, () -> {})));
         } finally {
             store.close();
         }
@@ -137,7 +144,7 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         Store store = createStore();
         Path translogPath = createTempDir();
         try {
-            new TestCommitter(new CommitterConfig(buildEngineConfig(store, translogPath)));
+            new TestCommitter(new CommitterConfig(buildEngineConfig(store, translogPath), () -> {}));
             assertTrue(discoverAndTrimCalled);
         } finally {
             store.close();

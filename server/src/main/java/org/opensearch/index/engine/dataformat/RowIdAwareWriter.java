@@ -53,6 +53,15 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
     }
 
     /**
+     * Returns the number of documents written to this writer so far.
+     *
+     * @return the current document count
+     */
+    public long docCount() {
+        return rowIdCounter.get();
+    }
+
+    /**
      * Assigns a sequential row ID to the document input, then delegates to the
      * underlying writer. The row ID is set via {@link DocumentInput#setRowId}
      * using the standard {@link DocumentInput#ROW_ID_FIELD} field name.
@@ -69,8 +78,8 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
 
     /** {@inheritDoc} Delegates to the underlying writer. */
     @Override
-    public FileInfos flush() throws IOException {
-        return delegate.flush();
+    public FileInfos flush(FlushInput flushInput) throws IOException {
+        return delegate.flush(flushInput);
     }
 
     /** {@inheritDoc} Delegates to the underlying writer. */
@@ -83,6 +92,24 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
     @Override
     public long generation() {
         return delegate.generation();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public boolean isSchemaMutable() {
+        return delegate.isSchemaMutable();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public long mappingVersion() {
+        return delegate.mappingVersion();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        delegate.updateMappingVersion(newVersion);
     }
 
     /** {@inheritDoc} Closes the underlying writer. */

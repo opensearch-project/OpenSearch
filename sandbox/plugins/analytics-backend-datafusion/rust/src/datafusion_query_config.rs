@@ -5,8 +5,8 @@
 //! setup time and copied into hot-path fields — never dereferenced on a
 //! per-batch or per-row hot path.
 
-use crate::indexed_table::stream::FilterStrategy;
 use crate::indexed_table::eval::single_collector::CollectorCallStrategy;
+use crate::indexed_table::stream::FilterStrategy;
 
 /// Query-scoped configuration. Owned by value after FFM decode.
 #[derive(Debug, Clone)]
@@ -48,27 +48,6 @@ pub struct DatafusionQueryConfig {
     pub tree_collector_strategy: CollectorCallStrategy,
 }
 
-impl Default for DatafusionQueryConfig {
-    fn default() -> Self {
-        Self {
-            batch_size: 8192,
-            // TODO: change this default value ?
-            target_partitions: 4,
-            parquet_pushdown_filters: false,
-            min_skip_run_default: 1024, // Todo: tune based on benchmarks
-            min_skip_run_selectivity_threshold: 0.03, // Todo : tune based on benchmarks
-            indexed_pushdown_filters: true,
-            force_strategy: None,
-            force_pushdown: None,
-            cost_predicate: 1,
-            cost_collector: 10, // TODO : should this be collector leaf specific
-            max_collector_parallelism: 1,
-            single_collector_strategy: CollectorCallStrategy::PageRangeSplit,
-            tree_collector_strategy: CollectorCallStrategy::TightenOuterBounds,
-        }
-    }
-}
-
 /// FFM wire format. Must stay in lockstep with the Java `MemoryLayout`.
 ///
 /// All fields have fixed sizes and natural alignment so Java and Rust
@@ -99,15 +78,53 @@ pub struct WireDatafusionQueryConfig {
 }
 
 impl DatafusionQueryConfig {
-    /// Decode from a raw FFM pointer. Null (`0`) returns defaults.
+    /// Fallback values used when Java passes a null config pointer (0).
+    /// Production code should always supply a real config via the wire
+    /// struct; this exists only for the transitional period while Java
+    /// wiring is incomplete.
+    fn fallback() -> Self {
+        Self {
+            batch_size: 8192,
+            target_partitions: 4,
+            parquet_pushdown_filters: false,
+            min_skip_run_default: 1024,
+            min_skip_run_selectivity_threshold: 0.03,
+            indexed_pushdown_filters: true,
+            force_strategy: None,
+            force_pushdown: None,
+            cost_predicate: 1,
+            cost_collector: 10,
+            max_collector_parallelism: 1,
+            single_collector_strategy: CollectorCallStrategy::PageRangeSplit,
+            tree_collector_strategy: CollectorCallStrategy::TightenOuterBounds,
+        }
+    }
+
+    /// Constructor with sensible defaults for tests and benchmarks.
+    /// Production code should use `from_ffm_ptr` with a real wire config.
+    pub fn test_default() -> Self {
+        Self::fallback()
+    }
+
+    /// Returns a builder seeded with fallback defaults for test usage.
+    #[cfg(test)]
+    pub fn builder() -> DatafusionQueryConfigBuilder {
+        DatafusionQueryConfigBuilder::new()
+    }
+
+    /// Decode from a raw FFM pointer.
     ///
     /// # Safety
-    /// `ptr` must be 0, or a valid pointer to a `WireDatafusionQueryConfig`
+    /// `ptr` must be a valid, non-zero pointer to a `WireDatafusionQueryConfig`
     /// whose memory is live for the duration of this call.
+    ///
+    /// # Panics
+    /// Panics if `ptr` is 0 (null). Java must always supply a valid config pointer.
     pub unsafe fn from_ffm_ptr(ptr: i64) -> Self {
-        if ptr == 0 {
-            return Self::default();
-        }
+        assert!(
+            ptr != 0,
+            "from_ffm_ptr: null query config pointer — Java must always provide a valid config"
+        );
         let wire = &*(ptr as *const WireDatafusionQueryConfig);
         Self::from_wire(wire)
     }
@@ -150,12 +167,77 @@ impl DatafusionQueryConfig {
 }
 
 #[cfg(test)]
+pub struct DatafusionQueryConfigBuilder(DatafusionQueryConfig);
+
+#[cfg(test)]
+impl DatafusionQueryConfigBuilder {
+    fn new() -> Self {
+        Self(DatafusionQueryConfig::fallback())
+    }
+    pub fn batch_size(mut self, v: usize) -> Self {
+        self.0.batch_size = v;
+        self
+    }
+    pub fn target_partitions(mut self, v: usize) -> Self {
+        self.0.target_partitions = v;
+        self
+    }
+    pub fn parquet_pushdown_filters(mut self, v: bool) -> Self {
+        self.0.parquet_pushdown_filters = v;
+        self
+    }
+    pub fn min_skip_run_default(mut self, v: usize) -> Self {
+        self.0.min_skip_run_default = v;
+        self
+    }
+    pub fn min_skip_run_selectivity_threshold(mut self, v: f64) -> Self {
+        self.0.min_skip_run_selectivity_threshold = v;
+        self
+    }
+    pub fn indexed_pushdown_filters(mut self, v: bool) -> Self {
+        self.0.indexed_pushdown_filters = v;
+        self
+    }
+    pub fn force_strategy(mut self, v: Option<FilterStrategy>) -> Self {
+        self.0.force_strategy = v;
+        self
+    }
+    pub fn force_pushdown(mut self, v: Option<bool>) -> Self {
+        self.0.force_pushdown = v;
+        self
+    }
+    pub fn cost_predicate(mut self, v: u32) -> Self {
+        self.0.cost_predicate = v;
+        self
+    }
+    pub fn cost_collector(mut self, v: u32) -> Self {
+        self.0.cost_collector = v;
+        self
+    }
+    pub fn max_collector_parallelism(mut self, v: usize) -> Self {
+        self.0.max_collector_parallelism = v;
+        self
+    }
+    pub fn single_collector_strategy(mut self, v: CollectorCallStrategy) -> Self {
+        self.0.single_collector_strategy = v;
+        self
+    }
+    pub fn tree_collector_strategy(mut self, v: CollectorCallStrategy) -> Self {
+        self.0.tree_collector_strategy = v;
+        self
+    }
+    pub fn build(self) -> DatafusionQueryConfig {
+        self.0
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn defaults_match_legacy_constants() {
-        let c = DatafusionQueryConfig::default();
+    fn test_default_matches_legacy_constants() {
+        let c = DatafusionQueryConfig::test_default();
         assert_eq!(c.batch_size, 8192);
         assert_eq!(c.target_partitions, 4);
         assert!(!c.parquet_pushdown_filters);
@@ -169,12 +251,9 @@ mod tests {
     }
 
     #[test]
-    fn wire_decode_null_pointer_gives_defaults() {
-        let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(0) };
-        let d = DatafusionQueryConfig::default();
-        assert_eq!(c.batch_size, d.batch_size);
-        assert_eq!(c.min_skip_run_default, d.min_skip_run_default);
-        assert_eq!(c.cost_collector, d.cost_collector);
+    #[should_panic(expected = "null query config pointer")]
+    fn wire_decode_null_pointer_panics() {
+        unsafe { DatafusionQueryConfig::from_ffm_ptr(0) };
     }
 
     #[test]

@@ -72,7 +72,7 @@ pub fn get_temp_file_path(name: &str) -> (tempfile::TempDir, String) {
 
 pub fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
     let (schema, schema_ptr) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(filename.to_string(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![]);
+    let result = NativeParquetWriter::create_writer(filename.to_string(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![], 0);
     assert!(result.is_ok());
     (schema, schema_ptr)
 }
@@ -80,7 +80,7 @@ pub fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
 pub fn create_sorted_writer_and_assert_success(filename: &str, sort_column: &str, reverse: bool) -> (Arc<Schema>, i64) {
     let (schema, schema_ptr) = create_test_ffi_schema();
     let result = NativeParquetWriter::create_writer(
-        filename.to_string(), "test-index".to_string(), schema_ptr, vec![sort_column.to_string()], vec![reverse], vec![false]
+        filename.to_string(), "test-index".to_string(), schema_ptr, vec![sort_column.to_string()], vec![reverse], vec![false], 0
     );
     assert!(result.is_ok());
     (schema, schema_ptr)

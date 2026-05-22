@@ -8,19 +8,26 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
+import org.opensearch.plugins.NativeStoreHandle;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -43,13 +50,18 @@ import java.util.LinkedHashMap;
  */
 public final class NativeBridge {
 
+    private static final Logger logger = LogManager.getLogger(NativeBridge.class);
+
     private static final MethodHandle INIT_RUNTIME_MANAGER;
     private static final MethodHandle SHUTDOWN_RUNTIME_MANAGER;
     private static final MethodHandle CREATE_GLOBAL_RUNTIME;
     private static final MethodHandle CLOSE_GLOBAL_RUNTIME;
     private static final MethodHandle GET_MEMORY_POOL_USAGE;
     private static final MethodHandle GET_MEMORY_POOL_LIMIT;
+    private static final MethodHandle GET_MEMORY_POOL_STATS;
     private static final MethodHandle SET_MEMORY_POOL_LIMIT;
+    private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
+    private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
     private static final MethodHandle EXECUTE_QUERY;
@@ -81,6 +93,10 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle STATS;
+    private static final MethodHandle DF_NATIVE_NODE_STATS;
+    private static final MethodHandle PREPARE_PARTIAL_PLAN;
+    private static final MethodHandle PREPARE_FINAL_PLAN;
+    private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -123,20 +139,37 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
+        GET_MEMORY_POOL_STATS = linker.downcallHandle(
+            lib.find("df_get_memory_pool_stats").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS)
+        );
+
         SET_MEMORY_POOL_LIMIT = linker.downcallHandle(
             lib.find("df_set_memory_pool_limit").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        SET_MIN_TARGET_PARTITIONS = linker.downcallHandle(
+            lib.find("df_set_min_target_partitions").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
+            lib.find("df_set_memory_guard_thresholds").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         CREATE_READER = linker.downcallHandle(
             lib.find("df_create_reader").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG
+                ValueLayout.ADDRESS,    // table_path_ptr
+                ValueLayout.JAVA_LONG,  // table_path_len
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.ADDRESS,    // writer_generations_ptr
+                ValueLayout.JAVA_LONG,   // count (applies to all three parallel arrays)
+                ValueLayout.JAVA_LONG // object store ptr
             )
         );
 
@@ -199,7 +232,9 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
-        // i64 df_register_partition_stream(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len)
+        // i64 df_register_partition_stream(session_ptr, input_id_ptr, input_id_len,
+        // partial_plan_ptr, partial_plan_len,
+        // out_ptr, out_cap, out_len)
         REGISTER_PARTITION_STREAM = linker.downcallHandle(
             lib.find("df_register_partition_stream").orElseThrow(),
             FunctionDescriptor.of(
@@ -208,14 +243,23 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
             )
         );
 
-        // i64 df_execute_local_plan(session_ptr, substrait_ptr, substrait_len)
+        // i64 df_execute_local_plan(session_ptr, substrait_ptr, substrait_len, context_id)
         EXECUTE_LOCAL_PLAN = linker.downcallHandle(
             lib.find("df_execute_local_plan").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
         );
 
         // i64 df_sender_send(sender_ptr, array_ptr, schema_ptr)
@@ -227,8 +271,10 @@ public final class NativeBridge {
         // void df_sender_close(sender_ptr)
         SENDER_CLOSE = linker.downcallHandle(lib.find("df_sender_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
-        // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len,
-        // array_ptrs, schema_ptrs, n_batches)
+        // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len,
+        // partial_plan_ptr, partial_plan_len,
+        // array_ptrs, schema_ptrs, n_batches,
+        // out_ptr, out_cap, out_len)
         REGISTER_MEMTABLE = linker.downcallHandle(
             lib.find("df_register_memtable").orElseThrow(),
             FunctionDescriptor.of(
@@ -240,7 +286,10 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
             )
         );
 
@@ -289,6 +338,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -303,7 +353,8 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_LONG
             )
         );
 
@@ -386,6 +437,31 @@ public final class NativeBridge {
             lib.find("df_stats").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
+
+        // i64 df_native_node_stats(out_ptr, out_cap)
+        DF_NATIVE_NODE_STATS = linker.downcallHandle(
+            lib.find("df_native_node_stats").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // ── Distributed aggregate: prepare partial/final plans ──
+        // i64 df_prepare_partial_plan(handle_ptr, bytes_ptr, bytes_len)
+        PREPARE_PARTIAL_PLAN = linker.downcallHandle(
+            lib.find("df_prepare_partial_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_prepare_final_plan(session_ptr, bytes_ptr, bytes_len)
+        PREPARE_FINAL_PLAN = linker.downcallHandle(
+            lib.find("df_prepare_final_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_execute_local_prepared_plan(session_ptr, context_id)
+        EXECUTE_LOCAL_PREPARED_PLAN = linker.downcallHandle(
+            lib.find("df_execute_local_prepared_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
     }
 
     private NativeBridge() {}
@@ -409,7 +485,7 @@ public final class NativeBridge {
             MethodHandle createCollector = lookup.findStatic(
                 cb,
                 "createCollector",
-                java.lang.invoke.MethodType.methodType(int.class, int.class, int.class, int.class, int.class)
+                java.lang.invoke.MethodType.methodType(int.class, int.class, long.class, int.class, int.class)
             );
             MethodHandle collectDocs = lookup.findStatic(
                 cb,
@@ -444,7 +520,7 @@ public final class NativeBridge {
                 FunctionDescriptor.of(
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
-                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT
                 ),
@@ -525,10 +601,40 @@ public final class NativeBridge {
         }
     }
 
+    /** Returns memory pool stats: [usage_bytes, tripped_count]. Single FFM call. */
+    public static long[] getMemoryPoolStats(long runtimePtr) {
+        try (var arena = Arena.ofConfined()) {
+            var buf = arena.allocate(ValueLayout.JAVA_LONG, 2);
+            GET_MEMORY_POOL_STATS.invokeExact(runtimePtr, buf);
+            return new long[] { buf.getAtIndex(ValueLayout.JAVA_LONG, 0), buf.getAtIndex(ValueLayout.JAVA_LONG, 1) };
+        } catch (Throwable t) {
+            logger.debug("Failed to read native memory pool stats", t);
+            return new long[] { 0, 0 };
+        }
+    }
+
     /** Sets the memory pool limit at runtime. Takes effect for new allocations only. */
     public static void setMemoryPoolLimit(long runtimePtr, long newLimitBytes) {
         try (var call = new NativeCall()) {
             call.invoke(SET_MEMORY_POOL_LIMIT, runtimePtr, newLimitBytes);
+        }
+    }
+
+    /** Sets the minimum target_partitions floor for the adaptive budget system. */
+    public static void setMinTargetPartitions(int value) {
+        try {
+            SET_MIN_TARGET_PARTITIONS.invokeExact((long) value);
+        } catch (Throwable t) {
+            logger.debug("Failed to set min target partitions", t);
+        }
+    }
+
+    /** Sets the memory guard admission and operator thresholds (0.0–1.0). */
+    public static void setMemoryGuardThresholds(double admission, double operator) {
+        try {
+            SET_MEMORY_GUARD_THRESHOLDS.invokeExact((long) (admission * 1000), (long) (operator * 1000));
+        } catch (Throwable t) {
+            logger.debug("Failed to set memory guard thresholds", t);
         }
     }
 
@@ -537,12 +643,32 @@ public final class NativeBridge {
     /**
      * Creates a native reader. Returns an opaque native pointer.
      * Freed by {@link #closeDatafusionReader}.
+     *
+     * @param path     shard data directory
+     * @param segments per-segment metadata — each carries a single filename and writer generation
+     * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      */
-    public static long createDatafusionReader(String path, String[] files) {
+    public static long createDatafusionReader(
+        String path,
+        List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle
+    ) {
+        long storePtr = 0L;
+        if (dataformatAwareStoreHandle != null) {
+            try {
+                storePtr = dataformatAwareStoreHandle.getPointer();
+            } catch (IllegalStateException e) {
+                // Handle closed between check and extraction — use default (local)
+                storePtr = 0L;
+            }
+        }
         try (var call = new NativeCall()) {
             var p = call.str(path);
-            var f = call.strArray(files);
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), f.count());
+            var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
+            var gens = call.longs(
+                segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
+            );
+            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count(), storePtr);
         }
     }
 
@@ -641,12 +767,27 @@ public final class NativeBridge {
             var cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
 
             // Task monitors
-            var taskMonitors = new LinkedHashMap<String, NativeExecutorsStats.TaskMonitorStats>();
+            var taskMonitors = new LinkedHashMap<String, TaskMonitorStats>();
             for (NativeExecutorsStats.OperationType op : NativeExecutorsStats.OperationType.values()) {
                 taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
             }
 
             return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
+    }
+
+    /**
+     * Reads native task cancellation counters via {@code df_native_node_stats} FFM call.
+     * Independent of {@link #stats()} which calls {@code df_stats} for plugin stats.
+     *
+     * @return a populated {@link AnalyticsBackendTaskCancellationStats}
+     * @throws IllegalStateException if the FFM function returns a non-zero error code
+     */
+    public static AnalyticsBackendTaskCancellationStats nativeNodeStats() {
+        try (var call = new NativeCall()) {
+            var seg = call.buf(32);
+            call.invoke(DF_NATIVE_NODE_STATS, seg, 32L);
+            return NativeNodeStatsLayout.readNativeNodeStats(seg);
         }
     }
 
@@ -678,6 +819,16 @@ public final class NativeBridge {
     // ---- Coordinator-reduce exports ----
 
     /**
+     * Pair returned from {@link #registerPartitionStream} / {@link #registerMemtable}: the
+     * native sender pointer (or 0 for memtable) plus the Arrow IPC-encoded schema the native
+     * session derived by lowering the producer-side substrait. The Java tripwire
+     * ({@code typesMatch} in {@code DatafusionReduceSink}) validates fed batches against this
+     * schema, and downstream callers decode it once into an Arrow {@link org.apache.arrow.vector.types.pojo.Schema}.
+     */
+    public record RegisteredInput(long pointer, byte[] schemaIpc) {
+    }
+
+    /**
      * Creates a local DataFusion session tied to the given global runtime. Returns an opaque
      * native pointer freed by {@link #closeLocalSession}.
      */
@@ -694,32 +845,45 @@ public final class NativeBridge {
     }
 
     /**
-     * Registers an input partition stream on the session under {@code inputId}, with the given
-     * Arrow IPC-encoded schema. Returns an opaque sender pointer freed by {@link #senderClose}.
+     * Registers an input partition stream on the session under {@code inputId}, deriving the
+     * input schema by lowering the producer-side {@code partialPlanBytes}. Returns the native
+     * sender pointer (freed by {@link #senderClose}) and the Arrow IPC-encoded schema the
+     * native session settled on after lowering.
      */
-    public static long registerPartitionStream(long sessionPtr, String inputId, byte[] schemaIpc) {
+    public static RegisteredInput registerPartitionStream(long sessionPtr, String inputId, byte[] partialPlanBytes) {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             var id = call.str(inputId);
-            return call.invoke(
+            var out = call.outBuffer(64 * 1024);
+            long ptr = call.invoke(
                 REGISTER_PARTITION_STREAM,
                 sessionPtr,
                 id.segment(),
                 id.len(),
-                call.bytes(schemaIpc),
-                (long) schemaIpc.length
+                call.bytes(partialPlanBytes),
+                (long) partialPlanBytes.length,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
             );
+            return new RegisteredInput(ptr, out.toByteArray());
         }
     }
 
     /**
      * Executes a Substrait plan on the session, returning an opaque stream pointer. The stream is
      * drained via {@link #streamNext} and freed by {@link #streamClose}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession}
+     * @param substrait  Substrait plan bytes
+     * @param contextId  the parent {@code AnalyticsQueryTask.getId()}; registers the reduce in the
+     *                   native {@code QUERY_REGISTRY} under this id so {@link #cancelQuery} fires
+     *                   the attached cancellation token. Pass {@code 0} to disable tracking.
      */
-    public static long executeLocalPlan(long sessionPtr, byte[] substrait) {
+    public static long executeLocalPlan(long sessionPtr, byte[] substrait, long contextId) {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
-            return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length);
+            return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length, contextId);
         }
     }
 
@@ -749,10 +913,21 @@ public final class NativeBridge {
 
     /**
      * Memtable variant of {@link #registerPartitionStream}: hands across a list of
-     * already-exported Arrow C Data batches in two parallel pointer arrays so the native side can
-     * build a {@code MemTable} in one shot. Native takes ownership of all FFI structs on success.
+     * already-exported Arrow C Data batches in two parallel pointer arrays so the native side
+     * can build a {@code MemTable} in one shot. Schema is derived by lowering the producer-side
+     * {@code partialPlanBytes}; native takes ownership of all FFI structs on success.
+     *
+     * <p>Returns a {@link RegisteredInput} whose {@code pointer} field is always 0 (memtable
+     * registration has no sender to return) — the {@code schemaIpc} field carries the schema
+     * the native session settled on after lowering.
      */
-    public static long registerMemtable(long sessionPtr, String inputId, byte[] schemaIpc, long[] arrayPtrs, long[] schemaPtrs) {
+    public static RegisteredInput registerMemtable(
+        long sessionPtr,
+        String inputId,
+        byte[] partialPlanBytes,
+        long[] arrayPtrs,
+        long[] schemaPtrs
+    ) {
         NativeHandle.validatePointer(sessionPtr, "session");
         if (arrayPtrs.length != schemaPtrs.length) {
             throw new IllegalArgumentException(
@@ -761,17 +936,22 @@ public final class NativeBridge {
         }
         try (var call = new NativeCall()) {
             var id = call.str(inputId);
-            return call.invoke(
+            var out = call.outBuffer(64 * 1024);
+            long ptr = call.invoke(
                 REGISTER_MEMTABLE,
                 sessionPtr,
                 id.segment(),
                 id.len(),
-                call.bytes(schemaIpc),
-                (long) schemaIpc.length,
+                call.bytes(partialPlanBytes),
+                (long) partialPlanBytes.length,
                 call.longs(arrayPtrs),
                 call.longs(schemaPtrs),
-                (long) arrayPtrs.length
+                (long) arrayPtrs.length,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
             );
+            return new RegisteredInput(ptr, out.toByteArray());
         }
     }
 
@@ -787,13 +967,21 @@ public final class NativeBridge {
     /**
      * Creates a SessionContext with the default ListingTable registered.
      * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      */
-    public static SessionContextHandle createSessionContext(long readerPtr, long runtimePtr, String tableName, long contextId) {
+    public static SessionContextHandle createSessionContext(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        long queryConfigPtr
+    ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
-            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId, queryConfigPtr);
             return new SessionContextHandle(ptr);
         }
     }
@@ -802,6 +990,8 @@ public final class NativeBridge {
      * Creates a SessionContext configured for indexed execution with filter delegation.
      * Registers the delegated_predicate UDF and stores treeShape + delegatedPredicateCount
      * on the Rust handle for use during execution.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      */
     public static SessionContextHandle createSessionContextForIndexedExecution(
         long readerPtr,
@@ -809,7 +999,8 @@ public final class NativeBridge {
         String tableName,
         long contextId,
         int treeShapeOrdinal,
-        int delegatedPredicateCount
+        int delegatedPredicateCount,
+        long queryConfigPtr
     ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
@@ -823,7 +1014,8 @@ public final class NativeBridge {
                 table.len(),
                 contextId,
                 treeShapeOrdinal,
-                delegatedPredicateCount
+                delegatedPredicateCount,
+                queryConfigPtr
             );
             return new SessionContextHandle(ptr);
         }
@@ -876,6 +1068,55 @@ public final class NativeBridge {
 
     public static void destroyCustomCacheManager(long ptr) {
         NativeCall.invokeVoid(DESTROY_CUSTOM_CACHE_MANAGER, ptr);
+    }
+
+    // ---- Distributed aggregate: prepare partial/final plans ----
+
+    /**
+     * Prepares a partial-aggregate physical plan on the session context handle.
+     * The plan is stored on the Rust handle for later execution.
+     *
+     * @param handlePtr pointer returned by {@link #createSessionContext}
+     * @param substraitBytes Substrait plan bytes
+     */
+    public static void preparePartialPlan(long handlePtr, byte[] substraitBytes) {
+        NativeHandle.validatePointer(handlePtr, "sessionContext");
+        try (var call = new NativeCall()) {
+            call.invoke(PREPARE_PARTIAL_PLAN, handlePtr, call.bytes(substraitBytes), (long) substraitBytes.length);
+        }
+    }
+
+    /**
+     * Prepares a final-aggregate physical plan on a local session.
+     * The plan is stored on the Rust session for later execution via
+     * {@link #executeLocalPreparedPlan}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession}
+     * @param substraitBytes Substrait plan bytes
+     */
+    public static void prepareFinalPlan(long sessionPtr, byte[] substraitBytes) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            call.invoke(PREPARE_FINAL_PLAN, sessionPtr, call.bytes(substraitBytes), (long) substraitBytes.length);
+        }
+    }
+
+    /**
+     * Executes the previously prepared final-aggregate plan on a local session.
+     * Returns a stream pointer that can be drained via {@link #streamNext} and
+     * freed by {@link #streamClose}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession} with a plan
+     *                   already prepared via {@link #prepareFinalPlan}
+     * @param contextId  the parent {@code AnalyticsQueryTask.getId()}; see
+     *                   {@link #executeLocalPlan(long, byte[], long)} for semantics
+     * @return opaque stream pointer
+     */
+    public static long executeLocalPreparedPlan(long sessionPtr, long contextId) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr, contextId);
+        }
     }
 
     public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit, String evictionType) {

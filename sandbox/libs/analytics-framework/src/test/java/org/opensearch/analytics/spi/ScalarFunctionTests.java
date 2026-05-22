@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -198,5 +199,29 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         for (ScalarFunction func : mathFuncs) {
             assertSame("expected MATH category for " + func, ScalarFunction.Category.MATH, func.getCategory());
         }
+    }
+
+    /**
+     * Callers (e.g. {@code OpenSearchProjectRule}) guard on a null return from
+     * {@link ScalarFunction#fromSqlFunction(SqlFunction)}. The contract (per the
+     * javadoc) must return null — not throw — when the function name does not
+     * match any enum constant. Without this contract, any unknown scalar
+     * function short-circuits the Hep planner rule with an IllegalArgumentException.
+     */
+    public void testFromSqlFunctionReturnsNullForUnknownName() {
+        // INITCAP is a Calcite operator the enum does not model. Representative
+        // of any function routed through the name-based path that the enum
+        // does not yet declare.
+        SqlFunction initcap = SqlStdOperatorTable.INITCAP;
+        ScalarFunction resolved = ScalarFunction.fromSqlFunction(initcap);
+        assertNull("fromSqlFunction must return null for unknown names", resolved);
+    }
+
+    public void testFromSqlFunctionResolvesKnownName() {
+        // UPPER is a well-known scalar function — valueOf("UPPER") succeeds.
+        SqlFunction upper = SqlStdOperatorTable.UPPER;
+        ScalarFunction resolved = ScalarFunction.fromSqlFunction(upper);
+        assertNotNull("fromSqlFunction must resolve known names", resolved);
+        assertSame(ScalarFunction.UPPER, resolved);
     }
 }

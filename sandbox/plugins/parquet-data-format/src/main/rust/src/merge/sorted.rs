@@ -13,7 +13,7 @@ use std::sync::Arc;
 use arrow::datatypes::Schema as ArrowSchema;
 use parquet::schema::types::SchemaDescriptor;
 
-use crate::{log_debug, log_info};
+use crate::log_debug;
 
 use super::context::MergeContext;
 use super::cursor::FileCursor;
@@ -29,7 +29,8 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
-) -> super::MergeResult<(parquet::file::metadata::ParquetMetaData, u32)> {
+    output_writer_generation: i64,
+) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
         .map(|r| r.clone())
@@ -75,14 +76,18 @@ pub fn merge_sorted(
     let mut cursors: Vec<FileCursor> = Vec::with_capacity(input_files.len());
     let mut arrow_schemas: Vec<ArrowSchema> = Vec::with_capacity(input_files.len());
     let mut parquet_descriptors: Vec<SchemaDescriptor> = Vec::with_capacity(input_files.len());
+    let mut file_generations: Vec<i64> = Vec::with_capacity(input_files.len());
+    let mut file_row_counts: Vec<usize> = Vec::with_capacity(input_files.len());
 
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
-        let (cursor, projected_schema, parquet_descr) =
+        let (cursor, projected_schema, parquet_descr, generation, row_count) =
             FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size)?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
         parquet_descriptors.push(parquet_descr);
+        file_generations.push(generation);
+        file_row_counts.push(row_count);
     }
 
     let num_cursors = cursors.len();
@@ -96,12 +101,34 @@ pub fn merge_sorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)
     let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
         .map(|s| ColumnMapping::new(s, ctx.data_schema()))
         .collect();
+
+    // Row-ID mapping: pre-allocate the flat mapping array and compute offsets
+    // from file metadata row counts (known before reading any data).
+    let total_rows: usize = file_row_counts.iter().sum();
+    let mut mapping: Vec<i64> = vec![0i64; total_rows];
+    let mut gen_keys: Vec<i64> = Vec::with_capacity(num_cursors);
+    let mut gen_offsets: Vec<i32> = Vec::with_capacity(num_cursors);
+    let mut gen_sizes: Vec<i32> = Vec::with_capacity(num_cursors);
+
+    let mut offset = 0i32;
+    for file_id in 0..num_cursors {
+        gen_keys.push(file_generations[file_id]);
+        gen_offsets.push(offset);
+        let size = file_row_counts[file_id] as i32;
+        gen_sizes.push(size);
+        offset += size;
+    }
+
+    // Per-file counters: tracks how many rows have been emitted from each file
+    let mut rows_emitted_per_file: Vec<usize> = vec![0; num_cursors];
+    let mut new_row_id: i64 = 0;
 
     log_debug!(
         "[RUST] Merge initialized ({}): {} cursors",
@@ -128,12 +155,18 @@ pub fn merge_sorted(
         // TIER 1: Single cursor remaining — drain it
         if heap.is_empty() {
             let cursor = &mut cursors[file_id];
-            let mapping = &col_mappings[file_id];
+            let col_mapping = &col_mappings[file_id];
+            let file_offset = gen_offsets[file_id] as usize;
             loop {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 if remaining > 0 {
                     let slice = cursor.take_slice(cursor.row_idx, remaining);
-                    ctx.push_batch(mapping.pad_batch(&slice)?)?;
+                    for _ in 0..remaining {
+                        mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
+                        rows_emitted_per_file[file_id] += 1;
+                        new_row_id += 1;
+                    }
+                    ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
                 }
                 if !cursor.advance_past_batch()? {
                     break;
@@ -144,7 +177,8 @@ pub fn merge_sorted(
 
         // TIER 2 & 3: Multiple cursors active
         let cursor = &mut cursors[file_id];
-        let mapping = &col_mappings[file_id];
+        let col_mapping = &col_mappings[file_id];
+        let file_offset = gen_offsets[file_id] as usize;
 
         loop {
             let heap_top = &heap.peek().unwrap().sort_values;
@@ -154,9 +188,24 @@ pub fn merge_sorted(
             if cmp_sort_values(&last_val, heap_top, reverse_sorts) != Ordering::Greater {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 let slice = cursor.take_slice(cursor.row_idx, remaining);
-                ctx.push_batch(mapping.pad_batch(&slice)?)?;
+                for _ in 0..remaining {
+                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
+                    rows_emitted_per_file[file_id] += 1;
+                    new_row_id += 1;
+                }
+                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
 
                 if !cursor.advance_past_batch()? {
+                    break;
+                }
+                // Check if cursor should yield after loading new batch
+                let val = cursor.current_sort_values()?;
+                if cmp_sort_values(&val, heap_top, reverse_sorts) == Ordering::Greater {
+                    heap.push(HeapItem {
+                        sort_values: val,
+                        file_id,
+                        reverse_sorts: Arc::clone(&reverse_sorts_arc),
+                    });
                     break;
                 }
                 continue;
@@ -191,7 +240,12 @@ pub fn merge_sorted(
             let run_len = run_end - run_start + 1;
             if run_len > 0 {
                 let slice = cursor.take_slice(run_start, run_len);
-                ctx.push_batch(mapping.pad_batch(&slice)?)?;
+                for _ in 0..run_len {
+                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
+                    rows_emitted_per_file[file_id] += 1;
+                    new_row_id += 1;
+                }
+                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
             }
 
             cursor.row_idx = run_end;
@@ -199,15 +253,15 @@ pub fn merge_sorted(
                 break;
             }
 
-            let next_val = cursor.current_sort_values()?;
-            if cmp_sort_values(&next_val, heap_top, reverse_sorts) == Ordering::Greater {
-                heap.push(HeapItem {
-                    sort_values: next_val,
-                    file_id,
-                    reverse_sorts: Arc::clone(&reverse_sorts_arc),
-                });
-                break;
-            }
+            // Binary search invariant guarantees cursor.current_value > heap_top
+            // so we always yield here (no need for conditional check)
+            let val = cursor.current_sort_values()?;
+            heap.push(HeapItem {
+                sort_values: val,
+                file_id,
+                reverse_sorts: Arc::clone(&reverse_sorts_arc),
+            });
+            break;
         }
     }
 
@@ -223,5 +277,12 @@ pub fn merge_sorted(
         crc32
     );
 
-    Ok((metadata, crc32))
+    Ok(super::MergeOutput {
+        mapping,
+        gen_keys,
+        gen_offsets,
+        gen_sizes,
+        metadata,
+        crc32,
+    })
 }

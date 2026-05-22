@@ -31,12 +31,12 @@
 //! - `stream_get_schema`, `stream_close` must NOT be called
 //!   concurrently on the same stream pointer.
 
-use std::io::Cursor;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use arrow::ipc::reader::StreamReader;
+use arrow_schema::DataType;
+
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
 use arrow_array::{Array, StructArray};
@@ -52,6 +52,7 @@ use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
+use object_store::{ObjectStore, ObjectStoreExt};
 
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
@@ -73,17 +74,26 @@ pub struct QueryStreamHandle {
     /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
     /// by the session; dropping it prematurely causes use-after-free.
     _session_ctx: Option<datafusion::prelude::SessionContext>,
+    has_views: bool,
 }
 
 impl QueryStreamHandle {
+    fn schema_has_views(schema: &arrow_schema::SchemaRef) -> bool {
+        schema.fields().iter().any(|f| {
+            matches!(f.data_type(), DataType::Utf8View | DataType::BinaryView)
+        })
+    }
+
     pub fn new(
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
     ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: None,
+            has_views,
         }
     }
 
@@ -92,10 +102,12 @@ impl QueryStreamHandle {
         query_context: QueryTrackingContext,
         ctx: datafusion::prelude::SessionContext,
     ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: Some(ctx),
+            has_views,
         }
     }
 }
@@ -134,10 +146,31 @@ pub struct DataFusionRuntime {
     pub(crate) dynamic_limit_handle: DynamicLimitHandle,
 }
 
+impl DataFusionRuntime {
+    pub fn new_for_bench(runtime_env: datafusion::execution::runtime_env::RuntimeEnv) -> Self {
+        let (_pool, handle) = DynamicLimitPool::new(0);
+        Self {
+            runtime_env,
+            custom_cache_manager: None,
+            dynamic_limit_handle: handle,
+        }
+    }
+}
+
 /// Opaque shard view handle returned to the caller.
 pub struct ShardView {
     pub table_path: ListingTableUrl,
     pub object_metas: Arc<Vec<object_store::ObjectMeta>>,
+    /// Writer generation per file, parallel to `object_metas`. Sourced from the Java-side
+    /// catalog snapshot (`WriterFileSet.writerGeneration`) at reader-creation time. The
+    /// catalog is the authoritative source — Rust never reads generations from parquet
+    /// footers in production. Footer-kv reads, when they happen, are debug-only
+    /// assertions.
+    pub writer_generations: Arc<Vec<i64>>,
+    /// Per-shard object store. When a native store is provided (store_ptr > 0),
+    /// this routes reads through TieredObjectStore (local + remote).
+    /// When no store is provided, uses default LocalFileSystem.
+    pub store: Arc<dyn ObjectStore>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -163,8 +196,17 @@ pub fn create_global_runtime(
         )));
     }
 
+    let effective_spill_limit = if spill_limit == 0 {
+        resolve_dynamic_spill_limit(spill_dir)
+    } else {
+        spill_limit as u64
+    };
+
+    // Register spill directory for per-query disk pressure checks
+    crate::memory_guard::set_spill_dir(spill_dir);
+
     let disk_manager = DiskManagerBuilder::default()
-        .with_max_temp_directory_size(spill_limit as u64)
+        .with_max_temp_directory_size(effective_spill_limit)
         .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
     let (dynamic_pool, dynamic_limit_handle) = DynamicLimitPool::new(memory_pool_limit as usize);
@@ -220,6 +262,18 @@ pub unsafe fn get_memory_pool_limit(ptr: i64) -> i64 {
     runtime.dynamic_limit_handle.limit() as i64
 }
 
+/// Returns memory pool usage (bytes reserved) and tripped count as a pair.
+/// Output: [usage, tripped] written to the provided pointer.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+/// `out_ptr` must point to a buffer of at least 2 i64 values.
+pub unsafe fn get_memory_pool_stats(ptr: i64, out_ptr: *mut i64) {
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    *out_ptr = runtime.runtime_env.memory_pool.reserved() as i64;
+    *out_ptr.add(1) = runtime.dynamic_limit_handle.tripped_count() as i64;
+}
+
 /// Sets the memory pool limit at runtime. Takes effect for new allocations only.
 /// Returns an error if `new_limit` is negative.
 ///
@@ -234,23 +288,58 @@ pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), Stri
     Ok(())
 }
 
+/// Sets the minimum target_partitions floor for the adaptive budget system.
+/// When the budget reduces parallelism under memory pressure, it will not
+/// go below this value. Setting it equal to configured target_partitions
+/// effectively disables adaptive reduction.
+pub fn set_min_target_partitions(value: i64) {
+    crate::query_budget::set_min_target_partitions(value.max(1) as usize);
+}
+
 /// Creates a native reader (ShardView) for the given path and files.
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
 /// Caller must call `close_reader` exactly once to free it.
+///
+/// # Writer generations
+/// `writer_generations[i]` is the generation of `filenames[i]`. Both come from the Java
+/// catalog snapshot (`WriterFileSet.writerGeneration` and `WriterFileSet.files()`); the
+/// catalog is the source of truth. The generation is later passed to
+/// `FfmSegmentCollector::create` so the Java side can identify the corresponding Lucene
+/// leaf — no filename parsing or parquet-footer reads are involved on the production path.
+///
+/// # Ordering
+/// `filenames` are kept in the order supplied by the caller.
+///
+/// `store_ptr`: 0 = use default LocalFileSystem (hot path),
+/// >0 = Box<Arc<dyn ObjectStore>> pointer (routes reads through TieredObjectStore).
 pub fn create_reader(
     table_path: &str,
-    mut filenames: Vec<String>,
+    filenames: Vec<String>,
+    writer_generations: Vec<i64>,
     tokio_rt_manager: &RuntimeManager,
+    store_ptr: i64,
 ) -> Result<i64, DataFusionError> {
-    filenames.sort();
+    if filenames.len() != writer_generations.len() {
+        return Err(DataFusionError::Execution(format!(
+            "create_reader: filenames ({}) and writer_generations ({}) must have the same length",
+            filenames.len(),
+            writer_generations.len()
+        )));
+    }
 
     let table_url = ListingTableUrl::parse(table_path)
         .map_err(|e| DataFusionError::Execution(format!("Invalid table path: {}", e)))?;
 
-    // TODO: use global runtime's object store instead of building a throwaway RuntimeEnv
-    let default_rt = RuntimeEnvBuilder::new().build()?;
-    let store = default_rt.object_store(&table_url)?;
+    // Resolve the object store: if store_ptr > 0, clone the Arc from the boxed pointer.
+    // Otherwise use default LocalFileSystem.
+    let store: Arc<dyn ObjectStore> = if store_ptr > 0 {
+        let boxed = unsafe { &*(store_ptr as *const Arc<dyn ObjectStore>) };
+        Arc::clone(boxed)
+    } else {
+        let default_rt = RuntimeEnvBuilder::new().build()?;
+        default_rt.object_store(&table_url)?
+    };
 
     let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
         store.as_ref(),
@@ -261,6 +350,8 @@ pub fn create_reader(
     let shard_view = ShardView {
         table_path: table_url,
         object_metas: Arc::new(object_metas),
+        writer_generations: Arc::new(writer_generations),
+        store,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }
@@ -300,10 +391,46 @@ pub async unsafe fn execute_query(
 
     // Create per-query context — auto-registers in the global registry
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool);
+    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone());
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
+
+    // Check disk pressure: if spill space is critically low, reduce parallelism
+    // to minimize spill volume per query. One statvfs call (~1µs).
+    let disk_budget = crate::memory_guard::per_query_spill_budget();
+    let disk_capped_partitions = if disk_budget.is_none() {
+        // Critically low disk — minimize parallelism to reduce spill
+        1
+    } else {
+        query_config.target_partitions
+    };
+
+    // Acquire memory budget: reserve phantom for untracked memory.
+    // Best-effort from cached metadata (zero I/O). If not cached, skip budget
+    // — first query warms the cache, subsequent queries benefit.
+    let (effective_config, phantom_corrector) = {
+        let mut cfg = query_config.clone();
+        cfg.target_partitions = disk_capped_partitions;
+        let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, &global_pool, &cfg) {
+            cfg.target_partitions = budget.target_partitions;
+            cfg.batch_size = budget.batch_size;
+            let batches_in_pipeline = budget.target_partitions * 3 + 2; // partitions × multiplier + output channel(2)
+            let estimated_batch_bytes = if budget.phantom_bytes > 0 && batches_in_pipeline > 0 {
+                budget.phantom_bytes / batches_in_pipeline
+            } else {
+                cfg.batch_size * 100 // fallback
+            };
+            let corrector = Arc::new(crate::phantom_corrector::PhantomCorrector::new_from_metadata(
+                budget.phantom_bytes, estimated_batch_bytes, batches_in_pipeline,
+            ));
+            query_context.set_phantom_reservation(budget.phantom_reservation);
+            Some(query_context.set_phantom_corrector(corrector))
+        } else {
+            None
+        };
+        (cfg, corrector)
+    };
 
     // Peek at the substrait extensions list to see if this is an indexed query.
     // The `index_filter` UDF name appears there if Calcite planted any
@@ -313,14 +440,13 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
-    let query_future = async {
+    let query_future = async move {
         if is_indexed {
-            let qc = Arc::new(query_config);
+            let qc = Arc::new(effective_config);
             crate::indexed_executor::execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
                 shard_view,
-                qc.target_partitions.max(1),
                 runtime,
                 cpu_executor,
                 query_memory_pool,
@@ -335,7 +461,10 @@ pub async unsafe fn execute_query(
                 runtime,
                 cpu_executor,
                 query_memory_pool,
-                &query_config,
+                &effective_config,
+                context_id,
+                Arc::clone(&shard_view.store),
+                phantom_corrector,
             ).await
         }
     };
@@ -362,11 +491,86 @@ pub async unsafe fn execute_query(
 /// valid DataFusion identifier anywhere else a plan would naturally contain
 /// it; the failure mode is documented here to keep the dispatch contract
 /// explicit.
+/// Resolve the dynamic spill limit based on available disk space.
+/// Uses 80% of available space on the spill directory's filesystem.
+/// Falls back to 8GB if disk space cannot be determined.
+fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
+    const FRACTION: f64 = 0.80;
+    const FALLBACK: u64 = 8 * 1024 * 1024 * 1024; // 8GB
+
+    let _ = std::fs::create_dir_all(spill_dir);
+
+    match crate::memory_guard::available_disk_space(spill_dir) {
+        Some(available) => {
+            let limit = (available as f64 * FRACTION) as u64;
+            log::info!(
+                "Dynamic spill limit: {} bytes (80% of {} available on {})",
+                limit, available, spill_dir
+            );
+            limit
+        }
+        None => {
+            log::warn!(
+                "Could not determine disk space for '{}', using fallback {}GB",
+                spill_dir, FALLBACK / (1024 * 1024 * 1024)
+            );
+            FALLBACK
+        }
+    }
+}
+
 fn plan_bytes_mentions_index_filter(plan_bytes: &[u8]) -> bool {
-    // The substrait plan carries extension-function names as UTF-8 strings.
-    // Substring match is sufficient for dispatch.
     const NEEDLE: &[u8] = b"index_filter";
     plan_bytes.windows(NEEDLE.len()).any(|w| w == NEEDLE)
+}
+
+/// Best-effort budget acquisition from cached parquet metadata.
+///
+/// Looks up the first file's ParquetMetaData from the file metadata cache.
+/// If cached: extracts the schema + measured row bytes, acquires budget.
+/// If not cached: returns None (first query — skip budget, warm cache).
+/// Zero I/O in all cases.
+/// Best-effort budget acquisition from cached parquet metadata.
+///
+/// Looks up the first file's ParquetMetaData from the file metadata cache.
+/// If cached: extracts the schema + measured row bytes, acquires budget.
+/// If not cached: returns None (first query — skip budget, warm cache).
+/// Zero I/O in all cases.
+fn try_acquire_budget_from_cache(
+    shard_view: &ShardView,
+    runtime: &DataFusionRuntime,
+    pool: &Arc<dyn datafusion::execution::memory_pool::MemoryPool>,
+    config: &crate::datafusion_query_config::DatafusionQueryConfig,
+) -> Option<crate::query_budget::QueryMemoryBudget> {
+    use datafusion::execution::cache::CacheAccessor;
+    use parquet::arrow::parquet_to_arrow_schema;
+    use parquet::file::metadata::ParquetMetaData;
+
+    // Get the file metadata cache from the custom cache manager
+    let cache_mgr = runtime.custom_cache_manager.as_ref()?;
+    let cache = cache_mgr.get_file_metadata_cache_for_datafusion()?;
+
+    // Look up metadata for the first file
+    let first_meta = shard_view.object_metas.first()?;
+    let cached = cache.get(&first_meta.location)?;
+
+    // Downcast Arc<dyn FileMetadata> to ParquetMetaData
+    let parquet_meta = cached.file_metadata.as_any().downcast_ref::<ParquetMetaData>()?;
+
+    // Extract Arrow schema (zero I/O — just struct conversion)
+    let schema = parquet_to_arrow_schema(
+        parquet_meta.file_metadata().schema_descr(),
+        parquet_meta.file_metadata().key_value_metadata(),
+    ).ok().map(Arc::new)?;
+
+    // Acquire budget using measured row bytes from metadata
+    crate::query_budget::acquire_budget_from_metadata(
+        pool,
+        &schema,
+        parquet_meta,
+        config.target_partitions,
+        config.batch_size,
+    ).ok()
 }
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.
@@ -404,6 +608,14 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
 
     match result {
         Some(batch) => {
+            // Apply pending phantom correction from the self-correcting budget.
+            handle._query_tracking_context.apply_pending_phantom_correction();
+
+            let batch = if handle.has_views {
+                compact_string_view_columns(batch)
+            } else {
+                batch
+            };
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);
@@ -411,6 +623,61 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
         }
         None => Ok(0),
     }
+}
+
+/// Prevents sliced StringView batches from carrying full backing buffers across FFI.
+fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
+    let schema = batch.schema();
+    let needs_compaction = batch
+        .columns()
+        .iter()
+        .zip(schema.fields().iter())
+        .any(|(col, field)| match field.data_type() {
+            DataType::Utf8View => {
+                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
+                    .expect("column must be StringViewArray when schema declares Utf8View");
+                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
+            }
+            DataType::BinaryView => {
+                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
+                    .expect("column must be BinaryViewArray when schema declares BinaryView");
+                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
+            }
+            _ => false,
+        });
+    if !needs_compaction {
+        return batch;
+    }
+    let columns: Vec<Arc<dyn Array>> = batch
+        .columns()
+        .iter()
+        .zip(schema.fields().iter())
+        .map(|(col, field)| match field.data_type() {
+            DataType::Utf8View => {
+                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
+                    .expect("column must be StringViewArray when schema declares Utf8View");
+                Arc::new(view.gc()) as Arc<dyn Array>
+            }
+            DataType::BinaryView => {
+                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
+                    .expect("column must be BinaryViewArray when schema declares BinaryView");
+                Arc::new(view.gc()) as Arc<dyn Array>
+            }
+            _ => Arc::clone(col),
+        })
+        .collect();
+    RecordBatch::try_new(schema, columns).expect("gc'd columns must match schema")
+}
+
+// 10KB: below this, the gc() copy cost outweighs the transfer savings.
+const GC_MIN_WASTE_BYTES: usize = 10_240;
+
+#[inline]
+fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
+    let bytes_allocated: usize = buffers.iter().map(|b| b.len()).sum();
+    let waste = bytes_allocated.saturating_sub(bytes_used);
+    let is_significantly_bloated = bytes_allocated > 2 * bytes_used;
+    is_significantly_bloated && waste > GC_MIN_WASTE_BYTES
 }
 
 /// Closes a result stream. Safe to call with 0 (no-op).
@@ -444,7 +711,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -462,7 +729,7 @@ pub unsafe fn sql_to_substrait(
                 table: None,
                 path: table_path.prefix().clone(),
             },
-            object_metas,
+            CachedFileList::new(object_metas.as_ref().clone()),
         );
         let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
             .with_cache_manager(
@@ -471,6 +738,9 @@ pub unsafe fn sql_to_substrait(
                     .with_file_metadata_cache(Some(
                         runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                     ))
+                    .with_metadata_cache_limit(
+                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                    )
                     .with_files_statistics_cache(
                         runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                     ),
@@ -484,6 +754,7 @@ pub unsafe fn sql_to_substrait(
             .build();
         let ctx = datafusion::prelude::SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
+        crate::udaf::register_all(&ctx);
 
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
             .with_file_extension(".parquet")
@@ -491,6 +762,7 @@ pub unsafe fn sql_to_substrait(
         let schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
             .await?;
+        let schema = crate::schema_coerce::coerce_inferred_schema(schema);
         let config = ListingTableConfig::new(table_path)
             .with_listing_options(listing_options)
             .with_schema(schema);
@@ -504,6 +776,197 @@ pub unsafe fn sql_to_substrait(
             .map_err(|e| DataFusionError::Execution(format!("Substrait encode failed: {}", e)))?;
         Ok(buf)
     })
+}
+
+/// Lowers a partial-aggregate Substrait plan against a throwaway session and
+/// returns its physical output schema **narrowed via
+/// [`schema_coerce::coerce_inferred_schema`]** to types Substrait can bind
+/// against. NamedTable references are resolved against empty MemTables built
+/// from the substrait base_schema — the plan itself is the source of truth for
+/// the producer side, so no view-type or timestamp-precision rewrites are
+/// applied here beyond the post-physical coercer. The plan is dropped at
+/// function exit; only the schema is returned.
+///
+/// <p>The coercer flips Arrow-only types (notably `UInt64` from DataFusion's
+/// `row_number()` physical op) back to their Substrait-compatible counterparts
+/// (`Int64` matching isthmus's `ROW_NUMBER OVER` declaration). The producer
+/// side runs the same coercer + wraps its physical plan with
+/// [`crate::relabel_exec::RelabelExec`] (zero-copy bit-tag flip per mismatched
+/// column), so runtime batches arrive with the same type tags the consumer
+/// registers here — no per-batch cast needed at the partition-stream feed.
+fn derive_schema_from_partial_plan(
+    substrait_bytes: &[u8],
+) -> Result<arrow::datatypes::SchemaRef, DataFusionError> {
+    use datafusion::datasource::MemTable;
+    use datafusion::prelude::SessionContext;
+    use datafusion_substrait::extensions::Extensions;
+    use datafusion_substrait::logical_plan::consumer::{
+        from_substrait_named_struct, from_substrait_plan, DefaultSubstraitConsumer,
+    };
+    use prost::Message;
+    use substrait::proto::{read_rel::ReadType, Plan};
+
+    let plan = Plan::decode(substrait_bytes).map_err(|e| {
+        DataFusionError::Execution(format!("derive_schema_from_partial_plan: decode failed: {}", e))
+    })?;
+
+    let state = SessionStateBuilder::new()
+        .with_config(SessionConfig::new())
+        .with_default_features()
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
+
+    let extensions = Extensions::default();
+    let session_state = ctx.state();
+    let consumer = DefaultSubstraitConsumer::new(&extensions, &session_state);
+
+    let mut reads = Vec::new();
+    for plan_rel in &plan.relations {
+        if let Some(rel) = root_rel(plan_rel) {
+            collect_reads(&rel, &mut reads);
+        }
+    }
+    for read in &reads {
+        let Some(ReadType::NamedTable(nt)) = read.read_type.as_ref() else {
+            continue;
+        };
+        let table_name = nt.names.last().cloned().unwrap_or_default();
+        let base_schema = read.base_schema.as_ref().ok_or_else(|| {
+            DataFusionError::Execution("ReadRel missing base_schema".to_string())
+        })?;
+        let df_schema = from_substrait_named_struct(&consumer, base_schema)?;
+        let arrow_schema = df_schema.as_arrow().clone();
+
+        // Mirror the two transformations the data-node session applies to its
+        // parquet-read leaf, so the synthetic leaf we register here matches.
+        // Without these, HashAggregateExec lowers over Utf8 / Timestamp(Second)
+        // on this throwaway session while the real data-node session lowers
+        // over Utf8View / Timestamp(Millisecond) — same plan, divergent
+        // physical outputs, runtime schema-mismatch on the wire.
+        //
+        // No data conversion happens at runtime — these only configure the
+        // coordinator's StreamingTable so it accepts the producer's batches
+        // without reinterpretation. Long-term plan: have the data node embed
+        // its lowered output schema as substrait extension metadata so the
+        // coordinator skips this throwaway lowering and both mirrors evaporate.
+        let view_types = ctx
+            .copied_config()
+            .options()
+            .execution
+            .parquet
+            .schema_force_view_types;
+        let arrow_schema = if view_types {
+            datafusion::datasource::file_format::parquet::transform_schema_to_view(&arrow_schema)
+        } else {
+            arrow_schema
+        };
+        let arrow_schema = coerce_unsupported_timestamp_precision(&arrow_schema);
+
+        let table = MemTable::try_new(Arc::new(arrow_schema), vec![vec![]])?;
+        // Plan may scan the same table twice; the second register is a no-op.
+        let _ = ctx.register_table(&table_name, Arc::new(table));
+    }
+
+    let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
+    let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
+    Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
+}
+
+/// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message
+/// followed by the stream EOS marker). This is the wire format Java reads via
+/// `MessageChannelReader` / `ArrowStreamReader`.
+fn schema_to_ipc_bytes(schema: &arrow::datatypes::Schema) -> Result<Vec<u8>, DataFusionError> {
+    use arrow::ipc::writer::StreamWriter;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = StreamWriter::try_new(&mut buf, schema)
+            .map_err(|e| DataFusionError::Execution(format!("StreamWriter::try_new: {}", e)))?;
+        writer
+            .finish()
+            .map_err(|e| DataFusionError::Execution(format!("StreamWriter::finish: {}", e)))?;
+    }
+    Ok(buf)
+}
+
+/// Mirror parquet's coercion of Arrow Timestamp precisions it cannot
+/// represent in its logical type system. Parquet's TIMESTAMP supports
+/// MILLIS / MICROS / NANOS only — `Timestamp(Second)` is silently
+/// promoted to `Timestamp(Millisecond)` by the data-node parquet round
+/// trip (Arrow's `TimeUnit` enum is closed at four variants, so this
+/// is the only precision that needs coercion).
+fn coerce_unsupported_timestamp_precision(
+    schema: &arrow::datatypes::Schema,
+) -> arrow::datatypes::Schema {
+    use arrow::datatypes::{DataType, Field, TimeUnit};
+    let fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .map(|f| match f.data_type() {
+            DataType::Timestamp(TimeUnit::Second, tz) => Field::new(
+                f.name(),
+                DataType::Timestamp(TimeUnit::Millisecond, tz.clone()),
+                f.is_nullable(),
+            )
+            .with_metadata(f.metadata().clone()),
+            _ => f.as_ref().clone(),
+        })
+        .collect();
+    arrow::datatypes::Schema::new_with_metadata(fields, schema.metadata().clone())
+}
+
+fn root_rel(root: &substrait::proto::PlanRel) -> Option<substrait::proto::Rel> {
+    match root.rel_type.as_ref()? {
+        substrait::proto::plan_rel::RelType::Rel(r) => Some(r.clone()),
+        substrait::proto::plan_rel::RelType::Root(rr) => rr.input.as_ref().cloned(),
+    }
+}
+
+fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::ReadRel>) {
+    use substrait::proto::rel::RelType;
+    match rel.rel_type.as_ref() {
+        Some(RelType::Read(r)) => out.push((**r).clone()),
+        Some(RelType::Filter(f)) => {
+            if let Some(input) = &f.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Project(p)) => {
+            if let Some(input) = &p.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Aggregate(a)) => {
+            if let Some(input) = &a.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Sort(s)) => {
+            if let Some(input) = &s.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Fetch(f)) => {
+            if let Some(input) = &f.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Join(j)) => {
+            if let Some(left) = &j.left {
+                collect_reads(left, out);
+            }
+            if let Some(right) = &j.right {
+                collect_reads(right, out);
+            }
+        }
+        Some(RelType::Set(s)) => {
+            for input in &s.inputs {
+                collect_reads(input, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -542,18 +1005,15 @@ pub unsafe fn close_local_session(ptr: i64) {
     }
 }
 
-/// Registers a streaming input on the session under `input_id`, using the
-/// Arrow schema decoded from the IPC stream bytes.
+/// Registers a streaming input on the session under `input_id`. The schema is
+/// derived by lowering `partial_plan_bytes` (the producer side's substrait) to
+/// a physical plan and reading its output schema — that is the schema the
+/// producer will actually emit, so we eliminate any divergence between
+/// declared and physical types.
 ///
-/// The IPC bytes are expected to be a single schema message produced by
-/// Arrow's streaming IPC writer (e.g. Java's `MessageSerializer.serializeMetadata`
-/// or an `ArrowStreamWriter` flush of just the schema). Only the schema is
-/// read — any payload in the buffer is ignored.
-///
-/// Returns a heap-allocated pointer (as i64) to a [`PartitionStreamSender`].
-/// Caller must call `sender_close` exactly once to free it (closing the
-/// sender signals EOF to the receiver side, so the native execute driver
-/// naturally completes).
+/// Returns `(sender_ptr, schema_ipc_bytes)`. The IPC bytes are written so the
+/// Java tripwire (`typesMatch` in DatafusionReduceSink) can validate batches
+/// against the same schema the native session is registered with.
 ///
 /// # Safety
 /// `session_ptr` must be a valid, non-zero pointer returned by
@@ -561,19 +1021,19 @@ pub unsafe fn close_local_session(ptr: i64) {
 pub unsafe fn register_partition_stream(
     session_ptr: i64,
     input_id: &str,
-    schema_ipc: &[u8],
-) -> Result<i64, DataFusionError> {
+    partial_plan_bytes: &[u8],
+) -> Result<(i64, Vec<u8>), DataFusionError> {
     let session = &mut *(session_ptr as *mut LocalSession);
-    let mut cursor = Cursor::new(schema_ipc);
-    let reader = StreamReader::try_new(&mut cursor, None).map_err(|e| {
-        DataFusionError::Execution(format!(
-            "Failed to decode Arrow IPC schema for '{}': {}",
-            input_id, e
-        ))
-    })?;
-    let schema = reader.schema();
+    // derive_schema_from_partial_plan applies `schema_coerce::coerce_inferred_schema`
+    // to the physical plan's output schema, matching what isthmus declared on the wire
+    // for the producer (e.g. `Int64` for `ROW_NUMBER OVER`). The producer side runs the
+    // same coercer + wraps its physical plan with `RelabelExec`, so the batches arriving
+    // here through the partition channel are already typed to match this schema — no
+    // per-batch cast at feed time.
+    let schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+    let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
     let sender = session.register_partition(input_id, schema)?;
-    Ok(Box::into_raw(Box::new(sender)) as i64)
+    Ok((Box::into_raw(Box::new(sender)) as i64, schema_ipc))
 }
 
 /// Executes a Substrait plan against a `LocalSession` and returns a
@@ -600,14 +1060,65 @@ pub async unsafe fn execute_local_plan(
     let session = &*(session_ptr as *const LocalSession);
 
     // Per-query memory tracking — wraps the session's global pool. A
-    // `context_id` of 0 disables tracking (pool is not consulted).
+    // `context_id` of 0 disables tracking (pool is not consulted) and no
+    // cancellation token is registered in the global QUERY_REGISTRY.
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+    let token = query_tracker::get_cancellation_token(context_id);
 
-    let df_stream = session.execute_substrait(substrait_bytes).await?;
+    // Race substrait planning + execution against the cancellation token so
+    // a `cancel_query(context_id)` call from Java interrupts even before the
+    // first batch is produced (planning, from_substrait_plan, repartition
+    // setup, etc. can all take non-trivial time on a wide reduce).
+    let df_stream = cancellation::cancellable(
+        token.as_ref(),
+        context_id,
+        session.execute_substrait(substrait_bytes),
+    )
+    .await
+    .map_err(DataFusionError::Execution)?;
 
     // Wrap the output in the same CrossRtStream + RecordBatchStreamAdapter
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged.
+    let cross_rt_stream =
+        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
+
+    let handle = QueryStreamHandle::new(wrapped, query_context);
+    Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
+/// Executes the previously prepared final-aggregate plan on a local session.
+/// Mirrors [`execute_local_plan`] for the prepared-plan path: registers a
+/// query-tracking context + cancellation token under `context_id` so the
+/// parent `AnalyticsQueryTask` cancel propagates here, and wraps the native
+/// output in the same `CrossRtStream` + `RecordBatchStreamAdapter` + handle
+/// shape as the streaming path.
+///
+/// # Safety
+/// `session_ptr` must be a valid, non-zero pointer returned by
+/// `create_local_session` with a plan already prepared via
+/// [`LocalSession::prepare_final_plan`].
+pub unsafe fn execute_local_prepared_plan(
+    session_ptr: i64,
+    manager: &RuntimeManager,
+    context_id: i64,
+) -> Result<i64, DataFusionError> {
+    let session = &*(session_ptr as *const LocalSession);
+
+    // Registers the tracker + cancellation token under context_id in the
+    // shared QUERY_REGISTRY — parity with execute_query + execute_local_plan,
+    // so a `cancel_query(context_id)` call fires the token here too.
+    // The token is held via the QueryStreamHandle's context and consulted by
+    // stream_next on each batch pull.
+    let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+
+    // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
+    // stream channels that require a Tokio reactor. Enter the IO runtime's
+    // context so those operators can register with the reactor.
+    let _guard = manager.io_runtime.enter();
+    let df_stream = session.execute_prepared()?;
+
     let cross_rt_stream =
         CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
@@ -679,8 +1190,179 @@ pub unsafe fn sender_close(sender_ptr: i64) {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
+    use arrow_schema::{Field, Schema};
+
+    #[test]
+    fn stringview_gc_compacts_sliced_buffers() {
+        let total_rows = 100_000usize;
+        let slice_rows = 100usize;
+
+        let strings: Vec<String> = (0..total_rows)
+            .map(|i| format!("long_string_value_{:06}_padding", i))
+            .collect();
+        let string_view_array = StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+        let int_array = Int64Array::from_iter_values(0..total_rows as i64);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(string_view_array), Arc::new(int_array)],
+        )
+        .unwrap();
+
+        let sliced = batch.slice(0, slice_rows);
+
+        let before_size = sliced.column(0).get_array_memory_size();
+
+        let compacted = compact_string_view_columns(sliced);
+
+        let after_size = compacted.column(0).get_array_memory_size();
+
+        assert!(
+            before_size > after_size * 100,
+            "Expected >100x reduction on StringView column, got before={} after={} ratio={}",
+            before_size,
+            after_size,
+            before_size / after_size
+        );
+    }
+
+    #[test]
+    fn stringview_gc_inline_strings_no_change() {
+        let strings: Vec<&str> = (0..100).map(|_| "short").collect();
+        let string_view_array = StringViewArray::from_iter_values(strings.into_iter());
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(string_view_array.clone())]).unwrap();
+
+        let compacted = compact_string_view_columns(batch.clone());
+        let before_size = batch.columns()[0].get_array_memory_size();
+        let after_size = compacted.columns()[0].get_array_memory_size();
+        assert_eq!(before_size, after_size);
+    }
+
+    #[test]
+    fn stringview_gc_empty_array() {
+        let string_view_array = StringViewArray::from_iter_values(std::iter::empty::<&str>());
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(string_view_array)]).unwrap();
+        let compacted = compact_string_view_columns(batch);
+        assert_eq!(compacted.num_rows(), 0);
+    }
+
+    #[test]
+    fn binaryview_gc_compacts_sliced_buffers() {
+        let total_rows = 10_000usize;
+        let slice_rows = 10usize;
+
+        let values: Vec<Vec<u8>> = (0..total_rows)
+            .map(|i| format!("binary_payload_{:08}_extra_bytes", i).into_bytes())
+            .collect();
+        let binary_view_array =
+            BinaryViewArray::from_iter_values(values.iter().map(|v| v.as_slice()));
+        let int_array = Int64Array::from_iter_values(0..total_rows as i64);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("bin_col", DataType::BinaryView, false),
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(binary_view_array), Arc::new(int_array)],
+        )
+        .unwrap();
+
+        let sliced = batch.slice(0, slice_rows);
+        let before_size = sliced.columns()[0].get_array_memory_size();
+
+        let compacted = compact_string_view_columns(sliced);
+        let after_size = compacted.columns()[0].get_array_memory_size();
+
+        assert!(
+            before_size > after_size * 100,
+            "Expected large reduction for BinaryView, got before={} after={} ratio={}",
+            before_size,
+            after_size,
+            before_size / after_size
+        );
+    }
+
+    #[test]
+    fn no_view_columns_passthrough() {
+        let int_array = Int64Array::from_iter_values(0..1000);
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array)]).unwrap();
+        let compacted = compact_string_view_columns(batch.clone());
+        assert_eq!(
+            batch.columns()[0].get_array_memory_size(),
+            compacted.columns()[0].get_array_memory_size()
+        );
+    }
+
+    #[test]
+    fn non_sliced_batch_skips_gc() {
+        let strings: Vec<String> = (0..1000)
+            .map(|i| format!("long_string_value_{:06}_padding", i))
+            .collect();
+        let string_view_array: Arc<dyn Array> =
+            Arc::new(StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str())));
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::clone(&string_view_array)]).unwrap();
+
+        let compacted = compact_string_view_columns(batch);
+
+        assert!(
+            Arc::ptr_eq(&string_view_array, compacted.column(0)),
+            "Non-sliced batch must return the original column Arc (no copy)"
+        );
+    }
+
+    #[test]
+    fn view_needs_gc_detects_bloat() {
+        let strings: Vec<String> = (0..10_000)
+            .map(|i| format!("long_string_value_{:06}_padding", i))
+            .collect();
+        let full_array =
+            StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+
+        let sliced = full_array.slice(0, 100);
+        let sliced_view: &StringViewArray = sliced.as_any().downcast_ref().unwrap();
+        assert!(
+            view_needs_gc(sliced_view.data_buffers(), sliced_view.total_buffer_bytes_used()),
+            "Sliced array must be detected as needing gc"
+        );
+
+        assert!(
+            !view_needs_gc(full_array.data_buffers(), full_array.total_buffer_bytes_used()),
+            "Non-sliced array must NOT need gc"
+        );
+    }
+}
+
 /// Imports a batch of Arrow C Data structures into a [`Vec<RecordBatch>`] and
 /// registers them as an in-memory table on the given session under `input_id`.
+///
+/// The schema is derived by lowering `partial_plan_bytes` (the producer side's
+/// substrait) the same way `register_partition_stream` does. Returns the
+/// schema as IPC bytes so the Java side can validate fed batches against it.
 ///
 /// The Java side has accumulated all shard responses, exported each
 /// `VectorSchemaRoot` to a paired `FFI_ArrowArray` / `FFI_ArrowSchema`, and
@@ -698,10 +1380,10 @@ pub unsafe fn sender_close(sender_ptr: i64) {
 pub unsafe fn register_memtable(
     session_ptr: i64,
     input_id: &str,
-    schema_ipc: &[u8],
+    partial_plan_bytes: &[u8],
     array_ptrs: &[i64],
     schema_ptrs: &[i64],
-) -> Result<(), DataFusionError> {
+) -> Result<Vec<u8>, DataFusionError> {
     if array_ptrs.len() != schema_ptrs.len() {
         return Err(DataFusionError::Execution(format!(
             "register_memtable: array_ptrs.len()={} != schema_ptrs.len()={}",
@@ -711,22 +1393,13 @@ pub unsafe fn register_memtable(
     }
     let session = &mut *(session_ptr as *mut LocalSession);
 
-    let mut cursor = Cursor::new(schema_ipc);
-    let reader = StreamReader::try_new(&mut cursor, None).map_err(|e| {
-        DataFusionError::Execution(format!(
-            "Failed to decode Arrow IPC schema for '{}': {}",
-            input_id, e
-        ))
-    })?;
-    let table_schema = reader.schema();
+    let table_schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+    let schema_ipc = schema_to_ipc_bytes(table_schema.as_ref())?;
 
-    // The IPC schema is what the substrait plan was compiled against — same as the streaming
-    // sink registers. The exported VSRs may arrive with batch-level schemas that differ in
-    // nullability/metadata/field-naming details; the streaming sink tolerates this because
-    // DataFusion's streaming source addresses columns by index. `MemTable::try_new` instead
-    // checks each batch's schema against the table schema. To stay compatible with both
-    // shapes, rebuild each imported batch with `table_schema` — the column data is reused
-    // verbatim, but the schema header is the planner's.
+    // Exported VSRs may arrive with batch-level schemas that differ in
+    // nullability/metadata/field-naming details; rebuild each imported batch
+    // with `table_schema` so MemTable::try_new sees uniform headers. Column
+    // data is reused verbatim.
     let mut batches = Vec::with_capacity(array_ptrs.len());
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
@@ -746,5 +1419,6 @@ pub unsafe fn register_memtable(
         batches.push(aligned);
     }
 
-    session.register_memtable(input_id, table_schema, batches)
+    session.register_memtable(input_id, table_schema, batches)?;
+    Ok(schema_ipc)
 }

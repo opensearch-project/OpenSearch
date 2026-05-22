@@ -271,6 +271,39 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── Union followed by Sort ─────────────────────────────────────────────────
+
+    /**
+     * Mirrors {@code PlanShapeTests.testUnionThenSort_2shard}: union two arms then sort
+     * the unioned result. With an outer Sort the row order is deterministic across runs
+     * (the unioned multiset is stable), so we can use {@link #assertRows} instead of
+     * the multiset-comparing {@link #assertRowsAnyOrder}.
+     */
+    public void testAppendThenSort() throws IOException {
+        // Same shape as testAppend (sum(int0) by str0 ⊎ sum(int1) by str3) but with an
+        // outer | sort that makes the merged stream deterministic. Sort by sum ASC.
+        // The second branch produces sum=null for every row (its own column is sum_alt),
+        // and PPL `sort` defaults to nulls-first for ASC, so the null-sum branch precedes
+        // the integer-sum branch. Within the null-sum group, ties on `sum` are stable —
+        // but Calcite's stable-sort isn't guaranteed across two streams in a Union, so we
+        // assert as a multiset within the head-5 window.
+        assertRowsAnyOrder(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum by str0"
+                + " | append [ source="
+                + CALCS.indexName
+                + " | stats sum(int1) as sum_alt by str3 ]"
+                + " | sort sum"
+                + " | head 5",
+            row(null, null, -14, null),
+            row(null, null, -8, "e"),
+            row(1, "FURNITURE", null, null),
+            row(18, "OFFICE SUPPLIES", null, null),
+            row(49, "TECHNOLOGY", null, null)
+        );
+    }
+
     // ── type-incompatibility error raised in SchemaUnifier ─────────────────────
 
     public void testAppendWithConflictTypeColumn() {

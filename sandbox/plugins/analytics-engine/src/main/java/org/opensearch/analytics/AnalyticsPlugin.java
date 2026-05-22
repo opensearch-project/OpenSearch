@@ -25,10 +25,13 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -37,8 +40,11 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -59,6 +65,17 @@ import java.util.function.Supplier;
 public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
+
+    public static final String SCHEDULER_THREAD_POOL_NAME = "analytics_scheduler";
+    private static final int SCHEDULER_QUEUE_SIZE = 200;
+
+    public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
+        "analytics.coordinator.buffer_limit",
+        256L * 1024 * 1024,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * Creates a new analytics engine hub plugin.
@@ -87,21 +104,22 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
     ) {
+        ArrowAllocatorService allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
+
         operatorTable = aggregateOperatorTables();
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        searchService = new AnalyticsSearchService(backEndsByName, namedWriteableRegistry);
+        searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
 
-        // Returned as components so Guice can inject them into DefaultPlanExecutor
-        // (a HandledTransportAction registered via getActions() — constructed by Guice
-        // after createComponents) and into AnalyticsSearchTransportService.
         return List.of(searchService, ctx, capabilityRegistry);
     }
 
@@ -112,6 +130,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
             }).to(DefaultPlanExecutor.class);
             b.bind(EngineContext.class).to(DefaultEngineContext.class);
+            // Singleton bind on the concrete class so node-injector lookups for
+            // QueryScheduler.class don't fall back to a JIT binding (which would
+            // re-instantiate AnalyticsSearchTransportService, whose ctor registers
+            // transport handlers and is only legal to call once per node).
+            b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
         });
     }
@@ -119,6 +142,21 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(COORDINATOR_BUFFER_LIMIT);
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        int poolSize = schedulerPoolSize();
+        return List.of(new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME, poolSize, SCHEDULER_QUEUE_SIZE, "analytics"));
+    }
+
+    static int schedulerPoolSize() {
+        return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
     }
 
     @Override
@@ -136,11 +174,25 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     /**
      * Default implementation of {@link EngineContext}.
      */
-    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable) implements EngineContext {
+    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable, Map<
+        String,
+        AnalyticsSearchBackendPlugin> backends) implements EngineContext {
 
         @Override
         public SchemaPlus getSchema() {
             return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
         }
+
+        @Override
+        public Exception convertException(Exception e) {
+            for (AnalyticsSearchBackendPlugin backend : backends.values()) {
+                Exception converted = backend.convertException(e);
+                if (converted != e) {
+                    return converted;
+                }
+            }
+            return e;
+        }
     }
+
 }

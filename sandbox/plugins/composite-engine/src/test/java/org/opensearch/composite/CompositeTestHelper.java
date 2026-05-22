@@ -20,6 +20,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
@@ -28,6 +29,7 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -106,6 +108,62 @@ final class CompositeTestHelper {
         };
     }
 
+    /**
+     * Creates a CompositeIndexingExecutionEngine with custom writers for testing sort propagation.
+     * The primary engine returns primaryWriter, the secondary engine returns secondaryWriter.
+     */
+    static CompositeIndexingExecutionEngine createStubEngineWithWriters(
+        DataFormat primaryFormat,
+        Writer<DocumentInput<?>> primaryWriter,
+        DataFormat secondaryFormat,
+        Writer<DocumentInput<?>> secondaryWriter
+    ) {
+        Map<String, DataFormat> formats = new HashMap<>();
+        formats.put(primaryFormat.name(), primaryFormat);
+        formats.put(secondaryFormat.name(), secondaryFormat);
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format(primaryFormat.name())).thenReturn(primaryFormat);
+        when(registry.format(secondaryFormat.name())).thenReturn(secondaryFormat);
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormat format = invocation.getArgument(1);
+            if (format.name().equals(primaryFormat.name())) {
+                return new FixedWriterEngine(primaryFormat, primaryWriter);
+            } else {
+                return new FixedWriterEngine(secondaryFormat, secondaryWriter);
+            }
+        });
+
+        Settings settings = Settings.builder()
+            .put("index.composite.primary_data_format", primaryFormat.name())
+            .putList("index.composite.secondary_data_formats", secondaryFormat.name())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
+    }
+
+    /**
+     * An IndexingExecutionEngine that always returns the same pre-built writer.
+     */
+    static class FixedWriterEngine extends StubIndexingExecutionEngine {
+        private final Writer<DocumentInput<?>> fixedWriter;
+
+        FixedWriterEngine(DataFormat dataFormat, Writer<DocumentInput<?>> fixedWriter) {
+            super(dataFormat);
+            this.fixedWriter = fixedWriter;
+        }
+
+        @Override
+        public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+            return fixedWriter;
+        }
+    }
+
     static DataFormatPlugin stubPlugin(String formatName, long priority, Set<FieldTypeCapabilities> fields) {
         DataFormat format = stubFormat(formatName, priority, fields);
         return new DataFormatPlugin() {
@@ -157,9 +215,12 @@ final class CompositeTestHelper {
             this.dataFormat = dataFormat;
         }
 
+        StubWriter lastCreatedWriter;
+
         @Override
-        public Writer<DocumentInput<?>> createWriter(long writerGeneration) {
-            return new StubWriter(dataFormat);
+        public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+            lastCreatedWriter = new StubWriter(dataFormat);
+            return lastCreatedWriter;
         }
 
         @Override
@@ -208,6 +269,8 @@ final class CompositeTestHelper {
 
         private final DataFormat format;
         private WriteResult resultToReturn = new WriteResult.Success(1, 1, 1);
+        private boolean schemaMutable = true;
+        private long mappingVersion = 0;
 
         StubWriter(DataFormat format) {
             this.format = format;
@@ -217,13 +280,17 @@ final class CompositeTestHelper {
             this.resultToReturn = result;
         }
 
+        void setSchemaMutable(boolean mutable) {
+            this.schemaMutable = mutable;
+        }
+
         @Override
         public WriteResult addDoc(DocumentInput<?> d) {
             return resultToReturn;
         }
 
         @Override
-        public FileInfos flush() {
+        public FileInfos flush(FlushInput flushInput) {
             return FileInfos.empty();
         }
 
@@ -236,6 +303,21 @@ final class CompositeTestHelper {
         @Override
         public long generation() {
             return 0;
+        }
+
+        @Override
+        public boolean isSchemaMutable() {
+            return schemaMutable;
+        }
+
+        @Override
+        public long mappingVersion() {
+            return mappingVersion;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {
+            this.mappingVersion = newVersion;
         }
     }
 
@@ -255,6 +337,11 @@ final class CompositeTestHelper {
         public void setRowId(String rowIdFieldName, long rowId) {}
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return 0;
+        }
+
+        @Override
         public void close() {}
     }
 
@@ -265,7 +352,9 @@ final class CompositeTestHelper {
         boolean closeCalled = false;
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public void close() {
@@ -298,6 +387,11 @@ final class CompositeTestHelper {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("stub");
         }
     }
 }

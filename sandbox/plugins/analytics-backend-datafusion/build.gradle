@@ -39,9 +39,6 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
-  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
-  implementation project(':sandbox:libs:plugin-stats-spi')
-
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
   // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the
@@ -72,7 +69,15 @@ dependencies {
   // Substrait — Calcite RelNode to Substrait plan conversion for DataFusion native runtime
   implementation "io.substrait:isthmus:0.89.1"
   implementation "io.substrait:core:0.89.1"
+  // avatica ByteString is needed at compile time for IpBinaryFunctionAdapter's VARBINARY
+  // literal construction; runtime is provided by analytics-framework's runtimeOnly avatica.
+  compileOnly "org.apache.calcite.avatica:avatica-core:1.27.0"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
+  // jackson-datatype-jsr310 — added to arrow-flight-rpc (the parent plugin that bundles
+  // arrow-vector). arrow-vector's JsonStringArrayList eagerly registers JavaTimeModule on
+  // its ObjectMapper, so jsr310 must be visible to arrow-vector's defining classloader,
+  // not this plugin's. compileOnly here would also work; runtime is provided by parent.
+  compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
 
   calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"

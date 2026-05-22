@@ -39,7 +39,7 @@ pub struct FileCursor {
 impl FileCursor {
     /// Opens a Parquet file and creates a cursor positioned at the first row.
     ///
-    /// Returns `(cursor, projected_arrow_schema, parquet_schema_descriptor)`
+    /// Returns `(cursor, projected_arrow_schema, parquet_schema_descriptor, writer_generation)`
     /// so the caller can build union schemas without re-opening the file.
     pub fn new(
         path: &str,
@@ -47,10 +47,12 @@ impl FileCursor {
         sort_columns: &[String],
         nulls_first: &[bool],
         batch_size: usize,
-    ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor)> {
+    ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
         let file = File::open(path)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
         let schema = builder.schema().clone();
+        let writer_generation = crate::writer_properties_builder::read_writer_generation(builder.metadata().file_metadata(), file_id);
+        let total_row_count = builder.metadata().file_metadata().num_rows() as usize;
 
         let mut sort_col_types = Vec::with_capacity(sort_columns.len());
         for col_name in sort_columns {
@@ -127,7 +129,7 @@ impl FileCursor {
 
         cursor.start_prefetch();
 
-        Ok((cursor, projected_schema, parquet_schema_descr))
+        Ok((cursor, projected_schema, parquet_schema_descr, writer_generation, total_row_count))
     }
 
     fn start_prefetch(&mut self) {

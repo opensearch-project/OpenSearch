@@ -14,6 +14,7 @@ use datafusion::common::stats::{ColumnStatistics, Precision};
 use datafusion::common::ScalarValue;
 use dashmap::DashMap;
 use datafusion::execution::cache::CacheAccessor;
+use datafusion::execution::cache::cache_manager::{CachedFileMetadata, FileStatisticsCache, FileStatisticsCacheEntry};
 use datafusion::physical_plan::Statistics;
 use object_store::{path::Path, ObjectMeta};
 use std::collections::HashMap;
@@ -108,23 +109,28 @@ impl StatisticsMemorySize for Statistics {
     }
 }
 
+/// Combined memory state: per-key sizes + total.
+/// Protected by a single mutex to eliminate nested-lock deadlock risk.
+struct MemoryState {
+    tracker: HashMap<String, usize>,
+    total: usize,
+}
+
 /// Combined memory tracking and policy-based eviction cache
 ///
 /// This cache leverages DashMap's built-in concurrency from DefaultFileStatisticsCache
 /// and adds memory tracking + policy-based eviction on top.
 pub struct CustomStatisticsCache {
     /// The underlying DataFusion statistics cache (DashMap-based, already thread-safe)
-    inner_cache: DashMap<Path, (ObjectMeta, Arc<Statistics>)>,
+    inner_cache: DashMap<Path, CachedFileMetadata>,
     /// The eviction policy (thread-safe)
     policy: Arc<Mutex<Box<dyn CachePolicy>>>,
     /// Size limit for the cache in bytes
     size_limit: AtomicUsize,
     /// Eviction threshold (0.0 to 1.0)
     eviction_threshold: f64,
-    /// Memory usage tracker - maps cache keys to their memory consumption (thread-safe)
-    memory_tracker: Arc<Mutex<HashMap<String, usize>>>,
-    /// Total memory consumed by all entries (thread-safe)
-    total_memory: Arc<Mutex<usize>>,
+    /// Combined memory tracking state
+    memory_state: Arc<Mutex<MemoryState>>,
     /// Cache hit count (thread-safe)
     hit_count: Arc<Mutex<usize>>,
     /// Cache miss count (thread-safe)
@@ -139,8 +145,10 @@ impl CustomStatisticsCache {
             policy: Arc::new(Mutex::new(create_policy(policy_type))),
             size_limit: AtomicUsize::new(size_limit),
             eviction_threshold,
-            memory_tracker: Arc::new(Mutex::new(HashMap::new())),
-            total_memory: Arc::new(Mutex::new(0)),
+            memory_state: Arc::new(Mutex::new(MemoryState {
+                tracker: HashMap::new(),
+                total: 0,
+            })),
             hit_count: Arc::new(Mutex::new(0)),
             miss_count: Arc::new(Mutex::new(0)),
         }
@@ -152,13 +160,13 @@ impl CustomStatisticsCache {
     }
 
     /// Get the underlying cache for compatibility
-    pub fn inner(&self) -> &DashMap<Path, (ObjectMeta, Arc<Statistics>)> {
+    pub fn inner(&self) -> &DashMap<Path, CachedFileMetadata> {
         &self.inner_cache
     }
 
     /// Get total memory consumed by all cached statistics
     pub fn memory_consumed(&self) -> usize {
-        self.total_memory.lock().map(|guard| *guard).unwrap_or(0)
+        self.memory_state.lock().map(|guard| guard.total).unwrap_or(0)
     }
 
     /// Get cache hit count
@@ -207,14 +215,18 @@ impl CustomStatisticsCache {
 
     /// Switch to a different eviction policy
     pub fn set_policy(&self, policy_type: PolicyType) -> CacheResult<()> {
+        let entries: Vec<(String, usize)> = {
+            let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
+                reason: format!("Failed to acquire memory_state lock: {}", e),
+            })?;
+            state.tracker.iter().map(|(k, v)| (k.clone(), *v)).collect()
+        };
         let mut policy_guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
             reason: format!("Failed to acquire policy lock: {}", e),
         })?;
         let mut new_policy = create_policy(policy_type);
-        if let Ok(tracker) = self.memory_tracker.lock() {
-            for (key, size) in tracker.iter() {
-                new_policy.on_insert(key, *size);
-            }
+        for (key, size) in entries {
+            new_policy.on_insert(&key, size);
         }
         *policy_guard = new_policy;
         Ok(())
@@ -246,18 +258,19 @@ impl CustomStatisticsCache {
 
         let mut freed_size = 0;
         for key in candidates {
-            let entry_size = if let Ok(tracker) = self.memory_tracker.lock() {
-                tracker.get(&key).copied().unwrap_or(0)
-            } else { 0 };
+            let entry_size = {
+                let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
+                    reason: format!("Failed to acquire memory_state lock: {}", e),
+                })?;
+                state.tracker.get(&key).copied().unwrap_or(0)
+            };
 
             if entry_size > 0 {
                 if let Ok(path) = self.parse_key_to_path(&key) {
                     if self.inner_cache.remove(&path).is_some() {
-                        if let Ok(mut tracker) = self.memory_tracker.lock() {
-                            if let Ok(mut total) = self.total_memory.lock() {
-                                tracker.remove(&key);
-                                *total = total.saturating_sub(entry_size);
-                            }
+                        if let Ok(mut state) = self.memory_state.lock() {
+                            state.tracker.remove(&key);
+                            state.total = state.total.saturating_sub(entry_size);
                         }
                         if let Ok(mut policy_guard) = self.policy.lock() {
                             policy_guard.on_remove(&key);
@@ -271,44 +284,57 @@ impl CustomStatisticsCache {
         Ok(freed_size)
     }
 
+    /// Convenience method: put statistics with associated metadata (replaces old put_with_extra)
+    pub fn put_statistics(
+        &self,
+        k: &Path,
+        stats: Arc<Statistics>,
+        meta: &ObjectMeta,
+    ) -> Option<CachedFileMetadata> {
+        let cached = CachedFileMetadata::new(meta.clone(), stats, None);
+        self.put(k, cached)
+    }
+
+    /// Convenience method: get just the statistics Arc (for callers that don't need full CachedFileMetadata)
+    pub fn get_statistics(&self, k: &Path) -> Option<Arc<Statistics>> {
+        self.get(k).map(|c| c.statistics)
+    }
+
     /// Parse cache key back to Path
     fn parse_key_to_path(&self, key: &str) -> CacheResult<Path> {
         Ok(Path::from(key))
     }
 
     /// Remove entry internally (works with &self since inner_cache is thread-safe)
-    fn remove_internal(&self, k: &Path) -> Option<Arc<Statistics>> {
+    fn remove_internal(&self, k: &Path) -> Option<CachedFileMetadata> {
         let key = k.to_string();
         let result = self.inner_cache.remove(k);
         if result.is_some() {
-            if let Ok(mut tracker) = self.memory_tracker.lock() {
-                if let Ok(mut total) = self.total_memory.lock() {
-                    if let Some(old_size) = tracker.remove(&key) {
-                        *total = total.saturating_sub(old_size);
-                    }
+            if let Ok(mut state) = self.memory_state.lock() {
+                if let Some(old_size) = state.tracker.remove(&key) {
+                    state.total = state.total.saturating_sub(old_size);
                 }
             }
             if let Ok(mut policy_guard) = self.policy.lock() {
                 policy_guard.on_remove(&key);
             }
         }
-        result.map(|x| x.1 .1)
+        result.map(|x| x.1)
     }
 }
 
-// Implement CacheAccessor - DashMap handles concurrency, we just need to handle the &mut self requirement
-impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
-    type Extra = ObjectMeta;
-
-    fn get(&self, k: &Path) -> Option<Arc<Statistics>> {
+// Implement CacheAccessor - DashMap handles concurrency
+impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
+    fn get(&self, k: &Path) -> Option<CachedFileMetadata> {
         let result = self.inner_cache.get(k);
 
         if result.is_some() {
             if let Ok(mut hits) = self.hit_count.lock() { *hits += 1; }
             let key = k.to_string();
-            let memory_size = if let Ok(tracker) = self.memory_tracker.lock() {
-                tracker.get(&key).copied().unwrap_or(0)
-            } else { 0 };
+            let memory_size = {
+                let state = self.memory_state.lock();
+                state.map(|s| s.tracker.get(&key).copied().unwrap_or(0)).unwrap_or(0)
+            };
             if let Ok(mut policy_guard) = self.policy.lock() {
                 policy_guard.on_access(&key, memory_size);
             }
@@ -316,46 +342,27 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
             if let Ok(mut misses) = self.miss_count.lock() { *misses += 1; }
         }
 
-        result.map(|s| Some(Arc::clone(&s.value().1))).unwrap_or(None)
+        result.map(|s| s.value().clone())
     }
 
-    fn get_with_extra(&self, k: &Path, _extra: &Self::Extra) -> Option<Arc<Statistics>> {
-        self.get(k)
-    }
-
-    fn put(&self, k: &Path, v: Arc<Statistics>) -> Option<Arc<Statistics>> {
-        let meta = ObjectMeta {
-            location: k.clone(),
-            last_modified: chrono::Utc::now(),
-            size: 0,
-            e_tag: None,
-            version: None,
-        };
-        self.put_with_extra(k, v, &meta)
-    }
-
-    fn put_with_extra(
-        &self,
-        k: &Path,
-        v: Arc<Statistics>,
-        e: &Self::Extra,
-    ) -> Option<Arc<Statistics>> {
+    fn put(&self, k: &Path, v: CachedFileMetadata) -> Option<CachedFileMetadata> {
         let key = k.to_string();
-        let memory_size = v.memory_size();
+        let memory_size = v.statistics.memory_size();
 
-        let eviction_candidates = if let Ok(tracker) = self.memory_tracker.lock() {
-            if let Ok(total) = self.total_memory.lock() {
-                let current_size = *total;
-                let size_limit = self.size_limit.load(Ordering::Relaxed);
-                let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
-                if current_size + memory_size > threshold {
-                    let target_eviction = (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
-                    if let Ok(policy_guard) = self.policy.lock() {
-                        policy_guard.select_for_eviction(target_eviction)
-                    } else { vec![] }
+        let current_size = self.memory_state.lock()
+            .map(|s| s.total)
+            .unwrap_or(0);
+
+        let eviction_candidates = {
+            let size_limit = self.size_limit.load(Ordering::Relaxed);
+            let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
+            if current_size + memory_size > threshold {
+                let target_eviction = (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
+                if let Ok(policy_guard) = self.policy.lock() {
+                    policy_guard.select_for_eviction(target_eviction)
                 } else { vec![] }
             } else { vec![] }
-        } else { vec![] };
+        };
 
         for candidate_key in eviction_candidates {
             if let Ok(path) = self.parse_key_to_path(&candidate_key) {
@@ -363,16 +370,14 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
             }
         }
 
-        let result = self.inner_cache.insert(k.clone(), (e.clone(), v)).map(|x| x.1);
+        let result = self.inner_cache.insert(k.clone(), v);
 
-        if let Ok(mut tracker) = self.memory_tracker.lock() {
-            if let Ok(mut total) = self.total_memory.lock() {
-                if let Some(old_size) = tracker.get(&key) {
-                    *total = total.saturating_sub(*old_size);
-                }
-                tracker.insert(key.clone(), memory_size);
-                *total += memory_size;
+        if let Ok(mut state) = self.memory_state.lock() {
+            if let Some(old_size) = state.tracker.get(&key) {
+                state.total = state.total.saturating_sub(*old_size);
             }
+            state.tracker.insert(key.clone(), memory_size);
+            state.total += memory_size;
         }
 
         if let Ok(mut policy_guard) = self.policy.lock() {
@@ -382,22 +387,20 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
         result
     }
 
-    fn remove(&self, k: &Path) -> Option<Arc<Statistics>> {
+    fn remove(&self, k: &Path) -> Option<CachedFileMetadata> {
         let key = k.to_string();
         let result = self.inner_cache.remove(k);
         if result.is_some() {
-            if let Ok(mut tracker) = self.memory_tracker.lock() {
-                if let Ok(mut total) = self.total_memory.lock() {
-                    if let Some(old_size) = tracker.remove(&key) {
-                        *total = total.saturating_sub(old_size);
-                    }
+            if let Ok(mut state) = self.memory_state.lock() {
+                if let Some(old_size) = state.tracker.remove(&key) {
+                    state.total = state.total.saturating_sub(old_size);
                 }
             }
             if let Ok(mut policy_guard) = self.policy.lock() {
                 policy_guard.on_remove(&key);
             }
         }
-        result.map(|x| x.1 .1)
+        result.map(|x| x.1)
     }
 
     fn contains_key(&self, k: &Path) -> bool {
@@ -405,13 +408,15 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
     }
 
     fn len(&self) -> usize {
-        self.memory_tracker.lock().map(|t| t.len()).unwrap_or(0)
+        self.memory_state.lock().map(|s| s.tracker.len()).unwrap_or(0)
     }
 
     fn clear(&self) {
         self.inner_cache.clear();
-        if let Ok(mut tracker) = self.memory_tracker.lock() { tracker.clear(); }
-        if let Ok(mut total) = self.total_memory.lock() { *total = 0; }
+        if let Ok(mut state) = self.memory_state.lock() {
+            state.tracker.clear();
+            state.total = 0;
+        }
         if let Ok(mut policy_guard) = self.policy.lock() { policy_guard.clear(); }
         self.reset_stats();
     }
@@ -424,8 +429,8 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
     }
 }
 
-impl datafusion::execution::cache::cache_manager::FileStatisticsCache for CustomStatisticsCache {
-    fn list_entries(&self) -> std::collections::HashMap<object_store::path::Path, datafusion::execution::cache::cache_manager::FileStatisticsCacheEntry> {
+impl FileStatisticsCache for CustomStatisticsCache {
+    fn list_entries(&self) -> std::collections::HashMap<Path, FileStatisticsCacheEntry> {
         std::collections::HashMap::new()
     }
 }
@@ -511,7 +516,7 @@ mod tests {
         let path = create_test_path("file1");
         let meta = create_test_meta(&path);
         let stats = Arc::new(create_test_statistics());
-        cache.put_with_extra(&path, stats, &meta);
+        cache.put_statistics(&path, stats, &meta);
 
         assert!(cache.memory_consumed() > 0);
         assert_eq!(cache.len(), 1);
@@ -525,7 +530,7 @@ mod tests {
             let path = create_test_path(&format!("file{}", i));
             let meta = create_test_meta(&path);
             let stats = Arc::new(create_test_statistics());
-            cache.put_with_extra(&path, stats, &meta);
+            cache.put_statistics(&path, stats, &meta);
         }
         assert!(cache.memory_consumed() <= 1000);
         assert!(cache.len() > 0);
@@ -538,7 +543,7 @@ mod tests {
             let path = create_test_path(&format!("file{}", i));
             let meta = create_test_meta(&path);
             let stats = Arc::new(create_test_statistics());
-            cache.put_with_extra(&path, stats, &meta);
+            cache.put_statistics(&path, stats, &meta);
         }
         let memory_before = cache.memory_consumed();
         assert!(memory_before > 0);
@@ -554,7 +559,7 @@ mod tests {
             let path = create_test_path(&format!("file{}", i));
             let meta = create_test_meta(&path);
             let stats = Arc::new(create_test_statistics());
-            cache.put_with_extra(&path, stats, &meta);
+            cache.put_statistics(&path, stats, &meta);
         }
         let memory_before = cache.memory_consumed();
         assert_eq!(cache.policy_name().unwrap(), "lru");
@@ -572,8 +577,8 @@ mod tests {
         let meta2 = create_test_meta(&path2);
         let stats = Arc::new(create_test_statistics());
 
-        cache.put_with_extra(&path1, stats.clone(), &meta1);
-        cache.put_with_extra(&path2, stats, &meta2);
+        cache.put_statistics(&path1, stats.clone(), &meta1);
+        cache.put_statistics(&path2, stats, &meta2);
         let memory_with_two = cache.memory_consumed();
         assert_eq!(cache.len(), 2);
 
@@ -593,7 +598,7 @@ mod tests {
             let path = create_test_path(&format!("file{}", i));
             let meta = create_test_meta(&path);
             let stats = Arc::new(create_test_statistics());
-            cache.put_with_extra(&path, stats, &meta);
+            cache.put_statistics(&path, stats, &meta);
         }
         assert!(cache.memory_consumed() > 0);
         cache.clear();
@@ -607,7 +612,7 @@ mod tests {
         let path = create_test_path("file1");
         let meta = create_test_meta(&path);
         let stats = Arc::new(create_test_statistics());
-        cache.put_with_extra(&path, stats, &meta);
+        cache.put_statistics(&path, stats, &meta);
 
         assert!(cache.get(&path).is_some());
         assert_eq!(cache.hit_count(), 1);
@@ -635,7 +640,7 @@ mod tests {
         let path1 = create_test_path("file1");
         let meta1 = create_test_meta(&path1);
         let stats = Arc::new(create_test_statistics());
-        cache.put_with_extra(&path1, stats, &meta1);
+        cache.put_statistics(&path1, stats, &meta1);
 
         cache.get(&path1); // hit
         cache.get(&path1); // hit
@@ -652,7 +657,7 @@ mod tests {
         let path = create_test_path("file1");
         let meta = create_test_meta(&path);
         let stats = Arc::new(create_test_statistics());
-        cache.put_with_extra(&path, stats, &meta);
+        cache.put_statistics(&path, stats, &meta);
 
         cache.get(&path);
         let path2 = create_test_path("missing");
@@ -672,7 +677,7 @@ mod tests {
         let path = create_test_path("file1");
         let meta = create_test_meta(&path);
         let stats = Arc::new(create_test_statistics());
-        cache.put_with_extra(&path, stats, &meta);
+        cache.put_statistics(&path, stats, &meta);
         cache.get(&path);
 
         cache.clear();
@@ -693,7 +698,7 @@ mod tests {
                 let path = create_test_path(&format!("concurrent{}", i));
                 let meta = create_test_meta(&path);
                 let stats = Arc::new(create_test_statistics());
-                cache_clone.put_with_extra(&path, stats, &meta);
+                cache_clone.put_statistics(&path, stats, &meta);
                 assert!(cache_clone.get(&path).is_some());
             });
             handles.push(handle);

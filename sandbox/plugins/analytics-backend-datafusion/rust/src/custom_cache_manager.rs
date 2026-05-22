@@ -11,7 +11,6 @@ use datafusion::execution::cache::cache_manager::{FileMetadataCache, FileStatist
 use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
 use datafusion::execution::cache::CacheAccessor;
 use crate::statistics_cache::compute_parquet_statistics;
-use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
@@ -106,7 +105,7 @@ impl CustomCacheManager {
     }
 
     /// Add multiple files to all applicable caches
-    pub fn add_files(&self, file_paths: &[String]) -> Result<Vec<(String, bool)>, String> {
+    pub fn add_files(&self, file_paths: &[String], rt_handle: &tokio::runtime::Handle) -> Result<Vec<(String, bool)>, String> {
         let mut results = Vec::new();
 
         for file_path in file_paths {
@@ -114,7 +113,7 @@ impl CustomCacheManager {
             let mut errors = Vec::new();
 
             // Add to metadata cache
-            match self.metadata_cache_put(file_path) {
+            match self.metadata_cache_put(file_path, rt_handle) {
                 Ok(true) => {
                     any_success = true;
                 }
@@ -162,36 +161,29 @@ impl CustomCacheManager {
             let mut errors = Vec::new();
 
             // Remove from metadata cache
-            match create_object_meta_from_file(file_path) {
-                Ok(object_metas) => {
-                    if let Some(cache) = &self.file_metadata_cache {
-                        match cache.inner.lock() {
-                            Ok(cache_guard) => {
-                                if let Some(object_meta) = object_metas.first() {
-                                    if cache_guard.remove(object_meta).is_some() {
-                                        any_removed = true;
-                                    } else {
-                                        debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                errors.push(format!("Metadata cache: Cache remove failed: {}", e));
+            {
+                let path = Path::from(file_path.clone());
+                if let Some(cache) = &self.file_metadata_cache {
+                    match cache.inner.lock() {
+                        Ok(cache_guard) => {
+                            if cache_guard.remove(&path).is_some() {
+                                any_removed = true;
+                            } else {
+                                debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                             }
                         }
-                    } else {
-                        errors.push("No metadata cache configured".to_string());
+                        Err(e) => {
+                            errors.push(format!("Metadata cache: Cache remove failed: {}", e));
+                        }
                     }
-                }
-                Err(e) => {
-                    errors.push(format!("Failed to get object metadata: {}", e));
+                } else {
+                    errors.push("No metadata cache configured".to_string());
                 }
             }
 
             // Remove from statistics cache
             if let Some(cache) = &self.statistics_cache {
                 let path = Path::from(file_path.clone());
-                // Use the CacheAccessor remove method to properly update memory tracking
                 if cache.remove(&path).is_some() {
                     any_removed = true;
                 }
@@ -214,18 +206,12 @@ impl CustomCacheManager {
         let mut found = false;
 
         // Check metadata cache
-        match create_object_meta_from_file(file_path) {
-            Ok(object_metas) => {
-                if let Some(cache) = &self.file_metadata_cache {
-                    if let Some(object_meta) = object_metas.first() {
-                        if cache.get(object_meta).is_some() {
-                            found = true;
-                        }
-                    }
+        {
+            let path = Path::from(file_path);
+            if let Some(cache) = &self.file_metadata_cache {
+                if cache.get(&path).is_some() {
+                    found = true;
                 }
-            }
-            Err(e) => {
-                error!("Failed to get object metadata for {}: {}", file_path, e);
             }
         }
 
@@ -244,10 +230,10 @@ impl CustomCacheManager {
     pub fn contains_file_by_type(&self, file_path: &str, cache_type: &str) -> bool {
         match cache_type {
             crate::cache::CACHE_TYPE_METADATA => {
-                create_object_meta_from_file(file_path)
-                    .ok()
-                    .and_then(|metas| metas.first().cloned())
-                    .and_then(|meta| self.file_metadata_cache.as_ref()?.get(&meta))
+                let path = Path::from(file_path);
+                self.file_metadata_cache
+                    .as_ref()
+                    .and_then(|cache| cache.get(&path))
                     .is_some()
             }
             crate::cache::CACHE_TYPE_STATS => {
@@ -354,7 +340,7 @@ impl CustomCacheManager {
     }
 
     /// Internal method to put metadata into cache
-    fn metadata_cache_put(&self, file_path: &str) -> Result<bool, String> {
+    fn metadata_cache_put(&self, file_path: &str, rt_handle: &tokio::runtime::Handle) -> Result<bool, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
             return Ok(false); // Skip unsupported formats
         }
@@ -379,21 +365,20 @@ impl CustomCacheManager {
         // 2. Load the complete metadata including column and offset indexes
         // 3. Automatically put the metadata into the cache (lines 155-160 in datafusion's metadata.rs)
         // This ensures we cache exactly what DataFusion would cache during query execution
-        let _parquet_metadata = Runtime::new()
-            .map_err(|e| format!("Failed to create Tokio Runtime: {}", e))?
-            .block_on(async {
-                let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
-                    .with_file_metadata_cache(Some(metadata_cache));
+        let _parquet_metadata = rt_handle.block_on(async {
+            let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
+                .with_file_metadata_cache(Some(metadata_cache));
 
-                // fetch_metadata() performs the cache put operation internally
-                df_metadata.fetch_metadata().await
-                    .map_err(|e| format!("Failed to fetch metadata: {}", e))
-            })?;
+            // fetch_metadata() performs the cache put operation internally
+            df_metadata.fetch_metadata().await
+                .map_err(|e| format!("Failed to fetch metadata: {}", e))
+        })?;
 
         // Verify the metadata was cached properly
         match cache_ref.inner.lock() {
             Ok(cache_guard) => {
-                if cache_guard.contains_key(object_meta) {
+                let path = Path::from(file_path.to_string());
+                if cache_guard.contains_key(&path) {
                     Ok(true)
                 } else {
                     debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
@@ -429,7 +414,7 @@ impl CustomCacheManager {
                     version: None,
                 };
 
-                cache.put_with_extra(&path, Arc::new(stats), &meta);
+                cache.put_statistics(&path, Arc::new(stats), &meta);
                 Ok(true)
             }
             Err(e) => {
@@ -466,7 +451,7 @@ impl CustomCacheManager {
                         version: None,
                     };
 
-                    cache.put_with_extra(&path, Arc::new(stats), &meta);
+                    cache.put_statistics(&path, Arc::new(stats), &meta);
                     success_count += 1;
                 }
                 Err(e) => {

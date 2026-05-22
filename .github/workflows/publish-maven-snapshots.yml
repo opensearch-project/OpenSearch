@@ -19,11 +19,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-      - name: Set up JDK 21
+      - name: Set up JDK 25 (required for sandbox publishing, default min support is still 21)
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25  # TODO: switch back to jdk21 once sandbox plugins set min compat to 21
 
       - name: Install protoc (Linux)
         run: |
@@ -50,6 +50,6 @@ jobs:
           role-to-assume: ${{ env.MAVEN_SNAPSHOTS_S3_ROLE }}
           aws-region: us-east-1
 
-      - name: Publish snapshots to maven
+      - name: Publish snapshots to maven (with sandbox)
         run: |
-          ./gradlew publishNebulaPublicationToSnapshotsRepository -Pcrypto.standard=FIPS-140-3
+          ./gradlew publishNebulaPublicationToSnapshotsRepository -Dsandbox.enabled=true -Pcrypto.standard=FIPS-140-3

@@ -10,6 +10,7 @@ package org.opensearch.index.engine.dataformat.stub;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -44,7 +45,7 @@ public class MockWriter implements Writer<MockDocumentInput> {
     }
 
     @Override
-    public FileInfos flush() {
+    public FileInfos flush(FlushInput flushInput) {
         WriterFileSet fileSet = WriterFileSet.builder()
             .directory(directory)
             .writerGeneration(writerGeneration)
@@ -61,6 +62,19 @@ public class MockWriter implements Writer<MockDocumentInput> {
     public long generation() {
         return writerGeneration;
     }
+
+    @Override
+    public boolean isSchemaMutable() {
+        return true;
+    }
+
+    @Override
+    public long mappingVersion() {
+        return 0;
+    }
+
+    @Override
+    public void updateMappingVersion(long newVersion) {}
 
     @Override
     public void close() {}

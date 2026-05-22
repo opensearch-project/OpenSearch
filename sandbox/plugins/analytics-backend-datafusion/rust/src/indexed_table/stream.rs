@@ -258,7 +258,7 @@ pub struct IndexedExec {
     pub(crate) store_url: datafusion::execution::object_store::ObjectStoreUrl,
     pub(crate) row_groups: Vec<RowGroupInfo>,
     pub(crate) projection: Option<Vec<usize>>,
-    pub(crate) properties: PlanProperties,
+    pub(crate) properties: Arc<PlanProperties>,
     pub(crate) metadata: Arc<ParquetMetaData>,
     pub(crate) predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     /// Pluggable bitset source (SingleCollector or RustTree).
@@ -266,8 +266,6 @@ pub struct IndexedExec {
     pub(crate) doc_range: Option<(i32, i32)>,
     pub(crate) metrics: ExecutionPlanMetricsSet,
     pub(crate) stream_metrics: StreamMetrics,
-    pub(crate) force_pushdown: Option<bool>,
-    pub(crate) force_strategy: Option<FilterStrategy>,
     /// Query-scoped tunables. Shared by Arc across IndexedExec instances
     /// from the same query; read once per RG into local fields inside
     /// `IndexedStream` so the hot path never touches the Arc.
@@ -311,7 +309,7 @@ impl ExecutionPlan for IndexedExec {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
-    fn properties(&self) -> &PlanProperties {
+    fn properties(&self) -> &Arc<PlanProperties> {
         &self.properties
     }
     fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
@@ -358,8 +356,8 @@ impl ExecutionPlan for IndexedExec {
             Arc::clone(&self.metadata),
             self.predicate.clone(),
             self.stream_metrics.clone(),
-            self.force_pushdown,
-            self.force_strategy,
+            self.query_config.force_pushdown,
+            self.query_config.force_strategy,
             self.query_config.min_skip_run_default,
             self.query_config.min_skip_run_selectivity_threshold,
             self.query_config.indexed_pushdown_filters,
@@ -920,16 +918,24 @@ impl IndexedStream {
                             } else if self.evaluator.needs_row_mask() {
                                 let t_build = Instant::now();
                                 let m = if let Some(buf) = prefetch_mask_buffer.as_ref() {
-                                    // Fast path: evaluator already produced
-                                    // the packed bits. Wrap as BooleanArray
-                                    // with zero per-RG work (just Arc clone
-                                    // of the Buffer).
-                                    let bb = datafusion::arrow::buffer::BooleanBuffer::new(
-                                        buf.clone(),
-                                        0,
-                                        rg.num_rows as usize,
-                                    );
-                                    BooleanArray::new(bb, None)
+                                    if matches!(position_map, PositionMap::Identity { .. }) {
+                                        // Fast path: full-scan regime (no skips),
+                                        // delivered row i == RG position i. Wrap
+                                        // the pre-built packed bits as BooleanArray
+                                        // with zero per-RG allocation.
+                                        let bb = datafusion::arrow::buffer::BooleanBuffer::new(
+                                            buf.clone(),
+                                            0,
+                                            rg.num_rows as usize,
+                                        );
+                                        BooleanArray::new(bb, None)
+                                    } else {
+                                        // Block-granular: RowSelection has skip
+                                        // runs, so delivered rows don't map 1:1
+                                        // to RG positions. Must build the mask
+                                        // through PositionMap.
+                                        build_mask(&candidates, &position_map)
+                                    }
                                 } else {
                                     build_mask(&candidates, &position_map)
                                 };

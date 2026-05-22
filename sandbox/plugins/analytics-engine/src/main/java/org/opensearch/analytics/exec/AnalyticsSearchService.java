@@ -9,23 +9,24 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationDescriptor;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
-import org.opensearch.common.Nullable;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -33,12 +34,13 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Data-node service that executes plan fragments against local shards.
@@ -50,7 +52,7 @@ import java.util.Map;
  * {@link IndexShard} from the transport action.
  *
  * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of the
- * node-level root via {@link ArrowAllocatorProvider}. One allocator per service means memory accounting is
+ * node-level root via {@link ArrowAllocatorService}. One allocator per service means memory accounting is
  * reported at the service level. For the streaming path, Arrow Flight's outbound handler co-locates its
  * transfer target on the same root (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
  * same-root and avoiding the known cross-allocator bug with foreign-backed buffers from the C Data Interface.
@@ -59,27 +61,35 @@ import java.util.Map;
  */
 public class AnalyticsSearchService implements AutoCloseable {
 
+    private static final Logger LOGGER = LogManager.getLogger(AnalyticsSearchService.class);
+
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
-    private final BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private TaskResourceTrackingService taskResourceTrackingService;
+    private final BufferAllocator allocator;
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
-        this(backends, List.of(), null);
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
+        this(backends, List.of(), allocatorService, null);
     }
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, NamedWriteableRegistry namedWriteableRegistry) {
-        this(backends, List.of(), namedWriteableRegistry);
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        ArrowAllocatorService allocatorService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
+        this(backends, List.of(), allocatorService, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
+        ArrowAllocatorService allocatorService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocator = ArrowAllocatorProvider.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+        this.allocator = allocatorService.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
@@ -88,25 +98,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         allocator.close();
     }
 
-    public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard) {
-        return executeFragment(request, shard, null);
-    }
-
-    public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
-        ResolvedFragment resolved = resolveFragment(request, shard);
-        long startNanos = System.nanoTime();
-        try (FragmentResources ctx = startFragment(request, resolved, shard, task)) {
-            FragmentExecutionResponse response = collectResponse(ctx.stream(), task);
-            long tookNanos = System.nanoTime() - startNanos;
-            listener.onFragmentSuccess(resolved.queryId, resolved.stageId, resolved.shardIdStr, tookNanos, response.getRows().size());
-            return response;
-        } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
-            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
-            throw e;
-        } catch (Exception e) {
-            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
-            throw new RuntimeException("Failed to execute fragment on " + shard.shardId(), e);
-        }
+    public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
+        this.taskResourceTrackingService = service;
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
@@ -122,12 +115,52 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
+    /**
+     * Async variant that forks fragment execution onto the given executor and streams
+     * batches back through the channel. The transport thread returns immediately.
+     */
+    public void executeFragmentStreamingAsync(
+        FragmentExecutionRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task,
+        StreamingFragmentResponseHandler responseHandler,
+        Executor executor
+    ) {
+        try {
+            executor.execute(() -> {
+                try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
+                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
+                    while (it.hasNext()) {
+                        responseHandler.onBatch(it.next());
+                    }
+                    responseHandler.onComplete();
+                } catch (Exception e) {
+                    responseHandler.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            responseHandler.onFailure(e);
+        }
+    }
+
+    /**
+     * Callback interface for async fragment streaming results.
+     */
+    public interface StreamingFragmentResponseHandler {
+        void onBatch(EngineResultBatch batch) throws Exception;
+
+        void onComplete();
+
+        void onFailure(Exception e);
+    }
+
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
+        Runnable trackerCleanup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
@@ -151,14 +184,42 @@ public class AnalyticsSearchService implements AutoCloseable {
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
                 backend.configureFilterDelegation(handle, backendContext);
+
+                if (task != null && taskResourceTrackingService != null) {
+                    long taskId = task.getId();
+                    TaskResourceTrackingService service = taskResourceTrackingService;
+                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
+                        @Override
+                        public long trackStart() {
+                            long threadId = Thread.currentThread().threadId();
+                            service.taskExecutionStartedOnThread(taskId, threadId);
+                            return threadId;
+                        }
+
+                        @Override
+                        public void trackEnd(long threadId) {
+                            service.taskExecutionFinishedOnThread(taskId, threadId);
+                        }
+                    });
+                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
+                }
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream);
+            return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
         } catch (Exception e) {
+            LOGGER.error(
+                () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                    "startFragment failed [queryId={}, stageId={}, shardId={}]",
+                    resolved.queryId,
+                    resolved.stageId,
+                    resolved.shardIdStr
+                ),
+                e
+            );
             try {
-                new FragmentResources(gatedReader, engine, stream).close();
+                new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -225,34 +286,4 @@ public class AnalyticsSearchService implements AutoCloseable {
         return ctx;
     }
 
-    FragmentExecutionResponse collectResponse(EngineResultStream stream) {
-        return collectResponse(stream, null);
-    }
-
-    FragmentExecutionResponse collectResponse(EngineResultStream stream, @Nullable AnalyticsShardTask task) {
-        List<Object[]> rows = new ArrayList<>();
-        List<String> fieldNames = null;
-        Iterator<EngineResultBatch> it = stream.iterator();
-        while (it.hasNext()) {
-            if (task != null && task.isCancelled()) {
-                throw new TaskCancelledException("task cancelled: " + task.getReasonCancelled());
-            }
-            EngineResultBatch batch = it.next();
-            try {
-                if (fieldNames == null) {
-                    fieldNames = batch.getFieldNames();
-                }
-                for (int row = 0; row < batch.getRowCount(); row++) {
-                    Object[] vals = new Object[fieldNames.size()];
-                    for (int col = 0; col < fieldNames.size(); col++) {
-                        vals[col] = batch.getFieldValue(fieldNames.get(col), row);
-                    }
-                    rows.add(vals);
-                }
-            } finally {
-                batch.getArrowRoot().close();
-            }
-        }
-        return new FragmentExecutionResponse(fieldNames != null ? fieldNames : List.of(), rows);
-    }
 }

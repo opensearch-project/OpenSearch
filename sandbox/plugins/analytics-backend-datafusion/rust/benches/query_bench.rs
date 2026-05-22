@@ -46,7 +46,7 @@ fn setup() -> (RuntimeManager, DataFusionRuntime, tempfile::TempDir) {
         .with_disk_manager_builder(DiskManagerBuilder::default())
         .build()
         .unwrap();
-    let df_runtime = DataFusionRuntime { runtime_env };
+    let df_runtime = DataFusionRuntime::new_for_bench(runtime_env);
     let tmp = tempfile::tempdir().unwrap();
     (mgr, df_runtime, tmp)
 }
@@ -104,7 +104,7 @@ fn bench_execute_query(c: &mut Criterion) {
                     let exec = mgr.cpu_executor();
                     async {
                         let ptr = query_executor::execute_query(
-                            url, metas, "t".into(), plan, &df_runtime, exec, None, &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(),
+                            url, metas, "t".into(), plan, &df_runtime, exec, None, &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(),
                         ).await.unwrap();
                         // Consume and free the stream
                         let mut stream = unsafe {
@@ -149,7 +149,7 @@ fn bench_stream_next(c: &mut Criterion) {
                     &df_runtime,
                     exec,
                     None,
-                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(
+                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
                     ),
                 )
                 .await
@@ -197,7 +197,7 @@ fn bench_aggregation(c: &mut Criterion) {
                     &df_runtime,
                     exec,
                     None,
-                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(
+                    &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::test_default(
                     ),
                 )
                 .await

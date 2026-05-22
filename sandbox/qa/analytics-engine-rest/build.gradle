@@ -36,6 +36,9 @@ dependencies {
 // All test clusters share the same plugin set and JVM flags; only node count
 // and feature-specific settings differ per task.
 def configureAnalyticsCluster = { cluster ->
+    // arrow-base must precede any plugin that declares it in extendedPlugins —
+    // opensearch-plugin install runs in list order and fails jarHell otherwise.
+    cluster.plugin ':plugins:arrow-base'
     cluster.plugin ':plugins:arrow-flight-rpc'
     cluster.plugin ':sandbox:plugins:analytics-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-datafusion'
@@ -48,6 +51,13 @@ def configureAnalyticsCluster = { cluster ->
     // Arrow/Flight JVM flags for DataFusion native library
     cluster.jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
     cluster.jvmArgs '--enable-native-access=ALL-UNNAMED'
+
+    // Calcite's Aggregate.typeMatchesInferred enforces declared == inferred per aggCall.
+    // Distributed FINAL aggregates pin a different return type than what re-inference over
+    // the array-typed StageInputScan column would produce — the engine's substrait emit
+    // and Rust's derive_schema_from_partial_plan are the source of truth, not Calcite's
+    // re-inference. Disable that one assertion namespace; -ea remains on elsewhere.
+    cluster.jvmArgs '-da:org.apache.calcite...'
 
     // Arrow memory allocator needs Netty unsafe access on JDK 25; mirrors
     // gradle/run.gradle's arrow-flight-rpc overrides so AnalyticsSearchService
@@ -62,11 +72,15 @@ def configureAnalyticsCluster = { cluster ->
 
     // Enable pluggable dataformat feature flag
     cluster.systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+
+    // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
+    cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
 
 // ── Default integTest cluster ────────────────────────────────────────────────
 // TODO: enable numberOfNodes = 2 once partial aggs is handled
 testClusters.integTest {
+    numberOfNodes = 2
     configureAnalyticsCluster(delegate)
 }
 
@@ -109,7 +123,6 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
-    systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
 
 // Run against an external cluster (no testClusters lifecycle):

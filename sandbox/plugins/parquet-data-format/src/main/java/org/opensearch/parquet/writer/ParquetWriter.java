@@ -11,10 +11,13 @@ package org.opensearch.parquet.writer;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
-import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.index.store.FileMetadata;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -35,7 +38,7 @@ import java.nio.file.Path;
  * <p>Writer-level settings (e.g., {@code parquet.max_rows_per_vsr}) are extracted from
  * the {@link IndexSettings} passed at construction time and propagated to the VSR layer.
  *
- * <p>The returned {@link FileInfos} from {@link #flush()} contains the file path, writer
+ * <p>The returned {@link FileInfos} from {@link #flush(FlushInput)} contains the file path, writer
  * generation, and row count for downstream commit tracking.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
@@ -45,12 +48,14 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
     private final FormatChecksumStrategy checksumStrategy;
+    private long mappingVersion;
 
     /**
      * Creates a new ParquetWriter.
      *
      * @param file output Parquet file path
      * @param writerGeneration generation number for this writer
+     * @param mappingVersion the initial mapping version
      * @param dataFormat the Parquet data format instance
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
@@ -61,6 +66,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     public ParquetWriter(
         String file,
         long writerGeneration,
+        long mappingVersion,
         ParquetDataFormat dataFormat,
         Schema schema,
         ArrowBufferPool bufferPool,
@@ -70,6 +76,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
         this.checksumStrategy = checksumStrategy;
         this.vsrManager = new VSRManager(
@@ -78,7 +85,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             schema,
             bufferPool,
             ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
-            threadPool
+            threadPool,
+            writerGeneration
         );
     }
 
@@ -89,7 +97,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public FileInfos flush() throws IOException {
+    public FileInfos flush(FlushInput flushInput) throws IOException {
         ParquetFileMetadata metadata = vsrManager.flush();
         if (file == null || metadata == null || metadata.numRows() == 0) {
             return FileInfos.empty();
@@ -99,18 +107,20 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         Path filePath = Path.of(file);
         String fileName = filePath.getFileName().toString();
 
-        // Register the pre-computed CRC32 so the upload path can read it in O(1)
+        // Register the pre-computed CRC32 so the upload path can read it in O(1).
+        // Use the FileMetadata overload so the strategy owns key derivation.
         if (checksumStrategy != null && metadata.crc32() != 0) {
-            checksumStrategy.registerChecksum(fileName, metadata.crc32(), writerGeneration);
+            checksumStrategy.registerChecksum(new FileMetadata(dataFormat.name(), fileName), metadata.crc32(), writerGeneration);
         }
 
-        WriterFileSet writerFileSet = WriterFileSet.builder()
-            .directory(filePath.getParent().toAbsolutePath())
-            .writerGeneration(writerGeneration)
-            .addFile(fileName)
-            .addNumRows(metadata.numRows())
-            .build();
-        return FileInfos.builder().putWriterFileSet(dataFormat, writerFileSet).build();
+        MonoFileWriterSet monoFileSet = MonoFileWriterSet.of(
+            filePath.getParent().toAbsolutePath(),
+            writerGeneration,
+            fileName,
+            metadata.numRows(),
+            ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION
+        );
+        return FileInfos.builder().putWriterFileSet(dataFormat, monoFileSet).rowIdMapping(vsrManager.getRowIdMapping()).build();
     }
 
     @Override
@@ -121,6 +131,23 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     @Override
     public long generation() {
         return writerGeneration;
+    }
+
+    @Override
+    public boolean isSchemaMutable() {
+        return vsrManager.isSchemaMutable();
+    }
+
+    @Override
+    public long mappingVersion() {
+        return mappingVersion;
+    }
+
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        if (newVersion > this.mappingVersion) {
+            this.mappingVersion = newVersion;
+        }
     }
 
     @Override

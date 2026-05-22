@@ -8,12 +8,11 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheUtils;
+import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -21,7 +20,6 @@ import org.opensearch.common.settings.ClusterSettings;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Node-level service managing the DataFusion native runtime lifecycle.
@@ -45,14 +43,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
 
-    /** Shared Arrow allocator for all DataFusion result streams on this node. */
-    private volatile RootAllocator rootAllocator;
-
     /** Cache manager for pre-warming and managing native caches. */
     private volatile CacheManager cacheManager;
-
-    /** Counter for generating unique child allocator names. */
-    private final AtomicLong allocatorCounter = new AtomicLong();
 
     private DataFusionService(Builder builder) {
         this.memoryPoolLimit = builder.memoryPoolLimit;
@@ -74,13 +66,24 @@ public class DataFusionService extends AbstractLifecycleComponent {
         logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
 
         long cacheManagerPtr = 0L;
+        NativeCacheManagerHandle cacheHandle = null;
         if (clusterSettings != null) {
-            cacheManagerPtr = CacheUtils.createCacheConfig(clusterSettings);
+            cacheHandle = CacheUtils.createCacheConfig(clusterSettings);
+            cacheManagerPtr = cacheHandle.getPointer();
         }
 
-        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
-        this.runtimeHandle = new NativeRuntimeHandle(ptr);
-        this.rootAllocator = new RootAllocator(memoryPoolLimit);
+        try {
+            long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+            if (cacheHandle != null) {
+                cacheHandle.markConsumed();
+            }
+            this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        } catch (Exception e) {
+            if (cacheHandle != null) {
+                cacheHandle.close();
+            }
+            throw e;
+        }
 
         if (clusterSettings != null) {
             this.cacheManager = new CacheManager(runtimeHandle);
@@ -95,21 +98,16 @@ public class DataFusionService extends AbstractLifecycleComponent {
         try {
             releaseRuntime();
         } finally {
-            try {
-                if (rootAllocator != null) {
-                    rootAllocator.close();
-                    rootAllocator = null;
-                }
-            } finally {
-                NativeBridge.shutdownTokioRuntimeManager();
-            }
+            NativeBridge.shutdownTokioRuntimeManager();
         }
+
         logger.debug("DataFusion service stopped");
     }
 
     @Override
     protected void doClose() throws IOException {
         releaseRuntime();
+        NativeBridge.shutdownTokioRuntimeManager();
     }
 
     /**
@@ -139,6 +137,11 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return NativeBridge.getMemoryPoolLimit(getNativeRuntime().get());
     }
 
+    /** Returns [usage_bytes, tripped_count] from the native memory pool. Single FFM call. */
+    public long[] getMemoryPoolStats() {
+        return NativeBridge.getMemoryPoolStats(getNativeRuntime().get());
+    }
+
     /**
      * Sets the memory pool limit at runtime. Takes effect for new allocations only.
      * Existing reservations that exceed the new limit are NOT reclaimed.
@@ -163,21 +166,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return NativeBridge.stats();
     }
     // Cache management (node-level, delegates to native runtime)
-
-    /**
-     * Creates a new child allocator from the shared root allocator.
-     * Each child has independent accounting but shares the root's memory limit.
-     *
-     * @return a new child {@link BufferAllocator}
-     * @throws IllegalStateException if the service has not been started
-     */
-    public BufferAllocator newChildAllocator() {
-        RootAllocator alloc = rootAllocator;
-        if (alloc == null) {
-            throw new IllegalStateException("DataFusionService has not been started");
-        }
-        return alloc.newChildAllocator("datafusion-stream-" + allocatorCounter.getAndIncrement(), 0, alloc.getLimit());
-    }
 
     /**
      * Returns the cache manager, or null if caching is not configured.

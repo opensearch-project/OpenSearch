@@ -66,7 +66,7 @@ pub(in crate::indexed_table::tests_e2e) struct LoadedSegment {
 }
 
 /// Load the corpus's parquet files into `SegmentFileInfo`s. Each
-/// segment gets `segment_ord = i` and a `first_row` reflecting its
+/// segment gets `writer_generation = i` and a `first_row` reflecting its
 /// offset in the global doc-id space (so Collector doc-ids keep
 /// working across segments).
 pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> LoadedSegment {
@@ -98,7 +98,7 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: i as i32,
+            writer_generation: i as i64,
             max_doc: seg_rows as i64,
             object_path,
             parquet_size: size,
@@ -208,6 +208,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let cfg_max_parallelism = _corpus.config.max_collector_parallelism;
     let cfg_batch_size = _corpus.config.batch_size;
     let cfg_target_partitions = _corpus.config.target_partitions;
+    let cfg_min_skip_run = _corpus.config.min_skip_run_override;
 
     let factory: EvaluatorFactory = {
         let per_leaf = per_leaf.clone();
@@ -244,14 +245,13 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
-                max_collector_parallelism: cfg_max_parallelism
-                    .unwrap_or(if num_tags > 1 {
-                        // Multi-collector tree: randomly pick 1 (sequential) or
-                        // up to 4 (parallel) to exercise PrecomputedLeafCache.
-                        [1, 1, 2, 4][seed as usize % 4]
-                    } else {
-                        1
-                    }),
+                max_collector_parallelism: cfg_max_parallelism.unwrap_or(if num_tags > 1 {
+                    // Multi-collector tree: randomly pick 1 (sequential) or
+                    // up to 4 (parallel) to exercise PrecomputedLeafCache.
+                    [1, 1, 2, 4][seed as usize % 4]
+                } else {
+                    1
+                }),
                 pruning_predicates: Arc::clone(&pruning_predicates),
                 page_prune_metrics: Some(
                     crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
@@ -271,23 +271,23 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(cfg_target_partitions.max(1))
+        .force_strategy(force_strategy)
+        .force_pushdown(force_pushdown)
+        .batch_size(cfg_batch_size.unwrap_or([128, 1024, 8192][seed as usize % 3]));
+    if let Some(msr) = cfg_min_skip_run {
+        qcb = qcb.min_skip_run_default(msr);
+    }
+    let qc = qcb.build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: cfg_target_partitions.max(1),
-        force_strategy,
-        force_pushdown,
         pushdown_predicate: None,
-        query_config: Arc::new({
-            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::default();
-            // Vary batch_size to exercise the coalescer at different boundaries.
-            qc.batch_size = cfg_batch_size
-                .unwrap_or([128, 1024, 8192][seed as usize % 3]);
-            qc
-        }),
+        query_config: Arc::new(qc),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
     }));
 
@@ -385,7 +385,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         Arc::new(move |segment, _chunk, stream_metrics| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
-                Arc::clone(&collector),
+                Some(Arc::clone(&collector)),
                 pruner,
                 residual_pp.clone(),
                 residual_physical.clone(),
@@ -396,13 +396,16 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 ),
                 stream_metrics.ffm_collector_calls.clone(),
                 call_strategy,
+                std::sync::Arc::new(std::collections::HashMap::new()),
+                segment.writer_generation,
+                std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
             ));
             let _ = segment;
             Ok(eval)
         })
     };
 
-    Some(run_single_collector_query(loaded, factory, residual_logical, force_strategy).await)
+    Some(run_single_collector_query(loaded, factory, residual_logical, force_strategy, _corpus.config.min_skip_run_override).await)
 }
 
 /// Execute `SELECT * FROM t WHERE <residual>` so DataFusion's planner
@@ -415,6 +418,7 @@ async fn run_single_collector_query(
     factory: EvaluatorFactory,
     residual: datafusion::logical_expr::Expr,
     force_strategy: Option<FilterStrategy>,
+    min_skip_run_override: Option<usize>,
 ) -> Vec<i32> {
     // Convert the residual logical Expr to a PhysicalExpr and stash
     // as pushdown_predicate — mirrors what `execute_indexed_query`
@@ -446,21 +450,23 @@ async fn run_single_collector_query(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let mut qcb = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(force_strategy)
+        .force_pushdown(Some(true))
+        .batch_size([128, 1024, 8192][loaded.segments.len() % 3]);
+    if let Some(msr) = min_skip_run_override {
+        qcb = qcb.min_skip_run_default(msr);
+    }
+    let qc = qcb.build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy,
-        force_pushdown: Some(true), // SingleCollector relies on decode-time pushdown
         pushdown_predicate,
-        query_config: Arc::new({
-            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::default();
-            qc.batch_size = [128, 1024, 8192][loaded.segments.len() % 3];
-            qc
-        }),
+        query_config: Arc::new(qc),
         predicate_columns: pred_cols,
     }));
     let ctx = SessionContext::new();
@@ -619,6 +625,7 @@ fn bool_to_logical(node: &BoolNode) -> Option<datafusion::logical_expr::Expr> {
         }
         BoolNode::Collector { .. } => None,
         BoolNode::Predicate(expr) => lift_phys_to_logical(expr),
+        BoolNode::DelegationPossible { original_expr, .. } => lift_phys_to_logical(original_expr),
     }
 }
 
@@ -654,21 +661,20 @@ async fn run_with_factory_plan(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(force_strategy)
+        .force_pushdown(force_pushdown)
+        .batch_size([256, 1024, 8192][loaded.segments.len() % 3])
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy,
-        force_pushdown,
         pushdown_predicate,
-        query_config: Arc::new({
-            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::default();
-            qc.batch_size = [256, 1024, 8192][loaded.segments.len() % 3];
-            qc
-        }),
+        query_config: Arc::new(qc),
         predicate_columns: vec![], // run_with_factory_plan is low-level; caller controls projection
     }));
     let ctx = SessionContext::new();
@@ -713,6 +719,7 @@ fn collect_predicate_exprs_harness(
         BoolNode::Not(inner) => collect_predicate_exprs_harness(inner, out),
         BoolNode::Collector { .. } => {}
         BoolNode::Predicate(expr) => out.push(Arc::clone(expr)),
+        BoolNode::DelegationPossible { original_expr, .. } => out.push(Arc::clone(original_expr)),
     }
 }
 
@@ -836,8 +843,14 @@ async fn run_iteration_impl(
     // doesn't implement, so we don't assert on those.
     let classification = classify_filter(&tree.tree);
     if classification == FilterClass::Tree {
-        let sc_result =
-            execute_tree_single_collector(corpus, loaded, tree, None, CollectorCallStrategy::FullRange).await;
+        let sc_result = execute_tree_single_collector(
+            corpus,
+            loaded,
+            tree,
+            None,
+            CollectorCallStrategy::FullRange,
+        )
+        .await;
         if sc_result.is_some() {
             return Err(format!(
                 "classify_filter returned Tree but execute_tree_single_collector \
@@ -959,6 +972,60 @@ mod tests {
             .expect("bare Collector must round-trip");
     }
 
+    /// Bare Collector with 50% density and small `min_skip_run` (4).
+    /// Forces the block-granular mask path where `PositionMap::Runs`
+    /// is non-identity and `current_mask` must be built through
+    /// `build_mask` (not the zero-copy `prefetch_mask_buffer` fast
+    /// path). Catches the mask-alignment bug where `finalize_batch`
+    /// indexes the RG-relative mask by delivered-row offset after
+    /// skip runs shift the alignment.
+    #[tokio::test]
+    async fn harness_bare_collector_block_granular() {
+        use rand::rngs::StdRng;
+        use rand::seq::SliceRandom;
+        use rand::SeedableRng;
+
+        let cfg = FixtureConfig::block_granular_dense(0x4444);
+        let corpus = build_corpus(cfg);
+        let loaded = load_segment(&corpus);
+        let tree = BoolNode::And(vec![BoolNode::Collector {
+            annotation_id: 0,
+        }]);
+        let mut rng = StdRng::seed_from_u64(0x5555);
+        let mut candidates: Vec<i32> = (0..corpus.num_rows() as i32).collect();
+        candidates.shuffle(&mut rng);
+        candidates.truncate(corpus.num_rows() / 2);
+        candidates.sort_unstable();
+
+        let gt = GeneratedTree {
+            tree,
+            collector_matches: vec![candidates],
+        };
+        let expected = oracle_evaluate(&gt, &corpus);
+        for strategy in [
+            None,
+            Some(FilterStrategy::RowSelection),
+            Some(FilterStrategy::BooleanMask),
+        ] {
+            let actual = execute_tree_single_collector(
+                &corpus,
+                &loaded,
+                &gt,
+                strategy,
+                CollectorCallStrategy::FullRange,
+            )
+            .await
+            .expect("bare Collector classifies as SingleCollector");
+            assert_eq!(
+                expected, actual,
+                "bare collector block-granular strategy={:?}: expected {} rows, got {}",
+                strategy,
+                expected.len(),
+                actual.len()
+            );
+        }
+    }
+
     #[tokio::test]
     async fn harness_bare_predicate() {
         use datafusion::common::ScalarValue;
@@ -1059,10 +1126,15 @@ mod tests {
 
         let expected = oracle_evaluate(&gt, &corpus);
         // Force BooleanMask strategy through the SingleCollector path.
-        let actual =
-            execute_tree_single_collector(&corpus, &loaded, &gt, Some(FilterStrategy::BooleanMask), CollectorCallStrategy::PageRangeSplit)
-                .await
-                .expect("tree classifies as SingleCollector");
+        let actual = execute_tree_single_collector(
+            &corpus,
+            &loaded,
+            &gt,
+            Some(FilterStrategy::BooleanMask),
+            CollectorCallStrategy::PageRangeSplit,
+        )
+        .await
+        .expect("tree classifies as SingleCollector");
         assert_eq!(
             expected,
             actual,
@@ -1216,9 +1288,15 @@ mod tests {
             Some(FilterStrategy::RowSelection),
             Some(FilterStrategy::BooleanMask),
         ] {
-            let actual = execute_tree_single_collector(&corpus, &loaded, &gt, strategy, CollectorCallStrategy::PageRangeSplit)
-                .await
-                .expect("tree classifies as SingleCollector");
+            let actual = execute_tree_single_collector(
+                &corpus,
+                &loaded,
+                &gt,
+                strategy,
+                CollectorCallStrategy::PageRangeSplit,
+            )
+            .await
+            .expect("tree classifies as SingleCollector");
             assert_eq!(
                 expected,
                 actual,

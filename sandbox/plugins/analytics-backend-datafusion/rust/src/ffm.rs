@@ -11,9 +11,33 @@
 use std::slice;
 use std::str;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
+use log::warn;
 use native_bridge_common::ffm_safe;
 use parking_lot::RwLock;
+
+/// Only log block_on durations exceeding this threshold.
+const BLOCK_ON_LOG_THRESHOLD: Duration = Duration::from_millis(1);
+
+/// Times a block_on call and logs a warning if it exceeds the threshold.
+#[inline(always)]
+fn timed_block_on<F: std::future::Future>(
+    runtime: &tokio::runtime::Runtime,
+    op_name: &str,
+    future: F,
+) -> F::Output {
+    let start = Instant::now();
+    let result = runtime.block_on(future);
+    let elapsed = start.elapsed();
+    if elapsed > BLOCK_ON_LOG_THRESHOLD {
+        warn!(
+            "[blocked-thread] block_on({}) held Java thread for {:?}",
+            op_name, elapsed
+        );
+    }
+    result
+}
 
 use crate::api;
 use crate::api::DataFusionRuntime;
@@ -103,6 +127,17 @@ pub unsafe extern "C" fn df_get_memory_pool_limit(runtime_ptr: i64) -> i64 {
     Ok(api::get_memory_pool_limit(runtime_ptr))
 }
 
+/// Returns memory pool stats (usage + tripped count) in a single call.
+/// Writes [usage_bytes, tripped_count] to the output buffer.
+/// Java: MethodHandle(JAVA_LONG, ADDRESS → void)
+#[no_mangle]
+pub unsafe extern "C" fn df_get_memory_pool_stats(runtime_ptr: i64, out_ptr: *mut i64) {
+    if runtime_ptr == 0 || out_ptr.is_null() {
+        return;
+    }
+    api::get_memory_pool_stats(runtime_ptr, out_ptr);
+}
+
 /// Sets the memory pool limit at runtime. Takes effect for new allocations only.
 /// Java: MethodHandle(JAVA_LONG, JAVA_LONG → JAVA_LONG)
 #[ffm_safe]
@@ -115,6 +150,21 @@ pub unsafe extern "C" fn df_set_memory_pool_limit(runtime_ptr: i64, new_limit: i
     Ok(0)
 }
 
+#[no_mangle]
+pub extern "C" fn df_set_min_target_partitions(value: i64) {
+    api::set_min_target_partitions(value);
+}
+
+/// Sets memory guard thresholds. admission_x1000 and operator_x1000 are
+/// the thresholds multiplied by 1000 (e.g., 700 = 0.70, 850 = 0.85).
+#[no_mangle]
+pub extern "C" fn df_set_memory_guard_thresholds(admission_x1000: i64, operator_x1000: i64) {
+    crate::memory_guard::set_thresholds(crate::memory_guard::MemoryThresholds {
+        admission: admission_x1000 as f64 / 1000.0,
+        operator: operator_x1000 as f64 / 1000.0,
+    });
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_create_reader(
@@ -122,11 +172,14 @@ pub unsafe extern "C" fn df_create_reader(
     table_path_len: i64,
     files_ptr: *const *const u8,
     files_len_ptr: *const i64,
+    writer_generations_ptr: *const i64,
     files_count: i64,
+    store_ptr: i64,
 ) -> i64 {
     let table_path = str_from_raw(table_path_ptr, table_path_len)
         .map_err(|e| format!("df_create_reader: {}", e))?;
     let mut filenames = Vec::with_capacity(files_count as usize);
+    let mut writer_generations = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
@@ -135,9 +188,10 @@ pub unsafe extern "C" fn df_create_reader(
                 .map_err(|e| format!("df_create_reader: {}", e))?
                 .to_string(),
         );
+        writer_generations.push(*writer_generations_ptr.add(i));
     }
     let mgr = get_rt_manager()?;
-    api::create_reader(table_path, filenames, &mgr).map_err(|e| e.to_string())
+    api::create_reader(table_path, filenames, writer_generations, &mgr, store_ptr).map_err(|e| e.to_string())
 }
 
 #[no_mangle]
@@ -155,7 +209,7 @@ pub unsafe extern "C" fn df_execute_query(
     plan_len: i64,
     runtime_ptr: i64,
     context_id: i64,
-    // Pointer to a `WireDatafusionQueryConfig`. `0` = use defaults.
+    // Pointer to a `WireDatafusionQueryConfig`
     query_config_ptr: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
@@ -164,8 +218,7 @@ pub unsafe extern "C" fn df_execute_query(
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
-    mgr.io_runtime
-        .block_on(api::execute_query(
+    timed_block_on(&mgr.io_runtime, "execute_query", crate::task_monitors::query_execution_monitor().instrument(api::execute_query(
             shard_view_ptr,
             table_name,
             plan_bytes,
@@ -173,7 +226,7 @@ pub unsafe extern "C" fn df_execute_query(
             &mgr,
             context_id,
             query_config,
-        ))
+        )))
         .map_err(|e| e.to_string())
 }
 
@@ -187,8 +240,7 @@ pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
     let mgr = get_rt_manager()?;
-    mgr.io_runtime
-        .block_on(api::stream_next(stream_ptr))
+    timed_block_on(&mgr.io_runtime, "stream_next", crate::task_monitors::stream_next_monitor().instrument(api::stream_next(stream_ptr)))
         .map_err(|e| e.to_string())
 }
 
@@ -222,9 +274,24 @@ pub unsafe extern "C" fn df_sql_to_substrait(
         str_from_raw(sql_ptr, sql_len).map_err(|e| format!("df_sql_to_substrait: sql: {}", e))?;
     let bytes = api::sql_to_substrait(shard_view_ptr, table_name, sql, runtime_ptr, &mgr)
         .map_err(|e| e.to_string())?;
+    write_out_buffer(&bytes, out_ptr, out_cap, out_len, "substrait plan")?;
+    Ok(0)
+}
+
+/// Copies `bytes` into a caller-allocated `(out_ptr, out_cap)` buffer and writes
+/// the byte count through `out_len` (when non-null). Returns `Err` when the
+/// buffer is too small — the caller can re-allocate and retry.
+unsafe fn write_out_buffer(
+    bytes: &[u8],
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
+    label: &str,
+) -> Result<(), String> {
     if bytes.len() > out_cap as usize {
         return Err(format!(
-            "substrait plan size {} exceeds buffer capacity {}",
+            "{} size {} exceeds buffer capacity {}",
+            label,
             bytes.len(),
             out_cap
         ));
@@ -233,7 +300,7 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     if !out_len.is_null() {
         *out_len = bytes.len() as i64;
     }
-    Ok(0)
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -272,19 +339,30 @@ pub unsafe extern "C" fn df_destroy_custom_cache_manager(ptr: i64) {
     }
 }
 
+/// Registers a streaming partition input on the session. Schema is derived by
+/// lowering the producer-side substrait `partial_plan_bytes`; the resulting
+/// IPC-encoded schema is written into the caller-allocated `out_ptr/out_cap`
+/// buffer with the byte count written through `out_len`. Returns the sender
+/// pointer (negated error pointer on failure).
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_register_partition_stream(
     session_ptr: i64,
     input_id_ptr: *const u8,
     input_id_len: i64,
-    schema_ipc_ptr: *const u8,
-    schema_ipc_len: i64,
+    partial_plan_ptr: *const u8,
+    partial_plan_len: i64,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
 ) -> i64 {
     let input_id = str_from_raw(input_id_ptr, input_id_len)
         .map_err(|e| format!("df_register_partition_stream: input_id: {}", e))?;
-    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
-    api::register_partition_stream(session_ptr, input_id, schema_ipc).map_err(|e| e.to_string())
+    let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
+    let (sender_ptr, schema_ipc) =
+        api::register_partition_stream(session_ptr, input_id, partial_plan).map_err(|e| e.to_string())?;
+    write_out_buffer(&schema_ipc, out_ptr, out_cap, out_len, "register_partition_stream schema IPC")?;
+    Ok(sender_ptr)
 }
 
 #[ffm_safe]
@@ -293,6 +371,7 @@ pub unsafe extern "C" fn df_execute_local_plan(
     session_ptr: i64,
     substrait_ptr: *const u8,
     substrait_len: i64,
+    context_id: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
     // Copy substrait bytes into an owned Vec so the spawned future can move them
@@ -307,10 +386,12 @@ pub unsafe extern "C" fn df_execute_local_plan(
     // instead of the IO runtime. Without this, operator hash work runs on IO workers.
     // The IO runtime still drives the outer block_on (bridging the synchronous FFI
     // call to the async spawn handle).
-    mgr.io_runtime
-        .block_on(async move {
+    timed_block_on(&mgr.io_runtime, "execute_local_plan", crate::task_monitors::coordinator_reduce_monitor().instrument(async move {
             let inner_fut = async move {
-                unsafe { api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, 0).await }
+                unsafe {
+                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id)
+                        .await
+                }
             };
             match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
                 Ok(inner_result) => inner_result,
@@ -318,7 +399,7 @@ pub unsafe extern "C" fn df_execute_local_plan(
                     "execute_local_plan: CPU spawn failed: {e:?}"
                 ))),
             }
-        })
+        }))
         .map_err(|e| e.to_string())
 }
 
@@ -351,15 +432,18 @@ pub unsafe extern "C" fn df_register_memtable(
     session_ptr: i64,
     input_id_ptr: *const u8,
     input_id_len: i64,
-    schema_ipc_ptr: *const u8,
-    schema_ipc_len: i64,
+    partial_plan_ptr: *const u8,
+    partial_plan_len: i64,
     array_ptrs: *const i64,
     schema_ptrs: *const i64,
     n_batches: i64,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
 ) -> i64 {
     let input_id = str_from_raw(input_id_ptr, input_id_len)
         .map_err(|e| format!("df_register_memtable: input_id: {}", e))?;
-    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
     let n = n_batches as usize;
     let array_slice: &[i64] = if n == 0 {
         &[]
@@ -371,9 +455,11 @@ pub unsafe extern "C" fn df_register_memtable(
     } else {
         slice::from_raw_parts(schema_ptrs, n)
     };
-    api::register_memtable(session_ptr, input_id, schema_ipc, array_slice, schema_slice)
-        .map(|_| 0)
-        .map_err(|e| e.to_string())
+    let schema_ipc =
+        api::register_memtable(session_ptr, input_id, partial_plan, array_slice, schema_slice)
+            .map_err(|e| e.to_string())?;
+    write_out_buffer(&schema_ipc, out_ptr, out_cap, out_len, "register_memtable schema IPC")?;
+    Ok(0)
 }
 
 #[ffm_safe]
@@ -397,7 +483,12 @@ pub unsafe extern "C" fn df_create_cache(
     let policy_type = match eviction_type.to_uppercase().as_str() {
         "LRU" => PolicyType::Lru,
         "LFU" => PolicyType::Lfu,
-        _ => return Err(format!("df_create_cache: unsupported eviction type: {}", eviction_type)),
+        _ => {
+            return Err(format!(
+                "df_create_cache: unsupported eviction type: {}",
+                eviction_type
+            ))
+        }
     };
 
     // Safety: cache_manager_ptr must be a valid pointer from df_create_custom_cache_manager
@@ -418,7 +509,10 @@ pub unsafe extern "C" fn df_create_cache(
             manager.set_statistics_cache(stats_cache);
         }
         _ => {
-            return Err(format!("df_create_cache: invalid cache type: {}", cache_type));
+            return Err(format!(
+                "df_create_cache: invalid cache type: {}",
+                cache_type
+            ));
         }
     }
     Ok(0)
@@ -437,18 +531,27 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
     }
     // Safety: runtime_ptr must be a valid pointer from df_create_global_runtime
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_add_files: no cache manager configured".to_string())?;
 
     let mut file_paths = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
-        file_paths.push(str_from_raw(ptr, len)
-            .map_err(|e| format!("df_cache_manager_add_files: {}", e))?.to_string());
+        file_paths.push(
+            str_from_raw(ptr, len)
+                .map_err(|e| format!("df_cache_manager_add_files: {}", e))?
+                .to_string(),
+        );
     }
 
-    manager.add_files(&file_paths)
+    let rt_manager = get_rt_manager()
+        .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
+    let rt_handle = rt_manager.io_runtime.handle();
+
+    manager.add_files(&file_paths, rt_handle)
         .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
     Ok(0)
 }
@@ -465,13 +568,22 @@ pub unsafe extern "C" fn df_create_session_context(
     table_name_ptr: *const u8,
     table_name_len: i64,
     context_id: i64,
+    query_config_ptr: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context: {}", e))?;
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
-        .block_on(crate::session_context::create_session_context(
-            runtime_ptr, shard_view_ptr, table_name, context_id,
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            crate::session_context::create_session_context(
+                runtime_ptr,
+                shard_view_ptr,
+                table_name,
+                context_id,
+                query_config,
+            )
         ))
         .map_err(|e| e.to_string())
 }
@@ -486,13 +598,18 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    query_config_ptr: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
-        .block_on(crate::session_context::create_session_context_indexed(
-            runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count,
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            crate::session_context::create_session_context_indexed(
+                runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config,
+            )
         ))
         .map_err(|e| e.to_string())
 }
@@ -509,18 +626,24 @@ pub unsafe extern "C" fn df_cache_manager_remove_files(
         return Err("df_cache_manager_remove_files: null runtime pointer".to_string());
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_remove_files: no cache manager configured".to_string())?;
 
     let mut file_paths = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
-        file_paths.push(str_from_raw(ptr, len)
-            .map_err(|e| format!("df_cache_manager_remove_files: {}", e))?.to_string());
+        file_paths.push(
+            str_from_raw(ptr, len)
+                .map_err(|e| format!("df_cache_manager_remove_files: {}", e))?
+                .to_string(),
+        );
     }
 
-    manager.remove_files(&file_paths)
+    manager
+        .remove_files(&file_paths)
         .map_err(|e| format!("df_cache_manager_remove_files: {}", e))?;
     Ok(0)
 }
@@ -532,7 +655,9 @@ pub unsafe extern "C" fn df_cache_manager_clear(runtime_ptr: i64) -> i64 {
         return Err("df_cache_manager_clear: null runtime pointer".to_string());
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_clear: no cache manager configured".to_string())?;
     manager.clear_all();
     Ok(0)
@@ -551,9 +676,12 @@ pub unsafe extern "C" fn df_cache_manager_clear_by_type(
     let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
         .map_err(|e| format!("df_cache_manager_clear_by_type: {}", e))?;
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_clear_by_type: no cache manager configured".to_string())?;
-    manager.clear_cache_type(cache_type)
+    manager
+        .clear_cache_type(cache_type)
         .map_err(|e| format!("df_cache_manager_clear_by_type: {}", e))?;
     Ok(0)
 }
@@ -571,9 +699,11 @@ pub unsafe extern "C" fn df_cache_manager_get_memory_by_type(
     let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
         .map_err(|e| format!("df_cache_manager_get_memory_by_type: {}", e))?;
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
-        .ok_or_else(|| "df_cache_manager_get_memory_by_type: no cache manager configured".to_string())?;
-    let size = manager.get_memory_consumed_by_type(cache_type)
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_get_memory_by_type: no cache manager configured".to_string()
+    })?;
+    let size = manager
+        .get_memory_consumed_by_type(cache_type)
         .map_err(|e| format!("df_cache_manager_get_memory_by_type: {}", e))?;
     Ok(size as i64)
 }
@@ -585,8 +715,9 @@ pub unsafe extern "C" fn df_cache_manager_get_total_memory(runtime_ptr: i64) -> 
         return Err("df_cache_manager_get_total_memory: null runtime pointer".to_string());
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
-        .ok_or_else(|| "df_cache_manager_get_total_memory: no cache manager configured".to_string())?;
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_get_total_memory: no cache manager configured".to_string()
+    })?;
     Ok(manager.get_total_memory_consumed() as i64)
 }
 
@@ -607,9 +738,14 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
     let file_path = str_from_raw(file_path_ptr, file_path_len)
         .map_err(|e| format!("df_cache_manager_contains_by_type: file_path: {}", e))?;
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
-        .ok_or_else(|| "df_cache_manager_contains_by_type: no cache manager configured".to_string())?;
-    Ok(if manager.contains_file_by_type(file_path, cache_type) { 1 } else { 0 })
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_contains_by_type: no cache manager configured".to_string()
+    })?;
+    Ok(if manager.contains_file_by_type(file_path, cache_type) {
+        1
+    } else {
+        0
+    })
 }
 
 #[no_mangle]
@@ -635,18 +771,22 @@ pub unsafe extern "C" fn df_execute_with_context(
         // (like execute_with_context) instead of i64 raw pointer — avoids this re-boxing.
         let ptr = Box::into_raw(Box::new(session_handle)) as i64;
         mgr.io_runtime
-            .block_on(crate::indexed_executor::execute_indexed_with_context(
-                ptr,
-                plan_bytes.to_vec(),
-                cpu_executor,
+            .block_on(crate::task_monitors::query_execution_monitor().instrument(
+                crate::indexed_executor::execute_indexed_with_context(
+                    ptr,
+                    plan_bytes.to_vec(),
+                    cpu_executor,
+                )
             ))
             .map_err(|e| e.to_string())
     } else {
         mgr.io_runtime
-            .block_on(crate::query_executor::execute_with_context(
-                session_handle,
-                plan_bytes,
-                cpu_executor,
+            .block_on(crate::task_monitors::query_execution_monitor().instrument(
+                crate::query_executor::execute_with_context(
+                    session_handle,
+                    plan_bytes,
+                    cpu_executor,
+                )
             ))
             .map_err(|e| e.to_string())
     }
@@ -656,15 +796,15 @@ pub unsafe extern "C" fn df_execute_with_context(
 
 /// Collects all native executor metrics into a caller-provided byte buffer.
 ///
-/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (224).
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (240).
 /// Returns 0 on success.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
     use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, DfStatsBuffer, RuntimeMetricsRepr};
     use crate::task_monitors::{
-        query_execution_monitor, stream_next_monitor,
-        fetch_phase_monitor, segment_stats_monitor,
+        coordinator_reduce_monitor, query_execution_monitor,
+        stream_next_monitor, plan_setup_monitor,
     };
 
     if out_cap < 0 || (out_cap as usize) < layout::BUFFER_BYTE_SIZE {
@@ -693,10 +833,10 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
     let buf = DfStatsBuffer {
         io_runtime,
         cpu_runtime,
+        coordinator_reduce: pack_task_monitor(coordinator_reduce_monitor()),
         query_execution: pack_task_monitor(query_execution_monitor()),
         stream_next: pack_task_monitor(stream_next_monitor()),
-        fetch_phase: pack_task_monitor(fetch_phase_monitor()),
-        segment_stats: pack_task_monitor(segment_stats_monitor()),
+        plan_setup: pack_task_monitor(plan_setup_monitor()),
     };
 
     // Copy struct bytes to caller buffer
@@ -706,4 +846,84 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         std::mem::size_of::<DfStatsBuffer>(),
     );
     Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// Distributed aggregate: prepare partial/final plans
+// ---------------------------------------------------------------------------
+
+/// Prepares a partial-aggregate physical plan on the session context handle.
+///
+/// Decodes the Substrait bytes, converts to a physical plan, strips the
+/// final-aggregate half, and stores the result on the handle for later
+/// execution via `df_execute_with_context`.
+///
+/// Returns 0 on success; < 0 is a negated error-string pointer.
+///
+/// # Safety
+/// `handle_ptr` must be a valid pointer returned by `df_create_session_context`.
+/// `bytes_ptr` must point to `bytes_len` valid bytes of a Substrait plan.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_prepare_partial_plan(
+    handle_ptr: i64,
+    bytes_ptr: *const u8,
+    bytes_len: usize,
+) -> i64 {
+    let handle = &mut *(handle_ptr as *mut crate::session_context::SessionContextHandle);
+    let bytes = slice::from_raw_parts(bytes_ptr, bytes_len);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            crate::session_context::prepare_partial_plan(handle, bytes)
+        ))
+        .map_err(|e| e.to_string())?;
+    Ok(0)
+}
+
+/// Prepares a final-aggregate physical plan on a local session.
+///
+/// Decodes the Substrait bytes, converts to a physical plan, strips the
+/// partial-aggregate half, and stores the result on the session for later
+/// execution via `df_execute_local_prepared_plan`.
+///
+/// Returns 0 on success; < 0 is a negated error-string pointer.
+///
+/// # Safety
+/// `session_ptr` must be a valid pointer returned by `df_create_local_session`.
+/// `bytes_ptr` must point to `bytes_len` valid bytes of a Substrait plan.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_prepare_final_plan(
+    session_ptr: i64,
+    bytes_ptr: *const u8,
+    bytes_len: usize,
+) -> i64 {
+    let session = &mut *(session_ptr as *mut crate::local_executor::LocalSession);
+    let bytes = slice::from_raw_parts(bytes_ptr, bytes_len);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            session.prepare_final_plan(bytes)
+        ))
+        .map_err(|e| e.to_string())?;
+    Ok(0)
+}
+
+/// Executes the previously prepared final-aggregate plan on a local session.
+///
+/// Returns a stream pointer (same shape as `df_execute_local_plan`) that can
+/// be drained via `df_stream_next` / `df_stream_close`.
+///
+/// # Safety
+/// `session_ptr` must be a valid pointer returned by `df_create_local_session`
+/// with a plan already prepared via `df_prepare_final_plan`.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_execute_local_prepared_plan(
+    session_ptr: i64,
+    context_id: i64,
+) -> i64 {
+    let mgr = get_rt_manager()?;
+    api::execute_local_prepared_plan(session_ptr, &mgr, context_id).map_err(|e| e.to_string())
 }

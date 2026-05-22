@@ -930,7 +930,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         System.currentTimeMillis(),
                         randomDoubleBetween(1.0, 100.0, true),
                         randomDoubleBetween(1.0, 100.0, true),
-                        new IoUsageStats(100.0)
+                        new IoUsageStats(100.0),
+                        randomDoubleBetween(1.0, 100.0, true)
                     );
                     resourceUsageStatsMap.put(nodeId, stats);
                 }
@@ -1046,11 +1047,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
+            null,
             segmentReplicationRejectionStats,
             null,
             admissionControlStats,
             nodeCacheStats,
-            remoteStoreNodeStats
+            remoteStoreNodeStats,
+            null
         );
     }
 
@@ -1506,6 +1510,40 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 new SearchRequestStats(clusterSettings),
                 new StatusCounterStats()
             );
+        }
+    }
+
+    /**
+     * Verifies that {@code fileCacheOnlyStats} and {@code blockCacheOnlyStats} are serialized on V_3_7_0+
+     * and skipped (null) when deserializing from an older-version stream.
+     */
+    public void testFileCacheDetailedStatsVersionGate() throws IOException {
+        NodeStats nodeStats = createNodeStats();
+
+        // V_3_7_0: fields are written and read back (null or non-null, just no deserialization error)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_7_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_7_0);
+                NodeStats deserialized = new NodeStats(in);
+                // fileCacheOnlyStats and blockCacheOnlyStats may be null (createNodeStats doesn't set them),
+                // but deserialization must not throw
+                assertNull(deserialized.getFileCacheOnlyStats());
+                assertNull(deserialized.getBlockCacheOnlyStats());
+            }
+        }
+
+        // Pre-V_3_7_0: fields are not written; deserialization must not throw and fields must be null
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_2_18_0);
+            nodeStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_18_0);
+                NodeStats deserialized = new NodeStats(in);
+                assertNull(deserialized.getFileCacheOnlyStats());
+                assertNull(deserialized.getBlockCacheOnlyStats());
+            }
         }
     }
 }
