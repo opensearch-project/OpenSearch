@@ -56,6 +56,10 @@ pub struct LocalSession {
     ctx: SessionContext,
     /// Pre-prepared physical plan (set by `prepare_final_plan`).
     pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+    /// Phantom reservation held for the lifetime of this session. Accounts for
+    /// untracked memory (intermediate buffers, hash table overhead) in the shared
+    /// pool so concurrent reduces trigger backpressure before OOM.
+    _phantom_reservation: Option<datafusion::execution::memory_pool::MemoryReservation>,
 }
 
 impl LocalSession {
@@ -65,9 +69,18 @@ impl LocalSession {
     /// every batch consumed or produced by this session counts against the
     /// same limits as the shard-scan path.
     pub fn new(runtime_env: &RuntimeEnv) -> Self {
+        Self::new_with_reservation(runtime_env, None)
+    }
+
+    pub fn new_with_reservation(
+        runtime_env: &RuntimeEnv,
+        phantom_reservation: impl Into<Option<datafusion::execution::memory_pool::MemoryReservation>>,
+    ) -> Self {
         let runtime_env = Arc::new(runtime_env.clone());
+        let mut config = SessionConfig::new();
+        config.options_mut().execution.target_partitions = 1;
         let state = SessionStateBuilder::new()
-            .with_config(SessionConfig::new())
+            .with_config(config)
             .with_runtime_env(runtime_env)
             .with_default_features()
             .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
@@ -75,7 +88,30 @@ impl LocalSession {
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
         crate::udaf::register_all(&ctx);
-        Self { ctx, prepared_plan: None }
+        Self { ctx, prepared_plan: None, _phantom_reservation: phantom_reservation.into() }
+    }
+
+    /// Returns the configured batch_size for this session.
+    pub fn batch_size(&self) -> usize {
+        self.ctx.copied_config().options().execution.batch_size
+    }
+
+    /// Resize the phantom reservation based on actual schema information.
+    /// Called from register_partition_stream once the output schema is known.
+    /// Uses the max of the current reservation and the new estimate — supports
+    /// multiple child inputs (e.g. joins) where each registration may provide
+    /// a different schema; the largest wins.
+    pub fn resize_phantom(&mut self, new_size: usize) -> Result<(), datafusion::common::DataFusionError> {
+        if let Some(ref mut reservation) = self._phantom_reservation {
+            let current = reservation.size();
+            if new_size > current {
+                reservation.try_resize(new_size)
+            } else {
+                Ok(())
+            }
+        } else {
+            Ok(())
+        }
     }
 
     /// Registers a streaming input on the session under `name` and returns the

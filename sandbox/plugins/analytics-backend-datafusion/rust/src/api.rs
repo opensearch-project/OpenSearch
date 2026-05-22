@@ -44,7 +44,7 @@ use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
-use datafusion::execution::memory_pool::TrackConsumersPool;
+use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
@@ -988,7 +988,29 @@ fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::Re
 /// `create_global_runtime`.
 pub unsafe fn create_local_session(runtime_ptr: i64) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let session = LocalSession::new(&runtime.runtime_env);
+    let pool = &runtime.runtime_env.memory_pool;
+
+    // Acquire an initial phantom reservation to limit concurrent reduce sessions.
+    // Sized as pool_limit/8 — allows ~8 concurrent sessions before backpressure.
+    // Resized to a schema-accurate estimate in register_partition_stream once the
+    // actual output schema is known.
+    let pool_limit = match pool.memory_limit() {
+        MemoryLimit::Finite(limit) => limit,
+        _ => 128 * 1024 * 1024,
+    };
+    let initial_phantom = pool_limit / 8;
+    let consumer = MemoryConsumer::new("reduce_session_phantom".to_string())
+        .with_can_spill(true);
+    let mut reservation = consumer.register(pool);
+    if let Err(e) = reservation.try_grow(initial_phantom) {
+        log::warn!(
+            "[reduce-admission] Rejected: cannot reserve {}MB initial phantom: {}",
+            initial_phantom / (1024 * 1024), e
+        );
+        return Err(e);
+    }
+
+    let session = LocalSession::new_with_reservation(&runtime.runtime_env, reservation);
     Ok(Box::into_raw(Box::new(session)) as i64)
 }
 
@@ -1028,6 +1050,22 @@ pub unsafe fn register_partition_stream(
     // here through the partition channel are already typed to match this schema — no
     // per-batch cast at feed time.
     let schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+
+    // Now that we know the actual schema, resize the phantom reservation to a
+    // schema-accurate estimate of untracked memory for this reduce session.
+    let num_columns = schema.fields().len();
+    let avg_row_bytes = crate::query_budget::estimate_avg_row_bytes(&schema);
+    let batch_size = session.batch_size();
+    let accurate_phantom = crate::query_budget::compute_untracked_bytes_with_columns(
+        1, batch_size, avg_row_bytes, num_columns,
+    );
+    if let Err(e) = session.resize_phantom(accurate_phantom) {
+        log::debug!(
+            "[reduce-admission] Could not resize phantom to {}MB (columns={}, row_bytes={}): {}",
+            accurate_phantom / (1024 * 1024), num_columns, avg_row_bytes, e
+        );
+    }
+
     let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
     let sender = session.register_partition(input_id, schema)?;
     Ok((Box::into_raw(Box::new(sender)) as i64, schema_ipc))
@@ -1076,9 +1114,13 @@ pub async unsafe fn execute_local_plan(
 
     // Wrap the output in the same CrossRtStream + RecordBatchStreamAdapter
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
-    // drain this handle unchanged.
-    let cross_rt_stream =
-        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    // drain this handle unchanged. Use the cancellable variant so the CPU
+    // task can be aborted mid-execution when cancel_query fires.
+    let (cross_rt_stream, abort_handle) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    if let Some(h) = abort_handle {
+        query_tracker::set_abort_handle(context_id, h);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     let handle = QueryStreamHandle::new(wrapped, query_context);
@@ -1116,8 +1158,11 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let cross_rt_stream =
-        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    let (cross_rt_stream, abort_handle) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    if let Some(h) = abort_handle {
+        query_tracker::set_abort_handle(context_id, h);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     let handle = QueryStreamHandle::new(wrapped, query_context);

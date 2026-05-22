@@ -278,6 +278,21 @@ fn acquire_budget_inner(
 }
 
 
+/// Adaptive budget for coordinator-reduce sessions. Uses a fixed row-byte
+/// estimate (reduce consumes pre-aggregated Arrow batches, not raw parquet)
+/// and applies the same halving logic as the shard path.
+pub fn acquire_budget_inner_for_reduce(
+    pool: &Arc<dyn MemoryPool>,
+    configured_target_partitions: usize,
+    configured_batch_size: usize,
+) -> Result<QueryMemoryBudget, DataFusionError> {
+    // Reduce input is partially-aggregated Arrow batches. Estimate ~200 bytes/row
+    // (group keys + accumulators) with ~6 columns equivalent.
+    let avg_row_bytes: usize = 200;
+    let num_columns: usize = 6;
+    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, configured_batch_size)
+}
+
 /// Compute the untracked byte envelope for given parameters.
 fn compute_untracked_bytes(
     target_partitions: usize,
@@ -288,7 +303,7 @@ fn compute_untracked_bytes(
 }
 
 /// Compute untracked bytes with column-count-aware decode overhead.
-fn compute_untracked_bytes_with_columns(
+pub fn compute_untracked_bytes_with_columns(
     target_partitions: usize,
     batch_size: usize,
     avg_row_bytes: usize,
@@ -623,6 +638,43 @@ mod tests {
         let single = compute_untracked_bytes_with_columns(1, batch_size, row_bytes, 2);
         // Single partition should use less than half of 2-partition (no merge channel multiplier)
         assert!(single < multi);
+    }
+
+    #[test]
+    fn acquire_budget_for_reduce_succeeds_with_ample_pool() {
+        let pool = test_pool(1_000_000_000);
+        let budget = acquire_budget_inner_for_reduce(&pool, 4, 8192).unwrap();
+        assert_eq!(budget.target_partitions, 4);
+        assert_eq!(budget.batch_size, 8192);
+        assert!(budget.phantom_bytes > 0);
+    }
+
+    #[test]
+    fn acquire_budget_for_reduce_reduces_partitions_under_pressure() {
+        // Small pool forces partition reduction
+        let pool = test_pool(2_000_000);
+        let budget = acquire_budget_inner_for_reduce(&pool, 4, 8192).unwrap();
+        assert!(budget.target_partitions < 4, "expected partitions to be reduced, got {}", budget.target_partitions);
+    }
+
+    #[test]
+    fn acquire_budget_for_reduce_rejects_when_pool_exhausted() {
+        // Tiny pool that can't fit even target_partitions=1 batch_size=1024
+        let pool = test_pool(1024);
+        let result = acquire_budget_inner_for_reduce(&pool, 4, 8192);
+        assert!(result.is_err(), "expected rejection with exhausted pool");
+    }
+
+    #[test]
+    fn acquire_budget_for_reduce_phantom_released_on_drop() {
+        let pool = test_pool(10_000_000);
+        let reserved_before = pool.reserved();
+        {
+            let budget = acquire_budget_inner_for_reduce(&pool, 4, 8192).unwrap();
+            assert!(pool.reserved() > reserved_before);
+            drop(budget);
+        }
+        assert_eq!(pool.reserved(), reserved_before);
     }
 
 }
