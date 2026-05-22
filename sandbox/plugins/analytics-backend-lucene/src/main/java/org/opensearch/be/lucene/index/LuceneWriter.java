@@ -46,6 +46,7 @@ import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -667,7 +668,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     @Override
     public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
-        Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
+        Term uid = new Term(deleteInput.fieldName(), Uid.encodeId(deleteInput.id()));
         indexWriter.deleteDocuments(uid);
         return new DeleteResult.Success(1L, 1L, 1L);
     }

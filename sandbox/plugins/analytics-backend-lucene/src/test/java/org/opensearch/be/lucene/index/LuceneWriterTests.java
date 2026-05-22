@@ -352,7 +352,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> writer.deleteDocument(new DeleteInput("_id", new BytesRef("1"), 1L))
+            () -> writer.deleteDocument(new DeleteInput("_id", "1", 1L))
         );
         assertTrue(e.getMessage().contains("deleteDocument is not supported"));
     }
