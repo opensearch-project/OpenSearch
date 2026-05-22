@@ -92,6 +92,7 @@ public final class NativeBridge {
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
+    private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
     private static final MethodHandle DF_NATIVE_NODE_STATS;
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
@@ -416,6 +417,11 @@ public final class NativeBridge {
         );
 
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
+        SET_CANCEL_STATS_THRESHOLD_MS = linker.downcallHandle(
+            lib.find("df_set_cancel_stats_threshold_ms").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
 
         // Hand the five filter-tree upcall stubs to Rust now. No explicit
         // caller step required — as soon as this class is loaded, callbacks
@@ -744,6 +750,15 @@ public final class NativeBridge {
     /** Fires the cancellation token for the given context. No-op if already completed. */
     public static void cancelQuery(long contextId) {
         NativeCall.invokeVoid(CANCEL_QUERY, contextId);
+    }
+
+    /**
+     * Sets the cancellation stats threshold in milliseconds.
+     * Queries cancelled for less than this duration are not counted in stats.
+     * Primarily for testing — production uses the default (10 000 ms).
+     */
+    public static void setCancelStatsThresholdMs(long millis) {
+        NativeCall.invokeVoid(SET_CANCEL_STATS_THRESHOLD_MS, millis);
     }
 
     // ---- Stats collection ----

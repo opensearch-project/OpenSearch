@@ -254,6 +254,13 @@ pub extern "C" fn df_cancel_query(context_id: i64) {
     api::cancel_query(context_id);
 }
 
+/// Sets the cancellation stats threshold in milliseconds.
+/// Queries cancelled for less than this duration are not counted in stats.
+#[no_mangle]
+pub extern "C" fn df_set_cancel_stats_threshold_ms(millis: i64) {
+    crate::query_tracker::set_cancel_stats_threshold(millis as u64);
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_sql_to_substrait(

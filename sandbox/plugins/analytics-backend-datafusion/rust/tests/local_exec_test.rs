@@ -316,7 +316,7 @@ fn test_execute_sum_substrait() {
             session_ptr,
             substrait_bytes.as_ptr(),
             substrait_bytes.len() as i64,
-            0,
+            0, // context_id — 0 disables tracking
         )
     };
     assert!(stream_ptr > 0, "df_execute_local_plan rc={}", stream_ptr);

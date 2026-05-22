@@ -19,16 +19,49 @@
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 use log::debug;
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
 
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
+
+// ---------------------------------------------------------------------------
+// Query type discriminator
+// ---------------------------------------------------------------------------
+
+/// Distinguishes shard-level queries from coordinator-level queries for stats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryType {
+    /// Data-node shard fragment execution (AnalyticsShardTask on the Java side).
+    Shard,
+    /// Coordinator-side local reduce execution (AnalyticsQueryTask on the Java side).
+    Coordinator,
+}
+
+/// Default threshold for "long-running post-cancel" — matches the Java-side
+/// `task_cancellation.duration_millis` default of 10 000 ms.
+pub const DEFAULT_CANCEL_THRESHOLD: Duration = Duration::from_secs(10);
+
+/// Runtime-configurable threshold. Initialized to DEFAULT_CANCEL_THRESHOLD (10_000 ms).
+/// Set via `set_cancel_stats_threshold`.
+static CANCEL_STATS_THRESHOLD_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(10_000);
+
+/// Returns the currently configured cancellation stats threshold.
+pub fn cancel_stats_threshold() -> Duration {
+    Duration::from_millis(CANCEL_STATS_THRESHOLD_MS.load(Ordering::Relaxed))
+}
+
+/// Sets the cancellation stats threshold (in milliseconds).
+pub fn set_cancel_stats_threshold(millis: u64) {
+    CANCEL_STATS_THRESHOLD_MS.store(millis, Ordering::Relaxed);
+}
 
 // ---------------------------------------------------------------------------
 // Per-query memory pool
@@ -115,10 +148,13 @@ impl MemoryPool for QueryMemoryPool {
 pub struct QueryTracker {
     pub start_time: Instant,
     pub context_id: i64,
+    pub query_type: QueryType,
     pub memory_pool: Arc<QueryMemoryPool>,
     pub cancellation_token: CancellationToken,
     /// CPU task abort handle, set after the stream is created.
     pub abort_handle: OnceLock<AbortHandle>,
+    /// Instant when cancellation was signalled, or None if not cancelled.
+    pub cancelled_at: Mutex<Option<Instant>>,
     completed: AtomicBool,
     wall_nanos: std::sync::atomic::AtomicU64,
 }
@@ -157,6 +193,12 @@ static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        {
+            let mut cancelled_at = tracker.cancelled_at.lock();
+            if cancelled_at.is_none() {
+                *cancelled_at = Some(Instant::now());
+            }
+        }
         tracker.cancellation_token.cancel();
         if let Some(handle) = tracker.abort_handle.get() {
             handle.abort();
@@ -174,6 +216,25 @@ pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.abort_handle.set(handle).ok();
     }
+}
+
+/// Counts queries currently running past the cancellation threshold, by type.
+/// Returns (shard_current, coordinator_current).
+pub fn count_cancelled_running(threshold: Duration) -> (i64, i64) {
+    let mut shard_count: i64 = 0;
+    let mut coordinator_count: i64 = 0;
+    for entry in QUERY_REGISTRY.iter() {
+        let tracker = entry.value();
+        if let Some(cancelled_at) = *tracker.cancelled_at.lock() {
+            if cancelled_at.elapsed() >= threshold {
+                match tracker.query_type {
+                    QueryType::Shard => shard_count += 1,
+                    QueryType::Coordinator => coordinator_count += 1,
+                }
+            }
+        }
+    }
+    (shard_count, coordinator_count)
 }
 
 // ---------------------------------------------------------------------------
@@ -196,7 +257,7 @@ pub struct QueryTrackingContext {
 impl QueryTrackingContext {
     /// Create a new query context. If `context_id` is 0, tracking is
     /// disabled and `memory_pool()` returns `None`.
-    pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>) -> Self {
+    pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>, query_type: QueryType) -> Self {
         if context_id == 0 {
             return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
         }
@@ -204,9 +265,11 @@ impl QueryTrackingContext {
         let tracker = Arc::new(QueryTracker {
             start_time: Instant::now(),
             context_id,
+            query_type,
             memory_pool: query_pool,
             cancellation_token: CancellationToken::new(),
             abort_handle: OnceLock::new(),
+            cancelled_at: Mutex::new(None),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
@@ -279,7 +342,26 @@ impl Drop for QueryTrackingContext {
                 tracker.memory_pool.current_bytes(),
                 tracker.memory_pool.peak_bytes(),
             );
+
+            // Remove from registry BEFORE incrementing total. This ensures a
+            // query is never simultaneously visible in both the registry scan
+            // (current) and the total counter — preventing double-counting in
+            // snapshot_cancellation_stats.
             QUERY_REGISTRY.remove(&tracker.context_id);
+
+            // If this query was cancelled and ran past the threshold, bump the total counter.
+            if let Some(cancelled_at) = *tracker.cancelled_at.lock() {
+                if cancelled_at.elapsed() >= cancel_stats_threshold() {
+                    match tracker.query_type {
+                        QueryType::Shard => {
+                            crate::native_node_stats::inc_native_search_shard_task_total();
+                        }
+                        QueryType::Coordinator => {
+                            crate::native_node_stats::inc_native_search_task_total();
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -362,7 +444,7 @@ mod tests {
     #[test]
     fn test_context_returns_none_pool_for_zero_id() {
         let global = make_global_pool(10_000);
-        let ctx = QueryTrackingContext::new(0, global);
+        let ctx = QueryTrackingContext::new(0, global, QueryType::Shard);
         assert!(ctx.memory_pool().is_none());
     }
 
@@ -370,7 +452,7 @@ mod tests {
     fn test_context_registers_and_removes_on_drop() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_000;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         assert!(ctx.memory_pool().is_some());
         assert!(QUERY_REGISTRY.contains_key(&ctx_id));
 
@@ -383,7 +465,7 @@ mod tests {
     fn test_drop_removes_from_registry() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_001;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         assert!(QUERY_REGISTRY.contains_key(&ctx_id));
         thread::sleep(Duration::from_millis(50));
@@ -397,7 +479,7 @@ mod tests {
     fn test_wall_secs_ticks_while_running() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_002;
-        let _ctx = QueryTrackingContext::new(ctx_id, global);
+        let _ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         let t1 = QUERY_REGISTRY.get(&ctx_id).unwrap().wall_secs();
         thread::sleep(Duration::from_millis(50));
@@ -412,7 +494,7 @@ mod tests {
     fn test_memory_tracking_through_full_lifecycle() {
         let global = make_global_pool(1_000_000);
         let ctx_id = 50_004;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
         let mut reservation = make_reservation(&pool, "lifecycle_test");
@@ -446,8 +528,8 @@ mod tests {
         let ctx_a_id = 50_005;
         let ctx_b_id = 50_006;
 
-        let ctx_a = QueryTrackingContext::new(ctx_a_id, Arc::clone(&global));
-        let ctx_b = QueryTrackingContext::new(ctx_b_id, Arc::clone(&global));
+        let ctx_a = QueryTrackingContext::new(ctx_a_id, Arc::clone(&global), QueryType::Shard);
+        let ctx_b = QueryTrackingContext::new(ctx_b_id, Arc::clone(&global), QueryType::Shard);
 
         let pool_a = ctx_a.memory_pool().unwrap();
         let pool_b = ctx_b.memory_pool().unwrap();
@@ -483,7 +565,7 @@ mod tests {
         let global = make_global_pool(1_000_000);
         let ctx_id = 50_010;
 
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
         let mut reservation = make_reservation(&pool, "stream_data");
@@ -512,11 +594,290 @@ mod tests {
         let ctx_id = 50_011;
 
         {
-            let ctx = QueryTrackingContext::new(ctx_id, global);
+            let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
             let _pool = ctx.memory_pool();
             assert!(QUERY_REGISTRY.contains_key(&ctx_id));
         } // ctx dropped here — removes from registry
 
         assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
+    }
+
+    // -----------------------------------------------------------------------
+    // Cancellation stats tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cancel_query_sets_cancelled_at() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_001;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Not cancelled yet
+        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        assert!(tracker.cancelled_at.lock().is_none());
+
+        // Cancel
+        cancel_query(ctx_id);
+
+        // cancelled_at should be set
+        assert!(tracker.cancelled_at.lock().is_some());
+        drop(tracker);
+        drop(ctx);
+    }
+
+    #[test]
+    fn test_cancel_query_idempotent() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_002;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        cancel_query(ctx_id);
+        let first = *QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at.lock();
+
+        thread::sleep(Duration::from_millis(10));
+        cancel_query(ctx_id);
+        let second = *QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at.lock();
+
+        // Second cancel should not overwrite the first timestamp
+        assert_eq!(first, second);
+        drop(ctx);
+    }
+
+    #[test]
+    fn test_count_cancelled_running_with_zero_threshold() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_003;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Not cancelled — should not be counted
+        let (shard, coord) = count_cancelled_running(Duration::ZERO);
+        // (Other tests may have live entries, so just check this specific one)
+        assert!(!is_counted(ctx_id, Duration::ZERO));
+
+        // Cancel it
+        cancel_query(ctx_id);
+
+        // Now it should be counted with zero threshold
+        assert!(is_counted(ctx_id, Duration::ZERO));
+
+        drop(ctx);
+
+        // After drop, not in registry
+        assert!(!is_counted(ctx_id, Duration::ZERO));
+    }
+
+    #[test]
+    fn test_count_cancelled_running_respects_threshold() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_004;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        cancel_query(ctx_id);
+
+        // With a very large threshold, should NOT be counted (just cancelled)
+        assert!(!is_counted(ctx_id, Duration::from_secs(9999)));
+
+        // With zero threshold, should be counted
+        assert!(is_counted(ctx_id, Duration::ZERO));
+
+        drop(ctx);
+    }
+
+    #[test]
+    fn test_count_cancelled_running_distinguishes_query_types() {
+        let global = make_global_pool(10_000);
+        let shard_id = 60_005;
+        let coord_id = 60_006;
+
+        let shard_ctx = QueryTrackingContext::new(shard_id, Arc::clone(&global), QueryType::Shard);
+        let coord_ctx = QueryTrackingContext::new(coord_id, Arc::clone(&global), QueryType::Coordinator);
+
+        cancel_query(shard_id);
+        cancel_query(coord_id);
+
+        let (shard_count, coord_count) = count_cancelled_running(Duration::ZERO);
+        assert!(shard_count >= 1, "shard count should be >= 1, got {}", shard_count);
+        assert!(coord_count >= 1, "coord count should be >= 1, got {}", coord_count);
+
+        drop(shard_ctx);
+        drop(coord_ctx);
+    }
+
+    #[test]
+    fn test_drop_increments_total_when_past_threshold() {
+        // Set threshold to 0 so any cancellation counts
+        set_cancel_stats_threshold(0);
+
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_007;
+
+        // Read baseline total
+        let baseline = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+        cancel_query(ctx_id);
+
+        // Drop should increment total (threshold is 0, elapsed > 0)
+        drop(ctx);
+
+        let after = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        assert_eq!(after, baseline + 1, "total should increment by 1");
+
+        // Restore default
+        set_cancel_stats_threshold(10_000);
+    }
+
+    #[test]
+    fn test_drop_does_not_increment_total_when_under_threshold() {
+        // Set threshold to a large value
+        set_cancel_stats_threshold(999_999);
+
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_008;
+
+        let baseline = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+        cancel_query(ctx_id);
+        // Drop immediately — elapsed is well under 999s
+        drop(ctx);
+
+        let after = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        assert_eq!(after, baseline, "total should not increment when under threshold");
+
+        // Restore default
+        set_cancel_stats_threshold(10_000);
+    }
+
+    #[test]
+    fn test_drop_does_not_increment_total_for_uncancelled_query() {
+        // Use a unique high threshold so only our query's drop logic is tested
+        // (other parallel tests with threshold=0 don't affect our assertion).
+        set_cancel_stats_threshold(999_999);
+
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_009;
+
+        // Read baseline immediately before drop to minimize parallel interference
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+        let baseline = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        // Don't cancel — just drop
+        drop(ctx);
+
+        let after = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        assert_eq!(after, baseline, "total should not increment for uncancelled query");
+
+        set_cancel_stats_threshold(10_000);
+    }
+
+    #[test]
+    fn test_timing_based_total_increment_with_real_delay() {
+        // 50ms threshold — cancel, sleep 100ms, drop → should increment
+        set_cancel_stats_threshold(50);
+
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_020;
+
+        let baseline = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+        cancel_query(ctx_id);
+
+        // Verify current count while still in registry
+        assert!(is_counted(ctx_id, Duration::ZERO));
+        // Not yet past 50ms threshold
+        assert!(!is_counted(ctx_id, Duration::from_millis(50)));
+
+        // Sleep past threshold
+        thread::sleep(Duration::from_millis(100));
+
+        // Now past threshold — should be counted
+        assert!(is_counted(ctx_id, Duration::from_millis(50)));
+
+        // Drop — should increment total
+        drop(ctx);
+
+        let after = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        assert_eq!(after, baseline + 1);
+
+        set_cancel_stats_threshold(10_000);
+    }
+
+    #[test]
+    fn test_current_count_live_while_query_registered() {
+        set_cancel_stats_threshold(0);
+
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_021;
+
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+        cancel_query(ctx_id);
+
+        // While registered: current should include this query
+        let (shard, _) = count_cancelled_running(Duration::ZERO);
+        assert!(shard >= 1, "current should be >= 1 while registered, got {}", shard);
+
+        drop(ctx);
+
+        // After drop: this query should no longer be counted
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
+
+        set_cancel_stats_threshold(10_000);
+    }
+
+    #[test]
+    fn test_drop_increments_correct_total_by_query_type() {
+        set_cancel_stats_threshold(0);
+
+        let global = make_global_pool(10_000);
+
+        // Baseline for both counters
+        let shard_baseline = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        let coord_baseline = crate::native_node_stats::NATIVE_SEARCH_TASK_TOTAL
+            .load(Ordering::Relaxed);
+
+        // Cancel and drop a shard query
+        let shard_ctx = QueryTrackingContext::new(60_030, Arc::clone(&global), QueryType::Shard);
+        cancel_query(60_030);
+        drop(shard_ctx);
+
+        // Shard total should increment, coordinator should not
+        let shard_after = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        let coord_after = crate::native_node_stats::NATIVE_SEARCH_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        assert_eq!(shard_after, shard_baseline + 1, "shard total should increment");
+        assert_eq!(coord_after, coord_baseline, "coordinator total should not increment for shard query");
+
+        // Cancel and drop a coordinator query
+        let coord_ctx = QueryTrackingContext::new(60_031, Arc::clone(&global), QueryType::Coordinator);
+        cancel_query(60_031);
+        drop(coord_ctx);
+
+        // Now coordinator should increment, shard should stay the same
+        let shard_final = crate::native_node_stats::NATIVE_SEARCH_SHARD_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        let coord_final = crate::native_node_stats::NATIVE_SEARCH_TASK_TOTAL
+            .load(Ordering::Relaxed);
+        assert_eq!(shard_final, shard_baseline + 1, "shard total should not change for coordinator query");
+        assert_eq!(coord_final, coord_baseline + 1, "coordinator total should increment");
+
+        set_cancel_stats_threshold(10_000);
+    }
+
+    /// Helper: checks if a specific context_id is counted in the registry scan.
+    fn is_counted(ctx_id: i64, threshold: Duration) -> bool {
+        QUERY_REGISTRY.get(&ctx_id).map_or(false, |tracker| {
+            tracker.cancelled_at.lock().map_or(false, |t| t.elapsed() >= threshold)
+        })
     }
 }
