@@ -53,9 +53,9 @@ import java.util.concurrent.ForkJoinTask;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
+public class NodeCacheService implements Closeable, BlockCacheRegistry {
 
-    private static final Logger logger = LogManager.getLogger(NodeCacheOrchestrator.class);
+    private static final Logger logger = LogManager.getLogger(NodeCacheService.class);
 
     /** LRU cache for Lucene index files. Always present on warm nodes. */
     private final FileCache fileCache;
@@ -74,13 +74,13 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
     private final List<BlockCache> blockCaches = new CopyOnWriteArrayList<>();
 
     /** Package-private for testing — use {@link #create} in production. */
-    NodeCacheOrchestrator(FileCache fileCache, long virtualBlockCacheBytes) {
+    NodeCacheService(FileCache fileCache, long virtualBlockCacheBytes) {
         this.fileCache = fileCache;
         this.virtualBlockCacheBytes = virtualBlockCacheBytes;
     }
 
     /** Package-private constructor for testing — creates an orchestrator with no block-cache budget. */
-    NodeCacheOrchestrator(FileCache fileCache) {
+    NodeCacheService(FileCache fileCache) {
         this(fileCache, 0L);
     }
 
@@ -89,7 +89,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Creates a {@code NodeCacheOrchestrator} for a warm node.
+     * Creates a {@code NodeCacheService} for a warm node.
      *
      * <p>Performs the full budget phase: queries each provider for its requested
      * capacity, validates the budget, creates FileCache, restores surviving files
@@ -102,11 +102,8 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
      *
      * @param providers all discovered {@link BlockCacheProvider} plugins
      */
-    public static NodeCacheOrchestrator create(
-        Settings settings,
-        NodeEnvironment nodeEnvironment,
-        Map<String, BlockCacheProvider> providers
-    ) throws IOException {
+    public static NodeCacheService create(Settings settings, NodeEnvironment nodeEnvironment, Map<String, BlockCacheProvider> providers)
+        throws IOException {
         NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
         long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getTotalSize(fileCacheNodePath));
 
@@ -132,7 +129,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
         // Pre-compute virtual capacity: each plugin's reserved bytes × its amplification ratio.
         long virtualBytes = computeVirtualBlockCacheBytes(providers, settings, totalBudgetBytes);
 
-        return new NodeCacheOrchestrator(fileCache, virtualBytes);
+        return new NodeCacheService(fileCache, virtualBytes);
     }
 
     /**
@@ -228,9 +225,56 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
         return blockCaches.stream().filter(bc -> name.equals(bc.cacheName())).findFirst();
     }
 
+    @Override
+    public List<BlockCache> all() {
+        return blockCaches();
+    }
+
     /** Returns a snapshot of all registered block caches. */
     public List<BlockCache> blockCaches() {
         return List.copyOf(blockCaches);
+    }
+
+    /**
+     * Returns a combined {@link BlockCacheStats} snapshot aggregated across all registered block caches.
+     * Returns {@code null} if no block caches are registered.
+     */
+    public BlockCacheStats combinedBlockCacheStats() {
+        if (blockCaches.isEmpty()) {
+            return null;
+        }
+        long hits = 0, misses = 0, hitBytes = 0, missBytes = 0;
+        long evictions = 0, evictionBytes = 0, removed = 0, removedBytes = 0;
+        long memUsed = 0, diskUsed = 0, total = 0, activeInBytes = 0;
+        for (BlockCache bc : blockCaches) {
+            BlockCacheStats s = bc.stats();
+            hits += s.hits();
+            misses += s.misses();
+            hitBytes += s.hitBytes();
+            missBytes += s.missBytes();
+            evictions += s.evictions();
+            evictionBytes += s.evictionBytes();
+            removed += s.removed();
+            removedBytes += s.removedBytes();
+            memUsed += s.memoryBytesUsed();
+            diskUsed += s.diskBytesUsed();
+            total += s.totalBytes();
+            activeInBytes += s.activeInBytes();
+        }
+        return new BlockCacheStats(
+            hits,
+            misses,
+            hitBytes,
+            missBytes,
+            evictions,
+            evictionBytes,
+            removed,
+            removedBytes,
+            memUsed,
+            diskUsed,
+            total,
+            activeInBytes
+        );
     }
 
     /**
@@ -278,6 +322,14 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
+     * Returns FileCache-only stats with no block cache contribution.
+     * Used by {@code _nodes/stats/file_cache?detailed} to return FileCache-only stats.
+     */
+    public AggregateFileCacheStats fileCacheStatsOnly() {
+        return fileCache.fileCacheStats();
+    }
+
+    /**
      * Returns aggregate stats across all caches for {@code _nodes/stats aggregate_file_cache}.
      *
      * <p>Block cache counters are folded into the merged overall/block sections so that
@@ -314,7 +366,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
     private BlockCacheStats combineBlockCacheStats() {
         long hits = 0, misses = 0, hitBytes = 0, missBytes = 0;
         long evictions = 0, evictionBytes = 0, removed = 0, removedBytes = 0;
-        long memoryUsed = 0, diskUsed = 0, totalCapacity = 0;
+        long memoryUsed = 0, diskUsed = 0, totalCapacity = 0, activeInBytes = 0;
 
         for (BlockCache bc : blockCaches) {
             BlockCacheStats s = bc.stats();
@@ -329,6 +381,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
             memoryUsed += s.memoryBytesUsed();
             diskUsed += s.diskBytesUsed();
             totalCapacity += s.totalBytes();
+            activeInBytes += s.activeInBytes();
         }
         return new BlockCacheStats(
             hits,
@@ -341,13 +394,14 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
             removedBytes,
             memoryUsed,
             diskUsed,
-            totalCapacity
+            totalCapacity,
+            activeInBytes
         );
     }
 
     private static AggregateFileCacheStats mergeStats(AggregateFileCacheStats fc, BlockCacheStats bc) {
         FileCacheStats mergedOverall = new FileCacheStats(
-            fc.getActive().getBytes(),
+            fc.getActive().getBytes() + bc.activeInBytes(),
             fc.getTotal().getBytes() + bc.totalBytes(),
             fc.getUsed().getBytes() + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fc.getPinnedUsage().getBytes(),
@@ -359,7 +413,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
         );
         FileCacheStats fcBlock = fc.getBlockFileCacheStats();
         FileCacheStats mergedBlock = new FileCacheStats(
-            fcBlock.getActive(),
+            fcBlock.getActive() + bc.activeInBytes(),
             fcBlock.getTotal() + bc.totalBytes(),
             fcBlock.getUsed() + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fcBlock.getPinnedUsage(),

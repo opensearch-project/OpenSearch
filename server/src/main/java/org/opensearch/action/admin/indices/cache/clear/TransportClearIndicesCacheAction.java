@@ -44,12 +44,14 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
+import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -71,6 +73,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     private final IndicesService indicesService;
 
     private final Node node;
+    private final BlockCacheRegistry blockCacheRegistry;
     private final Logger clearActionLogger = LogManager.getLogger(getClass());
 
     @Inject
@@ -79,6 +82,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         TransportService transportService,
         IndicesService indicesService,
         Node node,
+        @Nullable BlockCacheRegistry blockCacheRegistry,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -94,6 +98,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         );
         this.indicesService = indicesService;
         this.node = node;
+        this.blockCacheRegistry = blockCacheRegistry;
     }
 
     @Override
@@ -122,10 +127,14 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     @Override
     protected EmptyResult shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting) {
         if (request.fileCache()) {
+            ShardPath shardPath = ShardPath.loadFileCachePath(node.getNodeEnvironment(), shardRouting.shardId());
             if (node.fileCache() != null) {
-                ShardPath shardPath = ShardPath.loadFileCachePath(node.getNodeEnvironment(), shardRouting.shardId());
                 Predicate<Path> pathStartsWithShardPathPredicate = path -> path.startsWith(shardPath.getDataPath());
                 node.fileCache().prune(pathStartsWithShardPathPredicate);
+            }
+            if (blockCacheRegistry != null) {
+                String prefix = shardPath.getDataPath().toString();
+                blockCacheRegistry.all().forEach(cache -> cache.evictPrefix(prefix));
             }
         }
 

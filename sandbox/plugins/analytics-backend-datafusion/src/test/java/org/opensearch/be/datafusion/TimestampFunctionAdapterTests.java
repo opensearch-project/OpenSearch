@@ -136,6 +136,29 @@ public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
         assertEquals("2262-04-11 23:47:16", TimestampFunctionAdapter.parseTimestamp("2262-04-11 23:47:16").toString());
     }
 
+    /**
+     * Values below the i64-ns floor (~year 1677) must reject up front, mirroring
+     * the upper-bound check. Without this guard, year-0001 literals slip past the
+     * planner and die at execution with an opaque {@code StreamException}.
+     */
+    public void testYearBefore1677RejectsAtPlanTime() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TimestampFunctionAdapter.parseTimestamp("0001-01-01 00:00:00")
+        );
+        assertTrue(
+            "error must mention the supported range, got: " + e.getMessage(),
+            e.getMessage().contains("outside the supported range")
+        );
+    }
+
+    /**
+     * Right at the i64-ns floor — must succeed. Mirrors {@link #testYear2262JustInsideBoundaryAccepted}.
+     */
+    public void testYear1677JustInsideLowerBoundaryAccepted() {
+        assertEquals("1677-09-22 00:00:00", TimestampFunctionAdapter.parseTimestamp("1677-09-22 00:00:00").toString());
+    }
+
     // ── adapt(): Shape A — TIMESTAMP('<varchar literal>') folds ───────────
 
     public void testAdaptShapeAFoldsVarcharLiteralToTypedTimestamp() {

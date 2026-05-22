@@ -45,7 +45,7 @@ public class QueryScheduler implements Scheduler {
     }
 
     @Override
-    public void execute(QueryContext context, ActionListener<Iterable<VectorSchemaRoot>> listener) {
+    public QueryExecution execute(QueryContext context, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         final String queryId = context.queryId();
         final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
             context.operationListeners()
@@ -70,6 +70,7 @@ public class QueryScheduler implements Scheduler {
         opListener.onQueryStart(queryId, graph.stageCount());
         logger.debug("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
         execution.start();
+        return execution;
     }
 
     /**

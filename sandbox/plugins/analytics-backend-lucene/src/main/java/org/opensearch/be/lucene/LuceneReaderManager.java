@@ -53,6 +53,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     private final DataFormat dataFormat;
     private final Map<Long, LuceneReader> readers;
+    private volatile DirectoryReader initialReader;
     private volatile DirectoryReader currentReader;
     private final CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher;
 
@@ -74,6 +75,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
     ) {
         this.dataFormat = dataFormat;
         Objects.requireNonNull(initialReader, "initialReader must not be null");
+        this.initialReader = initialReader;
         this.currentReader = initialReader;
         this.readers = readers;
         this.readerRefresher = readerRefresher;
@@ -195,6 +197,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         if (reader != null) {
             reader.directoryReader().decRef();
         }
+        releaseInitialReader();
     }
 
     @Override
@@ -213,5 +216,24 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             reader.directoryReader().decRef();
         }
         readers.clear();
+        releaseInitialReader();
+    }
+
+    /**
+     * Releases the initial {@link DirectoryReader} opened by
+     * {@link LuceneSearchBackEnd#createReaderManager} and nulls out the field. The check
+     * makes the operation idempotent so it is safe to invoke from both {@link #close()}
+     * and {@link #onDeleted(CatalogSnapshot)} without double-freeing.
+     * <p>
+     * The initial reader is owned by the manager (not the {@link #readers} map), so it is
+     * not covered by the per-snapshot decRef loop in {@code close()}. Without this release,
+     * the {@link java.nio.channels.FileChannel}s held by its {@link SegmentReader}s would
+     * leak until JVM exit (detected by Lucene's {@code LeakFS} at suite teardown).
+     */
+    private void releaseInitialReader() throws IOException {
+        if (initialReader != null) {
+            initialReader.decRef();
+            initialReader = null;
+        }
     }
 }

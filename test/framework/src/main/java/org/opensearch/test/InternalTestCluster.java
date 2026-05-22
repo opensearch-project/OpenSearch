@@ -2693,6 +2693,7 @@ public final class InternalTestCluster extends TestCluster {
                     false,
                     false,
                     false,
+                    false, // fileCacheDetailed
                     false,
                     false,
                     false,

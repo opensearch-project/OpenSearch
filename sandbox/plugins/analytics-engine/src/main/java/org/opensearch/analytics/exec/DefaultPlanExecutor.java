@@ -29,6 +29,9 @@ import org.opensearch.analytics.exec.join.BroadcastDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategy;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.join.JoinStrategyMetrics;
+import org.opensearch.analytics.exec.profile.ProfiledResult;
+import org.opensearch.analytics.exec.profile.QueryProfile;
+import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTaskRequest;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -57,6 +60,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
@@ -93,6 +97,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final TaskManager taskManager;
     private final NodeClient client;
     private final JoinStrategyMetrics joinStrategyMetrics;
+    private final EngineContext engineContext;
     // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
     // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
     private final BufferAllocator coordinatorAllocator;
@@ -122,6 +127,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.client = client;
         this.scheduler = scheduler;
         this.joinStrategyMetrics = joinStrategyMetrics;
+        this.engineContext = engineContext;
         this.coordinatorAllocator = allocatorService.newChildAllocator("coordinator", Long.MAX_VALUE);
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -130,47 +136,56 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
     @Override
     public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
-        // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
-        // executor so the calling thread — which may be a transport thread — is freed
-        // immediately. The scheduler then drives execution asynchronously and fires
-        // {@code listener} once the query terminates; nothing on this path blocks.
+        // Wrap listener to convert backend-specific exceptions (e.g., native memory errors
+        // arriving as StreamException from gRPC) into proper OpenSearch exception types.
+        ActionListener<Iterable<Object[]>> convertingListener = ActionListener.wrap(
+            listener::onResponse,
+            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+        );
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, listener);
+                // Non-profile path: unwrap rows from ProfiledResult (profile is null)
+                executeInternal(
+                    logicalFragment,
+                    false,
+                    ActionListener.wrap(result -> convertingListener.onResponse(result.rows()), convertingListener::onFailure)
+                );
+            } catch (Exception e) {
+                convertingListener.onFailure(e);
+            }
+        });
+    }
+
+    @Override
+    public void executeWithProfile(RelNode logicalFragment, Object context, ActionListener<ProfiledResult> listener) {
+        searchExecutor.execute(() -> {
+            try {
+                executeInternal(logicalFragment, true, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             } catch (AssertionError e) {
-                // Calcite's Litmus.THROW (used by RelOptUtil.eq, RexUtil.isFlat, Project.isValid,
-                // RexChecker) throws AssertionError directly via Java code rather than via the
-                // `assert` keyword, so JVM -da doesn't gate them. If one fires inside this
-                // executor, OpenSearchUncaughtExceptionHandler exits the cluster JVM. Convert to
-                // an IllegalStateException so the query path treats it as a per-query failure
-                // (HTTP 500 with a bucketable message) instead of cluster-fatal.
                 listener.onFailure(new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e));
             }
         });
     }
 
     /**
-     * Plans, registers the query task, and dispatches to the {@link Scheduler}. Runs on
-     * the SEARCH thread pool — never on a transport thread. The result (or failure) is
-     * delivered to {@code listener} by the scheduler; this method returns as soon as the
-     * scheduler has accepted the query.
+     * Unified planning + execution path. When {@code profile} is true, captures the CBO
+     * plan text and snapshots per-stage timing into the {@link ProfiledResult}; when false,
+     * wraps rows into a ProfiledResult with null profile for uniform listener handling.
      */
-    private void executeInternal(RelNode logicalFragment, ActionListener<Iterable<Object[]>> listener) {
-        // Calcite's RelMetadataQuery reads its handler provider from a ThreadLocal
-        // (RelMetadataQueryBase.THREAD_PROVIDERS). The frontend seeds it on its own
-        // thread, but execute() hops to the SEARCH executor where the ThreadLocal is
-        // unset — RelOptUtil.toString / RelNode.explain inside PlannerImpl would then
-        // NPE on a null metadataHandlerProvider. Re-seed from the inbound cluster.
+    private void executeInternal(RelNode logicalFragment, boolean profile, ActionListener<ProfiledResult> listener) {
         RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
         logicalFragment.getCluster().invalidateMetadataQuery();
 
+        final long planStartNanos = profile ? System.nanoTime() : 0;
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
+        final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
+        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Join strategy selection: inspect the DAG for a binary join and tag stage roles.
@@ -254,6 +269,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             throw e;
         }
 
+        /*
+        Profile and explain are captured within the QueryExecution, however QueryExecution requires the complete
+        batchesListener to construct the ExecutionGraph. To get around this circular dependency we build a profiling
+        listener with an empty QueryExecution reference, and then populate it once constructed.
+         */
+        final AtomicReference<QueryExecution> execRef = new AtomicReference<>();
+
+        ActionListener<Iterable<Object[]>> rowsListener = profile
+            ? buildProfilingRowsListener(execRef, context, fullPlan, planningTimeMs, listener)
+            : ActionListener.wrap(rows -> listener.onResponse(new ProfiledResult(rows, null, null)), listener::onFailure);
+
         // Close the *original* QueryContext on every terminal — success or failure. For coord-
         // centric queries, QueryExecution.close() also calls config::close on the same context;
         // QueryContext.close() is idempotent so the duplicate is a no-op. For broadcast queries,
@@ -262,7 +288,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // broadcast query leaks its per-query Arrow allocator (and any failed/cancelled query
         // that bails before QueryExecution is even constructed leaks unconditionally).
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
-            ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches)), listener::onFailure),
+            ActionListener.wrap(batches -> rowsListener.onResponse(batchesToRows(batches)), rowsListener::onFailure),
             () -> {
                 try {
                     context.close();
@@ -295,7 +321,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             if (dispatchBroadcast) {
                 dispatchBroadcast(dag, context, batchesListener);
             } else {
-                scheduler.execute(context, batchesListener);
+                // execRef read by profile listener after execution completes
+                execRef.set(scheduler.execute(context, batchesListener));
             }
         } catch (Exception e) {
             batchesListener.onFailure(e);
@@ -369,6 +396,28 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 .createBroadcastCaptureSink(rewrittenCtx.bufferAllocator(), buildRowType, broadcastMaxBytes),
             terminal
         );
+    }
+
+    /**
+     * Builds a rows listener that snapshots the {@link ExecutionGraph} into a {@link QueryProfile}
+     * at terminal, delivering a {@link ProfiledResult} on both success and failure paths.
+     */
+    private static ActionListener<Iterable<Object[]>> buildProfilingRowsListener(
+        AtomicReference<QueryExecution> execRef,
+        QueryContext context,
+        String fullPlan,
+        long planningTimeMs,
+        ActionListener<ProfiledResult> listener
+    ) {
+        return ActionListener.wrap(rows -> {
+            QueryProfile qp = QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, fullPlan, planningTimeMs);
+            listener.onResponse(new ProfiledResult(rows, null, qp));
+        }, e -> {
+            QueryProfile qp = execRef.get() != null && execRef.get().getGraph() != null
+                ? QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, fullPlan, planningTimeMs)
+                : new QueryProfile(context.queryId(), java.util.List.of(), planningTimeMs, 0L, java.util.List.of());
+            listener.onResponse(new ProfiledResult(null, e, qp));
+        });
     }
 
     @Override
