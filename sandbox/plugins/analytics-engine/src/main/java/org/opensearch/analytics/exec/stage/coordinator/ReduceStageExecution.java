@@ -104,7 +104,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
                 try {
                     cancellable.cancel();
                 } catch (Exception e) {
-                    logger.warn("[ReduceStageExecution] cancel() threw for stage {}", getStageId(), e);
+                    logger.warn("[ReduceStageExecution] cancel() threw for stage " + getStageId(), e);
                 }
             }
         }
