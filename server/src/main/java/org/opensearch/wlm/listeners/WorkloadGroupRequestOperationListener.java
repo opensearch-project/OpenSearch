@@ -44,7 +44,7 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
         final String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
         workloadGroupService.rejectIfNeeded(workloadGroupId);
-        WorkloadGroup workloadGroup = workloadGroupService.resolveFromThreadContext();
+        WorkloadGroup workloadGroup = workloadGroupService.getCurrentWorkloadGroup();
         applyWorkloadGroupSearchSettings(workloadGroup, searchRequestContext.getRequest());
     }
 

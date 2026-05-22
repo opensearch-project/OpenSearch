@@ -70,7 +70,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             workloadGroupService
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "missing-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenReturn(null);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(null);
         assertEquals(100, svc.resolveMaxBuckets());
     }
 
@@ -83,7 +83,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.default_search_timeout", "30s").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         assertEquals(100, svc.resolveMaxBuckets());
     }
 
@@ -96,7 +96,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.max_buckets", "42").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         assertEquals(42, svc.resolveMaxBuckets());
     }
 
@@ -109,7 +109,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.max_buckets", "10000").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         assertEquals(10000, svc.resolveMaxBuckets());
     }
 
@@ -132,7 +132,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             workloadGroupService
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenThrow(new RuntimeException("boom"));
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenThrow(new RuntimeException("boom"));
         assertEquals(100, svc.resolveMaxBuckets());
     }
 
@@ -150,7 +150,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             Settings.builder().put("search.max_buckets", "42").put("override_request_values", "false").build()
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         assertEquals(42, svc.resolveMaxBuckets());
     }
 
@@ -168,7 +168,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             Settings.builder().put("search.max_buckets", "42").put("override_request_values", "true").build()
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         assertEquals(42, svc.resolveMaxBuckets());
     }
 
@@ -181,7 +181,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.max_buckets", "7").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
 
         MultiBucketConsumerService.MultiBucketConsumer consumer = svc.create();
         assertEquals(7, consumer.getLimit());

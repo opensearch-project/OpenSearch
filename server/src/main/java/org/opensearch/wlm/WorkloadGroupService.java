@@ -335,10 +335,11 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     }
 
     /**
-     * Resolves the workload group attached to the calling thread context, or null if there is
-     * no workload group ID header set or the referenced group does not exist.
+     * Returns the workload group attached to the calling thread context, or null if the current
+     * request does not map to a workload group (no header set, or the referenced group does not
+     * exist).
      */
-    public WorkloadGroup resolveFromThreadContext() {
+    public WorkloadGroup getCurrentWorkloadGroup() {
         String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
         if (workloadGroupId == null) {
             return null;

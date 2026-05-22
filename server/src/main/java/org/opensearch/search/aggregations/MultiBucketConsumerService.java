@@ -107,7 +107,7 @@ public class MultiBucketConsumerService {
             if (workloadGroupService == null) {
                 return maxBucket;
             }
-            WorkloadGroup workloadGroup = workloadGroupService.resolveFromThreadContext();
+            WorkloadGroup workloadGroup = workloadGroupService.getCurrentWorkloadGroup();
             if (workloadGroup == null) {
                 return maxBucket;
             }

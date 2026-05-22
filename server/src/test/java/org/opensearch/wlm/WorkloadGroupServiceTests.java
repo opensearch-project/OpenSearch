@@ -443,13 +443,13 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.shutdown();
     }
 
-    public void testResolveFromThreadContextReturnsNullWhenHeaderMissing() {
+    public void testGetCurrentWorkloadGroupReturnsNullWhenHeaderMissing() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
-        assertNull(workloadGroupService.resolveFromThreadContext());
+        assertNull(workloadGroupService.getCurrentWorkloadGroup());
     }
 
-    public void testResolveFromThreadContextReturnsGroupWhenPresent() {
+    public void testGetCurrentWorkloadGroupReturnsGroupWhenPresent() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-1");
         when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
@@ -464,10 +464,10 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         when(mockClusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(Map.of("wg-1", wg));
-        assertSame(wg, workloadGroupService.resolveFromThreadContext());
+        assertSame(wg, workloadGroupService.getCurrentWorkloadGroup());
     }
 
-    public void testResolveFromThreadContextReturnsNullWhenGroupMissing() {
+    public void testGetCurrentWorkloadGroupReturnsNullWhenGroupMissing() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "missing-id");
         when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
@@ -476,7 +476,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         when(mockClusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
-        assertNull(workloadGroupService.resolveFromThreadContext());
+        assertNull(workloadGroupService.getCurrentWorkloadGroup());
     }
 
     public void testShouldSBPHandle() {
