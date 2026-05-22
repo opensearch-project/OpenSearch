@@ -323,8 +323,11 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
      * an opaque {@code Arrow error: Arithmetic overflow} at execution. Reject
      * up front with a clear message so users see the limit at plan time.
      *
-     * <p>Upper bound is the exact i64-ns ceiling — {@code Long.MAX_VALUE} ns is
-     * {@code 2262-04-11 23:47:16.854775807 UTC}.
+     * <p>Bounds are the exact i64-ns ends — {@code Long.MAX_VALUE} ns is
+     * {@code 2262-04-11 23:47:16.854775807 UTC} and {@code Long.MIN_VALUE} ns is
+     * {@code 1677-09-21 00:12:43.145224192 UTC}. Lower-bound rejection is
+     * symmetric with the upper bound; without it, year-0001 literals slip past
+     * the planner and die at execution with an opaque {@code StreamException}.
      */
     private static final LocalDateTime I64_NS_MAX = LocalDateTime.ofEpochSecond(
         Long.MAX_VALUE / 1_000_000_000L,
@@ -332,8 +335,14 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
         ZoneOffset.UTC
     );
 
+    private static final LocalDateTime I64_NS_MIN = LocalDateTime.ofEpochSecond(
+        Math.floorDiv(Long.MIN_VALUE, 1_000_000_000L),
+        (int) Math.floorMod(Long.MIN_VALUE, 1_000_000_000L),
+        ZoneOffset.UTC
+    );
+
     private static void rejectIfOutsideI64NsRange(LocalDateTime ldt) {
-        if (ldt.isAfter(I64_NS_MAX)) {
+        if (ldt.isAfter(I64_NS_MAX) || ldt.isBefore(I64_NS_MIN)) {
             throw new IllegalArgumentException("timestamp " + ldt + " is outside the supported range");
         }
     }
