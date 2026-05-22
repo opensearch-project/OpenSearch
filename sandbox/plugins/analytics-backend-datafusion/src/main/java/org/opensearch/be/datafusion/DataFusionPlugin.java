@@ -21,17 +21,21 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -59,7 +63,12 @@ import io.substrait.extension.SimpleExtension;
  * Analytics query capabilities are declared in {@link DataFusionAnalyticsBackendPlugin},
  * which is SPI-discovered and receives this plugin instance via its constructor.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin, ActionPlugin {
+public class DataFusionPlugin extends Plugin
+    implements
+        SearchBackEndPlugin<DatafusionReader>,
+        AnalyticsSearchBackendPlugin,
+        ActionPlugin,
+        CircuitBreakerPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -83,6 +92,53 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Runtime.getRuntime().maxMemory() / 8,
         0L,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum target partitions floor for the adaptive budget system.
+     * When memory pressure forces partition reduction, this is the lowest value allowed.
+     * Setting this equal to the configured target_partitions effectively disables
+     * adaptive reduction (the budget system will never reduce below this floor).
+     * Default: 1 (allow full reduction range).
+     */
+    public static final Setting<Integer> DATAFUSION_MIN_TARGET_PARTITIONS = Setting.intSetting(
+        "datafusion.min_target_partitions",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Admission threshold for the jemalloc memory guard (0.0–1.0).
+     * When pool accounting rejects a phantom reservation but jemalloc reports
+     * actual RSS below this fraction of the pool limit, the reservation proceeds
+     * at full parallelism (false-positive override). Lower = more conservative.
+     * Default: 0.70.
+     */
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.admission_threshold",
+        0.70,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Operator threshold for the jemalloc memory guard (0.0–1.0).
+     * When an operator's try_grow is rejected by the pool but jemalloc reports
+     * actual RSS below this fraction of the pool limit, the grow proceeds
+     * (avoiding unnecessary spill). Higher = more aggressive (fewer spills).
+     * Default: 0.85.
+     */
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.operator_threshold",
+        0.85,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -114,6 +170,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
+    private volatile CircuitBreaker datafusionBreaker;
 
     /**
      * Creates the DataFusion plugin.
@@ -154,6 +211,18 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // Wire the dynamic memory pool limit setting to the native runtime so updates via the
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD, v -> updateMemoryGuardThresholds());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD, v -> updateMemoryGuardThresholds());
+
+        // Apply initial values
+        NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
+        NativeBridge.setMemoryGuardThresholds(
+            DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD.get(settings),
+            DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD.get(settings)
+        );
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
@@ -250,6 +319,18 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         }
     }
 
+    void updateMinTargetPartitions(int value) {
+        NativeBridge.setMinTargetPartitions(value);
+        logger.info("Updated DataFusion min_target_partitions to {}", value);
+    }
+
+    private void updateMemoryGuardThresholds() {
+        double admission = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD);
+        double operator = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD);
+        NativeBridge.setMemoryGuardThresholds(admission, operator);
+        logger.info("Updated DataFusion memory guard thresholds: admission={}, operator={}", admission, operator);
+    }
+
     @Override
     public String name() {
         return "datafusion";
@@ -283,6 +364,27 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     }
 
     @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        long limit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
+        return new BreakerSettings(
+            "analytics_backend_datafusion",
+            limit,
+            1.0,
+            CircuitBreaker.Type.MEMORY,
+            CircuitBreaker.Durability.TRANSIENT,
+            () -> {
+                long currentLimit = dataFusionService != null ? dataFusionService.getMemoryPoolLimit() : limit;
+                long[] stats = dataFusionService != null ? dataFusionService.getMemoryPoolStats() : new long[] { 0, 0 };
+                return new CircuitBreakerStats("analytics_backend_datafusion", currentLimit, stats[0], 1.0, stats[1]);
+            }
+        );
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        this.datafusionBreaker = circuitBreaker;
+    }
+
     public Supplier<AnalyticsBackendTaskCancellationStats> getAnalyticsBackendTaskCancellationStats() {
         return () -> {
             try {
