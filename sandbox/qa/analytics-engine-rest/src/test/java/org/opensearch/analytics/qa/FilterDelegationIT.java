@@ -232,6 +232,39 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         assertEquals(50L, ((Number) rows.get(0).get(0)).longValue());
     }
 
+    /**
+     * Exercises the cross-query caching path for delegated MATCH predicates.
+     * Runs the same MATCH query twice. The node-level IndicesQueryCache should
+     * cache the delegated query's DocIdSet after the first execution; the second
+     * execution should hit the cache (same segment, same query, same reader).
+     *
+     * <p>Correctness is verified by result equality. Cache hit cannot be asserted
+     * from REST without a dedicated stats endpoint, but correct results on both
+     * calls confirm the cached Weight/DocIdSet is still valid.
+     */
+    public void testMatchDelegation_cacheHitOnRepeat() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats count() as c";
+
+        // First execution — populates cache (miss)
+        Map<String, Object> result1 = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows1 = (List<List<Object>>) result1.get("rows");
+        assertNotNull(rows1);
+        assertEquals(1, rows1.size());
+        assertEquals(10L, ((Number) rows1.get(0).get(0)).longValue());
+
+        // Second execution — should hit cache (same reader, same segment, same query)
+        Map<String, Object> result2 = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows2 = (List<List<Object>>) result2.get("rows");
+        assertNotNull(rows2);
+        assertEquals(1, rows2.size());
+        assertEquals(10L, ((Number) rows2.get(0).get(0)).longValue());
+    }
+
     private void createIndex() throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX_NAME));
