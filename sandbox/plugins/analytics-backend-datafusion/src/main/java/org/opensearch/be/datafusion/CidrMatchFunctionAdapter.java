@@ -8,8 +8,6 @@
 
 package org.opensearch.be.datafusion;
 
-import inet.ipaddr.IPAddress;
-import inet.ipaddr.IPAddressString;
 import org.apache.calcite.avatica.util.ByteString;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.type.RelDataType;
@@ -26,6 +24,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.List;
+
+import inet.ipaddr.IPAddress;
+import inet.ipaddr.IPAddressString;
 
 /**
  * Backend-side dispatch for PPL {@code CIDRMATCH(ip, cidr)} that translates
@@ -87,8 +88,7 @@ class CidrMatchFunctionAdapter implements ScalarFunctionAdapter {
         }
 
         // Tier 2: cidr literal + col with VARBINARY underlying — byte-range AND rewrite.
-        if (cidrOperand instanceof RexLiteral cidrLit
-            && ipOperand.getType().getSqlTypeName() == SqlTypeName.VARBINARY) {
+        if (cidrOperand instanceof RexLiteral cidrLit && ipOperand.getType().getSqlTypeName() == SqlTypeName.VARBINARY) {
             String cidrString = cidrLit.getValueAs(String.class);
             if (cidrString == null) {
                 return original;
@@ -107,7 +107,8 @@ class CidrMatchFunctionAdapter implements ScalarFunctionAdapter {
             return rexBuilder.makeCall(
                 SqlStdOperatorTable.AND,
                 rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN_OR_EQUAL, ipOperand, low),
-                rexBuilder.makeCall(SqlStdOperatorTable.LESS_THAN_OR_EQUAL, ipOperand, high));
+                rexBuilder.makeCall(SqlStdOperatorTable.LESS_THAN_OR_EQUAL, ipOperand, high)
+            );
         }
 
         return original;
@@ -124,7 +125,7 @@ class CidrMatchFunctionAdapter implements ScalarFunctionAdapter {
         }
         byte[] low = range.getLower().toIPv6().getBytes();
         byte[] high = range.getUpper().toIPv6().getBytes();
-        return new byte[][] {low, high};
+        return new byte[][] { low, high };
     }
 
     /**

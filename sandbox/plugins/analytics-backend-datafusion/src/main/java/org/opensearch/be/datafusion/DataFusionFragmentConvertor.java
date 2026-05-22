@@ -163,12 +163,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
         // documented space-separator timestamp output is preserved on the AE path.
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
-        // Engine-output cast rewrite targets — see IpBinaryOutputCastRewriter.
+        // Engine-output cast rewrite targets — see IpBinaryCastFunctionAdapter.
         // CAST(<IpType> AS VARCHAR) and CAST(<BinaryType> AS VARCHAR) are rewritten to
-        // these UDF calls before substrait conversion; they bind to Rust UDFs in
+        // these UDF calls in BackendPlanAdapter's adapter pass; they bind to Rust UDFs in
         // rust/src/udf/{ip_to_string,binary_to_base64}.rs.
-        FunctionMappings.s(IpBinaryOutputCastRewriter.IP_TO_STRING_OP, "ip_to_string"),
-        FunctionMappings.s(IpBinaryOutputCastRewriter.BINARY_TO_BASE64_OP, "binary_to_base64"),
+        FunctionMappings.s(IpBinaryCastFunctionAdapter.IP_TO_STRING_OP, "ip_to_string"),
+        FunctionMappings.s(IpBinaryCastFunctionAdapter.BINARY_TO_BASE64_OP, "binary_to_base64"),
         FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
@@ -462,10 +462,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
         // See issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
-        // Rewrite CAST(<IpType|BinaryType> AS VARCHAR) to ip_to_string(...) /
-        // binary_to_base64(...) so DataFusion emits formatted address strings (resp. base64)
-        // instead of buffer-reinterpreting raw bytes as Latin-1.
-        preprocessed = IpBinaryOutputCastRewriter.rewrite(preprocessed);
         // Rewrite PPL's state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) onto
         // LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter binds them by
         // operator identity through ADDITIONAL_AGGREGATE_SIGS.
@@ -513,8 +509,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
         // Same rationale as convertToSubstrait — issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
-        // Same rationale as convertToSubstrait — IP/binary output-cast rewrite.
-        preprocessed = IpBinaryOutputCastRewriter.rewrite(preprocessed);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);

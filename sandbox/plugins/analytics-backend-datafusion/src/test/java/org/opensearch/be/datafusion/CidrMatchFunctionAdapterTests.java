@@ -67,9 +67,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
     }
 
     public void testTier1BothLiteralsInRangeFoldsToTrue() {
-        RexCall call = makeCall(
-            varcharLiteral("1.2.3.4"),
-            varcharLiteral("1.2.3.0/24"));
+        RexCall call = makeCall(varcharLiteral("1.2.3.4"), varcharLiteral("1.2.3.0/24"));
         RexNode result = adapter.adapt(call, List.of(), cluster);
         assertTrue(result instanceof RexLiteral);
         assertEquals(SqlTypeName.BOOLEAN, result.getType().getSqlTypeName());
@@ -77,9 +75,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
     }
 
     public void testTier1BothLiteralsOutOfRangeFoldsToFalse() {
-        RexCall call = makeCall(
-            varcharLiteral("9.9.9.9"),
-            varcharLiteral("1.2.3.0/24"));
+        RexCall call = makeCall(varcharLiteral("9.9.9.9"), varcharLiteral("1.2.3.0/24"));
         RexNode result = adapter.adapt(call, List.of(), cluster);
         assertTrue(result instanceof RexLiteral);
         assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
@@ -87,9 +83,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
 
     public void testTier1Ipv6LiteralFoldsCorrectly() {
         // Pure IPv6 literal in pure IPv6 range.
-        RexCall call = makeCall(
-            varcharLiteral("2003:0db8::"),
-            varcharLiteral("2003:db8::/32"));
+        RexCall call = makeCall(varcharLiteral("2003:0db8::"), varcharLiteral("2003:db8::/32"));
         RexNode result = adapter.adapt(call, List.of(), cluster);
         assertTrue(result instanceof RexLiteral);
         assertEquals(Boolean.TRUE, ((RexLiteral) result).getValueAs(Boolean.class));
@@ -106,10 +100,8 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
         RexCall andCall = (RexCall) result;
         assertSame(SqlStdOperatorTable.AND, andCall.getOperator());
         assertEquals(2, andCall.getOperands().size());
-        assertSame(SqlStdOperatorTable.GREATER_THAN_OR_EQUAL,
-            ((RexCall) andCall.getOperands().get(0)).getOperator());
-        assertSame(SqlStdOperatorTable.LESS_THAN_OR_EQUAL,
-            ((RexCall) andCall.getOperands().get(1)).getOperator());
+        assertSame(SqlStdOperatorTable.GREATER_THAN_OR_EQUAL, ((RexCall) andCall.getOperands().get(0)).getOperator());
+        assertSame(SqlStdOperatorTable.LESS_THAN_OR_EQUAL, ((RexCall) andCall.getOperands().get(1)).getOperator());
     }
 
     public void testTier3DynamicCidrFallsThrough() {
@@ -126,9 +118,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
 
     public void testTier1UnparseableIpFallsThrough() {
         // Garbage input on either side: don't claim to know better than DataFusion.
-        RexCall call = makeCall(
-            varcharLiteral("not-an-ip"),
-            varcharLiteral("1.2.3.0/24"));
+        RexCall call = makeCall(varcharLiteral("not-an-ip"), varcharLiteral("1.2.3.0/24"));
         RexNode result = adapter.adapt(call, List.of(), cluster);
         assertSame(call, result);
     }

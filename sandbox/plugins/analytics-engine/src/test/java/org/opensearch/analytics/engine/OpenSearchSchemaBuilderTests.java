@@ -360,9 +360,7 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
      * {@link SqlTypeName#VARBINARY} underneath.
      */
     public void testIpAndBinaryFieldsCarryLogicalTypeUdt() throws Exception {
-        ClusterState clusterState = buildClusterState(
-            Map.of("udt_index", Map.of("address", "ip", "blob", "binary"))
-        );
+        ClusterState clusterState = buildClusterState(Map.of("udt_index", Map.of("address", "ip", "blob", "binary")));
 
         SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
         Table table = schema.getTable("udt_index");
