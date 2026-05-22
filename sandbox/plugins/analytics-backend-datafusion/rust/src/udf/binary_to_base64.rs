@@ -9,10 +9,11 @@
 //! binary_to_base64(bytes) — base64-encode a binary buffer per the OpenSearch
 //! `binary` field wire contract.
 //!
-//! Bound from `IpBinaryOutputCastRewriter` (Java) which rewrites the engine-output
-//! `CAST(<BinaryType> AS VARCHAR)` to a call into this UDF, so the output matches
-//! what `| fields binary_value` already returns instead of getting buffer-
-//! reinterpreted as Latin-1 by DataFusion's built-in `cast(binary, utf8)` kernel.
+//! Bound from `IpBinaryCastFunctionAdapter` (Java) which rewrites
+//! `CAST(<BinaryType> AS VARCHAR)` to a call into this UDF, so the output
+//! matches what `| fields binary_value` already returns instead of getting
+//! buffer-reinterpreted as Latin-1 by DataFusion's built-in `cast(binary,
+//! utf8)` kernel.
 
 use std::any::Any;
 use std::hash::{Hash, Hasher};

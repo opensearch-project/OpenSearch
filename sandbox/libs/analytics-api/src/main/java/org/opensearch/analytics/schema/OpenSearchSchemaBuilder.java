@@ -126,10 +126,6 @@ public class OpenSearchSchemaBuilder {
                 return SqlTypeName.TIMESTAMP;
             case "ip":
             case "binary":
-                // Both share the underlying VARBINARY encoding. Callers that need to preserve
-                // the OpenSearch logical type (e.g. for response-schema labels and byte[]
-                // rendering at the SQL plugin) should use {@link #buildLeafType} instead, which
-                // wraps these in {@link IpRelDataType} / {@link BinaryRelDataType} UDTs.
                 return SqlTypeName.VARBINARY;
             default:
                 return null;

@@ -14,13 +14,10 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import java.util.Locale;
 
 /**
- * Calcite type marker for an OpenSearch {@code binary} column. Underlying SQL type is
- * {@link SqlTypeName#VARBINARY}, matching the on-disk encoding;
- * {@link AbstractSqlType} handles {@code getSqlTypeName()}, {@code isNullable()}, and
- * {@code getFamily()} for free. The dedicated subclass exists so the SQL plugin's
- * response-schema build can {@code instanceof}-dispatch to render the column type as
- * {@code "binary"}, and so {@code AnalyticsExecutionEngine.convertRows} can base64-encode
- * the {@code byte[]} cell to match the OpenSearch {@code binary} field wire contract.
+ * Calcite type marker for an OpenSearch {@code binary} column. Backed by
+ * {@link SqlTypeName#VARBINARY} so planner coercion is unchanged; the subclass exists
+ * only as an {@code instanceof}-dispatch marker for callers that need to distinguish a
+ * {@code binary} column from a plain {@code VARBINARY}.
  */
 public final class BinaryType extends AbstractSqlType {
 

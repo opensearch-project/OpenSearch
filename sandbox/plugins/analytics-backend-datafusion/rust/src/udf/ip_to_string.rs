@@ -8,10 +8,11 @@
 
 //! ip_to_string(bytes) — render a 16-byte ipv6-mapped buffer as a canonical IP string.
 //!
-//! Bound from `IpBinaryOutputCastRewriter` (Java) which rewrites the engine-output
+//! Bound from `IpBinaryCastFunctionAdapter` (Java) which rewrites
 //! `CAST(<IpType> AS VARCHAR)` to a call into this UDF, so the output is
-//! formatted server-side by the analytics backend rather than getting buffer-
-//! reinterpreted as Latin-1 by DataFusion's built-in `cast(binary, utf8)` kernel.
+//! formatted server-side by the analytics backend rather than getting
+//! buffer-reinterpreted as Latin-1 by DataFusion's built-in `cast(binary,
+//! utf8)` kernel.
 //!
 //! Output format matches OpenSearch core's `InetAddresses.toAddrString`:
 //!   - IPv4-mapped IPv6 (10 zero bytes + `0xff 0xff` + 4 IPv4 bytes) → dotted-quad

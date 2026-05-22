@@ -14,15 +14,10 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import java.util.Locale;
 
 /**
- * Calcite type marker for an OpenSearch {@code ip} column. Underlying SQL type is
- * {@link SqlTypeName#VARBINARY}, matching the on-disk 16-byte ipv4-mapped-ipv6 encoding;
- * {@link AbstractSqlType} handles {@code getSqlTypeName()}, {@code isNullable()}, and
- * {@code getFamily()} for free, so existing operator dispatch (cidrmatch byte-range rewrite,
- * equality / IN / BETWEEN coercion, Substrait conversion) treats this identically to a plain
- * VARBINARY column. The dedicated subclass exists purely so the SQL plugin's response-schema
- * build can {@code instanceof}-dispatch to render the column type as {@code "ip"}, and so
- * {@code AnalyticsExecutionEngine.convertRows} can format the {@code byte[]} cell as a
- * dotted-quad / RFC 5952 string.
+ * Calcite type marker for an OpenSearch {@code ip} column. Backed by
+ * {@link SqlTypeName#VARBINARY} so planner coercion is unchanged; the subclass exists
+ * only as an {@code instanceof}-dispatch marker for callers that need to distinguish an
+ * {@code ip} column from a plain {@code VARBINARY}.
  */
 public final class IpType extends AbstractSqlType {
 

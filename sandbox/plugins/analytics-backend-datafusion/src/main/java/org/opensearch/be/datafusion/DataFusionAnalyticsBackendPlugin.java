@@ -97,10 +97,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MOD,
         ScalarFunction.EARLIEST,
         ScalarFunction.LATEST,
-        // CIDRMATCH(<varbinary col>, <cidr literal>) — CidrMatchFunctionAdapter
-        // rewrites this to a byte-range AND before substrait conversion, so the
-        // call never reaches DataFusion intact. Registering it as filter-capable
-        // lets OpenSearchFilterRule accept the predicate up front.
         ScalarFunction.CIDRMATCH
     );
 
@@ -155,10 +151,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IN,
         ScalarFunction.LIKE,
         ScalarFunction.REGEXP_CONTAINS,
-        // CIDRMATCH inside `eval` — the adapter folds literal-only calls to a
-        // BOOLEAN literal at plan time, so the project never holds a runtime
-        // CIDRMATCH call. Registering it as project-capable lets the planner
-        // accept the eval column.
         ScalarFunction.CIDRMATCH,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
@@ -580,9 +572,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
-                    // Rewrite CAST(<IpType|BinaryType> AS VARCHAR) to ip_to_string / binary_to_base64
-                    // UDF calls. Plain VARBINARY / numeric / etc. casts pass through unchanged to
-                    // DataFusion's native cast kernel.
                     Map.entry(ScalarFunction.CAST, ipBinaryCast),
                     Map.entry(ScalarFunction.CIDRMATCH, new CidrMatchFunctionAdapter()),
                     Map.entry(ScalarFunction.COALESCE, new CoalesceAdapter()),

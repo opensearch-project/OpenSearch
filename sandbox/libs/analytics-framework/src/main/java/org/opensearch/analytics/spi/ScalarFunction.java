@@ -43,7 +43,6 @@ public enum ScalarFunction {
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
-    /** {@code cidrmatch(ip, '<cidr>')} — IP-range predicate, backend expands to byte-range AND. */
     CIDRMATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Logical connectives ─────────────────────────────────────────

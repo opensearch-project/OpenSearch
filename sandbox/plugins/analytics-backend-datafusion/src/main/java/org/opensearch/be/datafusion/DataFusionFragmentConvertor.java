@@ -163,10 +163,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
         // documented space-separator timestamp output is preserved on the AE path.
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
-        // Engine-output cast rewrite targets — see IpBinaryCastFunctionAdapter.
-        // CAST(<IpType> AS VARCHAR) and CAST(<BinaryType> AS VARCHAR) are rewritten to
-        // these UDF calls in BackendPlanAdapter's adapter pass; they bind to Rust UDFs in
-        // rust/src/udf/{ip_to_string,binary_to_base64}.rs.
         FunctionMappings.s(IpBinaryCastFunctionAdapter.IP_TO_STRING_OP, "ip_to_string"),
         FunctionMappings.s(IpBinaryCastFunctionAdapter.BINARY_TO_BASE64_OP, "binary_to_base64"),
         FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),

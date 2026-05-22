@@ -66,7 +66,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
         adapter = new CidrMatchFunctionAdapter();
     }
 
-    public void testTier1BothLiteralsInRangeFoldsToTrue() {
+    public void testBothLiteralsInRangeFoldsToTrue() {
         RexCall call = makeCall(varcharLiteral("1.2.3.4"), varcharLiteral("1.2.3.0/24"));
         RexNode result = adapter.adapt(call, List.of(), cluster);
         assertTrue(result instanceof RexLiteral);
@@ -74,14 +74,14 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
         assertEquals(Boolean.TRUE, ((RexLiteral) result).getValueAs(Boolean.class));
     }
 
-    public void testTier1BothLiteralsOutOfRangeFoldsToFalse() {
+    public void testBothLiteralsOutOfRangeFoldsToFalse() {
         RexCall call = makeCall(varcharLiteral("9.9.9.9"), varcharLiteral("1.2.3.0/24"));
         RexNode result = adapter.adapt(call, List.of(), cluster);
         assertTrue(result instanceof RexLiteral);
         assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
     }
 
-    public void testTier1Ipv6LiteralFoldsCorrectly() {
+    public void testIpv6LiteralFoldsCorrectly() {
         // Pure IPv6 literal in pure IPv6 range.
         RexCall call = makeCall(varcharLiteral("2003:0db8::"), varcharLiteral("2003:db8::/32"));
         RexNode result = adapter.adapt(call, List.of(), cluster);
@@ -89,7 +89,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
         assertEquals(Boolean.TRUE, ((RexLiteral) result).getValueAs(Boolean.class));
     }
 
-    public void testTier2VarbinaryColumnWithCidrLiteralRewritesToByteRange() {
+    public void testVarbinaryColumnWithCidrLiteralRewritesToByteRange() {
         RelDataType varbinary = typeFactory.createSqlType(SqlTypeName.VARBINARY);
         RexNode column = new RexInputRef(0, varbinary);
         RexCall call = makeCall(column, varcharLiteral("1.2.3.0/24"));
@@ -104,7 +104,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
         assertSame(SqlStdOperatorTable.LESS_THAN_OR_EQUAL, ((RexCall) andCall.getOperands().get(1)).getOperator());
     }
 
-    public void testTier3DynamicCidrFallsThrough() {
+    public void testDynamicCidrFallsThrough() {
         // Non-literal cidr (a column reference) — should not be folded or rewritten.
         RelDataType varbinary = typeFactory.createSqlType(SqlTypeName.VARBINARY);
         RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
@@ -116,7 +116,7 @@ public class CidrMatchFunctionAdapterTests extends OpenSearchTestCase {
         assertSame("dynamic cidr must fall through unchanged", call, result);
     }
 
-    public void testTier1UnparseableIpFallsThrough() {
+    public void testUnparseableIpFallsThrough() {
         // Garbage input on either side: don't claim to know better than DataFusion.
         RexCall call = makeCall(varcharLiteral("not-an-ip"), varcharLiteral("1.2.3.0/24"));
         RexNode result = adapter.adapt(call, List.of(), cluster);

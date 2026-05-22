@@ -33,23 +33,17 @@ import inet.ipaddr.IPAddressString;
  * the call into a form DataFusion can execute. Three tiers, in order:
  *
  * <ol>
- *   <li><b>Both args literal</b> &mdash; parse the IP and the CIDR at plan time
- *       and fold to a Boolean {@link RexLiteral}. Closes the bug where
- *       const-folded {@code CIDRMATCH('1.2.3.4', '1.2.3.0/24')} would otherwise
- *       reach the runtime UDF that DataFusion has no implementation for.
+ *   <li><b>Both args literal</b> &mdash; parse the IP and the CIDR at plan
+ *       time and fold to a Boolean {@link RexLiteral}, so the call never
+ *       reaches DataFusion (which has no CIDRMATCH UDF).
  *   <li><b>VARBINARY column + cidr literal</b> &mdash; expand to a byte-range
- *       {@code AND(col >= low, col <= high)}. The byte literals match the
- *       parquet column's IPv6-mapped 16-byte encoding. This is the working
- *       column-form path; the analytics-engine UDTs ({@code IpType},
- *       {@code BinaryType}) extend {@code AbstractSqlType} with
- *       VARBINARY so the same gate fires for both.
- *   <li><b>Anything else</b> &mdash; return the call unchanged. Status quo
- *       (DataFusion fails with "No backend supports scalar function
- *       [CIDRMATCH]") until a Rust UDF is registered for the dynamic case.
+ *       {@code AND(col >= low, col <= high)} against the column's 16-byte
+ *       IPv6-mapped encoding. {@code IpType} is backed by VARBINARY, so
+ *       {@code ip} columns hit this gate too.
+ *   <li><b>Anything else</b> &mdash; return the call unchanged. DataFusion
+ *       will reject it ("No backend supports scalar function [CIDRMATCH]")
+ *       until a Rust UDF covers the dynamic case.
  * </ol>
- *
- * <p>Pattern mirrors {@link TimestampFunctionAdapter} which fold-or-rewrites
- * timestamp calls before they reach Substrait conversion.
  *
  * @opensearch.internal
  */
@@ -73,17 +67,11 @@ class CidrMatchFunctionAdapter implements ScalarFunctionAdapter {
                     RexBuilder rexBuilder = cluster.getRexBuilder();
                     RelDataType boolType = cluster.getTypeFactory().createSqlType(SqlTypeName.BOOLEAN);
                     RexNode literal = rexBuilder.makeLiteral(result, boolType, false);
-                    // Lift to the call's declared type (e.g. BOOLEAN_FORCE_NULLABLE) so the
-                    // surrounding Project's rowType assertion stays satisfied. Without this
-                    // cast Calcite asserts {@code BOOLEAN NOT NULL != BOOLEAN} when the
-                    // folded literal replaces the call inside a Project's expression list.
                     if (!literal.getType().equals(original.getType())) {
                         literal = rexBuilder.makeAbstractCast(original.getType(), literal);
                     }
                     return literal;
                 }
-                // Parse failure on either side: fall through to tier 3 so DataFusion's
-                // error is the one the user sees, not ours.
             }
         }
 
@@ -103,7 +91,6 @@ class CidrMatchFunctionAdapter implements ScalarFunctionAdapter {
             RelDataType varbinary = cluster.getTypeFactory().createSqlType(SqlTypeName.VARBINARY);
             RexNode low = rexBuilder.makeLiteral(new ByteString(range[0]), varbinary, false);
             RexNode high = rexBuilder.makeLiteral(new ByteString(range[1]), varbinary, false);
-            // makeCall(AND, ...) auto-flattens at construction, so no Filter.isFlat issue.
             return rexBuilder.makeCall(
                 SqlStdOperatorTable.AND,
                 rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN_OR_EQUAL, ipOperand, low),
