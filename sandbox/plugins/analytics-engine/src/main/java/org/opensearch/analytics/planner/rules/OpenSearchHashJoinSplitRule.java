@@ -64,6 +64,12 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
 
     @Override
     public boolean matches(RelOptRuleCall call) {
+        // The master MPP kill switch must be on — shuffle is a sub-feature of MPP. With MPP
+        // disabled cluster-wide, the join routes through OpenSearchJoinSplitRule's
+        // coord-centric path; this rule must stay out of that decision.
+        if (!AnalyticsSettings.MPP_ENABLED.get(context.getSettings())) {
+            return false;
+        }
         if (!AnalyticsSettings.MPP_SHUFFLE_ENABLED.get(context.getSettings())) {
             return false;
         }

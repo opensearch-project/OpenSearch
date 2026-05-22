@@ -14,6 +14,8 @@ import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.JoinInfo;
+import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
@@ -22,7 +24,20 @@ import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import java.util.List;
 
 /**
- * Drives per-side distribution for {@link OpenSearchJoin}.
+ * Coord-centric split rule for {@link OpenSearchJoin}. Produces the COORDINATOR_CENTRIC
+ * strategy alternative — both inputs gather to the coordinator; the join runs there.
+ *
+ * <p><b>Firing contract</b> (from M2's strategy table):
+ * <ul>
+ *   <li>Theta (non-equi) joins: ALWAYS. Theta has no broadcast or hash alternative; this rule
+ *       is the only legal path.</li>
+ *   <li>Equi joins with {@code analytics.mpp.enabled=false}: ALWAYS. The kill switch forces
+ *       coord-centric for all joins.</li>
+ *   <li>Equi joins with {@code analytics.mpp.enabled=true}: NEVER. CBO must pick between
+ *       BROADCAST and HASH_SHUFFLE only — coord-centric is not a competitor in this case.
+ *       The {@link OpenSearchBroadcastJoinSplitRule} and {@link OpenSearchHashJoinSplitRule}
+ *       cover this path.</li>
+ * </ul>
  *
  * <p><b>Co-location fast path.</b> When both sides are SHARD+SINGLETON scans with
  * {@code shardCount=1} and the same {@code tableId} (self-join on a 1-shard table),
@@ -37,10 +52,12 @@ import java.util.List;
  */
 public class OpenSearchJoinSplitRule extends RelOptRule {
 
+    private final PlannerContext context;
     private final OpenSearchDistributionTraitDef distTraitDef;
 
     public OpenSearchJoinSplitRule(PlannerContext context) {
         super(operand(OpenSearchJoin.class, any()), "OpenSearchJoinSplitRule");
+        this.context = context;
         this.distTraitDef = context.getDistributionTraitDef();
     }
 
@@ -48,6 +65,16 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
     public boolean matches(RelOptRuleCall call) {
         OpenSearchJoin join = call.rel(0);
         if (joinAlreadyResolved(join)) return false;
+        // Contract: this rule produces COORDINATOR_CENTRIC. Per M2's strategy table, that
+        // strategy is legal only when (a) the join is theta (no MPP alternative exists) or
+        // (b) MPP is killed cluster-wide. Equi joins under mpp.enabled=true must go through
+        // BROADCAST or HASH; coord-centric cannot compete with them on cost.
+        boolean mppEnabled = AnalyticsSettings.MPP_ENABLED.get(context.getSettings());
+        JoinInfo info = join.analyzeCondition();
+        boolean isEqui = info.isEqui();
+        if (mppEnabled && isEqui) {
+            return false;
+        }
         return true;
     }
 

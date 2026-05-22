@@ -80,25 +80,22 @@ public class OpenSearchShuffleExchange extends SingleRel implements OpenSearchRe
         return new OpenSearchShuffleExchange(getCluster(), traitSet, sole(inputs), hashKeys, partitionCount, viableBackends);
     }
 
+    /** Per-partition fixed setup cost — captures TCP setup, NamedScan registration, and
+     *  per-partition state on the consumer. Discourages shuffle for tiny inputs that would
+     *  otherwise tie broadcast on raw transfer. */
+    private static final double SETUP_COST_PER_PARTITION = 5.0;
+
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        // Deliberately huge so Volcano never picks a plan rooted in hash-shuffle until the
-        // fragment conversion path supports OpenSearchJoin with OpenSearchShuffleExchange children.
-        // The rule ({@code OpenSearchHashJoinRule}) still registers HASH-shuffle alternatives so
-        // {@link org.opensearch.analytics.exec.join.JoinStrategyAdvisor} can observe the shape for
-        // strategy-selection logging, but {@code findBestExp()} always resolves to the cheaper
-        // SINGLETON-reducer alternative until conversion is wired.
-        //
-        // Without this bump Volcano's cost totals are tiny×N for both alternatives and
-        // the shuffle tree can beat the reducer tree by one node's worth of cost; {@code
-        // FragmentConversionDriver.convertReduceNode()} then fails with "no Join rewire case in
-        // DataFusionFragmentConvertor.replaceInput()" because the coordinator fragment shape
-        // (OpenSearchJoin over two shuffle exchanges) is unsupported by the reduce-fragment path.
-        //
-        // TODO: drop this to {@code makeTinyCost()} (or a data-aware cost proportional to row
-        // count × partitionCount) when FragmentConversionDriver and DataFusionFragmentConvertor
-        // handle shuffle-joined coordinator fragments end-to-end.
-        return planner.getCostFactory().makeHugeCost();
+        double rows = mq.getRowCount(getInput());
+        // Hash shuffle moves all input rows once, partitioned across N consumers. Cost is
+        // dominated by the transfer term (proportional to rows) plus a per-partition setup
+        // cost. This is the discriminator vs broadcast: shuffle's transfer term doesn't
+        // multiply by node count (each row goes to exactly one consumer), so for a small
+        // build side broadcast can win even though it pays N copies of setup, while for a
+        // large build side shuffle wins because broadcast multiplies rows×N.
+        double cost = rows + SETUP_COST_PER_PARTITION * partitionCount;
+        return planner.getCostFactory().makeCost(cost, cost, 0);
     }
 
     @Override

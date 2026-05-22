@@ -117,8 +117,6 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchJoinSplitRule",
                 1L,
-                "OpenSearchHashJoinSplitRule",
-                0L,
                 "ExpandConversionRule",
                 2L
             )
@@ -188,6 +186,17 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     }
 
     private PlannerContext context(ClusterState state, boolean profilingEnabled) {
-        return new PlannerContext(new CapabilityRegistry(List.of(DATAFUSION, LUCENE), FieldStorageResolver::new), state, profilingEnabled);
+        // Default test settings: MPP off — pins COORDINATOR_CENTRIC plan shape (the existing
+        // test fixture's expected rule firings assume this). MPP-on cases live in the rule-
+        // specific test files (OpenSearchBroadcastJoinSplitRuleTests etc.).
+        org.opensearch.common.settings.Settings settings = org.opensearch.common.settings.Settings.builder()
+            .put("analytics.mpp.enabled", false)
+            .build();
+        return new PlannerContext(
+            new CapabilityRegistry(List.of(DATAFUSION, LUCENE), FieldStorageResolver::new),
+            state,
+            settings,
+            profilingEnabled
+        );
     }
 }

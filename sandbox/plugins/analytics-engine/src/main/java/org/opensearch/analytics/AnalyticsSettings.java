@@ -126,6 +126,21 @@ public final class AnalyticsSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Cost-model parameter: how many probe-side data nodes the broadcast exchange estimates it
+     * has to replicate to. The broadcast cost is roughly {@code buildSide.rows × probeNodes};
+     * this number is what enters the formula. Default {@code -1} means "use the cluster's
+     * data-node count at planning time" — the natural answer when the probe-side index spans
+     * all data nodes. Operators can override to tune for selective routing or to nudge the
+     * cost model toward favoring or disfavoring broadcast in their workload.
+     */
+    public static final Setting<Integer> MPP_BROADCAST_PROBE_ESTIMATE = Setting.intSetting(
+        "analytics.mpp.broadcast_probe_estimate",
+        -1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /** All engine-level settings registered by {@code AnalyticsPlugin.getSettings()}. */
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
         MPP_ENABLED,
@@ -133,6 +148,7 @@ public final class AnalyticsSettings {
         BROADCAST_MAX_BYTES,
         MPP_SHUFFLE_ENABLED,
         MPP_SHUFFLE_PARTITIONS,
-        MPP_SHUFFLE_RECV_TIMEOUT
+        MPP_SHUFFLE_RECV_TIMEOUT,
+        MPP_BROADCAST_PROBE_ESTIMATE
     );
 }

@@ -129,6 +129,28 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
         return new OpenSearchDistribution(this, null, RelDistribution.Type.HASH_DISTRIBUTED, keys, null, null, null);
     }
 
+    /**
+     * BROADCAST_DISTRIBUTED + REPLICATED demand — full row set replicated to every probe-side
+     * worker. {@code probeNodeEstimate} feeds the cost model: {@link OpenSearchBroadcastExchange}
+     * scales its self-cost by this count. Used by {@code OpenSearchBroadcastJoinSplitRule} to
+     * demand the build side be replicated; Volcano's trait converter materializes an
+     * {@link OpenSearchBroadcastExchange} on any input not already so distributed.
+     */
+    public OpenSearchDistribution broadcast(int probeNodeEstimate) {
+        // probeNodeEstimate piggybacks onto the partitionCount field — semantically distinct
+        // from HASH's partitionCount but uses the same record slot for transit through the
+        // trait. The broadcast exchange reads it from the trait at convert() time.
+        return new OpenSearchDistribution(
+            this,
+            OpenSearchDistribution.Locality.REPLICATED,
+            RelDistribution.Type.BROADCAST_DISTRIBUTED,
+            List.of(),
+            null,
+            null,
+            probeNodeEstimate
+        );
+    }
+
     /** Copies a distribution from another trait def — preserves all fields. */
     public OpenSearchDistribution from(OpenSearchDistribution other) {
         return new OpenSearchDistribution(
@@ -212,6 +234,23 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
                 rel.getTraitSet().replace(toTrait),
                 rel,
                 toTrait.getKeys(),
+                toTrait.getPartitionCount(),
+                viableBackends
+            );
+        } else if (toTrait.getType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
+            // Broadcast demand: the build side gets replicated to every probe node. The split
+            // rule resolved probeNodeEstimate (cluster setting → cluster's data-node count)
+            // and stashed it in partitionCount. The exchange reads it for its cost function.
+            if (toTrait.getPartitionCount() == null) {
+                throw new IllegalStateException(
+                    "BROADCAST_DISTRIBUTED demand has null probe-node estimate; rule must "
+                        + "resolve via OpenSearchDistributionTraitDef.broadcast(probeNodes). toTrait=" + toTrait
+                );
+            }
+            result = new OpenSearchBroadcastExchange(
+                rel.getCluster(),
+                rel.getTraitSet().replace(toTrait),
+                rel,
                 toTrait.getPartitionCount(),
                 viableBackends
             );

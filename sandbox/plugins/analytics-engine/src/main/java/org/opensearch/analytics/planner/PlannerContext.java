@@ -12,6 +12,8 @@ import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.settings.Settings;
 
+import java.util.function.ToLongFunction;
+
 /**
  * Shared context available to all planner rules.
  * Holds capability registry (singleton, built at plugin startup), per-query cluster state,
@@ -21,30 +23,53 @@ import org.opensearch.common.settings.Settings;
  */
 public class PlannerContext {
 
+    /**
+     * Sentinel returned by {@link #DEFAULT_TABLE_ROW_COUNTS} for indices we have no statistics
+     * for. The cost model treats this as "use Calcite's default" — in practice
+     * {@code RelOptAbstractTable.getRowCount()} returns 100.0 in that case.
+     */
+    public static final long UNKNOWN_ROW_COUNT = -1L;
+
+    /** Default lookup that always returns {@link #UNKNOWN_ROW_COUNT} — used when no statistics
+     *  source has been wired (e.g. unit tests that don't exercise cost-aware planning). */
+    public static final ToLongFunction<String> DEFAULT_TABLE_ROW_COUNTS = name -> UNKNOWN_ROW_COUNT;
+
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterState clusterState;
     private final Settings settings;
+    private final ToLongFunction<String> tableRowCounts;
     private final OpenSearchDistributionTraitDef distributionTraitDef;
     private final boolean profilingEnabled;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
-        this(capabilityRegistry, clusterState, Settings.EMPTY, false);
+        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, false);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, boolean profilingEnabled) {
-        this(capabilityRegistry, clusterState, Settings.EMPTY, profilingEnabled);
+        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, profilingEnabled);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings) {
-        this(capabilityRegistry, clusterState, settings, false);
+        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, false);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings, boolean profilingEnabled) {
+        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, profilingEnabled);
+    }
+
+    public PlannerContext(
+        CapabilityRegistry capabilityRegistry,
+        ClusterState clusterState,
+        Settings settings,
+        ToLongFunction<String> tableRowCounts,
+        boolean profilingEnabled
+    ) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
         this.settings = settings;
+        this.tableRowCounts = tableRowCounts;
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
         this.profilingEnabled = profilingEnabled;
         this.annotationIdCounter = 0;
@@ -79,6 +104,15 @@ public class PlannerContext {
 
     public Settings getSettings() {
         return settings;
+    }
+
+    /**
+     * Per-index row count lookup used by {@code OpenSearchTableScanRule} to seed
+     * {@code IndexNameTable.getRowCount()}. Returns {@link #UNKNOWN_ROW_COUNT} for
+     * indices we have no statistics for; callers fall back to Calcite's default.
+     */
+    public ToLongFunction<String> getTableRowCounts() {
+        return tableRowCounts;
     }
 
     public OpenSearchDistributionTraitDef getDistributionTraitDef() {

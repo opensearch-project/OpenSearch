@@ -1,0 +1,111 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner.rel;
+
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.SingleRel;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.FieldStorageInfo;
+
+import java.util.List;
+
+/**
+ * Broadcast exchange: replicates the input stream's full row set to every probe-side worker.
+ * Produced by {@link OpenSearchDistributionTraitDef} when Volcano's trait conversion encounters
+ * a {@code BROADCAST_DISTRIBUTED + REPLICATED} requirement on the build side of an MPP join.
+ * Sibling of {@link OpenSearchExchangeReducer} (SINGLETON gather) and
+ * {@link OpenSearchShuffleExchange} (HASH partition).
+ *
+ * <p><b>Cost model.</b> Broadcast moves one copy of the input rows to each probe node. Cost is
+ * roughly {@code inputRowCount × probeNodeEstimate} — this is what discriminates BROADCAST from
+ * HASH_SHUFFLE during CBO: a small build side broadcasts cheaply (small × N), but a large build
+ * gets expensive (rows × N grows fast), so HASH wins when both sides are large.
+ *
+ * <p>{@code probeNodeEstimate} is resolved at split-rule time from the cluster setting
+ * {@code analytics.mpp.broadcast_probe_estimate}, defaulting to the cluster's data-node count.
+ *
+ * @opensearch.internal
+ */
+public class OpenSearchBroadcastExchange extends SingleRel implements OpenSearchRelNode {
+
+    /** Per-replica fixed setup cost — discourages broadcast for tiny tables that would
+     *  otherwise tie hash on raw transfer cost but pay extra for replicating to every node. */
+    private static final double SETUP_COST_PER_REPLICA = 5.0;
+
+    private final int probeNodeEstimate;
+    private final List<String> viableBackends;
+
+    public OpenSearchBroadcastExchange(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelNode input,
+        int probeNodeEstimate,
+        List<String> viableBackends
+    ) {
+        super(cluster, traitSet, input);
+        this.probeNodeEstimate = probeNodeEstimate;
+        this.viableBackends = viableBackends;
+    }
+
+    public int getProbeNodeEstimate() {
+        return probeNodeEstimate;
+    }
+
+    @Override
+    public List<String> getViableBackends() {
+        return viableBackends;
+    }
+
+    @Override
+    public List<FieldStorageInfo> getOutputFieldStorage() {
+        RelNode input = RelNodeUtils.unwrapHep(getInput());
+        if (input instanceof OpenSearchRelNode openSearchInput) {
+            return openSearchInput.getOutputFieldStorage();
+        }
+        return List.of();
+    }
+
+    @Override
+    public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+        return new OpenSearchBroadcastExchange(getCluster(), traitSet, sole(inputs), probeNodeEstimate, viableBackends);
+    }
+
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        double rows = mq.getRowCount(getInput());
+        // Broadcast moves N copies of the row set, where N = probe-node count. Each copy
+        // also pays a fixed setup cost (TCP setup + NamedScan registration on each probe).
+        // The transfer term is what Volcano uses to discriminate broadcast-vs-shuffle: a
+        // tiny build side dominates with the setup term (broadcast cheap), a fat build side
+        // dominates with the transfer term and grows linearly with the cluster.
+        double cost = (rows + SETUP_COST_PER_REPLICA) * probeNodeEstimate;
+        return planner.getCostFactory().makeCost(cost, cost, 0);
+    }
+
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        return super.explainTerms(pw).item("probeNodeEstimate", probeNodeEstimate).item("viableBackends", viableBackends);
+    }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchBroadcastExchange(getCluster(), getTraitSet(), children.getFirst(), probeNodeEstimate, List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return new OpenSearchBroadcastExchange(getCluster(), getTraitSet(), strippedChildren.getFirst(), probeNodeEstimate, viableBackends);
+    }
+}

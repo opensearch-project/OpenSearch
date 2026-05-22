@@ -56,8 +56,14 @@ public class OpenSearchDistribution implements RelDistribution {
         SHARD,
         /** Data has been gathered to the coordinator. */
         COORDINATOR,
-        /** Data has been hash-shuffled to data-node workers (post-shuffle execution locale). */
-        WORKER
+        /** Data has been hash-shuffled to data-node workers (post-shuffle execution locale).
+         *  Each worker holds 1/N of the rows, partitioned by hash key. */
+        WORKER,
+        /** Data has been replicated to every probe-side worker — the broadcast distribution.
+         *  Every worker holds the full row set (small build side). Distinct from {@link #WORKER}
+         *  because the row set per node is different in shape: replicated has all rows on
+         *  every node; worker+hash has 1/N of rows on each. */
+        REPLICATED
     }
 
     private final OpenSearchDistributionTraitDef traitDef;
@@ -151,6 +157,14 @@ public class OpenSearchDistribution implements RelDistribution {
             }
             // Locality: WORKER produced data satisfies a WORKER demand. A null demanded
             // locality accepts either (rare; HASH demands always carry WORKER today).
+            if (other.locality == null) return true;
+            return this.locality == other.locality;
+        }
+        if (this.type == Type.BROADCAST_DISTRIBUTED) {
+            // Broadcast = full-row-set replicated to every probe-side node. The demand carries
+            // no keys (broadcast doesn't partition on anything). Locality must match: broadcast
+            // produced data satisfies a REPLICATED demand only. A null demanded locality
+            // accepts either (rare; broadcast demands always carry REPLICATED today).
             if (other.locality == null) return true;
             return this.locality == other.locality;
         }

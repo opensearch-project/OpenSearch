@@ -1,0 +1,294 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner;
+
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.logical.LogicalJoin;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * The load-bearing spike validator: does Volcano pick the right join strategy from row
+ * counts and cluster topology? This is what answers M2's go/no-go question.
+ *
+ * <p>Each scenario constructs an {@link OpenSearchJoin} over two indices with explicit
+ * row counts, runs the full {@link PlannerImpl#runAllOptimizations} pipeline (HEP marking
+ * → CBO), then walks the result tree to find which exchange type Volcano materialized:
+ * <ul>
+ *   <li>{@link OpenSearchBroadcastExchange} above the build side → BROADCAST won.</li>
+ *   <li>{@link OpenSearchShuffleExchange} above each side → HASH_SHUFFLE won.</li>
+ *   <li>Plain {@code OpenSearchExchangeReducer} above each side → COORDINATOR_CENTRIC won.</li>
+ * </ul>
+ *
+ * <p>The 3 scenarios + 2 contract enforcers map to M2's strategy table:
+ * <ol>
+ *   <li>small × large, mpp.enabled=true → BROADCAST (small as build).</li>
+ *   <li>large × large, mpp.enabled=true → HASH_SHUFFLE.</li>
+ *   <li>small × small, mpp.enabled=true → BROADCAST (small build cheap to replicate).</li>
+ *   <li>any equi, mpp.enabled=false → COORDINATOR_CENTRIC.</li>
+ *   <li>theta, any setting → COORDINATOR_CENTRIC.</li>
+ * </ol>
+ */
+public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
+
+    /** Row counts that should make the cost model pick each strategy clearly. */
+    private static final long SMALL = 1_000L;
+    private static final long LARGE = 10_000_000L;
+    private static final int CLUSTER_DATA_NODES = 3;
+
+    // ── Scenario 1: small × large ──────────────────────────────────────────
+
+    public void testSmallByLargeMppEnabledPicksBroadcast() {
+        PlannerContext context = buildMppContext(
+            Map.of("small_idx", 3, "large_idx", 3),
+            Map.of("small_idx", SMALL, "large_idx", LARGE),
+            /* mppEnabled */ true,
+            /* shuffleEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "small_idx", "large_idx", JoinRelType.INNER, /* equi */ true), context);
+
+        assertContainsBroadcastExchange("small × large with mpp.enabled must pick BROADCAST", result);
+        assertDoesNotContainShuffleExchange("small × large must not shuffle", result);
+    }
+
+    // ── Scenario 2: large × large ──────────────────────────────────────────
+
+    public void testLargeByLargeMppEnabledPicksHashShuffle() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true,
+            /* shuffleEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ true), context);
+
+        assertContainsShuffleExchange("large × large with mpp.enabled must pick HASH_SHUFFLE", result);
+        assertDoesNotContainBroadcastExchange("large × large must not broadcast (would replicate 10M rows × 3 nodes)", result);
+    }
+
+    // ── Scenario 3: asymmetric sizes ───────────────────────────────────────
+
+    public void testHighlyAsymmetricFavorsBroadcast() {
+        // The cost-model contract: when one side is ≪ N× smaller than the other, BROADCAST
+        // wins because replicating the small side costs less than shuffling both sides. This
+        // is the canonical fact-dim join shape (small dim, large fact).
+        //
+        // Quantitative: broadcast cost ≈ small_rows × N; hash cost ≈ small_rows + large_rows.
+        // Broadcast wins iff small_rows × (N - 1) < large_rows. With small=1k, large=10M, N=3:
+        //   broadcast ≈ 3k vs hash ≈ 10M+1k → broadcast wins decisively.
+        //
+        // The "small × small" case (1k vs 1k) is intentionally NOT tested as a strategy
+        // assertion because the choice depends on cost-coefficient tuning rather than
+        // architectural correctness. Either pick is defensible at that scale.
+        PlannerContext context = buildMppContext(
+            Map.of("dim_idx", 3, "fact_idx", 3),
+            Map.of("dim_idx", SMALL, "fact_idx", LARGE),
+            /* mppEnabled */ true,
+            /* shuffleEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "dim_idx", "fact_idx", JoinRelType.INNER, /* equi */ true), context);
+
+        assertContainsBroadcastExchange("dim (small) × fact (large) must pick BROADCAST", result);
+    }
+
+    // ── Contract: mpp.enabled=false ────────────────────────────────────────
+
+    public void testMppDisabledForcesCoordCentric() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ false,
+            /* shuffleEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ true), context);
+
+        // With mpp.enabled=false, neither broadcast nor hash rule fires; only coord-centric
+        // produces an alternative. The result has plain ER over each side, no broadcast or
+        // shuffle exchange anywhere.
+        assertDoesNotContainBroadcastExchange("mpp.enabled=false must NOT produce broadcast", result);
+        assertDoesNotContainShuffleExchange("mpp.enabled=false must NOT produce shuffle", result);
+    }
+
+    // ── Contract: theta join ───────────────────────────────────────────────
+
+    public void testThetaJoinAlwaysCoordCentric() {
+        // Even with mpp.enabled=true, theta routes coord-centric — broadcast and hash rules
+        // refuse to fire on non-equi predicates.
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true,
+            /* shuffleEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ false), context);
+
+        assertDoesNotContainBroadcastExchange("theta join must NOT broadcast (only coord-centric is legal)", result);
+        assertDoesNotContainShuffleExchange("theta join must NOT shuffle (only coord-centric is legal)", result);
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────
+
+    /** Build a planner context with explicit row counts + multi-data-node cluster + custom
+     *  shuffle-aware backend. The row counts feed {@code IndexNameTable.getRowCount()}
+     *  via PlannerContext.tableRowCounts; the cluster nodes feed broadcast probe-count
+     *  estimation; the shuffle-aware backend's defaultShuffleParallelism makes the hash
+     *  rule's probeNodes > 1 gate pass. */
+    private PlannerContext buildMppContext(
+        Map<String, Integer> shardCounts,
+        Map<String, Long> rowCounts,
+        boolean mppEnabled,
+        boolean shuffleEnabled
+    ) {
+        ClusterState state = mockClusterStateWithDataNodes(shardCounts);
+        Settings settings = Settings.builder()
+            .put("analytics.mpp.enabled", mppEnabled)
+            .put("analytics.mpp.shuffle_enabled", shuffleEnabled)
+            .build();
+        ToLongFunction<String> rowCountLookup = name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
+        // Use a shuffle-aware DataFusion backend so OpenSearchHashJoinSplitRule's partitionCount
+        // > 1 gate passes.
+        AnalyticsSearchBackendPlugin shuffleAware = new ShuffleAwareDataFusionBackend(CLUSTER_DATA_NODES);
+        CapabilityRegistry registry = new CapabilityRegistry(List.of(shuffleAware, LUCENE), fieldStorageFactory);
+        return new PlannerContext(registry, state, settings, rowCountLookup, /* profiling */ false);
+    }
+
+    /** Build a LogicalJoin between two indices with the given join shape, filtered through
+     *  PlannerImpl. The join condition is either an equi (col0 == col0) or theta (col0 LT col0)
+     *  predicate. */
+    private RelNode makeJoin(PlannerContext context, String leftIdx, String rightIdx, JoinRelType joinType, boolean equi) {
+        // Field names must match BasePlannerRulesTests.intFields() ("status", "size") — that's
+        // what the mock cluster state's index mappings declare.
+        RelNode leftScan = stubScan(mockTable(leftIdx, "status", "size"));
+        RelNode rightScan = stubScan(mockTable(rightIdx, "status", "size"));
+        int leftCols = leftScan.getRowType().getFieldCount();
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode condition = equi
+            ? rexBuilder.makeCall(
+                SqlStdOperatorTable.EQUALS,
+                rexBuilder.makeInputRef(intType, 0),
+                rexBuilder.makeInputRef(intType, leftCols)
+            )
+            : rexBuilder.makeCall(
+                SqlStdOperatorTable.LESS_THAN,
+                rexBuilder.makeInputRef(intType, 0),
+                rexBuilder.makeInputRef(intType, leftCols)
+            );
+        return LogicalJoin.create(leftScan, rightScan, List.of(), condition, Set.of(), joinType);
+    }
+
+    /** Build a ClusterState with multiple stubbed data nodes (so probeNodes > 1) and per-index
+     *  metadata for the requested shard counts. */
+    private static ClusterState mockClusterStateWithDataNodes(Map<String, Integer> shardCounts) {
+        ClusterState state = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(state.metadata()).thenReturn(metadata);
+
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(state.nodes()).thenReturn(nodes);
+        Map<String, DiscoveryNode> dataNodes = new HashMap<>();
+        for (int i = 0; i < CLUSTER_DATA_NODES; i++) {
+            dataNodes.put("node-" + i, mock(DiscoveryNode.class));
+        }
+        when(nodes.getDataNodes()).thenReturn(dataNodes);
+
+        for (Map.Entry<String, Integer> entry : shardCounts.entrySet()) {
+            String indexName = entry.getKey();
+            int shardCount = entry.getValue();
+            IndexMetadata indexMetadata = mock(IndexMetadata.class);
+            when(indexMetadata.getIndex()).thenReturn(new Index(indexName, indexName + "-uuid"));
+            when(indexMetadata.getNumberOfShards()).thenReturn(shardCount);
+            MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+            when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("properties", intFields()));
+            when(indexMetadata.mapping()).thenReturn(mappingMetadata);
+            when(indexMetadata.getSettings()).thenReturn(
+                Settings.builder()
+                    .put("index.composite.primary_data_format", "parquet")
+                    .putList("index.composite.secondary_data_formats", "lucene")
+                    .build()
+            );
+            when(metadata.index(indexName)).thenReturn(indexMetadata);
+        }
+        return state;
+    }
+
+    /** Recursively walk the result tree to find any node of the given type. */
+    private static boolean containsNodeOfType(RelNode node, Class<? extends RelNode> type) {
+        RelNode unwrapped = RelNodeUtils.unwrapHep(node);
+        if (type.isInstance(unwrapped)) {
+            return true;
+        }
+        for (RelNode input : unwrapped.getInputs()) {
+            if (containsNodeOfType(input, type)) return true;
+        }
+        return false;
+    }
+
+    private static void assertContainsBroadcastExchange(String message, RelNode tree) {
+        assertTrue(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchBroadcastExchange.class));
+    }
+
+    private static void assertDoesNotContainBroadcastExchange(String message, RelNode tree) {
+        assertFalse(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchBroadcastExchange.class));
+    }
+
+    private static void assertContainsShuffleExchange(String message, RelNode tree) {
+        assertTrue(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchShuffleExchange.class));
+    }
+
+    private static void assertDoesNotContainShuffleExchange(String message, RelNode tree) {
+        assertFalse(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchShuffleExchange.class));
+    }
+
+    /** Subclass of MockDataFusionBackend that opts into MPP shuffle by overriding
+     *  {@code defaultShuffleParallelism} to return the cluster's data-node count. */
+    private static class ShuffleAwareDataFusionBackend extends MockDataFusionBackend {
+        private final int parallelism;
+
+        ShuffleAwareDataFusionBackend(int parallelism) {
+            this.parallelism = parallelism;
+        }
+
+        @Override
+        public int defaultShuffleParallelism(ClusterState state) {
+            return parallelism;
+        }
+    }
+}

@@ -111,26 +111,54 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
             return planner.getCostFactory().makeInfiniteCost();
         }
         org.apache.calcite.rel.RelDistribution.Type selfType = selfDist.getType();
-        if (selfType != org.apache.calcite.rel.RelDistribution.Type.SINGLETON
-            && selfType != org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED) {
+        OpenSearchDistribution.Locality selfLocality = selfDist.getLocality();
+        // Three legal join shapes:
+        //   1. SINGLETON: COORDINATOR+SINGLETON (coord-centric) or SHARD+SINGLETON (1-shard
+        //      co-location). Inputs match self exactly.
+        //   2. HASH+WORKER: hash-shuffle. Inputs are both HASH+WORKER with the same N.
+        //   3. RANDOM+SHARD: broadcast. Inputs are one BROADCAST+REPLICATED (build) and one
+        //      SHARD-localized (probe); the join runs alongside the probe scan.
+        boolean isSingleton = selfType == org.apache.calcite.rel.RelDistribution.Type.SINGLETON;
+        boolean isHashWorker = selfType == org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED
+            && selfLocality == OpenSearchDistribution.Locality.WORKER;
+        boolean isBroadcastShape = selfType == org.apache.calcite.rel.RelDistribution.Type.RANDOM_DISTRIBUTED
+            && selfLocality == OpenSearchDistribution.Locality.SHARD;
+        if (!isSingleton && !isHashWorker && !isBroadcastShape) {
             return planner.getCostFactory().makeInfiniteCost();
         }
+        // For broadcast shape, exactly one input must be BROADCAST+REPLICATED (the build) and
+        // the other must be SHARD-localized matching the join's own SHARD+tableId.
+        int broadcastBuildSeen = 0;
+        int probeShardSeen = 0;
         for (RelNode input : getInputs()) {
             OpenSearchDistribution inputDist = distributionOf(input);
             if (inputDist == null) continue;
             if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) continue;
-            // Inputs must match the join's distribution type — no mixing SINGLETON inputs
-            // with a HASH-localized join (or vice versa).
+
+            if (isBroadcastShape) {
+                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.BROADCAST_DISTRIBUTED
+                    && inputDist.getLocality() == OpenSearchDistribution.Locality.REPLICATED) {
+                    broadcastBuildSeen++;
+                    continue;
+                }
+                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.RANDOM_DISTRIBUTED
+                    && inputDist.getLocality() == OpenSearchDistribution.Locality.SHARD
+                    && selfDist.getTableId() != null
+                    && selfDist.getTableId().equals(inputDist.getTableId())) {
+                    probeShardSeen++;
+                    continue;
+                }
+                return planner.getCostFactory().makeInfiniteCost();
+            }
+
+            // Non-broadcast shapes: inputs must match join's distribution type.
             if (inputDist.getType() != selfType) {
                 return planner.getCostFactory().makeInfiniteCost();
             }
-            // Locality must match the join's own locality (modulo a null demand on the input
-            // side, which is rare but accepted).
             if (selfDist.getLocality() != inputDist.getLocality()) {
                 return planner.getCostFactory().makeInfiniteCost();
             }
-            if (selfType == org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
-                // SHARD case additionally requires the input to share the join's tableId and shardCount=1.
+            if (isSingleton) {
                 if (selfDist.getLocality() == OpenSearchDistribution.Locality.SHARD) {
                     if (selfDist.getTableId() == null || !selfDist.getTableId().equals(inputDist.getTableId())) {
                         return planner.getCostFactory().makeInfiniteCost();
@@ -140,18 +168,17 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
                     }
                 }
             } else {
-                // HASH+WORKER case: keys identify the hash buckets, partitionCount sizes
-                // them. Both must agree on each input. The join's own keys are a logical
-                // marker (the rule sets them to the left-side keys); per-input keys are
-                // the demand for that side and may differ between left and right
-                // (left.k1=right.k2 → left wants HASH(k1), right wants HASH(k2)). What
-                // matters here is that each input's own demand was satisfied — i.e. the
-                // input is HASH-distributed on some keys with the same partition count.
+                // HASH+WORKER: partitionCount must agree on each input. Per-input keys may
+                // differ (left.k1 = right.k2), so we don't compare keys here — that's the
+                // exchange's job at trait conversion.
                 if (!Integer.valueOf(selfDist.getPartitionCount() == null ? -1 : selfDist.getPartitionCount())
                     .equals(inputDist.getPartitionCount())) {
                     return planner.getCostFactory().makeInfiniteCost();
                 }
             }
+        }
+        if (isBroadcastShape && (broadcastBuildSeen != 1 || probeShardSeen != 1)) {
+            return planner.getCostFactory().makeInfiniteCost();
         }
         return planner.getCostFactory().makeTinyCost();
     }
