@@ -421,6 +421,9 @@ public class QueryPhase {
         if (searchContext.getProfilers() != null) {
             return false;
         }
+        if (searchContext.isStreamSearch()) {
+            return false;
+        }
         return true;
     }
 
