@@ -79,6 +79,7 @@ public class VSRRotationBenchmark {
 
     private ThreadPool threadPool;
     private ArrowBufferPool bufferPool;
+    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
     private Schema schema;
     private List<MappedFieldType> fieldTypes;
     private VSRManager vsrManager;
@@ -125,7 +126,9 @@ public class VSRRotationBenchmark {
 
     @Setup(Level.Invocation)
     public void setup() throws IOException {
-        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        nativeAllocator = new org.opensearch.arrow.allocator.ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         filePath = Path.of(System.getProperty("java.io.tmpdir"), "benchmark_vsr_" + System.nanoTime() + ".parquet").toString();
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexMetadata indexMetadata = IndexMetadata.builder("benchmark-index").settings(idxSettings).build();
@@ -167,6 +170,10 @@ public class VSRRotationBenchmark {
             Files.deleteIfExists(Path.of(filePath));
         } catch (Exception ignored) {}
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
     }
 
     @TearDown(Level.Trial)
