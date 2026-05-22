@@ -193,15 +193,13 @@ static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
-        {
-            let mut cancelled_at = tracker.cancelled_at.lock();
-            if cancelled_at.is_none() {
-                *cancelled_at = Some(Instant::now());
-            }
-        }
         tracker.cancellation_token.cancel();
         if let Some(handle) = tracker.abort_handle.get() {
             handle.abort();
+        }
+        let mut cancelled_at = tracker.cancelled_at.lock();
+        if cancelled_at.is_none() {
+            *cancelled_at = Some(Instant::now());
         }
     }
 }
