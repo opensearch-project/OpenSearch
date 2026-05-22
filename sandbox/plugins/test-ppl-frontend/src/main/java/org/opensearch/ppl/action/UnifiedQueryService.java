@@ -113,24 +113,36 @@ public class UnifiedQueryService {
                 columns.add(field.getName());
             }
 
-            // Always use executeWithProfile — the profile overhead is negligible and
-            // this avoids duplicating the execution + row-collection logic.
-            PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
-            planExecutor.executeWithProfile(logicalPlan, null, future);
-            ProfiledResult result = future.actionGet();
+            if (profile) {
+                PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
+                planExecutor.executeWithProfile(logicalPlan, null, future);
+                ProfiledResult result = future.actionGet();
 
-            if (result.isSuccess() == false) {
-                Throwable failure = result.failure();
-                if (failure instanceof RuntimeException re) throw re;
-                throw new RuntimeException("Query failed: " + failure.getMessage(), failure);
+                if (result.isSuccess() == false) {
+                    Throwable failure = result.failure();
+                    if (failure instanceof RuntimeException re) throw re;
+                    throw new RuntimeException("Query failed: " + failure.getMessage(), failure);
+                }
+
+                List<Object[]> rows = new ArrayList<>();
+                for (Object[] row : result.rows()) {
+                    rows.add(row);
+                }
+                return new PPLResponse(columns, rows, result.profile());
             }
+
+            // Non-profile path: use execute() directly so exception conversion
+            // (e.g. CircuitBreakingException) is handled by DefaultPlanExecutor's
+            // convertingListener without being wrapped in ProfiledResult.
+            PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+            planExecutor.execute(logicalPlan, null, future);
+            Iterable<Object[]> results = future.actionGet();
 
             List<Object[]> rows = new ArrayList<>();
-            for (Object[] row : result.rows()) {
+            for (Object[] row : results) {
                 rows.add(row);
             }
-
-            return new PPLResponse(columns, rows, profile ? result.profile() : null);
+            return new PPLResponse(columns, rows);
         } catch (Exception e) {
             if (e instanceof RuntimeException) {
                 throw (RuntimeException) e;
