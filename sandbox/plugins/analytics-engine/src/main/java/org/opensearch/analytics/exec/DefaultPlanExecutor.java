@@ -37,7 +37,7 @@ import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
@@ -82,8 +82,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final TaskManager taskManager;
     private final NodeClient client;
     private final EngineContext engineContext;
-    // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
-    // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
+    // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
+    // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
 
@@ -97,7 +97,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         EngineContext engineContext,
         NodeClient client,
         Scheduler scheduler,
-        ArrowAllocatorService allocatorService
+        CoordinatorAllocatorHandle coordinatorAllocatorHandle
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
@@ -108,7 +108,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.client = client;
         this.scheduler = scheduler;
         this.engineContext = engineContext;
-        this.coordinatorAllocator = allocatorService.newChildAllocator("coordinator", Long.MAX_VALUE);
+        // Use the plugin-owned coordinator allocator (a child of POOL_QUERY). The plugin
+        // closes the underlying allocator on Plugin.close() via the handle, so coordinator-
+        // side allocations are released deterministically before arrow-base tears down the
+        // root allocator. Long.MAX_VALUE on the child means dynamic resizes of
+        // parquet.native.pool.query.max take effect immediately via Arrow's parent-cap check
+        // at allocateBytes — no listener needed.
+        this.coordinatorAllocator = coordinatorAllocatorHandle.getAllocator();
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
@@ -172,7 +178,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             queryAllocator = coordinatorAllocator;
             ownsAllocator = false;
         } else {
-            queryAllocator = coordinatorAllocator.newChildAllocator("query-" + dag.queryId(), 0, perQueryBufferLimit);
+            // Per-request allocation: a failure here means the QUERY pool is exhausted, not
+            // a framework misconfiguration. Translate Arrow's OutOfMemoryException into
+            // OpenSearchRejectedExecutionException so the REST layer maps it to HTTP 429
+            // and the client sees a proper backpressure signal rather than a generic 500.
+            queryAllocator = AllocationRejection.wrap(
+                "query-" + dag.queryId(),
+                () -> coordinatorAllocator.newChildAllocator("query-" + dag.queryId(), 0, perQueryBufferLimit)
+            );
             ownsAllocator = true;
         }
         logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);

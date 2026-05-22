@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
+import org.opensearch.analytics.exec.CoordinatorAllocatorHandle;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
@@ -25,7 +26,8 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
@@ -96,6 +98,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
+    private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
 
     @SuppressWarnings("rawtypes")
     @Override
@@ -118,8 +121,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         PluginComponentRegistry pluginComponentRegistry
     ) {
-        ArrowAllocatorService allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
-            .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
+        ArrowNativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
         operatorTable = aggregateOperatorTables();
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
@@ -128,10 +131,17 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
+        searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry);
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
+        // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
+        // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
+        // it via the handle without taking on close responsibility — mirroring how
+        // AnalyticsSearchService's allocator is owned and closed by this plugin.
+        coordinatorAllocatorHandle = new CoordinatorAllocatorHandle(
+            nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE)
+        );
 
-        return List.of(searchService, ctx, capabilityRegistry);
+        return List.of(searchService, ctx, capabilityRegistry, coordinatorAllocatorHandle);
     }
 
     @Override
@@ -177,6 +187,9 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public void close() {
         if (searchService != null) {
             searchService.close();
+        }
+        if (coordinatorAllocatorHandle != null) {
+            coordinatorAllocatorHandle.close();
         }
     }
 
