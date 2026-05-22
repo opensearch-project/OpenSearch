@@ -46,6 +46,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -751,6 +752,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public QueryCachingPolicy getQueryCachingPolicy() {
         return cachingPolicy;
+    }
+
+    public QueryCache getQueryCache() {
+        return indexCache != null ? indexCache.query() : null;
     }
 
     /** Only used for testing **/
