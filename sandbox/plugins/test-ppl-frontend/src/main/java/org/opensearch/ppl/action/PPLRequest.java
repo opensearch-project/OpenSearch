@@ -23,20 +23,28 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class PPLRequest extends ActionRequest {
 
     private final String pplText;
+    private final boolean explain;
 
     public PPLRequest(String pplText) {
+        this(pplText, false);
+    }
+
+    public PPLRequest(String pplText, boolean explain) {
         this.pplText = pplText;
+        this.explain = explain;
     }
 
     public PPLRequest(StreamInput in) throws IOException {
         super(in);
         this.pplText = in.readString();
+        this.explain = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(pplText);
+        out.writeBoolean(explain);
     }
 
     @Override
@@ -50,5 +58,9 @@ public class PPLRequest extends ActionRequest {
 
     public String getPplText() {
         return pplText;
+    }
+
+    public boolean isExplain() {
+        return explain;
     }
 }
