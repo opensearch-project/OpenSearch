@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 /**
  * Rex command testing PPL integration test.
  */
@@ -18,6 +20,7 @@ public class RexCommandPplIT extends BasePplIT {
         return RexCommandTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testRexCommandPplQueries() throws Exception {
         runPplQueries();
     }

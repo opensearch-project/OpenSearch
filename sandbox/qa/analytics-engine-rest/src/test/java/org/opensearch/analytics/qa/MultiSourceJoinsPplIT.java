@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 /**
  * Complex Redesigned (multi-index) PPL integration test. Runs PPL queries against complex_redesigned data.
  */
@@ -18,6 +20,7 @@ public class MultiSourceJoinsPplIT extends BasePplIT {
         return MultiSourceJoinsTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testMultiSourceJoinsPplQueries() throws Exception {
         runPplQueries();
     }

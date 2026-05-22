@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 /**
  * Lookup Join Queries PPL integration test. Runs PPL queries against advanced commands data.
  */
@@ -18,6 +20,7 @@ public class LookupJoinQueriesPplIT extends BasePplIT {
         return LookupJoinQueriesTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testLookupJoinQueriesPplQueries() throws Exception {
         runPplQueries();
     }

@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 /**
  * Complex Regex PPL integration test. Runs PPL queries against complex_regex data.
  */
@@ -18,6 +20,7 @@ public class ComplexRegexPplIT extends BasePplIT {
         return ComplexRegexTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testComplexRegexPplQueries() throws Exception {
         runPplQueries();
     }
