@@ -15,6 +15,7 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.ClusterState;
@@ -121,7 +122,13 @@ public class DataFormatAwareRestoreShallowSnapshotV2IT extends AbstractSnapshotI
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
             super.nodePlugins().stream(),
-            Stream.of(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class)
+            Stream.of(
+                ArrowBasePlugin.class,
+                ParquetDataFormatPlugin.class,
+                CompositeDataFormatPlugin.class,
+                LucenePlugin.class,
+                DataFusionPlugin.class
+            )
         ).collect(Collectors.toList());
     }
 
