@@ -37,8 +37,6 @@ public class NativeSettings {
     private final Map<String, String> fieldEncodings;
     private final Map<String, String> fieldCompressions;
     private final Map<String, Boolean> fieldBloomFilterEnabled;
-    private final Map<String, Double> fieldBloomFilterFpp;
-    private final Map<String, Long> fieldBloomFilterNdv;
     private final Map<String, String> typeEncodings;
     private final Map<String, String> typeCompressions;
     private final Map<String, Boolean> typeBloomFilterEnabled;
@@ -68,12 +66,6 @@ public class NativeSettings {
             : Collections.emptyMap();
         this.fieldBloomFilterEnabled = builder.fieldBloomFilterEnabled != null
             ? Collections.unmodifiableMap(builder.fieldBloomFilterEnabled)
-            : Collections.emptyMap();
-        this.fieldBloomFilterFpp = builder.fieldBloomFilterFpp != null
-            ? Collections.unmodifiableMap(builder.fieldBloomFilterFpp)
-            : Collections.emptyMap();
-        this.fieldBloomFilterNdv = builder.fieldBloomFilterNdv != null
-            ? Collections.unmodifiableMap(builder.fieldBloomFilterNdv)
             : Collections.emptyMap();
         this.typeEncodings = builder.typeEncodings != null ? Collections.unmodifiableMap(builder.typeEncodings) : Collections.emptyMap();
         this.typeCompressions = builder.typeCompressions != null
@@ -166,14 +158,6 @@ public class NativeSettings {
         return fieldBloomFilterEnabled;
     }
 
-    public Map<String, Double> getFieldBloomFilterFpp() {
-        return fieldBloomFilterFpp;
-    }
-
-    public Map<String, Long> getFieldBloomFilterNdv() {
-        return fieldBloomFilterNdv;
-    }
-
     public Map<String, String> getTypeEncodings() {
         return typeEncodings;
     }
@@ -218,8 +202,6 @@ public class NativeSettings {
         private Map<String, String> fieldEncodings;
         private Map<String, String> fieldCompressions;
         private Map<String, Boolean> fieldBloomFilterEnabled;
-        private Map<String, Double> fieldBloomFilterFpp;
-        private Map<String, Long> fieldBloomFilterNdv;
         private Map<String, String> typeEncodings;
         private Map<String, String> typeCompressions;
         private Map<String, Boolean> typeBloomFilterEnabled;
@@ -318,16 +300,6 @@ public class NativeSettings {
 
         public Builder fieldBloomFilterEnabled(Map<String, Boolean> v) {
             this.fieldBloomFilterEnabled = v;
-            return this;
-        }
-
-        public Builder fieldBloomFilterFpp(Map<String, Double> v) {
-            this.fieldBloomFilterFpp = v;
-            return this;
-        }
-
-        public Builder fieldBloomFilterNdv(Map<String, Long> v) {
-            this.fieldBloomFilterNdv = v;
             return this;
         }
 

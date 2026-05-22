@@ -388,8 +388,9 @@ public class RustBridge {
             var typeCompressions = toNativeArrays(call, nativeSettings.getTypeCompressions());
 
             var bfEnabled = toBoolMapArrays(call, nativeSettings.getFieldBloomFilterEnabled());
-            var bfFpp = toDoubleMapArrays(call, nativeSettings.getFieldBloomFilterFpp());
-            var bfNdv = toLongMapArrays(call, nativeSettings.getFieldBloomFilterNdv());
+            // Field-level FPP and NDV removed - use empty maps
+            var bfFpp = toDoubleMapArrays(call, Map.of());
+            var bfNdv = toLongMapArrays(call, Map.of());
 
             var typeBfEnabled = toBoolMapArrays(call, nativeSettings.getTypeBloomFilterEnabled());
             var typeBfFpp = toDoubleMapArrays(call, nativeSettings.getTypeBloomFilterFpp());

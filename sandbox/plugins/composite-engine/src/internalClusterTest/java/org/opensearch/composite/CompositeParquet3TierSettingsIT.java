@@ -64,7 +64,12 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
      */
     public void testFieldLevelBloomFilterOverridesTypeLevel() throws IOException {
         startCluster(Settings.builder().put("parquet.type_bloom_filter.utf8.enabled", "true").build());
-        createIndex(Settings.builder().put("index.parquet.field.name.bloom_filter_enabled", "false").build());
+        createIndex(
+            Settings.builder()
+                .putList("index.parquet.bloom_filter_enabled.field", "name")
+                .putList("index.parquet.bloom_filter_enabled.value", "false")
+                .build()
+        );
         indexAndFlush();
 
         assertEquals(Boolean.FALSE, getColumnInfo(INDEX_NAME, "name").get("bloom_filter"));
@@ -75,7 +80,12 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
      */
     public void testFieldLevelBloomFilterOverridesGlobal() throws IOException {
         startCluster(Settings.EMPTY);
-        createIndex(Settings.builder().put("index.parquet.field.name.bloom_filter_enabled", "true").build());
+        createIndex(
+            Settings.builder()
+                .putList("index.parquet.bloom_filter_enabled.field", "name")
+                .putList("index.parquet.bloom_filter_enabled.value", "true")
+                .build()
+        );
         indexAndFlush();
 
         assertEquals(Boolean.TRUE, getColumnInfo(INDEX_NAME, "name").get("bloom_filter"));
@@ -99,7 +109,12 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
      */
     public void testFullThreeTierBloomFilter() throws IOException {
         startCluster(Settings.builder().put("parquet.type_bloom_filter.utf8.enabled", "false").build());
-        createIndex(Settings.builder().put("index.parquet.field.name.bloom_filter_enabled", "true").build());
+        createIndex(
+            Settings.builder()
+                .putList("index.parquet.bloom_filter_enabled.field", "name")
+                .putList("index.parquet.bloom_filter_enabled.value", "true")
+                .build()
+        );
         indexAndFlush();
 
         assertEquals(Boolean.TRUE, getColumnInfo(INDEX_NAME, "name").get("bloom_filter"));
@@ -125,7 +140,9 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         // Type-level sets DELTA_BINARY_PACKED for int32
         startCluster(Settings.builder().put("parquet.type_encoding.int32.encoding", "DELTA_BINARY_PACKED").build());
         // Field-level sets PLAIN for "value"
-        createIndex(Settings.builder().put("index.parquet.field.value.encoding", "PLAIN").build());
+        createIndex(
+            Settings.builder().putList("index.parquet.encoding.field", "value").putList("index.parquet.encoding.value", "PLAIN").build()
+        );
         indexAndFlush();
 
         assertHasEncoding(getColumnInfo(INDEX_NAME, "value"), "PLAIN");
@@ -163,7 +180,9 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         // Type-level sets SNAPPY for utf8
         startCluster(Settings.builder().put("parquet.type_compression.utf8.compression", "SNAPPY").build());
         // Field-level sets ZSTD for "name"
-        createIndex(Settings.builder().put("index.parquet.field.name.compression", "ZSTD").build());
+        createIndex(
+            Settings.builder().putList("index.parquet.compression.field", "name").putList("index.parquet.compression.value", "ZSTD").build()
+        );
         indexAndFlush();
 
         assertCompression(getColumnInfo(INDEX_NAME, "name"), "ZSTD");
@@ -190,7 +209,9 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         // Type-level sets SNAPPY for utf8
         startCluster(Settings.builder().put("parquet.type_compression.utf8.compression", "SNAPPY").build());
         // Field-level overrides with ZSTD for "name", global is LZ4_RAW
-        createIndex(Settings.builder().put("index.parquet.field.name.compression", "ZSTD").build());
+        createIndex(
+            Settings.builder().putList("index.parquet.compression.field", "name").putList("index.parquet.compression.value", "ZSTD").build()
+        );
         indexAndFlush();
 
         assertCompression(getColumnInfo(INDEX_NAME, "name"), "ZSTD");
@@ -236,14 +257,28 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         startCluster(Settings.EMPTY);
         createAllTypeIndex(
             Settings.builder()
-                .put("index.parquet.field.col_utf8.encoding", "DELTA_BYTE_ARRAY")
-                .put("index.parquet.field.col_int32.encoding", "DELTA_BINARY_PACKED")
-                .put("index.parquet.field.col_int64.encoding", "DELTA_BINARY_PACKED")
-                .put("index.parquet.field.col_float32.encoding", "BYTE_STREAM_SPLIT")
-                .put("index.parquet.field.col_float64.encoding", "BYTE_STREAM_SPLIT")
-                .put("index.parquet.field.col_boolean.encoding", "RLE")
-                .put("index.parquet.field.col_binary.encoding", "DELTA_BYTE_ARRAY")
-                .put("index.parquet.field.col_timestamp.encoding", "PLAIN")
+                .putList(
+                    "index.parquet.encoding.field",
+                    "col_utf8",
+                    "col_int32",
+                    "col_int64",
+                    "col_float32",
+                    "col_float64",
+                    "col_boolean",
+                    "col_binary",
+                    "col_timestamp"
+                )
+                .putList(
+                    "index.parquet.encoding.value",
+                    "DELTA_BYTE_ARRAY",
+                    "DELTA_BINARY_PACKED",
+                    "DELTA_BINARY_PACKED",
+                    "BYTE_STREAM_SPLIT",
+                    "BYTE_STREAM_SPLIT",
+                    "RLE",
+                    "DELTA_BYTE_ARRAY",
+                    "PLAIN"
+                )
                 .build()
         );
         indexAllTypeDocs();
@@ -296,14 +331,18 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         startCluster(Settings.EMPTY);
         createAllTypeIndex(
             Settings.builder()
-                .put("index.parquet.field.col_utf8.compression", "SNAPPY")
-                .put("index.parquet.field.col_int32.compression", "ZSTD")
-                .put("index.parquet.field.col_int64.compression", "GZIP")
-                .put("index.parquet.field.col_float32.compression", "BROTLI")
-                .put("index.parquet.field.col_float64.compression", "LZ4_RAW")
-                .put("index.parquet.field.col_boolean.compression", "SNAPPY")
-                .put("index.parquet.field.col_binary.compression", "ZSTD")
-                .put("index.parquet.field.col_timestamp.compression", "GZIP")
+                .putList(
+                    "index.parquet.compression.field",
+                    "col_utf8",
+                    "col_int32",
+                    "col_int64",
+                    "col_float32",
+                    "col_float64",
+                    "col_boolean",
+                    "col_binary",
+                    "col_timestamp"
+                )
+                .putList("index.parquet.compression.value", "SNAPPY", "ZSTD", "GZIP", "BROTLI", "LZ4_RAW", "SNAPPY", "ZSTD", "GZIP")
                 .build()
         );
         indexAllTypeDocs();

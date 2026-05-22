@@ -24,26 +24,38 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
     // --- FIELD_SETTINGS validation tests ---
 
     public void testFieldSettingsValidEncoding() {
-        Settings settings = Settings.builder().put("index.parquet.field.name.encoding", "DELTA_BYTE_ARRAY").build();
+        Settings settings = Settings.builder()
+            .putList("index.parquet.encoding.field", "name")
+            .putList("index.parquet.encoding.value", "DELTA_BYTE_ARRAY")
+            .build();
         Map<String, String> encodings = ParquetSettings.getFieldEncodings(settings);
         assertEquals("DELTA_BYTE_ARRAY", encodings.get("name"));
     }
 
     public void testFieldSettingsInvalidEncodingThrows() {
-        Settings settings = Settings.builder().put("index.parquet.field.name.encoding", "INVALID").build();
+        Settings settings = Settings.builder()
+            .putList("index.parquet.encoding.field", "name")
+            .putList("index.parquet.encoding.value", "INVALID")
+            .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetSettings.getFieldEncodings(settings));
         assertTrue(e.getMessage().contains("Invalid encoding"));
         assertTrue(e.getMessage().contains("INVALID"));
     }
 
     public void testFieldSettingsValidCompression() {
-        Settings settings = Settings.builder().put("index.parquet.field.name.compression", "SNAPPY").build();
+        Settings settings = Settings.builder()
+            .putList("index.parquet.compression.field", "name")
+            .putList("index.parquet.compression.value", "SNAPPY")
+            .build();
         Map<String, String> compressions = ParquetSettings.getFieldCompressions(settings);
         assertEquals("SNAPPY", compressions.get("name"));
     }
 
     public void testFieldSettingsInvalidCompressionThrows() {
-        Settings settings = Settings.builder().put("index.parquet.field.name.compression", "INVALID").build();
+        Settings settings = Settings.builder()
+            .putList("index.parquet.compression.field", "name")
+            .putList("index.parquet.compression.value", "INVALID")
+            .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetSettings.getFieldCompressions(settings));
         assertTrue(e.getMessage().contains("Invalid compression"));
         assertTrue(e.getMessage().contains("INVALID"));
@@ -108,7 +120,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
     public void testEncodingCompatibilityDeltaBinaryPackedValidForInt() {
         Schema schema = new Schema(List.of(new Field("age", FieldType.nullable(new ArrowType.Int(32, true)), null)));
         Map<String, String> encodings = Map.of("age", "DELTA_BINARY_PACKED");
-        ParquetSettings.validateEncodingTypeCompatibility(encodings, schema);
+        ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema);
     }
 
     public void testEncodingCompatibilityDeltaBinaryPackedInvalidForUtf8() {
@@ -116,7 +128,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         Map<String, String> encodings = Map.of("name", "DELTA_BINARY_PACKED");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetSettings.validateEncodingTypeCompatibility(encodings, schema)
+            () -> ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema)
         );
         assertTrue(e.getMessage().contains("not compatible"));
     }
@@ -124,7 +136,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
     public void testEncodingCompatibilityRleValidForBoolean() {
         Schema schema = new Schema(List.of(new Field("flag", FieldType.nullable(ArrowType.Bool.INSTANCE), null)));
         Map<String, String> encodings = Map.of("flag", "RLE");
-        ParquetSettings.validateEncodingTypeCompatibility(encodings, schema);
+        ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema);
     }
 
     public void testEncodingCompatibilityRleInvalidForInt() {
@@ -132,7 +144,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         Map<String, String> encodings = Map.of("count", "RLE");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetSettings.validateEncodingTypeCompatibility(encodings, schema)
+            () -> ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema)
         );
         assertTrue(e.getMessage().contains("not compatible"));
     }
@@ -142,7 +154,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
             List.of(new Field("score", FieldType.nullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null))
         );
         Map<String, String> encodings = Map.of("score", "BYTE_STREAM_SPLIT");
-        ParquetSettings.validateEncodingTypeCompatibility(encodings, schema);
+        ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema);
     }
 
     public void testEncodingCompatibilityByteStreamSplitInvalidForUtf8() {
@@ -150,7 +162,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         Map<String, String> encodings = Map.of("name", "BYTE_STREAM_SPLIT");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetSettings.validateEncodingTypeCompatibility(encodings, schema)
+            () -> ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema)
         );
         assertTrue(e.getMessage().contains("not compatible"));
     }
@@ -160,7 +172,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         Map<String, String> encodings = Map.of("flag", "RLE_DICTIONARY");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetSettings.validateEncodingTypeCompatibility(encodings, schema)
+            () -> ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema)
         );
         assertTrue(e.getMessage().contains("not compatible"));
     }
@@ -170,7 +182,7 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         Map<String, String> encodings = Map.of("nonexistent", "PLAIN");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetSettings.validateEncodingTypeCompatibility(encodings, schema)
+            () -> ParquetSettings.validateFieldConfigurations(encodings, Map.of(), Map.of(), schema)
         );
         assertTrue(e.getMessage().contains("does not exist in mappings"));
     }
@@ -178,13 +190,19 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
     // --- Case insensitivity tests ---
 
     public void testEncodingCaseInsensitive() {
-        Settings settings = Settings.builder().put("index.parquet.field.name.encoding", "delta_byte_array").build();
+        Settings settings = Settings.builder()
+            .putList("index.parquet.encoding.field", "name")
+            .putList("index.parquet.encoding.value", "delta_byte_array")
+            .build();
         Map<String, String> encodings = ParquetSettings.getFieldEncodings(settings);
         assertEquals("DELTA_BYTE_ARRAY", encodings.get("name"));
     }
 
     public void testCompressionCaseInsensitive() {
-        Settings settings = Settings.builder().put("index.parquet.field.name.compression", "snappy").build();
+        Settings settings = Settings.builder()
+            .putList("index.parquet.compression.field", "name")
+            .putList("index.parquet.compression.value", "snappy")
+            .build();
         Map<String, String> compressions = ParquetSettings.getFieldCompressions(settings);
         assertEquals("SNAPPY", compressions.get("name"));
     }
@@ -193,8 +211,8 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
 
     public void testFieldBloomFilterEnabled() {
         Settings settings = Settings.builder()
-            .put("index.parquet.field.name.bloom_filter_enabled", "true")
-            .put("index.parquet.field.value.bloom_filter_enabled", "false")
+            .putList("index.parquet.bloom_filter_enabled.field", "name", "value")
+            .putList("index.parquet.bloom_filter_enabled.value", "true", "false")
             .build();
         Map<String, Boolean> result = ParquetSettings.getFieldBloomFilterEnabled(settings);
         assertEquals(Boolean.TRUE, result.get("name"));

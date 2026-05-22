@@ -191,8 +191,6 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
             .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
             .fieldBloomFilterEnabled(ParquetSettings.getFieldBloomFilterEnabled(settings))
-            .fieldBloomFilterFpp(ParquetSettings.getFieldBloomFilterFpp(settings))
-            .fieldBloomFilterNdv(ParquetSettings.getFieldBloomFilterNdv(settings))
             .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
             .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
             .typeBloomFilterEnabled(ParquetSettings.getTypeBloomFilterEnabled(nodeSettings))

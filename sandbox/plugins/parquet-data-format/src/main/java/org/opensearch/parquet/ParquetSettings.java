@@ -19,11 +19,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Settings for Parquet data format.
@@ -259,53 +261,56 @@ public final class ParquetSettings {
         return validTypes.contains(arrowType.getClass());
     }
 
-    /**
-     * Group setting for per-field configuration (encoding and compression).
-     * Usage: index.parquet.field.{field_name}.encoding=DELTA_BINARY_PACKED
-     *        index.parquet.field.{field_name}.compression=SNAPPY
-     * Supported encoding values: PLAIN, RLE, RLE_DICTIONARY, DELTA_BINARY_PACKED, DELTA_BYTE_ARRAY,
-     *                            DELTA_LENGTH_BYTE_ARRAY, BYTE_STREAM_SPLIT
-     */
-    public static final Setting<Settings> FIELD_SETTINGS = Setting.groupSetting("index.parquet.field.", s -> {
-        for (String key : s.keySet()) {
-            if (key.endsWith(".encoding")) {
-                String value = s.get(key).toUpperCase(Locale.ROOT);
-                if (VALID_ENCODINGS.contains(value) == false) {
-                    throw new IllegalArgumentException("Invalid encoding '" + s.get(key) + "'. Valid values: " + VALID_ENCODINGS);
-                }
-            } else if (key.endsWith(".compression")) {
-                String value = s.get(key).toUpperCase(Locale.ROOT);
-                if (VALID_COMPRESSIONS.contains(value) == false) {
-                    throw new IllegalArgumentException("Invalid compression '" + s.get(key) + "'. Valid values: " + VALID_COMPRESSIONS);
-                }
-            } else if (key.endsWith(".bloom_filter_enabled")) {
-                String value = s.get(key).toLowerCase(Locale.ROOT);
-                if ("true".equals(value) == false && "false".equals(value) == false) {
-                    throw new IllegalArgumentException("Invalid bloom_filter_enabled '" + s.get(key) + "'. Valid values: [true, false]");
-                }
-            } else if (key.endsWith(".bloom_filter_fpp")) {
-                try {
-                    double fpp = Double.parseDouble(s.get(key));
-                    if (fpp <= 0.0 || fpp >= 1.0) {
-                        throw new IllegalArgumentException(
-                            "Invalid bloom_filter_fpp '" + s.get(key) + "'. Must be between 0.0 and 1.0 (exclusive)"
-                        );
-                    }
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Invalid bloom_filter_fpp '" + s.get(key) + "'. Must be a number");
-                }
-            } else if (key.endsWith(".bloom_filter_ndv")) {
-                try {
-                    long ndv = Long.parseLong(s.get(key));
-                    if (ndv < 1) {
-                        throw new IllegalArgumentException("Invalid bloom_filter_ndv '" + s.get(key) + "'. Must be >= 1");
-                    }
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Invalid bloom_filter_ndv '" + s.get(key) + "'. Must be a number");
-                }
-            }
-        }
-    }, Setting.Property.IndexScope, Setting.Property.Dynamic);
+    // Field-level encoding configuration (parallel arrays)
+    public static final Setting<List<String>> ENCODING_FIELD_SETTING = Setting.listSetting(
+        "index.parquet.encoding.field",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    public static final Setting<List<String>> ENCODING_VALUE_SETTING = Setting.listSetting(
+        "index.parquet.encoding.value",
+        Collections.emptyList(),
+        ParquetSettings::validateEncoding,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    // Field-level compression configuration (parallel arrays)
+    public static final Setting<List<String>> COMPRESSION_FIELD_SETTING = Setting.listSetting(
+        "index.parquet.compression.field",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    public static final Setting<List<String>> COMPRESSION_VALUE_SETTING = Setting.listSetting(
+        "index.parquet.compression.value",
+        Collections.emptyList(),
+        ParquetSettings::validateCompression,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    // Field-level bloom filter enabled configuration (parallel arrays)
+    public static final Setting<List<String>> BLOOM_FILTER_ENABLED_FIELD_SETTING = Setting.listSetting(
+        "index.parquet.bloom_filter_enabled.field",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    public static final Setting<List<Boolean>> BLOOM_FILTER_ENABLED_VALUE_SETTING = Setting.listSetting(
+        "index.parquet.bloom_filter_enabled.value",
+        Collections.emptyList(),
+        ParquetSettings::validateBoolean,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
 
     /**
      * Group setting for per-type encoding configuration (cluster-level fallback).
@@ -401,111 +406,98 @@ public final class ParquetSettings {
         }
     }, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    /**
-     * Validates that field-level encodings are compatible with their Arrow types in the schema.
-     * Should be called when mappings are available (i.e., documentMapper is not null).
-     * Skips fields not present in the schema (e.g., dynamic fields not yet mapped).
-     */
-    public static void validateEncodingTypeCompatibility(Map<String, String> fieldEncodings, Schema schema) {
-        Map<String, ArrowType> arrowTypes = new HashMap<>();
-        for (Field field : schema.getFields()) {
-            arrowTypes.put(field.getName(), field.getType());
+    private static String validateEncoding(String encoding) {
+        String normalized = encoding.toUpperCase(Locale.ROOT);
+        if (!VALID_ENCODINGS.contains(normalized)) {
+            throw new IllegalArgumentException("Invalid encoding: " + encoding + ". Valid values: " + VALID_ENCODINGS);
         }
-        for (Map.Entry<String, String> entry : fieldEncodings.entrySet()) {
-            String fieldName = entry.getKey();
-            String encoding = entry.getValue().toUpperCase(Locale.ROOT);
-            ArrowType arrowType = arrowTypes.get(fieldName);
-            if (arrowType == null) {
-                throw new IllegalArgumentException(
-                    "Field '" + fieldName + "' configured in index.parquet.field settings does not exist in mappings"
-                );
-            }
-            if (isEncodingValidForArrowType(encoding, arrowType) == false) {
-                throw new IllegalArgumentException(
-                    "Encoding '" + encoding + "' is not compatible with field '" + fieldName + "' of type '" + arrowType + "'"
-                );
-            }
+        return normalized;
+    }
+
+    private static String validateCompression(String compression) {
+        String normalized = compression.toUpperCase(Locale.ROOT);
+        if (!VALID_COMPRESSIONS.contains(normalized)) {
+            throw new IllegalArgumentException("Invalid compression: " + compression + ". Valid values: " + VALID_COMPRESSIONS);
+        }
+        return normalized;
+    }
+
+    private static Boolean validateBoolean(String value) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        if ("true".equals(normalized)) {
+            return true;
+        } else if ("false".equals(normalized)) {
+            return false;
+        } else {
+            throw new IllegalArgumentException("Invalid boolean value: " + value + ". Must be true or false");
         }
     }
 
     /**
-     * Extracts a config map from group settings by matching keys with a given suffix,
-     * validating the extracted name against an optional set of valid names,
-     * and validating the value against a set of valid values.
+     * Builds a field configuration map from parallel arrays.
      */
-    private static Map<String, String> extractConfigMap(
-        Settings groupSettings,
-        String keySuffix,
-        Set<String> validNames,
-        String nameLabel,
-        Set<String> validValues,
-        String valueLabel
-    ) {
-        Map<String, String> result = new HashMap<>();
-        for (String key : groupSettings.keySet()) {
-            if (key.endsWith(keySuffix)) {
-                String name = key.substring(0, key.length() - keySuffix.length());
-                if (validNames != null && validNames.contains(name) == false) {
-                    throw new IllegalArgumentException("Invalid " + nameLabel + " '" + name + "'. Valid values: " + validNames);
-                }
-                String value = groupSettings.get(key).toUpperCase(Locale.ROOT);
-                if (validValues.contains(value) == false) {
-                    throw new IllegalArgumentException(
-                        "Invalid "
-                            + valueLabel
-                            + " '"
-                            + groupSettings.get(key)
-                            + "' for "
-                            + nameLabel
-                            + " '"
-                            + name
-                            + "'. Valid values: "
-                            + validValues
-                    );
-                }
-                result.put(name, value);
-            }
+    private static <V> Map<String, V> buildFieldMap(List<String> fields, List<V> values, String configType) {
+        if (fields.isEmpty() && values.isEmpty()) {
+            return Collections.emptyMap();
         }
-        return result;
-    }
 
-    /**
-     * Extracts a typed config map from group settings by matching keys with a given suffix
-     * and converting the raw string value using the provided parser.
-     */
-    private static <T> Map<String, T> extractConfigMap(
-        Settings groupSettings,
-        String keySuffix,
-        java.util.function.Function<String, T> valueParser
-    ) {
-        Map<String, T> result = new HashMap<>();
-        for (String key : groupSettings.keySet()) {
-            if (key.endsWith(keySuffix)) {
-                String name = key.substring(0, key.length() - keySuffix.length());
-                result.put(name, valueParser.apply(groupSettings.get(key)));
-            }
+        if (fields.size() != values.size()) {
+            throw new IllegalArgumentException(
+                "index.parquet."
+                    + configType
+                    + ".field and index.parquet."
+                    + configType
+                    + ".value must have the same size. "
+                    + "Fields: "
+                    + fields
+                    + ", Values: "
+                    + values
+            );
+        }
+
+        Map<String, V> result = new HashMap<>();
+        for (int i = 0; i < fields.size(); i++) {
+            result.put(fields.get(i), values.get(i));
         }
         return result;
     }
 
     public static Map<String, String> getFieldEncodings(Settings settings) {
-        return extractConfigMap(FIELD_SETTINGS.get(settings), ".encoding", null, "field", VALID_ENCODINGS, "encoding");
+        return buildFieldMap(ENCODING_FIELD_SETTING.get(settings), ENCODING_VALUE_SETTING.get(settings), "encoding");
     }
 
     public static Map<String, String> getFieldCompressions(Settings settings) {
-        return extractConfigMap(FIELD_SETTINGS.get(settings), ".compression", null, "field", VALID_COMPRESSIONS, "compression");
+        return buildFieldMap(COMPRESSION_FIELD_SETTING.get(settings), COMPRESSION_VALUE_SETTING.get(settings), "compression");
     }
 
     public static Map<String, Boolean> getFieldBloomFilterEnabled(Settings settings) {
-        return extractConfigMap(FIELD_SETTINGS.get(settings), ".bloom_filter_enabled", Boolean::parseBoolean);
+        return buildFieldMap(
+            BLOOM_FILTER_ENABLED_FIELD_SETTING.get(settings),
+            BLOOM_FILTER_ENABLED_VALUE_SETTING.get(settings),
+            "bloom_filter_enabled"
+        );
     }
 
     public static Map<String, Double> getFieldBloomFilterFpp(Settings settings) {
-        return extractConfigMap(FIELD_SETTINGS.get(settings), ".bloom_filter_fpp", Double::parseDouble);
+        Map<String, Double> result = new HashMap<>();
+        for (String key : settings.keySet()) {
+            if (key.startsWith("index.parquet.field.") && key.endsWith(".bloom_filter_fpp")) {
+                String fieldName = key.substring("index.parquet.field.".length(), key.length() - ".bloom_filter_fpp".length());
+                result.put(fieldName, settings.getAsDouble(key, null));
+            }
+        }
+        return result;
     }
 
     public static Map<String, Long> getFieldBloomFilterNdv(Settings settings) {
-        return extractConfigMap(FIELD_SETTINGS.get(settings), ".bloom_filter_ndv", Long::parseLong);
+        Map<String, Long> result = new HashMap<>();
+        for (String key : settings.keySet()) {
+            if (key.startsWith("index.parquet.field.") && key.endsWith(".bloom_filter_ndv")) {
+                String fieldName = key.substring("index.parquet.field.".length(), key.length() - ".bloom_filter_ndv".length());
+                result.put(fieldName, settings.getAsLong(key, null));
+            }
+        }
+        return result;
     }
 
     /**
@@ -550,6 +542,107 @@ public final class ParquetSettings {
         return extractConfigMap(TYPE_BLOOM_FILTER_SETTINGS.get(nodeSettings), ".ndv", Long::parseLong);
     }
 
+    /**
+     * Extracts a config map from group settings by matching keys with a given suffix,
+     * and validating the value against a set of valid values.
+     */
+    private static Map<String, String> extractConfigMap(
+        Settings groupSettings,
+        String keySuffix,
+        Set<String> validNames,
+        String nameLabel,
+        Set<String> validValues,
+        String valueLabel
+    ) {
+        Map<String, String> result = new HashMap<>();
+        for (String key : groupSettings.keySet()) {
+            if (key.endsWith(keySuffix)) {
+                String name = key.substring(0, key.length() - keySuffix.length());
+                if (validNames != null && validNames.contains(name) == false) {
+                    throw new IllegalArgumentException("Invalid " + nameLabel + " '" + name + "'. Valid values: " + validNames);
+                }
+                String value = groupSettings.get(key).toUpperCase(Locale.ROOT);
+                if (validValues.contains(value) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid "
+                            + valueLabel
+                            + " '"
+                            + groupSettings.get(key)
+                            + "' for "
+                            + nameLabel
+                            + " '"
+                            + name
+                            + "'. Valid values: "
+                            + validValues
+                    );
+                }
+                result.put(name, value);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Extracts a typed config map from group settings by matching keys with a given suffix
+     * and converting the raw string value using the provided parser.
+     */
+    private static <T> Map<String, T> extractConfigMap(Settings groupSettings, String keySuffix, Function<String, T> valueParser) {
+        Map<String, T> result = new HashMap<>();
+        for (String key : groupSettings.keySet()) {
+            if (key.endsWith(keySuffix)) {
+                String name = key.substring(0, key.length() - keySuffix.length());
+                result.put(name, valueParser.apply(groupSettings.get(key)));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Validates that field-level configurations are compatible with their Arrow types in the schema.
+     */
+    public static void validateFieldConfigurations(
+        Map<String, String> fieldEncodings,
+        Map<String, String> fieldCompressions,
+        Map<String, Boolean> fieldBloomFilterEnabled,
+        Schema schema
+    ) {
+        Map<String, ArrowType> arrowTypes = new HashMap<>();
+        for (Field field : schema.getFields()) {
+            arrowTypes.put(field.getName(), field.getType());
+        }
+
+        // Validate encoding configurations
+        for (Map.Entry<String, String> entry : fieldEncodings.entrySet()) {
+            String fieldName = entry.getKey();
+            String encoding = entry.getValue();
+            ArrowType arrowType = arrowTypes.get(fieldName);
+            if (arrowType == null) {
+                throw new IllegalArgumentException("Field '" + fieldName + "' in encoding configuration does not exist in mappings");
+            }
+            if (!isEncodingValidForArrowType(encoding, arrowType)) {
+                throw new IllegalArgumentException(
+                    "Encoding '" + encoding + "' is not compatible with field '" + fieldName + "' of type '" + arrowType + "'"
+                );
+            }
+        }
+
+        // Validate compression field existence
+        for (String fieldName : fieldCompressions.keySet()) {
+            if (!arrowTypes.containsKey(fieldName)) {
+                throw new IllegalArgumentException("Field '" + fieldName + "' in compression configuration does not exist in mappings");
+            }
+        }
+
+        // Validate bloom filter field existence
+        for (String fieldName : fieldBloomFilterEnabled.keySet()) {
+            if (!arrowTypes.containsKey(fieldName)) {
+                throw new IllegalArgumentException(
+                    "Field '" + fieldName + "' in bloom_filter_enabled configuration does not exist in mappings"
+                );
+            }
+        }
+    }
+
     /** Returns all settings defined by the Parquet plugin. */
     public static List<Setting<?>> getSettings() {
         return List.of(
@@ -570,7 +663,12 @@ public final class ParquetSettings {
             MERGE_BATCH_SIZE,
             MERGE_RAYON_THREADS,
             MERGE_IO_THREADS,
-            FIELD_SETTINGS,
+            ENCODING_FIELD_SETTING,
+            ENCODING_VALUE_SETTING,
+            COMPRESSION_FIELD_SETTING,
+            COMPRESSION_VALUE_SETTING,
+            BLOOM_FILTER_ENABLED_FIELD_SETTING,
+            BLOOM_FILTER_ENABLED_VALUE_SETTING,
             TYPE_ENCODING_SETTINGS,
             TYPE_COMPRESSION_SETTINGS,
             TYPE_BLOOM_FILTER_SETTINGS

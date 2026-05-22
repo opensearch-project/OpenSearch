@@ -32,11 +32,17 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
         if (mapperService.documentMapper() == null) {
             return;
         }
+
+        // Get all field configurations
         Map<String, String> fieldEncodings = ParquetSettings.getFieldEncodings(indexSettings.getSettings());
-        if (fieldEncodings.isEmpty()) {
+        Map<String, String> fieldCompressions = ParquetSettings.getFieldCompressions(indexSettings.getSettings());
+        Map<String, Boolean> fieldBloomFilterEnabled = ParquetSettings.getFieldBloomFilterEnabled(indexSettings.getSettings());
+
+        if (fieldEncodings.isEmpty() && fieldCompressions.isEmpty() && fieldBloomFilterEnabled.isEmpty()) {
             return;
         }
+
         Schema schema = ArrowSchemaBuilder.getSchema(mapperService);
-        ParquetSettings.validateEncodingTypeCompatibility(fieldEncodings, schema);
+        ParquetSettings.validateFieldConfigurations(fieldEncodings, fieldCompressions, fieldBloomFilterEnabled, schema);
     }
 }
