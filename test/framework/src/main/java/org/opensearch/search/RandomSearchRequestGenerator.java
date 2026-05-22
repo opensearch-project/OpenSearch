@@ -134,9 +134,6 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             searchRequest.setPhaseTook(randomBoolean());
         }
-        if (randomBoolean()) {
-            searchRequest.setCoordinatorTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "coordinator_timeout"));
-        }
         return searchRequest;
     }
 

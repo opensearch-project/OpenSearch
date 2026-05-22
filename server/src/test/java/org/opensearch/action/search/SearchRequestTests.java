@@ -385,13 +385,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             // timeout must be smaller than coordinator_timeout
-            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().timeout(TimeValue.timeValueMillis(10)));
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().timeout(TimeValue.timeValueMillis(10)));
             searchRequest.setCoordinatorTimeout(TimeValue.timeValueMillis(100));
             searchRequest.requestCache(false);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("coordinatorTimeout [100ms] must be smaller than timeout [10ms]", validationErrors.validationErrors().get(0));
+            assertEquals("timeout [10ms] must be smaller than coordinatorTimeout [100ms]", validationErrors.validationErrors().get(0));
+        }
+        {
+            // coordinator_timeout is not supported in a scroll context
+            SearchRequest searchRequest = new SearchRequest().scroll("5m");
+            searchRequest.setCoordinatorTimeout(TimeValue.timeValueMillis(100));
+            searchRequest.requestCache(false);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("coordinator_timeout is not supported in a scroll context", validationErrors.validationErrors().get(0));
         }
     }
 

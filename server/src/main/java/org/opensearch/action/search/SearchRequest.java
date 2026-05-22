@@ -366,11 +366,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
 
-        if (coordinatorTimeout != null && allowPartialSearchResults == false) {
+        if (coordinatorTimeout != null && allowPartialSearchResults != null && allowPartialSearchResults == false) {
             validationException = addValidationError(
                 "coordinator_timeout is not supported when allow_partial_search_results is false",
                 validationException
             );
+        }
+
+        if (coordinatorTimeout != null && scroll) {
+            validationException = addValidationError("coordinator_timeout is not supported in a scroll context", validationException);
         }
 
         if (pointInTimeBuilder() != null) {

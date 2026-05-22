@@ -173,7 +173,7 @@ public class SearchTransportService {
             CREATE_READER_CONTEXT_ACTION_NAME,
             request,
             task,
-            getTransportRequestOptions(task.getCoordinatorTimeout()),
+            TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(actionListener, TransportCreatePitAction.CreateReaderContextResponse::new)
         );
     }
@@ -283,7 +283,7 @@ public class SearchTransportService {
             QUERY_SCROLL_ACTION_NAME,
             request,
             task,
-            getTransportRequestOptions(task.getCoordinatorTimeout()),
+            TransportRequestOptions.EMPTY,
             new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -299,6 +299,7 @@ public class SearchTransportService {
             QUERY_FETCH_SCROLL_ACTION_NAME,
             request,
             task,
+            TransportRequestOptions.EMPTY,
             new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -328,6 +329,9 @@ public class SearchTransportService {
         SearchTask task,
         final SearchActionListener<FetchSearchResult> listener
     ) {
+        // Fetch cost is relatively low and was not originally intended to be governed by
+        // coordinator_timeout. A forced coordinator_timeout is added as a safeguard against
+        // unexpected host hangs.
         transportService.sendChildRequest(
             connection,
             action,
@@ -343,6 +347,8 @@ public class SearchTransportService {
      */
     void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task, final ActionListener<MultiSearchResponse> listener) {
         final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
+        // Expand and field-collapsing sub queries run as inline supplementary queries after the main top-N results are retrieved.
+        // Similar to the fetch phase, added as a safeguard against unexpected host hangs.
         transportService.sendChildRequest(
             connection,
             MultiSearchAction.NAME,
