@@ -625,8 +625,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
                 if (bundle.plugin.isExtendedPluginOptional(dependency)) {
-                    logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
-                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
+                    logger.info("Missing optional plugin [" + dependency + "], dependency of [" + name + "]. Some features of this plugin may not function without the dependencies being installed.");
                     continue;
                 } else {
                     throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
