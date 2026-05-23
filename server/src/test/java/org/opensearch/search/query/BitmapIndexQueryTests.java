@@ -54,6 +54,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         dir = newDirectory();
         w = new IndexWriter(dir, newIndexWriterConfig());
         reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
     }
 
     @After
