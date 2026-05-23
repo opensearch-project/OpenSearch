@@ -90,6 +90,7 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,                           // num_row_groups_out
                 ValueLayout.ADDRESS,                           // sort_perm_ptr_out
                 ValueLayout.ADDRESS                            // sort_perm_len_out
             )
@@ -300,6 +301,7 @@ public class RustBridge {
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
             var crc32Out = call.longOut();
+            var numRowGroupsOut = call.longOut();
             var out = call.outBuffer(1024);
             var sortPermPtrOut = call.longOut();
             var sortPermLenOut = call.longOut();
@@ -313,6 +315,7 @@ public class RustBridge {
                 (long) out.capacity(),
                 out.lenOut(),
                 crc32Out,
+                numRowGroupsOut,
                 sortPermPtrOut,
                 sortPermLenOut
             );
@@ -324,7 +327,8 @@ public class RustBridge {
                 createdByLen >= 0
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
-                crc32Out.get(ValueLayout.JAVA_LONG, 0)
+                crc32Out.get(ValueLayout.JAVA_LONG, 0),
+                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
             );
 
             // Read sort permutation if present
@@ -546,7 +550,8 @@ public class RustBridge {
                 createdByLen >= 0
                     ? new String(createdByOut.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
-                crc32Out.get(ValueLayout.JAVA_LONG, 0)
+                crc32Out.get(ValueLayout.JAVA_LONG, 0),
+                0
             );
 
             RowIdMapping rowIdMapping = readAndFreeMergeResult(

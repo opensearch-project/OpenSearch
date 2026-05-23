@@ -21,6 +21,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -254,7 +257,8 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
         createCompositeIndexWithSettings(
             Settings.builder()
                 .put("index.parquet.compression_type", "SNAPPY")
-                .put("index.parquet.field.name.encoding", "DELTA_BYTE_ARRAY")
+                .putList("index.parquet.encoding.field", "name")
+                .putList("index.parquet.encoding.value", "DELTA_BYTE_ARRAY")
                 .build()
         );
         ensureGreen(INDEX_NAME);
@@ -272,7 +276,11 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
      */
     public void testFieldLevelCompressionOverridesGlobal() throws IOException {
         createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.compression_type", "LZ4_RAW").put("index.parquet.field.value.compression", "ZSTD").build()
+            Settings.builder()
+                .put("index.parquet.compression_type", "LZ4_RAW")
+                .putList("index.parquet.compression.field", "value")
+                .putList("index.parquet.compression.value", "ZSTD")
+                .build()
         );
         ensureGreen(INDEX_NAME);
         indexDocs(INDEX_NAME, 5, 0);
@@ -292,10 +300,10 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
     public void testMultipleFieldLevelSettings() throws IOException {
         createCompositeIndexWithSettings(
             Settings.builder()
-                .put("index.parquet.field.name.encoding", "DELTA_BYTE_ARRAY")
-                .put("index.parquet.field.value.encoding", "DELTA_BINARY_PACKED")
-                .put("index.parquet.field.name.compression", "SNAPPY")
-                .put("index.parquet.field.value.compression", "ZSTD")
+                .putList("index.parquet.encoding.field", "name", "value")
+                .putList("index.parquet.encoding.value", "DELTA_BYTE_ARRAY", "DELTA_BINARY_PACKED")
+                .putList("index.parquet.compression.field", "name", "value")
+                .putList("index.parquet.compression.value", "SNAPPY", "ZSTD")
                 .build()
         );
         ensureGreen(INDEX_NAME);
@@ -407,18 +415,21 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
      */
     public void testFieldLevelEncodingAllCombinations() {
         // field -> arrow type instance for compatibility check
-        java.util.Map<String, ArrowType> fieldToArrowType = java.util.Map.of(
+        Map<String, ArrowType> fieldToArrowType = Map.of(
             "name",
             ParquetSettings.ARROW_TYPE_NAME_TO_INSTANCE.get("utf8"),
             "value",
             ParquetSettings.ARROW_TYPE_NAME_TO_INSTANCE.get("int32")
         );
-        for (java.util.Map.Entry<String, ArrowType> fieldEntry : fieldToArrowType.entrySet()) {
+        for (Map.Entry<String, ArrowType> fieldEntry : fieldToArrowType.entrySet()) {
             String field = fieldEntry.getKey();
             ArrowType arrowType = fieldEntry.getValue();
             for (String encoding : ParquetSettings.VALID_ENCODINGS) {
                 boolean compatible = ParquetSettings.isEncodingValidForArrowType(encoding, arrowType);
-                Settings indexSettings = Settings.builder().put("index.parquet.field." + field + ".encoding", encoding).build();
+                Settings indexSettings = Settings.builder()
+                    .putList("index.parquet.encoding.field", field)
+                    .putList("index.parquet.encoding.value", encoding)
+                    .build();
                 if (compatible) {
                     createCompositeIndexWithSettings(indexSettings);
                     client().admin().indices().prepareDelete(INDEX_NAME).get();
@@ -457,9 +468,12 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
      * All compressions are valid for all field types — every combo must be accepted.
      */
     public void testFieldLevelCompressionAllCombinations() {
-        for (String field : java.util.List.of("name", "value")) {
+        for (String field : List.of("name", "value")) {
             for (String compression : ParquetSettings.VALID_COMPRESSIONS) {
-                Settings indexSettings = Settings.builder().put("index.parquet.field." + field + ".compression", compression).build();
+                Settings indexSettings = Settings.builder()
+                    .putList("index.parquet.compression.field", field)
+                    .putList("index.parquet.compression.value", compression)
+                    .build();
                 // All combos valid — must not throw
                 createCompositeIndexWithSettings(indexSettings);
                 client().admin().indices().prepareDelete(INDEX_NAME).get();
@@ -522,7 +536,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
         int encStart = colJson.indexOf('[');
         int encEnd = colJson.indexOf(']');
         String encodingsStr = colJson.substring(encStart + 1, encEnd);
-        java.util.List<String> encodings = new java.util.ArrayList<>();
+        List<String> encodings = new ArrayList<>();
         for (String enc : encodingsStr.split(",")) {
             encodings.add(enc.trim().replace("\"", ""));
         }
@@ -542,7 +556,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
             hasBloomFilter = "true".equals(bfVal);
         }
 
-        Map<String, Object> result = new java.util.HashMap<>();
+        Map<String, Object> result = new HashMap<>();
         result.put("encodings", encodings);
         result.put("compression", compression);
         result.put("bloom_filter", hasBloomFilter);
@@ -551,7 +565,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
 
     @SuppressWarnings("unchecked")
     private void assertHasEncoding(Map<String, Object> colMeta, String expectedEncoding) {
-        java.util.List<String> encodings = (java.util.List<String>) colMeta.get("encodings");
+        List<String> encodings = (List<String>) colMeta.get("encodings");
         assertTrue("Expected encoding '" + expectedEncoding + "' in " + encodings, encodings.contains(expectedEncoding));
     }
 

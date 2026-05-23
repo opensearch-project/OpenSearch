@@ -476,6 +476,9 @@ public final class ParquetSettings {
 
         Map<String, V> result = new HashMap<>();
         for (int i = 0; i < fields.size(); i++) {
+            if (result.containsKey(fields.get(i))) {
+                throw new IllegalArgumentException("Duplicate field '" + fields.get(i) + "' in index.parquet." + configType + ".field");
+            }
             result.put(fields.get(i), values.get(i));
         }
         return result;

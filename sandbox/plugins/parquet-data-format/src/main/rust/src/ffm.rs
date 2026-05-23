@@ -127,6 +127,7 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
     crc32_out: *mut i64,
+    num_row_groups_out: *mut i64,
     sort_perm_ptr_out: *mut i64,
     sort_perm_len_out: *mut i64,
 ) -> i64 {
@@ -147,6 +148,7 @@ pub unsafe extern "C" fn parquet_finalize_writer(
                 *created_by_len_out = -1;
             }
             if !crc32_out.is_null() { *crc32_out = result.crc32 as i64; }
+            if !num_row_groups_out.is_null() { *num_row_groups_out = result.metadata.num_row_groups() as i64; }
 
             // Return sort permutation if present
             if !sort_perm_ptr_out.is_null() && !sort_perm_len_out.is_null() {

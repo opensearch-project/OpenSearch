@@ -22,8 +22,4 @@ package org.opensearch.parquet.bridge;
  * @param numRowGroups number of row groups in the file
  */
 public record ParquetFileMetadata(int version, long numRows, String createdBy, long crc32, int numRowGroups) {
-
-    public ParquetFileMetadata(int version, long numRows, String createdBy, long crc32) {
-        this(version, numRows, createdBy, crc32, 0);
-    }
 }

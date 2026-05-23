@@ -23,22 +23,22 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
 
     @Override
     public void validate(MapperService mapperService, IndexSettings indexSettings) {
-        if (indexSettings.getSettings().getAsBoolean("index.pluggable.dataformat.enabled", false) == false) {
-            return;
-        }
-        if ("parquet".equals(indexSettings.getSettings().get("index.composite.primary_data_format")) == false) {
-            return;
-        }
-        if (mapperService.documentMapper() == null) {
-            return;
-        }
-
-        // Get all field configurations
         Map<String, String> fieldEncodings = ParquetSettings.getFieldEncodings(indexSettings.getSettings());
         Map<String, String> fieldCompressions = ParquetSettings.getFieldCompressions(indexSettings.getSettings());
         Map<String, Boolean> fieldBloomFilterEnabled = ParquetSettings.getFieldBloomFilterEnabled(indexSettings.getSettings());
 
-        if (fieldEncodings.isEmpty() && fieldCompressions.isEmpty() && fieldBloomFilterEnabled.isEmpty()) {
+        boolean hasParquetSettings = !fieldEncodings.isEmpty() || !fieldCompressions.isEmpty() || !fieldBloomFilterEnabled.isEmpty();
+
+        boolean isParquetIndex = indexSettings.getSettings().getAsBoolean("index.pluggable.dataformat.enabled", false)
+            && "parquet".equals(indexSettings.getSettings().get("index.composite.primary_data_format"));
+
+        if (!isParquetIndex && hasParquetSettings) {
+            throw new IllegalArgumentException(
+                "Parquet field-level settings are configured but the index does not use parquet data format"
+            );
+        }
+
+        if (!isParquetIndex || !hasParquetSettings) {
             return;
         }
 
