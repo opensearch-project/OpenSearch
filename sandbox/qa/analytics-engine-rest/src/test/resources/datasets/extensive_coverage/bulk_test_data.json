@@ -1,0 +1,20 @@
+{"index": {}}
+{"id": "1", "timestamp": "2026-01-15T10:30:00Z", "category": "A", "value": 100.5, "total": 10, "text": "hello world test", "tags": "tag1,tag2,tag3", "json_data": "{\"name\":\"item1\",\"price\":50}", "ip_address": "192.168.1.1", "location": "40.7128,-74.0060", "status": "active", "price": 50.0, "quantity": 5}
+{"index": {}}
+{"id": "2", "timestamp": "2026-02-20T14:45:00Z", "category": "B", "value": 200.75, "total": 20, "text": "sample data entry", "tags": "tag2,tag4", "json_data": "{\"name\":\"item2\",\"price\":75}", "ip_address": "10.0.0.1", "location": "34.0522,-118.2437", "status": "inactive", "price": 75.0, "quantity": 10}
+{"index": {}}
+{"id": "3", "timestamp": "2026-03-10T08:15:00Z", "category": "A", "value": 150.25, "total": 15, "text": "test example record", "tags": "tag1,tag3,tag5", "json_data": "{\"name\":\"item3\",\"price\":100}", "ip_address": "172.16.0.1", "location": "51.5074,-0.1278", "status": "active", "price": 100.0, "quantity": 8}
+{"index": {}}
+{"id": "4", "timestamp": "2026-04-05T16:20:00Z", "category": "C", "value": 300.0, "total": 25, "text": "another test case", "tags": "tag4,tag6", "json_data": "{\"name\":\"item4\",\"price\":125}", "ip_address": "192.168.2.1", "location": "48.8566,2.3522", "status": "pending", "price": 125.0, "quantity": 12}
+{"index": {}}
+{"id": "5", "timestamp": "2026-05-12T12:00:00Z", "category": "B", "value": 250.5, "total": 30, "text": "final test entry", "tags": "tag2,tag5,tag7", "json_data": "{\"name\":\"item5\",\"price\":150}", "ip_address": "10.1.1.1", "location": "35.6762,139.6503", "status": "active", "price": 150.0, "quantity": 20}
+{"index": {}}
+{"id": "6", "timestamp": "2026-06-18T09:30:00Z", "category": "A", "value": 175.0, "total": 18, "text": "additional sample", "tags": "tag1,tag6", "json_data": "{\"name\":\"item6\",\"price\":80}", "ip_address": "192.168.1.100", "location": "37.7749,-122.4194", "status": "active", "price": 80.0, "quantity": 6}
+{"index": {}}
+{"id": "7", "timestamp": "2026-07-22T15:45:00Z", "category": "C", "value": 400.25, "total": 35, "text": "test data point", "tags": "tag3,tag7", "json_data": "{\"name\":\"item7\",\"price\":200}", "ip_address": "172.16.1.1", "location": "41.9028,12.4964", "status": "inactive", "price": 200.0, "quantity": 15}
+{"index": {}}
+{"id": "8", "timestamp": "2026-08-30T11:15:00Z", "category": "B", "value": 225.75, "total": 22, "text": "example record set", "tags": "tag2,tag4,tag8", "json_data": "{\"name\":\"item8\",\"price\":90}", "ip_address": "10.0.1.1", "location": "52.5200,13.4050", "status": "active", "price": 90.0, "quantity": 9}
+{"index": {}}
+{"id": "9", "timestamp": "2026-09-14T13:30:00Z", "category": "A", "value": 180.5, "total": 19, "text": "test validation", "tags": "tag1,tag5,tag9", "json_data": "{\"name\":\"item9\",\"price\":110}", "ip_address": "192.168.3.1", "location": "55.7558,37.6173", "status": "pending", "price": 110.0, "quantity": 11}
+{"index": {}}
+{"id": "10", "timestamp": "2026-10-25T17:00:00Z", "category": "C", "value": 350.0, "total": 28, "text": "comprehensive test", "tags": "tag6,tag8,tag10", "json_data": "{\"name\":\"item10\",\"price\":175}", "ip_address": "172.16.2.1", "location": "39.9042,116.4074", "status": "active", "price": 175.0, "quantity": 14}

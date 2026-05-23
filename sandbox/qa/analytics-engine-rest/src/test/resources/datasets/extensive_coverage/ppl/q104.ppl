@@ -1,0 +1,1 @@
+source=test_data | eval first_tag = mvindex(split(tags, ','), 0) | fields tags, first_tag | head 3

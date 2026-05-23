@@ -1,0 +1,1 @@
+source=test_data | eval cot_val = cot(1) | fields id, cot_val | head 1
