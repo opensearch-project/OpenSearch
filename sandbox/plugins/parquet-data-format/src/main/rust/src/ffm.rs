@@ -309,14 +309,6 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     bf_enabled_name_lens: *const i64,
     bf_enabled_vals: *const i64,
     bf_enabled_count: i64,
-    bf_fpp_name_ptrs: *const *const u8,
-    bf_fpp_name_lens: *const i64,
-    bf_fpp_vals: *const f64,
-    bf_fpp_count: i64,
-    bf_ndv_name_ptrs: *const *const u8,
-    bf_ndv_name_lens: *const i64,
-    bf_ndv_vals: *const i64,
-    bf_ndv_count: i64,
     type_bf_enabled_name_ptrs: *const *const u8,
     type_bf_enabled_name_lens: *const i64,
     type_bf_enabled_vals: *const i64,
@@ -367,10 +359,6 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     // Parse per-field bloom filter arrays
     let bf_enabled_names = str_array_from_raw(bf_enabled_name_ptrs, bf_enabled_name_lens, bf_enabled_count)
         .map_err(|e| format!("parquet_on_settings_update bf_enabled_names: {}", e))?;
-    let bf_fpp_names = str_array_from_raw(bf_fpp_name_ptrs, bf_fpp_name_lens, bf_fpp_count)
-        .map_err(|e| format!("parquet_on_settings_update bf_fpp_names: {}", e))?;
-    let bf_ndv_names = str_array_from_raw(bf_ndv_name_ptrs, bf_ndv_name_lens, bf_ndv_count)
-        .map_err(|e| format!("parquet_on_settings_update bf_ndv_names: {}", e))?;
 
     let field_configs = {
         let mut map = std::collections::HashMap::new();
@@ -387,18 +375,6 @@ pub unsafe extern "C" fn parquet_on_settings_update(
             map.entry(name)
                .and_modify(|fc| fc.bloom_filter_enabled = Some(val))
                .or_insert(FieldConfig { bloom_filter_enabled: Some(val), ..Default::default() });
-        }
-        for (i, name) in bf_fpp_names.into_iter().enumerate() {
-            let val = *bf_fpp_vals.add(i);
-            map.entry(name)
-               .and_modify(|fc| fc.bloom_filter_fpp = Some(val))
-               .or_insert(FieldConfig { bloom_filter_fpp: Some(val), ..Default::default() });
-        }
-        for (i, name) in bf_ndv_names.into_iter().enumerate() {
-            let val = *bf_ndv_vals.add(i) as u64;
-            map.entry(name)
-               .and_modify(|fc| fc.bloom_filter_ndv = Some(val))
-               .or_insert(FieldConfig { bloom_filter_ndv: Some(val), ..Default::default() });
         }
         if map.is_empty() { None } else { Some(map) }
     };

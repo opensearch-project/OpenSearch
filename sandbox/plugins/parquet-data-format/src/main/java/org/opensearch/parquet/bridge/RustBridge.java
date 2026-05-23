@@ -176,14 +176,6 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,   // bf_fpp_name_ptrs, bf_fpp_name_lens, bf_fpp_vals, bf_fpp_count
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,   // bf_ndv_name_ptrs, bf_ndv_name_lens, bf_ndv_vals, bf_ndv_count
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,   // type_bf_enabled_name_ptrs, type_bf_enabled_name_lens, type_bf_enabled_vals,
                                          // type_bf_enabled_count
                 ValueLayout.ADDRESS,
@@ -388,9 +380,6 @@ public class RustBridge {
             var typeCompressions = toNativeArrays(call, nativeSettings.getTypeCompressions());
 
             var bfEnabled = toBoolMapArrays(call, nativeSettings.getFieldBloomFilterEnabled());
-            // Field-level FPP and NDV removed - use empty maps
-            var bfFpp = toDoubleMapArrays(call, Map.of());
-            var bfNdv = toLongMapArrays(call, Map.of());
 
             var typeBfEnabled = toBoolMapArrays(call, nativeSettings.getTypeBloomFilterEnabled());
             var typeBfFpp = toDoubleMapArrays(call, nativeSettings.getTypeBloomFilterFpp());
@@ -440,14 +429,6 @@ public class RustBridge {
                 bfEnabled.keys().lens(),
                 bfEnabled.values(),
                 bfEnabled.keys().count(),
-                bfFpp.keys().ptrs(),
-                bfFpp.keys().lens(),
-                bfFpp.values(),
-                bfFpp.keys().count(),
-                bfNdv.keys().ptrs(),
-                bfNdv.keys().lens(),
-                bfNdv.values(),
-                bfNdv.keys().count(),
                 typeBfEnabled.keys().ptrs(),
                 typeBfEnabled.keys().lens(),
                 typeBfEnabled.values(),
