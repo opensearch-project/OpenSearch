@@ -207,7 +207,6 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
                 }
             }
         }
-        Collections.sort(actual);
         return actual;
     }
 }
