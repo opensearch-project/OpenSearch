@@ -136,14 +136,24 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         Bitmap64IndexQuery query = new Bitmap64IndexQuery("product_id", bitmap);
         Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
 
-        LeafReaderContext leaf = reader.leaves().get(0);
-        ScorerSupplier supplier = weight.scorerSupplier(leaf);
-        assertNotNull(supplier);
+        List<Long> firstPassMatches = new ArrayList<>();
+        List<Long> secondPassMatches = new ArrayList<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            ScorerSupplier supplier = weight.scorerSupplier(leaf);
+            if (supplier == null) {
+                continue;
+            }
 
-        Scorer scorer1 = supplier.get(Long.MAX_VALUE);
-        Scorer scorer2 = supplier.get(Long.MAX_VALUE);
+            Scorer scorer1 = supplier.get(Long.MAX_VALUE);
+            Scorer scorer2 = supplier.get(Long.MAX_VALUE);
+            firstPassMatches.addAll(getMatchingValues(scorer1, leaf));
+            secondPassMatches.addAll(getMatchingValues(scorer2, leaf));
+        }
 
-        assertEquals(getMatchingValues(scorer1, leaf), getMatchingValues(scorer2, leaf));
+        Collections.sort(firstPassMatches);
+        Collections.sort(secondPassMatches);
+        assertEquals(List.of(1L, 4L), firstPassMatches);
+        assertEquals(firstPassMatches, secondPassMatches);
     }
 
     // ---------------- Helpers ----------------
