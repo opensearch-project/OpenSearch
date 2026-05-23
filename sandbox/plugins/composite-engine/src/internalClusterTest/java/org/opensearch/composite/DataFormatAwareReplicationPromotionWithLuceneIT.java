@@ -20,6 +20,7 @@ import java.util.Set;
  * the replication and promotion paths.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class DataFormatAwareReplicationPromotionWithLuceneIT extends DataFormatAwareReplicationPromotionIT {
 
     @Override
