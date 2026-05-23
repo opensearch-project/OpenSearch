@@ -18,6 +18,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -155,6 +156,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     @Override
     public List<Setting<?>> getSettings() {
         return ParquetSettings.getSettings();
+    }
+
+    @Override
+    public Collection<IndexCreationValidator> getIndexCreationValidators() {
+        return List.of(new ParquetIndexCreationValidator());
     }
 
     @Override
