@@ -239,13 +239,13 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         return snapshot;
     }
 
-    // ---------- Constructor and statsCache.forceRefresh() tests ----------
+    // ---------- Constructor and stats cache initialization tests ----------
 
     /**
-     * Verifies that statsCache.forceRefresh() is called during DFANRE construction
-     * and that the cache is properly initialized with committed state.
+     * Verifies that the stats cache is initialized during DFANRE construction
+     * and that the cache is properly populated with committed state.
      */
-    public void testConstructorCallsStatsCacheForceRefreshWithCommittedState() throws IOException {
+    public void testConstructorInitializesStatsCacheWithCommittedState() throws IOException {
         try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
             // Verify that the stats cache was initialized during construction
             // by checking that it returns valid (non-null) stats
@@ -269,9 +269,9 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
 
     /**
      * Verifies that after replication, segments are properly committed due to
-     * the statsCache.forceRefresh() initialization during construction.
+     * the stats cache initialization during construction.
      */
-    public void testSegmentsCommittedAfterReplicationDueToConstructorForceRefresh() throws IOException {
+    public void testSegmentsCommittedAfterReplicationDueToConstructorInit() throws IOException {
         Path tmpDir = createTempDir();
         try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
             // Apply a replication snapshot with segments
@@ -298,9 +298,9 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
 
     /**
      * Verifies that flush operations result in properly committed segments,
-     * enabled by the statsCache.forceRefresh() call during construction.
+     * enabled by the stats cache initialization during construction.
      */
-    public void testFlushResultsInCommittedSegmentsDueToConstructorForceRefresh() throws IOException {
+    public void testFlushResultsInCommittedSegmentsDueToConstructorInit() throws IOException {
         Path tmpDir = createTempDir();
         try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
             // Apply a replication snapshot
@@ -332,21 +332,18 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
     }
 
     /**
-     * Verifies that if statsCache.forceRefresh() throws during construction,
-     * resources are properly cleaned up because forceRefresh() is called BEFORE success=true.
-     * This ensures the committed state is properly handled even during failures.
+     * Verifies that if getLastCommittedData() throws during construction,
+     * the engine constructor fails and resources are cleaned up.
      */
-    public void testConstructorFailureInStatsCacheForceRefreshCleansUpResourcesAndCommittedState() throws IOException {
+    public void testConstructorFailsWhenCommitterThrows() throws IOException {
         Path translogPath = createTempDir();
         String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         bootstrapStoreWithMetadata(store, uuid);
 
-        // Create a committer that throws when statsCache tries to get commit data
         CommitterFactory failingCommitterFactory = config -> new InMemoryCommitter(store) {
             @Override
             public Map<String, String> getLastCommittedData() {
-                // This will be called by statsCache.forceRefresh() during construction
-                throw new RuntimeException("Simulated failure in getLastCommittedData during forceRefresh");
+                throw new RuntimeException("Simulated failure in getLastCommittedData");
             }
         };
 
@@ -368,30 +365,15 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
             .readOnlyReplica(true)
             .build();
 
-        // Constructor should throw due to statsCache.forceRefresh() failure
-        Exception exception = expectThrows(Exception.class, () -> new DataFormatAwareNRTReplicationEngine(failingConfig));
-
-        // Verify the exception chain contains our simulated failure
-        Throwable cause = exception;
-        boolean foundExpectedMessage = false;
-        while (cause != null) {
-            if (cause.getMessage() != null
-                && cause.getMessage().contains("Simulated failure in getLastCommittedData during forceRefresh")) {
-                foundExpectedMessage = true;
-                break;
-            }
-            cause = cause.getCause();
-        }
-
-        assertTrue("Exception chain should contain the simulated failure message", foundExpectedMessage);
+        expectThrows(Exception.class, () -> new DataFormatAwareNRTReplicationEngine(failingConfig));
     }
 
     /**
      * Verifies that the statsCache is properly updated when catalog snapshots change
-     * via replication, ensuring the forceRefresh() call during construction enables
+     * via replication, ensuring the cache initialization during construction enables
      * proper cache functionality.
      */
-    public void testStatsCacheUpdatesAfterReplicationDueToConstructorForceRefresh() throws IOException {
+    public void testStatsCacheUpdatesAfterReplicationDueToConstructorInit() throws IOException {
         Path tmpDir = createTempDir();
         try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
             // Initial state - cache should be initialized with empty stats

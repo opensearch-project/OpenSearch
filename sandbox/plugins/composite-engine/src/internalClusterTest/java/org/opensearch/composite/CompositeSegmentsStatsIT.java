@@ -8,6 +8,8 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndexSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
@@ -16,6 +18,7 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.shard.DocsStats;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
@@ -34,9 +37,7 @@ public class CompositeSegmentsStatsIT extends AbstractCompositeEngineIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     /**
@@ -224,6 +225,68 @@ public class CompositeSegmentsStatsIT extends AbstractCompositeEngineIT {
         // Verify data is still accessible after second flush by checking segments
         List<Segment> segmentsAfterSecondFlush = getSegmentsFromApi(indexName);
         assertFalse("Should have segments after second flush", segmentsAfterSecondFlush.isEmpty());
+    }
+
+    /**
+     * Tests that overall node stats (without any index-level filter) returns valid segment stats
+     * and that stats are updated correctly as documents are indexed and refreshed.
+     */
+    public void testNodeStatsIncludesSegmentStats() {
+        String indexName = "test-node-stats";
+        createCompositeIndex(indexName);
+
+        // Index first batch and verify
+        indexDocs(indexName, 10, 0);
+        refreshIndex(indexName);
+        flushIndex(indexName);
+
+        NodeStats dataNodeStats = getDataNodeStats();
+        assertNotNull("Node indices stats should not be null", dataNodeStats.getIndices());
+
+        SegmentsStats segmentsStats = dataNodeStats.getIndices().getSegments();
+        assertNotNull("Segments stats from node stats should not be null", segmentsStats);
+        assertTrue("Node-level segment count should be > 0", segmentsStats.getCount() > 0);
+
+        DocsStats docsStats = dataNodeStats.getIndices().getDocs();
+        assertNotNull("Docs stats from node stats should not be null", docsStats);
+        assertEquals("Node-level doc count should match indexed docs", 10L, docsStats.getCount());
+
+        // Index more docs and refresh — verify counts update
+        indexDocs(indexName, 10, 10);
+        refreshIndex(indexName);
+
+        dataNodeStats = getDataNodeStats();
+        docsStats = dataNodeStats.getIndices().getDocs();
+        assertEquals("Doc count should update after second refresh", 20L, docsStats.getCount());
+
+        segmentsStats = dataNodeStats.getIndices().getSegments();
+        assertTrue("Segment count should be > 0 after second refresh", segmentsStats.getCount() > 0);
+
+        // Index another batch, flush, and verify again
+        indexDocs(indexName, 10, 20);
+        refreshIndex(indexName);
+        flushIndex(indexName);
+
+        dataNodeStats = getDataNodeStats();
+        docsStats = dataNodeStats.getIndices().getDocs();
+        assertEquals("Doc count should update after third batch and flush", 30L, docsStats.getCount());
+    }
+
+    private NodeStats getDataNodeStats() {
+        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().all().get();
+        for (NodeStats ns : nodesStats.getNodes()) {
+            if (ns.getIndices() != null && ns.getIndices().getDocs().getCount() > 0) {
+                return ns;
+            }
+        }
+        // Fallback to first node with indices stats
+        for (NodeStats ns : nodesStats.getNodes()) {
+            if (ns.getIndices() != null) {
+                return ns;
+            }
+        }
+        fail("No data node found with indices stats");
+        return null;
     }
 
     // --- Helper methods ---

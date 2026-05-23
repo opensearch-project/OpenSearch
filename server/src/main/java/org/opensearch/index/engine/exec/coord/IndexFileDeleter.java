@@ -293,11 +293,8 @@ public class IndexFileDeleter {
         }
         if (allDeleted.isEmpty() == false) {
             notifyFilesDeleted(allDeleted);
-            cleanUpsPerformed.incrementAndGet();
         }
     }
-
-    // ---- Listener notification (outside lock) ----
 
     private void notifyFilesAdded(Map<String, Collection<String>> newFilesByFormat) throws IOException {
         for (Map.Entry<String, Collection<String>> entry : newFilesByFormat.entrySet()) {
@@ -334,6 +331,7 @@ public class IndexFileDeleter {
             if (firstException != null) {
                 throw new RuntimeException("Failed to clean up snapshot [gen=" + snapshot.getGeneration() + "]", firstException);
             }
+            logger.debug("Snapshot [gen={}] deleted, unreferenced file cleanup performed", snapshot.getGeneration());
         }
     }
 
@@ -396,7 +394,6 @@ public class IndexFileDeleter {
         }
         if (successfullyDeleted.isEmpty() == false) {
             notifyFilesDeleted(successfullyDeleted);
-            cleanUpsPerformed.incrementAndGet();
         }
     }
 
@@ -449,6 +446,14 @@ public class IndexFileDeleter {
      */
     public long getCleanUpsPerformed() {
         return cleanUpsPerformed.get();
+    }
+
+    /**
+     * Increments the merge failure cleanup counter. Called when a merge fails
+     * and its output files are cleaned up.
+     */
+    public void incrementCleanUpsPerformed() {
+        cleanUpsPerformed.incrementAndGet();
     }
 
     /**

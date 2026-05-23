@@ -43,6 +43,7 @@ public class MergeScheduler {
     private final Logger logger;
     private final MergeHandler mergeHandler;
     private final BiConsumer<MergeResult, OneMerge> applyMergeChanges;
+    private final Runnable onMergeFailureCleanup;
     private final ThreadPool threadPool;
     private final AtomicInteger activeMerges = new AtomicInteger(0);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
@@ -63,21 +64,24 @@ public class MergeScheduler {
     /**
      * Creates a new merge scheduler.
      *
-     * @param mergeHandler      the handler that selects and executes merges
-     * @param applyMergeChanges callback to apply merge results (e.g., update the catalog)
-     * @param shardId           the shard this scheduler is associated with
-     * @param indexSettings     the index settings providing merge scheduler configuration
-     * @param threadPool        the OpenSearch thread pool for executing merge tasks
+     * @param mergeHandler          the handler that selects and executes merges
+     * @param applyMergeChanges     callback to apply merge results (e.g., update the catalog)
+     * @param onMergeFailureCleanup callback invoked when a merge fails and cleanup is performed
+     * @param shardId               the shard this scheduler is associated with
+     * @param indexSettings         the index settings providing merge scheduler configuration
+     * @param threadPool            the OpenSearch thread pool for executing merge tasks
      */
     public MergeScheduler(
         MergeHandler mergeHandler,
         BiConsumer<MergeResult, OneMerge> applyMergeChanges,
+        Runnable onMergeFailureCleanup,
         ShardId shardId,
         IndexSettings indexSettings,
         ThreadPool threadPool
     ) {
         this.mergeHandler = mergeHandler;
         this.applyMergeChanges = applyMergeChanges;
+        this.onMergeFailureCleanup = onMergeFailureCleanup;
         this.threadPool = threadPool;
         logger = Loggers.getLogger(getClass(), shardId);
         this.mergeSchedulerConfig = indexSettings.getMergeSchedulerConfig();
@@ -154,6 +158,7 @@ public class MergeScheduler {
                 } catch (Exception e) {
                     logger.error(new ParameterizedMessage("Force merge failed for: {}", oneMerge), e);
                     mergeHandler.onMergeFailure(oneMerge);
+                    onMergeFailureCleanup.run();
                 } finally {
                     mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
                 }
@@ -213,6 +218,7 @@ public class MergeScheduler {
                 submitMergeTask(oneMerge);
             } catch (Exception e) {
                 mergeHandler.onMergeFailure(oneMerge);
+                onMergeFailureCleanup.run();
             }
         }
     }
@@ -247,6 +253,7 @@ public class MergeScheduler {
             } catch (Exception e) {
                 logger.error(new ParameterizedMessage("Unexpected error during merge for: {}", oneMerge), e);
                 mergeHandler.onMergeFailure(oneMerge);
+                onMergeFailureCleanup.run();
             } finally {
                 mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
 

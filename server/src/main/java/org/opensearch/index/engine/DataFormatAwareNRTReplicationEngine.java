@@ -15,7 +15,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -39,7 +38,6 @@ import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
@@ -233,9 +231,6 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 TranslogOperationHelper.create(engineConfig)
             );
             this.translogManager = translogManagerRef;
-
-            // Initialize cache with current snapshot after engine is fully constructed
-            statsCache.forceRefresh();
 
             success = true;
             logger.trace("created new DataFormatAwareNRTReplicationEngine");
@@ -760,30 +755,19 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
     @Override
     public DocsStats docStats() {
-        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
-            long count = snapshot.get().getNumDocs();
-            // Total size: sum across all format files — each format contributes distinct bytes on disk.
-            long totalSize = snapshot.get()
-                .getSegments()
-                .stream()
-                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
-                .mapToLong(WriterFileSet::getTotalSize)
-                .sum();
-            assert count >= 0 : "doc count must be non-negative but was: " + count;
-            assert totalSize >= 0 : "total size must be non-negative but was: " + totalSize;
-            return new DocsStats.Builder().deleted(0L).count(count).totalSizeInBytes(totalSize).build();
-        } catch (IOException ex) {
-            throw new OpenSearchException(ex);
-        }
+        ensureOpen();
+        return statsCache.getDocsStats();
     }
 
     @Override
     public List<Segment> segments(boolean verbose) {
+        ensureOpen();
         return statsCache.getSegments();
     }
 
     @Override
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        ensureOpen();
         // includeUnloadedSegments is a Lucene concept (segments on disk not yet loaded into a SegmentReader).
         // In DFANRE, all segments are tracked in the catalog snapshot regardless of load state — no distinction exists.
 

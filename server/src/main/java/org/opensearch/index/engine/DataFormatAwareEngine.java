@@ -415,14 +415,11 @@ public class DataFormatAwareEngine implements Indexer {
             this.mergeScheduler = new MergeScheduler(
                 mergeHandler,
                 this::applyMergeChanges,
+                catalogSnapshotManager::incrementUnreferencedFileCleanUps,
                 shardId,
                 engineConfig.getIndexSettings(),
                 engineConfig.getThreadPool()
             );
-
-            // Initialize cache with current snapshot after engine is fully constructed
-            // Do this before success=true so resources are cleaned up if this fails
-            statsCache.forceRefresh();
 
             success = true;
             logger.trace("created new DataFormatBasedEngine");

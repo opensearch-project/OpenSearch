@@ -854,7 +854,11 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
         assertTrue("Total merges should be > 0 after merge", mergeStats.getTotal() > 0);
 
         long cleanups = engine.unreferencedFileCleanUpsPerformed();
-        assertTrue("unreferencedFileCleanUpsPerformed should be > 0 after merge, got: " + cleanups, cleanups > 0);
+        assertEquals(
+            "unreferencedFileCleanUpsPerformed should be 0 after successful merge (only tracks merge failure cleanups)",
+            0,
+            cleanups
+        );
     }
 
     /**
@@ -886,9 +890,10 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
         org.opensearch.index.merge.MergeStats mergeStats = statsResponse.getIndex(INDEX_NAME).getShards()[0].getStats().getMerge();
         assertNotNull("MergeStats from API should not be null", mergeStats);
         assertTrue("Total merges via API should be > 0", mergeStats.getTotal() > 0);
-        assertTrue(
-            "unreferencedFileCleanUpsPerformed via API should be > 0, got: " + mergeStats.getUnreferencedFileCleanUpsPerformed(),
-            mergeStats.getUnreferencedFileCleanUpsPerformed() > 0
+        assertEquals(
+            "unreferencedFileCleanUpsPerformed via API should be 0 after successful merge (only tracks merge failure cleanups)",
+            0,
+            mergeStats.getUnreferencedFileCleanUpsPerformed()
         );
     }
 

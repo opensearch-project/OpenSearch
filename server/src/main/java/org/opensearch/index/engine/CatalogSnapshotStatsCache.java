@@ -18,7 +18,6 @@ import org.opensearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -131,60 +130,22 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
      * @return populated {@link SegmentsStats}
      */
     public SegmentsStats buildSegmentsStats(long nativeBytesUsed, long maxUnsafeAutoIdTimestamp, CatalogSnapshot snapshot) {
-        // Calculate internal values from snapshot
         int segmentCount = snapshot.getSegments().size();
-        Map<String, Long> rawFileSizes = snapshot.collectFileSizes(store);
 
         SegmentsStats stats = new SegmentsStats();
         stats.add(segmentCount);
         stats.addIndexWriterMemoryInBytes(nativeBytesUsed);
         stats.updateMaxUnsafeAutoIdTimestamp(maxUnsafeAutoIdTimestamp);
 
-        // Group file sizes by extension (like internal engine does)
-        if (rawFileSizes != null && !rawFileSizes.isEmpty()) {
-            Map<String, Long> groupedFileSizes = groupFilesByExtension(rawFileSizes);
+        // Collect file sizes grouped by extension in a single pass (no intermediate per-file map).
+        // Note: Compound files (e.g., .cfs) are reported under their physical extension
+        // rather than broken down by internal sub-file format.
+        Map<String, Long> groupedFileSizes = snapshot.collectFileSizesGroupedByExtension(store);
+        if (!groupedFileSizes.isEmpty()) {
             stats.addFileSizes(groupedFileSizes);
         }
 
         return stats;
-    }
-
-    /**
-     * Groups file sizes by extension, extracting the underlying format extension for compound files.
-     * This matches the behavior of the internal engine for consistent file size reporting.
-     */
-    private Map<String, Long> groupFilesByExtension(Map<String, Long> rawFileSizes) {
-        Map<String, Long> grouped = new HashMap<>();
-
-        for (Map.Entry<String, Long> entry : rawFileSizes.entrySet()) {
-            String fileName = entry.getKey();
-            Long fileSize = entry.getValue();
-
-            // Extract extension from filename
-            String extension = getFileExtension(fileName);
-
-            // Merge sizes for the same extension
-            grouped.merge(extension, fileSize, Long::sum);
-        }
-
-        return grouped;
-    }
-
-    /**
-     * Extracts the file extension from a filename.
-     * For compound files, this should extract the underlying format extension.
-     */
-    private String getFileExtension(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return "unknown";
-        }
-
-        int lastDot = fileName.lastIndexOf('.');
-        if (lastDot == -1 || lastDot == fileName.length() - 1) {
-            return "unknown";
-        }
-
-        return fileName.substring(lastDot + 1);
     }
 
     // Fast API methods - just return cached values

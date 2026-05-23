@@ -588,6 +588,13 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
+     * Increments the merge failure cleanup counter.
+     */
+    public void incrementUnreferencedFileCleanUps() {
+        indexFileDeleter.incrementCleanUpsPerformed();
+    }
+
+    /**
      * Asserts that no segment generation in the new snapshot conflicts with a different
      * file set in any existing tracked snapshot. This catches generation overlap bugs
      * where a merge or writer reuses a generation number, causing the catalog to track

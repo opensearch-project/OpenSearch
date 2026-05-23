@@ -381,6 +381,46 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     }
 
     /**
+     * Collects file sizes grouped by file extension in a single pass, avoiding an intermediate
+     * per-file map. Sizes for files sharing the same extension are summed.
+     * <p>
+     * Note: Compound files (e.g., Lucene .cfs) are reported under their physical extension
+     * rather than broken down by internal sub-file format. This is a known limitation.
+     *
+     * @param store the store to resolve file sizes from
+     * @return map of file extension to total size in bytes
+     */
+    public Map<String, Long> collectFileSizesGroupedByExtension(Store store) {
+        Map<String, Long> grouped = new HashMap<>();
+        for (Segment segment : getSegments()) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                String formatName = entry.getKey();
+                for (String file : entry.getValue().files()) {
+                    String dirFile = org.opensearch.index.store.FileMetadata.serialize(formatName, file);
+                    long size;
+                    try {
+                        size = store.directory().fileLength(dirFile);
+                    } catch (java.io.IOException e) {
+                        logger.warn(() -> "Failed to read size for file [" + dirFile + "]; reporting 0", e);
+                        size = 0L;
+                    }
+                    String extension = extractExtension(file);
+                    grouped.merge(extension, size, Long::sum);
+                }
+            }
+        }
+        return grouped;
+    }
+
+    private static String extractExtension(String fileName) {
+        int lastDot = fileName.lastIndexOf('.');
+        if (lastDot == -1 || lastDot == fileName.length() - 1) {
+            return "unknown";
+        }
+        return fileName.substring(lastDot + 1);
+    }
+
+    /**
      * Resolves whether this snapshot has been committed by comparing its ID
      * against the last committed snapshot ID stored in commit data.
      *

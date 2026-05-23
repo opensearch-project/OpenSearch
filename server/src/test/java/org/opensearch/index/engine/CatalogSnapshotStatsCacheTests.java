@@ -9,6 +9,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.shard.DocsStats;
@@ -20,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -103,7 +105,7 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
         cache.beforeRefresh(); // Should complete without exception
     }
 
-    public void testForceRefreshWithNullSnapshot() {
+    public void testConstructorWithFailingSnapshotManager() {
         CatalogSnapshotManager snapshotManager = mock(CatalogSnapshotManager.class);
         Store store = mock(Store.class);
         Logger logger = mock(Logger.class);
@@ -119,10 +121,7 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
             logger
         );
 
-        // forceRefresh should handle exceptions gracefully and keep existing cached values
-        cache.forceRefresh(); // Should complete without throwing
-
-        // Should still return valid (empty) stats
+        // Should still return valid (empty) stats despite constructor refresh failure
         assertNotNull(cache.getDocsStats());
         assertNotNull(cache.getSegmentsStats());
         assertNotNull(cache.getSegments());
@@ -141,9 +140,12 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
 
         // Mock snapshot to return test data with multiple files of same extension
         when(snapshot.getSegments()).thenReturn(List.of(segment1, segment2, segment3));
-        when(snapshot.collectFileSizes(store)).thenReturn(
-            Map.of("segment_1.parquet", 100L, "segment_2.parquet", 200L, "index.fnm", 50L, "data.nvm", 75L)
-        );
+        when(snapshot.getNumDocs()).thenReturn(0L);
+        when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Map.of("parquet", 300L, "fnm", 50L, "nvm", 75L));
+        when(snapshot.buildEngineSegments(any(), any())).thenReturn(Collections.emptyList());
+
+        // Mock acquireSnapshot for the constructor's refreshCachedStats() call
+        when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
 
         CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(snapshotManager, store, null, () -> Collections.emptyMap(), logger);
 
