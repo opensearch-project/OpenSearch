@@ -12,7 +12,7 @@ import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
-import org.opensearch.http.reactor.netty4.ReactorNetty4HttpServerTransport.ChannelGroup;
+import org.opensearch.http.reactor.netty4.ReactorNetty4HttpServerTransport.HostChannel;
 
 import java.net.InetSocketAddress;
 import java.util.Optional;
@@ -27,16 +27,16 @@ class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
     private final HttpServerRequest request;
     private final HttpServerResponse response;
     private final FluxSink<HttpContent> emitter;
-    private final ChannelGroup channelGroup;
+    private final HostChannel hostChannel;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
     ReactorNetty4NonStreamingHttpChannel(
-        ChannelGroup channelGroup,
+        HostChannel hostChannel,
         HttpServerRequest request,
         HttpServerResponse response,
         FluxSink<HttpContent> emitter
     ) {
-        this.channelGroup = channelGroup;
+        this.hostChannel = hostChannel;
         this.request = request;
         this.response = response;
         this.emitter = emitter;
@@ -44,14 +44,14 @@ class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
 
     @Override
     public boolean isOpen() {
-        return channelGroup.isOpen();
+        return hostChannel.isOpen();
     }
 
     @Override
     public void close() {
         if (closeContext.isDone() == false) {
             closeContext.complete(null);
-            channelGroup.close(this);
+            hostChannel.close(this);
         }
     }
 

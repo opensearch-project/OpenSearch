@@ -202,7 +202,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     private volatile DisposableServer disposableServer;
     private volatile Scheduler scheduler;
-    private final Map<Channel, ChannelGroup> channelGroups = new ConcurrentHashMap<>();
+    private final Map<Channel, HostChannel> hostChannels = new ConcurrentHashMap<>();
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
@@ -553,11 +553,11 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     @Override
     protected void stopInternal() {
         try {
-            CloseableChannel.closeChannels(new ArrayList<>(channelGroups.values()), true);
+            CloseableChannel.closeChannels(new ArrayList<>(hostChannels.values()), true);
         } catch (Exception e) {
             logger.warn("unexpected exception while closing http channels", e);
         }
-        channelGroups.clear();
+        hostChannels.clear();
 
         if (sharedGroup != null) {
             sharedGroup.shutdown();
@@ -625,16 +625,16 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     }
 
     /**
-     * The {@link ChannelGroup} abstraction binds {@link HttpChannel} instance to a single Netty channel and
-     * separate the lifecycle of those: {@link HttpChannel} is closed upon every response delivered whereas {@link ChannelGroup}
+     * The {@link HostChannel} abstraction binds {@link HttpChannel} instance to a single Netty channel and
+     * separate the lifecycle of those: {@link HttpChannel} is closed upon every response delivered whereas {@link HostChannel}
      * is closed only when the Netty channel it is attached to is closed.
      */
-    static final class ChannelGroup implements CloseableChannel {
+    static final class HostChannel implements CloseableChannel {
         private final Channel channel;
         private final CompletableContext<Void> closeContext = new CompletableContext<>();
         private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-        ChannelGroup(Channel channel) {
+        HostChannel(Channel channel) {
             this.channel = channel;
             Netty4Utils.addListener(channel.closeFuture(), closeContext);
             closeContext.addListener((v, ex) -> { httpChannels.forEach(HttpChannel::close); });
@@ -700,8 +700,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
      * connections as it leads to explosion of {@link HttpChannel} instances that are tracked by {@link AbstractHttpServerTransport}
      * and eventually could cause out of memory.
      *
-     * To mitigate that, the {@link ChannelGroup} abstraction binds {@link HttpChannel} instance to a single Netty channel and
-     * separate the lifecycle of those: {@link HttpChannel} is closed upon every response delivered whereas {@link ChannelGroup}
+     * To mitigate that, the {@link HostChannel} abstraction binds {@link HttpChannel} instance to a single Netty channel and
+     * separate the lifecycle of those: {@link HttpChannel} is closed upon every response delivered whereas {@link HostChannel}
      * is closed only when the Netty channel it is attached to is closed.
      *
      * @param request HTTP request
@@ -718,9 +718,9 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         }
 
         final Channel channel = connection[0].channel();
-        final ChannelGroup channelGroup = channelGroups.computeIfAbsent(channel, key -> new ChannelGroup(key));
-        channelGroup.addCloseListener(ActionListener.wrap(() -> channelGroups.remove(channel)));
+        final HostChannel hostChannel = hostChannels.computeIfAbsent(channel, key -> new HostChannel(key));
+        hostChannel.addCloseListener(ActionListener.wrap(() -> hostChannels.remove(channel)));
 
-        return channelGroup.newHttpChannel(request, response, emitter);
+        return hostChannel.newHttpChannel(request, response, emitter);
     }
 }
