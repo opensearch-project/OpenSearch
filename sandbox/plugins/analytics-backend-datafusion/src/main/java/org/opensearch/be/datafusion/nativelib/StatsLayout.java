@@ -23,7 +23,7 @@ import java.lang.invoke.VarHandle;
  * Defines the {@code MemoryLayout.structLayout} mirroring the Rust {@code DfStatsBuffer}
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
- * <p>The layout contains 8 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields + 2 partition gate × 4 fields = 38 longs = 304 bytes).
+ * <p>The layout contains 8 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields + 2 partition gate × 6 fields = 42 longs = 336 bytes).
  */
 public final class StatsLayout {
 
@@ -47,7 +47,9 @@ public final class StatsLayout {
         "max_permits",
         "active_permits",
         "total_wait_duration_ms",
-        "total_batches_started" };
+        "total_batches_started",
+        "poison_permits",
+        "target_max_permits" };
 
     /** The struct layout mirroring Rust's {@code DfStatsBuffer}. */
     public static final StructLayout LAYOUT = MemoryLayout.structLayout(
@@ -62,8 +64,8 @@ public final class StatsLayout {
     );
 
     static {
-        if (LAYOUT.byteSize() != 38 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (38 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 42 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (42 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -114,12 +116,16 @@ public final class StatsLayout {
     private static final VarHandle DG_ACTIVE_PERMITS = handle("datanode_gate", "active_permits");
     private static final VarHandle DG_TOTAL_WAIT_DURATION_MS = handle("datanode_gate", "total_wait_duration_ms");
     private static final VarHandle DG_TOTAL_BATCHES_STARTED = handle("datanode_gate", "total_batches_started");
+    private static final VarHandle DG_POISON_PERMITS = handle("datanode_gate", "poison_permits");
+    private static final VarHandle DG_TARGET_MAX_PERMITS = handle("datanode_gate", "target_max_permits");
 
     // ---- VarHandles for coordinator_gate fields ----
     private static final VarHandle CG_MAX_PERMITS = handle("coordinator_gate", "max_permits");
     private static final VarHandle CG_ACTIVE_PERMITS = handle("coordinator_gate", "active_permits");
     private static final VarHandle CG_TOTAL_WAIT_DURATION_MS = handle("coordinator_gate", "total_wait_duration_ms");
     private static final VarHandle CG_TOTAL_BATCHES_STARTED = handle("coordinator_gate", "total_batches_started");
+    private static final VarHandle CG_POISON_PERMITS = handle("coordinator_gate", "poison_permits");
+    private static final VarHandle CG_TARGET_MAX_PERMITS = handle("coordinator_gate", "target_max_permits");
 
     private StatsLayout() {}
 
@@ -170,7 +176,7 @@ public final class StatsLayout {
     }
 
     /**
-     * Read a partition gate group (4 fields) from the segment.
+     * Read a partition gate group (6 fields) from the segment.
      *
      * @param seg   the memory segment containing the DfStatsBuffer
      * @param group "datanode_gate" or "coordinator_gate"
@@ -183,7 +189,9 @@ public final class StatsLayout {
             (long) handles[0].get(seg, 0L),
             (long) handles[1].get(seg, 0L),
             (long) handles[2].get(seg, 0L),
-            (long) handles[3].get(seg, 0L)
+            (long) handles[3].get(seg, 0L),
+            (long) handles[4].get(seg, 0L),
+            (long) handles[5].get(seg, 0L)
         );
     }
 
@@ -216,7 +224,9 @@ public final class StatsLayout {
             ValueLayout.JAVA_LONG.withName("max_permits"),
             ValueLayout.JAVA_LONG.withName("active_permits"),
             ValueLayout.JAVA_LONG.withName("total_wait_duration_ms"),
-            ValueLayout.JAVA_LONG.withName("total_batches_started")
+            ValueLayout.JAVA_LONG.withName("total_batches_started"),
+            ValueLayout.JAVA_LONG.withName("poison_permits"),
+            ValueLayout.JAVA_LONG.withName("target_max_permits")
         ).withName(name);
     }
 
@@ -272,12 +282,16 @@ public final class StatsLayout {
                 DG_MAX_PERMITS,
                 DG_ACTIVE_PERMITS,
                 DG_TOTAL_WAIT_DURATION_MS,
-                DG_TOTAL_BATCHES_STARTED };
+                DG_TOTAL_BATCHES_STARTED,
+                DG_POISON_PERMITS,
+                DG_TARGET_MAX_PERMITS };
             case "coordinator_gate" -> new VarHandle[] {
                 CG_MAX_PERMITS,
                 CG_ACTIVE_PERMITS,
                 CG_TOTAL_WAIT_DURATION_MS,
-                CG_TOTAL_BATCHES_STARTED };
+                CG_TOTAL_BATCHES_STARTED,
+                CG_POISON_PERMITS,
+                CG_TARGET_MAX_PERMITS };
             default -> throw new IllegalArgumentException("Unknown partition gate group: " + group);
         };
     }

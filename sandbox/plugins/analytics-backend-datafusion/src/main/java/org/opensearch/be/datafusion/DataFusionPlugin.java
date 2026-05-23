@@ -417,6 +417,19 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD, v -> updateMemoryGuardThresholds());
 
+        // Wire dynamic concurrency gate multiplier settings
+        int cpuThreads = DataFusionService.cpuThreadCount();
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("datanode", newMax);
+        });
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("coordinator", newMax);
+        });
+
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));

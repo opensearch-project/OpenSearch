@@ -183,7 +183,8 @@ public final class DatafusionSettings {
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /** Coordinator concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
@@ -192,7 +193,8 @@ public final class DatafusionSettings {
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // Query strategy constants
