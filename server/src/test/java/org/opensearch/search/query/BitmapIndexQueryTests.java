@@ -80,10 +80,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         d.add(new IntField("product_id", 4, Field.Store.NO));
         w.addDocument(d);
 
-        w.commit();
-        reader.close();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(1);
@@ -134,10 +131,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         d.add(new IntField("product_id", 4, Field.Store.NO));
         w.addDocument(d);
 
-        w.commit();
-        reader.close();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(3);
@@ -160,9 +154,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
             w.addDocument(d);
         }
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         // Generate random values for bitmap query
         Set<Integer> queryValues = new HashSet<>();
@@ -218,9 +210,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         d.add(new IntField("product_id", 4, Field.Store.NO));
         w.addDocument(d);
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(1);
         BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
@@ -247,10 +237,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         d.add(new IntField("product_id", 4, Field.Store.NO));
         w.addDocument(d);
 
-        w.commit();
-        reader.close();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(1);
@@ -259,14 +246,24 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
         Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
 
-        LeafReaderContext leaf = reader.leaves().get(0);
-        ScorerSupplier supplier = weight.scorerSupplier(leaf);
-        assertNotNull(supplier);
+        List<Integer> firstPassMatches = new ArrayList<>();
+        List<Integer> secondPassMatches = new ArrayList<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            ScorerSupplier supplier = weight.scorerSupplier(leaf);
+            if (supplier == null) {
+                continue;
+            }
 
-        Scorer scorer1 = supplier.get(Long.MAX_VALUE);
-        Scorer scorer2 = supplier.get(Long.MAX_VALUE);
+            Scorer scorer1 = supplier.get(Long.MAX_VALUE);
+            Scorer scorer2 = supplier.get(Long.MAX_VALUE);
+            firstPassMatches.addAll(getMatchingValues(scorer1, leaf));
+            secondPassMatches.addAll(getMatchingValues(scorer2, leaf));
+        }
 
-        assertEquals(getMatchingValues(scorer1, leaf), getMatchingValues(scorer2, leaf));
+        Collections.sort(firstPassMatches);
+        Collections.sort(secondPassMatches);
+        assertEquals(List.of(1, 4), firstPassMatches);
+        assertEquals(firstPassMatches, secondPassMatches);
     }
 
     public void testRewrite() throws IOException {
@@ -287,6 +284,21 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
             }
         }
         return actual;
+    }
+
+    private void refreshSearcher() throws IOException {
+        w.commit();
+        DirectoryReader newReader = DirectoryReader.open(w);
+        try {
+            IndexSearcher newSearcher = newSearcher(newReader);
+            DirectoryReader oldReader = reader;
+            reader = newReader;
+            searcher = newSearcher;
+            oldReader.close();
+        } catch (Exception e) {
+            newReader.close();
+            throw e;
+        }
     }
 
     public void testPointVisitor() throws IOException {
@@ -318,9 +330,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
             w.addDocument(d);
         }
 
-        w.commit();
-        reader = DirectoryReader.open(w);
-        searcher = newSearcher(reader);
+        refreshSearcher();
 
         RoaringBitmap bitmap = new RoaringBitmap();
         bitmap.add(0, 1, 2, 3, 5);
