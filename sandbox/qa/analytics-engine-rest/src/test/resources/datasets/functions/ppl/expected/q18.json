@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "upper_user",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "BOB",
+      "BOB"
+    ],
+    [
+      "ALICE",
+      "ALICE"
+    ],
+    [
+      "BOB",
+      "BOB"
+    ],
+    [
+      "ALICE",
+      "ALICE"
+    ],
+    [
+      "BOB",
+      "BOB"
+    ],
+    [
+      "BOB",
+      "BOB"
+    ],
+    [
+      "CHARLIE",
+      "CHARLIE"
+    ],
+    [
+      "CHARLIE",
+      "CHARLIE"
+    ],
+    [
+      "ALICE",
+      "ALICE"
+    ],
+    [
+      "ALICE",
+      "ALICE"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

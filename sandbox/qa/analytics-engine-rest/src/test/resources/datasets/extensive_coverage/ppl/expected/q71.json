@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "total_value",
+      "type": "double"
+    },
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "Total",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      606.25,
+      "A",
+      606.25
+    ],
+    [
+      677.0,
+      "B",
+      677.0
+    ],
+    [
+      1050.25,
+      "C",
+      1050.25
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

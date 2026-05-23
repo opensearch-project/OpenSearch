@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
@@ -35,8 +36,10 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -1327,6 +1330,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
+    /**
+     * Backward-compatible 6-arg overload preserved for the 2.3.0 {@code @PublicApi} contract.
+     * Delegates to the 7-arg variant with a {@code null} {@link IndexMetadata} — equivalent to
+     * the prior behaviour for callers that don't need data-format-aware routing.
+     *
+     * @deprecated Use the 7-arg variant that accepts {@link IndexMetadata} so that DFA-enabled
+     *             indices route to {@link org.opensearch.index.store.remote.DataFormatAwareRemoteDirectory}
+     *             during cleanup. This overload remains for backward compatibility but does not
+     *             enumerate per-format files (e.g., {@code parquet/}) and may leak them on cleanup
+     *             of DFA indices.
+     */
+    @Deprecated
     public static void remoteDirectoryCleanup(
         RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
         String remoteStoreRepoForIndex,
@@ -1335,12 +1350,29 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteStorePathStrategy pathStrategy,
         boolean forceClean
     ) {
+        remoteDirectoryCleanup(remoteDirectoryFactory, remoteStoreRepoForIndex, indexUUID, shardId, pathStrategy, forceClean, null);
+    }
+
+    public static void remoteDirectoryCleanup(
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        String remoteStoreRepoForIndex,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean,
+        IndexMetadata indexMetadata
+    ) {
         try {
+            IndexSettings indexSettings = indexMetadata != null ? new IndexSettings(indexMetadata, Settings.EMPTY) : null;
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
                 remoteStoreRepoForIndex,
                 indexUUID,
                 shardId,
-                pathStrategy
+                pathStrategy,
+                null,    // indexFixedPrefix
+                false,   // isServerSideEncryptionEnabled
+                false,   // isWarmIndex
+                indexSettings
             );
             if (forceClean) {
                 remoteSegmentStoreDirectory.delete();

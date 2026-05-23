@@ -1,0 +1,32 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "value",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "A",
+      100.5
+    ],
+    [
+      "A",
+      150.25
+    ],
+    [
+      "A",
+      175.0
+    ],
+    [
+      "A",
+      180.5
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "application_id",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      15,
+      "db-service",
+      107148
+    ],
+    [
+      12,
+      "api-service",
+      107148
+    ],
+    [
+      7,
+      "web-service",
+      107148
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

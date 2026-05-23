@@ -1,0 +1,1 @@
+source=app_logs | grok message 'ElapsedTime: %{NUMBER:elapsedtime}ms' | where elapsedtime is not null | stats avg(elapsedtime) as avgresponsetime, max(elapsedtime) as maxresponsetime, count() as requests by service_name | eval avgresponsetime = round(avgresponsetime, 2)

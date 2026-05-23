@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.DataFormatAwareNRTReplicationEngine;
+import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
 import org.opensearch.index.engine.EngineConfig;
 
 /**
@@ -25,6 +26,8 @@ public class DataFormatAwareIndexerFactory implements IndexerFactory {
     public Indexer createIndexer(EngineConfig config) {
         if (config.isReadOnlyReplica()) {
             return new DataFormatAwareNRTReplicationEngine(config);
+        } else if (config.getIndexSettings().isWarmIndex()) {
+            return new DataFormatAwareReadOnlyEngine(config);
         }
         return new DataFormatAwareEngine(config);
     }

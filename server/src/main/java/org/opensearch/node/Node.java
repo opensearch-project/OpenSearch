@@ -1491,7 +1491,8 @@ public class Node implements Closeable {
                 transportService,
                 actionModule.getActionFilters(),
                 remoteStorePinnedTimestampService,
-                remoteStoreSettings
+                remoteStoreSettings,
+                dataFormatRegistry
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,
@@ -1741,6 +1742,7 @@ public class Node implements Closeable {
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Discovery.class).toInstance(discovery);
                 b.bind(RemoteStoreSettings.class).toInstance(remoteStoreSettings);
+                b.bind(DataFormatRegistry.class).toInstance(dataFormatRegistry);
                 {
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
