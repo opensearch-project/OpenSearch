@@ -180,7 +180,7 @@ public final class NativeBridge {
 
         SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
             lib.find("df_set_memory_guard_thresholds").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         CREATE_READER = linker.downcallHandle(
@@ -680,10 +680,20 @@ public final class NativeBridge {
         }
     }
 
-    /** Sets the memory guard admission and operator thresholds (0.0–1.0). */
-    public static void setMemoryGuardThresholds(double admission, double operator) {
+    /** Sets the memory guard thresholds (0.0–1.0): admission throttle, admission reject, execution spill, execution critical. */
+    public static void setMemoryGuardThresholds(
+        double admissionThrottle,
+        double admissionReject,
+        double executionSpill,
+        double executionCritical
+    ) {
         try {
-            SET_MEMORY_GUARD_THRESHOLDS.invokeExact((long) (admission * 1000), (long) (operator * 1000));
+            SET_MEMORY_GUARD_THRESHOLDS.invokeExact(
+                (long) (admissionThrottle * 1000),
+                (long) (admissionReject * 1000),
+                (long) (executionSpill * 1000),
+                (long) (executionCritical * 1000)
+            );
         } catch (Throwable t) {
             logger.debug("Failed to set memory guard thresholds", t);
         }
