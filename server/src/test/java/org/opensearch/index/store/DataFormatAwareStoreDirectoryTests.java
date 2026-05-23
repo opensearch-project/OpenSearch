@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -56,7 +57,11 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         ShardId sid = new ShardId(new Index("test-index", indexUUID), shardId);
         shardPath = new ShardPath(false, shardDataPath, shardDataPath, sid);
 
-        dataFormatAwareStoreDirectory = new DataFormatAwareStoreDirectory(fsDirectory, shardPath, Map.of());
+        dataFormatAwareStoreDirectory = new DataFormatAwareStoreDirectory(
+            fsDirectory,
+            shardPath,
+            Map.of("parquet", new GenericCRC32ChecksumHandler())
+        );
     }
 
     @After
@@ -650,6 +655,66 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // calculateTransferChecksum: full-file CRC32 for S3 transfer validation
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testCalculateTransferChecksum_lucene_matchesFullFileCRC32() throws IOException {
+        String fileName = "_transfer_cksum.si";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(out, "TransferTest", 1);
+            out.writeString("transfer checksum lucene data");
+            CodecUtil.writeFooter(out);
+        }
+
+        long transferChecksum = dataFormatAwareStoreDirectory.calculateTransferChecksum(fileName);
+
+        // Verify it equals CRC32 of the entire file bytes (what S3 computes server-side).
+        CRC32 expected = new CRC32();
+        try (IndexInput in = dataFormatAwareStoreDirectory.openInput(fileName, IOContext.READONCE)) {
+            long length = in.length();
+            byte[] buf = new byte[(int) length];
+            in.readBytes(buf, 0, (int) length);
+            expected.update(buf);
+        }
+        assertEquals("Transfer checksum must equal CRC32 of full file bytes", expected.getValue(), transferChecksum);
+    }
+
+    public void testCalculateTransferChecksum_lucene_differsFromMetadataChecksum() throws IOException {
+        // Metadata checksum (for replication) == CodecUtil.retrieveChecksum() which covers
+        // bytes [0, length-8). Transfer checksum (for S3) == CRC32 of full file. They must
+        // be different values for a typical Lucene file so the two paths never alias.
+        String fileName = "_transfer_vs_metadata.si";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(out, "DivergenceTest", 1);
+            out.writeString("some payload that produces a non-zero checksum");
+            CodecUtil.writeFooter(out);
+        }
+
+        long metadataChecksum = dataFormatAwareStoreDirectory.calculateChecksum(fileName);
+        long transferChecksum = dataFormatAwareStoreDirectory.calculateTransferChecksum(fileName);
+
+        assertNotEquals("Metadata checksum and transfer checksum must not coincide for Lucene files", metadataChecksum, transferChecksum);
+    }
+
+    public void testCalculateTransferChecksum_nonLucene_delegatesToStrategy() throws IOException {
+        // For non-Lucene formats (e.g., parquet via GenericCRC32ChecksumHandler), the strategy
+        // already computes CRC32 over the full file, so transfer checksum == metadata checksum.
+        String fileIdentifier = "parquet/transfer_cksum.parquet";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(fileIdentifier, IOContext.DEFAULT)) {
+            out.writeBytes("parquet payload bytes".getBytes(StandardCharsets.UTF_8), 21);
+        }
+
+        long metadataChecksum = dataFormatAwareStoreDirectory.calculateChecksum(fileIdentifier);
+        long transferChecksum = dataFormatAwareStoreDirectory.calculateTransferChecksum(fileIdentifier);
+
+        assertEquals(
+            "For non-Lucene formats the transfer checksum equals the metadata checksum (full-file CRC32)",
+            metadataChecksum,
+            transferChecksum
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // FileMetadata → "/" identifier → SubdirectoryAwareDirectory
     // Path mapping & storage location tests
     // ═══════════════════════════════════════════════════════════════
@@ -995,6 +1060,195 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         // unwrap goes all the way to the leaf — should be FSDirectory
         assertTrue("Leaf should be FSDirectory", delegate instanceof FSDirectory);
         dir.close();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // registerDownloadedChecksum / registerDownloadedChecksums
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testRegisterDownloadedChecksum_routesToFormatStrategy() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("rdc1-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            // Write a file so computeChecksum has something to read if the cache misses.
+            try (IndexOutput out = dfasd.createOutput("parquet/f.parquet", IOContext.DEFAULT)) {
+                out.writeBytes("ignored".getBytes(StandardCharsets.UTF_8), 7);
+            }
+
+            dfasd.registerDownloadedChecksum("parquet/f.parquet", "42");
+
+            // computeChecksum must return the registered value, not a scan of "ignored".
+            assertEquals(42L, parquetStrategy.computeChecksum(dfasd, "parquet/f.parquet"));
+        }
+    }
+
+    public void testRegisterDownloadedChecksum_writeRegistrationOverwrites() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("rdc2-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            try (IndexOutput out = dfasd.createOutput("parquet/g.parquet", IOContext.DEFAULT)) {
+                out.writeBytes("x".getBytes(StandardCharsets.UTF_8), 1);
+            }
+
+            // Downloaded (generation 0).
+            dfasd.registerDownloadedChecksum("parquet/g.parquet", "100");
+            assertEquals(100L, parquetStrategy.computeChecksum(dfasd, "parquet/g.parquet"));
+
+            // Write path registers a different value with a real generation; it must win.
+            parquetStrategy.registerChecksum("parquet/g.parquet", 200L, 3L);
+            assertEquals(200L, parquetStrategy.computeChecksum(dfasd, "parquet/g.parquet"));
+        }
+    }
+
+    public void testRegisterDownloadedChecksum_malformedChecksumIgnored() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("rdc3-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            try (IndexOutput out = dfasd.createOutput("parquet/h.parquet", IOContext.DEFAULT)) {
+                out.writeBytes("abc".getBytes(StandardCharsets.UTF_8), 3);
+            }
+
+            // Non-numeric checksum strings are a silent no-op.
+            dfasd.registerDownloadedChecksum("parquet/h.parquet", "not-a-number");
+            dfasd.registerDownloadedChecksum(null, "1");
+            dfasd.registerDownloadedChecksum("parquet/h.parquet", null);
+
+            // Fallback scan kicks in since nothing was registered.
+            CRC32 expected = new CRC32();
+            expected.update("abc".getBytes(StandardCharsets.UTF_8));
+            assertEquals(expected.getValue(), parquetStrategy.computeChecksum(dfasd, "parquet/h.parquet"));
+        }
+    }
+
+    public void testRegisterDownloadedChecksums_bulkInsert() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("rdc4-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            try (IndexOutput out = dfasd.createOutput("parquet/i.parquet", IOContext.DEFAULT)) {
+                out.writeBytes("i".getBytes(StandardCharsets.UTF_8), 1);
+            }
+            try (IndexOutput out = dfasd.createOutput("parquet/j.parquet", IOContext.DEFAULT)) {
+                out.writeBytes("j".getBytes(StandardCharsets.UTF_8), 1);
+            }
+
+            dfasd.registerDownloadedChecksums(Map.of("parquet/i.parquet", "11", "parquet/j.parquet", "22"));
+
+            assertEquals(11L, parquetStrategy.computeChecksum(dfasd, "parquet/i.parquet"));
+            assertEquals(22L, parquetStrategy.computeChecksum(dfasd, "parquet/j.parquet"));
+        }
+    }
+
+    public void testRegisterDownloadedChecksums_nullOrEmptyMapIsNoOp() {
+        dataFormatAwareStoreDirectory.registerDownloadedChecksums(null);
+        dataFormatAwareStoreDirectory.registerDownloadedChecksums(Map.of());
+        // Simply asserting no exception is thrown.
+    }
+
+    public void testRegisterDownloadedChecksum_skippedForNonCachingStrategy() throws IOException {
+        // parquet is registered with GenericCRC32ChecksumHandler (no caching). Register should
+        // be a silent no-op: subsequent computeChecksum must scan the file, not return 999.
+        byte[] payload = "abc".getBytes(StandardCharsets.UTF_8);
+        String fileIdentifier = "parquet/non_caching.parquet";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(fileIdentifier, IOContext.DEFAULT)) {
+            out.writeBytes(payload, payload.length);
+        }
+
+        dataFormatAwareStoreDirectory.registerDownloadedChecksum(fileIdentifier, "999");
+
+        CRC32 expected = new CRC32();
+        expected.update(payload);
+        assertEquals(
+            "Generic (non-caching) strategy must ignore registerDownloadedChecksum",
+            expected.getValue(),
+            dataFormatAwareStoreDirectory.calculateChecksum(fileIdentifier)
+        );
+    }
+
+    public void testRegisterDownloadedChecksum_skippedForUnknownFormat() {
+        // "arrow" has no strategy registered; call must be a silent no-op.
+        dataFormatAwareStoreDirectory.registerDownloadedChecksum("arrow/anything.arrow", "123");
+        // No exception, nothing to assert on directory state.
+    }
+
+    public void testEvictStaleChecksums_retainsOnlyActiveFiles() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("evict-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            // Seed three parquet checksums.
+            dfasd.registerDownloadedChecksum("parquet/a.parquet", "10");
+            dfasd.registerDownloadedChecksum("parquet/b.parquet", "20");
+            dfasd.registerDownloadedChecksum("parquet/c.parquet", "30");
+
+            // Active snapshot references only {a, c} — b was merged away.
+            dfasd.evictStaleChecksums(List.of("parquet/a.parquet", "parquet/c.parquet"));
+
+            // Sanity-write files so computeChecksum can fall back if cache misses.
+            for (String f : List.of("parquet/a.parquet", "parquet/b.parquet", "parquet/c.parquet")) {
+                try (IndexOutput out = dfasd.createOutput(f, IOContext.DEFAULT)) {
+                    out.writeBytes(new byte[] { 1, 2, 3 }, 3);
+                }
+            }
+
+            // a and c remain cached at their registered values.
+            assertEquals(10L, parquetStrategy.computeChecksum(dfasd, "parquet/a.parquet"));
+            assertEquals(30L, parquetStrategy.computeChecksum(dfasd, "parquet/c.parquet"));
+
+            // b was evicted — computeChecksum falls back to scanning the file (CRC32 of {1,2,3}).
+            CRC32 expected = new CRC32();
+            expected.update(new byte[] { 1, 2, 3 });
+            assertEquals(expected.getValue(), parquetStrategy.computeChecksum(dfasd, "parquet/b.parquet"));
+        }
+    }
+
+    public void testEvictStaleChecksums_emptyActiveSetClearsAll() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("evict-empty-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            dfasd.registerDownloadedChecksum("parquet/only.parquet", "42");
+            // Empty active set => every entry should be evicted.
+            dfasd.evictStaleChecksums(List.of());
+
+            try (IndexOutput out = dfasd.createOutput("parquet/only.parquet", IOContext.DEFAULT)) {
+                out.writeBytes(new byte[] { 9, 9 }, 2);
+            }
+            CRC32 expected = new CRC32();
+            expected.update(new byte[] { 9, 9 });
+            assertEquals(
+                "cache cleared; computeChecksum must fall back to scan",
+                expected.getValue(),
+                parquetStrategy.computeChecksum(dfasd, "parquet/only.parquet")
+            );
+        }
     }
 
     /**

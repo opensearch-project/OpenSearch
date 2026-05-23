@@ -39,15 +39,17 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
-  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
-  implementation project(':sandbox:libs:plugin-stats-spi')
-
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
   // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the
   // fragment convertor for pre-isthmus rewrite. compileOnly — provided at runtime by
   // the parent analytics-engine plugin (extendedPlugins above).
   compileOnly project(':sandbox:plugins:analytics-engine')
+  // arrow-base ships the SPI types used to mirror datafusion-pool resize to
+  // the native runtime. Provided at runtime via the analytics-engine -> arrow-base
+  // extendedPlugins chain.
+  compileOnly project(':libs:opensearch-arrow-spi')
+  compileOnly project(':plugins:arrow-base')
 
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
@@ -88,6 +90,9 @@ dependencies {
   // Planner + Lucene backend for end-to-end delegation unit tests
   testImplementation project(':sandbox:plugins:analytics-engine')
   testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  // Tests run on a flat classpath; pull arrow-base in so ArrowNativeAllocator
+  // is reachable for unit tests that exercise the listener mirror.
+  testImplementation project(':plugins:arrow-base')
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 
 }

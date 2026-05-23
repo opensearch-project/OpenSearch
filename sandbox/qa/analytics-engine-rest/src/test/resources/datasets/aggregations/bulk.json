@@ -1,0 +1,401 @@
+{"index": {}}
+{"timestamp": "2026-05-14T09:16:38.169580", "user": "user0", "department": "Sales", "response_time": 724, "score": 64, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:17:38.169580", "user": "user1", "department": "Sales", "response_time": 461, "score": 31, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:18:38.169580", "user": "user2", "department": "Engineering", "response_time": 657, "score": 58, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:19:38.169580", "user": "user3", "department": "Marketing", "response_time": 1017, "score": 58, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:20:38.169580", "user": "user4", "department": "Sales", "response_time": 1121, "score": 93, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:21:38.169580", "user": "user5", "department": "Marketing", "response_time": 222, "score": 72, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:22:38.169580", "user": "user6", "department": "Sales", "response_time": 1283, "score": 61, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:23:38.169580", "user": "user7", "department": "Engineering", "response_time": 788, "score": 98, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:24:38.169580", "user": "user8", "department": "Sales", "response_time": 1482, "score": 86, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:25:38.169580", "user": "user9", "department": "Engineering", "response_time": 729, "score": 17, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:26:38.169580", "user": "user0", "department": "Sales", "response_time": 1244, "score": 4, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:27:38.169580", "user": "user1", "department": "Sales", "response_time": 305, "score": 22, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:28:38.169580", "user": "user2", "department": "Sales", "response_time": 53, "score": 51, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:29:38.169580", "user": "user3", "department": "Engineering", "response_time": 732, "score": 10, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:30:38.169580", "user": "user4", "department": "Sales", "response_time": 643, "score": 45, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:31:38.169580", "user": "user5", "department": "Marketing", "response_time": 1405, "score": 8, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:32:38.169580", "user": "user6", "department": "Engineering", "response_time": 1016, "score": 24, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:33:38.169580", "user": "user7", "department": "Engineering", "response_time": 707, "score": 2, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:34:38.169580", "user": "user8", "department": "Marketing", "response_time": 435, "score": 14, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:35:38.169580", "user": "user9", "department": "Sales", "response_time": 391, "score": 7, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:36:38.169580", "user": "user0", "department": "Marketing", "response_time": 904, "score": 36, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:37:38.169580", "user": "user1", "department": "Marketing", "response_time": 672, "score": 47, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:38:38.169580", "user": "user2", "department": "Sales", "response_time": 709, "score": 73, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:39:38.169580", "user": "user3", "department": "Marketing", "response_time": 1298, "score": 76, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:40:38.169580", "user": "user4", "department": "Engineering", "response_time": 233, "score": 21, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:41:38.169580", "user": "user5", "department": "Marketing", "response_time": 355, "score": 62, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:42:38.169580", "user": "user6", "department": "Engineering", "response_time": 438, "score": 84, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:43:38.169580", "user": "user7", "department": "Sales", "response_time": 1171, "score": 70, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:44:38.169580", "user": "user8", "department": "Sales", "response_time": 571, "score": 77, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:45:38.169580", "user": "user9", "department": "Sales", "response_time": 493, "score": 38, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:46:38.169580", "user": "user0", "department": "Sales", "response_time": 178, "score": 90, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:47:38.169580", "user": "user1", "department": "Engineering", "response_time": 1319, "score": 3, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:48:38.169580", "user": "user2", "department": "Engineering", "response_time": 387, "score": 8, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:49:38.169580", "user": "user3", "department": "Marketing", "response_time": 1172, "score": 88, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:50:38.169580", "user": "user4", "department": "Sales", "response_time": 1336, "score": 18, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:51:38.169580", "user": "user5", "department": "Sales", "response_time": 987, "score": 23, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:52:38.169580", "user": "user6", "department": "Marketing", "response_time": 1092, "score": 0, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:53:38.169580", "user": "user7", "department": "Sales", "response_time": 808, "score": 5, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:54:38.169580", "user": "user8", "department": "Sales", "response_time": 153, "score": 80, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:55:38.169580", "user": "user9", "department": "Sales", "response_time": 880, "score": 57, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:56:38.169580", "user": "user0", "department": "Marketing", "response_time": 549, "score": 38, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:57:38.169580", "user": "user1", "department": "Engineering", "response_time": 469, "score": 53, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:58:38.169580", "user": "user2", "department": "Sales", "response_time": 135, "score": 33, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:59:38.169580", "user": "user3", "department": "Sales", "response_time": 349, "score": 73, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:00:38.169580", "user": "user4", "department": "Marketing", "response_time": 1296, "score": 53, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:01:38.169580", "user": "user5", "department": "Engineering", "response_time": 1313, "score": 45, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:02:38.169580", "user": "user6", "department": "Marketing", "response_time": 1153, "score": 53, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:03:38.169580", "user": "user7", "department": "Engineering", "response_time": 610, "score": 48, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:04:38.169580", "user": "user8", "department": "Marketing", "response_time": 689, "score": 68, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:05:38.169580", "user": "user9", "department": "Sales", "response_time": 343, "score": 86, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:06:38.169580", "user": "user0", "department": "Marketing", "response_time": 541, "score": 74, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:07:38.169580", "user": "user1", "department": "Marketing", "response_time": 566, "score": 95, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:08:38.169580", "user": "user2", "department": "Sales", "response_time": 775, "score": 2, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:09:38.169580", "user": "user3", "department": "Engineering", "response_time": 590, "score": 24, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:10:38.169580", "user": "user4", "department": "Marketing", "response_time": 825, "score": 16, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:11:38.169580", "user": "user5", "department": "Engineering", "response_time": 1132, "score": 41, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:12:38.169580", "user": "user6", "department": "Sales", "response_time": 1318, "score": 91, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:13:38.169580", "user": "user7", "department": "Marketing", "response_time": 1407, "score": 61, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:14:38.169580", "user": "user8", "department": "Engineering", "response_time": 1271, "score": 13, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:15:38.169580", "user": "user9", "department": "Sales", "response_time": 413, "score": 0, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:16:38.169580", "user": "user0", "department": "Marketing", "response_time": 874, "score": 29, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:17:38.169580", "user": "user1", "department": "Marketing", "response_time": 1369, "score": 24, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:18:38.169580", "user": "user2", "department": "Engineering", "response_time": 1395, "score": 6, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:19:38.169580", "user": "user3", "department": "Sales", "response_time": 743, "score": 23, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:20:38.169580", "user": "user4", "department": "Sales", "response_time": 950, "score": 36, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:21:38.169580", "user": "user5", "department": "Sales", "response_time": 1224, "score": 84, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:22:38.169580", "user": "user6", "department": "Engineering", "response_time": 723, "score": 9, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:23:38.169580", "user": "user7", "department": "Sales", "response_time": 487, "score": 51, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:24:38.169580", "user": "user8", "department": "Sales", "response_time": 1389, "score": 21, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:25:38.169580", "user": "user9", "department": "Sales", "response_time": 336, "score": 21, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:26:38.169580", "user": "user0", "department": "Marketing", "response_time": 1140, "score": 51, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:27:38.169580", "user": "user1", "department": "Engineering", "response_time": 1491, "score": 5, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:28:38.169580", "user": "user2", "department": "Marketing", "response_time": 830, "score": 13, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:29:38.169580", "user": "user3", "department": "Marketing", "response_time": 1492, "score": 97, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:30:38.169580", "user": "user4", "department": "Marketing", "response_time": 106, "score": 37, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:31:38.169580", "user": "user5", "department": "Sales", "response_time": 460, "score": 47, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:32:38.169580", "user": "user6", "department": "Sales", "response_time": 269, "score": 20, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:33:38.169580", "user": "user7", "department": "Sales", "response_time": 395, "score": 44, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:34:38.169580", "user": "user8", "department": "Sales", "response_time": 1052, "score": 8, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:35:38.169580", "user": "user9", "department": "Marketing", "response_time": 1488, "score": 2, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:36:38.169580", "user": "user0", "department": "Marketing", "response_time": 795, "score": 88, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:37:38.169580", "user": "user1", "department": "Engineering", "response_time": 941, "score": 80, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:38:38.169580", "user": "user2", "department": "Engineering", "response_time": 744, "score": 27, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:39:38.169580", "user": "user3", "department": "Marketing", "response_time": 432, "score": 25, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:40:38.169580", "user": "user4", "department": "Marketing", "response_time": 576, "score": 89, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:41:38.169580", "user": "user5", "department": "Marketing", "response_time": 1349, "score": 66, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:42:38.169580", "user": "user6", "department": "Sales", "response_time": 771, "score": 23, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:43:38.169580", "user": "user7", "department": "Sales", "response_time": 159, "score": 71, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:44:38.169580", "user": "user8", "department": "Engineering", "response_time": 208, "score": 42, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:45:38.169580", "user": "user9", "department": "Engineering", "response_time": 471, "score": 3, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:46:38.169580", "user": "user0", "department": "Engineering", "response_time": 875, "score": 68, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:47:38.169580", "user": "user1", "department": "Marketing", "response_time": 745, "score": 71, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:48:38.169580", "user": "user2", "department": "Marketing", "response_time": 494, "score": 47, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:49:38.169580", "user": "user3", "department": "Sales", "response_time": 1115, "score": 40, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:50:38.169580", "user": "user4", "department": "Marketing", "response_time": 589, "score": 56, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:51:38.169580", "user": "user5", "department": "Engineering", "response_time": 394, "score": 33, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:52:38.169580", "user": "user6", "department": "Sales", "response_time": 369, "score": 51, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:53:38.169580", "user": "user7", "department": "Marketing", "response_time": 1456, "score": 65, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:54:38.169580", "user": "user8", "department": "Engineering", "response_time": 87, "score": 55, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:55:38.169580", "user": "user9", "department": "Sales", "response_time": 797, "score": 33, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:56:38.169580", "user": "user0", "department": "Engineering", "response_time": 1072, "score": 31, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:57:38.169580", "user": "user1", "department": "Marketing", "response_time": 1115, "score": 97, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:58:38.169580", "user": "user2", "department": "Engineering", "response_time": 601, "score": 65, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:59:38.169580", "user": "user3", "department": "Sales", "response_time": 238, "score": 63, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:00:38.169580", "user": "user4", "department": "Marketing", "response_time": 659, "score": 36, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:01:38.169580", "user": "user5", "department": "Marketing", "response_time": 603, "score": 1, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:02:38.169580", "user": "user6", "department": "Sales", "response_time": 1360, "score": 32, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:03:38.169580", "user": "user7", "department": "Marketing", "response_time": 510, "score": 46, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:04:38.169580", "user": "user8", "department": "Marketing", "response_time": 1323, "score": 30, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:05:38.169580", "user": "user9", "department": "Marketing", "response_time": 784, "score": 11, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:06:38.169580", "user": "user0", "department": "Marketing", "response_time": 877, "score": 89, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:07:38.169580", "user": "user1", "department": "Sales", "response_time": 1178, "score": 90, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:08:38.169580", "user": "user2", "department": "Sales", "response_time": 799, "score": 53, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:09:38.169580", "user": "user3", "department": "Sales", "response_time": 1160, "score": 10, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:10:38.169580", "user": "user4", "department": "Engineering", "response_time": 1483, "score": 85, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:11:38.169580", "user": "user5", "department": "Sales", "response_time": 430, "score": 71, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:12:38.169580", "user": "user6", "department": "Engineering", "response_time": 478, "score": 39, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:13:38.169580", "user": "user7", "department": "Engineering", "response_time": 1130, "score": 41, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:14:38.169580", "user": "user8", "department": "Sales", "response_time": 725, "score": 29, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T11:15:38.169580", "user": "user9", "department": "Sales", "response_time": 424, "score": 65, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:16:38.169580", "user": "user0", "department": "Engineering", "response_time": 388, "score": 22, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:17:38.169580", "user": "user1", "department": "Sales", "response_time": 1131, "score": 25, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:18:38.169580", "user": "user2", "department": "Engineering", "response_time": 588, "score": 95, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:19:38.169580", "user": "user3", "department": "Sales", "response_time": 462, "score": 79, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:20:38.169580", "user": "user4", "department": "Sales", "response_time": 171, "score": 37, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:21:38.169580", "user": "user5", "department": "Sales", "response_time": 440, "score": 57, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:22:38.169580", "user": "user6", "department": "Engineering", "response_time": 243, "score": 29, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:23:38.169580", "user": "user7", "department": "Marketing", "response_time": 868, "score": 71, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:24:38.169580", "user": "user8", "department": "Marketing", "response_time": 709, "score": 81, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:25:38.169580", "user": "user9", "department": "Marketing", "response_time": 633, "score": 51, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:26:38.169580", "user": "user0", "department": "Marketing", "response_time": 83, "score": 45, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:27:38.169580", "user": "user1", "department": "Marketing", "response_time": 576, "score": 83, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:28:38.169580", "user": "user2", "department": "Marketing", "response_time": 388, "score": 1, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:29:38.169580", "user": "user3", "department": "Sales", "response_time": 293, "score": 11, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:30:38.169580", "user": "user4", "department": "Marketing", "response_time": 114, "score": 82, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:31:38.169580", "user": "user5", "department": "Engineering", "response_time": 958, "score": 24, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:32:38.169580", "user": "user6", "department": "Sales", "response_time": 782, "score": 71, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:33:38.169580", "user": "user7", "department": "Engineering", "response_time": 1488, "score": 95, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:34:38.169580", "user": "user8", "department": "Engineering", "response_time": 210, "score": 3, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:35:38.169580", "user": "user9", "department": "Engineering", "response_time": 1329, "score": 68, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:36:38.169580", "user": "user0", "department": "Engineering", "response_time": 1008, "score": 64, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:37:38.169580", "user": "user1", "department": "Engineering", "response_time": 499, "score": 26, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:38:38.169580", "user": "user2", "department": "Engineering", "response_time": 1153, "score": 67, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:39:38.169580", "user": "user3", "department": "Marketing", "response_time": 1452, "score": 35, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:40:38.169580", "user": "user4", "department": "Engineering", "response_time": 1288, "score": 82, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:41:38.169580", "user": "user5", "department": "Engineering", "response_time": 59, "score": 69, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:42:38.169580", "user": "user6", "department": "Marketing", "response_time": 1238, "score": 88, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:43:38.169580", "user": "user7", "department": "Engineering", "response_time": 920, "score": 38, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:44:38.169580", "user": "user8", "department": "Sales", "response_time": 106, "score": 92, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:45:38.169580", "user": "user9", "department": "Marketing", "response_time": 268, "score": 79, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:46:38.169580", "user": "user0", "department": "Engineering", "response_time": 139, "score": 94, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:47:38.169580", "user": "user1", "department": "Sales", "response_time": 970, "score": 18, "status_code": 200, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:48:38.169580", "user": "user2", "department": "Engineering", "response_time": 400, "score": 8, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:49:38.169580", "user": "user3", "department": "Engineering", "response_time": 518, "score": 46, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:50:38.169580", "user": "user4", "department": "Sales", "response_time": 1378, "score": 57, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:51:38.169580", "user": "user5", "department": "Engineering", "response_time": 596, "score": 78, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:52:38.169580", "user": "user6", "department": "Sales", "response_time": 1254, "score": 82, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:53:38.169580", "user": "user7", "department": "Engineering", "response_time": 1497, "score": 40, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:54:38.169580", "user": "user8", "department": "Engineering", "response_time": 294, "score": 55, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:55:38.169580", "user": "user9", "department": "Marketing", "response_time": 1291, "score": 15, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:56:38.169580", "user": "user0", "department": "Engineering", "response_time": 410, "score": 9, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:57:38.169580", "user": "user1", "department": "Engineering", "response_time": 918, "score": 50, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:58:38.169580", "user": "user2", "department": "Engineering", "response_time": 1112, "score": 19, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T09:59:38.169580", "user": "user3", "department": "Marketing", "response_time": 612, "score": 9, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:00:38.169580", "user": "user4", "department": "Sales", "response_time": 76, "score": 100, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:01:38.169580", "user": "user5", "department": "Engineering", "response_time": 548, "score": 29, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:02:38.169580", "user": "user6", "department": "Marketing", "response_time": 574, "score": 32, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:03:38.169580", "user": "user7", "department": "Engineering", "response_time": 903, "score": 38, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:04:38.169580", "user": "user8", "department": "Marketing", "response_time": 1051, "score": 22, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:05:38.169580", "user": "user9", "department": "Engineering", "response_time": 1255, "score": 47, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:06:38.169580", "user": "user0", "department": "Engineering", "response_time": 853, "score": 100, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:07:38.169580", "user": "user1", "department": "Engineering", "response_time": 819, "score": 0, "status_code": 400, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:08:38.169580", "user": "user2", "department": "Marketing", "response_time": 407, "score": 43, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:09:38.169580", "user": "user3", "department": "Marketing", "response_time": 874, "score": 10, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:10:38.169580", "user": "user4", "department": "Engineering", "response_time": 1363, "score": 8, "status_code": 400, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:11:38.169580", "user": "user5", "department": "Marketing", "response_time": 725, "score": 64, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:12:38.169580", "user": "user6", "department": "Sales", "response_time": 1027, "score": 6, "status_code": 200, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:13:38.169580", "user": "user7", "department": "Sales", "response_time": 1166, "score": 2, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:14:38.169580", "user": "user8", "department": "Sales", "response_time": 777, "score": 67, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:15:38.169580", "user": "user9", "department": "Marketing", "response_time": 1172, "score": 42, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:16:38.169580", "user": "user0", "department": "Marketing", "response_time": 964, "score": 76, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:17:38.169580", "user": "user1", "department": "Sales", "response_time": 192, "score": 14, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:18:38.169580", "user": "user2", "department": "Sales", "response_time": 1314, "score": 24, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:19:38.169580", "user": "user3", "department": "Marketing", "response_time": 475, "score": 57, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:20:38.169580", "user": "user4", "department": "Sales", "response_time": 1339, "score": 28, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:21:38.169580", "user": "user5", "department": "Marketing", "response_time": 1447, "score": 2, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:22:38.169580", "user": "user6", "department": "Marketing", "response_time": 1329, "score": 90, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:23:38.169580", "user": "user7", "department": "Sales", "response_time": 729, "score": 96, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:24:38.169580", "user": "user8", "department": "Marketing", "response_time": 1114, "score": 48, "status_code": 500, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:25:38.169580", "user": "user9", "department": "Sales", "response_time": 1500, "score": 23, "status_code": 400, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:26:38.169580", "user": "user0", "department": "Engineering", "response_time": 1028, "score": 91, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:27:38.169580", "user": "user1", "department": "Marketing", "response_time": 263, "score": 26, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:28:38.169580", "user": "user2", "department": "Sales", "response_time": 1076, "score": 71, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:29:38.169580", "user": "user3", "department": "Engineering", "response_time": 376, "score": 28, "status_code": 200, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:30:38.169580", "user": "user4", "department": "Sales", "response_time": 620, "score": 92, "status_code": 200, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:31:38.169580", "user": "user5", "department": "Engineering", "response_time": 1201, "score": 57, "status_code": 500, "region": "West"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:32:38.169580", "user": "user6", "department": "Marketing", "response_time": 597, "score": 3, "status_code": 400, "region": "North"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:33:38.169580", "user": "user7", "department": "Sales", "response_time": 252, "score": 65, "status_code": 500, "region": "South"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:34:38.169580", "user": "user8", "department": "Marketing", "response_time": 530, "score": 20, "status_code": 500, "region": "East"}
+{"index": {}}
+{"timestamp": "2026-05-14T10:35:38.169580", "user": "user9", "department": "Sales", "response_time": 228, "score": 46, "status_code": 200, "region": "West"}
+

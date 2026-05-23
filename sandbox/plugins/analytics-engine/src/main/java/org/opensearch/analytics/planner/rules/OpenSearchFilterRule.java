@@ -125,6 +125,14 @@ public class OpenSearchFilterRule extends RelOptRule {
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
         List<String> viableBackends = resolveViableBackends(rexCall, fieldStorageInfos, childViableBackends);
+        // TODO: viableBackends here is computed from each backend's declared FilterCapability
+        // (see resolveViableBackends below). Today a backend can advertise a function as
+        // filter-capable without actually shipping a DelegatedPredicateSerializer for it; the
+        // mismatch only surfaces when FragmentConversion tries to delegate (correctness) or
+        // wrap as performance-delegation. CapabilityRegistry should validate at startup that
+        // every declared FilterCapability has a matching serializer registered, and reject
+        // the plugin otherwise — fail-fast at boot rather than at first dual-viable query.
+        // Needs revisiting.
         return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
     }
 

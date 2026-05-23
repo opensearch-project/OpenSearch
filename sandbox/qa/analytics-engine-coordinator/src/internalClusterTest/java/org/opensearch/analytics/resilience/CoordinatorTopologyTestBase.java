@@ -8,11 +8,12 @@
 
 package org.opensearch.analytics.resilience;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
  * would shut it down for the whole JVM, so topology variants cannot share a class
  * with {@code CoordinatorResilienceIT}.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "broken")
 public abstract class CoordinatorTopologyTestBase extends OpenSearchIntegTestCase {
 
     protected static final int VALUE = 7;

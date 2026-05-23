@@ -55,8 +55,11 @@ public class DatetimeOutputCastRewriterTests extends OpenSearchTestCase {
 
     /**
      * Motivating shape: outer Project slot is exactly {@code CAST(<TIMESTAMP> AS VARCHAR)}.
-     * Rewriter must replace it with a {@code TO_CHAR(<TIMESTAMP>, '%Y-%m-%d %H:%M:%S')}
-     * call whose result type matches the original cast's VARCHAR type.
+     * Rewriter must replace it with a {@code TO_CHAR(<TIMESTAMP>, '%Y-%m-%d %H:%M:%S%.f')}
+     * call whose result type matches the original cast's VARCHAR type. The {@code %.f}
+     * tail is chrono's variable-length fractional-seconds specifier so source values
+     * with sub-second precision (DATE_NANOS) keep their fractional digits while
+     * whole-second values display cleanly without a trailing decimal.
      */
     public void testDirectTimestampOutputCastIsRewrittenToToChar() {
         RelDataType timestampType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 6), true);
@@ -236,11 +239,11 @@ public class DatetimeOutputCastRewriterTests extends OpenSearchTestCase {
     }
 
     /**
-     * The format string is {@code "%Y-%m-%d %H:%M:%S"} — seconds-only — to match
-     * Calcite's reference output for {@code CAST(TIMESTAMP AS VARCHAR)}, which
-     * truncates fractional seconds. This pins that contract: a TIMESTAMP(9)
-     * source still resolves to the seconds-only format literal in the
-     * rewritten {@code TO_CHAR} call.
+     * The format string is precision-agnostic: a TIMESTAMP(0) and a TIMESTAMP(9)
+     * source both resolve to the same {@code "%Y-%m-%d %H:%M:%S%.f"} literal in the
+     * rewritten {@code TO_CHAR} call. The {@code %.f} tail handles the runtime
+     * variation — whole-second values render without a trailing decimal, sub-second
+     * values render with as many fractional digits as the source carries.
      */
     public void testTimestampPrecisionDoesNotChangeFormat() {
         RelDataType nanoTimestampType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 9), true);
@@ -255,7 +258,7 @@ public class DatetimeOutputCastRewriterTests extends OpenSearchTestCase {
         RexCall call = (RexCall) ((LogicalProject) rewritten).getProjects().get(0);
         RexLiteral formatLit = (RexLiteral) call.getOperands().get(1);
         assertEquals(
-            "TIMESTAMP(9) source must still resolve to the seconds-only format — fractional seconds are dropped",
+            "Format literal is precision-agnostic — chrono's %.f handles the per-value fractional digits",
             DatetimeOutputCastRewriter.PPL_TIMESTAMP_FORMAT,
             formatLit.getValueAs(String.class)
         );

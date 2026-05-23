@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
@@ -295,5 +296,14 @@ public class VSRManager implements AutoCloseable {
     // Visible for testing only
     ManagedVSR getActiveManagedVSR() {
         return managedVSR.get();
+    }
+
+    /**
+     * Returns the row ID mapping produced during the last flush's sort-on-close
+     * as a memory-efficient packed mapping, or null if no sorting was configured
+     * or the file was empty.
+     */
+    public RowIdMapping getRowIdMapping() {
+        return writer.getRowIdMapping();
     }
 }

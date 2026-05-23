@@ -26,6 +26,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -38,9 +39,11 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -82,6 +85,9 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         Files.createDirectories(dataPath);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        Path translogPath = dataPath.resolve("translog");
+        java.nio.file.Files.createDirectories(translogPath);
+        String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store = new Store(
             shardId,
             indexSettings,
@@ -90,13 +96,10 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             Store.OnClose.EMPTY,
             shardPath
         );
-        store.createEmpty(org.apache.lucene.util.Version.LATEST);
+        store.createEmpty(org.apache.lucene.util.Version.LATEST, translogUUID);
 
         PluginsService mockPluginsService = mock(PluginsService.class);
         when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(List.of(new LucenePlugin()));
-
-        Path translogPath = dataPath.resolve("translog");
-        java.nio.file.Files.createDirectories(translogPath);
         EngineConfig engineConfig = new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
             shardId,
             null,
@@ -179,7 +182,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 luceneWriter.addDoc(input);
             }
 
-            FileInfos fileInfos = luceneWriter.flush();
+            FileInfos fileInfos = luceneWriter.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(luceneDataFormat).get();
 
             // Build a Segment from the FileInfos
@@ -286,7 +289,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(luceneDataFormat).get();
 
             // Build segment and refresh
@@ -339,7 +342,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer1.addDoc(input);
             }
-            FileInfos fileInfos1 = writer1.flush();
+            FileInfos fileInfos1 = writer1.flush(FlushInput.EMPTY);
 
             for (int i = 0; i < numDocs2; i++) {
                 LuceneDocumentInput input = engine.newDocumentInput();
@@ -347,7 +350,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer2.addDoc(input);
             }
-            FileInfos fileInfos2 = writer2.flush();
+            FileInfos fileInfos2 = writer2.flush(FlushInput.EMPTY);
 
             // Build segments and refresh with both
             WriterFileSet wfs1 = fileInfos1.getWriterFileSet(luceneDataFormat).get();

@@ -11,7 +11,11 @@ package org.opensearch.be.lucene;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
+import org.opensearch.common.CheckedBiFunction;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -44,30 +48,44 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * @opensearch.experimental
  */
 @ExperimentalApi
+@SuppressForbidden(reason = "reference counting is required here")
 public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     private final DataFormat dataFormat;
-    private final Map<CatalogSnapshot, LuceneReader> readers = new HashMap<>();
+    private final Map<Long, LuceneReader> readers;
+    private volatile DirectoryReader initialReader;
     private volatile DirectoryReader currentReader;
+    private final CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher;
 
     /**
      * Creates a new LuceneReaderManager.
      *
-     * @param dataFormat the data format this reader manager serves
-     * @param initialReader the initial DirectoryReader, must not be null
+     * @param dataFormat      the data format this reader manager serves
+     * @param initialReader   the initial DirectoryReader, must not be null
+     * @param readers         shared map of generation to DirectoryReader for segment-level reader reuse
+     * @param readerRefresher function that opens a refreshed reader given the current reader and new
+     *                        {@link SegmentInfos}; returns {@code null} if no refresh is needed
      * @throws NullPointerException if initialReader is null
      */
-    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader) {
+    public LuceneReaderManager(
+        DataFormat dataFormat,
+        DirectoryReader initialReader,
+        Map<Long, LuceneReader> readers,
+        CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher
+    ) {
         this.dataFormat = dataFormat;
         Objects.requireNonNull(initialReader, "initialReader must not be null");
+        this.initialReader = initialReader;
         this.currentReader = initialReader;
+        this.readers = readers;
+        this.readerRefresher = readerRefresher;
     }
 
     @Override
     public LuceneReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        LuceneReader reader = readers.get(catalogSnapshot);
+        LuceneReader reader = readers.get(catalogSnapshot.getId());
         if (reader == null) {
-            throw new IllegalStateException("No reader available for catalog snapshot [gen=" + catalogSnapshot.getGeneration() + "]");
+            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
         }
         return reader;
     }
@@ -79,17 +97,25 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false || readers.containsKey(catalogSnapshot)) {
+        if (didRefresh == false || readers.containsKey(catalogSnapshot.getId())) {
             return;
         }
-        DirectoryReader refreshed = DirectoryReader.openIfChanged(currentReader);
+        DirectoryReader refreshed = readerRefresher.apply(currentReader, LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot));
         if (refreshed != null) {
-            assert readersAreSame(catalogSnapshot, refreshed);
+            // Guard against refresh/merge-apply races: a prior IT regression surfaced when
+            // overlapping threads produced a refreshed reader whose leaves disagreed with the
+            // catalog snapshot being registered, effectively pairing the snapshot with a stale
+            // reader. This assert catches that drift in test builds before the mismatched pair
+            // is published to readers.
             currentReader = refreshed;
+        } else {
+            // If same reader is used, assert that calalog snapshot is same.
+            currentReader.incRef();
         }
+        assert readersAreSame(catalogSnapshot, currentReader);
 
         Map<Long, String> generationToSegmentName = buildGenerationToSegmentName(catalogSnapshot, currentReader.leaves());
-        readers.put(catalogSnapshot, new LuceneReader(currentReader, generationToSegmentName));
+        readers.put(catalogSnapshot.getId(), new LuceneReader(currentReader, generationToSegmentName));
     }
 
     private static Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
@@ -135,12 +161,12 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
      * with the wrong catalog snapshot.
      *
      * @param catalogSnapshot catalog snapshot whose referenced generations are the expected set
-     * @param readers         DirectoryReader whose leaves' generations are the actual set
+     * @param reader         DirectoryReader whose leaves' generations are the actual set
      * @return {@code true} iff both lists contain the same generations in the same (sorted) order
      */
-    private boolean readersAreSame(CatalogSnapshot catalogSnapshot, DirectoryReader readers) {
+    private boolean readersAreSame(CatalogSnapshot catalogSnapshot, DirectoryReader reader) {
         Collection<Long> generationsReferenced = catalogSnapshot.getSegments().stream().map(Segment::generation).sorted().toList();
-        return generationsReferenced.equals(collectReferencedGenerations(readers));
+        return generationsReferenced.equals(collectReferencedGenerations(reader));
     }
 
     /**
@@ -167,10 +193,11 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        LuceneReader reader = readers.remove(catalogSnapshot);
+        LuceneReader reader = readers.remove(catalogSnapshot.getId());
         if (reader != null) {
-            reader.directoryReader().close();
+            reader.directoryReader().decRef();
         }
+        releaseInitialReader();
     }
 
     @Override
@@ -186,8 +213,27 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
     @Override
     public void close() throws IOException {
         for (LuceneReader reader : readers.values()) {
-            reader.directoryReader().close();
+            reader.directoryReader().decRef();
         }
         readers.clear();
+        releaseInitialReader();
+    }
+
+    /**
+     * Releases the initial {@link DirectoryReader} opened by
+     * {@link LuceneSearchBackEnd#createReaderManager} and nulls out the field. The check
+     * makes the operation idempotent so it is safe to invoke from both {@link #close()}
+     * and {@link #onDeleted(CatalogSnapshot)} without double-freeing.
+     * <p>
+     * The initial reader is owned by the manager (not the {@link #readers} map), so it is
+     * not covered by the per-snapshot decRef loop in {@code close()}. Without this release,
+     * the {@link java.nio.channels.FileChannel}s held by its {@link SegmentReader}s would
+     * leak until JVM exit (detected by Lucene's {@code LeakFS} at suite teardown).
+     */
+    private void releaseInitialReader() throws IOException {
+        if (initialReader != null) {
+            initialReader.decRef();
+            initialReader = null;
+        }
     }
 }

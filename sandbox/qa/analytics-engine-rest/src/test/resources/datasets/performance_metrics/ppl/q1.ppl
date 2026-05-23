@@ -1,0 +1,1 @@
+source=performance_metrics | where cpu_usage >= 70 | stats count() as high_cpu_count, avg(cpu_usage) as avg_cpu by host | sort - avg_cpu

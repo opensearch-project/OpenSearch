@@ -13,7 +13,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -86,7 +86,7 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
     /**
      * Source-less {@code SELECT 1 + 1, 'x'} — Calcite lowers this to a single-row
      * {@code LogicalValues}. With no shard scan in the fragment, DAGBuilder picks
-     * {@code LOCAL_COMPUTE}; LocalComputeStageScheduler hands the Substrait plan to
+     * {@code LOCAL_COMPUTE}; LocalComputeStageExecutionFactory hands the Substrait plan to
      * DataFusion's local session with no childInputs. Exercises the pure
      * coordinator-only execution path.
      */

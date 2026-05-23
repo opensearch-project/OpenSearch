@@ -10,6 +10,7 @@ package org.opensearch.storage.tiering;
 
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdEvaluator;
@@ -128,6 +129,7 @@ public class HotToWarmTieringService extends TieringService {
             .put(IS_WARM_INDEX_SETTING.getKey(), false)
             .put(INDEX_TIERING_STATE.getKey(), HOT)
             .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default")
+            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
             .build();
     }
 

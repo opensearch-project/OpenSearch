@@ -18,12 +18,13 @@
 //! on [`Drop`].
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use dashmap::DashMap;
 use log::debug;
 use once_cell::sync::Lazy;
+use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
 
 use datafusion::common::DataFusionError;
@@ -116,6 +117,8 @@ pub struct QueryTracker {
     pub context_id: i64,
     pub memory_pool: Arc<QueryMemoryPool>,
     pub cancellation_token: CancellationToken,
+    /// CPU task abort handle, set after the stream is created.
+    pub abort_handle: OnceLock<AbortHandle>,
     completed: AtomicBool,
     wall_nanos: std::sync::atomic::AtomicU64,
 }
@@ -155,12 +158,22 @@ static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.cancellation_token.cancel();
+        if let Some(handle) = tracker.abort_handle.get() {
+            handle.abort();
+        }
     }
 }
 
 /// Clone the cancellation token for the given context_id, if registered.
 pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
     QUERY_REGISTRY.get(&context_id).map(|t| t.cancellation_token.clone())
+}
+
+/// Store the CPU task's AbortHandle for the given context_id.
+pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
+    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        tracker.abort_handle.set(handle).ok();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +189,8 @@ pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
 #[derive(Debug)]
 pub struct QueryTrackingContext {
     tracker: Option<Arc<QueryTracker>>,
+    phantom_reservation: Option<MemoryReservation>,
+    phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
 }
 
 impl QueryTrackingContext {
@@ -183,24 +198,61 @@ impl QueryTrackingContext {
     /// disabled and `memory_pool()` returns `None`.
     pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>) -> Self {
         if context_id == 0 {
-            return Self { tracker: None };
+            return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
         }
         let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
         let tracker = Arc::new(QueryTracker {
             start_time: Instant::now(),
             context_id,
             memory_pool: query_pool,
-            // CancellationToken is a thread-safe, cloneable handle that can be used to
-            // signal cancellation to async tasks via `token.cancelled().await` in a
-            // `tokio::select!` branch. Calling `token.cancel()` fires all waiters.
-            // See: https://github.com/tokio-rs/tokio/blob/master/tokio-util/src/sync/cancellation_token/tree_node.rs
             cancellation_token: CancellationToken::new(),
+            abort_handle: OnceLock::new(),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
         QUERY_REGISTRY.insert(context_id, Arc::clone(&tracker));
         Self {
             tracker: Some(tracker),
+            phantom_reservation: None,
+            phantom_corrector: None,
+        }
+    }
+
+    /// Attach a phantom reservation for bounded memory accounting.
+    pub fn set_phantom_reservation(&mut self, reservation: MemoryReservation) {
+        self.phantom_reservation = Some(reservation);
+    }
+
+    /// Attach a phantom corrector and return an Arc clone for CrossRtStream.
+    pub fn set_phantom_corrector(
+        &mut self,
+        corrector: Arc<crate::phantom_corrector::PhantomCorrector>,
+    ) -> Arc<crate::phantom_corrector::PhantomCorrector> {
+        let clone = Arc::clone(&corrector);
+        self.phantom_corrector = Some(corrector);
+        clone
+    }
+
+    /// Apply pending phantom correction from the self-correcting budget.
+    pub fn apply_pending_phantom_correction(&mut self) {
+        let (corrector, reservation) = match (&self.phantom_corrector, &mut self.phantom_reservation) {
+            (Some(c), Some(r)) => (c, r),
+            _ => return,
+        };
+        let delta = corrector.take_pending_delta();
+        if delta == 0 {
+            return;
+        }
+        if delta > 0 {
+            let _ = reservation.try_grow(delta as usize);
+        } else {
+            let shrink = (-delta) as usize;
+            let current = reservation.size();
+            let floor = current / 10;
+            let actual_shrink = shrink.min(current.saturating_sub(floor));
+            if actual_shrink > 0 {
+                reservation.shrink(actual_shrink);
+            }
         }
     }
 

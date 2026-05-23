@@ -92,6 +92,15 @@ public class PlannerImpl {
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.info("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
+        // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
+        // FFM round-trips per RG into one. Blocked on two open design points:
+        // 1. Substrait wire representation for a fused {original = AND(call1, call2, ...)}
+        // leaf — today the resolver requires a SqlFunction operator on the original.
+        // 2. Receiving-backend (Lucene) needs a way to turn the combined payload back into
+        // a single BooleanQuery / Weight without polluting ScalarFunction with AND.
+        // Revisit once those are designed. The rule would also strip performance peers from
+        // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
 
@@ -142,9 +151,13 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();
         builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
+        // Push Filters below Project/Aggregate/Join.
         builder.addRuleCollection(
             List.of(CoreRules.FILTER_PROJECT_TRANSPOSE, CoreRules.FILTER_AGGREGATE_TRANSPOSE, CoreRules.FILTER_INTO_JOIN)
         );
+        // Merge adjacent Filters into one — must run after transposes so any
+        // auto-injected NOT NULL collapses with the user's WHERE.
+        builder.addRuleInstance(CoreRules.FILTER_MERGE);
         HepPlanner planner = new HepPlanner(builder.build());
         if (listener != null) {
             planner.addListener(listener);
@@ -161,9 +174,8 @@ public class PlannerImpl {
     /**
      * Phase 1b: decompose AVG / STDDEV / VAR into primitive SUM/COUNT (+ SUM_SQ for variance) plus a
      * scalar LogicalProject computing the quotient. Runs as its own HEP pass on plain LogicalAggregate
-     * so Calcite's type inference is clean — no AGG_CALL_ANNOTATION wrappers in aggCall.rexList to
-     * propagate AVG's DOUBLE return type to the derived primitive calls. Downstream the marking phase,
-     * the Volcano split rule, and the AggregateDecompositionResolver see correctly-typed primitives.
+     * before {@link OpenSearchAggregateRule} marks it; the marking phase, the Volcano split rule, and
+     * the AggregateDecompositionResolver then see correctly-typed primitives.
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();

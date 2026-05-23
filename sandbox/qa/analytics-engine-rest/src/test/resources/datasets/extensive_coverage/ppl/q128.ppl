@@ -1,0 +1,1 @@
+source=test_data | eval last = last_day(timestamp) | fields timestamp, last | head 3

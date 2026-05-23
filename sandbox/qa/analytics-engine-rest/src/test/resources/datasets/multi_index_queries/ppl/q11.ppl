@@ -1,0 +1,1 @@
+source=security_logs | stats count() as events by span(@timestamp, 1h) | sort `span(@timestamp,1h)` | head 24

@@ -321,6 +321,35 @@ scalar_functions:
           - value: "string"
             name: "replacement"
         return: string
+  - name: "parse"
+    description: >-
+      PPL `parse <field> '<regex>'` — extract named regex groups into a
+      `map<varchar, varchar>` whose keys are the group names in pattern
+      definition order. The Rust UDF anchors the pattern with `^…$` so
+      semantics match Java's `Matcher.matches()` (whole-string match) used by
+      legacy `RegexExpression`. Method literal must be `regex`; `grok` /
+      `patterns` are rejected at plan time by `ParseAdapter`. Pattern + method
+      operands are validated as non-null string literals there too.
+    impls:
+      - args:
+          - { value: string, name: "input" }
+          - { value: string, name: "pattern" }
+          - { value: string, name: "method" }
+        return: "map<string, string>"
+  - name: "item"
+    description: >-
+      Map element accessor — extracts a value by key from a `map<string, string>`.
+      Lowering target for Calcite's `SqlStdOperatorTable.ITEM` on map operands
+      (PPL `parse` chains `ITEM(parse(...), 'group')` per named group). Returns
+      SQL NULL when the key is absent or the map cell is null. Only the
+      string-keyed / string-valued overload is declared; array indexing falls
+      off this signature and surfaces a clear "no implementation" error
+      before reaching DataFusion.
+    impls:
+      - args:
+          - { value: "map<string, string>", name: "map" }
+          - { value: string, name: "key" }
+        return: string
   - name: regexp_replace
     description: >-
       Regex string replacement — replace every match of `pattern` in `input`
@@ -611,6 +640,36 @@ scalar_functions:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }
         return: string
+
+  - name: "map_extract"
+    description: >-
+      Return the list of values whose key matches `key` in `value`. DataFusion's
+      native `map_extract` returns a list because the underlying map permits
+      duplicate keys; the analytics-engine ITEM adapter wraps every
+      `map_extract` call in `array_element(..., 1)` to project back to a
+      scalar. Signature uses Substrait type variables (`any1`/`any2`) so a
+      single declaration covers every Calcite MAP variant — first caller is
+      PPL `spath`'s JSON_EXTRACT_ALL map (`map<string, string?>`).
+    impls:
+      - args: [{ value: "map<any1, any2>", name: "value" }, { value: any1, name: "key" }]
+        return: "list<any2>"
+
+  - name: "json_extract_all"
+    description: >-
+      Flatten a JSON document into a Map<string, string?> keyed by
+      dot-separated path. Objects flatten to dotted keys (`user.name`); arrays
+      append `{}` (`tags{}`); duplicate logical keys merge into a Java
+      `List.toString()` rendering (`[a, b, c]`); JSON nulls render as the
+      literal string `"null"`. Top-level scalar / null / empty / whitespace
+      input → NULL map; malformed JSON → empty map. Parity with the legacy
+      v2 / Calcite `JsonExtractAllFunctionImpl`. Return type is declared as
+      `any1` here so substrait's extension parser does not need a map-type
+      grammar — the actual call-site RelDataType (MAP<VARCHAR, VARCHAR>) is
+      what isthmus emits into the substrait IR, and the DataFusion-side UDF
+      registers its own concrete return type (`Map<Utf8, Utf8>`).
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1
 
   - name: "json_delete"
     description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."

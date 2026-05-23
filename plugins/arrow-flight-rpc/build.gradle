@@ -22,6 +22,8 @@ dependencies {
   // arrow-base exposes Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
   // as api deps, so a compileOnly project dep pulls them onto the compile classpath
   // while keeping them out of the bundled plugin zip (arrow-base ships them at runtime).
+  // The framework also ships the SPI types this plugin calls into (NativeAllocatorPoolConfig).
+  compileOnly project(':libs:opensearch-arrow-spi')
   compileOnly project(':plugins:arrow-base')
 
   // Netty codec libs used directly by grpc-netty / flight-core.
@@ -65,6 +67,7 @@ dependencies {
 
   // Javassist for bytecode injection chaos testing
   internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
+  internalClusterTestImplementation project(':plugins:arrow-base')
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
   testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"

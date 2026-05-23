@@ -1,0 +1,1 @@
+source=app_logs | where match(message, "database") AND level = "ERROR" | fields service, message, status | head 10

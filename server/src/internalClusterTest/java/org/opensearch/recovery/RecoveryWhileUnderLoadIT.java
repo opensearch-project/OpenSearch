@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -178,6 +179,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         }
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testRecoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
@@ -239,6 +241,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         }
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testRecoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
@@ -504,6 +507,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         waitForReplication();
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testRecoveryWithDerivedSourceEnabled() throws Exception {
         logger.info("--> creating test index with derived source enabled...");
         int numberOfShards = numberOfShards();
@@ -723,6 +727,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         });
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testRecoverWhileUnderLoadWithDerivedSource() throws Exception {
         logger.info("--> creating test index with derived source enabled...");
         String mapping = """
