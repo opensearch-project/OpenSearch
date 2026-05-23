@@ -102,6 +102,9 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         for (LeafReaderContext leaf : reader.leaves()) {
             SortedNumericDocValues dv = DocValues.getSortedNumeric(leaf.reader(), "product_id");
             Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
             DocIdSetIterator disi = scorer.iterator();
             int docId;
             while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
