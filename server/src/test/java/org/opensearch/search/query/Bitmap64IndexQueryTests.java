@@ -21,6 +21,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.Randomness;
@@ -121,6 +122,30 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         assertEquals(queryValues, actual);
     }
 
+    public void testScorerSupplierGetIsRepeatable() throws IOException {
+        addDoc(1L);
+        addDoc(2L);
+        addDoc(4L);
+
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.add(1L);
+        bitmap.add(4L);
+
+        Bitmap64IndexQuery query = new Bitmap64IndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        LeafReaderContext leaf = reader.leaves().get(0);
+        ScorerSupplier supplier = weight.scorerSupplier(leaf);
+        assertNotNull(supplier);
+
+        Scorer scorer1 = supplier.get(Long.MAX_VALUE);
+        Scorer scorer2 = supplier.get(Long.MAX_VALUE);
+
+        assertEquals(getMatchingValues(scorer1, leaf), getMatchingValues(scorer2, leaf));
+    }
+
     // ---------------- Helpers ----------------
 
     private void addDoc(long... values) throws IOException {
@@ -153,6 +178,22 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
                     for (int i = 0; i < dv.docValueCount(); i++) {
                         actual.add(dv.nextValue());
                     }
+                }
+            }
+        }
+        Collections.sort(actual);
+        return actual;
+    }
+
+    private static List<Long> getMatchingValues(Scorer scorer, LeafReaderContext leaf) throws IOException {
+        List<Long> actual = new ArrayList<>();
+        SortedNumericDocValues dv = DocValues.getSortedNumeric(leaf.reader(), "product_id");
+        DocIdSetIterator it = scorer.iterator();
+        int docId;
+        while ((docId = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (dv.advanceExact(docId)) {
+                for (int i = 0; i < dv.docValueCount(); i++) {
+                    actual.add(dv.nextValue());
                 }
             }
         }

@@ -232,10 +232,58 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         assertEquals(20, cost);
     }
 
+    public void testScorerSupplierGetIsRepeatable() throws IOException {
+        Document d = new Document();
+        d.add(new IntField("product_id", 1, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 2, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 4, Field.Store.NO));
+        w.addDocument(d);
+
+        w.commit();
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
+
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(1);
+        bitmap.add(4);
+
+        BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        LeafReaderContext leaf = reader.leaves().get(0);
+        ScorerSupplier supplier = weight.scorerSupplier(leaf);
+        assertNotNull(supplier);
+
+        Scorer scorer1 = supplier.get(Long.MAX_VALUE);
+        Scorer scorer2 = supplier.get(Long.MAX_VALUE);
+
+        assertEquals(getMatchingValues(scorer1, leaf), getMatchingValues(scorer2, leaf));
+    }
+
     public void testRewrite() throws IOException {
         RoaringBitmap bitmap = new RoaringBitmap();
         BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
         assertEquals(new MatchNoDocsQuery(), query.rewrite(searcher));
+    }
+
+    private static List<Integer> getMatchingValues(Scorer scorer, LeafReaderContext leaf) throws IOException {
+        List<Integer> actual = new ArrayList<>();
+        SortedNumericDocValues dv = DocValues.getSortedNumeric(leaf.reader(), "product_id");
+        DocIdSetIterator disi = scorer.iterator();
+        int docId;
+        while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            dv.advanceExact(docId);
+            for (int count = 0; count < dv.docValueCount(); ++count) {
+                actual.add((int) dv.nextValue());
+            }
+        }
+        return actual;
     }
 
     public void testPointVisitor() throws IOException {
