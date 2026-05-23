@@ -247,6 +247,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         w.addDocument(d);
 
         w.commit();
+        reader.close();
         reader = DirectoryReader.open(w);
         searcher = newSearcher(reader);
 
