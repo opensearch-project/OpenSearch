@@ -72,7 +72,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
     ) {
         Map<String, StoreFileMetadata> metadataMap;
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
-        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()){
+        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
 
             final Version version = LuceneVersionConverter.toLuceneOrLatest(catalogSnapshotRef.get().getCommitDataFormatVersion());
             final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();

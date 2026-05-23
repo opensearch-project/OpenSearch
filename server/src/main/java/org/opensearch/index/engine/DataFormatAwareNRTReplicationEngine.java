@@ -545,7 +545,10 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     public SafeCommitInfo getSafeCommitInfo() {
         ensureOpen();
         try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireCommittedSnapshot(true)) {
-            return new SafeCommitInfo(localCheckpointTracker.getProcessedCheckpoint(), (int) snapshot.get().getNumDocs());
+            CatalogSnapshot cs = snapshot.get();
+            String lcp = cs.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+            long localCheckpoint = lcp != null ? Long.parseLong(lcp) : SequenceNumbers.NO_OPS_PERFORMED;
+            return new SafeCommitInfo(localCheckpoint, (int) cs.getNumDocs());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
