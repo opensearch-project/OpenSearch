@@ -109,10 +109,7 @@ class SpanAdapter implements ScalarFunctionAdapter {
      * precision; emitting a string-form stride to DataFusion's native {@code date_bin}
      * preserves the millisecond / microsecond resolution.
      */
-    private static final Map<String, String> SUB_SECOND_UNIT_TO_DATE_BIN_STRIDE = Map.of(
-        "us", "microseconds",
-        "ms", "milliseconds"
-    );
+    private static final Map<String, String> SUB_SECOND_UNIT_TO_DATE_BIN_STRIDE = Map.of("us", "microseconds", "ms", "milliseconds");
 
     /**
      * Locally-declared target operator for the sub-second {@code date_bin} path. Name
@@ -131,6 +128,11 @@ class SpanAdapter implements ScalarFunctionAdapter {
         SqlFunctionCategory.TIMEDATE
     );
 
+    // TODO: SPAN is a PPL-shaped UDF; matching by operator name and decomposing its operands here
+    // couples this backend adapter to the SQL/PPL plugin's frontend representation. Long term,
+    // Analytics-Engine should hand the backend a backend-neutral bucketing primitive (e.g. a typed
+    // DATE_BIN / FLOOR-divide expression already lowered upstream) so this adapter can disappear
+    // and we stop replicating SPAN's semantics per-backend.
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         if (!original.getOperator().getName().equalsIgnoreCase("SPAN")) {
@@ -203,7 +205,9 @@ class SpanAdapter implements ScalarFunctionAdapter {
         Object value = lit.getValue();
         long n;
         if (value instanceof BigDecimal bd) {
-            if (bd.scale() > 0 && bd.stripTrailingZeros().scale() > 0) {
+            // stripTrailingZeros canonicalises both forms — `1`, `1.0`, `1E2` all collapse
+            // to scale ≤ 0; any fractional component leaves scale > 0.
+            if (bd.stripTrailingZeros().scale() > 0) {
                 return null;
             }
             try {
@@ -212,11 +216,10 @@ class SpanAdapter implements ScalarFunctionAdapter {
                 return null;
             }
         } else if (value instanceof Number num) {
-            double d = num.doubleValue();
-            if (d != Math.floor(d)) {
+            if (!isIntegralDouble(num.doubleValue())) {
                 return null;
             }
-            n = (long) d;
+            n = (long) num.doubleValue();
         } else {
             return null;
         }
@@ -228,29 +231,20 @@ class SpanAdapter implements ScalarFunctionAdapter {
      * positive integer literal; {@code null} otherwise.
      */
     private static Long bucketSecondsIfPositiveInteger(RexNode interval, Long unitSeconds) {
-        if (unitSeconds == null || !(interval instanceof RexLiteral lit)) {
+        if (unitSeconds == null) {
             return null;
         }
-        Object value = lit.getValue();
-        long n;
-        if (value instanceof BigDecimal bd) {
-            if (bd.scale() > 0 && bd.stripTrailingZeros().scale() > 0) {
-                return null; // non-integer interval not supported
-            }
-            n = bd.longValueExact();
-        } else if (value instanceof Number num) {
-            double d = num.doubleValue();
-            if (d != Math.floor(d)) {
-                return null;
-            }
-            n = (long) d;
-        } else {
-            return null;
-        }
-        if (n <= 0) {
-            return null;
-        }
-        return n * unitSeconds;
+        Long n = extractPositiveInteger(interval);
+        return n == null ? null : n * unitSeconds;
+    }
+
+    /**
+     * True when {@code d} is finite and equal to its floor — i.e. a whole-number double
+     * with no fractional part. Centralises the rounding check used by the literal
+     * extractors above.
+     */
+    private static boolean isIntegralDouble(double d) {
+        return Double.isFinite(d) && d == Math.floor(d);
     }
 
     private static RexNode rewriteFixedLengthTimeBucket(RexBuilder rexBuilder, RexNode field, long bucketSeconds, RelDataType resultType) {

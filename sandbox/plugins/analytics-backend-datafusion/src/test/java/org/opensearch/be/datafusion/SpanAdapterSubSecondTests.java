@@ -95,10 +95,7 @@ public class SpanAdapterSubSecondTests extends OpenSearchTestCase {
         RexCall adapted = (RexCall) new SpanAdapter().adapt(original, List.of(), cluster);
 
         assertSame(SpanAdapter.LOCAL_DATE_BIN_OP, adapted.getOperator());
-        assertEquals(
-            "250 microseconds",
-            ((RexLiteral) adapted.getOperands().get(0)).getValueAs(String.class)
-        );
+        assertEquals("250 microseconds", ((RexLiteral) adapted.getOperands().get(0)).getValueAs(String.class));
     }
 
     /** N == 1 for sub-second units must NOT take the date_bin path — date_trunc handles it. */
@@ -111,11 +108,7 @@ public class SpanAdapterSubSecondTests extends OpenSearchTestCase {
         RexCall original = makeSpanCall(rexBuilder, tsType, BigDecimal.ONE, "ms");
         RexCall adapted = (RexCall) new SpanAdapter().adapt(original, List.of(), cluster);
 
-        assertEquals(
-            "N==1 ms stays on date_trunc (the cheaper path), NOT date_bin",
-            "DATE_TRUNC",
-            adapted.getOperator().getName()
-        );
+        assertEquals("N==1 ms stays on date_trunc (the cheaper path), NOT date_bin", "DATE_TRUNC", adapted.getOperator().getName());
     }
 
     /** Non-integer interval for sub-second units must fall through unchanged. The interval
@@ -164,10 +157,6 @@ public class SpanAdapterSubSecondTests extends OpenSearchTestCase {
         assertEquals(tsType, original.getType());
 
         RexNode adapted = new SpanAdapter().adapt(original, List.of(), cluster);
-        assertEquals(
-            "adapted date_bin call must declare the same type as the original SPAN call",
-            original.getType(),
-            adapted.getType()
-        );
+        assertEquals("adapted date_bin call must declare the same type as the original SPAN call", original.getType(), adapted.getType());
     }
 }
