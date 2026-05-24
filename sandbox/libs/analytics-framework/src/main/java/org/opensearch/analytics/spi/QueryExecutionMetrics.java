@@ -18,4 +18,5 @@ package org.opensearch.analytics.spi;
  *
  * @opensearch.internal
  */
-public record QueryExecutionMetrics(long currentBytes) {}
+public record QueryExecutionMetrics(long currentBytes) {
+}

@@ -446,6 +446,9 @@ public final class NativeBridge {
         // i64 df_query_registry_top_n_by_current(out_ptr, cap_entries)
         QUERY_REGISTRY_TOP_N_BY_CURRENT = linker.downcallHandle(
             lib.find("df_query_registry_top_n_by_current").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
         // i64 df_native_node_stats(out_ptr, out_cap)
         DF_NATIVE_NODE_STATS = linker.downcallHandle(
             lib.find("df_native_node_stats").orElseThrow(),
@@ -830,6 +833,9 @@ public final class NativeBridge {
                 out.put(ctxId, QueryRegistryLayout.readMetrics(seg, i));
             }
             return Collections.unmodifiableMap(out);
+        }
+    }
+
     /**
      * Reads native task cancellation counters via {@code df_native_node_stats} FFM call.
      * Independent of {@link #stats()} which calls {@code df_stats} for plugin stats.

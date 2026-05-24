@@ -560,7 +560,7 @@ public class OsProbeTests extends OpenSearchTestCase {
         assertEquals(-1L, OsProbe.getInstance().getProcessRssAnon());
     }
 
-    // ---- getProcessNativeMemoryBytes (RssAnon - heapMax, clamped) ----
+    // ---- getProcessNativeMemoryBytes (RssAnon - heapCommitted - nonHeapCommitted, clamped) ----
 
     public void testGetProcessNativeMemoryBytes_returnsNegativeWhenRssAnonUnavailable() {
         // Override getProcessRssAnon to return -1 (the "not supported" sentinel). The
@@ -574,29 +574,34 @@ public class OsProbeTests extends OpenSearchTestCase {
         assertEquals(-1L, probe.getProcessNativeMemoryBytes());
     }
 
-    public void testGetProcessNativeMemoryBytes_subtractsHeapMaxAndClampsAtZero() {
-        // RssAnon below heapMax (early process lifetime, before heap pages are committed).
-        // The method must clamp at 0 instead of returning a negative.
+    public void testGetProcessNativeMemoryBytes_subtractsCommittedAndClampsAtZero() {
+        // RssAnon below the JVM committed memory (early process lifetime, before the
+        // OS resident set has caught up to the JVM's committed regions). The method
+        // must clamp at 0 instead of returning a negative.
         OsProbe probe = new OsProbe() {
             @Override
             public long getProcessRssAnon() {
-                return 1L; // way below any real -Xmx setting
+                return 1L; // way below any real committed total
             }
         };
         assertEquals(0L, probe.getProcessNativeMemoryBytes());
     }
 
-    public void testGetProcessNativeMemoryBytes_returnsDifferenceWhenRssAnonExceedsHeap() {
-        // RssAnon clearly larger than the JVM heap max — the difference is reported back.
-        long heapMax = org.opensearch.monitor.jvm.JvmStats.jvmStats().getMem().getHeapMax().getBytes();
-        long rssAnon = heapMax + 64L * 1024L * 1024L;
+    public void testGetProcessNativeMemoryBytes_returnsDifferenceWhenRssAnonExceedsCommitted() {
+        // RssAnon clearly larger than heapCommitted + nonHeapCommitted — the difference
+        // is reported back as the off-heap native memory used by the process.
+        java.lang.management.MemoryMXBean memMx = java.lang.management.ManagementFactory.getMemoryMXBean();
+        long heapCommitted = memMx.getHeapMemoryUsage().getCommitted();
+        long nonHeapCommitted = memMx.getNonHeapMemoryUsage().getCommitted();
+        long extra = 64L * 1024L * 1024L;
+        long rssAnon = heapCommitted + nonHeapCommitted + extra;
         OsProbe probe = new OsProbe() {
             @Override
             public long getProcessRssAnon() {
                 return rssAnon;
             }
         };
-        assertEquals(64L * 1024L * 1024L, probe.getProcessNativeMemoryBytes());
+        assertEquals(extra, probe.getProcessNativeMemoryBytes());
     }
 
 }

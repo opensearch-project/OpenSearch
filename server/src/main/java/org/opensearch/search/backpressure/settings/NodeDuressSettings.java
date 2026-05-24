@@ -97,7 +97,7 @@ public class NodeDuressSettings {
      */
     private volatile ByteSizeValue nodeNativeMemory;
     public static final Setting<ByteSizeValue> NODE_NATIVE_MEMORY_LIMIT_SETTING = Setting.byteSizeSetting(
-        "search_backpressure.node_duress.native_memory_limit",
+        "node.native_memory.limit",
         ByteSizeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

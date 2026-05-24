@@ -38,7 +38,6 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.monitor.Probes;
-import org.opensearch.monitor.jvm.JvmStats;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -307,8 +306,10 @@ public class OsProbe {
         if (rssAnon < 0L) {
             return -1L;
         }
-        long jvmHeapMax = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
-        return Math.max(0L, rssAnon - jvmHeapMax);
+        var memMx = ManagementFactory.getMemoryMXBean();
+        long heapCommitted = memMx.getHeapMemoryUsage().getCommitted();
+        long nonHeapCommitted = memMx.getNonHeapMemoryUsage().getCommitted();
+        return Math.max(0L, rssAnon - heapCommitted - nonHeapCommitted);
     }
 
     public short getSystemCpuPercent() {
