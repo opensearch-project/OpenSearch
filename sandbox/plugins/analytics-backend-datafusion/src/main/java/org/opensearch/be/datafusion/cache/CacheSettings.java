@@ -14,7 +14,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Locale;
 
 public class CacheSettings {
 
@@ -39,7 +39,7 @@ public class CacheSettings {
     public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<String>(
         "datafusion.metadata.cache.eviction.type",
         "LRU",
-        Function.identity(),
+        CacheSettings::validateEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -47,7 +47,7 @@ public class CacheSettings {
     public static final Setting<String> STATISTICS_CACHE_EVICTION_TYPE = new Setting<String>(
         "datafusion.statistics.cache.eviction.type",
         "LRU",
-        Function.identity(),
+        CacheSettings::validateEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -69,11 +69,19 @@ public class CacheSettings {
     );
 
     public static final List<Setting<?>> CACHE_SETTINGS = Arrays.asList(
+        METADATA_CACHE_ENABLED,
         METADATA_CACHE_SIZE_LIMIT,
         METADATA_CACHE_EVICTION_TYPE,
+        STATISTICS_CACHE_ENABLED,
         STATISTICS_CACHE_SIZE_LIMIT,
         STATISTICS_CACHE_EVICTION_TYPE
     );
 
-    public static final List<Setting<Boolean>> CACHE_ENABLED = Arrays.asList(METADATA_CACHE_ENABLED, STATISTICS_CACHE_ENABLED);
+    private static String validateEvictionType(String value) {
+        String upper = value.toUpperCase(Locale.ROOT);
+        if (!upper.equals("LRU") && !upper.equals("LFU")) {
+            throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU' or 'LFU'.");
+        }
+        return upper;
+    }
 }

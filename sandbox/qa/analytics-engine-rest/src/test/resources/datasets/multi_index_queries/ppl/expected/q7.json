@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "occurrence_count",
+      "type": "bigint"
+    },
+    {
+      "name": "exception_type",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      16,
+      "IOException"
+    ],
+    [
+      16,
+      "RuntimeException"
+    ],
+    [
+      17,
+      "Exception while getting WebSocket session"
+    ],
+    [
+      17,
+      "NullPointerException"
+    ],
+    [
+      17,
+      "SQLTransientConnectionException"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

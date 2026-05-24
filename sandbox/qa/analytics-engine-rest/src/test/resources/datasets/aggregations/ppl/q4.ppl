@@ -1,0 +1,1 @@
+source=aggregation_tests | stats max(response_time) as max_rt, max(score) as max_score, count() as total by department | sort - max_rt

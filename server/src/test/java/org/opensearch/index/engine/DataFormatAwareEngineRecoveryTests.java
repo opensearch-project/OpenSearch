@@ -197,11 +197,6 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SafeCommitInfo getSafeCommitInfo() {
-            return SafeCommitInfo.EMPTY;
-        }
-
-        @Override
         public List<CatalogSnapshot> listCommittedSnapshots() {
             if (lastCommittedSnapshot != null) {
                 return List.of(lastCommittedSnapshot);

@@ -1,0 +1,63 @@
+{
+  "schema": [
+    {
+      "name": "failed_attempts",
+      "type": "bigint"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "suspicious_count",
+      "type": "bigint"
+    },
+    {
+      "name": "r.user",
+      "type": "string"
+    },
+    {
+      "name": "risk_score",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      13,
+      "asmith",
+      16,
+      "asmith",
+      45
+    ],
+    [
+      4,
+      "bwilson",
+      12,
+      "bwilson",
+      28
+    ],
+    [
+      12,
+      "jdoe",
+      4,
+      "jdoe",
+      20
+    ],
+    [
+      1,
+      "mjones",
+      5,
+      "mjones",
+      11
+    ],
+    [
+      5,
+      "admin",
+      1,
+      "admin",
+      7
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

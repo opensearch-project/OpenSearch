@@ -31,7 +31,7 @@ public final class ResponseValidator {
      * Validate actual response against expected response if it exists.
      * Returns null if validation passes or expected response doesn't exist.
      * Returns error message if validation fails.
-     * 
+     *
      * @param dataset the dataset descriptor
      * @param language the query language (e.g., "ppl", "dsl")
      * @param queryNumber the query number
@@ -39,42 +39,44 @@ public final class ResponseValidator {
      * @param strategy the strategy for handling missing expected responses
      * @return null if validation passes, error message if validation fails
      */
-    public static String validate(Dataset dataset, String language, int queryNumber, 
+    public static String validate(Dataset dataset, String language, int queryNumber,
                                    Map<String, Object> actual, ExpectedResponseStrategy strategy) {
         String expectedPath = dataset.expectedResponseResourcePath(language, queryNumber);
-        
+
         // Check if expected response exists
         boolean expectedExists = ResponseValidator.class.getClassLoader().getResource(expectedPath) != null;
-        
+
         if (!expectedExists) {
             if (strategy == ExpectedResponseStrategy.FAIL_ON_MISSING) {
-                return String.format(java.util.Locale.ROOT, "%s Q%d: Expected response file missing: %s", 
+                return String.format(java.util.Locale.ROOT, "%s Q%d: Expected response file missing: %s",
                     language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedPath);
             }
-            // PASS_ON_MISSING or SKIP_VALIDATION - no validation needed
-            logger.debug("No expected response for {} Q{}, strategy={}", 
+            // PASS_ON_MISSING or SKIP_VALIDATION - pass when file doesn't exist
+            logger.debug("No expected response for {} Q{}, strategy={}",
                 language.toUpperCase(java.util.Locale.ROOT), queryNumber, strategy);
             return null;
         }
 
         // Expected response exists - validate it (unless SKIP_VALIDATION)
         if (strategy == ExpectedResponseStrategy.SKIP_VALIDATION) {
-            logger.debug("Skipping validation for {} Q{} (SKIP_VALIDATION strategy)", 
+            logger.debug("Skipping validation for {} Q{} (SKIP_VALIDATION strategy)",
                 language.toUpperCase(java.util.Locale.ROOT), queryNumber);
             return null;
         }
+
+        // For PASS_ON_MISSING and FAIL_ON_MISSING: validate since file exists
 
         try {
             String expectedJson = DatasetProvisioner.loadResource(expectedPath);
             // Parse JSON manually - simple approach for test data
             Map<String, Object> expected = parseSimpleJson(expectedJson);
-            
+
             return compareResponses(expected, actual, language, queryNumber);
         } catch (Exception e) {
             return "Failed to load/parse expected response: " + e.getMessage();
         }
     }
-    
+
     /**
      * Simple JSON parser for expected response files using OpenSearch's XContent parser.
      */
@@ -102,17 +104,17 @@ public final class ResponseValidator {
         }
 
         if (expectedRows == null) {
-            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected empty response but got %d rows", 
+            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected empty response but got %d rows",
                 language.toUpperCase(java.util.Locale.ROOT), queryNumber, actualRows.size());
         }
 
         if (actualRows == null) {
-            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected %d rows but got empty response", 
+            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected %d rows but got empty response",
                 language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedRows.size());
         }
 
         if (expectedRows.size() != actualRows.size()) {
-            return String.format(java.util.Locale.ROOT, "%s Q%d: Row count mismatch - expected %d, got %d", 
+            return String.format(java.util.Locale.ROOT, "%s Q%d: Row count mismatch - expected %d, got %d",
                 language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedRows.size(), actualRows.size());
         }
 
@@ -126,13 +128,13 @@ public final class ResponseValidator {
             List<Object> actualRow = actualRows.get(i);
 
             if (expectedRow.size() != actualRow.size()) {
-                return String.format(java.util.Locale.ROOT, "%s Q%d row %d: Column count mismatch - expected %d, got %d", 
+                return String.format(java.util.Locale.ROOT, "%s Q%d row %d: Column count mismatch - expected %d, got %d",
                     language.toUpperCase(java.util.Locale.ROOT), queryNumber, i, expectedRow.size(), actualRow.size());
             }
 
             for (int j = 0; j < expectedRow.size(); j++) {
                 if (!valuesEqual(expectedRow.get(j), actualRow.get(j))) {
-                    return String.format(java.util.Locale.ROOT, "%s Q%d row %d col %d: Value mismatch - expected %s, got %s", 
+                    return String.format(java.util.Locale.ROOT, "%s Q%d row %d col %d: Value mismatch - expected %s, got %s",
                         language.toUpperCase(java.util.Locale.ROOT), queryNumber, i, j, expectedRow.get(j), actualRow.get(j));
                 }
             }
@@ -196,7 +198,7 @@ public final class ResponseValidator {
         if (response.containsKey("datarows")) {
             return (List<List<Object>>) response.get("datarows");
         }
-        
+
         if (response.containsKey("rows")) {
             return (List<List<Object>>) response.get("rows");
         }

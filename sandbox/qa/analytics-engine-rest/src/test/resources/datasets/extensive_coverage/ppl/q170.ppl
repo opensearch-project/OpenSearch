@@ -1,0 +1,1 @@
+source=test_data | eval asin_val = asin(0.5) | fields id, asin_val | head 1

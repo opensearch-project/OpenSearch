@@ -96,6 +96,9 @@ pub async unsafe fn create_session_context(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
@@ -144,10 +147,11 @@ pub async unsafe fn create_session_context(
         .build();
 
     let ctx = SessionContext::new_with_state(state);
-    // Register OpenSearch UDFs (mvappend, mvfind, mvzip, convert_tz, …) on this session
-    // so the substrait converter at execute_with_context can resolve their function names.
-    // Without this, fragment execution fails with "Unsupported function name" because
-    // df_execute_with_context reuses this handle's ctx instead of building a fresh one.
+    // Register OpenSearch UDFs (parse, item, mvappend, mvfind, mvzip, convert_tz, …)
+    // on this session so the substrait converter at execute_with_context can resolve
+    // their function names. Without this, fragment execution fails with "Unsupported
+    // function name" because df_execute_with_context reuses this handle's ctx instead
+    // of building a fresh one.
     crate::udf::register_all(&ctx);
     crate::udaf::register_all(&ctx);
 
@@ -171,13 +175,19 @@ pub async unsafe fn create_session_context(
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);
 
-    let provider = Arc::new(ListingTable::try_new(table_config).map_err(|e| {
-        error!(
-            "create_session_context: failed to create listing table: {}",
-            e
-        );
-        e
-    })?);
+    // Wire the global statistics cache into the ListingTable.
+    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
+    let provider = Arc::new(
+        ListingTable::try_new(table_config)
+            .map_err(|e| {
+                error!(
+                    "create_session_context: failed to create listing table: {}",
+                    e
+                );
+                e
+            })?
+            .with_cache(stats_cache),
+    );
 
     ctx.register_table(table_name, provider).map_err(|e| {
         error!(

@@ -103,7 +103,11 @@ public class DataFusionStatsPropertyTests {
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
             monitors.put("plan_setup", ps);
-            return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors));
+            return new DataFusionStats(
+                new NativeExecutorsStats(io, cpu, monitors),
+                new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
+                new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+            );
         });
     }
 
@@ -117,13 +121,17 @@ public class DataFusionStatsPropertyTests {
                 monitors.put("query_execution", qe);
                 monitors.put("stream_next", sn);
                 monitors.put("plan_setup", ps);
-                return new DataFusionStats(new NativeExecutorsStats(io, null, monitors));
+                return new DataFusionStats(
+                    new NativeExecutorsStats(io, null, monitors),
+                    new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
+                    new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+                );
             });
     }
 
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsNullExecutors() {
-        return Arbitraries.just(new DataFusionStats((NativeExecutorsStats) null));
+        return Arbitraries.just(new DataFusionStats(null, null, null));
     }
 
     // ---- Property 1: Writeable round-trip preserves all field values ----

@@ -60,6 +60,17 @@ public final class NativeBridge {
     private static final MethodHandle GET_MEMORY_POOL_LIMIT;
     private static final MethodHandle GET_MEMORY_POOL_STATS;
     private static final MethodHandle SET_MEMORY_POOL_LIMIT;
+    /**
+     * Forward-compat probe for runtime spill-cap updates. Today the upstream
+     * DataFusion {@code DiskManager.max_temp_directory_size} is a plain {@code u64}
+     * that cannot be safely mutated through {@code Arc<DiskManager>} once the
+     * runtime is in use, so we do not ship this symbol from our Rust crate.
+     * When the upstream PR converting that field to {@code Arc<AtomicU64>}
+     * lands, our crate exports {@code df_set_spill_limit} and this handle
+     * becomes non-null automatically — the same Java JAR works against both
+     * versions of the native library.
+     */
+    private static final MethodHandle SET_SPILL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
@@ -104,7 +115,7 @@ public final class NativeBridge {
 
         INIT_RUNTIME_MANAGER = linker.downcallHandle(
             lib.find("df_init_runtime_manager").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT)
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE)
         );
 
         SHUTDOWN_RUNTIME_MANAGER = linker.downcallHandle(
@@ -148,6 +159,19 @@ public final class NativeBridge {
             lib.find("df_set_memory_pool_limit").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
+
+        // Optional spill-limit setter. Not yet shipped by our Rust crate (upstream
+        // DataFusion 53.1.0 does not support runtime spill resize through the public
+        // Arc<DiskManager> API). Bind only if the symbol is present so the same
+        // Java JAR is forward-compatible with a future native library that ships it.
+        SET_SPILL_LIMIT = lib.find("df_set_spill_limit")
+            .map(
+                addr -> linker.downcallHandle(
+                    addr,
+                    FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+                )
+            )
+            .orElse(null);
 
         SET_MIN_TARGET_PARTITIONS = linker.downcallHandle(
             lib.find("df_set_min_target_partitions").orElseThrow(),
@@ -558,8 +582,13 @@ public final class NativeBridge {
 
     // ---- Tokio runtime management (no Arena needed — no string/buffer args) ----
 
+    public static void initTokioRuntimeManager(int cpuThreads, double datanodeMultiplier, double coordinatorMultiplier) {
+        NativeCall.invokeVoid(INIT_RUNTIME_MANAGER, cpuThreads, datanodeMultiplier, coordinatorMultiplier);
+    }
+
+    /** Convenience overload with default 1.5x multipliers for both gates. */
     public static void initTokioRuntimeManager(int cpuThreads) {
-        NativeCall.invokeVoid(INIT_RUNTIME_MANAGER, cpuThreads);
+        initTokioRuntimeManager(cpuThreads, 1.5, 1.5);
     }
 
     public static void shutdownTokioRuntimeManager() {
@@ -617,6 +646,33 @@ public final class NativeBridge {
     public static void setMemoryPoolLimit(long runtimePtr, long newLimitBytes) {
         try (var call = new NativeCall()) {
             call.invoke(SET_MEMORY_POOL_LIMIT, runtimePtr, newLimitBytes);
+        }
+    }
+
+    /**
+     * Returns true if the loaded native library exports {@code df_set_spill_limit}.
+     * When false, spill-cap updates require a node restart — the public
+     * {@link org.opensearch.be.datafusion.DataFusionPlugin#DATAFUSION_SPILL_MEMORY_LIMIT}
+     * setting stays {@code NodeScope}-only.
+     */
+    public static boolean isSpillLimitDynamic() {
+        return SET_SPILL_LIMIT != null;
+    }
+
+    /**
+     * Updates the spill-temp-directory cap at runtime. Throws
+     * {@link UnsupportedOperationException} when the loaded native library does not
+     * export {@code df_set_spill_limit} — callers should gate on
+     * {@link #isSpillLimitDynamic()} before invoking.
+     */
+    public static void setSpillLimit(long runtimePtr, long newLimitBytes) {
+        if (SET_SPILL_LIMIT == null) {
+            throw new UnsupportedOperationException(
+                "df_set_spill_limit not available in the loaded native library; spill cap is fixed at startup"
+            );
+        }
+        try (var call = new NativeCall()) {
+            call.invoke(SET_SPILL_LIMIT, runtimePtr, newLimitBytes);
         }
     }
 
@@ -772,7 +828,11 @@ public final class NativeBridge {
                 taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
             }
 
-            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+            // Partition gates
+            var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
+            var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
+
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
         }
     }
 

@@ -1,0 +1,1 @@
+source=app_logs | where match_phrase(message, "connection refused") | fields service, host, message | head 5

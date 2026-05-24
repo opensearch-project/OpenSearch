@@ -1,0 +1,60 @@
+{"index": {}}
+{"timestamp": "2026-01-01T10:00:00Z", "message": "time=2026-01-01T10:00:00Z level=ERROR service=auth latency=1200 msg=\"timeout occurred\"", "raw_log": "GET /api/v1/users 500 123ms ip=192.168.1.1", "service": "auth", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:01:00Z", "message": "time=2026-01-01T10:01:00Z level=INFO service=payment latency=45 msg=\"transaction completed\"", "raw_log": "POST /api/v2/checkout 200 45ms ip=10.0.0.5", "service": "payment", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:02:00Z", "message": "time=2026-01-01T10:02:00Z level=WARN service=auth latency=890 msg=\"rate limit exceeded\"", "raw_log": "GET /api/v1/login 429 890ms ip=192.168.1.1", "service": "auth", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:03:00Z", "message": "user=alice status=success duration=120", "raw_log": "DELETE /api/v1/users/123 204 12ms ip=172.16.0.1", "service": "user-mgmt", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:04:00Z", "message": "malformed log entry without expected format", "raw_log": "PUT /api/v1/profile 500 2345ms ip=192.168.2.10", "service": "profile", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:05:00Z", "message": "time=2026-01-01T10:05:00Z level=ERROR service=db latency=5000 msg=\"connection pool exhausted\"", "raw_log": "GET /health 503 5000ms ip=127.0.0.1", "service": "db", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:06:00Z", "message": "user=bob status=failure duration=5", "raw_log": "POST /api/v1/auth 401 5ms ip=10.0.0.100", "service": "auth", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:07:00Z", "message": "time=2026-01-01T10:07:00Z level=INFO service=cache msg=\"cache hit\"", "raw_log": "GET /api/v1/data 200 2ms ip=192.168.1.50", "service": "cache", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:08:00Z", "message": "user=charlie status=success", "raw_log": "PATCH /api/v1/settings 200 78ms ip=172.16.5.20", "service": "settings", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:09:00Z", "message": "time=2026-01-01T10:09:00Z level=DEBUG service=analytics latency=234 msg=\"query executed\"", "raw_log": "POST /api/v1/query 200 234ms ip=10.1.1.1", "service": "analytics", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:10:00Z", "message": "request_id=req-12345 method=GET path=/api/users status=200", "raw_log": "GET /api/users 200 50ms ip=192.168.1.1", "service": "api", "log_type": "http"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:11:00Z", "message": "request_id=req-67890 method=POST path=/api/orders status=201", "raw_log": "POST /api/orders 201 120ms ip=10.0.0.5", "service": "api", "log_type": "http"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:12:00Z", "message": "request_id=req-11111 method=DELETE path=/api/users/5 status=404", "raw_log": "DELETE /api/users/5 404 8ms ip=172.16.0.1", "service": "api", "log_type": "http"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:13:00Z", "message": "event={\"type\":\"login\",\"user\":\"alice\",\"ip\":\"192.168.1.1\"}", "raw_log": "POST /auth/login 200 45ms ip=192.168.1.1", "service": "auth", "log_type": "json"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:14:00Z", "message": "event={\"type\":\"logout\",\"user\":\"bob\",\"ip\":\"10.0.0.5\"}", "raw_log": "POST /auth/logout 200 12ms ip=10.0.0.5", "service": "auth", "log_type": "json"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:15:00Z", "message": "msg=\"user \\\"admin\\\" logged in\" level=INFO", "raw_log": "GET /admin 200 23ms ip=127.0.0.1", "service": "admin", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:16:00Z", "message": "msg=\"error: \\\"connection refused\\\"\" level=ERROR", "raw_log": "GET /api/external 500 1000ms ip=192.168.1.1", "service": "proxy", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:17:00Z", "message": "time=2026-01-01T10:17:00Z level=CRITICAL service=security latency=1 msg=\"intrusion detected\"", "raw_log": "GET /admin/delete 403 1ms ip=203.0.113.5", "service": "security", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:18:00Z", "message": "src_ip=192.168.1.1 dst_ip=10.0.0.5 protocol=TCP port=443", "raw_log": "CONNECT 443 200 5ms", "service": "firewall", "log_type": "network"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:19:00Z", "message": "src_ip=10.0.0.100 dst_ip=172.16.0.1 protocol=UDP port=53", "raw_log": "DNS query 200 2ms", "service": "dns", "log_type": "network"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:20:00Z", "message": "bytes_sent=1024 bytes_received=2048 duration=150", "raw_log": "GET /download 200 150ms ip=192.168.1.1", "service": "cdn", "log_type": "http"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:21:00Z", "message": "time=2026-01-01T10:21:00Z service=api level=INFO|WARN latency=100", "raw_log": "GET /status 200 100ms ip=127.0.0.1", "service": "api", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:22:00Z", "message": "time=2026-01-01T10:22:00Z service=db level=ERROR|CRITICAL latency=3000", "raw_log": "SELECT query 500 3000ms", "service": "db", "log_type": "app"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:23:00Z", "message": "response_time=123ms status_code=200 user_agent=\"Mozilla/5.0\"", "raw_log": "GET / 200 123ms", "service": "web", "log_type": "http"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:24:00Z", "message": "response_time=456ms status_code=500 user_agent=\"curl/7.68.0\"", "raw_log": "POST /api 500 456ms", "service": "web", "log_type": "http"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:25:00Z", "message": "START RequestId: abc-123 Version: $LATEST", "raw_log": "Lambda invocation", "service": "lambda", "log_type": "serverless"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:26:00Z", "message": "END RequestId: abc-123", "raw_log": "Lambda completion", "service": "lambda", "log_type": "serverless"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:27:00Z", "message": "REPORT RequestId: abc-123 Duration: 1234.56 ms Billed Duration: 1300 ms Memory Size: 512 MB Max Memory Used: 128 MB", "raw_log": "Lambda report", "service": "lambda", "log_type": "serverless"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:28:00Z", "message": "cpu_usage=45.6% memory_usage=78.2% disk_usage=23.1%", "raw_log": "System metrics", "service": "monitor", "log_type": "metrics"}
+{"index": {}}
+{"timestamp": "2026-01-01T10:29:00Z", "message": "cpu_usage=92.3% memory_usage=95.7% disk_usage=88.9%", "raw_log": "System metrics", "service": "monitor", "log_type": "metrics"}
