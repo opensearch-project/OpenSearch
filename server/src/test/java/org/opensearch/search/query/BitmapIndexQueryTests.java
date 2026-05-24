@@ -307,9 +307,12 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
     }
 
     public void testPointVisitor() throws IOException {
+        reader.close();
         w.close();
         // default codec uses 512 documents per leaf node, so we can cover the visit disi methods in PointVisitor
         w = new IndexWriter(dir, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()));
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
 
         for (int i = 0; i < 512 + 1; i++) {
             Document d = new Document();
