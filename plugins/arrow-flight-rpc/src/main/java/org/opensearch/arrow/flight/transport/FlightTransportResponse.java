@@ -49,6 +49,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private final long correlationId;
 
     private volatile FlightStream flightStream;
+    private volatile org.apache.arrow.flight.DemandDrivenFlightStream demandStream;
     private volatile long currentBatchSize;
     private volatile boolean firstBatchConsumed;
     private volatile boolean closed;
@@ -91,14 +92,32 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             Thread.ofVirtual().start(() -> {
                 try {
                     long start = System.nanoTime();
-                    flightStream = flightClient.getStream(ticket, new HeaderCallOption(callHeaders));
+                    // Use demand-driven FlightStream with disableAutoInboundFlowControl().
+                    // This prevents gRPC from eagerly deserializing messages into the
+                    // bounded Arrow allocator. At most 1 message is deserialized at a time.
+                    if (flightClient instanceof org.apache.arrow.flight.FlightClientWithChannel clientWithChannel) {
+                        demandStream = org.apache.arrow.flight.DemandDrivenFlightStream.openFromChannel(
+                            clientWithChannel.getChannel(),
+                            clientWithChannel.getAllocator(),
+                            ticket, new HeaderCallOption(callHeaders)
+                        );
+                    } else {
+                        // Fallback: use standard FlightStream (no demand control)
+                        flightStream = flightClient.getStream(ticket, new HeaderCallOption(callHeaders));
+                        flightStream.next();
+                        initialHeader = headerContext.getHeader(correlationId);
+                        future.complete(initialHeader);
+                        return;
+                    }
                     long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-                    logger.debug("FlightClient.getStream() for correlationId: {} took {}ms", correlationId, elapsedMs);
+                    logger.debug("DemandDrivenFlightStream opened for correlationId: {} took {}ms", correlationId, elapsedMs);
                     start = System.nanoTime();
-                    flightStream.next();
+                    demandStream.next();
                     elapsedMs = (System.nanoTime() - start) / 1_000_000;
-                    logger.debug("First FlightClient.next() for correlationId: {} took {}ms", correlationId, elapsedMs);
+                    logger.debug("First DemandDrivenFlightStream.next() for correlationId: {} took {}ms", correlationId, elapsedMs);
                     initialHeader = headerContext.getHeader(correlationId);
+                    // Also set flightStream for compatibility with existing close/cancel logic
+                    flightStream = null;
                     future.complete(initialHeader);
                 } catch (FlightRuntimeException e) {
                     future.completeExceptionally(FlightErrorMapper.fromFlightException(e));
@@ -113,17 +132,20 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         return handler;
     }
 
+
     @Override
     public T nextResponse() {
         if (closed) throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed");
-        if (flightStream == null) throw new IllegalStateException("openAndPrefetch() must be called first");
+        if (demandStream == null) throw new IllegalStateException("openAndPrefetch() must be called first");
 
         long startTime = System.currentTimeMillis();
         try {
-            boolean hasNext = firstBatchConsumed ? flightStream.next() : (firstBatchConsumed = true);
+            // Demand-driven: next() calls request(1) internally AFTER processing.
+            // At most 1 message deserialized in the Arrow allocator at any time.
+            boolean hasNext = firstBatchConsumed ? demandStream.next() : (firstBatchConsumed = true);
             if (!hasNext) return null;
 
-            VectorSchemaRoot streamRoot = flightStream.getRoot();
+            VectorSchemaRoot streamRoot = demandStream.getRoot();
             currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(streamRoot);
             try (VectorStreamInput input = newStreamInput(streamRoot)) {
                 input.setVersion(initialHeader.getVersion());
@@ -152,10 +174,12 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             : VectorStreamInput.forByteSerialized(streamRoot, namedWriteableRegistry);
     }
 
+
     @Override
     public void cancel(String reason, Throwable cause) {
         if (closed) return;
         try {
+            if (demandStream != null) demandStream.cancel(reason, cause);
             if (flightStream != null) flightStream.cancel(reason, cause);
         } catch (Exception e) {
             logger.warn("Error cancelling flight stream", e);
@@ -169,6 +193,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         if (closed) return;
         closed = true;
 
+        if (demandStream != null) {
+            try {
+                demandStream.close();
+            } catch (Exception e) {
+                logger.debug("Error closing demand-driven stream", e);
+            }
+        }
         if (flightStream != null) {
             try {
                 flightStream.close();

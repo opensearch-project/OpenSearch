@@ -56,6 +56,8 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private final ExecutorService executor;
     private final long correlationId;
     private final AtomicInteger batchNumber = new AtomicInteger(0);
+    private final Object readyLock = new Object();
+    private static final long ALLOCATOR_PRESSURE_PERCENT = 85;
 
     public FlightServerChannel(
         ServerStreamListener serverStreamListener,
@@ -72,6 +74,11 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
             cancelled = true;
             callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());
             close();
+        });
+        this.serverStreamListener.setOnReadyHandler(() -> {
+            synchronized (readyLock) {
+                readyLock.notifyAll();
+            }
         });
         this.allocator = allocator;
         this.middleware = middleware;
@@ -120,8 +127,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
             // placeholder to clear and fill the root with data for the next batch
         }
         logger.debug("Sending batch #{} for correlation ID: {}", batchNumber, correlationId);
-        // we do not want to close the root right after putNext() call as we do not know the status of it whether
-        // its transmitted at transport; we close them all at complete stream. TODO: optimize this behaviour
+        waitForReady();
         serverStreamListener.putNext();
         long putNextTime = (System.nanoTime() - batchStartTime) / 1_000_000;
         if (callTracker != null) {
@@ -137,6 +143,33 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         } else {
             logger.debug("Batch #{} sent for correlation ID: {}, putNext: {}ms", batchNumber, correlationId, putNextTime);
         }
+    }
+
+    /**
+     * Blocks until the gRPC transport is ready AND the Arrow allocator has headroom.
+     * On the fast path (both ready), returns immediately with one branch check.
+     * Under pressure, waits for the onReadyHandler callback (gRPC buffers drained)
+     * or polls allocator usage every 100ms (Arrow buffers freed after transmission).
+     */
+    private void waitForReady() {
+        if (serverStreamListener.isReady() && !isAllocatorPressured()) {
+            return;
+        }
+        synchronized (readyLock) {
+            while ((!serverStreamListener.isReady() || isAllocatorPressured()) && !cancelled && open.get()) {
+                try {
+                    readyLock.wait(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+    }
+
+    private boolean isAllocatorPressured() {
+        long limit = allocator.getLimit();
+        return limit != Long.MAX_VALUE && allocator.getAllocatedMemory() >= limit * ALLOCATOR_PRESSURE_PERCENT / 100;
     }
 
     /**

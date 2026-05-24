@@ -48,6 +48,17 @@ import java.io.IOException;
  */
 @Singleton
 public class AnalyticsSearchTransportService {
+
+    /**
+     * Bounded queue depth between the Flight receiver (deserializer) and the consumer
+     * (DataFusion reduce sink). Limits how many deserialized Arrow batches can accumulate
+     * in the flight allocator before the receiver pauses pulling from gRPC.
+     *
+     * Sized for multi-node pipelining: 8 batches hides up to ~8ms of network latency
+     * while keeping allocator pressure bounded (8 × batch_size × num_streams).
+     */
+    private static final int RECEIVER_QUEUE_DEPTH = 8;
+
     private final StreamTransportService transportService;
     private final ClusterService clusterService;
 
@@ -148,18 +159,54 @@ public class AnalyticsSearchTransportService {
 
             @Override
             public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+                var queue = new java.util.concurrent.ArrayBlockingQueue<FragmentExecutionArrowResponse>(RECEIVER_QUEUE_DEPTH);
+                var poisonPill = new java.util.concurrent.atomic.AtomicBoolean(false);
+                var receiverError = new java.util.concurrent.atomic.AtomicReference<Exception>(null);
+
+                // Receiver thread: deserializes from gRPC into bounded queue.
+                // Blocks at queue.put() when consumer is slow → stops flightStream.next()
+                // → stops gRPC request(1) → backpressure propagates to sender.
+                Thread.ofVirtual().name("flight-receiver-" + pending.hashCode()).start(() -> {
+                    try {
+                        FragmentExecutionArrowResponse current;
+                        while ((current = stream.nextResponse()) != null) {
+                            queue.put(current);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } catch (Exception e) {
+                        receiverError.set(e);
+                    } finally {
+                        poisonPill.set(true);
+                        // Unblock consumer if waiting
+                        queue.offer(null);
+                    }
+                });
+
+                // Consumer: pulls from queue on demand, feeds to sink.
+                // This thread already exists (the handler executor thread).
                 try {
-                    FragmentExecutionArrowResponse current;
                     FragmentExecutionArrowResponse last = null;
-                    while ((current = stream.nextResponse()) != null) {
+                    while (true) {
+                        FragmentExecutionArrowResponse batch = queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        if (batch == null) {
+                            if (poisonPill.get() && queue.isEmpty()) break;
+                            continue;
+                        }
                         if (last != null) {
                             listener.onStreamResponse(last, false);
                         }
-                        last = current;
+                        last = batch;
                     }
                     if (last != null) {
                         listener.onStreamResponse(last, true);
                     }
+                    if (receiverError.get() != null) {
+                        throw receiverError.get();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    listener.onFailure(new RuntimeException("Stream consumption interrupted", e));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 } finally {

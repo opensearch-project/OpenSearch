@@ -634,6 +634,15 @@ pub async unsafe fn stream_next(
             } else {
                 batch
             };
+            // Compact sliced batches before FFI export. When DataFusion emits a
+            // large hash table via EmitTo::All, it slices into batch_size chunks.
+            // Rust's RecordBatch::slice() is zero-copy — each slice references the
+            // full parent buffers. Without compaction, C Data export transfers the
+            // ENTIRE parent buffer (~GB) even for an 8192-row slice. The Java
+            // receiver then allocates the full buffer size in its Arrow allocator,
+            // exhausting the flight pool. Compaction copies only the visible data
+            // into tight buffers, reducing FFI transfer to actual batch size.
+            let batch = compact_sliced_batch(batch);
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);
@@ -685,6 +694,111 @@ fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
         })
         .collect();
     RecordBatch::try_new(schema, columns).expect("gc'd columns must match schema")
+}
+
+/// Compacts variable-length columns in a sliced RecordBatch before FFI export.
+///
+/// When DataFusion slices a large batch (e.g., 23M-row hash table output into
+/// 8192-row chunks), fixed-width columns get their own buffer but variable-length
+/// columns (Utf8, Binary) share the parent's data buffer. The offsets are copied
+/// but the data buffer pointer still references the full parent allocation (~GB).
+///
+/// Without compaction, FFI export transfers the full shared data buffer. The Java
+/// receiver allocates the full buffer size in the flight pool allocator → OOM.
+///
+/// This function rebuilds only the affected columns (Utf8, LargeUtf8, Binary,
+/// LargeBinary) by iterating their values into a fresh array with tight buffers.
+/// Fixed-width columns are passed through unchanged (they already have compact buffers).
+///
+/// Cost: ~10-100µs per 8192-row batch (128KB of string data). Negligible compared
+/// to the query execution time and always cheaper than the OOM alternative.
+fn compact_sliced_batch(batch: RecordBatch) -> RecordBatch {
+    if batch.num_rows() == 0 {
+        return batch;
+    }
+    let schema = batch.schema();
+
+    // Check if any variable-length column has a bloated data buffer
+    let needs_compact = batch
+        .columns()
+        .iter()
+        .zip(schema.fields().iter())
+        .any(|(col, field)| {
+            matches!(
+                field.data_type(),
+                DataType::Utf8 | DataType::LargeUtf8 | DataType::Binary | DataType::LargeBinary
+            ) && varlen_data_buffer_is_bloated(col)
+        });
+
+    if !needs_compact {
+        return batch;
+    }
+
+    // Rebuild only the bloated variable-length columns
+    let columns: Vec<Arc<dyn Array>> = batch
+        .columns()
+        .iter()
+        .zip(schema.fields().iter())
+        .map(|(col, field)| match field.data_type() {
+            DataType::Utf8 => {
+                if varlen_data_buffer_is_bloated(col) {
+                    let arr: &arrow_array::StringArray = col.as_any().downcast_ref().unwrap();
+                    let compacted: arrow_array::StringArray = arr.iter().collect();
+                    Arc::new(compacted) as Arc<dyn Array>
+                } else {
+                    Arc::clone(col)
+                }
+            }
+            DataType::LargeUtf8 => {
+                if varlen_data_buffer_is_bloated(col) {
+                    let arr: &arrow_array::LargeStringArray = col.as_any().downcast_ref().unwrap();
+                    let compacted: arrow_array::LargeStringArray = arr.iter().collect();
+                    Arc::new(compacted) as Arc<dyn Array>
+                } else {
+                    Arc::clone(col)
+                }
+            }
+            DataType::Binary => {
+                if varlen_data_buffer_is_bloated(col) {
+                    let arr: &arrow_array::BinaryArray = col.as_any().downcast_ref().unwrap();
+                    let compacted: arrow_array::BinaryArray = arr.iter().collect();
+                    Arc::new(compacted) as Arc<dyn Array>
+                } else {
+                    Arc::clone(col)
+                }
+            }
+            DataType::LargeBinary => {
+                if varlen_data_buffer_is_bloated(col) {
+                    let arr: &arrow_array::LargeBinaryArray = col.as_any().downcast_ref().unwrap();
+                    let compacted: arrow_array::LargeBinaryArray = arr.iter().collect();
+                    Arc::new(compacted) as Arc<dyn Array>
+                } else {
+                    Arc::clone(col)
+                }
+            }
+            _ => Arc::clone(col),
+        })
+        .collect();
+
+    RecordBatch::try_new(schema, columns).unwrap_or(batch)
+}
+
+/// Returns true if a variable-length column's data buffer is significantly larger
+/// than the visible data (indicating a shared parent buffer from slicing).
+/// Threshold: data buffer > 2× the actual string/binary bytes used by this slice.
+fn varlen_data_buffer_is_bloated(col: &Arc<dyn Array>) -> bool {
+    let data = col.to_data();
+    // Variable-length arrays have 2 buffers: [offsets, data]
+    if data.buffers().len() < 2 {
+        return false;
+    }
+    let data_buf_len = data.buffers()[1].len();
+    // Estimate actual data usage from the array's logical size minus the offsets
+    let total_size = col.get_array_memory_size();
+    let offsets_size = data.buffers()[0].len();
+    let estimated_data_used = total_size.saturating_sub(offsets_size);
+    // Bloated if data buffer is more than 2× what the slice actually uses
+    data_buf_len > 2 * estimated_data_used.max(1) && data_buf_len > GC_MIN_WASTE_BYTES
 }
 
 // 10KB: below this, the gc() copy cost outweighs the transfer savings.
