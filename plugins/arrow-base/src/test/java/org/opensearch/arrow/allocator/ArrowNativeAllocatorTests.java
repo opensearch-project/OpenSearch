@@ -86,7 +86,8 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         assertEquals("stats-pool", poolStats.getName());
         assertEquals(64 * 1024 * 1024, poolStats.getLimitBytes());
         assertEquals(0, poolStats.getAllocatedBytes());
-        assertEquals(0, poolStats.getChildCount());
+        // child_count is no longer rendered in stats; getPoolAllocator(...).getChildAllocators()
+        // is the runtime accessor for that detail if needed.
     }
 
     public void testStatsMultiplePools() {

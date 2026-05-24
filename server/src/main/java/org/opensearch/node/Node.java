@@ -1621,6 +1621,17 @@ public class Node implements Closeable {
                 cacheService
             );
 
+            // Inject the node-level Arrow allocator into NodeService so it can render
+            // allocator stats under _nodes/stats/native_allocator. Discovered via the
+            // ArrowAllocatorPlugin SPI in libs/arrow-spi so server has no compile-time
+            // dependency on the arrow-base plugin.
+            pluginsService.filterPlugins(org.opensearch.arrow.spi.ArrowAllocatorPlugin.class)
+                .stream()
+                .map(org.opensearch.arrow.spi.ArrowAllocatorPlugin::getNativeAllocator)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .ifPresent(this.nodeService::setNativeAllocator);
+
             final SearchService searchService = newSearchService(
                 clusterService,
                 indicesService,

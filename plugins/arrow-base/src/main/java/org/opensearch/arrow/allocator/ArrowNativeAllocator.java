@@ -181,17 +181,9 @@ public class ArrowNativeAllocator implements NativeAllocator {
         List<NativeAllocatorPoolStats.PoolStats> poolStats = new ArrayList<>();
         for (var entry : pools.entrySet()) {
             BufferAllocator alloc = entry.getValue().allocator;
-            poolStats.add(
-                new NativeAllocatorPoolStats.PoolStats(
-                    entry.getKey(),
-                    alloc.getAllocatedMemory(),
-                    alloc.getPeakMemoryAllocation(),
-                    alloc.getLimit(),
-                    alloc.getChildAllocators().size()
-                )
-            );
+            poolStats.add(new NativeAllocatorPoolStats.PoolStats(entry.getKey(), alloc.getAllocatedMemory(), alloc.getLimit()));
         }
-        return new NativeAllocatorPoolStats(root.getAllocatedMemory(), root.getPeakMemoryAllocation(), root.getLimit(), poolStats);
+        return new NativeAllocatorPoolStats(root.getAllocatedMemory(), root.getLimit(), poolStats);
     }
 
     @Override

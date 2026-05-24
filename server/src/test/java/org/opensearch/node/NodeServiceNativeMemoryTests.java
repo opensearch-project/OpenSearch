@@ -18,9 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.Discovery;
@@ -141,7 +139,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 
@@ -188,7 +186,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 
@@ -234,7 +232,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
+            false, // nativeAllocator
             false  // nativeMemory
         );
 
@@ -282,18 +280,20 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 
         assertNotNull("nativeMemoryStats should be present", nodeStats.getAnalyticsBackendNativeMemoryStats());
 
-        // Render the AnalyticsBackendNativeMemoryStats to JSON and verify the format
+        // Render the parent NodeStats to JSON — NodeStats now opens the `native_memory`
+        // wrapper, emits `total_estimated_bytes` from OsProbe, then delegates to
+        // AnalyticsBackendNativeMemoryStats which renders only the `analytics_backend` block.
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        nodeStats.getAnalyticsBackendNativeMemoryStats().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        nodeStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        String json = Strings.toString(MediaTypeRegistry.JSON, nodeStats.getAnalyticsBackendNativeMemoryStats());
+        String json = builder.toString();
 
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
@@ -349,7 +349,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 

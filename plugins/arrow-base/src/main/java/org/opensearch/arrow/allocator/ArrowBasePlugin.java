@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.allocator;
 
+import org.opensearch.arrow.spi.ArrowAllocatorPlugin;
+import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -22,7 +24,6 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -44,7 +45,7 @@ import java.util.function.Supplier;
  * ensures every pool can always allocate up to its min, and distributes unused
  * capacity allowing pools to grow up to their max.
  */
-public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
+public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ArrowAllocatorPlugin {
 
     /** Creates the plugin. */
     public ArrowBasePlugin() {}
@@ -348,18 +349,8 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
     }
 
     @Override
-    public List<PluginNodeStats> nodeStats() {
-        if (allocator == null) {
-            return List.of();
-        }
-        return List.of(new NativeAllocatorPluginStats(allocator.stats()));
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(PluginNodeStats.class, NativeAllocatorPluginStats.NAME, NativeAllocatorPluginStats::new)
-        );
+    public NativeAllocator getNativeAllocator() {
+        return allocator;
     }
 
     private static void validateMinMax(String poolName, long min, long max) {

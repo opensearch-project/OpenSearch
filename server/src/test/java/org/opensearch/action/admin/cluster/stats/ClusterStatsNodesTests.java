@@ -353,7 +353,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null, // pluginStats
+            null, // nativeAllocator
             null
         );
         if (defaultBehavior) {

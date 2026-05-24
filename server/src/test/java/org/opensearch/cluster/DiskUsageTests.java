@@ -215,7 +215,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null, // pluginStats
+                null, // nativeAllocator
                 null
             ),
             new NodeStats(
@@ -251,7 +251,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null, // pluginStats
+                null, // nativeAllocator
                 null
             ),
             new NodeStats(
@@ -287,7 +287,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null, // pluginStats
+                null, // nativeAllocator
                 null
             )
         );
@@ -354,7 +354,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null, // pluginStats
+                null, // nativeAllocator
                 null
             ),
             new NodeStats(
@@ -390,7 +390,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null, // pluginStats
+                null, // nativeAllocator
                 null
             ),
             new NodeStats(
@@ -426,7 +426,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null, // pluginStats
+                null, // nativeAllocator
                 null
             )
         );

@@ -38,6 +38,8 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchTransportService;
+import org.opensearch.arrow.spi.NativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -55,8 +57,6 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -70,9 +70,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -108,6 +105,16 @@ public class NodeService implements Closeable {
     private final AdmissionControlService admissionControlService;
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
     private final CacheService cacheService;
+
+    /**
+     * Native allocator (Arrow-backed). Set after construction via {@link #setNativeAllocator}
+     * because the allocator is created by the {@code ArrowBasePlugin} during
+     * {@code createComponents()}, which runs after this {@code NodeService} instance is
+     * built. Mirrors the deferred-wiring pattern used for native memory stats supplier in
+     * {@link org.opensearch.monitor.memory.MemoryReportingService#setNativeStatsSupplier}.
+     */
+    @Nullable
+    private volatile NativeAllocator nativeAllocator;
 
     NodeService(
         Settings settings,
@@ -165,6 +172,15 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
         this.cacheService = cacheService;
+    }
+
+    /**
+     * Sets the node-level {@link NativeAllocator} that backs allocator stats rendered under
+     * {@code _nodes/stats/native_allocator}. Called by {@code Node.java} after the Arrow base
+     * plugin's {@code createComponents()} has produced the allocator.
+     */
+    public void setNativeAllocator(NativeAllocator nativeAllocator) {
+        this.nativeAllocator = nativeAllocator;
     }
 
     public NodeInfo info(
@@ -251,7 +267,7 @@ public class NodeService implements Closeable {
         boolean admissionControl,
         boolean cacheService,
         boolean remoteStoreNodeStats,
-        boolean pluginStats,
+        boolean nativeAllocator,
         boolean nativeMemory
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
@@ -289,19 +305,17 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
-            pluginStats ? collectPluginStats() : Collections.emptyMap(),
+            nativeAllocator ? collectNativeAllocatorStats() : null,
             nativeMemory ? monitorService.memoryReportingService().nativeStats() : null
         );
     }
 
-    private Map<String, PluginNodeStats> collectPluginStats() {
-        Map<String, PluginNodeStats> result = new HashMap<>();
-        for (Plugin plugin : pluginService.filterPlugins(Plugin.class)) {
-            for (PluginNodeStats stats : plugin.nodeStats()) {
-                result.put(stats.getWriteableName(), stats);
-            }
+    @Nullable
+    private NativeAllocatorPoolStats collectNativeAllocatorStats() {
+        if (nativeAllocator == null) {
+            return null;
         }
-        return result;
+        return nativeAllocator.stats();
     }
 
     public IngestService getIngestService() {
