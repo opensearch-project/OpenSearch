@@ -1,0 +1,1 @@
+source=test_data | eval text_lower = lower(text), text_upper = upper(text), text_len = length(text) | fields text, text_lower, text_upper, text_len | head 3

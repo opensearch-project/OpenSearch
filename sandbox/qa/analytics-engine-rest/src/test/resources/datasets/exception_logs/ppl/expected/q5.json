@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "timeout_count",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "level",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      4,
+      "api-service",
+      "WARN"
+    ],
+    [
+      7,
+      "db-service",
+      "WARN"
+    ],
+    [
+      6,
+      "web-service",
+      "WARN"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

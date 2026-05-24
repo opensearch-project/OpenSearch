@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "src_ip=(?<source>\S+) dst_ip=(?<destination>\S+) protocol=(?<proto>\w+)" | fields source, destination, proto | where proto is not null

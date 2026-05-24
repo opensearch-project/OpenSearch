@@ -70,9 +70,9 @@ fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
 }
 
 #[no_mangle]
-pub extern "C" fn df_init_runtime_manager(cpu_threads: i32) {
+pub extern "C" fn df_init_runtime_manager(cpu_threads: i32, datanode_multiplier: f64, coordinator_multiplier: f64) {
     let mut guard = TOKIO_RUNTIME_MANAGER.write();
-    *guard = Some(Arc::new(RuntimeManager::new(cpu_threads as usize)));
+    *guard = Some(Arc::new(RuntimeManager::new(cpu_threads as usize, datanode_multiplier, coordinator_multiplier)));
 }
 
 #[no_mangle]
@@ -218,15 +218,43 @@ pub unsafe extern "C" fn df_execute_query(
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
-    timed_block_on(&mgr.io_runtime, "execute_query", crate::task_monitors::query_execution_monitor().instrument(api::execute_query(
-            shard_view_ptr,
-            table_name,
-            plan_bytes,
-            runtime_ptr,
-            &mgr,
-            context_id,
-            query_config,
-        )))
+    // Copy the plan bytes so the spawned future can own them (`cpu_executor.spawn`
+    // requires `'static`). The `shard_view_ptr`, `runtime_ptr` are raw pointers
+    // held live by the caller for the duration of the FFM downcall — safe to
+    // capture by value (they are `Copy`).
+    let plan_vec = plan_bytes.to_vec();
+    let table_name_owned = table_name.to_string();
+    let mgr_for_inner = Arc::clone(&mgr);
+    let mgr_for_spawn = Arc::clone(&mgr);
+
+    // Wrap plan setup in `cpu_executor.spawn` so DataFusion operators that
+    // eagerly spawn in their `execute()` method (RepartitionExec,
+    // CoalescePartitionsExec, AggregateExec, ...) inherit the CPU executor
+    // instead of the IO runtime. Without this wrap those operator drain tasks
+    // land on IO workers at plan-setup time and the IO runtime ends up doing
+    // all the work. The IO runtime still drives the outer `timed_block_on`
+    // (bridging the synchronous FFM call to the async spawn handle); only
+    // the plan construction and stream wrapping hop to CPU.
+    timed_block_on(&mgr.io_runtime, "execute_query", async move {
+        let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
+            api::execute_query(
+                shard_view_ptr,
+                &table_name_owned,
+                &plan_vec,
+                runtime_ptr,
+                &mgr_for_inner,
+                context_id,
+                query_config,
+            )
+            .await
+        });
+        match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+            Ok(inner) => inner,
+            Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
+                "df_execute_query: CPU spawn failed: {e:?}"
+            ))),
+        }
+    })
         .map_err(|e| e.to_string())
 }
 
@@ -428,9 +456,16 @@ pub unsafe extern "C" fn df_execute_local_plan(
     // The IO runtime still drives the outer block_on (bridging the synchronous FFI
     // call to the async spawn handle).
     timed_block_on(&mgr.io_runtime, "execute_local_plan", crate::task_monitors::coordinator_reduce_monitor().instrument(async move {
+            // Acquire coordinator gate on IO runtime BEFORE spawning on CPU.
+            // This blocks the Java search thread when the gate is full.
+            let coord_gate = mgr_for_spawn.coordinator_gate().clone();
+            let partition_weight = (num_cpus::get() as u32).max(1);
+            let permit = coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits())).await;
+
+
             let inner_fut = async move {
                 unsafe {
-                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id)
+                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id, Some(permit))
                         .await
                 }
             };
@@ -588,8 +623,11 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
         );
     }
 
-    manager
-        .add_files(&file_paths)
+    let rt_manager = get_rt_manager()
+        .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
+    let rt_handle = rt_manager.io_runtime.handle();
+
+    manager.add_files(&file_paths, rt_handle)
         .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
     Ok(0)
 }
@@ -803,43 +841,89 @@ pub unsafe extern "C" fn df_execute_with_context(
     let mgr = get_rt_manager()?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let cpu_executor = mgr.cpu_executor();
+    // See `df_execute_query` for the rationale behind wrapping the inner
+    // async work in `cpu_executor.spawn`. In short: DataFusion operators
+    // (RepartitionExec, CoalescePartitionsExec, AggregateExec) eagerly
+    // spawn in `execute()`. Without this wrap those spawns inherit the IO
+    // runtime and do all the work there, leaving the CPU runtime idle.
+    let plan_vec = plan_bytes.to_vec();
+    let cpu_for_cross = cpu_executor.clone();
+    let mgr_for_spawn = Arc::clone(&mgr);
+
     // Route based on whether the session was configured for indexed execution
     if session_handle.indexed_config.is_some() {
+        // Extract target_partitions BEFORE boxing into raw pointer (session_handle is consumed).
+        let partition_weight = session_handle.query_config.target_partitions.max(1) as u32;
         // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly
-        // (like execute_with_context) instead of i64 raw pointer — avoids this re-boxing.
         let ptr = Box::into_raw(Box::new(session_handle)) as i64;
         mgr.io_runtime
-            .block_on(crate::task_monitors::query_execution_monitor().instrument(
-                crate::indexed_executor::execute_indexed_with_context(
-                    ptr,
-                    plan_bytes.to_vec(),
-                    cpu_executor,
-                )
-            ))
+            .block_on(async move {
+                // Acquire datanode gate on IO runtime BEFORE spawning on CPU.
+                // This blocks the IO thread (and thus the Java search thread),
+                // creating backpressure at the Java threadpool level when the gate is full.
+                let gate = mgr_for_spawn.cpu_executor().concurrency_gate().clone();
+                let max_p = gate.max_permits();
+                let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
+                let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
+                    crate::indexed_executor::execute_indexed_with_context(
+                        ptr,
+                        plan_vec,
+                        cpu_for_cross,
+                        permit,
+                    ).await
+                });
+                match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+                    Ok(inner) => inner,
+                    Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
+                        "df_execute_with_context: CPU spawn failed: {e:?}"
+                    ))),
+                }
+            })
             .map_err(|e| e.to_string())
     } else {
+        // Extract target_partitions before moving session_handle into the closure.
+        let partition_weight = session_handle.query_config.target_partitions.max(1) as u32;
         mgr.io_runtime
-            .block_on(crate::task_monitors::query_execution_monitor().instrument(
-                crate::query_executor::execute_with_context(
-                    session_handle,
-                    plan_bytes,
-                    cpu_executor,
-                )
-            ))
+            .block_on(async move {
+                // Acquire datanode gate on IO runtime BEFORE spawning on CPU.
+                // This blocks the IO thread (and thus the Java search thread),
+                // creating backpressure at the Java threadpool level when the gate is full.
+                let gate = mgr_for_spawn.cpu_executor().concurrency_gate().clone();
+                let max_p = gate.max_permits();
+                let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
+                let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
+                    crate::query_executor::execute_with_context(
+                        session_handle,
+                        &plan_vec,
+                        cpu_for_cross,
+                        permit,
+                    )
+                    .await
+                });
+                match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+                    Ok(inner) => inner,
+                    Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
+                        "df_execute_with_context: CPU spawn failed: {e:?}"
+                    ))),
+                }
+            })
             .map_err(|e| e.to_string())
     }
 }
+
 
 // ---- Stats collection ----
 
 /// Collects all native executor metrics into a caller-provided byte buffer.
 ///
-/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (240).
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (344).
 /// Returns 0 on success.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
-    use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, DfStatsBuffer, RuntimeMetricsRepr};
+    use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, pack_partition_gate, DfStatsBuffer, RuntimeMetricsRepr};
     use crate::task_monitors::{
         coordinator_reduce_monitor, query_execution_monitor,
         stream_next_monitor, plan_setup_monitor,
@@ -875,6 +959,8 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         query_execution: pack_task_monitor(query_execution_monitor()),
         stream_next: pack_task_monitor(stream_next_monitor()),
         plan_setup: pack_task_monitor(plan_setup_monitor()),
+        datanode_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
+        coordinator_gate: pack_partition_gate(mgr.coordinator_gate()),
     };
 
     // Copy struct bytes to caller buffer
@@ -963,5 +1049,14 @@ pub unsafe extern "C" fn df_execute_local_prepared_plan(
     context_id: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
-    api::execute_local_prepared_plan(session_ptr, &mgr, context_id).map_err(|e| e.to_string())
+    // Acquire coordinator concurrency gate before executing the prepared plan.
+    // Gate is acquired on the IO runtime (block_on) so the Java search thread
+    // blocks here when the gate is full — creating backpressure at the threadpool level.
+    let partition_weight = (num_cpus::get() as u32).max(1);
+    let coord_gate = mgr.coordinator_gate().clone();
+    let permit = mgr.io_runtime.block_on(
+        coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits()))
+    );
+
+    api::execute_local_prepared_plan(session_ptr, &mgr, context_id, Some(permit)).map_err(|e| e.to_string())
 }

@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec.commit;
 
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -40,11 +39,6 @@ public class CommitterTests extends OpenSearchTestCase {
             @Override
             public CommitStats getCommitStats() {
                 return null;
-            }
-
-            @Override
-            public SafeCommitInfo getSafeCommitInfo() {
-                return SafeCommitInfo.EMPTY;
             }
 
             @Override
@@ -95,11 +89,6 @@ public class CommitterTests extends OpenSearchTestCase {
             }
 
             @Override
-            public SafeCommitInfo getSafeCommitInfo() {
-                return SafeCommitInfo.EMPTY;
-            }
-
-            @Override
             public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
                 return java.util.List.of();
             }
@@ -141,11 +130,6 @@ public class CommitterTests extends OpenSearchTestCase {
             @Override
             public CommitStats getCommitStats() {
                 return null;
-            }
-
-            @Override
-            public SafeCommitInfo getSafeCommitInfo() {
-                return SafeCommitInfo.EMPTY;
             }
 
             @Override

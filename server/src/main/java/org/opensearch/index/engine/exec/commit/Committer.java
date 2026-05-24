@@ -10,7 +10,6 @@ package org.opensearch.index.engine.exec.commit;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
@@ -88,13 +87,6 @@ public interface Committer extends CommitFileManager, Closeable {
      * @return the commit stats, or null if no commit has occurred
      */
     CommitStats getCommitStats();
-
-    /**
-     * Returns information about the safe commit point for recovery decisions.
-     *
-     * @return the safe commit info
-     */
-    SafeCommitInfo getSafeCommitInfo();
 
     /**
      * Discovers all persisted committed catalog snapshots from the backing store.
