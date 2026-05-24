@@ -293,10 +293,10 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
 
     private void refreshSearcher() throws IOException {
         w.commit();
+        DirectoryReader oldReader = reader;
         DirectoryReader newReader = DirectoryReader.open(w);
         try {
             IndexSearcher newSearcher = newSearcher(newReader);
-            DirectoryReader oldReader = reader;
             reader = newReader;
             searcher = newSearcher;
             oldReader.close();
