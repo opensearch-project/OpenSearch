@@ -52,7 +52,6 @@ dependencies {
   compileOnly project(':plugins:arrow-base')
 
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // Apache Arrow dependencies.
   // arrow-vector + arrow-memory-core + arrow-format + flatbuffers are provided at runtime
@@ -60,7 +59,9 @@ dependencies {
   // and license files.
   compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  // Unit tests run on a flat classpath, so arrow-memory-core needs an AllocationManager
+  // available via ServiceLoader. Pull arrow-memory-unsafe back in at test runtime.
+  testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
   compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
@@ -77,6 +78,7 @@ dependencies {
   // avatica ByteString is needed at compile time for IpBinaryFunctionAdapter's VARBINARY
   // literal construction; runtime is provided by analytics-framework's runtimeOnly avatica.
   compileOnly "org.apache.calcite.avatica:avatica-core:1.27.0"
+  // substrait-core's DefaultExtensionCatalog <clinit> registers jackson's Jdk8Module via ObjectMapper.
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
   // jackson-datatype-jsr310 — added to arrow-flight-rpc (the parent plugin that bundles
   // arrow-vector). arrow-vector's JsonStringArrayList eagerly registers JavaTimeModule on
