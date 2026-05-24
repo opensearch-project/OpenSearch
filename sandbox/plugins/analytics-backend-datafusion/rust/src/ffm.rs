@@ -286,6 +286,47 @@ pub extern "C" fn df_cancel_query(context_id: i64) {
     api::cancel_query(context_id);
 }
 
+// ---------------------------------------------------------------------------
+// Per-query registry top-N snapshot
+//
+// One FFM call: Java allocates a buffer sized for `N` entries, Rust selects
+// the heaviest live queries by `current_bytes` (bounded min-heap of size N)
+// and writes them back-to-back. See `query_tracker::WireQueryMetric` for the
+// wire layout.
+// ---------------------------------------------------------------------------
+
+/// Copies up to `cap_entries` of the heaviest live queries (by
+/// `current_bytes` desc) as `WireQueryMetric`s into the caller-provided buffer.
+/// Returns the number of entries actually written.
+///
+/// Order of entries within the buffer is unspecified. Completed and zero-byte
+/// trackers are filtered out.
+///
+/// Safety: `out_ptr` must be non-null, 8-byte aligned, and point to storage
+/// for at least `cap_entries * size_of::<WireQueryMetric>()` bytes.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_query_registry_top_n_by_current(
+    out_ptr: *mut u8,
+    cap_entries: i64,
+) -> i64 {
+    use crate::query_tracker::{snapshot_top_n_by_current, WireQueryMetric};
+
+    if cap_entries < 0 {
+        return Err(format!("negative capacity: {cap_entries}"));
+    }
+    if cap_entries == 0 {
+        return Ok(0);
+    }
+    if out_ptr.is_null() {
+        return Err("null snapshot buffer".to_string());
+    }
+    let out: &mut [WireQueryMetric] =
+        slice::from_raw_parts_mut(out_ptr as *mut WireQueryMetric, cap_entries as usize);
+    let written = snapshot_top_n_by_current(out);
+    Ok(written as i64)
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_sql_to_substrait(
