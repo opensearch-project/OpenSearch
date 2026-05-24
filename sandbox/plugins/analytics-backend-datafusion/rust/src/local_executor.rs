@@ -69,16 +69,9 @@ impl LocalSession {
     /// every batch consumed or produced by this session counts against the
     /// same limits as the shard-scan path.
     pub fn new(runtime_env: &RuntimeEnv) -> Self {
-        Self::new_with_reservation(runtime_env, None)
-    }
-
-    pub fn new_with_reservation(
-        runtime_env: &RuntimeEnv,
-        phantom_reservation: impl Into<Option<datafusion::execution::memory_pool::MemoryReservation>>,
-    ) -> Self {
         let runtime_env = Arc::new(runtime_env.clone());
         let mut config = SessionConfig::new();
-        config.options_mut().execution.target_partitions = 1;
+        config.options_mut().execution.target_partitions = 4;
         let state = SessionStateBuilder::new()
             .with_config(config)
             .with_runtime_env(runtime_env)
@@ -88,7 +81,7 @@ impl LocalSession {
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
         crate::udaf::register_all(&ctx);
-        Self { ctx, prepared_plan: None, _phantom_reservation: phantom_reservation.into() }
+        Self { ctx, prepared_plan: None, _phantom_reservation: None }
     }
 
     /// Returns the configured batch_size for this session.
@@ -96,22 +89,33 @@ impl LocalSession {
         self.ctx.copied_config().options().execution.batch_size
     }
 
-    /// Resize the phantom reservation based on actual schema information.
-    /// Called from register_partition_stream once the output schema is known.
-    /// Uses the max of the current reservation and the new estimate — supports
-    /// multiple child inputs (e.g. joins) where each registration may provide
-    /// a different schema; the largest wins.
-    pub fn resize_phantom(&mut self, new_size: usize) -> Result<(), datafusion::common::DataFusionError> {
-        if let Some(ref mut reservation) = self._phantom_reservation {
-            let current = reservation.size();
-            if new_size > current {
-                reservation.try_resize(new_size)
-            } else {
-                Ok(())
-            }
-        } else {
-            Ok(())
+    /// Returns the current target_partitions for this session.
+    pub fn target_partitions(&self) -> usize {
+        self.ctx.copied_config().options().execution.target_partitions
+    }
+
+    /// Reduce target_partitions on this session. Only reduces, never increases.
+    /// Called serially from register_partition_stream during session setup,
+    /// before any query execution begins.
+    pub fn reduce_target_partitions(&self, new_partitions: usize) {
+        let state_ref = self.ctx.state_ref();
+        let mut state = state_ref.write();
+        let current = state.config().options().execution.target_partitions;
+        if new_partitions < current {
+            state.config_mut().options_mut().execution.target_partitions = new_partitions;
         }
+    }
+
+    /// Returns the current phantom reservation size, or 0 if none.
+    pub fn phantom_size(&self) -> usize {
+        self._phantom_reservation.as_ref().map_or(0, |r| r.size())
+    }
+
+    /// Sets the phantom reservation for this session. Caller should check
+    /// phantom_size() first and only acquire a new reservation if the new
+    /// estimate is larger than the current one.
+    pub fn set_phantom(&mut self, reservation: datafusion::execution::memory_pool::MemoryReservation) {
+        self._phantom_reservation = Some(reservation);
     }
 
     /// Registers a streaming input on the session under `name` and returns the
@@ -500,5 +504,66 @@ mod tests {
             "error must name the cancelled context: got [{}]",
             msg
         );
+    }
+
+    #[test]
+    fn reduce_target_partitions_lowers_value() {
+        let env = test_runtime_env();
+        let session = LocalSession::new(&env);
+        assert_eq!(session.target_partitions(), 4);
+
+        session.reduce_target_partitions(2);
+        assert_eq!(session.target_partitions(), 2);
+
+        // Never increases
+        session.reduce_target_partitions(8);
+        assert_eq!(session.target_partitions(), 2);
+    }
+
+    #[test]
+    fn set_phantom_stores_reservation() {
+        use datafusion::execution::memory_pool::{GreedyMemoryPool, MemoryConsumer};
+        use std::num::NonZeroUsize;
+
+        let pool: Arc<dyn datafusion::execution::memory_pool::MemoryPool> =
+            Arc::new(GreedyMemoryPool::new(10_000_000));
+        let env = RuntimeEnvBuilder::new()
+            .with_memory_pool(Arc::clone(&pool))
+            .build()
+            .unwrap();
+        let mut session = LocalSession::new(&env);
+
+        assert_eq!(session.phantom_size(), 0);
+
+        let consumer = MemoryConsumer::new("test_phantom").with_can_spill(true);
+        let mut reservation = consumer.register(&pool);
+        reservation.try_grow(1000).unwrap();
+        session.set_phantom(reservation);
+
+        assert_eq!(session.phantom_size(), 1000);
+    }
+
+    #[test]
+    fn phantom_released_on_session_drop() {
+        use datafusion::execution::memory_pool::{GreedyMemoryPool, MemoryConsumer};
+
+        let pool: Arc<dyn datafusion::execution::memory_pool::MemoryPool> =
+            Arc::new(GreedyMemoryPool::new(10_000_000));
+        let env = RuntimeEnvBuilder::new()
+            .with_memory_pool(Arc::clone(&pool))
+            .build()
+            .unwrap();
+
+        let reserved_before = pool.reserved();
+        {
+            let mut session = LocalSession::new(&env);
+            let consumer = MemoryConsumer::new("test_phantom").with_can_spill(true);
+            let mut reservation = consumer.register(&pool);
+            reservation.try_grow(5000).unwrap();
+            session.set_phantom(reservation);
+            assert_eq!(pool.reserved(), reserved_before + 5000);
+        }
+        // Session dropped — phantom must be released
+        assert_eq!(pool.reserved(), reserved_before);
     }
 }
