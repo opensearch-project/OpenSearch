@@ -210,14 +210,18 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put("datafusion.memory_guard.admission_threshold", 0.5)
-                    .put("datafusion.memory_guard.operator_threshold", 0.95)
+                    .put("datafusion.memory_guard.admission_throttle_threshold", 0.5)
+                    .put("datafusion.memory_guard.admission_reject_threshold", 0.9)
+                    .put("datafusion.memory_guard.execution.spill_threshold", 0.85)
+                    .put("datafusion.memory_guard.execution.critical_threshold", 0.95)
                     .build()
             )
             .get();
         assertTrue(response.isAcknowledged());
-        assertEquals("0.5", response.getTransientSettings().get("datafusion.memory_guard.admission_threshold"));
-        assertEquals("0.95", response.getTransientSettings().get("datafusion.memory_guard.operator_threshold"));
+        assertEquals("0.5", response.getTransientSettings().get("datafusion.memory_guard.admission_throttle_threshold"));
+        assertEquals("0.9", response.getTransientSettings().get("datafusion.memory_guard.admission_reject_threshold"));
+        assertEquals("0.85", response.getTransientSettings().get("datafusion.memory_guard.execution.spill_threshold"));
+        assertEquals("0.95", response.getTransientSettings().get("datafusion.memory_guard.execution.critical_threshold"));
     }
 
     public void testMinTargetPartitionsSettable() {
@@ -247,7 +251,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("datafusion.memory_guard.admission_threshold", 1.5).build())
+                .setTransientSettings(Settings.builder().put("datafusion.memory_guard.admission_throttle_threshold", 1.5).build())
                 .get()
         );
         expectThrows(
@@ -255,7 +259,23 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("datafusion.memory_guard.operator_threshold", -0.1).build())
+                .setTransientSettings(Settings.builder().put("datafusion.memory_guard.admission_reject_threshold", -0.1).build())
+                .get()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("datafusion.memory_guard.execution.spill_threshold", 2.0).build())
+                .get()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("datafusion.memory_guard.execution.critical_threshold", -0.5).build())
                 .get()
         );
     }

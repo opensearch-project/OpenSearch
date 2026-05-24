@@ -201,11 +201,11 @@ public class DataFusionPlugin extends Plugin
      * When pool accounting rejects a phantom reservation but jemalloc reports
      * actual RSS below this fraction of the pool limit, the reservation proceeds
      * at full parallelism (false-positive override). Lower = more conservative.
-     * Default: 0.70.
+     * Default: 0.75.
      */
-    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD = Setting.doubleSetting(
-        "datafusion.memory_guard.admission_threshold",
-        0.70,
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.admission_throttle_threshold",
+        0.75,
         0.0,
         1.0,
         Setting.Property.NodeScope,
@@ -213,15 +213,42 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
-     * Operator threshold for the jemalloc memory guard (0.0–1.0).
-     * When an operator's try_grow is rejected by the pool but jemalloc reports
-     * actual RSS below this fraction of the pool limit, the grow proceeds
-     * (avoiding unnecessary spill). Higher = more aggressive (fewer spills).
+     * RSS fraction above which new queries are rejected (429 backpressure).
+     * Protects running queries from new arrivals when memory is elevated.
      * Default: 0.85.
      */
-    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD = Setting.doubleSetting(
-        "datafusion.memory_guard.operator_threshold",
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.admission_reject_threshold",
         0.85,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * RSS fraction above which the execution hard guard forces spill and the
+     * override (which allows allocations despite pool rejection) is disabled.
+     * Default: 0.85.
+     */
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.execution.spill_threshold",
+        0.85,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * RSS fraction at which memory is considered critical. Serves dual purpose:
+     * - Hard guard (pre-CAS): forces spill when pool accounting lags jemalloc (recoverable)
+     * - Cancel path (post-CAS-fail): terminates query when spill can't help (last resort)
+     * Default: 0.95.
+     */
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.execution.critical_threshold",
+        0.95,
         0.0,
         1.0,
         Setting.Property.NodeScope,
@@ -307,15 +334,21 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD, v -> updateMemoryGuardThresholds());
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD, v -> updateMemoryGuardThresholds());
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD, v -> updateMemoryGuardThresholds());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD, v -> updateMemoryGuardThresholds());
 
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setMemoryGuardThresholds(
-            DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD.get(settings),
-            DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD.get(settings)
+            DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
+            DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),
+            DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD.get(settings),
+            DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD.get(settings)
         );
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
@@ -451,10 +484,18 @@ public class DataFusionPlugin extends Plugin
     }
 
     private void updateMemoryGuardThresholds() {
-        double admission = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD);
-        double operator = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD);
-        NativeBridge.setMemoryGuardThresholds(admission, operator);
-        logger.info("Updated DataFusion memory guard thresholds: admission={}, operator={}", admission, operator);
+        double admissionThrottle = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD);
+        double admissionReject = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD);
+        double executionSpill = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD);
+        double executionCritical = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD);
+        NativeBridge.setMemoryGuardThresholds(admissionThrottle, admissionReject, executionSpill, executionCritical);
+        logger.info(
+            "Updated DataFusion memory guard thresholds: admission_throttle={}, admission_reject={}, execution_spill={}, execution_critical={}",
+            admissionThrottle,
+            admissionReject,
+            executionSpill,
+            executionCritical
+        );
     }
 
     @Override

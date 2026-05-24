@@ -92,6 +92,7 @@ pub unsafe extern "C" fn df_create_global_runtime(
     spill_dir_len: i64,
     spill_limit: i64,
 ) -> i64 {
+    crate::memory_guard::set_pool_limit_for_guard(memory_pool_limit);
     let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len)
         .map_err(|e| format!("df_create_global_runtime: {}", e))?;
     api::create_global_runtime(memory_pool_limit, cache_manager_ptr, spill_dir, spill_limit)
@@ -146,6 +147,7 @@ pub unsafe extern "C" fn df_set_memory_pool_limit(runtime_ptr: i64, new_limit: i
     if runtime_ptr == 0 {
         return Err("null runtime pointer".to_string());
     }
+    crate::memory_guard::set_pool_limit_for_guard(new_limit);
     api::set_memory_pool_limit(runtime_ptr, new_limit)?;
     Ok(0)
 }
@@ -155,13 +157,15 @@ pub extern "C" fn df_set_min_target_partitions(value: i64) {
     api::set_min_target_partitions(value);
 }
 
-/// Sets memory guard thresholds. admission_x1000 and operator_x1000 are
-/// the thresholds multiplied by 1000 (e.g., 700 = 0.70, 850 = 0.85).
+/// Sets memory guard thresholds. Values are thresholds multiplied by 1000
+/// (e.g., 700 = 0.70, 850 = 0.85, 950 = 0.95).
 #[no_mangle]
-pub extern "C" fn df_set_memory_guard_thresholds(admission_x1000: i64, operator_x1000: i64) {
+pub extern "C" fn df_set_memory_guard_thresholds(admission_throttle_x1000: i64, admission_reject_x1000: i64, execution_spill_x1000: i64, execution_critical_x1000: i64) {
     crate::memory_guard::set_thresholds(crate::memory_guard::MemoryThresholds {
-        admission: admission_x1000 as f64 / 1000.0,
-        operator: operator_x1000 as f64 / 1000.0,
+        admission_throttle: admission_throttle_x1000 as f64 / 1000.0,
+        admission_reject: admission_reject_x1000 as f64 / 1000.0,
+        execution_spill: execution_spill_x1000 as f64 / 1000.0,
+        execution_critical: execution_critical_x1000 as f64 / 1000.0,
     });
 }
 
