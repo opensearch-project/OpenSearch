@@ -199,17 +199,22 @@ public class AnalyticsSearchService implements AutoCloseable {
 
                 if (task != null && taskResourceTrackingService != null) {
                     long taskId = task.getId();
+                    long fragmentThreadId = Thread.currentThread().threadId();
                     TaskResourceTrackingService service = taskResourceTrackingService;
                     backend.setDelegationThreadTracker(new DelegationThreadTracker() {
                         @Override
                         public long trackStart() {
                             long threadId = Thread.currentThread().threadId();
+                            if (threadId == fragmentThreadId) {
+                                return -1;
+                            }
                             service.taskExecutionStartedOnThread(taskId, threadId);
                             return threadId;
                         }
 
                         @Override
                         public void trackEnd(long threadId) {
+                            if (threadId < 0) return;
                             service.taskExecutionFinishedOnThread(taskId, threadId);
                         }
                     });
@@ -297,6 +302,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setNamedWriteableRegistry(namedWriteableRegistry);
         ctx.setQueryCache(shard.getQueryCache());
         ctx.setQueryCachingPolicy(shard.getQueryCachingPolicy());
+        ctx.setShardId(shard.shardId());
         return ctx;
     }
 
