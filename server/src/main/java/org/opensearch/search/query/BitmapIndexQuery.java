@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -111,13 +112,24 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
                 return new ScorerSupplier() {
                     long cost = -1;
+                    DocIdSet docIdSet;
 
                     @Override
                     public Scorer get(long leadCost) throws IOException {
-                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                        final MergePointVisitor visitor = new MergePointVisitor(result);
-                        values.intersect(visitor);
-                        return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
+                        if (docIdSet == null) {
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                            final MergePointVisitor visitor = new MergePointVisitor(result);
+                            values.intersect(visitor);
+                            docIdSet = result.build();
+                        }
+                        if (docIdSet == null) {
+                            return null;
+                        }
+                        final DocIdSetIterator iterator = docIdSet.iterator();
+                        if (iterator == null) {
+                            return null;
+                        }
+                        return new ConstantScoreScorer(score(), scoreMode, iterator);
                     }
 
                     @Override
