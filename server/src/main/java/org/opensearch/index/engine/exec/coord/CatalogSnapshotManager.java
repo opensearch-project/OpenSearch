@@ -14,6 +14,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
@@ -509,6 +510,13 @@ public class CatalogSnapshotManager implements Closeable {
                 throw new RuntimeException("Failed to release committed snapshot [gen=" + policyRef.get().getGeneration() + "]", e);
             }
         });
+    }
+
+    /**
+     * Returns information about the safe commit from the underlying deletion policy.
+     */
+    public SafeCommitInfo getSafeCommitInfo() {
+        return deletionPolicy.getSafeCommitInfo();
     }
 
     // ---- Internal ----

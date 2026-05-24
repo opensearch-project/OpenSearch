@@ -24,8 +24,8 @@ import java.util.Objects;
  * (Tokio runtime metrics + per-operation task monitors).
  *
  * <p>Contains an IO {@link RuntimeMetrics} (always present), an optional CPU
- * {@link RuntimeMetrics}, and 4 {@link TaskMonitorStats} for the operation types:
- * coordinator_reduce, query_execution, stream_next, plan_setup.
+ * {@link RuntimeMetrics}, and 3 {@link TaskMonitorStats} for the operation types:
+ * query_execution, stream_next, fetch_phase.
  */
 public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 

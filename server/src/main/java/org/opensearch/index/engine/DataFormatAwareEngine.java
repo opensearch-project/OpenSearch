@@ -1378,7 +1378,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return committer.getSafeCommitInfo();
+        return catalogSnapshotManager.getSafeCommitInfo();
     }
 
     @Override
