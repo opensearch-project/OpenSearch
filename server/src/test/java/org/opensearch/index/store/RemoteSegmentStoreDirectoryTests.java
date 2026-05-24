@@ -22,6 +22,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
@@ -30,10 +31,12 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -61,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
@@ -72,6 +76,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -606,7 +611,9 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             indexShard.shardId(),
             new HashMap<>()
         );
-        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
+        when(
+            remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any(), nullable(String.class), eq(false), eq(false), any())
+        ).thenReturn(remoteSegmentDirectory);
         String repositoryName = "test-repository";
         String indexUUID = "test-idx-uuid";
         ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
@@ -621,9 +628,19 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             indexUUID,
             shardId,
             pathStrategy,
-            false
+            false,
+            null
         );
-        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathStrategy);
+        verify(remoteSegmentStoreDirectoryFactory).newDirectory(
+            repositoryName,
+            indexUUID,
+            shardId,
+            pathStrategy,
+            null,
+            false,
+            false,
+            (org.opensearch.index.IndexSettings) null
+        );
         verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
         verify(remoteMetadataDirectory).delete();
         verify(remoteDataDirectory).delete();
@@ -1670,5 +1687,56 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         public long getChecksum() throws IOException {
             return this.indexOutput.getChecksum();
         }
+    }
+
+    /**
+     * Verifies that {@code remoteDirectoryCleanup} with a non-null {@code IndexMetadata} having the
+     * pluggable data format setting enabled constructs an {@link IndexSettings} with
+     * {@code isPluggableDataFormatEnabled() == true} and passes it to the 8-arg {@code newDirectory}.
+     * Guards against regressions where the IndexMetadata is not propagated through the cleanup path.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testCleanupAsyncWithDataFormatAwareIndexMetadata() throws Exception {
+        populateMetadata();
+        RemoteSegmentStoreDirectoryFactory factory = mock(RemoteSegmentStoreDirectoryFactory.class);
+        RemoteSegmentStoreDirectory remoteDir = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            threadPool,
+            indexShard.shardId(),
+            new HashMap<>()
+        );
+        when(factory.newDirectory(any(), any(), any(), any(), nullable(String.class), eq(false), eq(false), any())).thenReturn(remoteDir);
+
+        String indexUUID = "test-idx-uuid";
+        ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, 0);
+        RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(PathType.FIXED);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.pluggable.dataformat.enabled", true)
+            )
+            .build();
+
+        RemoteSegmentStoreDirectory.remoteDirectoryCleanup(factory, "test-repo", indexUUID, shardId, pathStrategy, false, indexMetadata);
+
+        ArgumentCaptor<IndexSettings> captor = ArgumentCaptor.forClass(IndexSettings.class);
+        verify(factory).newDirectory(
+            eq("test-repo"),
+            eq(indexUUID),
+            eq(shardId),
+            eq(pathStrategy),
+            eq(null),
+            eq(false),
+            eq(false),
+            captor.capture()
+        );
+        assertTrue("IndexSettings should have pluggable data format enabled", captor.getValue().isPluggableDataFormatEnabled());
     }
 }

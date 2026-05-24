@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 public class StatsLayoutPropertyTests {
 
-    private static final int FIELD_COUNT = 30;
+    private static final int FIELD_COUNT = 38;
     private static final int BUFFER_SIZE = FIELD_COUNT * Long.BYTES;
 
     // ---- Generators ----

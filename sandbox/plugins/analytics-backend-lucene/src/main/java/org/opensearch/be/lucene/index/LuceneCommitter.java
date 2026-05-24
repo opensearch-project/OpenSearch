@@ -31,7 +31,6 @@ import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -203,17 +202,6 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             logger.warn("Failed to read segment infos for commit stats", e);
             return null;
         }
-    }
-
-    /**
-     * Not yet implemented. Will return safe commit info once the index deleter is wired in.
-     *
-     * @return never returns normally
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    public SafeCommitInfo getSafeCommitInfo() {
-        throw new UnsupportedOperationException("TODO:: with index deleter");
     }
 
     @Override

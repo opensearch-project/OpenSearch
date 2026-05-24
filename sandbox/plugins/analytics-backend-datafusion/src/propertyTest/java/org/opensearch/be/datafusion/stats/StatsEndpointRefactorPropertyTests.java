@@ -124,8 +124,20 @@ public class StatsEndpointRefactorPropertyTests {
     @Provide
     Arbitrary<DataFusionStats> dataFusionStats() {
         return Arbitraries.oneOf(
-            nativeExecutorsStatsCpuPresent().map(DataFusionStats::new),
-            nativeExecutorsStatsCpuAbsent().map(DataFusionStats::new)
+            nativeExecutorsStatsCpuPresent().map(
+                n -> new DataFusionStats(
+                    n,
+                    new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
+                    new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+                )
+            ),
+            nativeExecutorsStatsCpuAbsent().map(
+                n -> new DataFusionStats(
+                    n,
+                    new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
+                    new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+                )
+            )
         );
     }
 

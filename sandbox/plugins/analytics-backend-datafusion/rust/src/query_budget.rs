@@ -217,7 +217,7 @@ fn acquire_budget_inner(
         let thresholds = crate::memory_guard::get_thresholds();
         let admission_bytes = (limit as f64 * thresholds.admission_throttle) as usize;
         if reserved >= admission_bytes {
-            let resident = native_bridge_common::allocator::resident_bytes();
+            let resident = crate::memory_guard::cached_resident_bytes();
             if resident > 0 {
                 let spill_bytes = (limit as f64 * thresholds.admission_reject) as i64;
                 if resident >= spill_bytes {

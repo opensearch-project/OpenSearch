@@ -1896,6 +1896,48 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSegmentsReturnsEngineSegments() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            List<org.opensearch.index.engine.Segment> segments = engine.segments(false);
+            assertEquals(1, segments.size());
+            assertTrue(segments.get(0).search);
+            assertEquals(1, segments.get(0).docCount);
+        }
+    }
+
+    public void testSegmentsStatsReturnsValidStats() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            SegmentsStats stats = engine.segmentsStats(false, false);
+            assertEquals(1, stats.getCount());
+            assertTrue(stats.getIndexWriterMemoryInBytes() >= 0);
+        }
+    }
+
+    public void testSegmentsWithIOException() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        engine.close();
+        expectThrows(AlreadyClosedException.class, () -> engine.segments(false));
+    }
+
+    public void testSegmentsStatsWithIOException() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        engine.close();
+        expectThrows(AlreadyClosedException.class, () -> engine.segmentsStats(false, false));
+    }
+
+    public void testUnreferencedFileCleanUpsPerformed() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            long cleanups = engine.unreferencedFileCleanUpsPerformed();
+            assertTrue(cleanups >= 0);
+        }
+    }
+
     /**
      * Covers {@code DataFormatAwareEngine.applyMergeChanges}: a forceMerge over two
      * previously-refreshed segments must (1) replace the source segments in the catalog
