@@ -438,7 +438,7 @@ pub async unsafe fn execute_indexed_with_context(
     let context_id = handle.query_context.context_id();
     let token = crate::query_tracker::get_cancellation_token(context_id);
 
-    let query_future = execute_indexed_with_context_inner(handle, substrait_bytes, cpu_executor);
+    let query_future = execute_indexed_with_context_inner(handle, substrait_bytes, cpu_executor, permit);
     crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
         .await
         .map_err(DataFusionError::Execution)
@@ -448,6 +448,7 @@ async unsafe fn execute_indexed_with_context_inner(
     handle: crate::session_context::SessionContextHandle,
     substrait_bytes: Vec<u8>,
     cpu_executor: DedicatedExecutor,
+    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
 
     // Permit was acquired by the caller (ffm.rs) on the IO runtime before
