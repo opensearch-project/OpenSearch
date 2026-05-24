@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -110,11 +109,6 @@ public class LuceneReplicaCommitter implements Committer {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    @Override
-    public SafeCommitInfo getSafeCommitInfo() {
-        return null;
     }
 
     @Override

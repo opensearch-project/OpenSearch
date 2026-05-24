@@ -1,0 +1,63 @@
+{
+  "schema": [
+    {
+      "name": "endpoint",
+      "type": "string"
+    },
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "success_rate",
+      "type": "double"
+    },
+    {
+      "name": "error_4xx_rate",
+      "type": "double"
+    },
+    {
+      "name": "error_5xx_rate",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "/SCS/Retail/v1/orders",
+      45,
+      15.56,
+      35.56,
+      31.11
+    ],
+    [
+      "/api/orders",
+      43,
+      11.63,
+      41.86,
+      34.88
+    ],
+    [
+      "/api/payments",
+      43,
+      13.95,
+      32.56,
+      37.21
+    ],
+    [
+      "/api/products",
+      26,
+      19.23,
+      26.92,
+      46.15
+    ],
+    [
+      "/api/users",
+      43,
+      11.63,
+      32.56,
+      30.23
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

@@ -1,0 +1,1 @@
+source=security_logs | where severity="ERROR" | stats count() as error_count by user | inner join left=l right=r on l.user = r.user [ source=security_logs | where event_type="access_denied" | stats count() as denied_count by user ] | eval combined_risk = error_count * 2 + denied_count * 3 | where combined_risk > 10 | sort - combined_risk

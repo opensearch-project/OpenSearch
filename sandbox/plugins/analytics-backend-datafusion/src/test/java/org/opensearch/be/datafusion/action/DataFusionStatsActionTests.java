@@ -12,6 +12,7 @@ import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.common.SuppressForbidden;
@@ -90,7 +91,11 @@ public class DataFusionStatsActionTests extends OpenSearchTestCase {
         taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22));
         taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25));
         taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors));
+        DataFusionStats stats = new DataFusionStats(
+            new NativeExecutorsStats(io, cpu, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+        );
 
         DataFusionService mockService = mock(DataFusionService.class);
         when(mockService.getStats()).thenReturn(stats);
