@@ -14,6 +14,8 @@ use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchR
 use parquet::schema::types::SchemaDescriptor;
 
 use crate::log_debug;
+use crate::log_info;
+use native_bridge_common::memory_pool::{MemoryPool, MemoryReservation, PoolBehavior};
 
 use super::context::MergeContext;
 use super::error::MergeResult;
@@ -21,11 +23,28 @@ use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
 /// Unsorted merge: reads each input file sequentially, pads to union schema,
 /// rewrites `__row_id__` with globally sequential values. No sorting performed.
+/// Defaults to merge pool with reject behavior.
 pub fn merge_unsorted(
     input_files: &[String],
     output_path: &str,
     index_name: &str,
     output_writer_generation: i64,
+) -> MergeResult<super::MergeOutput> {
+    let mut reservation = MemoryReservation::new(
+        &crate::memory::merge_pool(), "merge:mapping", PoolBehavior::Reject);
+    merge_unsorted_with_pool(
+        input_files, output_path, index_name, output_writer_generation,
+        &mut reservation,
+    )
+}
+
+/// Unsorted merge with caller-specified reservation.
+pub fn merge_unsorted_with_pool(
+    input_files: &[String],
+    output_path: &str,
+    index_name: &str,
+    output_writer_generation: i64,
+    reservation: &mut MemoryReservation,
 ) -> MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -68,6 +87,7 @@ pub fn merge_unsorted(
         file_generations.push(generation);
     }
 
+    let ctx_reservation = reservation.child("merge:output_buffer");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
         &parquet_descriptors,
@@ -77,6 +97,7 @@ pub fn merge_unsorted(
         rayon_threads,
         io_threads,
         output_writer_generation,
+        ctx_reservation,
     )?;
 
     // Precompute column mappings per reader
@@ -87,6 +108,13 @@ pub fn merge_unsorted(
     // Build row-ID mapping: for unsorted merge, files are concatenated sequentially.
     // old_row_id maps directly to new_row_id with a per-file offset.
     let total_rows: usize = file_row_counts.iter().sum();
+    let mapping_bytes = total_rows * std::mem::size_of::<i64>();
+    reservation.reserve_estimated(mapping_bytes)
+        .map_err(|e| super::MergeError::Logic(format!("Merge memory limit exceeded (mapping): {}", e)))?;
+    log_info!(
+        "[ALLOC] merge_unsorted: mapping_vec={} bytes, total_rows={}, num_files={}",
+        mapping_bytes, total_rows, input_files.len()
+    );
     let mut mapping: Vec<i64> = vec![0i64; total_rows];
     let mut gen_keys: Vec<i64> = Vec::with_capacity(input_files.len());
     let mut gen_offsets: Vec<i32> = Vec::with_capacity(input_files.len());

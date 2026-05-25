@@ -20,6 +20,7 @@ pub mod writer_properties_builder;
 pub mod rate_limited_writer;
 pub mod crc_writer;
 pub mod merge;
+pub mod memory;
 
 pub use native_settings::NativeSettings;
 pub use field_config::FieldConfig;

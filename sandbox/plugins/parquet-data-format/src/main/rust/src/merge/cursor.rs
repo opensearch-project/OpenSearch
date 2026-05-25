@@ -14,15 +14,14 @@ use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::schema::types::SchemaDescriptor;
 
+use native_bridge_common::memory_pool::MemoryReservation;
+
 use super::error::{MergeError, MergeResult};
 use super::heap::{get_sort_values, SortKey};
 use super::io_task::get_merge_pool;
 use super::schema::projection_indices_excluding_row_id;
 
 /// A cursor over a single sorted Parquet input file.
-///
-/// Each cursor reads batches sequentially and prefetches the next batch on the
-/// shared Rayon pool to overlap IO with merge computation.
 pub struct FileCursor {
     reader: Arc<Mutex<parquet::arrow::arrow_reader::ParquetRecordBatchReader>>,
     prefetch_rx: std::sync::mpsc::Receiver<Option<MergeResult<RecordBatch>>>,
@@ -34,6 +33,8 @@ pub struct FileCursor {
     pub sort_col_indices: Vec<usize>,
     pub sort_col_types: Vec<ArrowDataType>,
     pub nulls_first: Vec<bool>,
+    /// Bytes currently tracked in the reservation for this cursor's batches.
+    current_batch_bytes: usize,
 }
 
 impl FileCursor {
@@ -47,6 +48,7 @@ impl FileCursor {
         sort_columns: &[String],
         nulls_first: &[bool],
         batch_size: usize,
+        reservation: &mut MemoryReservation,
     ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
         let file = File::open(path)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
@@ -81,6 +83,13 @@ impl FileCursor {
             .with_projection(projection)
             .build()?;
 
+        // Estimate cursor memory: batch_size rows × avg_row_bytes × 2 (current + prefetch)
+        // Use uncompressed size from metadata as estimate
+        let total_uncompressed: usize = parquet_schema_descr.root_schema().get_fields().len() * batch_size * 8; // rough estimate
+        let cursor_estimate = total_uncompressed * 2;
+        let estimate = reservation.reserve_estimated(cursor_estimate)
+            .map_err(|e| MergeError::Logic(format!("Merge memory limit exceeded (cursor {}): {}", file_id, e)))?;
+
         let first_batch = match reader.next() {
             Some(Ok(b)) if b.num_rows() > 0 => b,
             Some(Err(e)) => return Err(e.into()),
@@ -91,6 +100,11 @@ impl FileCursor {
                 )));
             }
         };
+
+        // Reconcile with actual batch size × 2 (for prefetch)
+        let actual_batch_bytes = first_batch.get_array_memory_size();
+        let actual_cursor_bytes = actual_batch_bytes * 2;
+        reservation.reconcile(estimate, actual_cursor_bytes);
 
         let projected_schema = first_batch.schema();
 
@@ -125,6 +139,7 @@ impl FileCursor {
             sort_col_indices,
             sort_col_types,
             nulls_first: nulls_first.to_vec(),
+            current_batch_bytes: actual_batch_bytes,
         };
 
         cursor.start_prefetch();
@@ -152,23 +167,36 @@ impl FileCursor {
         });
     }
 
-    pub fn load_next_batch(&mut self) -> MergeResult<bool> {
+    pub fn load_next_batch(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
+        let old_bytes = self.current_batch_bytes;
         self.current_batch = None;
 
         match self.prefetch_rx.recv() {
             Ok(Some(Ok(batch))) => {
+                let new_bytes = batch.get_array_memory_size();
                 self.current_batch = Some(batch);
                 self.row_idx = 0;
                 self.prefetch_pending = false;
                 self.start_prefetch();
+                // Adjust reservation: shrink old, grow new (net delta)
+                if new_bytes > old_bytes {
+                    reservation.grow(new_bytes - old_bytes);
+                } else if new_bytes < old_bytes {
+                    reservation.shrink(old_bytes - new_bytes);
+                }
+                self.current_batch_bytes = new_bytes;
                 Ok(true)
             }
             Ok(Some(Err(e))) => {
                 self.prefetch_pending = false;
+                reservation.shrink(old_bytes);
+                self.current_batch_bytes = 0;
                 Err(e)
             }
             Ok(None) | Err(_) => {
                 self.prefetch_pending = false;
+                reservation.shrink(old_bytes);
+                self.current_batch_bytes = 0;
                 Ok(false)
             }
         }
@@ -208,20 +236,20 @@ impl FileCursor {
         self.current_batch.as_ref().unwrap().slice(start, len)
     }
 
-    pub fn advance(&mut self) -> MergeResult<bool> {
+    pub fn advance(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
         if self.current_batch.is_none() {
             return Ok(false);
         }
         self.row_idx += 1;
         if self.row_idx >= self.current_batch.as_ref().unwrap().num_rows() {
             self.current_batch = None;
-            return self.load_next_batch();
+            return self.load_next_batch(reservation);
         }
         Ok(true)
     }
 
-    pub fn advance_past_batch(&mut self) -> MergeResult<bool> {
+    pub fn advance_past_batch(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
         self.current_batch = None;
-        self.load_next_batch()
+        self.load_next_batch(reservation)
     }
 }

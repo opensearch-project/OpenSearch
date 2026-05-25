@@ -22,9 +22,17 @@ use std::sync::{Arc, Mutex};
 
 use crate::{log_error, log_debug, log_info};
 use crate::crc_writer::CrcWriter;
-use crate::merge::{merge_sorted, schema::ROW_ID_COLUMN_NAME};
+use crate::memory::write_pool;
+use crate::merge::{merge_sorted_with_pool, schema::ROW_ID_COLUMN_NAME};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
+use native_bridge_common::memory_pool::{MemoryReservation, DEFAULT_WAIT_TIMEOUT};
+
+/// Write path timeout: 300s in production, 10s for test-limits builds.
+#[cfg(not(feature = "test-limits"))]
+const WRITE_TIMEOUT: std::time::Duration = DEFAULT_WAIT_TIMEOUT;
+#[cfg(feature = "test-limits")]
+const WRITE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Result from finalizing a writer: Parquet metadata + whole-file CRC32 + optional sort permutation.
 #[derive(Debug)]
@@ -148,7 +156,7 @@ impl SortingChunkedWriter {
         Ok(())
     }
 
-    fn write(&mut self, batch: &RecordBatch) -> Result<(), Box<dyn std::error::Error>> {
+    fn write(&mut self, batch: &RecordBatch, reservation: &mut MemoryReservation) -> Result<(), Box<dyn std::error::Error>> {
         if self.current_ipc_writer.is_none() {
             return Ok(());
         }
@@ -156,13 +164,10 @@ impl SortingChunkedWriter {
         let incoming_batch_bytes = batch.get_array_memory_size() as u64;
 
         // Check if adding this batch would breach the memory threshold.
-        // If the current chunk already has data and the combined size exceeds
-        // the budget, flush (sort + write) the current chunk first, then
-        // write the new batch into a fresh IPC staging file.
         if self.current_chunk_bytes > 0
             && self.current_chunk_bytes + incoming_batch_bytes > self.memory_threshold_bytes
         {
-            self.flush_and_sort_chunk()?;
+            self.flush_and_sort_chunk(reservation)?;
         }
 
         // If the batch itself fits within the threshold, write it directly.
@@ -174,11 +179,8 @@ impl SortingChunkedWriter {
             self.current_rows += batch.num_rows();
             self.total_rows += batch.num_rows();
         } else {
-            // The batch alone exceeds the memory budget — slice it into pieces
-            // that each fit within the threshold, flushing after each piece.
             let num_rows = batch.num_rows();
             let bytes_per_row = incoming_batch_bytes / num_rows as u64;
-            // Compute how many rows fit within the threshold (at least 1 to make progress).
             let rows_per_slice = std::cmp::max(
                 1,
                 (self.memory_threshold_bytes / bytes_per_row) as usize,
@@ -198,23 +200,21 @@ impl SortingChunkedWriter {
                 self.total_rows += len;
                 offset += len;
 
-                // Flush after each slice that fills the budget.
                 if self.current_chunk_bytes >= self.memory_threshold_bytes {
-                    self.flush_and_sort_chunk()?;
+                    self.flush_and_sort_chunk(reservation)?;
                 }
             }
         }
 
-        // Safety net: flush if we ended up at or above the threshold.
         if self.current_chunk_bytes >= self.memory_threshold_bytes {
-            self.flush_and_sort_chunk()?;
+            self.flush_and_sort_chunk(reservation)?;
         }
 
         Ok(())
     }
 
     /// Close the current IPC file, read it back, sort, write as sorted Parquet chunk.
-    fn flush_and_sort_chunk(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn flush_and_sort_chunk(&mut self, reservation: &mut MemoryReservation) -> Result<(), Box<dyn std::error::Error>> {
         use arrow::array::Int64Array;
 
         log_debug!(
@@ -241,21 +241,36 @@ impl SortingChunkedWriter {
         }
 
         if batches.is_empty() {
-            // Nothing to sort, just reopen
             let _ = std::fs::remove_file(&ipc_path);
             self.open_new_ipc()?;
             return Ok(());
         }
 
-        // Concat and sort
+        // Pre-reserve estimated sort memory (blocks if pool is full)
+        // Estimate = 2× data size (covers peak when two copies coexist: read+concat or concat+sort)
+        let estimated = self.estimate_sort_chunk_memory();
+        reservation.request(estimated)
+            .map_err(|e| -> Box<dyn std::error::Error> {
+                format!("Write memory pool timeout during sort: {}", e).into()
+            })?;
+
+        log_info!(
+            "[ALLOC] flush_and_sort_chunk START: chunk_idx={}, data_bytes={}, estimated_reserve={}, num_batches={}, rows={}",
+            self.chunk_idx, self.current_chunk_bytes, estimated,
+            batches.len(), batches.iter().map(|b| b.num_rows()).sum::<usize>()
+        );
+
+        // Concat all batches into one
         let combined = concat_batches(&self.schema, &batches)?;
-        drop(batches); // free memory before sort allocates
+        drop(batches);
+
+        // Sort
         let sorted_batch = NativeParquetWriter::sort_batch(
             &combined, &self.sort_columns, &self.reverse_sorts, &self.nulls_first,
         )?;
-        drop(combined); // free unsorted data
+        drop(combined);
 
-        // Capture original row IDs for permutation building, then rewrite to sequential 0..N
+        // Capture original row IDs for permutation building
         let row_id_col_idx = self.schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME);
         let final_batch = if let Some(idx) = row_id_col_idx {
             let row_id_array = sorted_batch.column(idx)
@@ -291,13 +306,25 @@ impl SortingChunkedWriter {
         // Delete the IPC staging file and open a fresh one
         let _ = std::fs::remove_file(&ipc_path);
         self.open_new_ipc()?;
+
+        // Release sort-phase memory — data is now on disk as Parquet chunk
+        reservation.shrink(estimated);
+        // Track chunk_row_ids growth (long-lived until finish())
+        let row_ids_bytes = self.memory_size();
+        let current = reservation.size();
+        if row_ids_bytes > current {
+            reservation.grow(row_ids_bytes - current);
+        }
+        log_info!(
+            "[ALLOC] flush_and_sort_chunk DONE: chunk_idx={}, chunk_row_ids_bytes={}", self.chunk_idx - 1, row_ids_bytes
+        );
         Ok(())
     }
 
     /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs + CRCs.
-    fn finish(mut self) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
+    fn finish(mut self, reservation: &mut MemoryReservation) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
         if self.current_rows > 0 {
-            self.flush_and_sort_chunk()?;
+            self.flush_and_sort_chunk(reservation)?;
         }
         // Close and remove the trailing IPC staging file
         if let Some(mut writer) = self.current_ipc_writer.take() {
@@ -326,6 +353,13 @@ impl SortingChunkedWriter {
             .map(|ids| ids.len() * std::mem::size_of::<i64>())
             .sum()
     }
+
+    /// Estimates memory needed for flush_and_sort_chunk based on jemalloc findings.
+    /// Real memory ≈ 2× the data size (IPC read-back + concat coexist briefly).
+    /// The data size is approximated by current_chunk_bytes (tracked during IPC writes).
+    fn estimate_sort_chunk_memory(&self) -> usize {
+        (self.current_chunk_bytes as usize) * 2
+    }
 }
 
 /// Bundles all per-writer resources so a single `DashMap::remove` atomically
@@ -335,6 +369,7 @@ struct WriterState {
     settings: NativeSettings,
     crc_handle: Option<crate::crc_writer::CrcHandle>,
     writer_generation: i64,
+    reservation: MemoryReservation,
 }
 
 /// Path suffix for the intermediate Arrow IPC file used during sort-on-close.
@@ -389,8 +424,9 @@ impl NativeParquetWriter {
         let temp_filename = Self::temp_filename(&filename);
 
         if WRITERS.contains_key(&temp_filename) {
-            log_error!("ERROR: Writer already exists for file: {}", temp_filename);
-            return Err("Writer already exists for this file".into());
+            // Stale writer from a failed engine — remove it so recovery can proceed.
+            log_info!("Removing stale writer for file: {} (likely from failed engine)", temp_filename);
+            WRITERS.remove(&temp_filename);
         }
 
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
@@ -434,11 +470,19 @@ impl NativeParquetWriter {
             (WriterVariant::Parquet(Arc::new(Mutex::new(writer))), Some(crc_handle))
         };
 
+        let consumer = if matches!(&variant, WriterVariant::Ipc(_)) {
+            "parquet_writer_sorted"
+        } else {
+            "parquet_writer_unsorted"
+        };
+        let reservation = MemoryReservation::new(write_pool(), consumer, native_bridge_common::memory_pool::PoolBehavior::Wait(WRITE_TIMEOUT));
+
         WRITERS.insert(temp_filename, WriterState {
             variant,
             settings,
             crc_handle,
             writer_generation,
+            reservation,
         });
 
         Ok(())
@@ -464,18 +508,54 @@ impl NativeParquetWriter {
                 let record_batch = RecordBatch::try_new(schema, struct_array.columns().to_vec())?;
                 log_debug!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
 
-                if let Some(state) = WRITERS.get_mut(&temp_filename) {
-                    match &state.variant {
-                        WriterVariant::Ipc(writer_arc) => {
-                            log_debug!("Writing RecordBatch to IPC staging file");
-                            let mut writer = writer_arc.lock().unwrap();
-                            writer.write(&record_batch)?;
-                        }
-                        WriterVariant::Parquet(writer_arc) => {
-                            log_debug!("Writing RecordBatch to Parquet file");
-                            let mut writer = writer_arc.lock().unwrap();
-                            writer.write(&record_batch)?;
-                        }
+                if let Some(mut state) = WRITERS.get_mut(&temp_filename) {
+                    let is_ipc = matches!(&state.variant, WriterVariant::Ipc(_));
+                    if is_ipc {
+                        let writer_arc = match &state.variant {
+                            WriterVariant::Ipc(w) => Arc::clone(w),
+                            _ => unreachable!(),
+                        };
+                        let batch_bytes = record_batch.get_array_memory_size();
+                        let num_cols = record_batch.num_columns();
+                        let num_rows = record_batch.num_rows();
+                        log_info!(
+                            "[ALLOC] write_data IPC: batch_bytes={}, rows={}, cols={}, file={}",
+                            batch_bytes, num_rows, num_cols, temp_filename
+                        );
+                        let mut writer = writer_arc.lock().unwrap();
+                        writer.write(&record_batch, &mut state.reservation)?;
+                    } else {
+                        let writer_arc = match &state.variant {
+                            WriterVariant::Parquet(w) => Arc::clone(w),
+                            _ => unreachable!(),
+                        };
+                        let batch_bytes = record_batch.get_array_memory_size();
+                        let num_cols = record_batch.num_columns();
+                        let num_rows = record_batch.num_rows();
+
+                        // Pre-reserve estimated writer memory growth (4× batch size)
+                        // Blocks if pool is full — before any allocation happens
+                        let estimated_growth = batch_bytes * 4;
+                        let before_mem = state.reservation.size(); // = previous writer.memory_size()
+                        state.reservation.reserve_estimated(estimated_growth)
+                            .map_err(|e| -> Box<dyn std::error::Error> {
+                                format!("Write memory pool timeout: {}", e).into()
+                            })?;
+
+                        // Now write (memory is pre-reserved)
+                        let mut writer = writer_arc.lock().unwrap();
+                        writer.write(&record_batch)?;
+                        let actual_mem = writer.memory_size();
+                        drop(writer);
+
+                        let actual_growth = actual_mem.saturating_sub(before_mem);
+                        log_info!(
+                            "[ALLOC] write_data Parquet: batch_bytes={}, rows={}, cols={}, writer_memory={}, estimated_growth={}, actual_growth={}, file={}",
+                            batch_bytes, num_rows, num_cols, actual_mem, estimated_growth, actual_growth, temp_filename
+                        );
+
+                        // Reconcile: adjust delta between estimate and actual growth
+                        state.reservation.reconcile(estimated_growth, actual_growth);
                     }
                     Ok(())
                 } else {
@@ -494,7 +574,7 @@ impl NativeParquetWriter {
         log_debug!("finalize_writer called for file: {} (temp: {})", filename, temp_filename);
 
         if let Some((_, state)) = WRITERS.remove(&temp_filename) {
-            let WriterState { variant, settings, crc_handle, writer_generation } = state;
+            let WriterState { variant, settings, crc_handle, writer_generation, mut reservation } = state;
             let index_name = settings.index_name.as_deref().unwrap_or("");
 
             match variant {
@@ -504,7 +584,7 @@ impl NativeParquetWriter {
                             let chunked_writer = mutex.into_inner().unwrap();
                             let total_rows = chunked_writer.total_rows();
                             let schema = chunked_writer.schema.clone();
-                            let (chunk_paths, chunk_row_ids, chunk_crcs) = chunked_writer.finish()?;
+                            let (chunk_paths, chunk_row_ids, chunk_crcs) = chunked_writer.finish(&mut reservation)?;
                             log_info!(
                                 "Successfully closed sorting chunked writer for: {}, total_rows={}, chunks={}",
                                 temp_filename, total_rows, chunk_paths.len()
@@ -630,6 +710,7 @@ impl NativeParquetWriter {
                     }
                 }
                 Some(mapping)
+                // mapping_reservation dropped here — memory transferred to Java via Box::into_raw
             } else {
                 None
             };
@@ -644,7 +725,10 @@ impl NativeParquetWriter {
             chunk_paths.len(), output_filename
         );
 
-        let merge_output = merge_sorted(
+        let mut merge_reservation = MemoryReservation::new(
+            write_pool(), "parquet_writer_sorted:k_way_merge",
+            native_bridge_common::memory_pool::PoolBehavior::Wait(WRITE_TIMEOUT));
+        let merge_output = merge_sorted_with_pool(
             chunk_paths,
             output_filename,
             index_name,
@@ -652,6 +736,7 @@ impl NativeParquetWriter {
             reverse_sorts,
             nulls_first,
             writer_generation,
+            &mut merge_reservation,
         )
         .map_err(|e| -> Box<dyn std::error::Error> {
             format!("Streaming merge failed: {}", e).into()
@@ -782,18 +867,8 @@ impl NativeParquetWriter {
         let mut total_memory = 0;
         for entry in WRITERS.iter() {
             if entry.key().starts_with(&path_prefix) {
-                match &entry.value().variant {
-                    WriterVariant::Parquet(writer_arc) => {
-                        if let Ok(writer) = writer_arc.lock() {
-                            total_memory += writer.memory_size();
-                        }
-                    }
-                    WriterVariant::Ipc(writer_arc) => {
-                        if let Ok(writer) = writer_arc.lock() {
-                            total_memory += writer.memory_size();
-                        }
-                    }
-                }
+                // WriterState.reservation tracks memory for both variants
+                total_memory += entry.value().reservation.size();
             }
         }
         Ok(total_memory)

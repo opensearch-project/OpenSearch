@@ -14,6 +14,8 @@ use arrow::datatypes::Schema as ArrowSchema;
 use parquet::schema::types::SchemaDescriptor;
 
 use crate::log_debug;
+use crate::log_info;
+use native_bridge_common::memory_pool::{MemoryPool, MemoryReservation, PoolBehavior};
 
 use super::context::MergeContext;
 use super::cursor::FileCursor;
@@ -21,7 +23,9 @@ use super::heap::{cmp_sort_values, get_sort_values, HeapItem};
 use super::io_task::get_merge_pool;
 use super::schema::ColumnMapping;
 
+
 /// Performs a streaming k-way merge with an explicit sort direction per column.
+/// Defaults to merge pool with reject behavior.
 pub fn merge_sorted(
     input_files: &[String],
     output_path: &str,
@@ -30,6 +34,26 @@ pub fn merge_sorted(
     reverse_sorts: &[bool],
     nulls_first: &[bool],
     output_writer_generation: i64,
+) -> super::MergeResult<super::MergeOutput> {
+    let mut reservation = MemoryReservation::new(
+        crate::memory::merge_pool(), "merge:cursors_and_mapping", PoolBehavior::Reject);
+    merge_sorted_with_pool(
+        input_files, output_path, index_name, sort_columns,
+        reverse_sorts, nulls_first, output_writer_generation,
+        &mut reservation,
+    )
+}
+
+/// Performs a streaming k-way merge with caller-specified pool and behavior.
+pub fn merge_sorted_with_pool(
+    input_files: &[String],
+    output_path: &str,
+    index_name: &str,
+    sort_columns: &[String],
+    reverse_sorts: &[bool],
+    nulls_first: &[bool],
+    output_writer_generation: i64,
+    reservation: &mut MemoryReservation,
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -51,7 +75,7 @@ pub fn merge_sorted(
         ));
     }
 
-    let pool = get_merge_pool(rayon_threads);
+    let rayon_pool = get_merge_pool(rayon_threads);
     let direction_label = if reverse_sorts.iter().all(|&r| !r) {
         "ascending"
     } else if reverse_sorts.iter().all(|&r| r) {
@@ -68,7 +92,7 @@ pub fn merge_sorted(
         sort_columns,
         batch_size,
         output_flush_rows,
-        pool.current_num_threads(),
+        rayon_pool.current_num_threads(),
         output_path
     );
 
@@ -82,7 +106,7 @@ pub fn merge_sorted(
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
         let (cursor, projected_schema, parquet_descr, generation, row_count) =
-            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size)?;
+            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size, reservation)?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
         parquet_descriptors.push(parquet_descr);
@@ -93,6 +117,7 @@ pub fn merge_sorted(
     let num_cursors = cursors.len();
 
     // ── Phase 2: Create MergeContext (union schemas, writer, IO task) ───
+    let ctx_reservation = reservation.child("merge:output_buffer");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
         &parquet_descriptors,
@@ -102,6 +127,7 @@ pub fn merge_sorted(
         rayon_threads,
         io_threads,
         output_writer_generation,
+        ctx_reservation,
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)
@@ -112,7 +138,16 @@ pub fn merge_sorted(
     // Row-ID mapping: pre-allocate the flat mapping array and compute offsets
     // from file metadata row counts (known before reading any data).
     let total_rows: usize = file_row_counts.iter().sum();
+    // Track mapping vec allocation — use reserve_estimated so merge can be rejected before allocating
+    let mapping_bytes = total_rows * std::mem::size_of::<i64>();
+    reservation.reserve_estimated(mapping_bytes)
+        .map_err(|e| super::MergeError::Logic(format!("Merge memory limit exceeded (mapping): {}", e)))?;
+    log_info!(
+        "[ALLOC] merge_sorted: mapping_vec={} bytes, total_rows={}, num_files={}, batch_size={}",
+        mapping_bytes, total_rows, input_files.len(), batch_size
+    );
     let mut mapping: Vec<i64> = vec![0i64; total_rows];
+
     let mut gen_keys: Vec<i64> = Vec::with_capacity(num_cursors);
     let mut gen_offsets: Vec<i32> = Vec::with_capacity(num_cursors);
     let mut gen_sizes: Vec<i32> = Vec::with_capacity(num_cursors);
@@ -168,7 +203,7 @@ pub fn merge_sorted(
                     }
                     ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
                 }
-                if !cursor.advance_past_batch()? {
+                if !cursor.advance_past_batch(reservation)? {
                     break;
                 }
             }
@@ -195,7 +230,7 @@ pub fn merge_sorted(
                 }
                 ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
 
-                if !cursor.advance_past_batch()? {
+                if !cursor.advance_past_batch(reservation)? {
                     break;
                 }
                 // Check if cursor should yield after loading new batch
@@ -249,7 +284,7 @@ pub fn merge_sorted(
             }
 
             cursor.row_idx = run_end;
-            if !cursor.advance()? {
+            if !cursor.advance(reservation)? {
                 break;
             }
 

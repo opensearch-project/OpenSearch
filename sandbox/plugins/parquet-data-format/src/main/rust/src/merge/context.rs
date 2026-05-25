@@ -22,7 +22,8 @@ use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 use crate::crc_writer::CrcWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
-use crate::{log_debug, SETTINGS_STORE};
+use crate::{log_debug, log_info, SETTINGS_STORE};
+use native_bridge_common::memory_pool::MemoryReservation;
 
 use super::error::{MergeError, MergeResult};
 use super::io_task::{
@@ -45,6 +46,7 @@ pub struct MergeContext {
     next_row_id: i64,
     total_rows_written: usize,
     rayon_threads: Option<usize>,
+    reservation: MemoryReservation,
 }
 
 impl MergeContext {
@@ -59,6 +61,7 @@ impl MergeContext {
         rayon_threads: Option<usize>,
         io_threads: Option<usize>,
         output_writer_generation: i64,
+        reservation: MemoryReservation,
     ) -> MergeResult<Self> {
         if let Some(parent) = Path::new(output_path).parent() {
             if !parent.exists() {
@@ -121,6 +124,7 @@ impl MergeContext {
             next_row_id: 0,
             total_rows_written: 0,
             rayon_threads,
+            reservation,
         })
     }
 
@@ -131,6 +135,16 @@ impl MergeContext {
     /// Buffers a batch (already padded to data_schema) and auto-flushes when
     /// the row count threshold is reached.
     pub fn push_batch(&mut self, batch: RecordBatch) -> MergeResult<()> {
+        let batch_bytes = batch.get_array_memory_size();
+        let num_rows = batch.num_rows();
+        let num_cols = batch.num_columns();
+        log_info!(
+            "[ALLOC] merge push_batch: batch_bytes={}, rows={}, cols={}, buffered_chunks={}, total_buffered_rows={}",
+            batch_bytes, num_rows, num_cols, self.output_chunks.len(), self.output_row_count
+        );
+        if let Err(e) = self.reservation.request(batch_bytes) {
+            return Err(MergeError::Logic(format!("Merge memory limit exceeded: {}", e)));
+        }
         self.output_row_count += batch.num_rows();
         self.output_chunks.push(batch);
         if self.output_row_count >= self.output_flush_rows {
@@ -155,8 +169,22 @@ impl MergeContext {
         };
         let n = merged.num_rows();
 
+        // Track temporary spike: merged + with_id coexist briefly
+        let merged_bytes = merged.get_array_memory_size();
+        if let Err(e) = self.reservation.request(merged_bytes) {
+            return Err(MergeError::Logic(format!("Merge memory limit exceeded during flush (concat): {}", e)));
+        }
+
         let with_id = append_row_id(&merged, self.next_row_id, &self.output_schema)?;
+        let with_id_bytes = with_id.get_array_memory_size();
+        if let Err(e) = self.reservation.request(with_id_bytes) {
+            return Err(MergeError::Logic(format!("Merge memory limit exceeded during flush (with_id): {}", e)));
+        }
+        log_info!(
+            "[ALLOC] merge flush: merged_bytes={}, with_id_bytes={}, rows={}", merged_bytes, with_id_bytes, n
+        );
         drop(merged);
+        self.reservation.shrink(merged_bytes);
 
         let col_writers = self
             .rg_writer_factory
@@ -189,14 +217,26 @@ impl MergeContext {
             encoded_chunks.push(r?);
         }
 
+        // Track encoded column memory (exists between encoding and IO send)
+        let encoded_bytes: usize = encoded_chunks.iter()
+            .map(|c| c.close().bytes_written as usize)
+            .sum();
+        self.reservation.grow(encoded_bytes);
+
         self.io_tx
             .blocking_send(IoCommand::WriteRowGroup(encoded_chunks))
             .map_err(|_| MergeError::Logic("IO task terminated unexpectedly".into()))?;
+
+        // Release: with_id + encoded chunks (moved to IO)
+        self.reservation.shrink(with_id_bytes + encoded_bytes);
 
         self.row_group_index += 1;
         self.next_row_id += n as i64;
         self.total_rows_written += n;
         self.output_row_count = 0;
+
+        // Release buffered batch memory — data has been encoded and sent to IO
+        self.reservation.free();
 
         log_debug!(
             "[RUST] Flushed row group {}: {} rows (total: {})",

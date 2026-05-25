@@ -9,6 +9,9 @@ license = "Apache-2.0"
 name = "opensearch_native"
 crate-type = ["cdylib"]
 
+[features]
+test-limits = ["opensearch-parquet-format/test-limits"]
+
 [dependencies]
 opensearch-datafusion    = { path = "../../../../plugins/analytics-backend-datafusion/rust" }
 opensearch-parquet-format = { path = "../../../../plugins/parquet-data-format/src/main/rust" }

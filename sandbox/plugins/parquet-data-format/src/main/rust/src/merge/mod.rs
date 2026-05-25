@@ -17,6 +17,7 @@ mod unsorted;
 
 pub use error::{MergeError, MergeResult};
 pub use sorted::merge_sorted;
+pub use sorted::merge_sorted_with_pool;
 pub use unsorted::merge_unsorted;
 
 /// Output of a merge operation. Carries both the row-ID mapping (for remapping

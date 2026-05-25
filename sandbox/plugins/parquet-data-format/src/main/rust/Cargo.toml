@@ -7,6 +7,7 @@ workspace = "../../../../../libs/dataformat-native/rust"
 
 [features]
 test-utils = []
+test-limits = []
 
 [lib]
 name = "opensearch_parquet_format"

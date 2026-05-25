@@ -14,7 +14,7 @@
 use std::slice;
 use std::str;
 
-use native_bridge_common::{ffm_safe, log_debug};
+use native_bridge_common::ffm_safe;
 
 use crate::native_settings::NativeSettings;
 use crate::field_config::FieldConfig;
@@ -693,4 +693,57 @@ pub unsafe extern "C" fn parquet_free_row_id_mapping(
     if mapping_ptr != 0 && mapping_len > 0 {
         let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
     }
+}
+
+// ---------------------------------------------------------------------------
+// Memory pool management
+// ---------------------------------------------------------------------------
+
+/// Initialize write and merge memory pools with limits (bytes). 0 = unlimited.
+#[no_mangle]
+pub extern "C" fn parquet_init_memory_pools(write_limit: i64, merge_limit: i64) -> i64 {
+    let wl = if write_limit < 0 { 0 } else { write_limit as usize };
+    let ml = if merge_limit < 0 { 0 } else { merge_limit as usize };
+    crate::memory::init_pools(wl, ml);
+    0
+}
+
+/// Set write pool limit at runtime.
+#[no_mangle]
+pub extern "C" fn parquet_set_write_pool_limit(limit: i64) -> i64 {
+    let l = if limit < 0 { 0 } else { limit as usize };
+    crate::memory::write_pool().set_limit(l);
+    0
+}
+
+/// Set merge pool limit at runtime.
+#[no_mangle]
+pub extern "C" fn parquet_set_merge_pool_limit(limit: i64) -> i64 {
+    let l = if limit < 0 { 0 } else { limit as usize };
+    crate::memory::merge_pool().set_limit(l);
+    0
+}
+
+/// Returns current write pool usage in bytes.
+#[no_mangle]
+pub extern "C" fn parquet_get_write_pool_used() -> i64 {
+    crate::memory::write_pool().used() as i64
+}
+
+/// Returns current merge pool usage in bytes.
+#[no_mangle]
+pub extern "C" fn parquet_get_merge_pool_used() -> i64 {
+    crate::memory::merge_pool().used() as i64
+}
+
+/// Returns peak write pool usage in bytes.
+#[no_mangle]
+pub extern "C" fn parquet_get_write_pool_peak() -> i64 {
+    crate::memory::write_pool().peak() as i64
+}
+
+/// Returns peak merge pool usage in bytes.
+#[no_mangle]
+pub extern "C" fn parquet_get_merge_pool_peak() -> i64 {
+    crate::memory::merge_pool().peak() as i64
 }
