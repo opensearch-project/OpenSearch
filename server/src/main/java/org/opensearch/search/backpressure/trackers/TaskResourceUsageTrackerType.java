@@ -14,7 +14,8 @@ package org.opensearch.search.backpressure.trackers;
 public enum TaskResourceUsageTrackerType {
     CPU_USAGE_TRACKER("cpu_usage_tracker"),
     HEAP_USAGE_TRACKER("heap_usage_tracker"),
-    ELAPSED_TIME_TRACKER("elapsed_time_tracker");
+    ELAPSED_TIME_TRACKER("elapsed_time_tracker"),
+    NATIVE_MEMORY_USAGE_TRACKER("native_memory_usage_tracker");
 
     private final String name;
 
@@ -34,6 +35,8 @@ public enum TaskResourceUsageTrackerType {
                 return HEAP_USAGE_TRACKER;
             case "elapsed_time_tracker":
                 return ELAPSED_TIME_TRACKER;
+            case "native_memory_usage_tracker":
+                return NATIVE_MEMORY_USAGE_TRACKER;
         }
 
         throw new IllegalArgumentException("Invalid TaskResourceUsageTrackerType: " + name);

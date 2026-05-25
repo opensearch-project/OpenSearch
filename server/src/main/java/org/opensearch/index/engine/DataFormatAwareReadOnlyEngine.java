@@ -720,6 +720,11 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         public List<CatalogSnapshot> onCommit(List<CatalogSnapshot> commits) {
             return Collections.emptyList();
         }
+
+        @Override
+        public SafeCommitInfo getSafeCommitInfo() {
+            return SafeCommitInfo.EMPTY;
+        }
     }
 
     CatalogSnapshotManager getCatalogSnapshotManager() {

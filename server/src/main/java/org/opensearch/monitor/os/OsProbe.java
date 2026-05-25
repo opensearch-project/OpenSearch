@@ -258,11 +258,11 @@ public class OsProbe {
     }
 
     /**
-     * Reads the lines of {@code /proc/self/status}. Package-private so tests can override it
-     * with canned file contents.
+     * Reads the contents of {@code /proc/self/status} as a list of lines, one per key.
+     * Package-private so tests can override with a synthetic file layout.
      *
-     * @return the lines of {@code /proc/self/status}
-     * @throws IOException if the file cannot be opened or read
+     * @return the lines from {@code /proc/self/status}
+     * @throws IOException if an I/O exception occurs reading the file
      */
     @SuppressForbidden(reason = "access /proc/self/status")
     List<String> readProcSelfStatus() throws IOException {
@@ -299,6 +299,17 @@ public class OsProbe {
         }
         logger.warn("RssAnon line not found in /proc/self/status");
         return -1L;
+    }
+
+    public long getProcessNativeMemoryBytes() {
+        long rssAnon = getProcessRssAnon();
+        if (rssAnon < 0L) {
+            return -1L;
+        }
+        var memMx = ManagementFactory.getMemoryMXBean();
+        long heapCommitted = memMx.getHeapMemoryUsage().getCommitted();
+        long nonHeapCommitted = memMx.getNonHeapMemoryUsage().getCommitted();
+        return Math.max(0L, rssAnon - heapCommitted - nonHeapCommitted);
     }
 
     public short getSystemCpuPercent() {

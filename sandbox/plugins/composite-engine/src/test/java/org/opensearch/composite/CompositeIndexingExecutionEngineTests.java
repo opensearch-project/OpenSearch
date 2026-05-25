@@ -13,7 +13,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -271,11 +270,6 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         @Override
         public CommitStats getCommitStats() {
             return null;
-        }
-
-        @Override
-        public SafeCommitInfo getSafeCommitInfo() {
-            return SafeCommitInfo.EMPTY;
         }
 
         @Override

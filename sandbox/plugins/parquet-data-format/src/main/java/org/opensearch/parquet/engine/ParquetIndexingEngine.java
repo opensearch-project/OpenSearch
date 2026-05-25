@@ -231,9 +231,18 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
             .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
             .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
+            .rowGroupMaxBytes(ParquetSettings.ROW_GROUP_MAX_BYTES.get(settings).getBytes())
             .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
             .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
             .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
+            .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
+            .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
+            .fieldBloomFilterEnabled(ParquetSettings.getFieldBloomFilterEnabled(settings))
+            .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
+            .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
+            .typeBloomFilterEnabled(ParquetSettings.getTypeBloomFilterEnabled(nodeSettings))
+            .typeBloomFilterFpp(ParquetSettings.getTypeBloomFilterFpp(nodeSettings))
+            .typeBloomFilterNdv(ParquetSettings.getTypeBloomFilterNdv(nodeSettings))
             .build();
         try {
             RustBridge.onSettingsUpdate(config);

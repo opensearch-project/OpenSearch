@@ -39,7 +39,7 @@ static RT_INIT: OnceLock<()> = OnceLock::new();
 
 fn ensure_runtime_manager() {
     RT_INIT.get_or_init(|| {
-        df_init_runtime_manager(1);
+        df_init_runtime_manager(1, 1.5, 1.5);
     });
 }
 
