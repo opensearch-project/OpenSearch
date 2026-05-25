@@ -30,8 +30,10 @@ import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -205,6 +207,48 @@ public class RelNodeUtils {
             }
         });
         return out;
+    }
+
+    /**
+     * Resolves a derived expression to the ordered list of physical-field names it depends on,
+     * deduped by first-appearance. Used by {@link OpenSearchProject#getOutputFieldStorage} and
+     * {@link OpenSearchAggregate#getOutputFieldStorage} to populate
+     * {@link FieldStorageInfo#getDependsOnPhysicalCols} per Invariant 1 of the QTF v2 algorithm.
+     *
+     * <p>For each {@code RexInputRef} encountered (depth-first order):
+     * <ul>
+     *   <li>If the input FSI at that index is non-derived, add its field name.</li>
+     *   <li>If the input FSI at that index is derived, recurse into its
+     *       {@code dependsOnPhysicalCols} (already resolved by the upstream operator).</li>
+     * </ul>
+     */
+    public static LinkedHashSet<String> resolvePhysicalDeps(RexNode node, List<FieldStorageInfo> inputStorage) {
+        LinkedHashSet<String> deps = new LinkedHashSet<>();
+        node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitInputRef(RexInputRef ref) {
+                int idx = ref.getIndex();
+                if (idx >= inputStorage.size()) {
+                    throw new IllegalStateException(
+                        "RexInputRef["
+                            + idx
+                            + "] has no matching FieldStorageInfo entry "
+                            + "(input only declares "
+                            + inputStorage.size()
+                            + " columns) — "
+                            + "the upstream operator did not record storage for every output column"
+                    );
+                }
+                FieldStorageInfo src = inputStorage.get(idx);
+                if (src.isDerived()) {
+                    deps.addAll(src.getDependsOnPhysicalCols());
+                } else {
+                    deps.add(src.getFieldName());
+                }
+                return ref;
+            }
+        });
+        return deps;
     }
 
     /**

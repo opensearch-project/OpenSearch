@@ -19,9 +19,7 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
-import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
-import org.opensearch.common.document.DocumentField;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 
 import java.util.ArrayList;
@@ -29,11 +27,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Stage marker for QTF (Query-Then-Fetch / late materialization). Sits above the anchor Sort
- * with input schema {@code [<sort/filter cols>, ___row_id, ___ugsi]} and output schema
- * {@code [<sort/filter cols>, <fetch cols...>]} — both helper columns are stripped because
- * the Scatter-Gather stage uses them internally to fan out fetch-by-rowid and joins
- * results back by row position before emitting upward.
+ * Stage marker for QTF (Query-Then-Fetch / late materialization). Sits above the anchor Sort.
+ * Input rowType is whatever the anchor produces ({@code [reduce-set, ___row_id, ___ugsi]} in
+ * the typical shape) — the wrapper does <em>not</em> derive its output rowType from input.
+ * Output rowType is {@code aboveAnchorPhysicalFields} only (in topmost-op order, named with
+ * physical names). The Scatter-Gather stage drains {@code (___row_id, ___ugsi)} pairs from
+ * input, fetches the {@code aboveAnchorPhysicalFields} per survivor, and emits batches
+ * matching the wrapper's output rowType.
  *
  * <p>{@code DAGBuilder} pattern-matches this node and emits a {@code LATE_MATERIALIZATION}
  * stage with custom execution. No backend {@link org.opensearch.analytics.spi.FragmentConvertor}
@@ -43,6 +43,16 @@ import java.util.Set;
  * (which side's {@code ___row_id} / {@code ___ugsi} survives, fetch fan-out across
  * multiple input branches) are not handled here and the single-input {@code SingleRel}
  * shape will need to grow.
+ *
+ * <p>TODO: this wrapper is effectively an exchange (data crosses node boundaries via
+ * scatter-gather fetch), but it isn't introduced by CBO trait propagation like
+ * {@code OpenSearchExchangeReducer} — the QTF rewriter inserts it as a post-CBO HEP
+ * pass, so its child stage receives a stitched VSR with no Substrait {@code ExchangeRel}
+ * representing the boundary. As a consequence, post-LM stages need a special
+ * {@code allChildrenAreStageInputScan} branch in {@link
+ * org.opensearch.analytics.planner.dag.FragmentConversionDriver}. Revisit whether QTF
+ * detection can be modeled as a custom distribution trait so CBO inserts the LM node
+ * the same way it inserts gather Reducers, removing the special-case in conversion.
  *
  * @opensearch.internal
  */
@@ -54,53 +64,52 @@ public class OpenSearchLateMaterialization extends SingleRel implements OpenSear
     /** Coord-appended UGSI (shardOrd + indexUUID + nodeId), declared on ER output. */
     public static final String UGSI_FIELD = "___ugsi";
 
-    /** Helper columns stripped from wrapper output (consumed internally by Scatter-Gather). */
+    /** Helper columns consumed internally by the Scatter-Gather stage (not in wrapper output). */
     public static final Set<String> RESERVED_LATE_MATERIALIZATION_FIELDS = Set.of(ROW_ID_FIELD, UGSI_FIELD);
 
-    private final List<RelDataTypeField> fetchList;
-    private final List<FieldStorageInfo> fetchListStorage;
+    private final List<RelDataTypeField> aboveAnchorPhysicalFields;
+    private final List<FieldStorageInfo> aboveAnchorPhysicalFieldStorage;
     private final List<String> viableBackends;
 
     public OpenSearchLateMaterialization(
         RelOptCluster cluster,
         RelTraitSet traitSet,
         RelNode input,
-        List<RelDataTypeField> fetchList,
-        List<FieldStorageInfo> fetchListStorage,
+        List<RelDataTypeField> aboveAnchorPhysicalFields,
+        List<FieldStorageInfo> aboveAnchorPhysicalFieldStorage,
         List<String> viableBackends
     ) {
         super(cluster, traitSet, input);
-        if (fetchList.size() != fetchListStorage.size()) {
+        if (aboveAnchorPhysicalFields.size() != aboveAnchorPhysicalFieldStorage.size()) {
             throw new IllegalArgumentException(
-                "fetchList size " + fetchList.size() + " != fetchListStorage size " + fetchListStorage.size()
+                "aboveAnchorPhysicalFields size "
+                    + aboveAnchorPhysicalFields.size()
+                    + " != aboveAnchorPhysicalFieldStorage size "
+                    + aboveAnchorPhysicalFieldStorage.size()
             );
         }
-        this.fetchList = List.copyOf(fetchList);
-        this.fetchListStorage = List.copyOf(fetchListStorage);
+        this.aboveAnchorPhysicalFields = List.copyOf(aboveAnchorPhysicalFields);
+        this.aboveAnchorPhysicalFieldStorage = List.copyOf(aboveAnchorPhysicalFieldStorage);
         this.viableBackends = viableBackends;
-        this.rowType = computeRowType(cluster.getTypeFactory(), input.getRowType(), this.fetchList);
+        this.rowType = computeRowType(cluster.getTypeFactory(), this.aboveAnchorPhysicalFields);
     }
 
-    /** Output = input fields minus helper columns ++ fetchList. */
-    private static RelDataType computeRowType(RelDataTypeFactory typeFactory, RelDataType inputRowType, List<RelDataTypeField> fetchList) {
+    /** Output rowType = aboveAnchorPhysicalFields, in iteration order. Input rowType is irrelevant. */
+    private static RelDataType computeRowType(RelDataTypeFactory typeFactory, List<RelDataTypeField> aboveAnchorPhysicalFields) {
         RelDataTypeFactory.Builder builder = typeFactory.builder();
-        for (RelDataTypeField f : inputRowType.getFieldList()) {
-            if (RESERVED_LATE_MATERIALIZATION_FIELDS.contains(f.getName())) continue;
-            builder.add(f.getName(), f.getType());
-        }
-        for (RelDataTypeField f : fetchList) {
+        for (RelDataTypeField f : aboveAnchorPhysicalFields) {
             builder.add(f.getName(), f.getType());
         }
         return builder.build();
     }
 
-    public List<RelDataTypeField> getFetchList() {
-        return fetchList;
+    public List<RelDataTypeField> getAboveAnchorPhysicalFields() {
+        return aboveAnchorPhysicalFields;
     }
 
-    /** Per-column storage info for {@link #fetchList}, in the same order. */
-    public List<FieldStorageInfo> getFetchListStorage() {
-        return fetchListStorage;
+    /** Per-column storage info for {@link #aboveAnchorPhysicalFields}, in the same order. */
+    public List<FieldStorageInfo> getAboveAnchorPhysicalFieldStorage() {
+        return aboveAnchorPhysicalFieldStorage;
     }
 
     @Override
@@ -109,42 +118,41 @@ public class OpenSearchLateMaterialization extends SingleRel implements OpenSear
     }
 
     /**
-     * Output storage = input storage with helper-column slots stripped, ++ fetchListStorage.
-     * Read by {@code BackendPlanAdapter.adaptProject} to translate Post-Sort RexNodes that
-     * reference fetched columns.
+     * Output storage = {@code aboveAnchorPhysicalFieldStorage} only — same length and order
+     * as the wrapper's output rowType. Input storage is irrelevant; the wrapper exposes
+     * fetched physical fields, nothing else.
      */
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        OpenSearchRelNode openSearchInput = (OpenSearchRelNode) RelNodeUtils.unwrapHep(getInput());
-        List<FieldStorageInfo> inputStorage = openSearchInput.getOutputFieldStorage();
-        List<RelDataTypeField> inputFields = getInput().getRowType().getFieldList();
-        List<FieldStorageInfo> out = new ArrayList<>(inputFields.size() - RESERVED_LATE_MATERIALIZATION_FIELDS.size() + fetchListStorage.size());
-        for (int i = 0; i < inputFields.size(); i++) {
-            if (RESERVED_LATE_MATERIALIZATION_FIELDS.contains(inputFields.get(i).getName())) continue;
-            out.add(inputStorage.get(i));
-        }
-        out.addAll(fetchListStorage);
-        return out;
+        return aboveAnchorPhysicalFieldStorage;
     }
 
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new OpenSearchLateMaterialization(getCluster(), traitSet, sole(inputs), fetchList, fetchListStorage, viableBackends);
+        return new OpenSearchLateMaterialization(
+            getCluster(),
+            traitSet,
+            sole(inputs),
+            aboveAnchorPhysicalFields,
+            aboveAnchorPhysicalFieldStorage,
+            viableBackends
+        );
     }
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        // Reduces wire bytes by deferring fetchList until after Sort+Limit; cheap relative to ER.
+        // Reduces wire bytes by deferring aboveAnchorPhysicalFields until after Sort+Limit; cheap relative to ER.
         return planner.getCostFactory().makeTinyCost();
     }
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        List<String> fetchListNames = new ArrayList<>(fetchList.size());
-        for (RelDataTypeField f : fetchList) {
-            fetchListNames.add(f.getName());
+        List<String> aboveAnchorPhysicalFieldNames = new ArrayList<>(aboveAnchorPhysicalFields.size());
+        for (RelDataTypeField f : aboveAnchorPhysicalFields) {
+            aboveAnchorPhysicalFieldNames.add(f.getName());
         }
-        return super.explainTerms(pw).item("fetchList", fetchListNames).item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("aboveAnchorPhysicalFields", aboveAnchorPhysicalFieldNames)
+            .item("viableBackends", viableBackends);
     }
 
     @Override
@@ -153,8 +161,8 @@ public class OpenSearchLateMaterialization extends SingleRel implements OpenSear
             getCluster(),
             getTraitSet(),
             children.getFirst(),
-            fetchList,
-            fetchListStorage,
+            aboveAnchorPhysicalFields,
+            aboveAnchorPhysicalFieldStorage,
             List.of(backend)
         );
     }

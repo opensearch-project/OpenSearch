@@ -60,6 +60,8 @@ pub struct SessionContextHandle {
 pub struct IndexedExecutionConfig {
     pub tree_shape: i32,
     pub delegated_predicate_count: i32,
+    /// QTF query phase: scan must emit shard-global `__row_id__`.
+    pub requests_row_ids: bool,
 }
 
 /// Creates a SessionContext with per-query RuntimeEnv and registers the default
@@ -253,6 +255,7 @@ pub async unsafe fn create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    requests_row_ids: bool,
     query_config: DatafusionQueryConfig,
 ) -> Result<i64, DataFusionError> {
     // Create base session context (same as non-indexed path)
@@ -265,6 +268,7 @@ pub async unsafe fn create_session_context_indexed(
     handle.indexed_config = Some(IndexedExecutionConfig {
         tree_shape,
         delegated_predicate_count,
+        requests_row_ids,
     });
 
     Ok(ptr)

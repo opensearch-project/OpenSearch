@@ -221,7 +221,14 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     public void testConvertFinalAggFragment_WithStageInputScanLeaf() throws Exception {
         RelDataType stageRowType = rowType("A");
         int childStageId = 7;
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
 
         byte[] bytes = newConvertor().convertFragment(finalAgg);
@@ -253,7 +260,14 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         // Inner: final-agg over stage-input.
         RelDataType stageRowType = rowType("A");
         int childStageId = 3;
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
         byte[] innerBytes = convertor.convertFragment(finalAgg);
 
@@ -318,11 +332,25 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         // Inner: a final-agg fragment whose StageInputScan rowType is intentionally wide
         // (3 columns). The aggregate above narrows it to 1 column.
         RelDataType wideStageRowType = rowType("A", "B", "C");
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, wideStageRowType, List.of("datafusion"));
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            wideStageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         // For this regression, the inner doesn't need to be a final-agg — a bare scan-shaped
         // plan with 3-column rowType is enough to surface the wrapper-vs-inner names mismatch.
         // Use convertFragment so the inner Plan.Root.names is the 3-column scan list.
-        RelNode innerStageScan = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, wideStageRowType, List.of("datafusion"));
+        RelNode innerStageScan = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            wideStageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         // Wrap it in a no-op aggregate so the convertor accepts it as a final-agg fragment shape.
         // The inner's Plan.Root.names then carries the agg-output (1 col, "sum_col"), but the
         // *wrapper* we attach above has its own output rowType.
@@ -364,9 +392,9 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         // Inner: Union(Sin, Sin, Sin) — three branches, each 6 columns wide.
         RelDataType branchRowType = rowType("a", "b", "c", "d", "e", "f");
-        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"));
-        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"));
-        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"));
+        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"), List.of());
         LogicalUnion union = LogicalUnion.create(List.of(sin1, sin2, sin3), true);
         byte[] unionBytes = convertor.convertFragment(union);
 
@@ -404,9 +432,9 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         // Inner: Union(Sin, Sin, Sin) — 6-column rows.
         RelDataType branchRowType = rowType("a", "b", "c", "d", "e", "f");
-        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"));
-        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"));
-        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"));
+        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"), List.of());
         LogicalUnion union = LogicalUnion.create(List.of(sin1, sin2, sin3), true);
         byte[] unionBytes = convertor.convertFragment(union);
 

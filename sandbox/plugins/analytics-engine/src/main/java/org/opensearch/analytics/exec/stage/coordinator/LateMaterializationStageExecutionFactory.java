@@ -43,10 +43,28 @@ public final class LateMaterializationStageExecutionFactory implements StageExec
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
-        // The wrapper RelNode is in stage.getFragment() — the StageExecution finds it via
-        // RelNodeUtils.findNode(fragment, OpenSearchLateMaterialization.class) and reads
-        // fetchList + fetchListStorage off it. Keep wrapper-extraction out of the factory
-        // so the execution class is self-contained for unit testing.
-        return new LateMaterializationStageExecution(stage, config, sink, clusterService, transport);
+        Stage shardStage = findShardFragmentDescendant(stage);
+        if (shardStage == null) {
+            throw new IllegalStateException("LATE_MATERIALIZATION stage " + stage.getStageId() + " has no SHARD_FRAGMENT descendant");
+        }
+        return new LateMaterializationStageExecution(
+            stage,
+            config,
+            sink,
+            clusterService,
+            transport,
+            shardStage.getStageId(),
+            shardStage.getPlanAlternatives().get(0).backendId()
+        );
+    }
+
+    /** DFS for the SHARD_FRAGMENT descendant; null if none. */
+    private static Stage findShardFragmentDescendant(Stage stage) {
+        for (Stage child : stage.getChildStages()) {
+            if (child.getExecutionType() == StageExecutionType.SHARD_FRAGMENT) return child;
+            Stage deeper = findShardFragmentDescendant(child);
+            if (deeper != null) return deeper;
+        }
+        return null;
     }
 }

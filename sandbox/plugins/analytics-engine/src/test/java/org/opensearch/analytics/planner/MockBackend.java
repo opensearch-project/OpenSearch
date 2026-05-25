@@ -156,8 +156,8 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
         return new FragmentInstructionHandlerFactory() {
             @Override
-            public Optional<InstructionNode> createShardScanNode() {
-                return Optional.of(new ShardScanInstructionNode());
+            public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
+                return Optional.of(new ShardScanInstructionNode(requestsRowIds));
             }
 
             @Override
@@ -170,8 +170,12 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
-            public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+            public Optional<InstructionNode> createShardScanWithDelegationNode(
+                FilterTreeShape treeShape,
+                int delegatedPredicateCount,
+                boolean requestsRowIds
+            ) {
+                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
             }
 
             @Override

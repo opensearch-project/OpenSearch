@@ -9,6 +9,7 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.exec.OrdinalAppendingSink;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.RelNodeUtils;
@@ -30,6 +31,17 @@ import java.util.UUID;
  * Each {@link OpenSearchExchangeReducer} becomes a stage boundary; the subtree
  * below becomes a child stage and the reducer's own {@link ExchangeInfo} drives
  * the parent stage's input wiring. Stage IDs are assigned bottom-up.
+ *
+ * <p>TODO move DAGBuilder AFTER PlanForker. Today this runs pre-fork while the
+ * CBO output may carry multiple viable backends per operator, so the cut helpers
+ * (e.g. {@code cutAtLateMaterialization}) have to pick a backend from the viable
+ * list to fetch an {@code ExchangeSinkProvider} — at this point the sink-provider
+ * choice is technically ambiguous. Running DAGBuilder after PlanForker would
+ * collapse each operator's viable list to a single resolved backend per
+ * alternative; the cut helpers could then assert exactly one viable backend and
+ * throw an exception if not, instead of silently picking the first. Cleaner
+ * separation of concerns: PlanForker does backend resolution, DAGBuilder does
+ * stage cuts.
  *
  * @opensearch.internal
  */
@@ -109,19 +121,29 @@ public class DAGBuilder {
     }
 
     /**
-     * Cuts at an {@link OpenSearchLateMaterialization} wrapper. The wrapper's input subtree
-     * (Sort+Limit and anything below) becomes a child stage; the wrapper itself stays in the
-     * parent fragment with an {@link OpenSearchStageInputScan} placeholder taking the
-     * wrapper-input's slot. Same shape as {@link #cutAtExchange} but the wrapper has no
-     * {@link ExchangeInfo} to attach.
+     * Cuts at an {@link OpenSearchLateMaterialization} wrapper. Two cuts happen:
      *
-     * <p>Multi-shard: the wrapper's input contains an ER above the Scan. {@link #sever}
-     * recurses, lifting the Scan into a grand-child stage; the child stage carries
-     * {@code Sort ← ER ← StageInputScan} with a sink provider (COORDINATOR_REDUCE).
+     * <ol>
+     *   <li><b>Reduce child:</b> the wrapper's input subtree (Sort+Limit + ER + scans
+     *       below) becomes the LM stage's child stage — a {@code COORDINATOR_REDUCE}
+     *       gathering shard scans. QTF only fires multi-shard (single-shard collapse
+     *       short-circuits in the rewriter), so the reduce child always has
+     *       grandchildren and always gets a sink provider.</li>
+     *   <li><b>LM stage itself:</b> a fresh {@link Stage} with fragment
+     *       {@code Wrapper ← StageInputScan(reduce-child)}. Returned to the caller
+     *       as a {@link OpenSearchStageInputScan} so the caller's parent fragment
+     *       slots in a schema-bearing placeholder.</li>
+     * </ol>
      *
-     * <p>Single-shard: the wrapper's input is just {@code Sort ← Scan} (no ER). No
-     * grandchildren; the child stage is a SHARD_FRAGMENT containing the Sort+Scan subtree
-     * with a {@link ShardTargetResolver}.
+     * <p>The caller (the {@link #sever} walk for the wrapper's parent) attaches whatever
+     * post-LM ops sit above the wrapper on top of the returned StageInputScan. Those ops
+     * end up in a vanilla {@code COORDINATOR_REDUCE} stage that runs them via Substrait
+     * over the LM stage's stitched output. The LM stage itself runs Java-only
+     * scatter/gather/stitch.
+     *
+     * <p>If the wrapper has no parent ops (the no-above-ops case), the caller's parent
+     * fragment will just BE this StageInputScan. {@link #build} promotes the LM stage
+     * to root in that case to avoid a degenerate empty COORDINATOR_REDUCE wrapper.
      */
     private static RelNode cutAtLateMaterialization(
         OpenSearchLateMaterialization lm,
@@ -130,36 +152,80 @@ public class DAGBuilder {
         CapabilityRegistry registry,
         ClusterService clusterService
     ) {
-        List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = sever(lm.getInput(), counter, grandchildren, registry, clusterService);
-
-        int childStageId = counter[0]++;
-        TargetResolver targetResolver = grandchildren.isEmpty() ? new ShardTargetResolver(childFragment, clusterService) : null;
-        ExchangeSinkProvider childSinkProvider = null;
-        if (!grandchildren.isEmpty()) {
-            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, lm.getViableBackends());
-            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        // 1. Reduce child — Sort+Limit reduce above shard scans. Multi-shard QTF only.
+        List<Stage> reduceChildren = new ArrayList<>();
+        RelNode reduceFragment = sever(lm.getInput(), counter, reduceChildren, registry, clusterService);
+        if (reduceChildren.isEmpty()) {
+            throw new IllegalStateException(
+                "QTF rewriter fired but the wrapper's input has no ExchangeReducer below it — "
+                    + "single-shard collapse should have short-circuited the rewriter."
+            );
         }
-        parentChildStages.add(
-            new Stage(childStageId, childFragment, grandchildren, /*exchangeInfo=*/ null, childSinkProvider, targetResolver)
+        int reduceStageId = counter[0]++;
+        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, lm.getViableBackends());
+        ExchangeSinkProvider reduceSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        Stage reduceStage = new Stage(
+            reduceStageId,
+            reduceFragment,
+            reduceChildren,
+            /*exchangeInfo=*/ null,
+            reduceSinkProvider,
+            /*targetResolver=*/ null
+        );
+        // Reducer feeds the LM stage. Stamp every shard's batches with their target.ordinal()
+        // as ___ugsi BEFORE the backend's reduce sees them so the LM stage can group rows by
+        // source shard for fan-out fetches.
+        reduceStage.setInputSinkDecorator(
+            (sink, allocator) -> new OrdinalAppendingSink(sink, allocator, OpenSearchLateMaterialization.UGSI_FIELD)
         );
 
-        // Replace the wrapper's input with a StageInputScan placeholder. The wrapper itself
-        // stays in the parent fragment to mark the Scatter-Gather stage.
-        OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
+        // 2. LM stage itself — fragment is the wrapper rooted at StageInputScan(reduceStage).
+        OpenSearchRelNode lmInput = (OpenSearchRelNode) lm.getInput();
+        OpenSearchStageInputScan reduceStageInput = new OpenSearchStageInputScan(
             lm.getCluster(),
             lm.getTraitSet(),
-            childStageId,
+            reduceStageId,
             lm.getInput().getRowType(),
+            lm.getViableBackends(),
+            lmInput.getOutputFieldStorage()
+        );
+        OpenSearchLateMaterialization lmFragment = new OpenSearchLateMaterialization(
+            lm.getCluster(),
+            lm.getTraitSet(),
+            reduceStageInput,
+            lm.getAboveAnchorPhysicalFields(),
+            lm.getAboveAnchorPhysicalFieldStorage(),
             lm.getViableBackends()
         );
-        return new OpenSearchLateMaterialization(
+        int lmStageId = counter[0]++;
+        Stage lmStage = new Stage(
+            lmStageId,
+            lmFragment,
+            List.of(reduceStage),
+            /*exchangeInfo=*/ null,
+            /*sinkProvider=*/ null,
+            /*targetResolver=*/ null
+        );
+        parentChildStages.add(lmStage);
+
+        // 3. Hand back StageInputScan(LM) so post-LM ops end up in their own COORDINATOR_REDUCE.
+        // Schema is the wrapper's output rowType (= aboveAnchorPhysicalFields).
+        //
+        // TODO Stage 3 sink mode. The COORDINATOR_REDUCE that wraps the post-LM ops currently
+        // inherits whatever sink the cluster setting selects (streaming vs memtable). For QTF
+        // it should be memtable: LM emits a single VSR after full stitch (see Stitcher TODO),
+        // so streaming buys nothing and the eager-scheduling deadlock-avoidance the streaming
+        // sink is designed for doesn't apply. Once Stitcher supports incremental emission, we
+        // can pick streaming for Camp-A post-LM ops (Filter/Project/hash Aggregate) and keep
+        // memtable for Camp-B (Sort/TopN/global Aggregate). Detect post-LM op shape here and
+        // hand a per-stage hint to the sink-provider selection.
+        return new OpenSearchStageInputScan(
             lm.getCluster(),
             lm.getTraitSet(),
-            stageInput,
-            lm.getFetchList(),
-            lm.getFetchListStorage(),
-            lm.getViableBackends()
+            lmStageId,
+            lmFragment.getRowType(),
+            lm.getViableBackends(),
+            lm.getAboveAnchorPhysicalFieldStorage()
         );
     }
 
@@ -192,15 +258,16 @@ public class DAGBuilder {
             new Stage(childStageId, childFragment, grandchildren, reducer.getExchangeInfo(), childSinkProvider, targetResolver)
         );
 
-        // Replace the reducer's input with a StageInputScan placeholder.
-        // The root fragment ends at the reducer; the child stage fragment starts below it.
-        // StageInputScan signals where the Scheduler feeds Arrow batches from the child stage.
+        // Use the reducer's OUTPUT rowType so QTF's appended ___ugsi (set on erRowType by the
+        // rewriter) flows into the parent stage's partition schema. No-op for non-QTF reducers.
+        OpenSearchRelNode reducerInput = (OpenSearchRelNode) reducer.getInput();
         OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
             reducer.getCluster(),
             reducer.getTraitSet(),
             childStageId,
-            reducer.getInput().getRowType(),
-            reducer.getViableBackends()
+            reducer.getRowType(),
+            reducer.getViableBackends(),
+            reducerInput.getOutputFieldStorage()
         );
         return new OpenSearchExchangeReducer(
             reducer.getCluster(),

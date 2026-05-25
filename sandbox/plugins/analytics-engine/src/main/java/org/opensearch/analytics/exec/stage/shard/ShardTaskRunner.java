@@ -52,7 +52,13 @@ public final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
         ShardExecutionTarget target = (ShardExecutionTarget) task.target();
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
-        transport.dispatchFragmentStreaming(request, target.node(), stage.responseListenerFor(listener), config.parentTask(), pending);
+        transport.dispatchFragmentStreaming(
+            request,
+            target.node(),
+            stage.responseListenerFor(target.ordinal(), listener),
+            config.parentTask(),
+            pending
+        );
     }
 
     private PendingExecutions pendingFor(ShardExecutionTarget target) {

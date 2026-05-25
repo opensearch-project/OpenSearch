@@ -13,6 +13,7 @@ import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionFactory;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
+import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
@@ -141,7 +142,10 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
         }
         List<ExchangeSinkContext.ChildInput> inputs = new ArrayList<>(children.size());
         for (Stage child : children) {
-            byte[] producerPlanBytes = child.getPlanAlternatives().getFirst().convertedBytes();
+            // postDecorationSchemaBytes wins over the producer's natural schema when an input
+            // decorator widens the wire schema (e.g. QTF's OrdinalAppendingSink).
+            StagePlan plan = child.getPlanAlternatives().getFirst();
+            byte[] producerPlanBytes = plan.postDecorationSchemaBytes() != null ? plan.postDecorationSchemaBytes() : plan.convertedBytes();
             inputs.add(new ExchangeSinkContext.ChildInput(child.getStageId(), producerPlanBytes));
         }
         return inputs;

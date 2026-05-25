@@ -12,11 +12,9 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.prepare.RelOptTableImpl;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.TableScan;
-import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
@@ -135,13 +133,11 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        // When QTF (or another rule) narrows our rowType via overrideRowType, the original
-        // RelOptTable still reports the wide schema — and isthmus emits Substrait based on
-        // the table's rowType, not the rel's. Copy the RelOptTable with the narrowed rowType
-        // so the stripped scan carries the correct schema all the way to FragmentConvertor.
-        RelOptTable table = overrideRowType != null && getTable() instanceof RelOptTableImpl impl
-            ? impl.copy(overrideRowType)
-            : getTable();
-        return LogicalTableScan.create(getCluster(), table, List.of());
+        // OpenSearchTableScan carries no operator annotations to strip and already exposes the
+        // correct schema via deriveRowType() (which honours overrideRowType when QTF narrows it).
+        // Returning this directly keeps the override visible to isthmus's Substrait conversion;
+        // converting to LogicalTableScan would defer to the underlying RelOptTable's wide rowType
+        // and silently drop helper columns like __row_id__.
+        return this;
     }
 }

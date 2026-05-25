@@ -45,7 +45,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
 
     let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: 16,
         object_path,
         parquet_size: size,
@@ -209,7 +209,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
 
     let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: 16,
         object_path,
         parquet_size: size,
@@ -470,7 +470,7 @@ async fn test_row_id_with_data_columns() {
 
     let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: 16,
         object_path,
         parquet_size: size,
@@ -709,7 +709,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
     let object_path2 = object_store::path::Path::from(path2.to_string_lossy().as_ref());
 
     let segment1 = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: 16,
         object_path: object_path1,
         parquet_size: size1,
@@ -718,7 +718,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         global_base: 0,
     };
     let segment2 = SegmentFileInfo {
-        segment_ord: 1,
+        writer_generation: 1,
         max_doc: 16,
         object_path: object_path2,
         parquet_size: size2,

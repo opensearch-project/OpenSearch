@@ -62,7 +62,7 @@ use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::segment_info::build_segments;
 use crate::indexed_table::substrait_to_tree::{
     classify_filter, create_index_filter_udf, expr_to_bool_tree,
-    extract_filter_expr, plan_requests_row_ids, ExtractionResult, FilterClass,
+    extract_filter_expr, ExtractionResult, FilterClass,
 };
 use crate::indexed_table::table_provider::{
     EvaluatorFactory, IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
@@ -441,6 +441,8 @@ pub async unsafe fn execute_indexed_with_context(
     // spawning on the CPU runtime, so the Java search thread blocks at the
     // gate when it is full — creating backpressure at the Java threadpool level.
 
+    // Java-side QTF signal: scan must emit __row_id__. Captured before consuming indexed_config below.
+    let requests_row_ids = handle.indexed_config.as_ref().is_some_and(|c| c.requests_row_ids);
     let classification_override = handle.indexed_config.map(|config| {
         // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {
@@ -492,7 +494,7 @@ pub async unsafe fn execute_indexed_with_context(
         .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
 
-    let emit_row_ids = plan_requests_row_ids(&logical_plan);
+    let emit_row_ids = requests_row_ids;
     let filter_expr = extract_filter_expr(&logical_plan);
     let extraction = match filter_expr {
         None => None,

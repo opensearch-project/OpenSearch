@@ -63,9 +63,15 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
         // Empty list → base short-circuits to SUCCEEDED (nothing to dispatch).
         List<StageTask> tasks = new ArrayList<>(resolved.size());
+        List<ShardExecutionTarget> shardTargets = new ArrayList<>(resolved.size());
         for (int i = 0; i < resolved.size(); i++) {
-            tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), resolved.get(i)));
+            ExecutionTarget target = resolved.get(i);
+            tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), target));
+            shardTargets.add((ShardExecutionTarget) target);
         }
+        // Side-table for cross-stage routing (e.g. QTF Phase C maps ___ugsi → target).
+        // See QueryContext.resolvedTargetsByStage Javadoc for HACK rationale.
+        config.recordResolvedTargets(getStageId(), shardTargets);
         return tasks;
     }
 
@@ -93,7 +99,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
      * offload: reordering would let isLast race ahead and drop earlier batches via the
      * stage-terminal short-circuit. Inline also preserves end-to-end backpressure.
      */
-    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ActionListener<Void> listener) {
+    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(int sourceOrdinal, ActionListener<Void> listener) {
         return new StreamingResponseListener<>() {
             @Override
             public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
@@ -107,7 +113,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                     return;
                 }
                 try {
-                    outputSink.feed(vsr);
+                    outputSink.feed(vsr, sourceOrdinal);
                 } catch (Exception e) {
                     // Sink didn't take ownership — close the VSR before surfacing.
                     RuntimeException wrapped = new RuntimeException("Stage " + getStageId() + " sink feed failed", e);

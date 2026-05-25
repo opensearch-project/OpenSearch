@@ -42,7 +42,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
-import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
@@ -72,10 +71,14 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     private static final Logger LOGGER = LogManager.getLogger(FragmentConversionDriverTests.class);
 
+    // Operator markers that carry annotations and must be stripped before isthmus conversion.
+    // OpenSearchTableScan is intentionally NOT in this set: stripAnnotations leaves it in place
+    // because it carries no annotations and isthmus only reads its rowType + qualified name.
+    // Stripping it to LogicalTableScan would silently drop QTF's overrideRowType (helper cols
+    // like __row_id__) — see OpenSearchTableScan#stripAnnotations.
     private static final Set<String> OPENSEARCH_OPERATORS = Set.of(
         OpenSearchFilter.class.getSimpleName(),
         OpenSearchAggregate.class.getSimpleName(),
-        OpenSearchTableScan.class.getSimpleName(),
         OpenSearchSort.class.getSimpleName(),
         OpenSearchProject.class.getSimpleName()
     );

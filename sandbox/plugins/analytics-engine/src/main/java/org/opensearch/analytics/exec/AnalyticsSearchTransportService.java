@@ -9,6 +9,8 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.analytics.backend.EngineResultBatch;
+import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
+import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
@@ -71,6 +73,7 @@ public class AnalyticsSearchTransportService {
         this.transportService = streamTransportService;
         this.clusterService = clusterService;
         registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
+        registerFetchByRowIdsHandler(this.transportService, searchService, indicesService);
     }
 
     private static void registerStreamingFragmentHandler(
@@ -118,6 +121,47 @@ public class AnalyticsSearchTransportService {
         );
     }
 
+    /**
+     * Mirrors {@link #registerStreamingFragmentHandler} for the QTF fetch-by-rowids path.
+     * Routes incoming {@link FetchByRowIdsRequest}s to
+     * {@code AnalyticsSearchService.executeFetchByRowIds}, streams Arrow batches back to
+     * the coordinator, closes the {@link FragmentResources} (releases the rowId vector and
+     * the readerContext) once the stream drains.
+     */
+    private static void registerFetchByRowIdsHandler(
+        StreamTransportService transportService,
+        AnalyticsSearchService searchService,
+        IndicesService indicesService
+    ) {
+        transportService.registerRequestHandler(
+            FetchByRowIdsAction.NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            FetchByRowIdsRequest::new,
+            (request, channel, task) -> {
+                IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                try (FragmentResources ctx = searchService.executeFetchByRowIds(request, shard, (AnalyticsShardTask) task)) {
+                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
+                    // FIXME do we need to drain the entire stream here, or can we hand back
+                    // pressure to the engine when the channel/coordinator is slow?
+                    while (it.hasNext()) {
+                        EngineResultBatch batch = it.next();
+                        channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
+                    }
+                    channel.completeStream();
+                } catch (StreamException e) {
+                    if (e.getErrorCode() != StreamErrorCode.CANCELLED) {
+                        channel.sendResponse(e);
+                    }
+                } catch (Exception e) {
+                    channel.sendResponse(e);
+                }
+            }
+        );
+    }
+
     Transport.Connection getConnection(String clusterAlias, String nodeId) {
         DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         return transportService.getConnection(node);
@@ -151,6 +195,8 @@ public class AnalyticsSearchTransportService {
                 try {
                     FragmentExecutionArrowResponse current;
                     FragmentExecutionArrowResponse last = null;
+                    // FIXME do we need to drain the entire stream here, or should we hand back
+                    // pressure when the listener / downstream consumer is slow?
                     while ((current = stream.nextResponse()) != null) {
                         if (last != null) {
                             listener.onStreamResponse(last, false);
@@ -194,6 +240,95 @@ public class AnalyticsSearchTransportService {
             try {
                 Transport.Connection connection = getConnection(null, targetNode.getId());
                 transportService.sendChildRequest(connection, FragmentExecutionAction.NAME, request, parentTask, options, handler);
+            } catch (Exception e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    pending.finishAndRunNext();
+                }
+            }
+        });
+    }
+
+    /**
+     * Dispatches a QTF fetch-by-rowids RPC to {@code targetNode}. Mirrors
+     * {@link #dispatchFragmentStreaming} — same streaming-response handler shape, same
+     * {@link PendingExecutions} gating, same cancellation propagation. Different action
+     * name routes the request to {@link FetchByRowIdsAction} on the data node.
+     */
+    public void dispatchFetchByRowIds(
+        FetchByRowIdsRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FragmentExecutionArrowResponse> listener,
+        Task parentTask,
+        PendingExecutions pending
+    ) {
+        TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
+            @Override
+            public FragmentExecutionArrowResponse read(StreamInput in) throws IOException {
+                return new FragmentExecutionArrowResponse(in);
+            }
+
+            @Override
+            public boolean skipsDeserialization() {
+                return true;
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+                try {
+                    FragmentExecutionArrowResponse current;
+                    FragmentExecutionArrowResponse last = null;
+                    // FIXME do we need to drain the entire stream here, or should we hand back
+                    // pressure when the listener / downstream consumer is slow?
+                    while ((current = stream.nextResponse()) != null) {
+                        if (last != null) {
+                            listener.onStreamResponse(last, false);
+                        }
+                        last = current;
+                    }
+                    if (last != null) {
+                        listener.onStreamResponse(last, true);
+                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                } finally {
+                    try {
+                        stream.close();
+                    } catch (Exception ignore) {}
+                    pending.finishAndRunNext();
+                }
+            }
+
+            @Override
+            public void handleResponse(FragmentExecutionArrowResponse response) {
+                try {
+                    listener.onStreamResponse(response, true);
+                } finally {
+                    pending.finishAndRunNext();
+                }
+            }
+
+            @Override
+            public void handleException(TransportException e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    pending.finishAndRunNext();
+                }
+            }
+        };
+
+        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
+        pending.tryRun(() -> {
+            try {
+                Transport.Connection connection = getConnection(null, targetNode.getId());
+                transportService.sendChildRequest(connection, FetchByRowIdsAction.NAME, request, parentTask, options, handler);
             } catch (Exception e) {
                 try {
                     listener.onFailure(e);

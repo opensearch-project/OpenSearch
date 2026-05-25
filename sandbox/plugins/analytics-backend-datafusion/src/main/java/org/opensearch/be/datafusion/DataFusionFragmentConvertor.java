@@ -55,6 +55,7 @@ import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
 import io.substrait.expression.FunctionArg;
 import io.substrait.expression.ImmutableAggregateFunctionInvocation;
+import io.substrait.extension.ExtensionCollector;
 import io.substrait.extension.SimpleExtension;
 import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
@@ -66,6 +67,8 @@ import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
 import io.substrait.plan.PlanProtoConverter;
 import io.substrait.plan.ProtoPlanConverter;
+import io.substrait.proto.PlanRel;
+import io.substrait.proto.ReadRel;
 import io.substrait.relation.Aggregate;
 import io.substrait.relation.Fetch;
 import io.substrait.relation.Filter;
@@ -73,7 +76,9 @@ import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
 import io.substrait.relation.Sort;
+import io.substrait.type.NamedStruct;
 import io.substrait.type.Type;
+import io.substrait.type.proto.TypeProtoConverter;
 
 /**
  * Converts Calcite RelNode fragments to Substrait protobuf bytes
@@ -398,6 +403,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct")
     );
 
+    /**
+     * Shared {@link TypeProtoConverter} for schema-only conversions. Safe as a singleton
+     * because schema-only Reads convert primitive Calcite types to primitive Substrait
+     * protos — no functions or user-defined types touch the inner {@link ExtensionCollector},
+     * so it never accumulates per-call state. Avoids re-allocating both objects on every
+     * {@link #convertSchemaOnlyRead} call.
+     */
+    private static final TypeProtoConverter SCHEMA_ONLY_TYPE_PROTO_CONVERTER = new TypeProtoConverter(new ExtensionCollector());
+
     private final SimpleExtension.ExtensionCollection extensions;
 
     public DataFusionFragmentConvertor(SimpleExtension.ExtensionCollection extensions) {
@@ -426,6 +440,43 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             fieldNames(partialAggFragment)
         );
         return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
+    }
+
+    /**
+     * Builds a schema-only stub plan directly via Substrait protos — no isthmus, no
+     * Calcite RelNode round-trip. Output:
+     * <pre>
+     *   Plan { relations: [PlanRel { Root { input: Rel { Read { named_table: "input-&lt;id&gt;";
+     *                                                          base_schema: rowType } },
+     *                                 names: rowType.fieldNames }}] }
+     * </pre>
+     *
+     * <p>Used by the LM stage path: LM runs Java-only scatter/gather/stitch and emits no
+     * Substrait compute, but the parent reduce sink (Stage 3) still calls
+     * {@code registerPartitionStream} which needs the partition's named-table id and base
+     * schema. This stub is the minimum proto that satisfies that path. Bypassing isthmus
+     * avoids unnecessary {@code SubstraitRelVisitor} setup and keeps the produced bytes
+     * tightly scoped to the schema we care about.
+     */
+    @Override
+    public byte[] convertSchemaOnlyRead(int childStageId, RelDataType rowType) {
+        // Fully-qualified names below: io.substrait.proto.{Plan,Rel,NamedStruct,RelRoot} clash with already-imported single-name imports.
+        NamedStruct ns = TypeConverter.DEFAULT.toNamedStruct(rowType);
+        io.substrait.proto.NamedStruct nsProto = ns.toProto(SCHEMA_ONLY_TYPE_PROTO_CONVERTER);
+
+        ReadRel readRel = ReadRel.newBuilder()
+            .setNamedTable(ReadRel.NamedTable.newBuilder().addNames("input-" + childStageId).build())
+            .setBaseSchema(nsProto)
+            .build();
+
+        io.substrait.proto.Rel inputRel = io.substrait.proto.Rel.newBuilder().setRead(readRel).build();
+        PlanRel planRel = PlanRel.newBuilder()
+            .setRoot(io.substrait.proto.RelRoot.newBuilder().setInput(inputRel).addAllNames(rowType.getFieldNames()).build())
+            .build();
+
+        byte[] bytes = io.substrait.proto.Plan.newBuilder().addRelations(planRel).build().toByteArray();
+        LOGGER.debug("Schema-only Read for stage [{}]: {} bytes", childStageId, bytes.length);
+        return bytes;
     }
 
     @Override

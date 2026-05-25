@@ -17,6 +17,7 @@ import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -314,6 +315,9 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     /**
      * QTF fetch phase: retrieves specific rows by global row ID via the backend SPI.
+     * Sibling of {@link #executeFragmentStreaming} — no Substrait fragment, no plan
+     * conversion, just a backend-direct fetch using rowIds the coordinator collected
+     * during the query phase.
      *
      * <p>Reuses the {@link ReaderContext} opened during the query phase. If the context
      * is missing (expired before fetch arrived, or query-phase reader-store invariant
@@ -321,30 +325,32 @@ public class AnalyticsSearchService implements AutoCloseable {
      * {@code __row_id__} values produced by one reader cannot be reinterpreted by
      * another (segment topology may differ across reopens).
      *
-     * <p>Caller owns {@code rowIds} memory; the BigIntVector is allocated here so the
-     * native side can read directly via the off-heap buffer address.
+     * <p>Backend selection honors {@link FetchByRowIdsRequest#getBackendId()} — replaces
+     * the prior 5-arg signature that picked an arbitrary backend via
+     * {@code backends.values().iterator().next()}.
+     *
+     * <p>Returns a {@link FragmentResources} that owns the result stream, the rowId
+     * Arrow vector (kept alive across the FFM call's lifetime), and the readerContext
+     * release. Caller closes it after draining the stream.
      *
      * @param task transport-layer task for cancellation propagation; may be null in tests
      */
-    public EngineResultStream executeFetchByRowIds(
-        String queryId,
-        long[] rowIds,
-        String[] columns,
-        IndexShard shard,
-        AnalyticsShardTask task
-    ) {
+    public FragmentResources executeFetchByRowIds(FetchByRowIdsRequest request, IndexShard shard, AnalyticsShardTask task) {
         if (task != null && task.isCancelled()) {
             throw new TaskCancelledException("Fetch task cancelled before execution: " + task.getReasonCancelled());
         }
+        long[] rowIds = request.getRowIds();
+        String[] columns = request.getColumns();
         if (rowIds == null || rowIds.length == 0 || columns == null || columns.length == 0) {
             throw new IllegalArgumentException(
-                "fetch on " + shard.shardId() + " requires non-empty rowIds and columns; got rowIds="
-                    + (rowIds == null ? "null" : rowIds.length) + ", columns="
+                "fetch on "
+                    + shard.shardId()
+                    + " requires non-empty rowIds and columns; got rowIds="
+                    + (rowIds == null ? "null" : rowIds.length)
+                    + ", columns="
                     + (columns == null ? "null" : columns.length)
             );
         }
-        // Caller must include __row_id__ in the projection so the result carries the
-        // shard-global identifier alongside the fetched columns.
         boolean hasRowIdField = false;
         for (String c : columns) {
             if (DocumentInput.ROW_ID_FIELD.equals(c)) {
@@ -354,17 +360,37 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
         if (!hasRowIdField) {
             throw new IllegalArgumentException(
-                "columns must include " + DocumentInput.ROW_ID_FIELD + " for fetch on " + shard.shardId() + ", got " + java.util.Arrays.toString(columns)
+                "columns must include "
+                    + DocumentInput.ROW_ID_FIELD
+                    + " for fetch on "
+                    + shard.shardId()
+                    + ", got "
+                    + java.util.Arrays.toString(columns)
             );
         }
-        ReaderContext readerContext = readerContextStore.acquireContext(queryId);
+        ReaderContext readerContext = readerContextStore.acquireContext(request.getQueryId());
         if (readerContext == null) {
             throw new IllegalStateException(
-                "No ReaderContext for queryId=" + queryId + " on " + shard.shardId() + " — query phase missing or context expired"
+                "No ReaderContext for queryId="
+                    + request.getQueryId()
+                    + " on "
+                    + shard.shardId()
+                    + " — query phase missing or context expired"
             );
         }
-        assert assertFetchInvariants(readerContext, queryId);
-        AnalyticsSearchBackendPlugin backend = backends.values().iterator().next();
+        assert assertFetchInvariants(readerContext, request.getQueryId());
+        AnalyticsSearchBackendPlugin backend = backends.get(request.getBackendId());
+        if (backend == null) {
+            readerContextStore.releaseContext(request.getQueryId());
+            throw new IllegalStateException(
+                "No backend registered for backendId="
+                    + request.getBackendId()
+                    + " on "
+                    + shard.shardId()
+                    + "; available: "
+                    + backends.keySet()
+            );
+        }
         // Caller contract: rowIds must already be sorted ascending (RowSelection invariant on
         // native side). Asserted here so violations are caught in dev builds before the FFM call.
         assert assertAscending(rowIds);
@@ -376,14 +402,14 @@ public class AnalyticsSearchService implements AutoCloseable {
                 rowIdVector.set(i, rowIds[i]);
             }
             rowIdVector.setValueCount(rowIds.length);
-            return backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+            // FragmentResources keeps the rowIdVector alive until the stream drains — closing
+            // it earlier would pull off-heap memory out from under the native FFM call.
+            return new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
         } catch (Exception e) {
             if (rowIdVector != null) rowIdVector.close();
+            readerContextStore.releaseContext(request.getQueryId());
             throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
-        } finally {
-            // Mark the context not-in-use so the reaper can reap it after keepAlive.
-            // We never call freeContext directly — reaper owns the close.
-            readerContextStore.releaseContext(queryId);
         }
     }
 

@@ -15,16 +15,31 @@ import java.io.IOException;
 
 /**
  * Instruction node for base shard scan setup — reader acquisition, SessionContext creation,
- * default table provider registration.
+ * table provider registration. {@code requestsRowIds} signals that the shard scan needs to
+ * emit shard-global {@code __row_id__} values (QTF query phase). Inherited by
+ * {@link ShardScanWithDelegationInstructionNode} so the same flag applies whether or not
+ * filter delegation is in play — QTF and delegation are orthogonal concerns.
  *
  * @opensearch.internal
  */
 public class ShardScanInstructionNode implements InstructionNode {
 
-    public ShardScanInstructionNode() {}
+    private final boolean requestsRowIds;
+
+    public ShardScanInstructionNode() {
+        this(false);
+    }
+
+    public ShardScanInstructionNode(boolean requestsRowIds) {
+        this.requestsRowIds = requestsRowIds;
+    }
 
     public ShardScanInstructionNode(StreamInput in) throws IOException {
-        // No fields to read
+        this.requestsRowIds = in.readBoolean();
+    }
+
+    public boolean requestsRowIds() {
+        return requestsRowIds;
     }
 
     @Override
@@ -34,6 +49,6 @@ public class ShardScanInstructionNode implements InstructionNode {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // No fields to write
+        out.writeBoolean(requestsRowIds);
     }
 }

@@ -32,6 +32,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
@@ -317,7 +318,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
     private static RelNode skipExchangeReducers(RelNode rel) {
         RelNode current = rel;
-        while (current instanceof OpenSearchExchangeReducer) {
+        while (current instanceof OpenSearchExchangeReducer || current instanceof OpenSearchLateMaterialization) {
             current = RelNodeUtils.unwrapHep(current.getInputs().get(0));
         }
         return current;

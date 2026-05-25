@@ -104,7 +104,7 @@ public class ReaderContextStore {
             try {
                 ctx.close();
             } catch (Exception e) {
-                logger.warn("[ReaderContextStore] Failed to close context for query={}", queryId, e);
+                logger.warn("[ReaderContextStore] Failed to close context for query={}: {}", queryId, e);
             }
         }
     }

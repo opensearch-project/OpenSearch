@@ -146,7 +146,6 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         assertNull("Context must be removed from store", store.getContext("query-3"));
     }
 
-
     /**
      * Multiple queries have independent contexts with different readers and independent lifecycles.
      */

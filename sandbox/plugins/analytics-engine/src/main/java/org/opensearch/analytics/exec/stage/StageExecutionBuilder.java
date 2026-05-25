@@ -68,10 +68,7 @@ public class StageExecutionBuilder {
         // The DAG, FragmentConversion, and stage wiring are all in place; the four phases
         // (drain → scatter fetch → gather → stitch) are documented inside the execution
         // class and the new transport action / data-node handler are the remaining work.
-        registerFactory(
-            StageExecutionType.LATE_MATERIALIZATION,
-            new LateMaterializationStageExecutionFactory(clusterService, dispatcher)
-        );
+        registerFactory(StageExecutionType.LATE_MATERIALIZATION, new LateMaterializationStageExecutionFactory(clusterService, dispatcher));
     }
 
     /**

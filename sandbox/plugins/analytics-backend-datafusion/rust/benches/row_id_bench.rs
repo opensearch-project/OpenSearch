@@ -141,7 +141,7 @@ fn bench_clickbench(c: &mut Criterion) {
     let total_rows = offset;
     let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: total_rows,
         object_path,
         parquet_size: size,
@@ -198,7 +198,16 @@ fn bench_clickbench(c: &mut Criterion) {
                     let mut config = DatafusionQueryConfig::test_default();
                     config.target_partitions = 4;
                     let ptr = query_executor::execute_query(
-                        url, metas, "t".into(), plan, df_rt, exec, None, &config,
+                        url,
+                        metas,
+                        "t".into(),
+                        plan,
+                        df_rt,
+                        exec,
+                        None,
+                        &config,
+                        0,
+                        Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>,
                     )
                     .await
                     .unwrap();

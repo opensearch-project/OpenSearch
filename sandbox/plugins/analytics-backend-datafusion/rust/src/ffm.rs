@@ -739,6 +739,7 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    requests_row_ids: u8,
     query_config_ptr: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
@@ -749,7 +750,14 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     mgr.io_runtime
         .block_on(crate::task_monitors::plan_setup_monitor().instrument(
             crate::session_context::create_session_context_indexed(
-                runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config,
+                runtime_ptr,
+                shard_view_ptr,
+                table_name,
+                context_id,
+                tree_shape,
+                delegated_predicate_count,
+                requests_row_ids != 0,
+                query_config,
             )
         ))
         .map_err(|e| e.to_string())

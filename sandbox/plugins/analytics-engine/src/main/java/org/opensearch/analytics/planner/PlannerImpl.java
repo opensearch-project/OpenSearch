@@ -63,10 +63,6 @@ import java.util.Optional;
  * {@link RuleProfilingListener} (when profiling is enabled on
  * {@link PlannerContext}) can be threaded through every planner created here.
  *
- * <p>TODO: eliminate copyToCluster — have frontends create RelNodes with Volcano cluster.
- * <p>TODO: DAG construction (cut at exchange boundaries, build stage tree)
- * <p>TODO: Per-stage plan forking (multiple plan generation)
- * <p>TODO: Fragment conversion (backend.getFragmentConvertor())
  * <p>TODO: Join strategy selection, sort removal via CBO
  *
  * @opensearch.internal
@@ -158,10 +154,16 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();
         builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE assist QTF (late-materialization) detection
-        // post-CBO: SORT_PROJECT_TRANSPOSE pushes a top-of-tree Project below the Sort, leaving
-        // Sort+fetch at the root in the common case. PROJECT_MERGE collapses adjacent Projects so
-        // the QTF rewriter sees at most one Project layer between Sort and Filter/Scan.
+        // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE assist QTF (late-materialization) detection.
+        // SqlToRelConverter shapes `SELECT ... ORDER BY UPPER(URL) LIMIT N` as
+        // Sort($1) ← Project(URL, UPPER(URL)) ← Scan
+        // (the order-by expression is materialized into the Project so the Sort can reference
+        // it as a slot). SORT_PROJECT_TRANSPOSE flips this to
+        // Project(URL, UPPER(URL)) ← Sort($1) ← Scan
+        // putting the Project above the Sort, which is the shape the QTF rewriter recognizes
+        // as "topmost above-anchor operator." Calcite's RelRoot.project() then trims the
+        // helper sort-key column from the user-visible output. PROJECT_MERGE collapses any
+        // adjacent Projects so the rewriter sees at most one Project layer above the anchor.
         builder.addRuleCollection(
             List.of(
                 CoreRules.FILTER_PROJECT_TRANSPOSE,

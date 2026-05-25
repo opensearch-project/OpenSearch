@@ -132,7 +132,14 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
 
     @Override
     public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchExchangeReducer(getCluster(), getTraitSet(), children.getFirst(), List.of(backend), exchangeInfo, overrideRowType);
+        return new OpenSearchExchangeReducer(
+            getCluster(),
+            getTraitSet(),
+            children.getFirst(),
+            List.of(backend),
+            exchangeInfo,
+            overrideRowType
+        );
     }
 
     @Override

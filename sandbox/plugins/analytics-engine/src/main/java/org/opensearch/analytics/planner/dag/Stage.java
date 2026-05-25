@@ -49,6 +49,14 @@ public class Stage {
     private final StageExecutionType executionType;
     private List<StagePlan> planAlternatives;
     private FragmentInstructionHandlerFactory instructionHandlerFactory;
+    /**
+     * Optional decorator wrapping this stage's incoming child sink. Set at DAG-build
+     * time (today only by {@code DAGBuilder.cutAtLateMaterialization}); applied at
+     * sink-resolution time inside the parent execution's {@code inputSink(...)}.
+     * Null when this stage doesn't need any decoration.
+     */
+    @Nullable
+    private InputSinkDecorator inputSinkDecorator;
 
     public Stage(
         int stageId,
@@ -128,6 +136,15 @@ public class Stage {
 
     public void setInstructionHandlerFactory(FragmentInstructionHandlerFactory instructionHandlerFactory) {
         this.instructionHandlerFactory = instructionHandlerFactory;
+    }
+
+    @Nullable
+    public InputSinkDecorator getInputSinkDecorator() {
+        return inputSinkDecorator;
+    }
+
+    public void setInputSinkDecorator(InputSinkDecorator inputSinkDecorator) {
+        this.inputSinkDecorator = inputSinkDecorator;
     }
 
     private StageExecutionType setStageExecutionType(

@@ -26,105 +26,118 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Plan-shape tests for the QTF (late-materialization) post-CBO rewriter. Drive SQL through
- * the full planner ({@link PlannerImpl#runAllOptimizations}) and assert the structural
- * post-conditions QTF must produce — wrapper presence, Scan rowType narrowing with
- * {@code ___row_id} appended, ER output declaring {@code ___ugsi}, wrapper output
- * stripping both helpers and exposing keepBelow + fetched cols, outer Project RexInputRefs
- * remapped to wrapper indices.
+ * Plan-shape tests for the QTF (late-materialization) post-CBO rewriter, v2.
  *
- * <p>Each test declares the SQL plus QTF expectations; {@link Expect}'s static factories
- * compose into one {@code assertQtfFired(...)} call. Tests that should not fire QTF call
- * {@code assertQtfDeclined(...)}.
+ * <p>Each test drives a SQL string (Calcite dialect) through the full planner and asserts
+ * the structural post-conditions QTF must produce:
+ * <ul>
+ *   <li>Scan rowType narrowed to {@code BelowAnchorPhysicalFields + ___row_id}.</li>
+ *   <li>ER output declares {@code ___ugsi} as the last field. Single-shard plans do not trigger
+ *       QTF (no gather to skip).</li>
+ *   <li>Wrapper output rowType = {@code AboveAnchorPhysicalFields}, in
+ *       {@code TopmostOperatorAboveAnchor} order. Helpers stripped.</li>
+ *   <li>Outer Project's RexInputRefs are remapped to wrapper-output indices.</li>
+ * </ul>
+ *
+ * <p>Skip predicate: QTF fires iff
+ * {@code AboveAnchorPhysicalFields - BelowAnchorPhysicalFields} is non-empty.
  */
 public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
 
     // ── Tests that fire QTF ────────────────────────────────────────────
 
     public void testQtfFires_simpleSortProject() {
-        // Pure-project column (URL) above the anchor; sort key EventDate retained below.
+        // SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10
+        // AboveAnchorPhysicalFields = [URL, EventDate] (topmost Project, in SELECT order)
+        // BelowAnchorPhysicalFields = {EventDate}
+        // FetchOnly = {URL} → fire
         assertQtfFired(
             "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10",
             2,
             Expect.scanCols("EventDate"),
-            Expect.fetchList("URL"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
             Expect.erHasUgsi(true),
-            Expect.wrapperOutput("EventDate", "URL"),
-            Expect.outerProjectExprIndices(1, 0)
+            Expect.wrapperOutput("URL", "EventDate"),
+            Expect.outerProjectExprIndices(0, 1)
         );
     }
 
     public void testQtfFires_withWhere() {
-        // Filter col (CounterID) joins keepBelow; URL stays a fetch col.
+        // SELECT URL, EventDate FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10
+        // AboveAnchorPhysicalFields = [URL, EventDate]
+        // BelowAnchorPhysicalFields = {CounterID, EventDate}
+        // FetchOnly = {URL} → fire
         assertQtfFired(
             "SELECT URL, EventDate FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10",
             2,
             Expect.scanCols("CounterID", "EventDate"),
-            Expect.fetchList("URL"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
             Expect.erHasUgsi(true),
-            Expect.wrapperOutput("CounterID", "EventDate", "URL"),
-            Expect.outerProjectExprIndices(2, 1)
+            Expect.wrapperOutput("URL", "EventDate"),
+            Expect.outerProjectExprIndices(0, 1)
         );
     }
 
     public void testQtfFires_sortColAlsoProjected() {
-        // EventDate is both sort key and projected — surfaces via wrapper passthrough, not via fetch.
+        // SELECT EventDate, URL FROM hits ORDER BY EventDate LIMIT 10
+        // Wrapper output is in topmost-op (SELECT) order, NOT scan order.
+        // EventDate is in BOTH BelowAnchor and AboveAnchor — refetched per v2 (no passthrough trick).
         assertQtfFired(
             "SELECT EventDate, URL FROM hits ORDER BY EventDate LIMIT 10",
             2,
             Expect.scanCols("EventDate"),
-            Expect.fetchList("URL"),
+            Expect.aboveAnchorPhysicalFields("EventDate", "URL"),
             Expect.erHasUgsi(true),
             Expect.wrapperOutput("EventDate", "URL"),
             Expect.outerProjectExprIndices(0, 1)
         );
     }
 
-    public void testQtfFires_singleShard() {
-        // Single shard: no ER, so no ___ugsi declared. Narrowed Scan + wrapper still apply.
-        assertQtfFired(
-            "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10",
-            1,
-            Expect.scanCols("EventDate"),
-            Expect.fetchList("URL"),
-            Expect.erHasUgsi(false),
-            Expect.wrapperOutput("EventDate", "URL"),
-            Expect.outerProjectExprIndices(1, 0)
-        );
+    public void testQtfDeclined_singleShard() {
+        // Single shard: CBO inserts no ExchangeReducer below the anchor (the scan's
+        // SOURCE(SINGLETON) already satisfies the parent Sort's demand). QTF's win comes from
+        // avoiding cross-node materialization of fetch-only columns through the gather; with
+        // no gather there's nothing to save, so the rewriter declines.
+        assertQtfDeclined("SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10", 1);
     }
 
     public void testQtfFires_descendingSort() {
-        // DESC collation: anchor identification + direction preservation.
+        // DESC collation preserved through anchor rebuild.
         assertQtfFired(
             "SELECT URL, EventDate FROM hits ORDER BY EventDate DESC LIMIT 10",
             2,
             Expect.scanCols("EventDate"),
-            Expect.fetchList("URL"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
             Expect.erHasUgsi(true),
             Expect.collationDirections(RelFieldCollation.Direction.DESCENDING)
         );
     }
 
     public void testQtfFires_multiKeySort() {
-        // Multi-key sort — both keys land in keepBelow, neither fetched.
+        // SELECT URL, EventDate, CounterID FROM hits ORDER BY EventDate, CounterID LIMIT 10
+        // BelowAnchor = {EventDate, CounterID}, AboveAnchor = [URL, EventDate, CounterID]
+        // FetchOnly = {URL} → fire. All three referenced fields end up in fetch list (v2 refetches).
         assertQtfFired(
             "SELECT URL, EventDate, CounterID FROM hits ORDER BY EventDate, CounterID LIMIT 10",
             2,
             Expect.scanCols("CounterID", "EventDate"),
-            Expect.fetchList("URL"),
-            Expect.erHasUgsi(true)
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate", "CounterID"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("URL", "EventDate", "CounterID")
         );
     }
 
     public void testQtfFires_filterColAlsoProjected() {
-        // Filter col (CounterID) is also projected — lands in keepBelow once, surfaces via wrapper.
+        // SELECT URL, CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10
+        // BelowAnchor = {CounterID, EventDate}, AboveAnchor = [URL, CounterID]
+        // FetchOnly = {URL} → fire. CounterID refetched.
         assertQtfFired(
             "SELECT URL, CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10",
             2,
             Expect.scanCols("CounterID", "EventDate"),
-            Expect.fetchList("URL"),
+            Expect.aboveAnchorPhysicalFields("URL", "CounterID"),
             Expect.erHasUgsi(true),
-            Expect.wrapperOutput("CounterID", "EventDate", "URL")
+            Expect.wrapperOutput("URL", "CounterID")
         );
     }
 
@@ -134,41 +147,125 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
             "SELECT URL, EventDate FROM hits ORDER BY EventDate LIMIT 10 OFFSET 5",
             2,
             Expect.scanCols("EventDate"),
-            Expect.fetchList("URL"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
             Expect.erHasUgsi(true)
+        );
+    }
+
+    public void testQtfFires_compositeExpressionWithDedup() {
+        // SELECT URL || '-' || URL AS combined, UPPER(URL) AS upper_url FROM hits ORDER BY EventDate LIMIT 10
+        // Both above-Project outputs derive from URL. dependsOn walk + LinkedHashSet dedup
+        // collapses to AboveAnchorPhysicalFields = [URL].
+        // BelowAnchor = {EventDate}; FetchOnly = {URL} → fire.
+        // Outer Project carries RexCall expressions, not bare InputRefs — outerProjectExprIndices skipped.
+        assertQtfFired(
+            "SELECT URL || '-' || URL AS combined, UPPER(URL) AS upper_url FROM hits ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("URL"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("URL")
+        );
+    }
+
+    public void testQtfFires_compositeExpressionMultiCol() {
+        // SELECT URL || '-' || Title AS combined FROM hits ORDER BY EventDate LIMIT 10
+        // dependsOn walk yields {URL, Title} in evaluation order.
+        // BelowAnchor = {EventDate}; FetchOnly = {URL, Title} → fire.
+        assertQtfFired(
+            "SELECT URL || '-' || Title AS combined FROM hits ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("URL", "Title"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("URL", "Title")
+        );
+    }
+
+    public void testQtfFires_starProjection() {
+        // SELECT * FROM hits ORDER BY EventDate LIMIT 10
+        // Topmost Project's outputs are passthrough refs to every physical field.
+        // AboveAnchor = [CounterID, UserID, URL, Title, EventDate, AdvEngineID, ParamPrice].
+        // BelowAnchor = {EventDate}. FetchOnly = everything except EventDate → fire.
+        assertQtfFired(
+            "SELECT * FROM hits ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("CounterID", "UserID", "URL", "Title", "EventDate", "AdvEngineID", "ParamPrice"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("CounterID", "UserID", "URL", "Title", "EventDate", "AdvEngineID", "ParamPrice")
+        );
+    }
+
+    public void testQtfFires_outerFilter() {
+        // SELECT URL, EventDate FROM hits WHERE EventDate > '2020-01-01' ORDER BY EventDate LIMIT 10
+        // Filter on EventDate is below-Filter (predicate pushdown), so EventDate stays in BelowAnchor.
+        // AboveAnchor = [URL, EventDate]; FetchOnly = {URL} → fire.
+        assertQtfFired(
+            "SELECT URL, EventDate FROM hits WHERE EventDate > DATE '2020-01-01' ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("URL", "EventDate")
         );
     }
 
     // ── Tests that decline QTF ─────────────────────────────────────────
 
     public void testQtfDeclined_pureLimit() {
+        // SELECT URL FROM hits LIMIT 10
+        // No ORDER BY → no anchor → no rewrite.
         assertQtfDeclined("SELECT URL FROM hits LIMIT 10", 2);
     }
 
-    public void testQtfDeclined_emptyFetchedSet() {
+    public void testQtfDeclined_skipPredicate_sortColIsOnlyProjection() {
+        // SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10
+        // AboveAnchor = {EventDate}; BelowAnchor = {EventDate}; FetchOnly = {} → skip.
+        // Refetching EventDate by row id when it already rode through the reduce would be a wash.
         assertQtfDeclined("SELECT EventDate FROM hits ORDER BY EventDate LIMIT 10", 2);
     }
 
+    public void testQtfDeclined_skipPredicate_filterColIsOnlyProjection() {
+        // SELECT CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10
+        // AboveAnchor = {CounterID}; BelowAnchor = {CounterID, EventDate}; FetchOnly = {} → skip.
+        assertQtfDeclined("SELECT CounterID FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10", 2);
+    }
+
     public void testQtfDeclined_aggregateBelowSort() {
+        // SELECT CounterID, COUNT(*) FROM hits GROUP BY CounterID ORDER BY CounterID LIMIT 10
+        // Aggregate sits below the anchor — not in BELOW_INTERMEDIATE_ALLOWED, declined.
         assertQtfDeclined("SELECT CounterID, COUNT(*) AS c FROM hits GROUP BY CounterID ORDER BY CounterID LIMIT 10", 2);
     }
 
+    public void testQtfDeclined_aggregateAboveAnchor() {
+        // Aggregate above the anchor — explicitly excluded from ABOVE_ALLOWED in v2.
+        // (Above-Aggregate group/aggCall remap under a moving wrapper rowType is a follow-up.)
+        // SELECT inner.CounterID, COUNT(*) FROM (SELECT CounterID FROM hits ORDER BY CounterID LIMIT 100) AS inner GROUP BY inner.CounterID
+        assertQtfDeclined(
+            "SELECT inner_q.CounterID, COUNT(*) AS c "
+                + "FROM (SELECT CounterID FROM hits ORDER BY CounterID LIMIT 100) AS inner_q "
+                + "GROUP BY inner_q.CounterID",
+            2
+        );
+    }
+
     public void testQtfDeclined_windowInOuterProject() {
-        // ROW_NUMBER not wired into WindowFunction.fromSqlKind — use SUM() OVER ().
+        // SELECT URL, SUM(ParamPrice) OVER () FROM hits ORDER BY EventDate LIMIT 10
+        // RexOver in the above-Project — declined (window's global frame needs SINGLETON input;
+        // the wrapper would break that).
         assertQtfDeclined("SELECT URL, SUM(ParamPrice) OVER () AS sp FROM hits ORDER BY EventDate LIMIT 10", 2);
     }
 
     public void testQtfDeclined_expressionProjectBelowAnchor() {
-        // Non-passthrough Project below the anchor — QTF rewriter bails (TODO follow-up).
+        // SELECT URL FROM hits ORDER BY (CounterID + 1) LIMIT 10
+        // The sort key (CounterID + 1) gets materialized via a derived below-Project.
+        // Today's algorithm declines (TODO in passthroughMap — derived-pushup not yet supported).
         assertQtfDeclined("SELECT URL FROM hits ORDER BY (CounterID + 1) LIMIT 10", 2);
     }
 
     // ── Composable assert API ──────────────────────────────────────────
 
-    /**
-     * Runs SQL through the planner; asserts QTF fired (wrapper present), then runs each
-     * supplied {@link Expect} against the optimized plan.
-     */
     private void assertQtfFired(String sql, int shardCount, Expect... expectations) {
         RelNode optimized = optimize(sql, shardCount);
         String planText = RelOptUtil.toString(optimized);
@@ -189,11 +286,10 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         }
     }
 
-    /** Composable post-condition. Static factory per check, all sharing the {@link Inspector} context. */
     private abstract static class Expect {
         abstract void check(Inspector ctx, String sql, String planText);
 
-        /** Scan rowType (post-narrowing) carries exactly these original cols + {@code ___row_id} at the end. */
+        /** Scan rowType (post-narrowing) carries exactly these original cols + {@code ___row_id}. */
         static Expect scanCols(String... expectedNamesInOrder) {
             return new Expect() {
                 @Override
@@ -202,27 +298,51 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
                     List<String> expected = new ArrayList<>(Arrays.asList(expectedNamesInOrder));
                     expected.add(OpenSearchLateMaterialization.ROW_ID_FIELD);
                     if (!expected.equals(actual)) {
-                        fail("Scan rowType mismatch.\n  expected: " + expected + "\n  actual:   " + actual + "\nSQL: " + sql + "\nPlan:\n" + plan);
+                        fail(
+                            "Scan rowType mismatch.\n  expected: "
+                                + expected
+                                + "\n  actual:   "
+                                + actual
+                                + "\nSQL: "
+                                + sql
+                                + "\nPlan:\n"
+                                + plan
+                        );
                     }
                 }
             };
         }
 
-        /** Wrapper carries exactly these field names in the fetch list (in order). */
-        static Expect fetchList(String... expectedNamesInOrder) {
+        /**
+         * Wrapper carries exactly these field names as its {@code AboveAnchorPhysicalFields}
+         * (i.e. fetch list, in order).
+         */
+        static Expect aboveAnchorPhysicalFields(String... expectedNamesInOrder) {
             return new Expect() {
                 @Override
                 void check(Inspector ctx, String sql, String plan) {
-                    List<String> actual = fieldNames(ctx.wrapper.getFetchList());
+                    List<String> actual = fieldNames(ctx.wrapper.getAboveAnchorPhysicalFields());
                     List<String> expected = Arrays.asList(expectedNamesInOrder);
                     if (!expected.equals(actual)) {
-                        fail("Wrapper fetchList mismatch.\n  expected: " + expected + "\n  actual:   " + actual + "\nSQL: " + sql + "\nPlan:\n" + plan);
+                        fail(
+                            "Wrapper aboveAnchorPhysicalFields mismatch.\n  expected: "
+                                + expected
+                                + "\n  actual:   "
+                                + actual
+                                + "\nSQL: "
+                                + sql
+                                + "\nPlan:\n"
+                                + plan
+                        );
                     }
                 }
             };
         }
 
-        /** Wrapper output rowType is exactly these names — helpers MUST be stripped. */
+        /**
+         * Wrapper output rowType is exactly these names (= {@code AboveAnchorPhysicalFields} in
+         * topmost-op order). Helpers must be absent.
+         */
         static Expect wrapperOutput(String... expectedNamesInOrder) {
             return new Expect() {
                 @Override
@@ -230,7 +350,16 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
                     List<String> actual = fieldNames(ctx.wrapper.getRowType().getFieldList());
                     List<String> expected = Arrays.asList(expectedNamesInOrder);
                     if (!expected.equals(actual)) {
-                        fail("Wrapper output rowType mismatch.\n  expected: " + expected + "\n  actual:   " + actual + "\nSQL: " + sql + "\nPlan:\n" + plan);
+                        fail(
+                            "Wrapper output rowType mismatch.\n  expected: "
+                                + expected
+                                + "\n  actual:   "
+                                + actual
+                                + "\nSQL: "
+                                + sql
+                                + "\nPlan:\n"
+                                + plan
+                        );
                     }
                     if (actual.contains(OpenSearchLateMaterialization.ROW_ID_FIELD)
                         || actual.contains(OpenSearchLateMaterialization.UGSI_FIELD)) {
@@ -258,7 +387,11 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
             };
         }
 
-        /** Outer Project (immediately above wrapper) RexInputRef indices, in expression order. */
+        /**
+         * Outer Project (immediately above wrapper) RexInputRef indices, in expression order.
+         * Skip this assertion for projects whose expressions are not bare InputRefs (e.g.
+         * derived expressions like {@code UPPER(URL)}).
+         */
         static Expect outerProjectExprIndices(int... expectedIndices) {
             return new Expect() {
                 @Override
@@ -272,14 +405,30 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
                         if (ctx.outerProject.getProjects().get(i) instanceof RexInputRef ref) {
                             actual[i] = ref.getIndex();
                         } else {
-                            fail("Outer Project expr [" + i + "] is not a RexInputRef: " + ctx.outerProject.getProjects().get(i)
-                                + "\nSQL: " + sql + "\nPlan:\n" + plan);
+                            fail(
+                                "Outer Project expr ["
+                                    + i
+                                    + "] is not a RexInputRef: "
+                                    + ctx.outerProject.getProjects().get(i)
+                                    + "\nSQL: "
+                                    + sql
+                                    + "\nPlan:\n"
+                                    + plan
+                            );
                             return;
                         }
                     }
                     if (!Arrays.equals(expectedIndices, actual)) {
-                        fail("Outer Project RexInputRef indices mismatch.\n  expected: " + Arrays.toString(expectedIndices)
-                            + "\n  actual:   " + Arrays.toString(actual) + "\nSQL: " + sql + "\nPlan:\n" + plan);
+                        fail(
+                            "Outer Project RexInputRef indices mismatch.\n  expected: "
+                                + Arrays.toString(expectedIndices)
+                                + "\n  actual:   "
+                                + Arrays.toString(actual)
+                                + "\nSQL: "
+                                + sql
+                                + "\nPlan:\n"
+                                + plan
+                        );
                     }
                 }
             };
@@ -292,13 +441,31 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
                 void check(Inspector ctx, String sql, String plan) {
                     List<RelFieldCollation> fc = ctx.anchor.getCollation().getFieldCollations();
                     if (fc.size() != expected.length) {
-                        fail("Anchor collation size mismatch. expected=" + expected.length + " actual=" + fc.size()
-                            + "\nSQL: " + sql + "\nPlan:\n" + plan);
+                        fail(
+                            "Anchor collation size mismatch. expected="
+                                + expected.length
+                                + " actual="
+                                + fc.size()
+                                + "\nSQL: "
+                                + sql
+                                + "\nPlan:\n"
+                                + plan
+                        );
                     }
                     for (int i = 0; i < expected.length; i++) {
                         if (fc.get(i).getDirection() != expected[i]) {
-                            fail("Anchor collation[" + i + "] direction mismatch. expected=" + expected[i]
-                                + " actual=" + fc.get(i).getDirection() + "\nSQL: " + sql + "\nPlan:\n" + plan);
+                            fail(
+                                "Anchor collation["
+                                    + i
+                                    + "] direction mismatch. expected="
+                                    + expected[i]
+                                    + " actual="
+                                    + fc.get(i).getDirection()
+                                    + "\nSQL: "
+                                    + sql
+                                    + "\nPlan:\n"
+                                    + plan
+                            );
                         }
                     }
                 }
@@ -306,11 +473,7 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         }
     }
 
-    /**
-     * Single-pass walker that captures the QTF-relevant nodes from an optimized plan:
-     * the wrapper, anchor (= wrapper's input Sort), scan, ER (between anchor and scan if
-     * any), and outer Project (parent of wrapper, if any).
-     */
+    /** Walks an optimized plan once, capturing the QTF-relevant nodes. */
     private static final class Inspector {
         OpenSearchLateMaterialization wrapper;
         OpenSearchSort anchor;
@@ -337,7 +500,8 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
 
     private static List<String> fieldNames(List<RelDataTypeField> fields) {
         List<String> out = new ArrayList<>(fields.size());
-        for (RelDataTypeField f : fields) out.add(f.getName());
+        for (RelDataTypeField f : fields)
+            out.add(f.getName());
         return out;
     }
 

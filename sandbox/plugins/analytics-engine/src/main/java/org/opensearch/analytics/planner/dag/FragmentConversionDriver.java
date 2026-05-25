@@ -9,6 +9,7 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
@@ -22,6 +23,7 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
@@ -89,11 +91,15 @@ public class FragmentConversionDriver {
         for (Stage child : stage.getChildStages()) {
             convertStage(child, registry);
         }
-        // QTF Scatter-Gather stages have no Substrait fragment — they orchestrate fetch
-        // transport and stitch directly in the stage execution. Skip conversion entirely
-        // (no plan alternatives, no instructions). The wrapper RelNode in the fragment is
-        // a stage marker, not something any FragmentConvertor knows how to lower.
+        // After children are converted, surface any decorator-induced schema delta as
+        // postDecorationSchemaBytes on the child plans. The reduce sink consults this when
+        // registering the partition so the catalog binding matches what the decorator delivers.
+        populatePostDecorationSchemas(stage, registry);
+        // LM stage runs Java-only scatter/gather/stitch — no Substrait compute. Emit a
+        // stub Read carrying the wrapper's output schema so Stage 3's parent reduce sink
+        // can derive the partition schema via the standard producerPlanBytes path.
         if (stage.getExecutionType() == StageExecutionType.LATE_MATERIALIZATION) {
+            convertLateMaterializationStage(stage, registry);
             return;
         }
         List<StagePlan> converted = new ArrayList<>(stage.getPlanAlternatives().size());
@@ -124,6 +130,59 @@ public class FragmentConversionDriver {
         }
     }
 
+    /**
+     * Detect a decorator-induced schema delta between a child stage's produced rowType and
+     * what the parent declares it expects, and emit a schema-only Read for partition registration.
+     *
+     * <p>The expected rowType lives on the parent's {@code OpenSearchStageInputScan(childStageId)}
+     * placeholder, which {@code DAGBuilder.cutAtExchange} sets to the reducer's output rowType
+     * (widened by the rewriter when a decorator like {@code OrdinalAppendingSink} runs). The
+     * produced rowType is the child's fragment top. When the two differ, the producer's natural
+     * schema undersells what arrives at the partition boundary post-decorator — the reduce sink
+     * needs the wider one.
+     *
+     * <p>TODO: Uses {@link RelNodeUtils#findNode} which only walks the first-input chain. Fine for
+     * QTF today (linear fragments). When QTF extends to Joins/Unions, multi-input fragments will
+     * have multiple {@code StageInputScan} leaves and this needs a multi-leaf walker.
+     */
+    private static void populatePostDecorationSchemas(Stage stage, CapabilityRegistry registry) {
+        for (Stage child : stage.getChildStages()) {
+            OpenSearchStageInputScan inputScan = RelNodeUtils.findNode(stage.getFragment(), OpenSearchStageInputScan.class);
+            if (inputScan == null || inputScan.getChildStageId() != child.getStageId()) continue;
+            RelDataType produced = child.getFragment().getRowType();
+            RelDataType expected = inputScan.getRowType();
+            // Cheap int compare first, then digest string compare via equals.
+            if (produced.getFieldCount() == expected.getFieldCount() && produced.equals(expected)) continue;
+
+            List<StagePlan> updated = new ArrayList<>(child.getPlanAlternatives().size());
+            for (StagePlan plan : child.getPlanAlternatives()) {
+                FragmentConvertor convertor = registry.getBackend(plan.backendId()).getFragmentConvertor();
+                byte[] postDecorationBytes = convertor.convertSchemaOnlyRead(child.getStageId(), expected);
+                updated.add(plan.withPostDecorationSchemaBytes(postDecorationBytes));
+            }
+            child.setPlanAlternatives(updated);
+        }
+    }
+
+    /**
+     * Stub Substrait for the LM stage: a {@code Read { named_table: "input-<lmStageId>";
+     * base_schema: wrapperOutput }} the parent reduce sink can register against. The plan's
+     * {@code resolvedFragment} IS the wrapper (DAGBuilder builds it that way), but we don't
+     * convert it — the LM stage runs Java-only scatter/gather/stitch and emits no Substrait
+     * compute. We only need the schema-bearing Read so Stage 3's reduce sink derives a
+     * partition schema via the standard producerPlanBytes path.
+     */
+    private static void convertLateMaterializationStage(Stage stage, CapabilityRegistry registry) {
+        List<StagePlan> converted = new ArrayList<>(stage.getPlanAlternatives().size());
+        for (StagePlan plan : stage.getPlanAlternatives()) {
+            OpenSearchLateMaterialization wrapper = (OpenSearchLateMaterialization) plan.resolvedFragment();
+            FragmentConvertor convertor = registry.getBackend(plan.backendId()).getFragmentConvertor();
+            byte[] bytes = convertor.convertSchemaOnlyRead(stage.getStageId(), wrapper.getRowType());
+            converted.add(plan.withConvertedBytes(bytes, List.of()).withInstructions(List.of()));
+        }
+        stage.setPlanAlternatives(converted);
+    }
+
     private static List<InstructionNode> assembleInstructions(
         AnalyticsSearchBackendPlugin backend,
         StagePlan plan,
@@ -134,14 +193,15 @@ public class FragmentConversionDriver {
         LinkedList<InstructionNode> instructions = new LinkedList<>();
         RelNode leaf = findLeaf(plan.resolvedFragment());
 
-        if (leaf instanceof OpenSearchTableScan) {
+        if (leaf instanceof OpenSearchTableScan tableScan) {
+            // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
+            // backend so it picks the row-id-aware table provider regardless of delegation.
+            boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                // Delegation exists — use ShardScanWithDelegationInstructionNode which carries
-                // treeShape + count for the driving backend to configure its custom scan operator
-                factory.createShardScanWithDelegationNode(treeShape, delegated.size()).ifPresent(instructions::add);
+                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds).ifPresent(instructions::add);
             } else {
-                factory.createShardScanNode().ifPresent(instructions::add);
+                factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
             }
         }
         return instructions;
@@ -388,6 +448,17 @@ public class FragmentConversionDriver {
                     }
                     RelNode finalAggFragment = openSearchNode.stripAnnotations(finalAggInputs, resolver);
                     return convertor.convertFragment(finalAggFragment);
+                }
+
+                // LM-fed reduce stage (post-LM Stage 3): the LM stage emits a stitched VSR straight
+                // into this stage's input partition with no ExchangeReducer between, so the
+                // StageInputScan leaf sits directly under this op. Convert the whole node as one
+                // fragment; the convertor's rewriteStageInputScans turns the leaf into a NamedScan
+                // so isthmus can serialize it.
+                boolean allChildrenAreStageInputScan = !node.getInputs().isEmpty()
+                    && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchStageInputScan);
+                if (allChildrenAreStageInputScan) {
+                    return convertor.convertFragment(strip(node, delegationBytes));
                 }
             }
 

@@ -138,8 +138,11 @@ public class PlanForkerTests extends BasePlannerRulesTests {
             3,
             makeSort(makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)), 10)
         );
-        assertEquals(1, sortFilterDag.rootStage().getPlanAlternatives().size());
-        for (StagePlan plan : sortFilterDag.rootStage().getPlanAlternatives()) {
+        // QTF rewriter inserts a LATE_MATERIALIZATION root stage above the original Sort+Limit
+        // reduce stage; this test was written pre-QTF to assert on the Sort stage. Skip past LM.
+        Stage sortFilterRoot = effectiveSortRoot(sortFilterDag.rootStage());
+        assertEquals(1, sortFilterRoot.getPlanAlternatives().size());
+        for (StagePlan plan : sortFilterRoot.getPlanAlternatives()) {
             assertTrue(plan.resolvedFragment() instanceof OpenSearchSort);
         }
 
@@ -155,10 +158,26 @@ public class PlanForkerTests extends BasePlannerRulesTests {
                 10
             )
         );
-        assertEquals(1, sortAggDag.rootStage().getPlanAlternatives().size());
-        for (StagePlan plan : sortAggDag.rootStage().getPlanAlternatives()) {
+        Stage sortAggRoot = effectiveSortRoot(sortAggDag.rootStage());
+        assertEquals(1, sortAggRoot.getPlanAlternatives().size());
+        for (StagePlan plan : sortAggRoot.getPlanAlternatives()) {
             assertTrue(plan.resolvedFragment() instanceof OpenSearchSort);
         }
+    }
+
+    /**
+     * QTF wraps the original sort+limit reduce inside a 4-stage spine: post-LM COORDINATOR_REDUCE
+     * (root) → LATE_MATERIALIZATION → sort+limit COORDINATOR_REDUCE → SHARD_FRAGMENT. Descend
+     * down the first-child chain until we hit the stage whose fragment is the OpenSearchSort the
+     * pre-QTF assertions expect.
+     */
+    private static Stage effectiveSortRoot(Stage root) {
+        Stage stage = root;
+        while (!(stage.getFragment() instanceof OpenSearchSort)) {
+            if (stage.getChildStages().isEmpty()) return stage;
+            stage = stage.getChildStages().getFirst();
+        }
+        return stage;
     }
 
     /**

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
@@ -29,6 +30,13 @@ public final class FragmentResources implements AutoCloseable {
     private final SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine;
     private final EngineResultStream stream;
     private final Runnable onClose;
+    /**
+     * Off-heap rowId buffer kept alive across the fetch stream's lifetime. Non-null only
+     * for the QTF fetch path, where the native side reads rowIds directly via the
+     * BigIntVector's data-buffer address — closing it before the stream drains would
+     * pull memory out from under the FFM call.
+     */
+    private final BigIntVector rowIdVector;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
@@ -37,12 +45,24 @@ public final class FragmentResources implements AutoCloseable {
         EngineResultStream stream,
         Runnable onClose
     ) {
+        this(readerContextStore, readerContext, engine, stream, onClose, null);
+    }
+
+    public FragmentResources(
+        ReaderContextStore readerContextStore,
+        ReaderContext readerContext,
+        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
+        EngineResultStream stream,
+        Runnable onClose,
+        BigIntVector rowIdVector
+    ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
         this.readerContextStore = readerContextStore;
         this.readerContext = readerContext;
         this.engine = engine;
         this.stream = stream;
         this.onClose = onClose;
+        this.rowIdVector = rowIdVector;
     }
 
     private static boolean assertCtorInvariants(ReaderContextStore store, ReaderContext ctx) {
@@ -67,6 +87,7 @@ public final class FragmentResources implements AutoCloseable {
         }
         first = closeQuietly(stream, first);
         first = closeQuietly(engine, first);
+        first = closeQuietly(rowIdVector, first);
         // Release (not close) — the store's reaper closes after keepAlive, and the QTF
         // fetch phase may still need this reader before then.
         if (readerContext != null) {
