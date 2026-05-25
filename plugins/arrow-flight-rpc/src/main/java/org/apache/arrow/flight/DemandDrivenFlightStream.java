@@ -9,8 +9,6 @@
 package org.apache.arrow.flight;
 
 import io.grpc.ClientCall;
-
-
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientCalls;
 import io.grpc.stub.ClientResponseObserver;
@@ -79,20 +77,20 @@ public class DemandDrivenFlightStream implements AutoCloseable {
      * @param channel     the gRPC ManagedChannel (from FlightTransport)
      * @param allocator   the Arrow BufferAllocator for deserialization
      * @param ticket      the Flight ticket identifying the stream
-     * @param options     call options (headers, deadlines, etc.)
+     * @param headers     gRPC metadata headers (e.g. correlation ID)
      */
     public static DemandDrivenFlightStream openFromChannel(
         io.grpc.Channel channel,
         BufferAllocator allocator,
         Ticket ticket,
-        CallOption... options
+        io.grpc.Metadata headers
     ) {
         var descriptor = doGetDescriptor(allocator);
-        io.grpc.CallOptions callOpts = io.grpc.CallOptions.DEFAULT;
-        for (CallOption opt : options) {
-            callOpts = opt.wrapCallOption(callOpts);
-        }
-        ClientCall<org.apache.arrow.flight.impl.Flight.Ticket, ArrowMessage> call = channel.newCall(descriptor, callOpts);
+        io.grpc.Channel interceptedChannel = io.grpc.ClientInterceptors.intercept(
+            channel, io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(headers)
+        );
+        ClientCall<org.apache.arrow.flight.impl.Flight.Ticket, ArrowMessage> call =
+            interceptedChannel.newCall(descriptor, io.grpc.CallOptions.DEFAULT);
         return open(allocator, call, ticket.toProtocol());
     }
 

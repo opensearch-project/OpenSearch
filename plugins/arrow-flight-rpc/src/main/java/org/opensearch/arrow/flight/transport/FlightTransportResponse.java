@@ -96,10 +96,17 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                     // This prevents gRPC from eagerly deserializing messages into the
                     // bounded Arrow allocator. At most 1 message is deserialized at a time.
                     if (flightClient instanceof org.apache.arrow.flight.FlightClientWithChannel clientWithChannel) {
+                        io.grpc.Metadata headers = new io.grpc.Metadata();
+                        for (String key : callHeaders.keys()) {
+                            headers.put(
+                                io.grpc.Metadata.Key.of(key, io.grpc.Metadata.ASCII_STRING_MARSHALLER),
+                                callHeaders.get(key)
+                            );
+                        }
                         demandStream = org.apache.arrow.flight.DemandDrivenFlightStream.openFromChannel(
                             clientWithChannel.getChannel(),
                             clientWithChannel.getAllocator(),
-                            ticket, new HeaderCallOption(callHeaders)
+                            ticket, headers
                         );
                     } else {
                         // Fallback: use standard FlightStream (no demand control)
