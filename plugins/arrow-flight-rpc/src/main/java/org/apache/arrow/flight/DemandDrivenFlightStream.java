@@ -201,9 +201,7 @@ public class DemandDrivenFlightStream implements AutoCloseable {
                         root = VectorSchemaRoot.create(schema, allocator);
                         loader = new VectorLoader(root);
                     }
-                    // Schema message processed, request next (will be data or dictionary)
                     if (!completed) requestStream.request(1);
-                    // Recurse to get the actual data batch
                     Object next = queue.poll(60, TimeUnit.SECONDS);
                     if (next != null && next != DONE) {
                         processMessage((ArrowMessage) next);
@@ -222,7 +220,6 @@ public class DemandDrivenFlightStream implements AutoCloseable {
                     break;
 
                 case DICTIONARY_BATCH:
-                    // Process dictionary, then request and process next message
                     if (!completed) requestStream.request(1);
                     Object dictNext = queue.poll(60, TimeUnit.SECONDS);
                     if (dictNext != null && dictNext != DONE) {
@@ -235,8 +232,14 @@ public class DemandDrivenFlightStream implements AutoCloseable {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            throw new RuntimeException("Error processing Arrow Flight message", e);
         } finally {
-            message.close();
+            try {
+                message.close();
+            } catch (Exception e) {
+                // best-effort close
+            }
         }
     }
 
