@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, HiveMessage> {
 
     private static final Logger logger = LogManager.getLogger(HiveShardConsumer.class);
+    private static final String LATEST_PARTITION_SENTINEL = "__LATEST__";
 
     private final int shardId;
     private final HiveSourceConfig config;
@@ -108,7 +109,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      */
     private void seekToPointer(HivePointer pointer, boolean includeStart) throws Exception {
         // Handle "latest" reset: skip all existing partitions, only read new ones
-        if ("__LATEST__".equals(pointer.getPartitionName())) {
+        if (LATEST_PARTITION_SENTINEL.equals(pointer.getPartitionName())) {
             List<MetastoreCatalog.PartitionInfo> existing = catalog.getAllPartitions(config.getDatabase(), config.getTable());
             if (!existing.isEmpty()) {
                 watermark = existing.stream().map(this::partitionToName).max(String::compareTo).orElse("");
@@ -592,7 +593,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     public IngestionShardPointer latestPointer() {
         // Signals that existing partitions should be skipped. seekToPointer sets all watermarks
         // to their respective maximums so that subsequent discovery returns no existing partitions.
-        return new HivePointer("__LATEST__", "", 0, Long.MAX_VALUE - 1);
+        return new HivePointer(LATEST_PARTITION_SENTINEL, "", 0, Long.MAX_VALUE - 1);
     }
 
     @Override
