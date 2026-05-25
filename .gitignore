@@ -74,3 +74,4 @@ ReferenceTesting/_no_st.ndjson
 # Local development files
 .kiro/
 ReferenceTesting/
+*.class
