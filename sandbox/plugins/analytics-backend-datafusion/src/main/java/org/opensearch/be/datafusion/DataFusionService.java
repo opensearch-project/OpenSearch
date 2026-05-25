@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheUtils;
+import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -37,6 +38,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final long spillMemoryLimit;
     private final String spillDirectory;
     private final int cpuThreads;
+    private final double datanodeMultiplier;
+    private final double coordinatorMultiplier;
     private final ClusterSettings clusterSettings;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
@@ -50,6 +53,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillMemoryLimit = builder.spillMemoryLimit;
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
+        this.datanodeMultiplier = builder.datanodeMultiplier;
+        this.coordinatorMultiplier = builder.coordinatorMultiplier;
         this.clusterSettings = builder.clusterSettings;
     }
 
@@ -61,16 +66,33 @@ public class DataFusionService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("Starting DataFusion service");
-        NativeBridge.initTokioRuntimeManager(cpuThreads);
-        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
+        NativeBridge.initTokioRuntimeManager(cpuThreads, datanodeMultiplier, coordinatorMultiplier);
+        logger.debug(
+            "Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
+            cpuThreads,
+            datanodeMultiplier,
+            coordinatorMultiplier
+        );
 
         long cacheManagerPtr = 0L;
+        NativeCacheManagerHandle cacheHandle = null;
         if (clusterSettings != null) {
-            cacheManagerPtr = CacheUtils.createCacheConfig(clusterSettings);
+            cacheHandle = CacheUtils.createCacheConfig(clusterSettings);
+            cacheManagerPtr = cacheHandle.getPointer();
         }
 
-        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
-        this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        try {
+            long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+            if (cacheHandle != null) {
+                cacheHandle.markConsumed();
+            }
+            this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        } catch (Exception e) {
+            if (cacheHandle != null) {
+                cacheHandle.close();
+            }
+            throw e;
+        }
 
         if (clusterSettings != null) {
             this.cacheManager = new CacheManager(runtimeHandle);
@@ -124,6 +146,11 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return NativeBridge.getMemoryPoolLimit(getNativeRuntime().get());
     }
 
+    /** Returns [usage_bytes, tripped_count] from the native memory pool. Single FFM call. */
+    public long[] getMemoryPoolStats() {
+        return NativeBridge.getMemoryPoolStats(getNativeRuntime().get());
+    }
+
     /**
      * Sets the memory pool limit at runtime. Takes effect for new allocations only.
      * Existing reservations that exceed the new limit are NOT reclaimed.
@@ -134,6 +161,23 @@ public class DataFusionService extends AbstractLifecycleComponent {
      */
     public void setMemoryPoolLimit(long newLimitBytes) {
         NativeBridge.setMemoryPoolLimit(getNativeRuntime().get(), newLimitBytes);
+    }
+
+    /**
+     * Returns true if the loaded native library can update the spill cap at runtime.
+     * When false, {@link #setSpillMemoryLimit(long)} will throw and cluster-state
+     * updates of {@code datafusion.spill_memory_limit_bytes} have no live effect.
+     */
+    public boolean isSpillLimitDynamic() {
+        return NativeBridge.isSpillLimitDynamic();
+    }
+
+    /**
+     * Sets the spill memory limit at runtime. Requires {@link #isSpillLimitDynamic()};
+     * otherwise throws {@link UnsupportedOperationException}.
+     */
+    public void setSpillMemoryLimit(long newLimitBytes) {
+        NativeBridge.setSpillLimit(getNativeRuntime().get(), newLimitBytes);
     }
 
     /**
@@ -199,6 +243,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
+        private double datanodeMultiplier = 1.0;
+        private double coordinatorMultiplier = 1.0;
         private ClusterSettings clusterSettings;
 
         private Builder() {}
@@ -236,6 +282,18 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder cpuThreads(int threads) {
             this.cpuThreads = threads;
+            return this;
+        }
+
+        /** Sets the datanode concurrency gate multiplier. */
+        public Builder datanodeMultiplier(double multiplier) {
+            this.datanodeMultiplier = multiplier;
+            return this;
+        }
+
+        /** Sets the coordinator concurrency gate multiplier. */
+        public Builder coordinatorMultiplier(double multiplier) {
+            this.coordinatorMultiplier = multiplier;
             return this;
         }
 

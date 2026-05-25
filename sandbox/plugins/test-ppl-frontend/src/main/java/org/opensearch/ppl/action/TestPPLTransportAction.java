@@ -69,7 +69,9 @@ public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, P
         // TODO: update UnifiedQueryService to consume a listener that DefaultPlanExecutor does to avoid threadpool fork
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             try {
-                PPLResponse response = unifiedQueryService.execute(request.getPplText());
+                PPLResponse response = request.isExplain()
+                    ? unifiedQueryService.executeWithProfile(request.getPplText())
+                    : unifiedQueryService.execute(request.getPplText());
                 listener.onResponse(response);
             } catch (Exception e) {
                 logger.error("[UNIFIED_PPL] execution failed", e);

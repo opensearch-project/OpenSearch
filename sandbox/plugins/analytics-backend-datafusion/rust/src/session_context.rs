@@ -51,6 +51,9 @@ pub struct SessionContextHandle {
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
     pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+    /// Phantom reservation holding pool capacity for untracked memory.
+    /// Dropped when the handle is closed, releasing the capacity.
+    pub(crate) phantom_reservation: Option<datafusion::execution::memory_pool::MemoryReservation>,
 }
 
 /// Configuration for indexed execution with filter delegation, provided by Java.
@@ -133,7 +136,7 @@ pub async unsafe fn create_session_context(
     let shard_view = &*(shard_view_ptr as *const ShardView);
 
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool);
+    let query_context = QueryTrackingContext::new(context_id, global_pool.clone());
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn MemoryPool>);
@@ -154,6 +157,9 @@ pub async unsafe fn create_session_context(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
@@ -176,10 +182,23 @@ pub async unsafe fn create_session_context(
         Arc::clone(&shard_view.store),
     );
 
+    // Acquire memory budget from cached parquet metadata (zero I/O).
+    // On cache miss (first query for this shard), skip — subsequent queries benefit.
+    let phantom_reservation = try_acquire_budget(
+        runtime, &global_pool, &shard_view, &query_config,
+    );
+    let effective_partitions = phantom_reservation.as_ref()
+        .map(|b| b.target_partitions)
+        .unwrap_or(query_config.target_partitions);
+    let effective_batch_size = phantom_reservation.as_ref()
+        .map(|b| b.batch_size)
+        .unwrap_or(query_config.batch_size);
+    let phantom = phantom_reservation.map(|b| b.phantom_reservation);
+
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
-    config.options_mut().execution.target_partitions = query_config.target_partitions;
-    config.options_mut().execution.batch_size = query_config.batch_size;
+    config.options_mut().execution.target_partitions = effective_partitions;
+    config.options_mut().execution.batch_size = effective_batch_size;
 
     let state = SessionStateBuilder::new()
         .with_config(config)
@@ -189,10 +208,11 @@ pub async unsafe fn create_session_context(
         .build();
 
     let ctx = SessionContext::new_with_state(state);
-    // Register OpenSearch UDFs (mvappend, mvfind, mvzip, convert_tz, …) on this session
-    // so the substrait converter at execute_with_context can resolve their function names.
-    // Without this, fragment execution fails with "Unsupported function name" because
-    // df_execute_with_context reuses this handle's ctx instead of building a fresh one.
+    // Register OpenSearch UDFs (parse, item, mvappend, mvfind, mvzip, convert_tz, …)
+    // on this session so the substrait converter at execute_with_context can resolve
+    // their function names. Without this, fragment execution fails with "Unsupported
+    // function name" because df_execute_with_context reuses this handle's ctx instead
+    // of building a fresh one.
     crate::udf::register_all(&ctx);
     crate::udaf::register_all(&ctx);
 
@@ -232,13 +252,19 @@ pub async unsafe fn create_session_context(
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);
 
-    let provider = Arc::new(ListingTable::try_new(table_config).map_err(|e| {
-        error!(
-            "create_session_context: failed to create listing table: {}",
-            e
-        );
-        e
-    })?);
+    // Wire the global statistics cache into the ListingTable.
+    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
+    let provider = Arc::new(
+        ListingTable::try_new(table_config)
+            .map_err(|e| {
+                error!(
+                    "create_session_context: failed to create listing table: {}",
+                    e
+                );
+                e
+            })?
+            .with_cache(stats_cache),
+    );
 
     ctx.register_table(register_name.as_str(), provider).map_err(|e| {
         error!(
@@ -265,6 +291,7 @@ pub async unsafe fn create_session_context(
         query_config,
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
+        phantom_reservation: phantom,
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
@@ -337,6 +364,38 @@ pub async fn prepare_partial_plan(
     Ok(())
 }
 
+/// Attempt to acquire a memory budget using cached parquet metadata.
+/// Returns None on cache miss or if the budget system is not configured.
+fn try_acquire_budget(
+    runtime: &DataFusionRuntime,
+    pool: &Arc<dyn MemoryPool>,
+    shard_view: &ShardView,
+    config: &DatafusionQueryConfig,
+) -> Option<crate::query_budget::QueryMemoryBudget> {
+    use datafusion::execution::cache::CacheAccessor;
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use parquet::arrow::parquet_to_arrow_schema;
+
+    let first_meta = shard_view.object_metas.first()?;
+    let cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+    let cached = cache.get(&first_meta.location)?;
+    let cached_parquet = cached.file_metadata.as_any().downcast_ref::<CachedParquetMetaData>()?;
+    let parquet_meta = cached_parquet.parquet_metadata();
+
+    let schema = parquet_to_arrow_schema(
+        parquet_meta.file_metadata().schema_descr(),
+        parquet_meta.file_metadata().key_value_metadata(),
+    ).ok().map(Arc::new)?;
+
+    crate::query_budget::acquire_budget_from_metadata(
+        pool,
+        &schema,
+        parquet_meta,
+        config.target_partitions,
+        config.batch_size,
+    ).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,6 +456,7 @@ mod tests {
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             aggregate_mode: Mode::Default,
             prepared_plan: None,
+            phantom_reservation: None,
         };
         (handle, buf)
     }

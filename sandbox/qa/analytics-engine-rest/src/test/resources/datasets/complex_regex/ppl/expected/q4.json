@@ -1,0 +1,60 @@
+{
+  "schema": [
+    {
+      "name": "exception_count",
+      "type": "bigint"
+    },
+    {
+      "name": "exception_class",
+      "type": "string"
+    },
+    {
+      "name": "source_file",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      11,
+      "java.lang.IllegalArgumentException",
+      "UserService.java"
+    ],
+    [
+      10,
+      "java.io.IOException",
+      "OrderController.java"
+    ],
+    [
+      8,
+      "java.lang.IllegalArgumentException",
+      "PaymentProcessor.java"
+    ],
+    [
+      7,
+      "java.io.IOException",
+      "DatabaseHelper.java"
+    ],
+    [
+      7,
+      "java.io.IOException",
+      "PaymentProcessor.java"
+    ],
+    [
+      7,
+      "java.io.IOException",
+      "UserService.java"
+    ],
+    [
+      7,
+      "java.lang.NullPointerException",
+      "UserService.java"
+    ],
+    [
+      6,
+      "java.lang.NullPointerException",
+      "OrderController.java"
+    ]
+  ],
+  "total": 8,
+  "size": 8
+}

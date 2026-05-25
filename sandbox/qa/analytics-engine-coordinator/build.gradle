@@ -36,7 +36,8 @@ dependencies {
   // these directly without going through analytics-engine's internal classes.
   internalClusterTestImplementation project(':sandbox:libs:analytics-api')
 
-  // Arrow base — provides Arrow memory/vector classes.
+  // Arrow base — provides Arrow memory/vector classes and the unified native-allocator
+  // framework required by FlightStreamPlugin and the analytics path.
   internalClusterTestImplementation project(':plugins:arrow-base')
 
   // Arrow Flight streaming transport — provides the streaming TransportService.

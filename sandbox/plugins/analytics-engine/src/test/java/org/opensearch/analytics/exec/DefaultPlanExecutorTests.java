@@ -162,12 +162,13 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         assertArrayEquals("columns must be reordered to [name, age]", new Object[] { "hello", 20L }, rows.get(0));
     }
 
-    /** Defensive fallback: a target name absent from the batch keeps the batch's native order. */
-    public void testBatchesToRowsFallsBackWhenTargetNameMissing() {
+    /** Missing target column name throws rather than silently misording. */
+    public void testBatchesToRowsThrowsWhenTargetNameMissing() {
         VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // [age, name]
-        List<Object[]> rows = toList(DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent")));
-        assertEquals(1, rows.size());
-        assertArrayEquals("unknown target → native order [age, name]", new Object[] { 20L, "hello" }, rows.get(0));
+        expectThrows(
+            IllegalStateException.class,
+            () -> DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent"))
+        );
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

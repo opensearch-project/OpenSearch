@@ -46,6 +46,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -751,6 +752,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public QueryCachingPolicy getQueryCachingPolicy() {
         return cachingPolicy;
+    }
+
+    public QueryCache getQueryCache() {
+        return indexCache != null ? indexCache.query() : null;
     }
 
     /** Only used for testing **/
@@ -1776,7 +1781,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
         org.apache.lucene.util.Version luceneVersion = null;
-        for (Segment segment : applyOnEngine(getIndexer(), engine -> engine.segments(false))) {
+        for (Segment segment : getIndexer().segments(false)) {
+            if (segment.getVersion() == null) continue; // DFAE segments have no Lucene version
             if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
@@ -2633,22 +2639,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
-                    Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
-                    // verifying that all files except EXCLUDE_FILES are uploaded to the remote
-                    localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
-                    if (uploadFiles.containsAll(localFiles)) {
-                        return true;
-                    }
-                    logger.debug(
-                        () -> new ParameterizedMessage(
-                            "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
-                            localFiles.size(),
-                            uploadFiles.size()
-                        )
-                    );
+                Set<String> localFiles;
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshot()) {
+                    localFiles = new HashSet<>(catalogSnapshotRef.get().getFiles(true));
                 }
+                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
+                if (uploadFiles.containsAll(localFiles)) {
+                    return true;
+                }
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
+                        localFiles.size(),
+                        uploadFiles.size()
+                    )
+                );
             }
         } catch (AlreadyClosedException e) {
             throw e;
@@ -3674,7 +3680,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public List<Segment> segments(boolean verbose) {
-        return applyOnEngine(getIndexer(), engine -> engine.segments(verbose));
+        return getIndexer().segments(verbose);
     }
 
     public String getHistoryUUID() {
@@ -5581,11 +5587,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 @Override
-                public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-                    if (newEngineReference.get() == null) {
+                public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
+                    final Indexer ref = newEngineReference.get();
+                    if (ref == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
-                    return applyOnEngine(newEngineReference.get(), Engine::getSegmentInfosSnapshot);
+                    return ref.acquireSnapshot();
                 }
 
                 @Override

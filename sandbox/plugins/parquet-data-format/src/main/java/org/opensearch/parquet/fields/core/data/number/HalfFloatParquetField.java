@@ -26,7 +26,10 @@ public class HalfFloatParquetField extends ParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((Float2Vector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), ((Number) parseValue).shortValue());
+        ((Float2Vector) managedVSR.getVector(mappedFieldType.name())).setSafeWithPossibleTruncate(
+            managedVSR.getRowCount(),
+            ((Number) parseValue).floatValue()
+        );
     }
 
     @Override

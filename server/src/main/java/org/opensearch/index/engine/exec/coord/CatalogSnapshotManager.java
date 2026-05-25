@@ -14,6 +14,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
@@ -484,6 +485,9 @@ public class CatalogSnapshotManager implements Closeable {
     private CatalogSnapshot acquireLatestSnapshot() {
         CatalogSnapshot snapshot;
         do {
+            if (closed.get()) {
+                throw new IllegalStateException("CatalogSnapshotManager is closed");
+            }
             snapshot = latestCatalogSnapshot;
         } while (!snapshot.tryIncRef());
         return snapshot;
@@ -509,6 +513,13 @@ public class CatalogSnapshotManager implements Closeable {
                 throw new RuntimeException("Failed to release committed snapshot [gen=" + policyRef.get().getGeneration() + "]", e);
             }
         });
+    }
+
+    /**
+     * Returns information about the safe commit from the underlying deletion policy.
+     */
+    public SafeCommitInfo getSafeCommitInfo() {
+        return deletionPolicy.getSafeCommitInfo();
     }
 
     // ---- Internal ----
@@ -555,6 +566,12 @@ public class CatalogSnapshotManager implements Closeable {
         if (writerFileSetMap.isEmpty()) {
             throw new IllegalArgumentException("writerFileSetMap must not be empty");
         }
+        // Check for null values (format participated but returned no result)
+        for (Map.Entry<DataFormat, WriterFileSet> entry : writerFileSetMap.entrySet()) {
+            if (entry.getValue() == null) {
+                throw new IllegalStateException("WriterFileSet is null for format [" + entry.getKey().name() + "] — merge was incomplete");
+            }
+        }
         long generation = writerFileSetMap.values().iterator().next().writerGeneration();
         Segment.Builder segment = Segment.builder(generation);
         for (Map.Entry<DataFormat, WriterFileSet> entry : writerFileSetMap.entrySet()) {
@@ -569,6 +586,20 @@ public class CatalogSnapshotManager implements Closeable {
     @Override
     public void close() {
         closed.compareAndSet(false, true);
+    }
+
+    /**
+     * Returns the number of unreferenced file cleanup operations performed.
+     */
+    public long getUnreferencedFileCleanUpsPerformed() {
+        return indexFileDeleter.getCleanUpsPerformed();
+    }
+
+    /**
+     * Increments the merge failure cleanup counter.
+     */
+    public void incrementUnreferencedFileCleanUps() {
+        indexFileDeleter.incrementCleanUpsPerformed();
     }
 
     /**
