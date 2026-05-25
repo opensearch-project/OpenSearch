@@ -87,7 +87,6 @@ function parse_args() {
     [ -z "$NOTIFICATIONS_BRANCH" ] && NOTIFICATIONS_BRANCH="main"
     [ -z "$ALERTING_BRANCH" ] && ALERTING_BRANCH="main"
     [ -z "$COMMON_UTILS_BRANCH" ] && COMMON_UTILS_BRANCH="main"
-    [ -z "$ENGINE_TARBALL" ] && ENGINE_TARBALL=""
     [ -z "$REVISION" ] && REVISION="0"
     [ -z "$IS_STAGE" ] && IS_STAGE="false"
     [ -z "$DISTRIBUTION" ] && DISTRIBUTION="rpm"
@@ -108,7 +107,7 @@ function usage() {
     echo -e "-n NOTIFICATIONS_BRANCH\t\t[Optional] wazuh-indexer-notifications repo branch, default is 'main'."
     echo -e "-t ALERTING_BRANCH\t\t[Optional] wazuh-indexer-alerting repo branch, default is 'main'."
     echo -e "-c COMMON_UTILS_BRANCH\t\t[Optional] wazuh-indexer-common-utils repo branch, default is 'main'."
-    echo -e "-e ENGINE_TARBALL\t\t[Optional] Path to wazuh-engine tarball (.tar.gz) on the host."
+    echo -e "-e ENGINE_TARBALL\t\t[Required] Path to wazuh-engine tarball (.tar.gz) on the host."
     echo -e "-R REVISION\t[Optional] Package revision, default is '0'."
     echo -e "-S STAGE\t[Optional] Staging build, default is 'false'."
     echo -e "-d DISTRIBUTION\t[Optional] Distribution, default is 'rpm'."
@@ -146,6 +145,12 @@ function main() {
     if [[ "$DESTROY" == true || "$DESTROY" == "1" ]]; then
         $compose_cmd down -v
         exit 0
+    fi
+
+    if [ -z "$ENGINE_TARBALL" ]; then
+        echo "Error: -e ENGINE_TARBALL is required."
+        usage
+        exit 1
     fi
 
     $compose_cmd up

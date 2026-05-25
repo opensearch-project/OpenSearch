@@ -176,18 +176,18 @@ copy_builds() {
 
 # Function to set up the Wazuh Engine tarball
 setup_engine_tarball() {
-    if [ -n "$ENGINE_TARBALL" ] && [ -f /tmp/engine-tarball.tar.gz ]; then
-        echo "----------------------------------------"
-        echo "Setting up Wazuh Engine tarball"
-        echo "----------------------------------------"
-        local tarball_name
-        tarball_name=$(basename "$ENGINE_TARBALL")
-        mkdir -p ~/artifacts/engine
-        cp /tmp/engine-tarball.tar.gz ~/artifacts/engine/"$tarball_name"
-        echo "Engine tarball copied to artifacts/engine/$tarball_name"
-    else
-        echo "WARNING: No engine tarball provided. Packaging may fail."
+    if [ -z "$ENGINE_TARBALL" ] || [ ! -f /tmp/engine-tarball.tar.gz ]; then
+        echo "Error: wazuh-engine tarball is required but was not provided or is not accessible at /tmp/engine-tarball.tar.gz."
+        exit 1
     fi
+    echo "----------------------------------------"
+    echo "Setting up Wazuh Engine tarball"
+    echo "----------------------------------------"
+    local tarball_name
+    tarball_name=$(basename "$ENGINE_TARBALL")
+    mkdir -p ~/artifacts/engine
+    cp /tmp/engine-tarball.tar.gz ~/artifacts/engine/"$tarball_name"
+    echo "Engine tarball copied to artifacts/engine/$tarball_name"
 }
 
 # Function for packaging process

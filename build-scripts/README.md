@@ -29,6 +29,8 @@ Before you get started, make sure to clean your environment by running `./gradle
 
 3. Clone the [wazuh-indexer](https://github.com/wazuh/wazuh-indexer).
 
+4. **A `wazuh-engine` tarball is required** to build the Wazuh Indexer package. Follow the [Engine build instructions](https://github.com/wazuh/wazuh/blob/main/src/engine/standalone/README.md) in the `wazuh/wazuh` repository to produce it. The resulting `.tar.gz` is passed to `builder.sh` via the `-e` flag.
+
 ## Building wazuh-indexer packages
 
 The `builder` image automates the build and assemble process for the Wazuh Indexer and its plugins, making it easy to create packages on any system.
@@ -46,6 +48,7 @@ Arguments:
 -n INDEXER_NOTIFICATIONS_BRANCH [Optional] wazuh-indexer-notifications repo branch, default is 'main'.
 -t INDEXER_ALERTING_BRANCH      [Optional] wazuh-indexer-alerting repo branch, default is 'main'.
 -c COMMON_UTILS_BRANCH          [Optional] wazuh-indexer-common-utils repo branch, default is 'main'.
+-e ENGINE_TARBALL               [Required] Path to wazuh-engine tarball (.tar.gz) on the host.
 -R REVISION     [Optional] Package revision, default is '0'.
 -S STAGE        [Optional] Staging build, default is 'false'.
 -d DISTRIBUTION [Optional] Distribution, default is 'rpm'.
@@ -57,8 +60,8 @@ Arguments:
 The example below it will generate a wazuh-indexer package for Debian based systems, for the x64 architecture, using 1 as revision number and using the production naming convention.
 
 ```bash
-# Wihtin wazuh-indexer/build-scripts/builder
-bash builder.sh -d deb -a x64 -R 1 -S true
+# Within wazuh-indexer/build-scripts/builder
+bash builder.sh -d deb -a x64 -R 1 -S true -e ./wazuh-engine-5.0.0-linux-amd64.tar.gz
 ```
 
 The resulting package will be stored at `wazuh-indexer/artifacts/dist`.
