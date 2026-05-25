@@ -253,14 +253,14 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         List<Integer> firstPassMatches = new ArrayList<>();
         List<Integer> secondPassMatches = new ArrayList<>();
         for (LeafReaderContext leaf : reader.leaves()) {
-            ScorerSupplier supplier = weight.scorerSupplier(leaf);
-            if (supplier == null) {
+            ScorerSupplier supplier1 = weight.scorerSupplier(leaf);
+            ScorerSupplier supplier2 = weight.scorerSupplier(leaf);
+            if (supplier1 == null || supplier2 == null) {
                 continue;
             }
 
-            long leadCost = supplier.cost();
-            Scorer scorer1 = supplier.get(leadCost);
-            Scorer scorer2 = supplier.get(leadCost);
+            Scorer scorer1 = supplier1.get(supplier1.cost());
+            Scorer scorer2 = supplier2.get(supplier2.cost());
             firstPassMatches.addAll(getMatchingValues(scorer1, leaf));
             secondPassMatches.addAll(getMatchingValues(scorer2, leaf));
         }
