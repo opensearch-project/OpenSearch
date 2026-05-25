@@ -216,7 +216,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
 
         refreshSearcher();
         RoaringBitmap bitmap = new RoaringBitmap();
-        bitmap.add(1);
+        bitmap.add(4);
         BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
         assertNotNull(weight);
