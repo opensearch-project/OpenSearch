@@ -131,14 +131,36 @@ public class MathScalarFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowNumericFinite(oneRow("key00") + "| eval v = atan2(num1, num0) | fields v");
     }
 
-    /** {@code radians(12.3) ≈ 0.2147} on num0. */
+    /** {@code radians(12.3) = 12.3 × π / 180}. Validates the {@link
+     *  org.opensearch.analytics.spi.NumericToDoubleAdapter} entry for {@code ScalarFunction.RADIANS}. */
     public void testRadians() throws IOException {
-        assertFirstRowNumericFinite(oneRow("key00") + "| eval v = radians(num0) | fields v");
+        assertFirstRowDouble(oneRow("key00") + "| eval v = radians(num0) | fields v", Math.toRadians(12.3));
     }
 
-    /** {@code degrees(12.3) ≈ 704.73} on num0. */
+    /** {@code degrees(12.3) = 12.3 × 180 / π}. Validates the {@link
+     *  org.opensearch.analytics.spi.NumericToDoubleAdapter} entry for {@code ScalarFunction.DEGREES}. */
     public void testDegrees() throws IOException {
-        assertFirstRowNumericFinite(oneRow("key00") + "| eval v = degrees(num0) | fields v");
+        assertFirstRowDouble(oneRow("key00") + "| eval v = degrees(num0) | fields v", Math.toDegrees(12.3));
+    }
+
+    /** {@code radians(num3)} on a negative fp value: {@code radians(-11.52)}. */
+    public void testRadiansNegative() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = radians(num3) | fields v", Math.toRadians(-11.52));
+    }
+
+    /** {@code degrees(num3)} on a negative fp value: {@code degrees(-11.52)}. */
+    public void testDegreesNegative() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = degrees(num3) | fields v", Math.toDegrees(-11.52));
+    }
+
+    /** {@code radians} accepts integer fp64-widened input via NumericToDoubleAdapter — {@code radians(int0)} on {@code int0 = 1}. */
+    public void testRadiansOnInteger() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = radians(int0) | fields v", Math.toRadians(1));
+    }
+
+    /** {@code degrees} accepts integer fp64-widened input via NumericToDoubleAdapter — {@code degrees(int0)} on {@code int0 = 1}. */
+    public void testDegreesOnInteger() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = degrees(int0) | fields v", Math.toDegrees(1));
     }
 
     /** {@code exp(num1)} finite. */
