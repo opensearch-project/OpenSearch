@@ -24,6 +24,7 @@ import org.opensearch.Version;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.test.OpenSearchTestCase;
@@ -357,6 +358,89 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         RelDataTypeField field = rowType.getField(fieldName, true, false);
         assertNotNull("Field '" + fieldName + "' should exist", field);
         assertEquals("Field '" + fieldName + "' should have type " + expectedType, expectedType, field.getType().getSqlTypeName());
+    }
+
+    /**
+     * Aliases over indices with the same mapping show up in the schema as their own table so
+     * the Calcite validator can resolve {@code SELECT * FROM alias}. The row type is derived
+     * from one of the backing indices (the planner's {@code OpenSearchTableScanRule} validates
+     * that all backing indices' mappings agree at query time).
+     */
+    public void testBuildSchemaExposesAliasAsTable() throws Exception {
+        IndexMetadata a = IndexMetadata.builder("bank_a")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"age\":{\"type\":\"long\"}}}")
+            .putAlias(AliasMetadata.builder("bank_all").build())
+            .build();
+        IndexMetadata b = IndexMetadata.builder("bank_b")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"age\":{\"type\":\"long\"}}}")
+            .putAlias(AliasMetadata.builder("bank_all").build())
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(a, false).put(b, false).build())
+            .build();
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(state);
+
+        assertNotNull("alias table present", schema.getTable("bank_all"));
+        assertNotNull("backing concrete index still present", schema.getTable("bank_a"));
+        RelDataType rowType = schema.getTable("bank_all").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * A single wildcard source ({@code test*}) resolves to one table whose row type is the union
+     * of the matching concrete indices' supported fields. Mirrors the sql-plugin behavior where
+     * {@code source=test*} resolves against the cluster's index expression.
+     */
+    public void testWildcardPatternResolvesToUnionedTable() throws Exception {
+        ClusterState clusterState = buildClusterState(
+            Map.of("test", Map.of("name", "keyword", "age", "long"), "test1", Map.of("name", "keyword", "alias_field", "keyword"))
+        );
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        Table table = schema.getTable("test*");
+        assertNotNull("Wildcard 'test*' should resolve to a table", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+        assertFieldType(rowType, "alias_field", SqlTypeName.VARCHAR);
+    }
+
+    /**
+     * A comma-separated multi-source ({@code bank,test}) resolves to one table unioning both
+     * indices' fields — the shape {@code source=a, b} produces after Relation comma-joins names.
+     */
+    public void testCommaSeparatedSourcesResolveToUnionedTable() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("bank", Map.of("balance", "long"), "test", Map.of("age", "long")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        Table table = schema.getTable("bank,test");
+        assertNotNull("Comma list 'bank,test' should resolve to a table", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "balance", SqlTypeName.BIGINT);
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * A pattern matching no index yields no table, so Calcite surfaces a clean "table not found"
+     * at plan time rather than an empty-row-type table.
+     */
+    public void testNonMatchingPatternYieldsNoTable() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("test", Map.of("age", "long")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        assertNull("Non-matching pattern 'nonexistent*' should resolve to no table", schema.getTable("nonexistent*"));
     }
 
     private ClusterState buildClusterState(Map<String, Map<String, String>> indices) throws Exception {

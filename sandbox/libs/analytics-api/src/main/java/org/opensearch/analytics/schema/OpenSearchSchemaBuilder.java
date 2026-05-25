@@ -11,13 +11,24 @@ package org.opensearch.analytics.schema;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.Table;
+import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.Strings;
+import org.opensearch.index.IndexNotFoundException;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -25,42 +36,110 @@ import java.util.Map;
  *
  * <p>One Calcite table per index. Reads field types from index mapping properties.
  * Navigates: IndexMetadata -> MappingMetadata -> sourceAsMap() -> "properties" -> per-field "type".
- * // TODO: This is for illustation - use version sql plugin has built and re-purpose to not call node-client
  */
 public class OpenSearchSchemaBuilder {
 
     private OpenSearchSchemaBuilder() {}
 
+    public static SchemaPlus buildSchema(ClusterState clusterState) {
+        return buildSchema(clusterState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+    }
+
     /**
      * Builds a Calcite SchemaPlus from the given ClusterState.
-     * Each index becomes a table; each mapped field becomes a column.
      *
-     * @param clusterState the current cluster state to derive schema from
+     * <p>Tables are resolved lazily on first lookup, mirroring the sql-plugin {@code OpenSearchSchema}.
+     * A requested name may be a concrete index, an alias, a comma list, a wildcard, an exclusion, or
+     * date-math; it is resolved through {@code resolver} — the same canonical resolution the
+     * execution-side {@code IndexResolution} uses — and the matching indices' supported fields are
+     * unioned into one row type. Concrete indices and aliases are also registered eagerly so
+     * {@code getTableNames()} is populated for case-insensitive identifier resolution.
+     *
+     * <p>The lazy schema is wrapped in a NON-caching root: a caching root enumerates
+     * {@code getTableNames()} and would never perform the implicit {@code getTable(name)} lookup
+     * that drives lazy resolution of expressions.
      */
-    public static SchemaPlus buildSchema(ClusterState clusterState) {
-        CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
-        SchemaPlus schemaPlus = rootSchema.plus();
+    public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver) {
+        Schema lazySchema = new AbstractSchema() {
+            private final Map<String, Table> tableMap = new HashMap<>() {
+                {
+                    // Eagerly register concrete indices and aliases so getTableNames() lists them —
+                    // case-insensitive resolution (Calcite uppercases unquoted identifiers) matches
+                    // against that set. Wildcard/comma/exclusion expressions aren't enumerable and
+                    // resolve lazily in get().
+                    for (String name : clusterState.metadata().getIndicesLookup().keySet()) {
+                        Table table = resolveTable(clusterState, resolver, name);
+                        if (table != null) {
+                            super.put(name, table);
+                        }
+                    }
+                }
 
-        for (Map.Entry<String, IndexMetadata> entry : clusterState.metadata().indices().entrySet()) {
-            String indexName = entry.getKey();
-            IndexMetadata indexMetadata = entry.getValue();
-            MappingMetadata mapping = indexMetadata.mapping();
+                @Override
+                public Table get(Object key) {
+                    String name = (String) key;
+                    if (!super.containsKey(name)) {
+                        Table resolved = resolveTable(clusterState, resolver, name);
+                        if (resolved != null) {
+                            super.put(name, resolved);
+                        }
+                    }
+                    return super.get(name);
+                }
+            };
+
+            @Override
+            protected Map<String, Table> getTableMap() {
+                return tableMap;
+            }
+        };
+
+        return CalciteSchema.createRootSchema(true, false, "", lazySchema).plus();
+    }
+
+    /**
+     * Resolves a source expression (concrete name, alias, comma list, wildcard, exclusion, or
+     * date-math) to a single table whose row type unions the supported fields of all matching
+     * concrete indices, or {@code null} when nothing matches (so Calcite reports a clean "table not
+     * found"). Resolution goes through {@link IndexNameExpressionResolver} so schema membership
+     * matches the execution-side {@code IndexResolution}. First-wins on field-name conflict across
+     * the union; the planner's scan rule validates cross-index mapping compatibility when the table
+     * is referenced.
+     */
+    @SuppressWarnings("unchecked")
+    private static Table resolveTable(ClusterState clusterState, IndexNameExpressionResolver resolver, String expression) {
+        String[] concrete;
+        try {
+            // Comma-split first: concreteIndexNames treats each vararg as one expression, and
+            // splitting lets the resolver honor exclusions across tokens (e.g. "test*,-test1").
+            concrete = resolver.concreteIndexNames(
+                clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                Strings.splitStringByCommaToArray(expression)
+            );
+        } catch (IndexNotFoundException e) {
+            return null;
+        }
+        LinkedHashMap<String, Object> merged = new LinkedHashMap<>();
+        for (String name : concrete) {
+            IndexMetadata index = clusterState.metadata().index(name);
+            if (index == null) {
+                continue;
+            }
+            MappingMetadata mapping = index.mapping();
             if (mapping == null) {
                 continue;
             }
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> sourceMap = mapping.sourceAsMap();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> properties = (Map<String, Object>) sourceMap.get("properties");
+            Map<String, Object> properties = (Map<String, Object>) mapping.sourceAsMap().get("properties");
             if (properties == null) {
                 continue;
             }
-
-            schemaPlus.add(indexName, buildTable(properties));
+            properties.forEach(merged::putIfAbsent);
         }
-
-        return schemaPlus;
+        if (merged.isEmpty()) {
+            return null;
+        }
+        return buildTable(merged);
     }
 
     /**

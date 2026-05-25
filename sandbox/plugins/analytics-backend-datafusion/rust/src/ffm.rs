@@ -519,11 +519,18 @@ pub unsafe extern "C" fn df_create_session_context(
     table_name_len: i64,
     context_id: i64,
     query_config_ptr: i64,
+    plan_ptr: *const u8,
+    plan_len: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context: {}", e))?;
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let plan_bytes: &[u8] = if plan_len > 0 {
+        slice::from_raw_parts(plan_ptr, plan_len as usize)
+    } else {
+        &[]
+    };
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::task_monitors::plan_setup_monitor().instrument(
@@ -533,6 +540,7 @@ pub unsafe extern "C" fn df_create_session_context(
                 table_name,
                 context_id,
                 query_config,
+                plan_bytes,
             )
         ))
         .map_err(|e| e.to_string())
@@ -549,16 +557,23 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     tree_shape: i32,
     delegated_predicate_count: i32,
     query_config_ptr: i64,
+    plan_ptr: *const u8,
+    plan_len: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let plan_bytes: &[u8] = if plan_len > 0 {
+        slice::from_raw_parts(plan_ptr, plan_len as usize)
+    } else {
+        &[]
+    };
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::task_monitors::plan_setup_monitor().instrument(
             crate::session_context::create_session_context_indexed(
-                runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config,
+                runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config, plan_bytes,
             )
         ))
         .map_err(|e| e.to_string())

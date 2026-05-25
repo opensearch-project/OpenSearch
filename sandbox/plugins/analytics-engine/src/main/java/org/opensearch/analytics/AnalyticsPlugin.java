@@ -104,8 +104,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         ArrowAllocatorService allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
             .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
 
-        operatorTable = aggregateOperatorTables();
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
@@ -113,7 +111,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             backEndsByName.put(be.name(), be);
         }
         searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
-
+        operatorTable = aggregateOperatorTables();
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         return List.of(searchService, ctx, capabilityRegistry);
     }
 
@@ -123,13 +122,13 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         return List.of(b -> {
             b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
             }).to(DefaultPlanExecutor.class);
-            b.bind(EngineContext.class).to(DefaultEngineContext.class);
             // Singleton bind on the concrete class so node-injector lookups for
             // QueryScheduler.class don't fall back to a JIT binding (which would
             // re-instantiate AnalyticsSearchTransportService, whose ctor registers
             // transport handlers and is only legal to call once per node).
             b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
+            b.bind(EngineContext.class).to(DefaultEngineContext.class);
         });
     }
 
@@ -165,5 +164,4 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
         }
     }
-
 }
