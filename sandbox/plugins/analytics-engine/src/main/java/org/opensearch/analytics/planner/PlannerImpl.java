@@ -35,6 +35,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
@@ -44,6 +45,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Central planner for the Analytics Plugin.
@@ -103,6 +105,11 @@ public class PlannerImpl {
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
+        if (lateMat.isPresent()) {
+            modifiedRelNode = lateMat.get();
+            LOGGER.info("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+        }
 
         if (listener != null) {
             RuleProfilingListener.PlannerProfile profile = listener.snapshot();
@@ -151,9 +158,18 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();
         builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        // Push Filters below Project/Aggregate/Join.
+        // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE assist QTF (late-materialization) detection
+        // post-CBO: SORT_PROJECT_TRANSPOSE pushes a top-of-tree Project below the Sort, leaving
+        // Sort+fetch at the root in the common case. PROJECT_MERGE collapses adjacent Projects so
+        // the QTF rewriter sees at most one Project layer between Sort and Filter/Scan.
         builder.addRuleCollection(
-            List.of(CoreRules.FILTER_PROJECT_TRANSPOSE, CoreRules.FILTER_AGGREGATE_TRANSPOSE, CoreRules.FILTER_INTO_JOIN)
+            List.of(
+                CoreRules.FILTER_PROJECT_TRANSPOSE,
+                CoreRules.FILTER_AGGREGATE_TRANSPOSE,
+                CoreRules.FILTER_INTO_JOIN,
+                CoreRules.SORT_PROJECT_TRANSPOSE,
+                CoreRules.PROJECT_MERGE
+            )
         );
         // Merge adjacent Filters into one — must run after transposes so any
         // auto-injected NOT NULL collapses with the user's WHERE.

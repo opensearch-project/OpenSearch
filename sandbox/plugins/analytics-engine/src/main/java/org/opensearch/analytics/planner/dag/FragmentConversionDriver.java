@@ -89,6 +89,13 @@ public class FragmentConversionDriver {
         for (Stage child : stage.getChildStages()) {
             convertStage(child, registry);
         }
+        // QTF Scatter-Gather stages have no Substrait fragment — they orchestrate fetch
+        // transport and stitch directly in the stage execution. Skip conversion entirely
+        // (no plan alternatives, no instructions). The wrapper RelNode in the fragment is
+        // a stage marker, not something any FragmentConvertor knows how to lower.
+        if (stage.getExecutionType() == StageExecutionType.LATE_MATERIALIZATION) {
+            return;
+        }
         List<StagePlan> converted = new ArrayList<>(stage.getPlanAlternatives().size());
         for (StagePlan plan : stage.getPlanAlternatives()) {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(plan.backendId());

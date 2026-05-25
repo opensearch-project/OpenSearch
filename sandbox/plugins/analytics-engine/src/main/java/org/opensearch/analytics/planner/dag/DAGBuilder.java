@@ -13,6 +13,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
@@ -46,6 +47,10 @@ public class DAGBuilder {
             // Cut directly: child stage is the subtree below, root fragment is
             // ExchangeReducer → StageInputScan.
             rootFragment = cutAtExchange(reducer, counter, childStages, registry, clusterService);
+        } else if (cboOutput instanceof OpenSearchLateMaterialization lm) {
+            // Root IS the LM wrapper — outer Project absent (e.g. SELECT * style query
+            // post-rewrite). Cut directly so the wrapper-stage is the root.
+            rootFragment = cutAtLateMaterialization(lm, counter, childStages, registry, clusterService);
         } else {
             rootFragment = sever(cboOutput, counter, childStages, registry, clusterService);
         }
@@ -86,6 +91,8 @@ public class DAGBuilder {
         for (RelNode input : node.getInputs()) {
             if (input instanceof OpenSearchExchangeReducer reducer) {
                 newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService));
+            } else if (input instanceof OpenSearchLateMaterialization lm) {
+                newInputs.add(cutAtLateMaterialization(lm, counter, childStages, registry, clusterService));
             } else {
                 newInputs.add(sever(input, counter, childStages, registry, clusterService));
             }
@@ -99,6 +106,61 @@ public class DAGBuilder {
             }
         }
         return changed ? node.copy(node.getTraitSet(), newInputs) : node;
+    }
+
+    /**
+     * Cuts at an {@link OpenSearchLateMaterialization} wrapper. The wrapper's input subtree
+     * (Sort+Limit and anything below) becomes a child stage; the wrapper itself stays in the
+     * parent fragment with an {@link OpenSearchStageInputScan} placeholder taking the
+     * wrapper-input's slot. Same shape as {@link #cutAtExchange} but the wrapper has no
+     * {@link ExchangeInfo} to attach.
+     *
+     * <p>Multi-shard: the wrapper's input contains an ER above the Scan. {@link #sever}
+     * recurses, lifting the Scan into a grand-child stage; the child stage carries
+     * {@code Sort ← ER ← StageInputScan} with a sink provider (COORDINATOR_REDUCE).
+     *
+     * <p>Single-shard: the wrapper's input is just {@code Sort ← Scan} (no ER). No
+     * grandchildren; the child stage is a SHARD_FRAGMENT containing the Sort+Scan subtree
+     * with a {@link ShardTargetResolver}.
+     */
+    private static RelNode cutAtLateMaterialization(
+        OpenSearchLateMaterialization lm,
+        int[] counter,
+        List<Stage> parentChildStages,
+        CapabilityRegistry registry,
+        ClusterService clusterService
+    ) {
+        List<Stage> grandchildren = new ArrayList<>();
+        RelNode childFragment = sever(lm.getInput(), counter, grandchildren, registry, clusterService);
+
+        int childStageId = counter[0]++;
+        TargetResolver targetResolver = grandchildren.isEmpty() ? new ShardTargetResolver(childFragment, clusterService) : null;
+        ExchangeSinkProvider childSinkProvider = null;
+        if (!grandchildren.isEmpty()) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, lm.getViableBackends());
+            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        }
+        parentChildStages.add(
+            new Stage(childStageId, childFragment, grandchildren, /*exchangeInfo=*/ null, childSinkProvider, targetResolver)
+        );
+
+        // Replace the wrapper's input with a StageInputScan placeholder. The wrapper itself
+        // stays in the parent fragment to mark the Scatter-Gather stage.
+        OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
+            lm.getCluster(),
+            lm.getTraitSet(),
+            childStageId,
+            lm.getInput().getRowType(),
+            lm.getViableBackends()
+        );
+        return new OpenSearchLateMaterialization(
+            lm.getCluster(),
+            lm.getTraitSet(),
+            stageInput,
+            lm.getFetchList(),
+            lm.getFetchListStorage(),
+            lm.getViableBackends()
+        );
     }
 
     private static RelNode cutAtExchange(

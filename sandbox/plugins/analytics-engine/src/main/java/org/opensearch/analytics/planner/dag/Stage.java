@@ -9,6 +9,8 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.common.Nullable;
@@ -133,6 +135,12 @@ public class Stage {
         TargetResolver targetResolver,
         RelNode fragment
     ) {
+        // QTF Scatter-Gather marker — orchestrates fetch-by-rowid + stitch internally,
+        // no targetResolver / no sinkProvider. Checked first so other categories don't
+        // accidentally claim the wrapper-stage.
+        if (RelNodeUtils.findNode(fragment, OpenSearchLateMaterialization.class) != null) {
+            return StageExecutionType.LATE_MATERIALIZATION;
+        }
         if (targetResolver != null) {
             return StageExecutionType.SHARD_FRAGMENT;
         } else if (hasComputeLeaf(fragment)) {

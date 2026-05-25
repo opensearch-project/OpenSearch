@@ -12,11 +12,13 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.prepare.RelOptTableImpl;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rel.type.RelDataType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.List;
@@ -30,6 +32,12 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
 
     private final List<String> viableBackends;
     private final List<FieldStorageInfo> outputFieldStorage;
+    /**
+     * Non-null only when QTF (or a future rule) needs a rowType different from
+     * {@code getTable().getRowType()} — e.g. fetch cols dropped, {@code ___row_id}
+     * appended. Null in the default case so {@link TableScan#deriveRowType()} drives.
+     */
+    private final RelDataType overrideRowType;
 
     public OpenSearchTableScan(
         RelOptCluster cluster,
@@ -38,9 +46,32 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         List<String> viableBackends,
         List<FieldStorageInfo> outputFieldStorage
     ) {
+        this(cluster, traitSet, table, viableBackends, outputFieldStorage, null);
+    }
+
+    /**
+     * Overload taking an explicit {@code overrideRowType}. Used by the QTF rule to
+     * narrow the scan to {@code [sort/filter cols, ___row_id]} after dropping the fetch
+     * list. {@code outputFieldStorage} must align 1:1 with {@code overrideRowType}'s
+     * fields (helper columns get synthetic {@link FieldStorageInfo} entries).
+     */
+    public OpenSearchTableScan(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelOptTable table,
+        List<String> viableBackends,
+        List<FieldStorageInfo> outputFieldStorage,
+        RelDataType overrideRowType
+    ) {
         super(cluster, traitSet, List.of(), table);
         this.viableBackends = viableBackends;
         this.outputFieldStorage = outputFieldStorage;
+        this.overrideRowType = overrideRowType;
+    }
+
+    @Override
+    public RelDataType deriveRowType() {
+        return overrideRowType != null ? overrideRowType : super.deriveRowType();
     }
 
     /**
@@ -84,7 +115,7 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
 
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new OpenSearchTableScan(getCluster(), traitSet, getTable(), viableBackends, outputFieldStorage);
+        return new OpenSearchTableScan(getCluster(), traitSet, getTable(), viableBackends, outputFieldStorage, overrideRowType);
     }
 
     @Override
@@ -99,11 +130,18 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
 
     @Override
     public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchTableScan(getCluster(), getTraitSet(), getTable(), List.of(backend), outputFieldStorage);
+        return new OpenSearchTableScan(getCluster(), getTraitSet(), getTable(), List.of(backend), outputFieldStorage, overrideRowType);
     }
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        return LogicalTableScan.create(getCluster(), getTable(), List.of());
+        // When QTF (or another rule) narrows our rowType via overrideRowType, the original
+        // RelOptTable still reports the wide schema — and isthmus emits Substrait based on
+        // the table's rowType, not the rel's. Copy the RelOptTable with the narrowed rowType
+        // so the stripped scan carries the correct schema all the way to FragmentConvertor.
+        RelOptTable table = overrideRowType != null && getTable() instanceof RelOptTableImpl impl
+            ? impl.copy(overrideRowType)
+            : getTable();
+        return LogicalTableScan.create(getCluster(), table, List.of());
     }
 }
