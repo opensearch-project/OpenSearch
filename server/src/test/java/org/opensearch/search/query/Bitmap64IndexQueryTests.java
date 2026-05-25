@@ -144,8 +144,9 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
                 continue;
             }
 
-            Scorer scorer1 = supplier.get(Long.MAX_VALUE);
-            Scorer scorer2 = supplier.get(Long.MAX_VALUE);
+            long leadCost = supplier.cost();
+            Scorer scorer1 = supplier.get(leadCost);
+            Scorer scorer2 = supplier.get(leadCost);
             firstPassMatches.addAll(getMatchingValues(scorer1, leaf));
             secondPassMatches.addAll(getMatchingValues(scorer2, leaf));
         }
