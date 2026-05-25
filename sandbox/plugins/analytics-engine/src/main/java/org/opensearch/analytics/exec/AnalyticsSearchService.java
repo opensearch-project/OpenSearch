@@ -9,7 +9,10 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
@@ -23,7 +26,8 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -34,8 +38,10 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Data-node service that executes plan fragments against local shards.
@@ -46,43 +52,56 @@ import java.util.Map;
  * <p>Does NOT hold {@code IndicesService} — receives an already-resolved
  * {@link IndexShard} from the transport action.
  *
- * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of the
- * node-level root via {@link ArrowAllocatorService}. One allocator per service means memory accounting is
- * reported at the service level. For the streaming path, Arrow Flight's outbound handler co-locates its
- * transfer target on the same root (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
- * same-root and avoiding the known cross-allocator bug with foreign-backed buffers from the C Data Interface.
+ * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of
+ * the framework's QUERY pool via {@link ArrowNativeAllocator#getPoolAllocator(String)}. One allocator
+ * per service means memory accounting is reported at the service level. For the streaming path, Arrow
+ * Flight's outbound handler co-locates its transfer target on the same root (see
+ * {@code FlightOutboundHandler#processBatchTask}), keeping transfers same-root and avoiding the known
+ * cross-allocator bug with foreign-backed buffers from the C Data Interface.
  *
  * @opensearch.internal
  */
 public class AnalyticsSearchService implements AutoCloseable {
+
+    private static final Logger LOGGER = LogManager.getLogger(AnalyticsSearchService.class);
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
     private final BufferAllocator allocator;
+    private final ArrowNativeAllocator nativeAllocator;
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
-        this(backends, List.of(), allocatorService, null);
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowNativeAllocator nativeAllocator) {
+        this(backends, List.of(), nativeAllocator, null);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
-        ArrowAllocatorService allocatorService,
+        ArrowNativeAllocator nativeAllocator,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        this(backends, List.of(), allocatorService, namedWriteableRegistry);
+        this(backends, List.of(), nativeAllocator, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
-        ArrowAllocatorService allocatorService,
+        ArrowNativeAllocator nativeAllocator,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocator = allocatorService.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+        this.nativeAllocator = nativeAllocator;
+        // Source the service-level allocator from the unified framework's query pool so all
+        // analytics-engine allocations are tracked and capped by the framework. Hard-fail if
+        // the framework is missing — silently falling back to a separate root would break
+        // Arrow's same-root invariant for cross-plugin handoff.
+        //
+        // Child uses Long.MAX_VALUE so dynamic resizes of parquet.native.pool.query.max take
+        // effect immediately via Arrow's parent-cap check at allocateBytes — no listener needed.
+        BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
+        this.allocator = queryPool.newChildAllocator("analytics-search-service", 0, Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
@@ -106,6 +125,45 @@ public class AnalyticsSearchService implements AutoCloseable {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw new RuntimeException("Failed to start streaming fragment on " + shard.shardId(), e);
         }
+    }
+
+    /**
+     * Async variant that forks fragment execution onto the given executor and streams
+     * batches back through the channel. The transport thread returns immediately.
+     */
+    public void executeFragmentStreamingAsync(
+        FragmentExecutionRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task,
+        StreamingFragmentResponseHandler responseHandler,
+        Executor executor
+    ) {
+        try {
+            executor.execute(() -> {
+                try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
+                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
+                    while (it.hasNext()) {
+                        responseHandler.onBatch(it.next());
+                    }
+                    responseHandler.onComplete();
+                } catch (Exception e) {
+                    responseHandler.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            responseHandler.onFailure(e);
+        }
+    }
+
+    /**
+     * Callback interface for async fragment streaming results.
+     */
+    public interface StreamingFragmentResponseHandler {
+        void onBatch(EngineResultBatch batch) throws Exception;
+
+        void onComplete();
+
+        void onFailure(Exception e);
     }
 
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
@@ -163,6 +221,15 @@ public class AnalyticsSearchService implements AutoCloseable {
             stream = engine.execute(ctx);
             return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
         } catch (Exception e) {
+            LOGGER.error(
+                () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                    "startFragment failed [queryId={}, stageId={}, shardId={}]",
+                    resolved.queryId,
+                    resolved.stageId,
+                    resolved.shardIdStr
+                ),
+                e
+            );
             try {
                 new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {
@@ -228,6 +295,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setMapperService(shard.mapperService());
         ctx.setIndexSettings(shard.indexSettings());
         ctx.setNamedWriteableRegistry(namedWriteableRegistry);
+        ctx.setQueryCache(shard.getQueryCache());
+        ctx.setQueryCachingPolicy(shard.getQueryCachingPolicy());
         return ctx;
     }
 

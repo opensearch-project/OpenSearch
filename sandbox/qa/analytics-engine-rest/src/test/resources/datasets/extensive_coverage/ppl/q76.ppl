@@ -1,0 +1,1 @@
+source=test_data | fields category, value | append [source=lookup | fields category]

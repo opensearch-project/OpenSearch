@@ -39,6 +39,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.lifecycle.LifecycleComponent;
@@ -51,6 +52,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.repositories.RepositoriesService;
@@ -250,6 +252,23 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
+     * Returns plugin-contributed node statistics that surface under {@code _nodes/stats}.
+     * Each entry renders at top-level under {@code nodes.<id>.<getWriteableName()>}.
+     *
+     * <p>Plugins that override this method must also register the concrete
+     * {@link PluginNodeStats} subclass via {@link #getNamedWriteables()} so the
+     * coordinator can deserialize per-node payloads received over transport.
+     *
+     * <p>Default: empty.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public List<PluginNodeStats> nodeStats() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() {
@@ -324,6 +343,15 @@ public abstract class Plugin implements Closeable {
      * explicitly, but still allow the setting to be overridden by a template or creation request body.
      */
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns {@link IndexCreationValidator} instances that are called during index creation
+     * after mappings have been merged, allowing plugins to validate the combination of
+     * index settings and mappings.
+     */
+    public Collection<IndexCreationValidator> getIndexCreationValidators() {
         return Collections.emptyList();
     }
 

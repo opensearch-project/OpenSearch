@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "max_amount",
+      "type": "float"
+    },
+    {
+      "name": "max_temp",
+      "type": "float"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      92.15,
+      39.55,
+      "BOB"
+    ],
+    [
+      91.48,
+      39.98,
+      "CHARLIE"
+    ],
+    [
+      71.98,
+      39.22,
+      "ALICE"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

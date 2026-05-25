@@ -8,7 +8,9 @@
 
 package org.opensearch.analytics.spi;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * SPI extension point for backend query engine plugins.
@@ -115,8 +117,42 @@ public interface AnalyticsSearchBackendPlugin {
     }
 
     /**
+     * Returns a snapshot of this backend's currently-tracked queries, keyed by {@code contextId}.
+     *
+     * <p>The map is a point-in-time view — entries can register or drain concurrently on the
+     * backend side. Implementations MUST return a non-null map (empty when nothing is tracked)
+     * and SHOULD make it unmodifiable so callers cannot mutate backend state.
+     *
+     * <p>Implementations MAY cap the result to a top-N subset by current memory usage to bound
+     * the FFI cost (the DataFusion backend caps at the heaviest 10 live queries). Callers that
+     * need a complete enumeration should not rely on this method.
+     *
+     * <p>Default implementation returns an empty map so backends that do not track per-query
+     * metrics don't have to opt in.
+     */
+    default Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
+        return Collections.emptyMap();
+    }
+
+    /**
      * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
      * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
      */
     default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
+
+    /**
+     * Converts a backend-specific exception into an appropriate OpenSearch exception type.
+     *
+     * <p>Called by the engine when a fragment execution fails. If the backend recognizes
+     * the error (e.g., memory limit exceeded, admission rejected), it returns a converted
+     * exception with correct HTTP status semantics. Otherwise returns the original unchanged.
+     *
+     * <p>Default implementation performs no conversion.
+     *
+     * @param original the exception from fragment execution
+     * @return converted exception, or {@code original} if no conversion applies
+     */
+    default Exception convertException(Exception original) {
+        return original;
+    }
 }

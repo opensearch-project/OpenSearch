@@ -1,0 +1,1 @@
+source=test_data | stats count() as cnt by category | fields category, cnt

@@ -10,6 +10,7 @@ package org.opensearch.analytics.cancellation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -17,7 +18,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
@@ -65,6 +66,7 @@ import java.util.concurrent.TimeoutException;
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope(com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope.TEST)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering(linger = 5000)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters(filters = org.opensearch.analytics.resilience.FlightTransportThreadLeakFilter.class)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21776")
 public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(SearchCancellationIT.class);
@@ -144,7 +146,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX);
 
         for (int i = 0; i < TOTAL_DOCS; i++) {
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(INDEX).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();

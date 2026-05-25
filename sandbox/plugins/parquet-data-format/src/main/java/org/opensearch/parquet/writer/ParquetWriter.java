@@ -11,10 +11,13 @@ package org.opensearch.parquet.writer;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.index.store.FileMetadata;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -35,7 +38,7 @@ import java.nio.file.Path;
  * <p>Writer-level settings (e.g., {@code parquet.max_rows_per_vsr}) are extracted from
  * the {@link IndexSettings} passed at construction time and propagated to the VSR layer.
  *
- * <p>The returned {@link FileInfos} from {@link #flush()} contains the file path, writer
+ * <p>The returned {@link FileInfos} from {@link #flush(FlushInput)} contains the file path, writer
  * generation, and row count for downstream commit tracking.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
@@ -94,7 +97,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public FileInfos flush() throws IOException {
+    public FileInfos flush(FlushInput flushInput) throws IOException {
         ParquetFileMetadata metadata = vsrManager.flush();
         if (file == null || metadata == null || metadata.numRows() == 0) {
             return FileInfos.empty();
@@ -104,18 +107,20 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         Path filePath = Path.of(file);
         String fileName = filePath.getFileName().toString();
 
-        // Register the pre-computed CRC32 so the upload path can read it in O(1)
+        // Register the pre-computed CRC32 so the upload path can read it in O(1).
+        // Use the FileMetadata overload so the strategy owns key derivation.
         if (checksumStrategy != null && metadata.crc32() != 0) {
-            checksumStrategy.registerChecksum(fileName, metadata.crc32(), writerGeneration);
+            checksumStrategy.registerChecksum(new FileMetadata(dataFormat.name(), fileName), metadata.crc32(), writerGeneration);
         }
 
         MonoFileWriterSet monoFileSet = MonoFileWriterSet.of(
             filePath.getParent().toAbsolutePath(),
             writerGeneration,
             fileName,
-            metadata.numRows()
+            metadata.numRows(),
+            ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION
         );
-        return FileInfos.builder().putWriterFileSet(dataFormat, monoFileSet).build();
+        return FileInfos.builder().putWriterFileSet(dataFormat, monoFileSet).rowIdMapping(vsrManager.getRowIdMapping()).build();
     }
 
     @Override

@@ -1,0 +1,23 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "product",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    },
+    {
+      "name": "totalcat",
+      "type": "double"
+    }
+  ],
+  "datarows": [],
+  "total": 0,
+  "size": 0
+}

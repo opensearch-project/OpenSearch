@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "json_data",
+      "type": "string"
+    },
+    {
+      "name": "extended",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "{\"name\":\"item1\",\"price\":50}",
+      "{\"name\":\"item1\",\"price\":50}"
+    ],
+    [
+      "{\"name\":\"item2\",\"price\":75}",
+      "{\"name\":\"item2\",\"price\":75}"
+    ],
+    [
+      "{\"name\":\"item3\",\"price\":100}",
+      "{\"name\":\"item3\",\"price\":100}"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

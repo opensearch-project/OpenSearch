@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "region",
+      "type": "string"
+    },
+    {
+      "name": "userid",
+      "type": "string"
+    },
+    {
+      "name": "product",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "APAC",
+      "user3",
+      "portable speaker",
+      159.99
+    ],
+    [
+      "EU",
+      "user2",
+      "camera lens",
+      599.0
+    ],
+    [
+      "US",
+      "user4",
+      "professional camera",
+      3200.0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}
