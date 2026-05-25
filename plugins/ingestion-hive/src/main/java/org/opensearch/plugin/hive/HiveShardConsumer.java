@@ -66,8 +66,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     // Current processing state: pendingWork is the queue of partitions to process.
     // Each PartitionWork tracks its files and progress. sequenceNumber is a monotonically
     // increasing counter used for pointer ordering and checkpoint recovery.
-    private List<PartitionWork> pendingWork;
-    private int currentWorkIndex;
+    List<PartitionWork> pendingWork;
+    int currentWorkIndex;
     private HiveFileReader currentFileReader;
     private String currentFile;
     private long currentRowIndex;
@@ -337,7 +337,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Incremental partition fetch: query Metastore for partitions added after watermark.
      * Supports both partition-name and create-time ordering strategies.
      */
-    private void discoverNewPartitions() throws Exception {
+    void discoverNewPartitions() throws Exception {
+        // Reset work queue before fetching new partitions
+        pendingWork.clear();
+        currentWorkIndex = 0;
+
         List<MetastoreCatalog.PartitionInfo> partitions;
         switch (config.getPartitionOrder()) {
             case CREATE_TIME:
@@ -663,7 +667,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     /**
      * Tracks work for a single partition: its files and progress through them.
      */
-    private static class PartitionWork {
+    static class PartitionWork {
         final String partitionName;
         final String partitionTime;
         final List<String> files;
