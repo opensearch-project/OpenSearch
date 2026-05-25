@@ -216,7 +216,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null, // nativeAllocator
-                null
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -252,7 +253,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null, // nativeAllocator
-                null
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -288,7 +290,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null, // nativeAllocator
-                null
+                null,
+                -1L  // totalEstimatedNativeBytes
             )
         );
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
@@ -355,7 +358,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null, // nativeAllocator
-                null
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -391,7 +395,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null, // nativeAllocator
-                null
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -427,7 +432,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null, // nativeAllocator
-                null
+                null,
+                -1L  // totalEstimatedNativeBytes
             )
         );
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
@@ -523,7 +529,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null
+            null,
+            -1L
 
         );
     }

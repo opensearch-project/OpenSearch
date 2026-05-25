@@ -212,6 +212,8 @@ import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorStatsRegistry;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.BlockCacheRegistry;
@@ -1592,6 +1594,16 @@ public class Node implements Closeable {
                 analyticsTaskCancellationStatsSupplier
             );
 
+            // Discover the native-allocator stats supplier from any plugin that publishes a
+            // NativeAllocatorStatsRegistry component (today: ArrowBasePlugin). Lookup mirrors
+            // the SearchRequestOperationsListener instanceof filter on pluginComponents elsewhere
+            // in this file. Server has no compile-time dependency on arrow-base.
+            final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier = pluginComponents.stream()
+                .filter(c -> c instanceof NativeAllocatorStatsRegistry)
+                .map(c -> ((NativeAllocatorStatsRegistry) c).supplier())
+                .findFirst()
+                .orElse(null);
+
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1618,19 +1630,9 @@ public class Node implements Closeable {
                 segmentReplicationStatsTracker,
                 repositoryService,
                 admissionControlService,
-                cacheService
+                cacheService,
+                nativeAllocatorStatsSupplier
             );
-
-            // Wire allocator stats supplier from any plugin implementing ArrowAllocatorPlugin.
-            // Mirrors the supplier pattern used for SearchBackEndPlugin.getAnalyticsBackendNativeMemoryStats:
-            // server holds the supplier, plugin owns the allocator and constructs the stats snapshot
-            // on each invocation. Server has no compile-time dependency on arrow-spi.
-            pluginsService.filterPlugins(org.opensearch.plugins.ArrowAllocatorPlugin.class)
-                .stream()
-                .map(org.opensearch.plugins.ArrowAllocatorPlugin::getNativeAllocatorStatsSupplier)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .ifPresent(this.nodeService::setNativeAllocatorStatsSupplier);
 
             final SearchService searchService = newSearchService(
                 clusterService,

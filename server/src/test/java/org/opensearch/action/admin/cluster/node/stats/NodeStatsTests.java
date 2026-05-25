@@ -1056,7 +1056,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             nodeCacheStats,
             remoteStoreNodeStats,
             null,
-            null
+            null,
+            -1L
         );
     }
 
@@ -1535,6 +1536,11 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 in.setVersion(Version.V_3_6_0);
                 NodeStats roundtripped = new NodeStats(in);
                 assertNull("native allocator stats must be null when written by an older node", roundtripped.getNativeAllocatorStats());
+                assertEquals(
+                    "totalEstimatedNativeBytes must default to -1 when written by a pre-V_3_7_0 node",
+                    -1L,
+                    roundtripped.getTotalEstimatedNativeBytes()
+                );
             }
         }
     }
@@ -1612,7 +1618,51 @@ public class NodeStatsTests extends OpenSearchTestCase {
         assertEquals(2048L, ((Number) flight.get("limit_bytes")).longValue());
     }
 
+    /**
+     * total_estimated_bytes must be captured on the data node hosting this NodeStats and survive
+     * the wire round-trip; the coordinator must NOT re-read its own OsProbe at toXContent time.
+     * Constructs a NodeStats with a specific (non-realistic) value, serializes / deserializes,
+     * renders, and asserts the rendered value matches the constructed value verbatim.
+     */
+    public void testTotalEstimatedNativeBytesPreservedAcrossWireAndRender() throws IOException {
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        long sentinel = 4_026_531_840L; // distinctive value, unlikely to match coordinator RSS
+
+        // Build via the existing helper so the test is robust against future ctor argument churn.
+        NodeStats original = newNodeStatsWithNativeAllocator(node, null, sentinel);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        original.writeTo(out);
+        try (StreamInput in = out.bytes().streamInput()) {
+            in.setVersion(Version.CURRENT);
+            NodeStats roundtripped = new NodeStats(in);
+            assertEquals("totalEstimatedNativeBytes must round-trip on the wire", sentinel, roundtripped.getTotalEstimatedNativeBytes());
+
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            roundtripped.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            Map<String, Object> root = xContentBuilderToMap(builder);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
+            assertNotNull("native_memory must always be emitted", nativeMemory);
+            assertEquals(
+                "total_estimated_bytes in the rendered JSON must be the sentinel value, not OsProbe re-read",
+                sentinel,
+                ((Number) nativeMemory.get("total_estimated_bytes")).longValue()
+            );
+        }
+    }
+
     private static NodeStats newNodeStatsWithNativeAllocator(DiscoveryNode node, NativeAllocatorPoolStats nativeAllocatorStats) {
+        return newNodeStatsWithNativeAllocator(node, nativeAllocatorStats, -1L);
+    }
+
+    private static NodeStats newNodeStatsWithNativeAllocator(
+        DiscoveryNode node,
+        NativeAllocatorPoolStats nativeAllocatorStats,
+        long totalEstimatedNativeBytes
+    ) {
         return new NodeStats(
             node,
             0L,
@@ -1647,7 +1697,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null, // nodeCacheStats
             null,
             nativeAllocatorStats,
-            null
+            null,
+            totalEstimatedNativeBytes
         );
     }
 

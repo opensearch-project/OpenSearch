@@ -21,7 +21,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
-import org.opensearch.plugins.ArrowAllocatorPlugin;
+import org.opensearch.plugin.stats.NativeAllocatorStatsRegistry;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -45,7 +45,7 @@ import java.util.function.Supplier;
  * ensures every pool can always allocate up to its min, and distributes unused
  * capacity allowing pools to grow up to their max.
  */
-public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ArrowAllocatorPlugin {
+public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
 
     /** Creates the plugin. */
     public ArrowBasePlugin() {}
@@ -253,7 +253,15 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ArrowAl
         ClusterSettings cs = clusterService.getClusterSettings();
         ArrowNativeAllocator built = buildAllocator(settings, cs);
         this.allocator = built;
-        return List.of(built);
+        // Publish a NativeAllocatorStatsRegistry alongside the allocator so the server-side
+        // NodeService can discover the supplier via pluginComponents (instanceof filter) without
+        // taking a compile-time dependency on this plugin. The lambda re-reads `this.allocator`
+        // each invocation, so after close() nulls the field, the supplier returns null cleanly.
+        Supplier<NativeAllocatorPoolStats> statsSupplier = () -> {
+            ArrowNativeAllocator a = this.allocator;
+            return a != null ? a.stats() : null;
+        };
+        return List.of(built, new NativeAllocatorStatsRegistry(statsSupplier));
     }
 
     /**
@@ -346,14 +354,6 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ArrowAl
             QUERY_MAX_SETTING,
             REBALANCE_INTERVAL_SETTING
         );
-    }
-
-    @Override
-    public Supplier<NativeAllocatorPoolStats> getNativeAllocatorStatsSupplier() {
-        return () -> {
-            ArrowNativeAllocator a = this.allocator;
-            return a != null ? a.stats() : null;
-        };
     }
 
     private static void validateMinMax(String poolName, long min, long max) {

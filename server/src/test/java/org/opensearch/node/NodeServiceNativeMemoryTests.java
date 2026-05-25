@@ -59,6 +59,13 @@ import static org.mockito.Mockito.when;
 public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
     private NodeService createNodeService(AnalyticsBackendNativeMemoryStats nativeStats) {
+        return createNodeService(nativeStats, null);
+    }
+
+    private NodeService createNodeService(
+        AnalyticsBackendNativeMemoryStats nativeStats,
+        Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier
+    ) {
         TransportService transportService = mock(TransportService.class);
         DiscoveryNode localNode = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), Version.CURRENT);
         when(transportService.getLocalNode()).thenReturn(localNode);
@@ -99,7 +106,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             mock(SegmentReplicationStatsTracker.class),
             mock(RepositoriesService.class),
             mock(AdmissionControlService.class),
-            null  // cacheService
+            null, // cacheService
+            nativeAllocatorStatsSupplier
         );
     }
 
@@ -360,11 +368,10 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that {@code stats(... nativeAllocator=true ...)} invokes the registered
+     * Tests that {@code stats(... nativeAllocator=true ...)} invokes the constructor-injected
      * {@code Supplier<NativeAllocatorPoolStats>} and surfaces its return value on
-     * {@link NodeStats#getNativeAllocatorStats()}. Covers both
-     * {@code NodeService.setNativeAllocatorStatsSupplier} and the supplier-invocation
-     * branch in {@code collectNativeAllocatorStats}.
+     * {@link NodeStats#getNativeAllocatorStats()}. Covers the supplier-invocation branch in
+     * {@code collectNativeAllocatorStats}.
      */
     public void testStatsWithNativeAllocatorTrueAndSupplierPresent() {
         NativeAllocatorPoolStats expected = new NativeAllocatorPoolStats(
@@ -372,10 +379,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             8192L,
             List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 2048L))
         );
-        Supplier<NativeAllocatorPoolStats> supplier = () -> expected;
-
-        NodeService nodeService = createNodeService(null);
-        nodeService.setNativeAllocatorStatsSupplier(supplier);
+        NodeService nodeService = createNodeService(null, () -> expected);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
@@ -417,11 +421,11 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
     /**
      * Tests that {@code stats(... nativeAllocator=true ...)} returns {@code null} for the
-     * allocator stats when no supplier has been registered (default state of NodeService).
+     * allocator stats when no supplier was injected at construction.
      */
     public void testStatsWithNativeAllocatorTrueAndNoSupplier() {
         NodeService nodeService = createNodeService(null);
-        // No setNativeAllocatorStatsSupplier call.
+        // No supplier passed to the factory — defaults to null.
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,

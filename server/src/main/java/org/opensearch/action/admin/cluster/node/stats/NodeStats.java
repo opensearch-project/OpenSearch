@@ -180,6 +180,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private NativeAllocatorPoolStats nativeAllocatorStats;
 
+    /**
+     * Process-level native-memory estimate captured on the data node hosting this {@code NodeStats}.
+     * Computed once in {@link org.opensearch.node.NodeService#stats} via
+     * {@code OsProbe.getProcessNativeMemoryBytes()} and serialized over the wire so the coordinator
+     * renders the source node's value, not its own. {@code -1} when the probe could not read
+     * {@code /proc/self/status} (non-Linux platforms or restricted environments).
+     */
+    private long totalEstimatedNativeBytes;
+
     @Nullable
     private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
 
@@ -286,6 +295,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             nativeMemoryStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            totalEstimatedNativeBytes = in.readLong();
+        } else {
+            totalEstimatedNativeBytes = -1L;
+        }
     }
 
     public NodeStats(
@@ -322,7 +336,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable NodeCacheStats nodeCacheStats,
         @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
         @Nullable NativeAllocatorPoolStats nativeAllocatorStats,
-        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats
+        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats,
+        long totalEstimatedNativeBytes
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -358,6 +373,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.remoteStoreNodeStats = remoteStoreNodeStats;
         this.nativeAllocatorStats = nativeAllocatorStats;
         this.nativeMemoryStats = nativeMemoryStats;
+        this.totalEstimatedNativeBytes = totalEstimatedNativeBytes;
     }
 
     public long getTimestamp() {
@@ -544,6 +560,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     /**
+     * Returns the process-level native-memory estimate captured on this node
+     * (RssAnon - JVM heap committed - JVM non-heap committed), or {@code -1} when the probe
+     * could not read {@code /proc/self/status}.
+     */
+    public long getTotalEstimatedNativeBytes() {
+        return totalEstimatedNativeBytes;
+    }
+
+    /**
      * Returns the analytics backend native memory stats, or {@code null} if not available.
      */
     @Nullable
@@ -621,6 +646,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             out.writeOptionalWriteable(nativeMemoryStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeLong(totalEstimatedNativeBytes);
         }
     }
 
@@ -742,24 +770,21 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
         }
-        if (getNativeAllocatorStats() != null || getAnalyticsBackendNativeMemoryStats() != null) {
-            builder.startObject("native_memory");
-            // total_estimated_bytes ≈ RssAnon - JVM heap committed - JVM non-heap committed.
-            // Captures anonymous-mapped native allocations (Arrow buffers, jemalloc arenas,
-            // DataFusion working memory, direct ByteBuffers) outside the JVM's managed regions.
-            // Excludes file-backed mmap (Lucene index segments) and OS page cache. Returns -1
-            // on non-Linux platforms (RssAnon is from /proc/self/status) or when the read fails.
-            builder.field("total_estimated_bytes", org.opensearch.monitor.os.OsProbe.getInstance().getProcessNativeMemoryBytes());
-            if (getAnalyticsBackendNativeMemoryStats() != null) {
-                getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
-            }
-            if (getNativeAllocatorStats() != null) {
-                builder.startObject("native_allocator");
-                getNativeAllocatorStats().toXContent(builder, params);
-                builder.endObject();
-            }
+        // total_estimated_bytes ≈ RssAnon - JVM heap committed - JVM non-heap committed.
+        // Always emit so operators see the per-node value even when no plugin contributes
+        // an inner stats block. The value is captured on the data node in NodeService.stats()
+        // and serialized; the coordinator never re-reads its own OsProbe here.
+        builder.startObject("native_memory");
+        builder.field("total_estimated_bytes", totalEstimatedNativeBytes);
+        if (getAnalyticsBackendNativeMemoryStats() != null) {
+            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
+        }
+        if (getNativeAllocatorStats() != null) {
+            builder.startObject("native_allocator");
+            getNativeAllocatorStats().toXContent(builder, params);
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 }

@@ -159,7 +159,8 @@ public class AnalyticsBackendNativeMemoryStatsVersionGateTests extends OpenSearc
             null, // nodeCacheStats
             null, // remoteStoreNodeStats
             null, // nativeAllocator
-            nativeMemoryStats
+            nativeMemoryStats,
+            -1L  // totalEstimatedNativeBytes
         );
     }
 }

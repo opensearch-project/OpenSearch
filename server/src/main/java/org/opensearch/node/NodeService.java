@@ -54,6 +54,7 @@ import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.PluginsService;
@@ -107,15 +108,16 @@ public class NodeService implements Closeable {
     private final CacheService cacheService;
 
     /**
-     * Supplier for native allocator pool stats. Set after construction via
-     * {@link #setNativeAllocatorStatsSupplier} because the allocator is created by the
-     * {@code ArrowBasePlugin} during {@code createComponents()}, which runs after this
-     * {@code NodeService} instance is built. Mirrors the deferred-wiring supplier pattern
-     * used for native memory stats in
-     * {@link org.opensearch.monitor.memory.MemoryReportingService#setNativeStatsSupplier}.
+     * Supplier for native allocator pool stats. Constructor-injected via discovery from
+     * {@code pluginComponents} in {@code Node.java} (looks up a published
+     * {@link org.opensearch.plugin.stats.NativeAllocatorStatsRegistry} from
+     * {@code ArrowBasePlugin.createComponents()}). When no plugin publishes a registry, the
+     * supplier is {@code null} and {@code _nodes/stats/native_allocator} returns no allocator
+     * stats. The supplier itself is responsible for returning {@code null} once its underlying
+     * allocator is closed.
      */
     @Nullable
-    private volatile Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier;
+    private final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier;
 
     NodeService(
         Settings settings,
@@ -143,7 +145,8 @@ public class NodeService implements Closeable {
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
         RepositoriesService repositoriesService,
         AdmissionControlService admissionControlService,
-        CacheService cacheService
+        CacheService cacheService,
+        @Nullable Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -173,16 +176,7 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
         this.cacheService = cacheService;
-    }
-
-    /**
-     * Sets the supplier that produces a {@link NativeAllocatorPoolStats} snapshot when
-     * {@code _nodes/stats/native_allocator} is requested. Called by {@code Node.java} after
-     * the Arrow base plugin's {@code createComponents()} has produced the allocator and
-     * registered its supplier via {@code ArrowAllocatorPlugin}.
-     */
-    public void setNativeAllocatorStatsSupplier(Supplier<NativeAllocatorPoolStats> supplier) {
-        this.nativeAllocatorStatsSupplier = supplier;
+        this.nativeAllocatorStatsSupplier = nativeAllocatorStatsSupplier;
     }
 
     public NodeInfo info(
@@ -308,14 +302,18 @@ public class NodeService implements Closeable {
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
             nativeAllocator ? collectNativeAllocatorStats() : null,
-            nativeMemory ? monitorService.memoryReportingService().nativeStats() : null
+            nativeMemory ? monitorService.memoryReportingService().nativeStats() : null,
+            // Always capture the process-level native memory estimate on this data node.
+            // Serialized over the wire so the coordinator renders the source node's value,
+            // not its own. Returns -1 on non-Linux platforms or when /proc/self/status is
+            // unreadable.
+            OsProbe.getInstance().getProcessNativeMemoryBytes()
         );
     }
 
     @Nullable
     private NativeAllocatorPoolStats collectNativeAllocatorStats() {
-        Supplier<NativeAllocatorPoolStats> supplier = nativeAllocatorStatsSupplier;
-        return supplier != null ? supplier.get() : null;
+        return nativeAllocatorStatsSupplier != null ? nativeAllocatorStatsSupplier.get() : null;
     }
 
     public IngestService getIngestService() {

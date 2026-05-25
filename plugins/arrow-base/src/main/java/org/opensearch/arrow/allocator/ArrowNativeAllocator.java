@@ -178,7 +178,8 @@ public class ArrowNativeAllocator implements NativeAllocator {
 
     /**
      * Returns a point-in-time stats snapshot across all pools. Used by the
-     * {@code ArrowAllocatorPlugin} supplier wired into {@code NodeService} to
+     * {@code NativeAllocatorStatsRegistry} component published from
+     * {@code ArrowBasePlugin.createComponents()} and wired into {@code NodeService} to
      * render allocator state under {@code _nodes/stats[/native_allocator]}.
      */
     public NativeAllocatorPoolStats stats() {
