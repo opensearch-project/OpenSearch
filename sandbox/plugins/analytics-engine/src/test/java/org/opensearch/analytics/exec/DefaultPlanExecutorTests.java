@@ -165,10 +165,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
     /** Missing target column name throws rather than silently misording. */
     public void testBatchesToRowsThrowsWhenTargetNameMissing() {
         VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // [age, name]
-        expectThrows(
-            IllegalStateException.class,
-            () -> DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent"))
-        );
+        expectThrows(IllegalStateException.class, () -> DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent")));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

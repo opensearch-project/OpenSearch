@@ -162,7 +162,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         logicalFragment.getCluster().invalidateMetadataQuery();
 
         final long planStartNanos = profile ? System.nanoTime() : 0;
-        RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state(), indexNameExpressionResolver, false));
+        RelNode plan = PlannerImpl.createPlan(
+            logicalFragment,
+            new PlannerContext(capabilityRegistry, clusterService.state(), indexNameExpressionResolver, false)
+        );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);

@@ -18,6 +18,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Locale;
+
 /**
  * Unit tests for {@link IndexResolution} — the helper that expands a table name
  * (concrete index or alias) to a list of {@link IndexMetadata} and validates
@@ -90,7 +92,7 @@ public class IndexResolutionTests extends OpenSearchTestCase {
         ClusterState state = clusterStateOf(closed);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> IndexResolution.resolve("bank_all", state));
-        assertTrue("error must mention closed: " + ex.getMessage(), ex.getMessage().toLowerCase().contains("closed"));
+        assertTrue("error must mention closed: " + ex.getMessage(), ex.getMessage().toLowerCase(Locale.ROOT).contains("closed"));
     }
 
     public void testAliasRejectsFilterAlias() {
@@ -100,7 +102,7 @@ public class IndexResolutionTests extends OpenSearchTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> IndexResolution.resolve("active_only", state));
         assertTrue("error must mention the alias name: " + ex.getMessage(), ex.getMessage().contains("active_only"));
-        assertTrue("error must mention 'filter': " + ex.getMessage(), ex.getMessage().toLowerCase().contains("filter"));
+        assertTrue("error must mention 'filter': " + ex.getMessage(), ex.getMessage().toLowerCase(Locale.ROOT).contains("filter"));
     }
 
     public void testMissingNameThrows() {
