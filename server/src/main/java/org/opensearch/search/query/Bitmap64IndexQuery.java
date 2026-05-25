@@ -119,16 +119,13 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
 
                 return new ScorerSupplier() {
                     long cost = -1;
-                    DocIdSet docIdSet;
 
                     @Override
                     public Scorer get(long leadCost) throws IOException {
-                        if (docIdSet == null) {
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                            final MergePointVisitor visitor = new MergePointVisitor(result);
-                            values.intersect(visitor);
-                            docIdSet = result.build();
-                        }
+                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                        final MergePointVisitor visitor = new MergePointVisitor(result);
+                        values.intersect(visitor);
+                        final DocIdSet docIdSet = result.build();
                         if (docIdSet == null) {
                             return null;
                         }
