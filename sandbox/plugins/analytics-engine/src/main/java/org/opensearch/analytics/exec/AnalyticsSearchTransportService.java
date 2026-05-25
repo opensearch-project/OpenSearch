@@ -178,8 +178,6 @@ public class AnalyticsSearchTransportService {
                         receiverError.set(e);
                     } finally {
                         poisonPill.set(true);
-                        // Unblock consumer if waiting
-                        queue.offer(null);
                     }
                 });
 
