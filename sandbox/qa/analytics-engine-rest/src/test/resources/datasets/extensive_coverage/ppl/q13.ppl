@@ -1,0 +1,1 @@
+source=test_data | eval sub_text = substring(text, 1, 5), trimmed = trim(text) | fields text, sub_text, trimmed | head 3

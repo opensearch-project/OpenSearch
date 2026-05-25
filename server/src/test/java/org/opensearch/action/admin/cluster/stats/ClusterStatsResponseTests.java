@@ -223,6 +223,9 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
+            null,
+            null, // pluginStats
             null
         );
         return new ClusterStatsNodeResponse(node, null, nodeInfo, nodeStats, shardStats);

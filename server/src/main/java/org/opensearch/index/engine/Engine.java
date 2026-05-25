@@ -1293,6 +1293,24 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     /**
+     * Acquires a {@link CatalogSnapshot} of the engine's current in-memory state — i.e. the
+     * latest visible-to-readers segments, including any uncommitted operations that have been
+     * refreshed. Used by replication-checkpoint listeners and any caller that wants the live
+     * search-visible state rather than the on-disk safe commit.
+     *
+     * <p>The default implementation bridges via {@link #getSegmentInfosSnapshot()} and wraps the
+     * resulting {@link SegmentInfos} as a {@link SegmentInfosCatalogSnapshot}. Engines whose
+     * native state isn't a single {@link SegmentInfos} (e.g. multi-format engines that aggregate
+     * Lucene + other formats) should override this to return their native catalog snapshot.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
+        final GatedCloseable<SegmentInfos> segmentInfosRef = getSegmentInfosSnapshot();
+        final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfosRef.get());
+        return new GatedCloseable<>(snapshot, segmentInfosRef::close);
+    }
+
+    /**
      * Acquires a {@link CatalogSnapshot} pinned to the most recent commit on disk,
      * regardless of retention policy. Default wraps {@link #acquireLastIndexCommit(boolean)}.
      * Propagates {@link IOException} as-is so callers (e.g. shard-store fetch on corrupted

@@ -512,15 +512,16 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         // RefCount should be initial + 3 (one incRef per afterRefresh)
         assertEquals(initialRefCount + 3, initialReader.getRefCount());
 
-        // Deleting each snapshot should decRef once
+        // First onDeleted: -1 for map entry, -1 for releaseInitialReader (idempotent thereafter).
         rm.onDeleted(snap1);
-        assertEquals(initialRefCount + 2, initialReader.getRefCount());
-
-        rm.onDeleted(snap2);
         assertEquals(initialRefCount + 1, initialReader.getRefCount());
 
-        rm.onDeleted(snap3);
+        // Subsequent onDeleted: -1 for map entry only.
+        rm.onDeleted(snap2);
         assertEquals(initialRefCount, initialReader.getRefCount());
+
+        rm.onDeleted(snap3);
+        assertEquals(initialRefCount - 1, initialReader.getRefCount());
     }
 
     public void testCloseDecRefsAllAccumulatedReaders() throws IOException {
@@ -540,9 +541,9 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         rm.afterRefresh(true, stubSnapshot(3));
         assertEquals(initialRefCount + 3, initialReader.getRefCount());
 
-        // close() should decRef all 3
+        // close() decRefs the 3 map entries and the initial open(writer) reference: refCount → 0.
         rm.close();
-        assertEquals(initialRefCount, initialReader.getRefCount());
+        assertEquals(initialRefCount - 1, initialReader.getRefCount());
     }
 
     public void testMixedRefreshSomeNullSomeNew() throws IOException {

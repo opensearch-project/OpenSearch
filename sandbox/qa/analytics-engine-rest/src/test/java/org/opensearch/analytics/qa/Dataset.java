@@ -8,6 +8,9 @@
 
 package org.opensearch.analytics.qa;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Descriptor for a test dataset loaded from {@code resources/datasets/{name}/}.
  * <p>
@@ -27,9 +30,19 @@ public final class Dataset {
     /** The index name to provision the dataset into. */
     public final String indexName;
 
+    /** All index names for multi-index datasets. */
+    public final List<String> indexNames;
+
     public Dataset(String name, String indexName) {
         this.name = name;
         this.indexName = indexName;
+        this.indexNames = Arrays.asList(indexName);
+    }
+
+    public Dataset(String name, String... indexNames) {
+        this.name = name;
+        this.indexName = indexNames[0];
+        this.indexNames = Arrays.asList(indexNames);
     }
 
     /** Path to the mapping resource. */

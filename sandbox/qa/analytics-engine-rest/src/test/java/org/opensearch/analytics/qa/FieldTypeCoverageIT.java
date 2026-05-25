@@ -82,6 +82,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         Map<String, Object> bulk = ingest("ft_half_float", "half_float", 47.6, 45.5, 52.1);
         assertBulkSucceeded(bulk, "ft_half_float");
         assertScanSucceeds("ft_half_float", 3);
+        assertHalfFloatProjectedValues("ft_half_float", new double[] { 45.5, 47.6, 52.1 });
     }
 
     public void testFloat() throws IOException {
@@ -320,6 +321,23 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         List<List<Object>> rows = (List<List<Object>>) resp.get("rows");
         assertNotNull("[" + ppl + "] response missing rows", rows);
         assertEquals("[" + ppl + "] row count", expected, rows.size());
+    }
+
+    /**
+     * Project a {@code half_float} column, sort numerically, and assert each value matches
+     * {@code expectedSorted} within fp16 precision (~3 decimal digits). {@code expectedSorted}
+     * must be in ascending order to match the {@code | sort val} we issue.
+     */
+    private void assertHalfFloatProjectedValues(String index, double[] expectedSorted) throws IOException {
+        final double tolerance = 0.05;
+        Map<String, Object> resp = executePpl("source=" + index + " | sort val | fields val");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) resp.get("rows");
+        assertEquals(expectedSorted.length, rows.size());
+        for (int i = 0; i < expectedSorted.length; i++) {
+            double got = ((Number) rows.get(i).get(0)).doubleValue();
+            assertEquals("row " + i, expectedSorted[i], got, tolerance);
+        }
     }
 
     /**

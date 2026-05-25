@@ -1,0 +1,1 @@
+source=test_data | eval left_val = left(text, 5), right_val = right(text, 5) | fields text, left_val, right_val | head 3

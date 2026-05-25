@@ -49,8 +49,8 @@ public final class ArrowValues {
         // downstream ExprValueUtils tuple converter sees the same shape as a
         // legacy v2 Map<String, Object> column. Routes the values through
         // Text→String normalization so JSON serialization doesn't choke on
-        // Arrow's UTF-8 byte wrapper. First in-tree caller is the spath
-        // command's `json_extract_all` UDF on the analytics-engine route.
+        // Arrow's UTF-8 byte wrapper. In-tree callers include spath's
+        // `json_extract_all` and parse's `parse` UDFs on the analytics-engine route.
         if (vector instanceof MapVector && vector.getObject(index) instanceof List<?> entries) {
             LinkedHashMap<String, Object> map = new LinkedHashMap<>();
             for (Object entry : entries) {

@@ -43,6 +43,7 @@ public enum ScalarFunction {
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    CIDRMATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Logical connectives ─────────────────────────────────────────
     AND(Category.SCALAR, SqlKind.AND),
@@ -103,6 +104,15 @@ public enum ScalarFunction {
     REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code parse <field> '<regex>'} — extracts named regex groups into a
+     * {@code MAP<VARCHAR, VARCHAR>}. Resolves by identifier-name through
+     * {@link #fromSqlFunction(SqlFunction)} ({@code SqlKind.OTHER_FUNCTION}
+     * shared with many scalar UDFs). Pairs with {@link #ITEM} downstream:
+     * {@code parse} returns the map, {@code item(map, group)} extracts each
+     * named group at the call site.
+     */
+    PARSE(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // TODO: Frontend/lang-specific functions (NUM/AUTO/MEMK/MKTIME etc.) shouldn't
     // live in the shared analytics-framework SPI — they couple the framework to PPL

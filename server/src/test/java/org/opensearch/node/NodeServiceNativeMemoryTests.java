@@ -132,6 +132,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // clusterManagerThrottling
             false, // weightedRoutingStats
             false, // fileCacheStats
+            false, // fileCacheDetailed
             false, // taskCancellation
             false, // searchPipelineStats
             false, // resourceUsageStats
@@ -140,6 +141,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
+            false, // pluginStats
             true   // nativeMemory
         );
 
@@ -177,6 +179,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // clusterManagerThrottling
             false, // weightedRoutingStats
             false, // fileCacheStats
+            false, // fileCacheDetailed
             false, // taskCancellation
             false, // searchPipelineStats
             false, // resourceUsageStats
@@ -185,6 +188,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
+            false, // pluginStats
             true   // nativeMemory
         );
 
@@ -221,6 +225,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // clusterManagerThrottling
             false, // weightedRoutingStats
             false, // fileCacheStats
+            false, // fileCacheDetailed
             false, // taskCancellation
             false, // searchPipelineStats
             false, // resourceUsageStats
@@ -229,6 +234,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
+            false, // pluginStats
             false  // nativeMemory
         );
 
@@ -267,6 +273,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
+            false, // fileCacheDetailed
             false,
             false,
             false,
@@ -275,6 +282,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
+            false, // pluginStats
             true   // nativeMemory
         );
 
@@ -332,6 +340,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
+            false, // fileCacheDetailed
             false,
             false,
             false,
@@ -340,6 +349,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
+            false, // pluginStats
             true   // nativeMemory
         );
 

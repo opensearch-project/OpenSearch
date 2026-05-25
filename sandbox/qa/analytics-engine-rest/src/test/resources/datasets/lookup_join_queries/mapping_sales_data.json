@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {"type": "date"},
+      "user": {"type": "keyword"},
+      "department": {"type": "keyword"},
+      "sales_amount": {"type": "float"},
+      "region": {"type": "keyword"},
+      "product": {"type": "keyword"},
+      "quantity": {"type": "integer"},
+      "status": {"type": "keyword"}
+    }
+  }
+}

@@ -149,6 +149,8 @@ public class AnalyticsBackendNativeMemoryStatsVersionGateTests extends OpenSearc
             null, // clusterManagerThrottlingStats
             null, // weightedRoutingStats
             null, // fileCacheStats
+            null, // fileCacheOnlyStats
+            null, // blockCacheOnlyStats
             null, // taskCancellationStats
             null, // searchPipelineStats
             null, // segmentReplicationRejectionStats
@@ -156,6 +158,7 @@ public class AnalyticsBackendNativeMemoryStatsVersionGateTests extends OpenSearc
             null, // admissionControlStats
             null, // nodeCacheStats
             null, // remoteStoreNodeStats
+            null, // pluginStats
             nativeMemoryStats
         );
     }

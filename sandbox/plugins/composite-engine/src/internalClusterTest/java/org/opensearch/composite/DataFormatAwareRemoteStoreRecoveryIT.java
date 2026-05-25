@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -64,7 +65,13 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
             super.nodePlugins().stream(),
-            Stream.of(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class)
+            Stream.of(
+                ArrowBasePlugin.class,
+                ParquetDataFormatPlugin.class,
+                CompositeDataFormatPlugin.class,
+                LucenePlugin.class,
+                DataFusionPlugin.class
+            )
         ).collect(Collectors.toList());
     }
 
@@ -387,6 +394,70 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             assertNotNull("remote metadata must exist after flush", meta);
             assertTrue("parquet must be in uploaded formats", formatsOf(meta.getMetadata()).contains("parquet"));
         }, 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * <strong>DFA correctness regression guard:</strong> recovery from remote store must replay
+     * translog without re-applying operations already committed to durable Parquet/Lucene files.
+     *
+     * <p>Scenario:
+     * <ol>
+     *   <li>Index batch 1 → refresh + flush (writes durable Parquet/Lucene files; uploads to
+     *       remote segment store).</li>
+     *   <li>Index batch 2 → refresh only (resides in translog + remote translog only, NOT yet in
+     *       any committed format file).</li>
+     *   <li>Full cluster restart — the data node downloads durable files from the remote segment
+     *       store and replays the remote translog.</li>
+     * </ol>
+     *
+     * <p>If the translog-replay path fails to skip operations whose seq_no is already covered by
+     * the recovered commit's local checkpoint, batch 1 ops would be re-applied on top of the
+     * already-restored Parquet files → duplicate rows. The standard Lucene engine handles this via
+     * {@code max_seq_no} tracking in commit user-data; for DFA the {@link
+     * org.opensearch.index.engine.exec.coord.CatalogSnapshot} must carry the equivalent so the
+     * recovery path can correctly bound the replay range.
+     *
+     * <p>Asserts that the post-restart doc count equals exactly {@code firstBatch + secondBatch}.
+     * Any value above that indicates a duplication regression.
+     */
+    public void testTranslogReplayDoesNotDuplicateRowsWithRemoteStore() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(dfaIndexSettings(0)).get();
+        ensureGreen(INDEX_NAME);
+
+        // Phase 1: indexed AND committed (durable in Parquet/Lucene; uploaded to remote segment store)
+        int firstBatch = randomIntBetween(10, 30);
+        indexDocs(firstBatch);
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).setWaitIfOngoing(true).get();
+
+        // Phase 2: indexed but NOT committed — lives only in translog + remote translog
+        int secondBatch = randomIntBetween(5, 15);
+        indexDocsWithOffset(firstBatch, secondBatch);
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        // Intentionally NO flush — second batch must remain in translog only
+
+        long expectedTotal = firstBatch + secondBatch;
+
+        // Full cluster restart — exercises the realistic disaster-recovery path: data node restarts,
+        // downloads committed files from remote segment store, then replays the remote translog.
+        internalCluster().fullRestart();
+        ensureGreen(INDEX_NAME);
+
+        long actualRows = client().admin().indices().prepareStats(INDEX_NAME).clear().setDocs(true).get().getTotal().getDocs().getCount();
+
+        assertEquals(
+            "Translog replay must NOT duplicate rows already committed to Parquet. "
+                + "Expected "
+                + expectedTotal
+                + " but got "
+                + actualRows
+                + ". If actual > expected, translog replayed ops that were already in committed Parquet files.",
+            expectedTotal,
+            actualRows
+        );
     }
 
     /**

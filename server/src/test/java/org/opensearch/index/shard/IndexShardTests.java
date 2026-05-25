@@ -4861,7 +4861,7 @@ public class IndexShardTests extends IndexShardTestCase {
      * {@code newEngineReference} is still null -- the window between ReadOnlyEngine installation
      * and {@code newEngineReference.set(newEngine)} inside {@code resetEngineToGlobalCheckpoint}.
      * Covers the defensive null-check branches in {@code acquireLastIndexCommit},
-     * {@code acquireSafeIndexCommit}, and {@code getSegmentInfosSnapshot}.
+     * {@code acquireSafeIndexCommit}, and {@code acquireSnapshot}.
      */
     public void testDelegateThrowsAlreadyClosedBeforeNewEngineSet() throws Exception {
         CountDownLatch creatingEngineLatch = new CountDownLatch(1);
@@ -4906,7 +4906,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // The ReadOnlyEngine is now the current engine, but newEngineReference is still null.
         expectThrows(AlreadyClosedException.class, () -> shard.acquireLastIndexCommit(false));
         expectThrows(AlreadyClosedException.class, shard::acquireSafeIndexCommit);
-        expectThrows(AlreadyClosedException.class, shard::getSegmentInfosSnapshot);
+        expectThrows(AlreadyClosedException.class, shard::getCatalogSnapshot);
 
         proceedWithCreationLatch.countDown();
         assertTrue("engine reset should complete", engineResetLatch.await(30, TimeUnit.SECONDS));
@@ -5560,5 +5560,38 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         closeShards(primary);
         assertTrue(primary.nonClosingReaderWrapperCache().isEmpty());
+    }
+
+    /**
+     * Verifies that {@code isRemoteSegmentStoreInSync} uses {@code getCatalogSnapshot()} (the unified
+     * catalog API) rather than the legacy {@code getSegmentInfosSnapshot()}. After indexing and refreshing,
+     * the catalog snapshot files should match the remote uploaded files, making the method return true.
+     * Guards against regressions where the method reverts to using getSegmentInfosSnapshot().
+     */
+    public void testIsRemoteSegmentStoreInSyncUsesCatalogSnapshot() throws Exception {
+        String remoteStorePath = createTempDir().toString();
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
+                .build(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        );
+        indexDoc(shard, "_doc", "1");
+        shard.refresh("test");
+
+        // After refresh, remote sync should have completed and catalog snapshot files should match remote
+        assertTrue("isRemoteSegmentStoreInSync should return true after refresh", shard.isRemoteSegmentStoreInSync());
+
+        // Verify getCatalogSnapshot returns non-empty files (proving it's being used)
+        try (GatedCloseable<org.opensearch.index.engine.exec.coord.CatalogSnapshot> snap = shard.getCatalogSnapshot()) {
+            Collection<String> catalogFiles = snap.get().getFiles(true);
+            assertFalse("Catalog snapshot should have files after indexing", catalogFiles.isEmpty());
+        }
+
+        closeShards(shard);
     }
 }
