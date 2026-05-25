@@ -90,6 +90,95 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("dest_size_one").setSize(0).get(), 1);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testReindexFromDerivedSourceWithNestedObjects() throws Exception {
+        String sourceIndexMapping = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 1,
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        }
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "properties": {
+                            "title": {
+                                "type": "keyword"
+                            },
+                            "comments": {
+                                "type": "nested",
+                                "properties": {
+                                    "tag": {
+                                        "type": "keyword"
+                                    },
+                                    "score": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+        String destIndexMapping = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 1,
+                        "number_of_replicas": 0
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "properties": {
+                            "title": {
+                                "type": "keyword"
+                            },
+                            "comments": {
+                                "type": "nested",
+                                "properties": {
+                                    "tag": {
+                                        "type": "keyword"
+                                    },
+                                    "score": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        assertAcked(prepareCreate("source_derived_nested").setSource(sourceIndexMapping, XContentType.JSON));
+        assertAcked(prepareCreate("dest_derived_nested").setSource(destIndexMapping, XContentType.JSON));
+        ensureGreen();
+
+        client().prepareIndex("source_derived_nested")
+            .setId("1")
+            .setSource(Map.of("title", "doc", "comments", List.of(Map.of("tag", "first", "score", 1), Map.of("tag", "second", "score", 2))))
+            .get();
+        refresh("source_derived_nested");
+
+        ReindexRequestBuilder copy = reindex().source("source_derived_nested").destination("dest_derived_nested").refresh(true);
+        assertThat(copy.get(), matcher().created(1));
+
+        SearchResponse response = client().prepareSearch("dest_derived_nested").setQuery(matchAllQuery()).get();
+        assertHitCount(response, 1);
+        Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+        assertEquals("doc", source.get("title"));
+        List<Map<String, Object>> comments = (List<Map<String, Object>>) source.get("comments");
+        assertEquals(2, comments.size());
+        assertEquals("first", comments.get(0).get("tag"));
+        assertEquals(1, comments.get(0).get("score"));
+        assertEquals("second", comments.get(1).get("tag"));
+        assertEquals(2, comments.get(1).get("score"));
+    }
+
     public void testCopyMany() throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
