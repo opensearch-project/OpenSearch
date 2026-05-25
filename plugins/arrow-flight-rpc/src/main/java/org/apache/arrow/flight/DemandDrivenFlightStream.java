@@ -9,8 +9,8 @@
 package org.apache.arrow.flight;
 
 import io.grpc.ClientCall;
-import io.grpc.MethodDescriptor;
-import io.grpc.protobuf.ProtoUtils;
+
+
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientCalls;
 import io.grpc.stub.ClientResponseObserver;
@@ -65,16 +65,11 @@ public class DemandDrivenFlightStream implements AutoCloseable {
     }
 
     /**
-     * The DoGet method descriptor — constructed once, reused for all streams.
-     * Matches arrow.flight.protocol.FlightService/DoGet exactly.
+     * Gets the DoGet method descriptor from Arrow Flight's binding service.
+     * Same package access — no reflection needed.
      */
-    private static io.grpc.MethodDescriptor<Flight.Ticket, ArrowMessage> doGetDescriptor(BufferAllocator allocator) {
-        return io.grpc.MethodDescriptor.<Flight.Ticket, ArrowMessage>newBuilder()
-            .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
-            .setFullMethodName("arrow.flight.protocol.FlightService/DoGet")
-            .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(Flight.Ticket.getDefaultInstance()))
-            .setResponseMarshaller(ArrowMessage.createMarshaller(allocator))
-            .build();
+    private static io.grpc.MethodDescriptor<org.apache.arrow.flight.impl.Flight.Ticket, ArrowMessage> doGetDescriptor(BufferAllocator allocator) {
+        return FlightBindingService.getDoGetDescriptor(allocator);
     }
 
     /**
@@ -97,7 +92,7 @@ public class DemandDrivenFlightStream implements AutoCloseable {
         for (CallOption opt : options) {
             callOpts = opt.wrapCallOption(callOpts);
         }
-        ClientCall<Flight.Ticket, ArrowMessage> call = channel.newCall(descriptor, callOpts);
+        ClientCall<org.apache.arrow.flight.impl.Flight.Ticket, ArrowMessage> call = channel.newCall(descriptor, callOpts);
         return open(allocator, call, ticket.toProtocol());
     }
 
@@ -107,15 +102,15 @@ public class DemandDrivenFlightStream implements AutoCloseable {
      */
     static DemandDrivenFlightStream open(
         BufferAllocator allocator,
-        ClientCall<Flight.Ticket, ArrowMessage> call,
-        Flight.Ticket ticket
+        ClientCall<org.apache.arrow.flight.impl.Flight.Ticket, ArrowMessage> call,
+        org.apache.arrow.flight.impl.Flight.Ticket ticket
     ) {
         DemandDrivenFlightStream stream = new DemandDrivenFlightStream(allocator);
 
-        ClientResponseObserver<Flight.Ticket, ArrowMessage> observer =
+        ClientResponseObserver<org.apache.arrow.flight.impl.Flight.Ticket, ArrowMessage> observer =
             new ClientResponseObserver<>() {
                 @Override
-                public void beforeStart(ClientCallStreamObserver<Flight.Ticket> reqStream) {
+                public void beforeStart(ClientCallStreamObserver<org.apache.arrow.flight.impl.Flight.Ticket> reqStream) {
                     stream.requestStream = reqStream;
                     reqStream.disableAutoInboundFlowControl();
                 }
