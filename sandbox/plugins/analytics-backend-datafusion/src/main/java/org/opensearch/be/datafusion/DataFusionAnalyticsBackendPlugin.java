@@ -30,6 +30,7 @@ import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.NumericToDoubleAdapter;
 import org.opensearch.analytics.spi.ProjectCapability;
+import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
@@ -96,7 +97,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.DIVIDE,
         ScalarFunction.MOD,
         ScalarFunction.EARLIEST,
-        ScalarFunction.LATEST
+        ScalarFunction.LATEST,
+        ScalarFunction.CIDRMATCH
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -150,6 +152,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IN,
         ScalarFunction.LIKE,
         ScalarFunction.REGEXP_CONTAINS,
+        ScalarFunction.CIDRMATCH,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
         ScalarFunction.TRANSLATE,
@@ -559,6 +562,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
                 DayOfWeekAdapter dayOfWeek = new DayOfWeekAdapter();
                 SecondAdapter second = new SecondAdapter();
+                // Stateless cast adapter shared between CAST and SAFE_CAST registrations.
+                IpBinaryCastFunctionAdapter ipBinaryCast = new IpBinaryCastFunctionAdapter();
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
@@ -568,6 +573,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
+                    Map.entry(ScalarFunction.CAST, ipBinaryCast),
+                    Map.entry(ScalarFunction.CIDRMATCH, new CidrMatchFunctionAdapter()),
                     Map.entry(ScalarFunction.COALESCE, new CoalesceAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
@@ -634,6 +641,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),
                     Map.entry(ScalarFunction.REX_OFFSET, new RexOffsetAdapter()),
+                    Map.entry(ScalarFunction.SAFE_CAST, ipBinaryCast),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
@@ -775,6 +783,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // Install the handle as the FFM upcall target. All Rust callbacks
         // (createProvider, createCollector, collectDocs, release*) route to it.
         FilterTreeCallbacks.setHandle(handle);
+    }
+
+    @Override
+    public Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
+        // Delegate to the plugin that owns the DataFusionService and native runtime.
+        // Keeping the real implementation on DataFusionPlugin lets operators call it
+        // directly (e.g., from a REST action) without going through the SPI.
+        return plugin.getTopQueriesByMemory();
     }
 
     @Override

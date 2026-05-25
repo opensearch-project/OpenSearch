@@ -609,6 +609,31 @@ scalar_functions:
         nullability: DECLARED_OUTPUT
         return: string
 
+  # ip_to_string(bytes) — render a 16-byte ipv6-mapped buffer as a canonical IP string.
+  # Bound so IpBinaryOutputCastRewriter can rewrite engine-output `CAST(<IpType> AS VARCHAR)`
+  # to `ip_to_string(<col>)` and have it serialize through this extension. The Rust impl
+  # (rust/src/udf/ip_to_string.rs) detects ipv4-mapped (::ffff:a.b.c.d) and emits dotted-quad,
+  # otherwise emits Ipv6Addr::to_string()'s RFC 5952 compressed form.
+  - name: "ip_to_string"
+    description: "Render a 16-byte ipv6-mapped buffer as a canonical IP string (engine-output cast target for ip fields)."
+    impls:
+      - args:
+          - { name: bytes, value: binary }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # binary_to_base64(bytes) — base64-encode a binary buffer per the OpenSearch `binary`
+  # field wire contract. Bound so IpBinaryOutputCastRewriter can rewrite engine-output
+  # `CAST(<BinaryType> AS VARCHAR)` to `binary_to_base64(<col>)`. The Rust impl
+  # (rust/src/udf/binary_to_base64.rs) uses the standard base64 alphabet.
+  - name: "binary_to_base64"
+    description: "Base64-encode a binary buffer per the OpenSearch binary-field wire contract (engine-output cast target for binary fields)."
+    impls:
+      - args:
+          - { name: bytes, value: binary }
+        nullability: DECLARED_OUTPUT
+        return: string
+
   # tonumber(string, base) — parse `string` as a base-N integer
   - name: "tonumber"
     description: "Parse a string to a number in the given radix (2-36). Returns NULL on parse failure."

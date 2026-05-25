@@ -511,4 +511,97 @@ public class OsProbeTests extends OpenSearchTestCase {
         };
     }
 
+    // ---- /proc/self/status RssAnon parsing ----
+
+    public void testGetProcessRssAnon_presentField() {
+        assumeThat("requires Linux to exercise the /proc/self/status path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Arrays.asList(
+                    "Name:\topensearch",
+                    "State:\tS (sleeping)",
+                    "VmPeak:\t 12345 kB",
+                    "VmRSS:\t 65536 kB",
+                    "RssAnon:\t 32768 kB",
+                    "RssFile:\t 20000 kB",
+                    "RssShmem:\t   0 kB"
+                );
+            }
+        };
+        assertEquals(32768L * 1024L, probe.getProcessRssAnon());
+    }
+
+    public void testGetProcessRssAnon_missingFieldReturnsNegative() {
+        assumeThat("requires Linux to exercise the /proc/self/status path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                // RssAnon was added in kernel 4.5; pre-4.5 kernels expose only VmRSS.
+                return Arrays.asList("Name:\topensearch", "State:\tS (sleeping)", "VmRSS:\t 65536 kB");
+            }
+        };
+        assertEquals(-1L, probe.getProcessRssAnon());
+    }
+
+    public void testGetProcessRssAnon_returnsNegativeOnIoError() {
+        assumeThat("requires Linux to exercise the /proc/self/status path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() throws IOException {
+                throw new IOException("synthetic");
+            }
+        };
+        assertEquals(-1L, probe.getProcessRssAnon());
+    }
+
+    public void testGetProcessRssAnon_negativeOnNonLinux() {
+        assumeThat("only meaningful on non-Linux platforms", Constants.LINUX, is(false));
+        assertEquals(-1L, OsProbe.getInstance().getProcessRssAnon());
+    }
+
+    // ---- getProcessNativeMemoryBytes (RssAnon - heapCommitted - nonHeapCommitted, clamped) ----
+
+    public void testGetProcessNativeMemoryBytes_returnsNegativeWhenRssAnonUnavailable() {
+        // Override getProcessRssAnon to return -1 (the "not supported" sentinel). The
+        // method must propagate that signal upward without subtracting from -1.
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnon() {
+                return -1L;
+            }
+        };
+        assertEquals(-1L, probe.getProcessNativeMemoryBytes());
+    }
+
+    public void testGetProcessNativeMemoryBytes_subtractsCommittedAndClampsAtZero() {
+        // RssAnon below the JVM committed memory (early process lifetime, before the
+        // OS resident set has caught up to the JVM's committed regions). The method
+        // must clamp at 0 instead of returning a negative.
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnon() {
+                return 1L; // way below any real committed total
+            }
+        };
+        assertEquals(0L, probe.getProcessNativeMemoryBytes());
+    }
+
+    public void testGetProcessNativeMemoryBytes_returnsDifferenceWhenRssAnonExceedsCommitted() {
+        // RssAnon clearly larger than heapCommitted + nonHeapCommitted — the difference
+        // is reported back as the off-heap native memory used by the process.
+        java.lang.management.MemoryMXBean memMx = java.lang.management.ManagementFactory.getMemoryMXBean();
+        long heapCommitted = memMx.getHeapMemoryUsage().getCommitted();
+        long nonHeapCommitted = memMx.getNonHeapMemoryUsage().getCommitted();
+        long extra = 64L * 1024L * 1024L;
+        long rssAnon = heapCommitted + nonHeapCommitted + extra;
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnon() {
+                return rssAnon;
+            }
+        };
+        assertEquals(extra, probe.getProcessNativeMemoryBytes());
+    }
+
 }
