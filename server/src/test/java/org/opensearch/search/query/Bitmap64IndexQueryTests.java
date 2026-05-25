@@ -19,6 +19,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -51,6 +52,7 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         dir = newDirectory();
         w = new IndexWriter(dir, newIndexWriterConfig());
         reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
     }
 
     @After
@@ -167,6 +169,12 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         assertTrue(getMatchingValues(weight, reader).isEmpty());
+    }
+
+    public void testRewrite() throws IOException {
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        Bitmap64IndexQuery query = new Bitmap64IndexQuery("product_id", bitmap);
+        assertEquals(new MatchNoDocsQuery(), query.rewrite(searcher));
     }
 
     // ---------------- Helpers ----------------
