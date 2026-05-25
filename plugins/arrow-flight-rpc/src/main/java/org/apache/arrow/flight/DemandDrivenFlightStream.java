@@ -74,21 +74,24 @@ public class DemandDrivenFlightStream implements AutoCloseable {
      * Opens a demand-driven stream using the gRPC channel directly.
      * No reflection — constructs the MethodDescriptor and ClientCall explicitly.
      *
-     * @param channel     the gRPC ManagedChannel (from FlightTransport)
-     * @param allocator   the Arrow BufferAllocator for deserialization
-     * @param ticket      the Flight ticket identifying the stream
-     * @param headers     gRPC metadata headers (e.g. correlation ID)
+     * @param channel      the gRPC ManagedChannel (from FlightTransport)
+     * @param allocator    the Arrow BufferAllocator for deserialization
+     * @param ticket       the Flight ticket identifying the stream
+     * @param headers      gRPC metadata headers (e.g. correlation ID)
+     * @param interceptors additional client interceptors (e.g. response header capture)
      */
     public static DemandDrivenFlightStream openFromChannel(
         io.grpc.Channel channel,
         BufferAllocator allocator,
         Ticket ticket,
-        io.grpc.Metadata headers
+        io.grpc.Metadata headers,
+        io.grpc.ClientInterceptor... interceptors
     ) {
         var descriptor = doGetDescriptor(allocator);
-        io.grpc.Channel interceptedChannel = io.grpc.ClientInterceptors.intercept(
-            channel, io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(headers)
-        );
+        java.util.List<io.grpc.ClientInterceptor> allInterceptors = new java.util.ArrayList<>();
+        allInterceptors.add(io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(headers));
+        allInterceptors.addAll(java.util.Arrays.asList(interceptors));
+        io.grpc.Channel interceptedChannel = io.grpc.ClientInterceptors.intercept(channel, allInterceptors);
         ClientCall<org.apache.arrow.flight.impl.Flight.Ticket, ArrowMessage> call =
             interceptedChannel.newCall(descriptor, io.grpc.CallOptions.DEFAULT);
         return open(allocator, call, ticket.toProtocol());

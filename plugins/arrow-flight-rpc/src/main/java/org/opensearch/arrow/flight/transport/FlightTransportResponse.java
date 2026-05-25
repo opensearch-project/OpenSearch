@@ -103,10 +103,31 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                                 callHeaders.get(key)
                             );
                         }
+                        io.grpc.ClientInterceptor responseHeaderInterceptor = new io.grpc.ClientInterceptor() {
+                            @Override
+                            public <ReqT, RespT> io.grpc.ClientCall<ReqT, RespT> interceptCall(
+                                io.grpc.MethodDescriptor<ReqT, RespT> method,
+                                io.grpc.CallOptions callOptions,
+                                io.grpc.Channel next
+                            ) {
+                                return new io.grpc.ForwardingClientCall.SimpleForwardingClientCall<>(next.newCall(method, callOptions)) {
+                                    @Override
+                                    public void start(io.grpc.ClientCall.Listener<RespT> responseListener, io.grpc.Metadata requestHeaders) {
+                                        super.start(new io.grpc.ForwardingClientCallListener.SimpleForwardingClientCallListener<>(responseListener) {
+                                            @Override
+                                            public void onHeaders(io.grpc.Metadata responseHeaders) {
+                                                processResponseHeaders(responseHeaders);
+                                                super.onHeaders(responseHeaders);
+                                            }
+                                        }, requestHeaders);
+                                    }
+                                };
+                            }
+                        };
                         demandStream = org.apache.arrow.flight.DemandDrivenFlightStream.openFromChannel(
                             clientWithChannel.getChannel(),
                             clientWithChannel.getAllocator(),
-                            ticket, headers
+                            ticket, headers, responseHeaderInterceptor
                         );
                     } else {
                         // Fallback: use standard FlightStream (no demand control)
@@ -181,6 +202,28 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             : VectorStreamInput.forByteSerialized(streamRoot, namedWriteableRegistry);
     }
 
+
+    private void processResponseHeaders(io.grpc.Metadata responseHeaders) {
+        try {
+            String encodedHeader = responseHeaders.get(
+                io.grpc.Metadata.Key.of(ClientHeaderMiddleware.RAW_HEADER_KEY, io.grpc.Metadata.ASCII_STRING_MARSHALLER)
+            );
+            String corrId = responseHeaders.get(
+                io.grpc.Metadata.Key.of(CORRELATION_ID_KEY, io.grpc.Metadata.ASCII_STRING_MARSHALLER)
+            );
+            if (encodedHeader == null || corrId == null) return;
+
+            byte[] headerBuffer = java.util.Base64.getDecoder().decode(encodedHeader);
+            org.opensearch.core.common.bytes.BytesReference headerRef =
+                new org.opensearch.core.common.bytes.BytesArray(headerBuffer);
+            Header header = org.opensearch.transport.InboundDecoder.readHeader(
+                org.opensearch.Version.CURRENT, headerRef.length(), headerRef
+            );
+            headerContext.setHeader(Long.parseLong(corrId), header);
+        } catch (Exception e) {
+            logger.warn("Failed to process response headers for demand-driven stream", e);
+        }
+    }
 
     @Override
     public void cancel(String reason, Throwable cause) {
