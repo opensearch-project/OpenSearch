@@ -32,8 +32,7 @@ PUT /my-hive-index
         "metastore_uri": "thrift://hive-metastore:9083",
         "database": "my_database",
         "table": "my_table"
-      },
-      "mapper_type": "field_mapping"
+      }
     },
     "index.number_of_shards": 3,
     "index.number_of_replicas": 1,
@@ -63,8 +62,7 @@ PUT /my-secure-index
         "kerberos_principal": "opensearch@EXAMPLE.COM",
         "kerberos_keytab": "/etc/security/keytabs/opensearch.keytab",
         "metastore_service_principal": "hive/_HOST@EXAMPLE.COM"
-      },
-      "mapper_type": "field_mapping"
+      }
     },
     "index.number_of_shards": 3,
     "index.number_of_replicas": 1,
@@ -80,15 +78,19 @@ PUT /my-secure-index
 | `metastore_uri` | Yes | - | Thrift URI of the Hive Metastore (e.g., `thrift://host:9083`) |
 | `database` | Yes | - | Hive database name |
 | `table` | Yes | - | Hive table name |
-| `monitor_interval` | No | `60s` | How often to check for new partitions |
-| `partition_order` | No | `create-time` | Partition ordering (`create-time` or `name`) |
+| `monitor_interval` | No | `300s` | How often to check for new partitions |
+| `partition_order` | No | `partition-name` | Partition ordering (`partition-name`, `create-time`, or `partition-time`) |
+| `partition_time_pattern` | No | - | Pattern for extracting time from partition values (e.g., `$year-$month-$day`). Required when `partition_order` is `partition-time` |
+| `consume_start_offset` | No | - | Start ingestion from this partition onward (e.g., `dt=2026-04-01`). If omitted, reads all partitions |
 | `transport_mode` | No | `unframed` | Thrift transport mode (`framed` or `unframed`) |
+| `connect_timeout` | No | `10000` | Metastore connection timeout in milliseconds |
 | `max_retries` | No | `3` | Maximum connection retry attempts |
 | `retry_interval` | No | `5s` | Delay between retries |
 | `authentication` | No | `none` | Authentication mode (`none` or `kerberos`) |
 | `kerberos_principal` | No | - | Client Kerberos principal (required if authentication=kerberos) |
 | `kerberos_keytab` | No | - | Path to keytab file (required if authentication=kerberos) |
 | `metastore_service_principal` | No | - | Metastore service principal. `_HOST` is replaced with the metastore hostname |
+| `hadoop_config.*` | No | - | Pass-through Hadoop configuration properties (e.g., `hadoop_config.fs.s3a.endpoint` for custom S3 endpoint) |
 
 ## Requirements
 
@@ -98,13 +100,12 @@ PUT /my-secure-index
 
 ## Delivery Guarantees
 
-The plugin provides **exactly-once** semantics when the document `_id` is derived from
-a unique field in the source data (via `mapper_type: field_mapping`). In this case,
-duplicate deliveries after a crash result in idempotent overwrites to the same `_id`.
+Each document's `_id` is automatically derived from its pointer (partition + file + row index),
+making crash recovery idempotent. If a node crashes after indexing a document but before
+checkpointing, the document will be re-indexed on recovery with the same `_id`, resulting
+in an overwrite rather than a duplicate.
 
-When `_id` is auto-generated (no unique field mapping), the guarantee is **at-least-once**.
-A node crash between indexing a document and advancing the checkpoint pointer may cause
-that document to be re-indexed with a new `_id` upon recovery.
+This provides **effectively exactly-once** semantics without requiring any user-side `_id` configuration.
 
 ## Thrift Code Generation
 
@@ -114,4 +115,4 @@ The Metastore client code is generated from `src/main/thrift/hive_metastore.thri
 ./gradlew :plugins:ingestion-hive:generateThrift
 ```
 
-This requires Docker (uses `thrift-compiler 0.22.0` from Debian unstable).
+This requires Docker (uses Debian unstable's `thrift-compiler`, which must match the `libthrift` version in `build.gradle`).

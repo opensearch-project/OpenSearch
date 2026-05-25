@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 # Regenerates Thrift client code from hive_metastore.thrift IDL.
-# Uses Debian unstable's thrift-compiler (0.22.0) via Docker,
-# matching the libthrift runtime version. Same approach as Trino's hive-thrift.
+# Uses Debian unstable's thrift-compiler via Docker.
+# The compiler version must match the libthrift runtime version in build.gradle.
 #
 # Usage: ./bin/generate-thrift.sh
 
