@@ -97,6 +97,7 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
                         return;
                     }
                 }
+                hasBuffered = false; // Iterator exhausted, no match found
             }
         };
     }
