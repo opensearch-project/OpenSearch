@@ -268,13 +268,111 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertFalse("reduce-stage Sort+Aggregate chain must not call attachFragmentOnTop", convertor.attachFragmentCalled);
     }
 
+    /**
+     * Streamstats lowers to coordinator-side helper chains such as
+     * {@code Sort(Project(Project-with-window(ExchangeReducer(StageInputScan))))}. The whole
+     * reduce subtree must be converted in one pass so helper-column field refs are bound
+     * against the same row type that produced them — splitting the chain into
+     * {@code convertFragment(child) + attachFragmentOnTop(wrapper, ...)} used to bind the
+     * wrapper's fieldRefs against the placeholder schema while the inner plan's actual schema
+     * had already shifted, producing DataFusion runtime panics.
+     */
+    public void testReduceStageWindowHelperChainConvertedAsSingleSubtree() {
+        RecordingConvertor convertor = new RecordingConvertor();
+
+        org.apache.calcite.rel.type.RelDataType intType = typeFactory.createTypeWithNullability(
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            true
+        );
+        org.apache.calcite.rel.type.RelDataType bigintType = typeFactory.createTypeWithNullability(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            true
+        );
+        org.apache.calcite.rel.type.RelDataType inputRowType = typeFactory.builder().add("a", intType).build();
+        RelNode stageInput = new org.opensearch.analytics.planner.rel.OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            inputRowType,
+            List.of("datafusion")
+        );
+        RelNode exchange = new org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer(
+            cluster,
+            cluster.traitSet(),
+            stageInput,
+            List.of("datafusion")
+        );
+
+        RexNode rowNumber = rexBuilder.makeOver(
+            bigintType,
+            SqlStdOperatorTable.ROW_NUMBER,
+            List.of(),
+            List.of(),
+            com.google.common.collect.ImmutableList.of(),
+            org.apache.calcite.rex.RexWindowBounds.UNBOUNDED_PRECEDING,
+            org.apache.calcite.rex.RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        org.apache.calcite.rel.type.RelDataType helperRowType = typeFactory.builder()
+            .add("a", intType)
+            .add("__stream_seq__", bigintType)
+            .build();
+        RelNode helperProject = new OpenSearchProject(
+            cluster,
+            cluster.traitSet(),
+            exchange,
+            List.of(rexBuilder.makeInputRef(exchange, 0), rowNumber),
+            helperRowType,
+            List.of("datafusion")
+        );
+        RelNode outputProject = new OpenSearchProject(
+            cluster,
+            cluster.traitSet(),
+            helperProject,
+            List.of(rexBuilder.makeInputRef(helperProject, 0), rexBuilder.makeInputRef(helperProject, 1)),
+            helperRowType,
+            List.of("datafusion")
+        );
+        RelNode sort = new OpenSearchSort(
+            cluster,
+            cluster.traitSet(),
+            outputProject,
+            RelCollations.of(new org.apache.calcite.rel.RelFieldCollation(1)),
+            null,
+            null,
+            List.of("datafusion")
+        );
+
+        byte[] converted = FragmentConversionDriver.convert(
+            sort,
+            convertor,
+            new FragmentConversionDriver.IntraOperatorDelegationBytes(null)
+        );
+
+        assertEquals("reduce", new String(converted, StandardCharsets.UTF_8));
+        assertTrue("reduce subtree must be converted through convertFragment", convertor.finalAggCalled);
+        assertFalse("window helper chains must not be stitched with attachFragmentOnTop", convertor.attachFragmentCalled);
+        String strippedPlan = RelOptUtil.toString(convertor.reduceFragment);
+        assertTrue("stripped reduce subtree must keep the Sort", strippedPlan.contains("LogicalSort"));
+        assertTrue("stripped reduce subtree must keep the helper Projects", strippedPlan.contains("LogicalProject"));
+        assertFalse(
+            "ExchangeReducer must be stripped to StageInputScan before backend conversion",
+            strippedPlan.contains("OpenSearchExchangeReducer")
+        );
+    }
+
     // ---- Multi-input (join) coord fragment shapes ----
 
     /**
      * Coord-side fragment: Aggregate ← Join ← (ER ← ...) | (ER ← ...).
-     * Both branches are gathered subtrees. convertReduceNode must convert the whole Join +
-     * branches + ERs + StageInputScans subtree in a single {@code convertFragment (final-agg shape)}
-     * pass — same path as Union / Intersect / Minus. No substrait-level join stitching.
+     * Both branches are gathered subtrees. Reduce-stage conversion must serialize the whole
+     * Join + branches + ERs + StageInputScans subtree in a single
+     * {@code convertFragment (final-agg shape)} pass — same path as Union / Intersect /
+     * Minus. No substrait-level join stitching.
      */
     public void testJoinDirectlyOverTwoExchanges() {
         RecordingConvertor convertor = new RecordingConvertor();
@@ -299,7 +397,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     /**
      * Coord-side Union with pass-through operators (Sort/Project) between each arm and its
-     * ER. Isthmus's SubstraitRelVisitor handles Union natively; convertReduceNode converts
+     * ER. Isthmus's SubstraitRelVisitor handles Union natively; reduce-stage conversion serializes
      * the whole Union subtree as one convertFragment (final-agg shape) call — same path as Join.
      */
     public void testUnionOverPassthroughThenExchange() {

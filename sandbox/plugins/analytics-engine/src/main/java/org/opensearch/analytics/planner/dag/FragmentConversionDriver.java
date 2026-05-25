@@ -330,42 +330,23 @@ public class FragmentConversionDriver {
     }
 
     /**
-     * Reduce stage conversion: serialise the entire coordinator-side subtree (everything above
-     * the ExchangeReducer boundary) in one convertFragment pass. The convertor's
-     * {@code rewriteStageInputScans} swaps {@code OpenSearchStageInputScan} leaves for plain
-     * TableScans, and {@code strip(...)} removes ExchangeReducers, so the resulting subtree is
-     * a pure Calcite tree that isthmus can serialise end-to-end without post-conversion
-     * stitching.
+     * Reduce-stage conversion: serialise the entire coordinator-side subtree (everything from
+     * the ExchangeReducer boundary up through the user-level operators) in one convertFragment
+     * pass. {@code strip(...)} removes ExchangeReducers and annotations on the way down, leaving
+     * {@code OpenSearchStageInputScan} as the leaf; the convertor's {@code rewriteStageInputScans}
+     * then swaps that leaf for a plain TableScan. Isthmus serialises the whole subtree
+     * end-to-end, deriving every fieldRef from the same row-type system.
+     *
+     * <p>Splitting reduce-stage chains into {@code convertFragment(child) + attachFragmentOnTop
+     * (wrapper, ...)} used to break helper-chain shapes (e.g.
+     * {@code Sort(Project(Project-with-window(ER(StageInputScan))))} that PPL emits for
+     * {@code streamstats by}) — the wrapper conversion bound fieldRefs against the placeholder
+     * schema while the inner plan's actual schema may have shifted (partial-agg lowering,
+     * NULL-typed CASE branches, etc.), producing DataFusion runtime panics like "index out of
+     * bounds: len=6 idx=14". A single conversion pass eliminates that whole class of bugs.
      */
     private static byte[] convertReduceFragment(RelNode node, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
-        return convertReduceNode(node, convertor, delegationBytes);
-    }
-
-    private static byte[] convertReduceNode(RelNode node, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
-        if (node instanceof OpenSearchExchangeReducer) {
-            // Strip ExchangeReducer — StageInputScan below it is the schema source.
-            return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
-        }
-        if (node instanceof OpenSearchRelNode) {
-            // Reduce-stage nodes (Aggregate / Sort / Project / Filter / Join / Union / etc., plus
-            // any helper-chain Projects above the final-aggregate boundary) all serialise through
-            // a single convertFragment pass on the whole stripped subtree. Reasons:
-            //
-            // - isthmus handles every node type in one visitor pass; ExchangeReducers are
-            // stripped by `strip(...)` and StageInputScans are rewritten to plain TableScans
-            // inside the convertor, so the whole subtree serialises end-to-end.
-            // - Streamstats helper chains (e.g. Sort(Project(Project-with-window(ER(StageInputScan))))
-            // that PPL emits for `streamstats by`) carry intermediate Projects whose Calcite
-            // row-types are derived from the StageInputScan's row-type; isthmus's single-pass
-            // conversion binds every fieldRef in that one row-type system, so no post-hoc
-            // wrapper-rebind is needed. Splitting the chain into convertFragment(child) +
-            // attachFragmentOnTop(wrapper, ...) used to break this — the wrapper conversion
-            // bound fieldRefs against the placeholder schema while the inner plan's actual
-            // schema may have shifted (partial-agg lowering, NULL-typed CASE branches, etc.),
-            // producing DataFusion runtime panics like "index out of bounds: len=6 idx=14".
-            return convertor.convertFragment(strip(node, delegationBytes));
-        }
-        throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
+        return convertor.convertFragment(strip(node, delegationBytes));
     }
 
     /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan as-is. */
