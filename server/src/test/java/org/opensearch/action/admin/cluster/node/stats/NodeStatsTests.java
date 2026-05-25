@@ -1574,6 +1574,44 @@ public class NodeStatsTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Renders {@code NodeStats.toXContent} when {@code nativeAllocatorStats} is non-null and
+     * asserts the JSON shape: a top-level {@code native_memory.native_allocator} block with
+     * the SPI's inner {@code root}/{@code pools.<name>} structure. Covers the conditional
+     * branch in {@code NodeStats.toXContent} that opens the {@code native_allocator} wrapper.
+     */
+    public void testNativeAllocatorStatsXContentRendersInsideNativeMemory() throws IOException {
+        NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
+            1024L,
+            8192L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 2048L))
+        );
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats nodeStats = newNodeStatsWithNativeAllocator(node, stats);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        nodeStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        Map<String, Object> root = xContentBuilderToMap(builder);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
+        assertNotNull("native_memory wrapper must be opened when allocator stats are present", nativeMemory);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nativeAllocator = (Map<String, Object>) nativeMemory.get("native_allocator");
+        assertNotNull("native_allocator block must be present", nativeAllocator);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rootBlock = (Map<String, Object>) nativeAllocator.get("root");
+        assertEquals(1024L, ((Number) rootBlock.get("allocated_bytes")).longValue());
+        assertEquals(8192L, ((Number) rootBlock.get("limit_bytes")).longValue());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pools = (Map<String, Object>) nativeAllocator.get("pools");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> flight = (Map<String, Object>) pools.get("flight");
+        assertEquals(100L, ((Number) flight.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) flight.get("limit_bytes")).longValue());
+    }
+
     private static NodeStats newNodeStatsWithNativeAllocator(DiscoveryNode node, NativeAllocatorPoolStats nativeAllocatorStats) {
         return new NodeStats(
             node,

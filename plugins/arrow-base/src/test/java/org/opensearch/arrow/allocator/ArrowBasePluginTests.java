@@ -14,10 +14,13 @@ import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class ArrowBasePluginTests extends OpenSearchTestCase {
 
@@ -433,6 +436,58 @@ public class ArrowBasePluginTests extends OpenSearchTestCase {
             } finally {
                 child.close();
             }
+        } finally {
+            allocator.close();
+        }
+    }
+
+    /**
+     * Verifies the {@code ArrowAllocatorPlugin} SPI implementation: the supplier returned
+     * by {@link ArrowBasePlugin#getNativeAllocatorStatsSupplier()} closes over the live
+     * allocator and produces a fresh {@link NativeAllocatorPoolStats} snapshot on each
+     * invocation. Returns {@code null} when the allocator has not been initialized
+     * (createComponents has not run). Reflection injects the private allocator field
+     * because there is no other public path to attach an allocator to a plugin instance
+     * outside of full plugin bootstrap.
+     */
+    public void testGetNativeAllocatorStatsSupplierClosesOverLiveAllocator() throws Exception {
+        ArrowBasePlugin plugin = new ArrowBasePlugin();
+
+        // Before allocator is set: supplier exists but produces null.
+        Supplier<NativeAllocatorPoolStats> supplier = plugin.getNativeAllocatorStatsSupplier();
+        assertNotNull("supplier must always be returned, never null itself", supplier);
+        assertNull("supplier must return null before allocator is initialized", supplier.get());
+
+        // Inject a real allocator via reflection (the field is set by createComponents in production).
+        Settings nodeSettings = Settings.builder()
+            .put(NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT, 1L * 1024 * 1024 * 1024)
+            .put(NativeAllocatorPoolConfig.SETTING_FLIGHT_MAX, 256L * 1024 * 1024)
+            .put(NativeAllocatorPoolConfig.SETTING_INGEST_MAX, 512L * 1024 * 1024)
+            .put(NativeAllocatorPoolConfig.SETTING_QUERY_MAX, 256L * 1024 * 1024)
+            .build();
+        ClusterSettings cs = newClusterSettings(nodeSettings);
+        ArrowNativeAllocator allocator = ArrowBasePlugin.buildAllocator(nodeSettings, cs);
+
+        Field allocatorField = ArrowBasePlugin.class.getDeclaredField("allocator");
+        allocatorField.setAccessible(true);
+        allocatorField.set(plugin, allocator);
+
+        try {
+            // Same supplier instance must now produce a non-null snapshot reflecting the live allocator.
+            NativeAllocatorPoolStats stats = supplier.get();
+            assertNotNull("supplier must produce a snapshot when allocator is set", stats);
+            assertEquals(1L * 1024 * 1024 * 1024, stats.getRootLimitBytes());
+            assertEquals(3, stats.getPools().size());
+            // Pool limits reflect the configured maxes (rebalancer disabled).
+            stats.getPools().forEach(p -> {
+                if (p.getName().equals(NativeAllocatorPoolConfig.POOL_FLIGHT)) {
+                    assertEquals(256L * 1024 * 1024, p.getLimitBytes());
+                } else if (p.getName().equals(NativeAllocatorPoolConfig.POOL_INGEST)) {
+                    assertEquals(512L * 1024 * 1024, p.getLimitBytes());
+                } else if (p.getName().equals(NativeAllocatorPoolConfig.POOL_QUERY)) {
+                    assertEquals(256L * 1024 * 1024, p.getLimitBytes());
+                }
+            });
         } finally {
             allocator.close();
         }

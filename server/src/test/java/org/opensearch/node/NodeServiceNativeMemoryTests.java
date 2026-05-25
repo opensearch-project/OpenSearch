@@ -29,6 +29,7 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.memory.MemoryReportingService;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -41,7 +42,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -354,5 +357,106 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
         );
 
         assertNull("nativeMemoryStats should be null when supplier is null", nodeStats.getAnalyticsBackendNativeMemoryStats());
+    }
+
+    /**
+     * Tests that {@code stats(... nativeAllocator=true ...)} invokes the registered
+     * {@code Supplier<NativeAllocatorPoolStats>} and surfaces its return value on
+     * {@link NodeStats#getNativeAllocatorStats()}. Covers both
+     * {@code NodeService.setNativeAllocatorStatsSupplier} and the supplier-invocation
+     * branch in {@code collectNativeAllocatorStats}.
+     */
+    public void testStatsWithNativeAllocatorTrueAndSupplierPresent() {
+        NativeAllocatorPoolStats expected = new NativeAllocatorPoolStats(
+            1024L,
+            8192L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 2048L))
+        );
+        Supplier<NativeAllocatorPoolStats> supplier = () -> expected;
+
+        NodeService nodeService = createNodeService(null);
+        nodeService.setNativeAllocatorStatsSupplier(supplier);
+
+        NodeStats nodeStats = nodeService.stats(
+            CommonStatsFlags.NONE,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,  // nativeAllocator
+            false  // nativeMemory
+        );
+
+        assertNotNull("nativeAllocatorStats should be present when supplier returns non-null", nodeStats.getNativeAllocatorStats());
+        assertSame(expected, nodeStats.getNativeAllocatorStats());
+    }
+
+    /**
+     * Tests that {@code stats(... nativeAllocator=true ...)} returns {@code null} for the
+     * allocator stats when no supplier has been registered (default state of NodeService).
+     */
+    public void testStatsWithNativeAllocatorTrueAndNoSupplier() {
+        NodeService nodeService = createNodeService(null);
+        // No setNativeAllocatorStatsSupplier call.
+
+        NodeStats nodeStats = nodeService.stats(
+            CommonStatsFlags.NONE,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,  // nativeAllocator
+            false  // nativeMemory
+        );
+
+        assertNull("nativeAllocatorStats should be null when no supplier registered", nodeStats.getNativeAllocatorStats());
     }
 }
