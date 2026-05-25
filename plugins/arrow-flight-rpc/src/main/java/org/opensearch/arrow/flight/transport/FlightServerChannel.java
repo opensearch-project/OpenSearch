@@ -69,7 +69,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         this.correlationId = Long.parseLong(middleware.getCorrelationId());
         logger.debug("Creating FlightServerChannel for correlation ID: {}", correlationId);
         this.serverStreamListener = serverStreamListener;
-        this.serverStreamListener.setUseZeroCopy(false);
+        this.serverStreamListener.setUseZeroCopy(true);
         this.serverStreamListener.setOnCancelHandler(() -> {
             cancelled = true;
             callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());
