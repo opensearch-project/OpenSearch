@@ -148,7 +148,42 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         child.close();
     }
 
+    /**
+     * The coordinator's Arrow batch can present columns in physical/scan order (e.g. a
+     * no-projection scan over a dynamically-mapped index comes back alphabetically [age, name]).
+     * batchesToRows must reorder to the plan's declared column order [name, age] so a positional
+     * consumer (SQL frontend) names each value correctly. Without this, name/age (or name/alias)
+     * values transpose.
+     */
+    public void testBatchesToRowsReordersToTargetColumnOrder() {
+        VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // physical order: [age, name]
+        List<Object[]> rows = toList(DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "age")));
+        assertEquals(1, rows.size());
+        assertArrayEquals("columns must be reordered to [name, age]", new Object[] { "hello", 20L }, rows.get(0));
+    }
+
+    /** Defensive fallback: a target name absent from the batch keeps the batch's native order. */
+    public void testBatchesToRowsFallsBackWhenTargetNameMissing() {
+        VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // [age, name]
+        List<Object[]> rows = toList(DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent")));
+        assertEquals(1, rows.size());
+        assertArrayEquals("unknown target → native order [age, name]", new Object[] { 20L, "hello" }, rows.get(0));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
+
+    /** Two-column batch with vectors in physical order [age (BigInt), name (VarChar)]. */
+    private VectorSchemaRoot makeAgeNameBatch(long age, String name) {
+        Field ageField = new Field("age", FieldType.nullable(new ArrowType.Int(64, true)), null);
+        Field nameField = new Field("name", FieldType.nullable(new ArrowType.Utf8()), null);
+        Schema schema = new Schema(List.of(ageField, nameField));
+        VectorSchemaRoot vsr = VectorSchemaRoot.create(schema, allocator);
+        vsr.allocateNew();
+        ((BigIntVector) vsr.getVector("age")).setSafe(0, age);
+        ((VarCharVector) vsr.getVector("name")).setSafe(0, name.getBytes(StandardCharsets.UTF_8));
+        vsr.setRowCount(1);
+        return vsr;
+    }
 
     private VectorSchemaRoot makeIntBatch(String fieldName, int... values) {
         return makeIntBatch(allocator, fieldName, values);

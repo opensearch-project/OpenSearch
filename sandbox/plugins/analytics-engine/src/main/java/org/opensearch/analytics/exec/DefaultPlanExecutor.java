@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
@@ -20,7 +21,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
-import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTaskRequest;
@@ -33,6 +33,7 @@ import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
@@ -79,6 +80,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public DefaultPlanExecutor(
@@ -87,10 +89,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         ClusterService clusterService,
         ThreadPool threadPool,
         CapabilityRegistry capabilityRegistry,
-        EngineContext engineContext,
         NodeClient client,
         Scheduler scheduler,
-        ArrowAllocatorService allocatorService
+        ArrowAllocatorService allocatorService,
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("Transport path not implemented yet");
@@ -105,6 +107,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -145,8 +148,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
         logicalFragment.getCluster().invalidateMetadataQuery();
 
-        RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
+        RelNode plan = PlannerImpl.createPlan(
+            logicalFragment,
+            new PlannerContext(capabilityRegistry, clusterService.state(), indexNameExpressionResolver, false)
+        );
+        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
@@ -178,8 +184,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             throw e;
         }
 
+        // Materialize in the caller's declared column order. The coordinator's Arrow output can
+        // arrive in physical/scan order (e.g. alphabetical for a no-projection scan) which doesn't
+        // match the RelNode row type a positional consumer names columns by — see batchesToRows.
+        final java.util.List<String> outputColumnOrder = logicalFragment.getRowType().getFieldNames();
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
-            ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches)), listener::onFailure),
+            ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches, outputColumnOrder)), listener::onFailure),
             () -> taskManager.unregister(queryTask)
         );
 
@@ -213,15 +223,28 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
      * <p>Package-private for unit testing.
      */
     static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
+        return batchesToRows(batches, null);
+    }
+
+    /**
+     * Materializes Arrow batches into row-oriented {@code Object[]}s, reordering each row's columns
+     * to {@code targetColumnOrder} (the plan's row-type field names) when supplied. The coordinator's
+     * Arrow output can arrive in scan order (e.g. alphabetical for a no-projection scan), which a
+     * positional consumer would otherwise mispair against the plan's declared columns. Falls back to
+     * the batch's native order when {@code targetColumnOrder} is null/empty or any name is missing,
+     * so it never drops data.
+     */
+    static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches, List<String> targetColumnOrder) {
         List<Object[]> rows = new ArrayList<>();
         for (VectorSchemaRoot batch : batches) {
             try {
-                int colCount = batch.getFieldVectors().size();
+                List<FieldVector> ordered = orderedColumns(batch, targetColumnOrder);
+                int colCount = ordered.size();
                 int rowCount = batch.getRowCount();
                 for (int r = 0; r < rowCount; r++) {
                     Object[] row = new Object[colCount];
                     for (int c = 0; c < colCount; c++) {
-                        row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+                        row[c] = ArrowValues.toJavaValue(ordered.get(c), r);
                     }
                     rows.add(row);
                 }
@@ -232,5 +255,27 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             }
         }
         return rows;
+    }
+
+    /**
+     * Resolves the batch's vectors in {@code targetColumnOrder} (by name). Returns the batch's
+     * native vector order when no target is given or any target name is missing — a defensive
+     * fallback so a name mismatch can never drop or null a column.
+     */
+    private static List<FieldVector> orderedColumns(VectorSchemaRoot batch, List<String> targetColumnOrder) {
+        if (targetColumnOrder == null || targetColumnOrder.isEmpty()) {
+            return batch.getFieldVectors();
+        }
+        List<FieldVector> ordered = new ArrayList<>(targetColumnOrder.size());
+        for (String name : targetColumnOrder) {
+            FieldVector vector = batch.getVector(name);
+            if (vector == null) {
+                throw new IllegalStateException(
+                    "Column [" + name + "] expected by plan row type not found in batch schema: " + batch.getSchema().getFields()
+                );
+            }
+            ordered.add(vector);
+        }
+        return ordered;
     }
 }

@@ -150,4 +150,25 @@ public class RelNodeUtils {
         return null;
     }
 
+    /**
+     * Qualified name of the first {@link OpenSearchTableScan} reachable from {@code node},
+     * searching all inputs (so it finds the scan under a multi-input join/union). Returns
+     * {@code null} if none is present.
+     */
+    public static String findTableName(RelNode node) {
+        if (node == null) {
+            return null;
+        }
+        if (node instanceof OpenSearchTableScan scan) {
+            return scan.getTable().getQualifiedName().getLast();
+        }
+        for (RelNode input : node.getInputs()) {
+            String name = findTableName(input);
+            if (name != null) {
+                return name;
+            }
+        }
+        return null;
+    }
+
 }
