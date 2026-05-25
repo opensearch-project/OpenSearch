@@ -586,13 +586,37 @@ fn try_acquire_budget_from_cache(
 }
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.
+/// If the stream contains Utf8View/BinaryView columns, the schema reflects the converted
+/// LargeUtf8/LargeBinary types that `compact_string_view_columns` will produce in the data.
 ///
 /// # Safety
 /// `stream_ptr` must be a valid, non-zero pointer to a QueryStreamHandle.
 pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
     let schema = handle.stream.schema();
-    let ffi_schema = FFI_ArrowSchema::try_from(schema.as_ref())
+    let export_schema = if handle.has_views {
+        let new_fields: Vec<arrow_schema::FieldRef> = schema
+            .fields()
+            .iter()
+            .map(|f| match f.data_type() {
+                DataType::Utf8View => Arc::new(arrow_schema::Field::new(
+                    f.name(),
+                    DataType::LargeUtf8,
+                    f.is_nullable(),
+                )),
+                DataType::BinaryView => Arc::new(arrow_schema::Field::new(
+                    f.name(),
+                    DataType::LargeBinary,
+                    f.is_nullable(),
+                )),
+                _ => Arc::clone(f),
+            })
+            .collect();
+        Arc::new(arrow_schema::Schema::new_with_metadata(new_fields, schema.metadata().clone()))
+    } else {
+        schema
+    };
+    let ffi_schema = FFI_ArrowSchema::try_from(export_schema.as_ref())
         .map_err(|e| DataFusionError::Execution(format!("Schema conversion failed: {}", e)))?;
     Ok(Box::into_raw(Box::new(ffi_schema)) as i64)
 }
@@ -643,59 +667,66 @@ pub async unsafe fn stream_next(
     }
 }
 
-/// Prevents sliced StringView batches from carrying full backing buffers across FFI.
+/// Converts Utf8View/BinaryView columns to Utf8/Binary before FFI export.
+///
+/// Utf8View uses variadic backing buffers that share a single ReferenceCountedArrowArray
+/// in Java's C Data import. With gRPC zero-copy, these buffers stay tracked in the Java
+/// allocator until the wire write completes — causing accumulation across batches.
+/// Converting to contiguous Utf8/LargeUtf8 produces a single owned buffer per column
+/// that Java can release independently per batch.
 fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
     let schema = batch.schema();
-    let needs_compaction = batch
-        .columns()
+    let new_fields: Vec<arrow_schema::FieldRef> = schema
+        .fields()
         .iter()
-        .zip(schema.fields().iter())
-        .any(|(col, field)| match field.data_type() {
-            DataType::Utf8View => {
-                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
-                    .expect("column must be StringViewArray when schema declares Utf8View");
-                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
-            }
-            DataType::BinaryView => {
-                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
-                    .expect("column must be BinaryViewArray when schema declares BinaryView");
-                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
-            }
-            _ => false,
-        });
-    if !needs_compaction {
-        return batch;
-    }
+        .map(|f| match f.data_type() {
+            DataType::Utf8View => Arc::new(arrow_schema::Field::new(
+                f.name(),
+                DataType::LargeUtf8,
+                f.is_nullable(),
+            )),
+            DataType::BinaryView => Arc::new(arrow_schema::Field::new(
+                f.name(),
+                DataType::LargeBinary,
+                f.is_nullable(),
+            )),
+            _ => Arc::clone(f),
+        })
+        .collect();
+    let new_schema = Arc::new(arrow_schema::Schema::new_with_metadata(
+        new_fields,
+        schema.metadata().clone(),
+    ));
+
     let columns: Vec<Arc<dyn Array>> = batch
         .columns()
         .iter()
         .zip(schema.fields().iter())
         .map(|(col, field)| match field.data_type() {
             DataType::Utf8View => {
-                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
-                    .expect("column must be StringViewArray when schema declares Utf8View");
-                Arc::new(view.gc()) as Arc<dyn Array>
+                let view: &arrow_array::StringViewArray = col
+                    .as_any()
+                    .downcast_ref()
+                    .expect("column must be StringViewArray");
+                let large: arrow_array::LargeStringArray = view
+                    .iter()
+                    .collect();
+                Arc::new(large) as Arc<dyn Array>
             }
             DataType::BinaryView => {
-                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
-                    .expect("column must be BinaryViewArray when schema declares BinaryView");
-                Arc::new(view.gc()) as Arc<dyn Array>
+                let view: &arrow_array::BinaryViewArray = col
+                    .as_any()
+                    .downcast_ref()
+                    .expect("column must be BinaryViewArray");
+                let large: arrow_array::LargeBinaryArray = view
+                    .iter()
+                    .collect();
+                Arc::new(large) as Arc<dyn Array>
             }
             _ => Arc::clone(col),
         })
         .collect();
-    RecordBatch::try_new(schema, columns).expect("gc'd columns must match schema")
-}
-
-// 10KB: below this, the gc() copy cost outweighs the transfer savings.
-const GC_MIN_WASTE_BYTES: usize = 10_240;
-
-#[inline]
-fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
-    let bytes_allocated: usize = buffers.iter().map(|b| b.len()).sum();
-    let waste = bytes_allocated.saturating_sub(bytes_used);
-    let is_significantly_bloated = bytes_allocated > 2 * bytes_used;
-    is_significantly_bloated && waste > GC_MIN_WASTE_BYTES
+    RecordBatch::try_new(new_schema, columns).expect("converted columns must match schema")
 }
 
 /// Closes a result stream. Safe to call with 0 (no-op).
