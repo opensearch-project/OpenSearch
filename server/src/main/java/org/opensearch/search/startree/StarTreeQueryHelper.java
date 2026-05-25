@@ -133,7 +133,7 @@ public class StarTreeQueryHelper {
         // Obtain a FixedBitSet of matched star tree document IDs
         FixedBitSet filteredValues = getStarTreeFilteredValues(context, ctx, starTreeValues);
 
-        int numBits = filteredValues.length();  // Get the number of the filtered values (matching docs)
+        int numBits = filteredValues.length();  // Total bit count (upper bound for iteration)
         if (numBits > 0) {
             // Iterate over the filtered values
             for (int bit = filteredValues.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)

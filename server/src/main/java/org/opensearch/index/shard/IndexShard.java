@@ -2316,14 +2316,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Upgrades this shard to use star tree indexing. Restarts the engine so the composite codec
-     * is selected, then runs a force merge to build star tree data from raw doc values.
-     *
-     * @throws IOException if an I/O error occurs during engine restart or force merge
-     * @throws InterruptedException if the calling thread is interrupted while blocking operations
-     * @throws TimeoutException if timed out waiting for in-flight operations to finish
-     */
-    /**
      * Upgrades this shard's segments to use star tree indexes via per-segment building
      * and direct SegmentInfos rewrite. No force merge is needed.
      * <p>
