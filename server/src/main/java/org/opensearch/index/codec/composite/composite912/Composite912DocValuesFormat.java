@@ -94,26 +94,15 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
         DocValuesProducer regularProducer;
 
-        // Check if this segment was originally written by a PerField codec (e.g., Lucene912Codec)
-        // and then retroactively upgraded to Composite912Codec. In that case, the doc values files
-        // use per-field naming (e.g., _0_Lucene90_0.dvd) instead of direct naming (_0.dvd).
-        // The FieldInfos attributes tell us the original format name and suffix.
+        // Check if this segment was retroactively upgraded from a PerField codec. If so,
+        // doc values use per-field naming (e.g., _0_Lucene90_0.dvd) instead of direct naming.
         //
-        // IMPORTANT: Merged segments produced by Composite912Codec write doc values with empty
-        // suffix (_2.dvd), but their FieldInfos may still carry PerFieldDocValuesFormat attributes
-        // inherited from source segments. We must verify the suffixed file actually exists before
-        // using it; otherwise fall back to empty suffix (native Composite912 segment).
+        // Verify the suffixed file exists before using it — merged segments may inherit
+        // stale PerFieldDocValuesFormat attributes but write with empty suffix.
         String perFieldSuffix = getPerFieldDocValuesSuffix(state.fieldInfos);
         if (perFieldSuffix != null && perFieldSuffixedFileExists(state, perFieldSuffix)) {
-            // Fix Error 4: For upgraded segments, read the ORIGINAL field infos from the .cfs
-            // compound file. The base .dvm file was written with original field numbers, but
-            // state.fieldInfos may have different numbers due to soft delete updates adding
-            // __soft_deletes and renumbering fields. Using updated field infos causes
-            // Lucene90DocValuesProducer to fail with "Invalid field number".
-            //
-            // Note: This fix resolves Error 4 but Error 5 (softDeleteCount assertion) remains
-            // a blocker for segments with docValuesGen != -1. Those segments are skipped in
-            // rewriteSegmentInfos() and never reach this code path with Composite912Codec.
+            // For upgraded segments, read doc values with the original per-field suffix.
+            // state.fieldInfos may have renumbered fields due to soft delete updates.
             SegmentReadState suffixedState = new SegmentReadState(
                 state.directory,
                 state.segmentInfo,

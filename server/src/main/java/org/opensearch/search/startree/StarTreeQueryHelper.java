@@ -8,8 +8,6 @@
 
 package org.opensearch.search.startree;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -50,9 +48,6 @@ import java.util.function.Consumer;
  */
 public class StarTreeQueryHelper {
 
-    private static final Logger logger = LogManager.getLogger(StarTreeQueryHelper.class);
-    private static final boolean STAR_TREE_DEBUG = true; // TEMPORARY: hardcoded for debugging
-
     /**
      * Checks if the search context can be supported by star-tree
      */
@@ -84,16 +79,7 @@ public class StarTreeQueryHelper {
         // Path 1: Native codec path — segment uses Composite912Codec
         if (reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader) {
             StarTreeValues values = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
-            if (STAR_TREE_DEBUG) {
-                logger.info("[STARTREE DEBUG] segment={} path=NATIVE values={}",
-                    segmentName, values == null ? "NULL" : "FOUND");
-            }
             return values;
-        }
-
-        if (STAR_TREE_DEBUG) {
-            logger.info("[STARTREE DEBUG] segment={} path=DIRECT_READER_CHECK dvReaderType={}",
-                segmentName, reader.getDocValuesReader() != null ? reader.getDocValuesReader().getClass().getSimpleName() : "null");
         }
 
         // Path 2: Direct reader cache — segment has star tree files but codec was not switched
@@ -101,11 +87,6 @@ public class StarTreeQueryHelper {
             java.util.concurrent.ConcurrentHashMap<String, StarTreeDirectReader> cache =
                 searchContext.indexShard().getStarTreeDirectReaderCache();
             StarTreeDirectReader directReader = cache.get(segmentName);
-
-            if (STAR_TREE_DEBUG) {
-                logger.info("[STARTREE DEBUG] segment={} cacheKeys={} cacheHit={}",
-                    segmentName, cache.keySet(), directReader != null);
-            }
 
             if (directReader != null) {
                 // Find matching composite field
@@ -118,18 +99,11 @@ public class StarTreeQueryHelper {
                 }
                 if (matchingField != null) {
                     StarTreeValues values = (StarTreeValues) directReader.getCompositeIndexValues(matchingField);
-                    if (STAR_TREE_DEBUG) {
-                        logger.info("[STARTREE DEBUG] segment={} path=DIRECT values={}",
-                            segmentName, values == null ? "NULL" : "FOUND");
-                    }
                     return values;
                 }
             }
         }
 
-        if (STAR_TREE_DEBUG) {
-            logger.info("[STARTREE DEBUG] segment={} path=FALLBACK", segmentName);
-        }
         return null;
     }
 

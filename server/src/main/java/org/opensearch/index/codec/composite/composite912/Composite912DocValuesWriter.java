@@ -8,6 +8,8 @@
 
 package org.opensearch.index.codec.composite.composite912;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
@@ -63,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @ExperimentalApi
 public class Composite912DocValuesWriter extends DocValuesConsumer {
+    private static final Logger logger = LogManager.getLogger(Composite912DocValuesWriter.class);
     private final DocValuesConsumer delegate;
     private final SegmentWriteState state;
     private final MapperService mapperService;
@@ -489,8 +492,8 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                 softDelCount++;
             }
         }
-        System.out.println("[STARTREE MERGE DEBUG] buildSoftDeleteLiveDocsBitset: mergedMaxDoc=" + mergedMaxDoc
-            + " softDelCount=" + softDelCount + " liveCardinality=" + liveBits.cardinality());
+        logger.debug("buildSoftDeleteLiveDocsBitset: mergedMaxDoc={} softDelCount={} liveCardinality={}",
+            mergedMaxDoc, softDelCount, liveBits.cardinality());
 
         // If all docs are live, return null (no filtering needed)
         if (liveBits.cardinality() == mergedMaxDoc) {

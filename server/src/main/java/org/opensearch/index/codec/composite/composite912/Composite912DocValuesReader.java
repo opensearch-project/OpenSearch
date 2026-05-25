@@ -79,10 +79,8 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         this.delegate = producer;
         this.fields = new ArrayList<>();
 
-        // Fix Error 3: Star tree files are always written with empty suffix "".
-        // When segments have soft deletes (fieldInfosGen != -1), Lucene sets
-        // readState.segmentSuffix to the generation value (e.g., "1"), which would
-        // produce _0_1.cim instead of _0.cim. Hardcode empty suffix for star tree files.
+        // Star tree files always use empty suffix — hardcode to avoid generation-based suffixes
+        // that Lucene sets when segments have soft deletes (fieldInfosGen != -1).
         String starTreeSuffix = "";
 
         String metaFileName = IndexFileNames.segmentFileName(
@@ -98,17 +96,28 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         );
 
         boolean success = false;
-        // Resolve the directory for star tree files. For compound file segments that were
-        // retroactively upgraded, star tree files (.cid, .cim, .cidvd, .cidvm) are in the
-        // parent directory (segmentInfo.dir), not inside the .cfs compound file.
-        // For normal star tree segments, files are in readState.directory.
-        // This fallback is safe: it only triggers when the file isn't found in the primary directory.
+        // Resolve star tree file directory. For compound file segments upgraded retroactively,
+        // star tree files are in segmentInfo.dir, not inside .cfs. Falls back gracefully.
         Directory starTreeDir = readState.directory;
+        boolean starTreeFilesExist = true;
         try {
             readState.directory.openInput(metaFileName, IOContext.DEFAULT).close();
         } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
-            // Star tree files not in readState.directory (compound case) — use parent directory
+            // Star tree files not in readState.directory — try parent directory
             starTreeDir = readState.segmentInfo.dir;
+            try {
+                starTreeDir.openInput(metaFileName, IOContext.DEFAULT).close();
+            } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e2) {
+                // Star tree files don't exist in either directory — this segment has no star tree data
+                // (e.g., called for a doc values update on a segment without star tree)
+                starTreeFilesExist = false;
+            }
+        }
+
+        if (starTreeFilesExist == false) {
+            // No star tree data — initialize empty
+            success = true;
+            return;
         }
 
         try (ChecksumIndexInput metaIn = starTreeDir.openChecksumInput(metaFileName)) {
@@ -272,7 +281,9 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
     @Override
     public void checkIntegrity() throws IOException {
         delegate.checkIntegrity();
-        CodecUtil.checksumEntireFile(dataIn);
+        if (dataIn != null) {
+            CodecUtil.checksumEntireFile(dataIn);
+        }
     }
 
     @Override

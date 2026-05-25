@@ -180,7 +180,7 @@ public class StarTreeUpgradeService {
         }
 
         // Build star tree data in parallel across segments
-        int parallelism = Math.min(eligibleSegments.size(), Runtime.getRuntime().availableProcessors());
+        int parallelism = Math.max(1, Math.min(eligibleSegments.size(), Runtime.getRuntime().availableProcessors() / 2));
         if (parallelism > 1 && eligibleSegments.size() > 1) {
             ExecutorService executor = Executors.newFixedThreadPool(parallelism);
             List<Future<?>> futures = new ArrayList<>();
@@ -198,8 +198,11 @@ public class StarTreeUpgradeService {
             }
             executor.shutdown();
             try {
-                executor.awaitTermination(60, TimeUnit.MINUTES);
+                if (executor.awaitTermination(60, TimeUnit.MINUTES) == false) {
+                    executor.shutdownNow();
+                }
             } catch (InterruptedException e) {
+                executor.shutdownNow();
                 Thread.currentThread().interrupt();
                 throw new IOException("Star tree build interrupted", e);
             }
@@ -305,15 +308,8 @@ public class StarTreeUpgradeService {
                 throw new IOException("No DocValuesProducer available for segment [" + segmentName + "]");
             }
 
-            // Filter out soft-deleted documents so the star tree only contains live doc values.
-            // Without this, the star tree would include deleted document data and produce
-            // incorrect aggregation results.
-            //
-            // We can't rely on segmentReader.getLiveDocs() because DirectoryReader.open() wraps
-            // segments in SoftDeletesDirectoryReaderWrapper which handles soft deletes at the
-            // DirectoryReader level — getLiveDocs() on the inner SegmentReader returns null.
-            // Instead, build the live docs bitset manually from hard deletes (.liv) and soft
-            // deletes (__soft_deletes doc values field).
+            // Build live docs bitset manually (hard + soft deletes) since getLiveDocs() returns
+            // null when DirectoryReader wraps with SoftDeletesDirectoryReaderWrapper.
             Bits liveDocs = buildLiveDocsBitset(segmentReader, commitInfo);
             int numLiveDocs = liveDocs != null
                 ? ((org.apache.lucene.util.FixedBitSet) liveDocs).cardinality()
@@ -332,9 +328,7 @@ public class StarTreeUpgradeService {
             for (Metric metric : starTreeField.getMetrics()) {
                 fieldProducerMap.put(metric.getField(), docValuesProducer);
             }
-            // Add _doc_count with empty NumericDocValues producer — StarTreesBuilder always
-            // includes _doc_count as an implicit metric, and getMetricReaders() expects it
-            // in the fieldProducerMap. Following Composite912DocValuesWriter.addDocValuesForEmptyField().
+            // _doc_count is an implicit metric expected by StarTreesBuilder.getMetricReaders().
             fieldProducerMap.put(DocCountFieldMapper.NAME, new EmptyDocValuesProducer() {
                 @Override
                 public NumericDocValues getNumeric(FieldInfo field) {
@@ -342,10 +336,7 @@ public class StarTreeUpgradeService {
                 }
             });
 
-            // Create SegmentWriteState with the segment's live doc count
-            // Use numLiveDocs (not maxDoc) so the star tree reflects only live documents.
-            // For segments without deletes, numLiveDocs == maxDoc.
-            // Use the raw directory (not compound) for writing star tree files
+            // Create SegmentWriteState with numLiveDocs (excludes deleted docs) and raw directory.
             FieldInfos fieldInfos = segmentReader.getFieldInfos();
             SegmentInfo segInfo = commitInfo.info;
             SegmentInfo writeSegInfo = new SegmentInfo(
@@ -393,9 +384,7 @@ public class StarTreeUpgradeService {
                 ""
             );
 
-            // Create a consumer write state with DocIdSetIterator.NO_MORE_DOCS for sparse doc values
-            // (following the pattern in Composite912DocValuesWriter.getSegmentWriteState())
-            // Use the same segment name and ID so file names match the segment
+            // Consumer write state uses NO_MORE_DOCS for sparse doc values (per Composite912DocValuesWriter pattern).
             SegmentInfo consumerSegInfo = new SegmentInfo(
                 directory, // use raw directory, not compound directory
                 segInfo.getVersion(),
@@ -504,7 +493,7 @@ public class StarTreeUpgradeService {
         int hardDeleteCount = commitInfo.getDelCount();
         int softDeleteCount = commitInfo.getSoftDelCount();
 
-        logger.info("[STARTREE DEBUG] buildLiveDocsBitset: segment={} hardDel={} softDel={} maxDoc={}",
+        logger.debug("buildLiveDocsBitset: segment={} hardDel={} softDel={} maxDoc={}",
             commitInfo.info.name, hardDeleteCount, softDeleteCount, maxDoc);
 
         if (hardDeleteCount == 0 && softDeleteCount == 0) {
@@ -524,9 +513,7 @@ public class StarTreeUpgradeService {
             }
         }
 
-        // Apply soft deletes — use segmentReader.getNumericDocValues() which goes through
-        // SegmentDocValuesProducer and correctly routes to the update file (_0_2_Lucene90_0.dvd).
-        // The raw getDocValuesReader() only returns the base producer which doesn't have __soft_deletes.
+        // Apply soft deletes via segmentReader.getNumericDocValues() which routes to the update file.
         String softDeleteField = org.opensearch.common.lucene.Lucene.SOFT_DELETES_FIELD;
         if (softDeleteCount > 0) {
             NumericDocValues softDeleteValues = segmentReader.getNumericDocValues(softDeleteField);
@@ -537,10 +524,10 @@ public class StarTreeUpgradeService {
                         liveBits.clear(docId);
                     }
                 }
-                logger.info("[STARTREE DEBUG] buildLiveDocsBitset: segment={} liveBits.cardinality={}",
+                logger.debug("buildLiveDocsBitset: segment={} liveBits.cardinality={}",
                     commitInfo.info.name, liveBits.cardinality());
             } else {
-                logger.warn("[STARTREE DEBUG] buildLiveDocsBitset: segment={} __soft_deletes field returned NULL from getNumericDocValues",
+                logger.warn("buildLiveDocsBitset: segment={} __soft_deletes field returned NULL from getNumericDocValues",
                     commitInfo.info.name);
             }
         }
@@ -557,25 +544,17 @@ public class StarTreeUpgradeService {
 
         for (SegmentCommitInfo commitInfo : originalInfos) {
             if (upgradedSegmentNames.contains(commitInfo.info.name)) {
-                // Fix Error 5 (BLOCKER): Skip codec switch for segments with doc values updates
-                // (soft deletes). When docValuesGen != -1, the segment has generation-based update
-                // files with field numbers that don't match the base .dvm file. Switching the codec
-                // to Composite912Codec causes Lucene90DocValuesProducer to fail because it can't
-                // reconcile the original vs updated field infos, and SegmentDocValuesProducer fails
-                // to route __soft_deletes to the update-file producer. Star tree data IS built for
-                // these segments — it just won't be read via the native codec path until a background
-                // merge produces a clean native composite segment.
+                // Skip codec switch for segments with docValuesGen != -1 — field number mismatch
+                // makes codec switch incompatible. Star tree served via direct reader cache until merge.
                 if (commitInfo.getDocValuesGen() != -1) {
-                    logger.info(
+                    logger.debug(
                         "Skipping codec switch for segment {} — has doc values updates (docValuesGen={}). "
                             + "Star tree data built but codec remains {}. Background merge will produce native composite segment.",
                         commitInfo.info.name,
                         commitInfo.getDocValuesGen(),
                         commitInfo.info.getCodec().getName()
                     );
-                    // Add star tree files to the segment's file set so IndexWriter doesn't GC them,
-                    // even though we're not switching the codec. The StarTreeDirectReader will read
-                    // these files at query time via the direct reader cache.
+                    // Add star tree files to file set so IndexWriter doesn't GC them.
                     SegmentInfo oldInfo = commitInfo.info;
                     Set<String> files = new HashSet<>(oldInfo.files());
                     String segName = oldInfo.name;
@@ -585,11 +564,7 @@ public class StarTreeUpgradeService {
                     files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
                     oldInfo.setFiles(files);
 
-                    // Rewrite the .si file to persist the expanded file set on disk.
-                    // Without this, the .si file on disk still has the old file set,
-                    // and when the engine reopens, SegmentInfos reads the old .si which
-                    // doesn't include the star tree files — causing populateStarTreeDirectReaderCache()
-                    // to not find them.
+                    // Rewrite .si to persist expanded file set on disk.
                     String siFileName = IndexFileNames.segmentFileName(segName, "", "si");
                     directory.deleteFile(siFileName);
                     oldInfo.getCodec().segmentInfoFormat().write(directory, oldInfo, IOContext.DEFAULT);
@@ -600,11 +575,8 @@ public class StarTreeUpgradeService {
 
                 SegmentInfo oldInfo = commitInfo.info;
 
-                // Create new SegmentInfo with Composite912Codec, copying all other fields.
-                // Keep useCompoundFile as-is — the original segment data stays in .cfs.
-                // Star tree files (.cid, .cim, .cidvd, .cidvm) are outside .cfs, and
-                // Composite912DocValuesReader falls back to segmentInfo.dir when it can't
-                // find them in the CompoundDirectory.
+                // Create new SegmentInfo with Composite912Codec. Star tree files live outside .cfs;
+                // Composite912DocValuesReader falls back to segmentInfo.dir for them.
                 SegmentInfo newInfo = new SegmentInfo(
                     oldInfo.dir,
                     oldInfo.getVersion(),
@@ -647,20 +619,13 @@ public class StarTreeUpgradeService {
                     commitInfo.getId()
                 );
 
-                // Fix Error 1: Copy generation-based update file sets from the original.
-                // Without this, SegmentCommitInfo.files() won't include generation-based files
-                // like _0_1.fnm, _0_1_Lucene90_0.dvd/dvm that exist when documents have been
-                // deleted (soft deletes). IndexWriter.filesExist() would fail with
-                // no_such_file_exception for these files.
+                // Copy generation-based update file sets so IndexWriter.filesExist() doesn't fail.
                 newCommitInfo.setFieldInfosFiles(commitInfo.getFieldInfosFiles());
                 newCommitInfo.setDocValuesUpdatesFiles(commitInfo.getDocValuesUpdatesFiles());
 
                 newSegmentInfos.add(newCommitInfo);
 
-                // Rewrite the .si file so it declares Composite912Codec.
-                // The .si file stores the codec name that Lucene uses when opening the segment.
-                // Without rewriting it, Lucene would use the original codec to read the segment
-                // and would not invoke Composite912DocValuesReader for star tree data.
+                // Rewrite .si file to declare Composite912Codec so Lucene uses it when opening the segment.
                 String siFileName = IndexFileNames.segmentFileName(segName, "", "si");
                 directory.deleteFile(siFileName);
                 new Composite912Codec().segmentInfoFormat().write(directory, newInfo, IOContext.DEFAULT);

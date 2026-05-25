@@ -1,1 +1,0 @@
-{"star_tree":{"name":"test_star_tree","ordered_dimensions":[{"name":"status"},{"name":"timestamp"}],"metrics":[{"name":"size","stats":["sum","avg","min","max","value_count"]},{"name":"price","stats":["sum","avg","min","max","value_count"]}]}}

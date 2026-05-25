@@ -107,6 +107,9 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
             @Override
             public boolean advanceExact(int remappedId) throws IOException {
                 currentRemappedId = remappedId;
+                if (remappedId < 0 || remappedId >= remappedToOriginal.length) {
+                    return false;
+                }
                 return inner.advanceExact(remappedToOriginal[remappedId]);
             }
 
@@ -197,6 +200,9 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
             @Override
             public boolean advanceExact(int remappedId) throws IOException {
                 currentRemappedId = remappedId;
+                if (remappedId < 0 || remappedId >= remappedToOriginal.length) {
+                    return false;
+                }
                 return inner.advanceExact(remappedToOriginal[remappedId]);
             }
 
@@ -251,6 +257,9 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
             @Override
             public boolean advanceExact(int remappedId) throws IOException {
                 currentRemappedId = remappedId;
+                if (remappedId < 0 || remappedId >= remappedToOriginal.length) {
+                    return false;
+                }
                 return inner.advanceExact(remappedToOriginal[remappedId]);
             }
 
@@ -348,6 +357,9 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
             @Override
             public boolean advanceExact(int remappedId) throws IOException {
                 currentRemappedId = remappedId;
+                if (remappedId < 0 || remappedId >= remappedToOriginal.length) {
+                    return false;
+                }
                 return inner.advanceExact(remappedToOriginal[remappedId]);
             }
 
@@ -412,6 +424,9 @@ public class LiveDocsFilteredDocValuesProducer extends DocValuesProducer {
             @Override
             public boolean advanceExact(int remappedId) throws IOException {
                 currentRemappedId = remappedId;
+                if (remappedId < 0 || remappedId >= remappedToOriginal.length) {
+                    return false;
+                }
                 return inner.advanceExact(remappedToOriginal[remappedId]);
             }
 

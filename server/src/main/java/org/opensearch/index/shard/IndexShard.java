@@ -2349,20 +2349,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             flush(new FlushRequest().force(true));
 
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                // blockOperations accepts CheckedRunnable<Exception> — IOException,
-                // InterruptedException, TimeoutException propagate unwrapped to caller.
-                // Second flush: ensure all data committed before engine close
-                // (catches any writes between first flush and block)
+                // Second flush: ensure all data committed before engine close.
                 flush(new FlushRequest().waitIfOngoing(true));
 
                 // --- Swap 1: InternalEngine → ReadOnlyEngine ---
-                // Pattern: create ROE first, then swap reference, then close old engine.
-                // If ROE constructor throws, old engine is still current — no damage.
-                //
-                // Fix Error 2: Capture SeqNoStats/TranslogStats from the live engine BEFORE
-                // closing it. When these are null, ReadOnlyEngine tries to open the translog
-                // to compute them — which can hit an assertion if the translog has active state
-                // from delete operations. Passing pre-captured stats avoids translog access.
+                // Pre-capture stats to avoid translog access during ReadOnlyEngine construction.
                 final SeqNoStats capturedSeqNoStats = seqNoStats();
                 final TranslogStats capturedTranslogStats = translogStats();
                 synchronized (engineMutex) {
@@ -2377,9 +2368,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     );
                     currentEngineReference.set(roEngine);
                     IOUtils.close(oldEngine);
-                    // Set codecServiceOverride INSIDE mutex, AFTER old engine is closed.
-                    // This prevents a race where concurrent newEngineConfig() calls see the
-                    // override while the old InternalEngine is still active.
+                    // Set codecServiceOverride AFTER old engine is closed to prevent race conditions.
                     codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
                 }
 
@@ -2414,10 +2403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         currentEngineReference.set(newEngine);
                         IOUtils.close(roEngine);
                     }
-                    // Skip translog recovery — we flushed all data before the engine swap,
-                    // so the translog is empty. Without this, pendingTranslogRecovery stays true
-                    // and all subsequent flush/forcemerge calls fail with
-                    // "flushes are disabled - pending translog recovery".
+                    // Skip translog recovery — we flushed all data before the engine swap.
                     newEngine.translogManager().skipTranslogRecovery();
                 } catch (Exception e) {
                     logger.error("Failed to open new InternalEngine after upgrade, attempting recovery", e);
@@ -2446,13 +2432,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 active.set(true);
 
-                // Populate direct reader cache for segments where codec was not switched
-                // (soft-delete segments with docValuesGen != -1). These segments have star tree
-                // files in their file set but use the original Lucene912Codec.
-                logger.info("[STARTREE DEBUG] upgradeToStarTree: about to call populateStarTreeDirectReaderCache");
+                // Populate direct reader cache for segments with star tree files but no codec switch.
                 populateStarTreeDirectReaderCache();
-                logger.info("[STARTREE DEBUG] upgradeToStarTree: populateStarTreeDirectReaderCache returned, cacheSize={}",
-                    starTreeDirectReaderCache.size());
 
                 // Wire merge cleanup callback to evict stale direct reader cache entries
                 Engine currentEngine = currentEngineReference.get();
@@ -2462,9 +2443,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     );
                 }
 
-                // NOTE: codecServiceOverride is NOT cleared here — kept for resetEngineToGlobalCheckpoint().
-                // It will be nulled after the first post-upgrade engine reset confirms the persistent
-                // index.composite_index=true setting took effect.
+                // NOTE: codecServiceOverride kept for resetEngineToGlobalCheckpoint().
             });
 
             logger.info("{} per-segment star tree upgrade completed — {} segments upgraded", shardId, upgradedCount.get());
@@ -2520,9 +2499,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     try {
                         StarTreeDirectReader reader = new StarTreeDirectReader(store().directory(), commitInfo.info);
                         starTreeDirectReaderCache.put(segName, reader);
-                        logger.info("[STARTREE DEBUG] populateCache: segment={} docValuesGen={} codec={} files={}",
-                            segName, commitInfo.getDocValuesGen(), commitInfo.info.getCodec().getName(),
-                            commitInfo.info.files());
+                        logger.debug("Cached StarTreeDirectReader for segment {} (docValuesGen={}, codec={})",
+                            segName, commitInfo.getDocValuesGen(), commitInfo.info.getCodec().getName());
                     } catch (Exception e) {
                         logger.warn("Failed to create StarTreeDirectReader for segment {}", segName, e);
                     }

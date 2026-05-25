@@ -70,3 +70,7 @@ testfixtures_shared/
 doc-tools/missing-doclet/bin/
 ReferenceTesting/_bench.ndjson
 ReferenceTesting/_no_st.ndjson
+
+# Local development files
+.kiro/
+ReferenceTesting/

@@ -164,8 +164,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
     protected ShardStarTreeUpgradeResult shardOperation(StarTreeUpgradeRequest request, ShardRouting shardRouting) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
 
-        // Verify mapping is available on this node — this index never had star tree before,
-        // so composite field types will be empty until cluster state propagates
+        // Verify mapping is available on this node before proceeding
         if (indexShard.mapperService().getCompositeFieldTypes().isEmpty()) {
             throw new IOException(
                 "Star tree field not yet available in MapperService on shard ["
@@ -183,9 +182,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
             throw new IOException("star tree upgrade timed out on shard [" + shardRouting.shardId() + "]", e);
         }
 
-        // Post-upgrade flush to clear the pending translog recovery state left by the engine swap
-        // (InternalEngine → ReadOnlyEngine → InternalEngine). Without this, subsequent _forcemerge
-        // calls fail with "flushes are disabled - pending translog recovery".
+        // Post-upgrade flush to clear pending translog recovery state from engine swap.
         indexShard.flush(new FlushRequest().force(false).waitIfOngoing(true));
 
         return new ShardStarTreeUpgradeResult(shardRouting.shardId(), shardRouting.primary());
@@ -339,9 +336,8 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         Map<String, Object> starTreeFieldMap = new HashMap<>();
         starTreeFieldMap.put("type", "star_tree");
 
-        // Serialize the StarTreeField config to a map — use jsonBuilder directly
-        // because StarTreeField.toXContent() already writes startObject/endObject,
-        // and XContentHelper.toXContent would double-wrap it.
+        // Serialize StarTreeField config — use jsonBuilder directly since toXContent() already
+        // writes startObject/endObject.
         BytesReference configBytes;
         try (XContentBuilder configBuilder = org.opensearch.common.xcontent.XContentFactory.jsonBuilder()) {
             request.getStarTreeField().toXContent(configBuilder, ToXContent.EMPTY_PARAMS);
@@ -349,10 +345,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         }
         Map<String, Object> configMap = XContentHelper.convertToMap(configBytes, false, JSON).v2();
 
-        // Remove fields from configMap that StarTreeMapper.Builder doesn't expect in the config:
-        // - "name" is the star tree field name (comes from the composite key, not the config)
-        // - "type" in each dimension (only needed when objbuilder is null; our mapping includes
-        // properties so objbuilder is present and getDimension() doesn't remove "type")
+        // Remove fields from configMap that StarTreeMapper.Builder doesn't expect in the config.
         configMap.remove("name");
         Object orderedDims = configMap.get("ordered_dimensions");
         if (orderedDims instanceof List) {
@@ -492,9 +485,8 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
                     existingSource = existingMapper.mappingSource();
                 }
 
-                // Build a complete mapping source that includes existing properties + new composite section.
-                // This is necessary because StarTreeMapper.Builder.getDimension() looks up dimension/metric
-                // fields in objbuilder.mappersBuilders, which only contains fields from the current mapping source.
+                // Build complete mapping source (existing properties + new composite section)
+                // so StarTreeMapper.Builder can look up dimension/metric fields.
                 CompressedXContent mappingUpdateSource = buildCompleteMappingSource(task.request, indexMetadata);
 
                 // Parse and merge the star tree mapping with STAR_TREE_UPGRADE merge reason
@@ -528,10 +520,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
                 }
 
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-                // Force-enable append_only and composite_index — star tree does not support updates or deletes.
-                // After upgrade, the index becomes append-only to protect star tree correctness.
-                // Also set composite_index=true so that subsequent CodecService instances include
-                // Composite912Codec without needing the volatile codecServiceOverride.
+                // Force-enable append_only and composite_index settings for star tree correctness.
                 boolean needAppendOnly = IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.get(indexMetadata.getSettings()) == false;
                 boolean needCompositeIndex = StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(
                     indexMetadata.getSettings()
