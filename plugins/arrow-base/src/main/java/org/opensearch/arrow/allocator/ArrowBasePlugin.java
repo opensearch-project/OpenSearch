@@ -235,6 +235,16 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ArrowAl
 
     private volatile ArrowNativeAllocator allocator;
 
+    /**
+     * Test-only setter for the allocator field. In production the allocator is created and
+     * assigned inside {@link #createComponents}; tests that exercise the
+     * {@link ArrowAllocatorPlugin#getNativeAllocatorStatsSupplier()} supplier without going
+     * through the full plugin bootstrap can use this hook to inject a real allocator.
+     */
+    void setAllocatorForTesting(ArrowNativeAllocator allocator) {
+        this.allocator = allocator;
+    }
+
     @Override
     public Collection<Object> createComponents(
         Client client,

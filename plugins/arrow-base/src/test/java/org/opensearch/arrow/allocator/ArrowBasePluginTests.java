@@ -17,7 +17,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -458,7 +457,8 @@ public class ArrowBasePluginTests extends OpenSearchTestCase {
         assertNotNull("supplier must always be returned, never null itself", supplier);
         assertNull("supplier must return null before allocator is initialized", supplier.get());
 
-        // Inject a real allocator via reflection (the field is set by createComponents in production).
+        // Inject a real allocator via the package-private test hook (in production the
+        // allocator is set inside createComponents).
         Settings nodeSettings = Settings.builder()
             .put(NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT, 1L * 1024 * 1024 * 1024)
             .put(NativeAllocatorPoolConfig.SETTING_FLIGHT_MAX, 256L * 1024 * 1024)
@@ -467,10 +467,7 @@ public class ArrowBasePluginTests extends OpenSearchTestCase {
             .build();
         ClusterSettings cs = newClusterSettings(nodeSettings);
         ArrowNativeAllocator allocator = ArrowBasePlugin.buildAllocator(nodeSettings, cs);
-
-        Field allocatorField = ArrowBasePlugin.class.getDeclaredField("allocator");
-        allocatorField.setAccessible(true);
-        allocatorField.set(plugin, allocator);
+        plugin.setAllocatorForTesting(allocator);
 
         try {
             // Same supplier instance must now produce a non-null snapshot reflecting the live allocator.
