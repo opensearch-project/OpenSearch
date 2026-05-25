@@ -36,7 +36,9 @@ public interface NativeAllocator extends Closeable {
     PoolHandle getOrCreatePool(String poolName, long limit);
 
     /**
-     * Updates the limit of an existing pool.
+     * Updates the limit of an existing pool. Children of the pool allocator
+     * inherit the change automatically via Arrow's parent-cap check at
+     * allocation time — no notification SPI is needed.
      *
      * @param poolName logical pool name
      * @param newLimit new maximum bytes for the pool

@@ -232,6 +232,188 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         assertEquals(50L, ((Number) rows.get(0).get(0)).longValue());
     }
 
+    /**
+     * Verifies that the node-level query cache is populated by delegated MATCH queries.
+     *
+     * <p>Uses {@code /_nodes/stats/indices/query_cache} to assert that:
+     * <ol>
+     *   <li>After warming the query past the caching frequency threshold, the cache size grows.</li>
+     *   <li>Subsequent executions produce cache hits (hit_count increases).</li>
+     * </ol>
+     *
+     * <p>The test cluster must be configured with:
+     * <ul>
+     *   <li>{@code indices.queries.cache.all_segments=true} — bypasses the 10k-doc minimum segment size</li>
+     *   <li>{@code indices.queries.cache.costly_min_frequency=1} — cache multi-term queries on first use</li>
+     *   <li>{@code indices.queries.cache.min_frequency=2} — cache BooleanQuery after 1 use</li>
+     * </ul>
+     *
+     * <p>MATCH('hello world') on a text field produces a BooleanQuery(TermQuery("hello"), TermQuery("world"))
+     * which is subject to caching under the configured policy.
+     */
+    /**
+     * Verifies that the node-level query cache is populated by delegated MATCH queries.
+     *
+     * <p>Uses {@code /_nodes/stats/indices/query_cache} to assert that repeated executions
+     * of the same delegated BooleanQuery produce cache hits.
+     *
+     * <p>Requirements for the cache to activate:
+     * <ul>
+     *   <li>Segment must have >= 10,000 docs (default MinSegmentSizePredicate)</li>
+     *   <li>Query must be seen minFrequency times (default 5, minus 1 for BooleanQuery = 4)</li>
+     * </ul>
+     *
+     * <p>We lower {@code indices.queries.cache.min_frequency} to 2 (dynamic setting) so a
+     * BooleanQuery is cached after just 1 use. We index 10,000+ docs to pass the segment size threshold.
+     */
+    public void testMatchDelegation_queryCacheHitOnRepeat() throws Exception {
+        configureCacheFrequency();
+        createCacheTestIndex();
+        indexBulkDocs(11000);
+
+        // Multi-term match → BooleanQuery(TermQuery("hello"), TermQuery("world"))
+        String ppl = "source = " + CACHE_INDEX_NAME + " | where match(message, 'hello world') | stats count() as c";
+
+        // Snapshot cache size before any query — should be empty for this index
+        long cacheSizeBefore = getQueryCacheCacheSize();
+
+        // First call — registers query with the caching policy but does NOT cache yet
+        // (min_frequency=2, BooleanQuery gets -1 discount → needs 1 use before caching)
+        Map<String, Object> result1 = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows1 = (List<List<Object>>) result1.get("rows");
+        assertNotNull(rows1);
+        assertEquals(1, rows1.size());
+        long count = ((Number) rows1.get(0).get(0)).longValue();
+        assertTrue("Should match the 'hello world' docs", count > 0);
+
+        long cacheSizeAfterFirst = getQueryCacheCacheSize();
+        assertEquals(
+            "Cache should NOT be populated before frequency threshold is met",
+            cacheSizeBefore,
+            cacheSizeAfterFirst
+        );
+
+        // Second call — policy threshold met, cache populates the DocIdSet
+        executePPL(ppl);
+
+        long cacheSizeAfterSecond = getQueryCacheCacheSize();
+        assertTrue(
+            "Cache should be populated after frequency threshold is met. Before: "
+                + cacheSizeAfterFirst + ", After: " + cacheSizeAfterSecond,
+            cacheSizeAfterSecond > cacheSizeAfterFirst
+        );
+
+        // Snapshot hit count after cache is populated
+        long hitsBefore = getQueryCacheHitCount();
+
+        // Third call — should produce a cache hit (same segment, same query, cached)
+        Map<String, Object> result3 = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows3 = (List<List<Object>>) result3.get("rows");
+        assertEquals(count, ((Number) rows3.get(0).get(0)).longValue());
+
+        long hitsAfter = getQueryCacheHitCount();
+        assertTrue(
+            "Query cache hit_count should increase after repeated delegated query. Before: " + hitsBefore + ", After: " + hitsAfter,
+            hitsAfter > hitsBefore
+        );
+    }
+
+    private static final String CACHE_INDEX_NAME = "filter_delegation_cache_e2e";
+
+    private void configureCacheFrequency() throws Exception {
+        // BooleanQuery with default min_frequency=5 needs 4 uses to cache.
+        // Lower to 2 so it caches after 1 use (5-1=4 → 2-1=1).
+        Request settings = new Request("PUT", "/_cluster/settings");
+        settings.setJsonEntity("{"
+            + "\"transient\": {"
+            + "  \"indices.queries.cache.min_frequency\": 2,"
+            + "  \"indices.queries.cache.costly_min_frequency\": 1"
+            + "}"
+            + "}");
+        client().performRequest(settings);
+    }
+
+    private void createCacheTestIndex() throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + CACHE_INDEX_NAME));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": 1,"
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"properties\": {"
+            + "    \"message\": { \"type\": \"text\" },"
+            + "    \"tag\": { \"type\": \"keyword\" }"
+            + "  }"
+            + "}"
+            + "}";
+
+        Request createIdx = new Request("PUT", "/" + CACHE_INDEX_NAME);
+        createIdx.setJsonEntity(body);
+        assertOkAndParse(client().performRequest(createIdx), "Create cache test index");
+
+        Request health = new Request("GET", "/_cluster/health/" + CACHE_INDEX_NAME);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+    }
+
+    private void indexBulkDocs(int count) throws Exception {
+        int batchSize = 1000;
+        for (int batch = 0; batch < count; batch += batchSize) {
+            StringBuilder bulk = new StringBuilder();
+            int end = Math.min(batch + batchSize, count);
+            for (int i = batch; i < end; i++) {
+                bulk.append("{\"index\": {}}\n");
+                if (i % 2 == 0) {
+                    bulk.append("{\"message\": \"hello world\", \"tag\": \"hello\"}\n");
+                } else {
+                    bulk.append("{\"message\": \"goodbye world\", \"tag\": \"goodbye\"}\n");
+                }
+            }
+            Request bulkRequest = new Request("POST", "/" + CACHE_INDEX_NAME + "/_bulk");
+            bulkRequest.setJsonEntity(bulk.toString());
+            bulkRequest.addParameter("refresh", "false");
+            client().performRequest(bulkRequest);
+        }
+        // Single flush to get one big segment
+        client().performRequest(new Request("POST", "/" + CACHE_INDEX_NAME + "/_flush?force=true"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private long getQueryCacheHitCount() throws Exception {
+        return getQueryCacheStat("hit_count");
+    }
+
+    @SuppressWarnings("unchecked")
+    private long getQueryCacheCacheSize() throws Exception {
+        return getQueryCacheStat("cache_size");
+    }
+
+    @SuppressWarnings("unchecked")
+    private long getQueryCacheStat(String statName) throws Exception {
+        Request statsRequest = new Request("GET", "/_nodes/stats/indices/query_cache");
+        Map<String, Object> stats = entityAsMap(client().performRequest(statsRequest));
+        Map<String, Object> nodes = (Map<String, Object>) stats.get("nodes");
+        long total = 0;
+        for (Object nodeObj : nodes.values()) {
+            Map<String, Object> node = (Map<String, Object>) nodeObj;
+            Map<String, Object> indices = (Map<String, Object>) node.get("indices");
+            Map<String, Object> queryCache = (Map<String, Object>) indices.get("query_cache");
+            total += ((Number) queryCache.get(statName)).longValue();
+        }
+        return total;
+    }
+
     private void createIndex() throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX_NAME));

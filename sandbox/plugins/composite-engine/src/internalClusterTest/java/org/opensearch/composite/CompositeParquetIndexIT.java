@@ -15,6 +15,7 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -50,7 +51,15 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
+        // ParquetDataFormatPlugin sources its allocator from the unified native-allocator
+        // framework's ingest pool, so the framework plugin must be installed.
+        return Arrays.asList(
+            ArrowBasePlugin.class,
+            ParquetDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class,
+            DataFusionPlugin.class
+        );
     }
 
     @Override

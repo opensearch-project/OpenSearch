@@ -49,6 +49,16 @@ public class NodeDuressTrackers {
     }
 
     /**
+     * Convenience accessor for native-memory duress. Equivalent to
+     * {@code isResourceInDuress(ResourceType.NATIVE_MEMORY)}. Used by
+     * {@code SearchBackpressureService.doRun()} to decide whether to bypass the
+     * heap-dominance gate and include all tasks as cancellation candidates.
+     */
+    public boolean isNativeMemoryInDuress() {
+        return isResourceInDuress(ResourceType.NATIVE_MEMORY);
+    }
+
+    /**
      * Method to evaluate whether the node is in duress or not
      * @return true if node is in duress because of either system resource
      */
@@ -63,8 +73,10 @@ public class NodeDuressTrackers {
 
     private void updateCache() {
         if (nodeDuressCacheExpiryChecker.getAsBoolean()) {
-            for (ResourceType resourceType : ResourceType.values())
-                resourceDuressCache.put(resourceType, duressTrackers.get(resourceType).test());
+            for (ResourceType resourceType : ResourceType.values()) {
+                NodeDuressTracker tracker = duressTrackers.get(resourceType);
+                resourceDuressCache.put(resourceType, tracker != null && tracker.test());
+            }
         }
     }
 

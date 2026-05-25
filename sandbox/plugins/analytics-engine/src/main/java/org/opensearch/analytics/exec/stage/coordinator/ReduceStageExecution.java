@@ -38,13 +38,13 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
 
     private final ReducingExchangeSink backendSink;
     private final ExchangeSink downstream;
-    private final Executor searchExecutor;
+    private final Executor reduceExecutor;
 
     public ReduceStageExecution(Stage stage, QueryContext config, ReducingExchangeSink backendSink, ExchangeSink downstream) {
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         this.backendSink = backendSink;
         this.downstream = downstream;
-        this.searchExecutor = config.searchExecutor();
+        this.reduceExecutor = config.reduceExecutor();
         this.runner = new LocalTaskRunner(config.schedulerExecutor());
     }
 
@@ -81,7 +81,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
     @Override
     protected List<StageTask> materializeTasks() {
         return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), listener -> {
-            searchExecutor.execute(() -> {
+            reduceExecutor.execute(() -> {
                 try {
                     backendSink.reduce(listener);
                 } catch (Exception e) {

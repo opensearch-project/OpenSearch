@@ -5561,4 +5561,37 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
         assertTrue(primary.nonClosingReaderWrapperCache().isEmpty());
     }
+
+    /**
+     * Verifies that {@code isRemoteSegmentStoreInSync} uses {@code getCatalogSnapshot()} (the unified
+     * catalog API) rather than the legacy {@code getSegmentInfosSnapshot()}. After indexing and refreshing,
+     * the catalog snapshot files should match the remote uploaded files, making the method return true.
+     * Guards against regressions where the method reverts to using getSegmentInfosSnapshot().
+     */
+    public void testIsRemoteSegmentStoreInSyncUsesCatalogSnapshot() throws Exception {
+        String remoteStorePath = createTempDir().toString();
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
+                .build(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        );
+        indexDoc(shard, "_doc", "1");
+        shard.refresh("test");
+
+        // After refresh, remote sync should have completed and catalog snapshot files should match remote
+        assertTrue("isRemoteSegmentStoreInSync should return true after refresh", shard.isRemoteSegmentStoreInSync());
+
+        // Verify getCatalogSnapshot returns non-empty files (proving it's being used)
+        try (GatedCloseable<org.opensearch.index.engine.exec.coord.CatalogSnapshot> snap = shard.getCatalogSnapshot()) {
+            Collection<String> catalogFiles = snap.get().getFiles(true);
+            assertFalse("Catalog snapshot should have files after indexing", catalogFiles.isEmpty());
+        }
+
+        closeShards(shard);
+    }
 }

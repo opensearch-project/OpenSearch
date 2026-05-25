@@ -1,0 +1,1 @@
+source=test_data | eval log2_val = log2(value) | fields value, log2_val | head 3

@@ -71,6 +71,9 @@ pub async fn execute_query(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
@@ -131,10 +134,16 @@ pub async fn execute_query(
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);
 
-    let provider = Arc::new(ListingTable::try_new(table_config).map_err(|e| {
-        error!("Failed to create listing table: {}", e);
-        e
-    })?);
+    // Wire the global statistics cache into the ListingTable.
+    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
+    let provider = Arc::new(
+        ListingTable::try_new(table_config)
+            .map_err(|e| {
+                error!("Failed to create listing table: {}", e);
+                e
+            })?
+            .with_cache(stats_cache),
+    );
 
     ctx.register_table(&table_name, provider).map_err(|e| {
         error!("Failed to register table: {}", e);
@@ -194,7 +203,12 @@ pub async fn execute_with_context(
     handle: SessionContextHandle,
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
+    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
+    // Permit was acquired by the caller (ffm.rs) on the IO runtime before
+    // spawning on the CPU runtime, so the Java search thread blocks at the
+    // gate when it is full — creating backpressure at the Java threadpool level.
+
     let context_id = handle.query_context.context_id();
     let token = crate::query_tracker::get_cancellation_token(context_id);
 
@@ -237,6 +251,8 @@ pub async fn execute_with_context(
 
     // Reconstruct the stream from the raw pointer
     let stream = unsafe { *Box::from_raw(stream_ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<CrossRtStream>) };
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx);
+    // Permit is held until the QueryStreamHandle is dropped (query complete).
+    // If cancellation fires → stream drops → handle drops → permit drops → gate releases.
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

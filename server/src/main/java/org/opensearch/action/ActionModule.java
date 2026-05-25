@@ -505,11 +505,13 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.storage.action.tiering.CancelTieringAction;
 import org.opensearch.storage.action.tiering.HotToWarmTierAction;
+import org.opensearch.storage.action.tiering.PrepareTieringAction;
 import org.opensearch.storage.action.tiering.RestCancelTierAction;
 import org.opensearch.storage.action.tiering.RestHotToWarmTierAction;
 import org.opensearch.storage.action.tiering.RestWarmToHotTierAction;
 import org.opensearch.storage.action.tiering.TransportCancelTierAction;
 import org.opensearch.storage.action.tiering.TransportHotToWarmTierAction;
+import org.opensearch.storage.action.tiering.TransportPrepareTieringAction;
 import org.opensearch.storage.action.tiering.TransportWarmToHotTierAction;
 import org.opensearch.storage.action.tiering.WarmToHotTierAction;
 import org.opensearch.storage.action.tiering.status.GetTieringStatusAction;
@@ -867,6 +869,7 @@ public class ActionModule extends AbstractModule {
             actions.register(CancelTieringAction.INSTANCE, TransportCancelTierAction.class);
             actions.register(HotToWarmTierAction.INSTANCE, TransportHotToWarmTierAction.class);
             actions.register(WarmToHotTierAction.INSTANCE, TransportWarmToHotTierAction.class);
+            actions.register(PrepareTieringAction.INSTANCE, TransportPrepareTieringAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
