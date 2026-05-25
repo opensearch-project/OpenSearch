@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -126,11 +125,7 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
                         final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                         final MergePointVisitor visitor = new MergePointVisitor(result);
                         values.intersect(visitor);
-                        final DocIdSet docIdSet = result.build();
-                        if (docIdSet == null) {
-                            return null;
-                        }
-                        final DocIdSetIterator iterator = docIdSet.iterator();
+                        final DocIdSetIterator iterator = result.build().iterator();
                         if (iterator == null) {
                             return null;
                         }

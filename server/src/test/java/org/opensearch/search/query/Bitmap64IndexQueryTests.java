@@ -157,6 +157,21 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         assertEquals(firstPassMatches, secondPassMatches);
     }
 
+    public void testScoreNoMatchingDocs() throws IOException {
+        addDoc(5L);
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.add(99L);
+        Bitmap64IndexQuery query = new Bitmap64IndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        assertTrue(getMatchingValues(weight, reader).isEmpty());
+        for (LeafReaderContext leaf : reader.leaves()) {
+            assertNull(weight.scorer(leaf));
+        }
+    }
+
     // ---------------- Helpers ----------------
 
     private void addDoc(long... values) throws IOException {
