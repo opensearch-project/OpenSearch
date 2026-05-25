@@ -643,29 +643,16 @@ pub async unsafe fn stream_next(
     }
 }
 
-/// Prevents sliced StringView batches from carrying full backing buffers across FFI.
+/// Compacts StringView/BinaryView columns before FFI export via gc().
+///
+/// gc() rebuilds variadic backing buffers so each batch owns exactly the
+/// bytes it references — no shared parent buffers carried across FFI.
+/// This is critical for the Java C Data import path: wrapForeignAllocation
+/// tracks the full backing buffer size against a bounded allocator pool.
+/// Without gc(), multiple batches share large Rust-managed buffers whose
+/// foreign allocations accumulate and exhaust the pool.
 fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
     let schema = batch.schema();
-    let needs_compaction = batch
-        .columns()
-        .iter()
-        .zip(schema.fields().iter())
-        .any(|(col, field)| match field.data_type() {
-            DataType::Utf8View => {
-                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
-                    .expect("column must be StringViewArray when schema declares Utf8View");
-                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
-            }
-            DataType::BinaryView => {
-                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
-                    .expect("column must be BinaryViewArray when schema declares BinaryView");
-                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
-            }
-            _ => false,
-        });
-    if !needs_compaction {
-        return batch;
-    }
     let columns: Vec<Arc<dyn Array>> = batch
         .columns()
         .iter()
@@ -685,17 +672,6 @@ fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
         })
         .collect();
     RecordBatch::try_new(schema, columns).expect("gc'd columns must match schema")
-}
-
-// 10KB: below this, the gc() copy cost outweighs the transfer savings.
-const GC_MIN_WASTE_BYTES: usize = 10_240;
-
-#[inline]
-fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
-    let bytes_allocated: usize = buffers.iter().map(|b| b.len()).sum();
-    let waste = bytes_allocated.saturating_sub(bytes_used);
-    let is_significantly_bloated = bytes_allocated > 2 * bytes_used;
-    is_significantly_bloated && waste > GC_MIN_WASTE_BYTES
 }
 
 /// Closes a result stream. Safe to call with 0 (no-op).
