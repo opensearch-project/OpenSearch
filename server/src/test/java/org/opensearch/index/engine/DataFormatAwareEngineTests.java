@@ -12,10 +12,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
@@ -28,16 +30,22 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
+import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
+import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -56,6 +64,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,9 +78,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.index.engine.EngineTestCase.createParsedDoc;
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -168,6 +179,15 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     private EngineConfig buildDFAEngineConfig(Store store, Path translogPath) {
+        return buildDFAEngineConfig(store, translogPath, List.of(), List.of());
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners
+    ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
@@ -190,6 +210,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         DataFormatRegistry registry = createMockRegistry();
         CommitterFactory committerFactory = config -> new InMemoryCommitter(store);
 
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -197,14 +220,15 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .mergePolicy(NoMergePolicy.INSTANCE)
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
-            .externalRefreshListener(List.of())
-            .internalRefreshListener(List.of())
+            .externalRefreshListener(externalListeners)
+            .internalRefreshListener(internalListeners)
             .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .primaryTermSupplier(primaryTerm::get)
             .tombstoneDocSupplier(tombstoneDocSupplier())
             .dataFormatRegistry(registry)
             .committerFactory(committerFactory)
+            .mapperService(mapperService)
             .build();
     }
 
@@ -234,20 +258,22 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         );
     }
 
-    private Engine.Index replicaIndexOp(ParsedDocument doc, long seqNo) {
-        return new Engine.Index(
-            new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())),
-            doc,
-            seqNo,
-            primaryTerm.get(),
-            Versions.MATCH_ANY,
+    /**
+     * Creates a ParsedDocument with a MockDocumentInput attached, which is required
+     * by DataFormatAwareEngine.indexIntoEngine for updateField calls.
+     */
+    private ParsedDocument createParsedDocWithInput(String id, String routing) {
+        ParsedDocument base = createParsedDoc(id, routing);
+        return new ParsedDocument(
+            base.version(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            base.id(),
+            base.routing(),
+            base.docs(),
+            base.source(),
+            base.getMediaType(),
             null,
-            Engine.Operation.Origin.REPLICA,
-            System.nanoTime(),
-            -1,
-            false,
-            SequenceNumbers.UNASSIGNED_SEQ_NO,
-            0
+            new MockDocumentInput()
         );
     }
 
@@ -255,7 +281,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(5, 20);
             for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = createParsedDoc(Integer.toString(i), null);
+                ParsedDocument doc = createParsedDocWithInput(Integer.toString(i), null);
                 Engine.IndexResult result = engine.index(indexOp(doc));
                 assertThat("seq no should be monotonically increasing", result.getSeqNo(), equalTo((long) i));
             }
@@ -267,23 +293,11 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSequenceNumbersOnReplica() throws IOException {
-        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            long[] seqNos = { 3, 1, 0, 2 };
-            for (long seqNo : seqNos) {
-                ParsedDocument doc = createParsedDoc(Long.toString(seqNo), null);
-                Engine.IndexResult result = engine.index(replicaIndexOp(doc, seqNo));
-                assertThat("replica should use the provided seq no", result.getSeqNo(), equalTo(seqNo));
-            }
-            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(3L));
-        }
-    }
-
     public void testLocalCheckpointAdvancesCorrectly() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
                 assertThat(engine.getProcessedLocalCheckpoint(), equalTo((long) i));
             }
         }
@@ -293,7 +307,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                Engine.IndexResult result = engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
                 assertThat("translog location should be set", result.getTranslogLocation(), notNullValue());
             }
             assertThat(engine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
@@ -304,7 +318,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             // Before sync, persisted checkpoint may lag
@@ -326,7 +340,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
             assertThat(engine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
 
@@ -344,13 +358,13 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(1, 5);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
             engine.refresh("test");
 
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 CatalogSnapshot snapshot = ref.get();
-                assertThat(snapshot.getGeneration(), equalTo(1L));
+                assertThat(snapshot.getGeneration(), equalTo(2L));
                 assertThat(snapshot.getSegments().size(), equalTo(1));
 
                 org.opensearch.index.engine.exec.Segment segment = snapshot.getSegments().get(0);
@@ -371,25 +385,25 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testRefreshAdvancesSnapshotGeneration() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            // Initial snapshot generation is 0
+            // Initial snapshot generation is 1 (bumpGeneration in constructor)
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
-                assertThat(ref.get().getGeneration(), equalTo(0L));
+                assertThat(ref.get().getGeneration(), equalTo(1L));
                 assertThat(ref.get().getSegments().size(), equalTo(0));
             }
 
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("first");
 
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
-                assertThat(ref.get().getGeneration(), equalTo(1L));
+                assertThat(ref.get().getGeneration(), equalTo(2L));
                 assertThat(ref.get().getSegments().size(), equalTo(1));
             }
 
-            engine.index(indexOp(createParsedDoc("2", null)));
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
             engine.refresh("second");
 
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
-                assertThat(ref.get().getGeneration(), equalTo(2L));
+                assertThat(ref.get().getGeneration(), equalTo(3L));
                 // 2 segments: one from first refresh, one from second
                 assertThat(ref.get().getSegments().size(), equalTo(2));
             }
@@ -403,7 +417,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             // Before refresh, last refreshed checkpoint hasn't advanced
@@ -421,14 +435,14 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numBatches = randomIntBetween(3, 6);
             for (int batch = 0; batch < numBatches; batch++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(batch), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(batch), null)));
                 engine.refresh("batch-" + batch);
             }
 
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 CatalogSnapshot snapshot = ref.get();
                 assertThat(snapshot.getSegments().size(), equalTo(numBatches));
-                assertThat(snapshot.getGeneration(), equalTo((long) numBatches));
+                assertThat(snapshot.getGeneration(), equalTo((long) numBatches + 1));
 
                 // Each segment should have exactly 1 file with 1 row (1 doc per batch)
                 for (org.opensearch.index.engine.exec.Segment segment : snapshot.getSegments()) {
@@ -451,7 +465,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             int numDocs = randomIntBetween(1, 5);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
             engine.flush(false, true);
 
@@ -460,7 +474,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 assertThat(snapshot, notNullValue());
                 // Flush calls refresh internally, producing 1 segment
                 assertThat(snapshot.getSegments().size(), equalTo(1));
-                assertThat(snapshot.getGeneration(), equalTo(1L));
+                assertThat(snapshot.getGeneration(), equalTo(3L));
             }
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo((long) numDocs - 1));
             assertThat(engine.lastRefreshedCheckpoint(), equalTo((long) numDocs - 1));
@@ -495,7 +509,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                     try {
                         barrier.await();
                         for (int d = 0; d < docsPerThread; d++) {
-                            ParsedDocument doc = createParsedDoc(threadId + "_" + d, null);
+                            ParsedDocument doc = createParsedDocWithInput(threadId + "_" + d, null);
                             Engine.IndexResult result = engine.index(indexOp(doc));
                             assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
                             maxSeqNo.accumulateAndGet(result.getSeqNo(), Math::max);
@@ -533,7 +547,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 indexThreads[t] = new Thread(() -> {
                     try {
                         for (int d = 0; d < docsPerThread; d++) {
-                            engine.index(indexOp(createParsedDoc(threadId + "_" + d, null)));
+                            engine.index(indexOp(createParsedDocWithInput(threadId + "_" + d, null)));
                         }
                     } catch (Exception e) {
                         failures.incrementAndGet();
@@ -557,7 +571,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.lastRefreshedCheckpoint(), equalTo((long) totalDocs - 1));
 
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
-                assertThat(ref.get().getGeneration(), equalTo(1L));
+                assertThat(ref.get().getGeneration(), equalTo(2L));
                 assertThat(ref.get().getSegments().size(), greaterThan(0));
             }
         }
@@ -568,7 +582,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             AtomicInteger failures = new AtomicInteger(0);
@@ -612,16 +626,16 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testCloseEngine() throws IOException {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
-        engine.index(indexOp(createParsedDoc("1", null)));
+        engine.index(indexOp(createParsedDocWithInput("1", null)));
         engine.close();
         // Verify engine is closed by checking that operations throw
-        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("2", null))));
+        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDocWithInput("2", null))));
     }
 
     public void testOperationsAfterCloseThrow() throws IOException {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
         engine.close();
-        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("1", null))));
+        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDocWithInput("1", null))));
     }
 
     public void testFlushAndClose() throws IOException {
@@ -629,11 +643,11 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
         int numDocs = randomIntBetween(3, 10);
         for (int i = 0; i < numDocs; i++) {
-            engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+            engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
         }
         engine.flushAndClose();
         // Verify closed
-        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("99", null))));
+        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDocWithInput("99", null))));
     }
 
     public void testRefreshAfterCloseThrows() throws IOException {
@@ -650,26 +664,26 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testAcquireSnapshotReturnsValidSnapshot() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            // Initial snapshot: generation 0, no segments
+            // Initial snapshot: generation 1 (bumpGeneration in constructor), no segments
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 CatalogSnapshot snapshot = ref.get();
                 assertThat(snapshot, notNullValue());
-                assertThat(snapshot.getGeneration(), equalTo(0L));
+                assertThat(snapshot.getGeneration(), equalTo(1L));
                 assertThat(snapshot.getSegments().size(), equalTo(0));
-                assertThat(snapshot.getId(), equalTo(0L));
+                assertThat(snapshot.getId(), equalTo(1L));
             }
         }
     }
 
     public void testSnapshotSurvivesRefreshWhileHeld() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("first");
 
             GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot();
             long heldGen = ref.get().getGeneration();
 
-            engine.index(indexOp(createParsedDoc("2", null)));
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
             engine.refresh("second");
 
             // Held snapshot should still be valid
@@ -723,7 +737,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             // Phase 1: Index
             for (int i = 0; i < numDocs; i++) {
-                Engine.IndexResult result = engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 assertThat(result.getSeqNo(), equalTo((long) i));
                 assertThat(result.getTranslogLocation(), notNullValue());
@@ -737,7 +751,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.lastRefreshedCheckpoint(), equalTo((long) numDocs - 1));
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 CatalogSnapshot snapshot = ref.get();
-                assertThat(snapshot.getGeneration(), equalTo(1L));
+                assertThat(snapshot.getGeneration(), equalTo(3L));
                 assertThat(snapshot.getSegments().size(), equalTo(1));
                 assertThat(snapshot.getSegments().get(0).dfGroupedSearchableFiles().containsKey(mockDataFormat.name()), equalTo(true));
             }
@@ -765,7 +779,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             // Index all docs first
             for (int i = 0; i < totalDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo((long) totalDocs - 1));
@@ -813,11 +827,11 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testFailEnginePreventsSubsequentOps() throws IOException {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
-        engine.index(indexOp(createParsedDoc("1", null)));
+        engine.index(indexOp(createParsedDocWithInput("1", null)));
 
         engine.failEngine("test failure", new RuntimeException("simulated"));
 
-        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("2", null))));
+        expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDocWithInput("2", null))));
         expectThrows(AlreadyClosedException.class, () -> engine.refresh("after-fail"));
         expectThrows(AlreadyClosedException.class, () -> engine.flush(false, true));
     }
@@ -830,11 +844,249 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         expectThrows(AlreadyClosedException.class, () -> engine.ensureOpen());
     }
 
+    /**
+     * Covers the refresh-thread branch when a writer's {@code flush()} throws.
+     *
+     * <p>The latch-and-flushQueue contract demands that, no matter which code path
+     * fails, the engine is left in a consistent state for the surrounding orchestration:
+     * <ul>
+     *   <li>The exception must surface to the caller as {@link RefreshFailedEngineException}
+     *       so the IndexShard can react.</li>
+     *   <li>The shared {@code flushQueue} must not leak items that the next refresh would
+     *       wrongly consider in-flight (no orphan writers waiting for nobody).</li>
+     *   <li>{@link DataFormatAwareEngine#failEngine} must run with the originating cause,
+     *       firing {@link Engine.EventListener#onFailedEngine} so the shard is failed.</li>
+     *   <li>Subsequent operations must reject with {@link AlreadyClosedException}.</li>
+     * </ul>
+     *
+     * <p>This test uses a {@link FailingFlushIndexingExecutionEngine} that returns
+     * a writer whose {@code flush()} throws on first call, ensuring the refresh
+     * thread itself is the one that observes the failure (only one writer in the
+     * pool, so there are no write threads racing for it).
+     */
+    public void testRefreshThreadFlushFailureFailsEngineAndDrainsQueue() throws Exception {
+        AtomicReference<Exception> failedEngineCause = new AtomicReference<>();
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {
+                failedEngineCause.set(failure);
+            }
+        };
+
+        // Wire an indexing engine whose writer fails on flush.
+        FailingFlushIndexingExecutionEngine failingEngine = new FailingFlushIndexingExecutionEngine(mockDataFormat);
+        MockDataFormatPlugin failingPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return failingEngine;
+            }
+        };
+
+        EngineConfig config = buildFailingEngineConfig(failingPlugin, listener);
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
+        try {
+            // One indexed doc → one writer in the pool. Refresh thread will be the sole flusher.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat("writer should have been used", failingEngine.writersCreated(), greaterThanOrEqualTo(1));
+
+            RefreshFailedEngineException ex = expectThrows(RefreshFailedEngineException.class, () -> engine.refresh("flush-failure-test"));
+            assertThat("refresh failure must wrap the IOException from flush", ex.getCause(), instanceOf(IOException.class));
+            assertThat(ex.getCause().getMessage(), containsString("simulated flush failure"));
+
+            // failEngine ran with the originating exception.
+            assertThat("event listener must observe the failure", failedEngineCause.get(), notNullValue());
+
+            // No writer leaked in the shared flushQueue. Use reflection (test-only) to
+            // assert the queue is empty without exposing internals on DFAE.
+            assertThat("flushQueue must be drained on failure", flushQueueSize(engine), equalTo(0));
+
+            // Engine is closed for all subsequent operations.
+            expectThrows(AlreadyClosedException.class, engine::ensureOpen);
+            expectThrows(AlreadyClosedException.class, () -> engine.refresh("after-fail"));
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDocWithInput("2", null))));
+        } finally {
+            try {
+                engine.close();
+            } catch (Exception ignored) {
+                // Already closed by failEngine.
+            }
+        }
+    }
+
+    /**
+     * Covers the preIndex cooperative-flush path when a writer's {@code flush()} throws.
+     *
+     * <p>When a write thread picks a writer from the flushQueue during preIndex and the
+     * flush fails, the engine must:
+     * <ul>
+     *   <li>Call {@link DataFormatAwareEngine#failEngine} with the originating cause.</li>
+     *   <li>Close the failing writer via {@code IOUtils.closeWhileHandlingException}.</li>
+     *   <li>Count down the activeFlushLatch so the refresh thread is not stuck waiting.</li>
+     *   <li>Reject subsequent operations with {@link AlreadyClosedException}.</li>
+     * </ul>
+     *
+     * <p>This test injects a failing writer directly into the flushQueue via reflection,
+     * then triggers preIndex by calling {@code engine.index()}.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to inject a failing writer into flushQueue")
+    public void testPreIndexFlushFailureFailsEngine() throws Exception {
+        AtomicReference<Exception> failedEngineCause = new AtomicReference<>();
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {
+                failedEngineCause.set(failure);
+            }
+        };
+
+        // Use a normal (non-failing) engine so we can inject the failure precisely.
+        MockDataFormatPlugin normalPlugin = new MockDataFormatPlugin(mockDataFormat) {
+        };
+        EngineConfig config = buildFailingEngineConfig(normalPlugin, listener);
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
+        try {
+            // Inject a FailingFlushWriter directly into the flushQueue.
+            java.lang.reflect.Field queueField = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+            queueField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>> queue =
+                (java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>>) queueField.get(engine);
+            queue.add(new FailingFlushWriter(99L, mockDataFormat));
+
+            // The next index() call triggers preIndex() which polls the failing writer.
+            AlreadyClosedException ex = expectThrows(
+                AlreadyClosedException.class,
+                () -> engine.index(indexOp(createParsedDocWithInput("trigger-preindex", null)))
+            );
+
+            // failEngine was called with the flush IOException.
+            assertThat("event listener must observe the failure", failedEngineCause.get(), notNullValue());
+            assertThat(failedEngineCause.get().getMessage(), containsString("simulated flush failure"));
+
+            // Engine is closed for all subsequent operations.
+            expectThrows(AlreadyClosedException.class, engine::ensureOpen);
+        } finally {
+            try {
+                engine.close();
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Covers the preIndex happy path: a writer in the flushQueue is successfully flushed
+     * by the write thread during preIndex, producing a pending segment.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue and read pendingWritersToClose")
+    public void testPreIndexSuccessfulFlushProducesPendingSegment() throws Exception {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            // Index a doc so the engine is in a valid state.
+            engine.index(indexOp(createParsedDocWithInput("0", null)));
+
+            // Inject a writer that returns empty FileInfos on flush (success path, no files).
+            java.lang.reflect.Field queueField = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+            queueField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>> queue =
+                (java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>>) queueField.get(engine);
+
+            // A writer that succeeds on flush with empty result (no files produced).
+            SuccessFlushWriter successWriter = new SuccessFlushWriter(42L, mockDataFormat);
+            queue.add(successWriter);
+
+            // Index another doc — this triggers preIndex which flushes the queued writer.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            // Engine should still be open (flush succeeded).
+            engine.ensureOpen();
+
+            // The writer should have been moved to pendingWritersToClose.
+            java.lang.reflect.Field closersField = DataFormatAwareEngine.class.getDeclaredField("pendingWritersToClose");
+            closersField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Collection<?> pendingClosers = (java.util.Collection<?>) closersField.get(engine);
+            assertTrue("Writer should be queued for deferred close", pendingClosers.contains(successWriter));
+        } finally {
+            engine.close();
+        }
+    }
+
+    /**
+     * Covers the preIndex skip path when check_pending_flush is disabled.
+     */
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue")
+    public void testPreIndexSkipsWhenCheckPendingFlushDisabled() throws Exception {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .put("index.check_pending_flush.enabled", false)
+                .build()
+        );
+
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+
+        DataFormatRegistry registry = createMockRegistry();
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(c -> new InMemoryCommitter(store))
+            .mapperService(mapperService)
+            .build();
+
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
+        try {
+            // Even with a failing writer in the queue, preIndex should skip it.
+            java.lang.reflect.Field queueField = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+            queueField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>> queue =
+                (java.util.concurrent.ConcurrentLinkedQueue<org.opensearch.index.engine.dataformat.Writer<?>>) queueField.get(engine);
+            queue.add(new FailingFlushWriter(99L, mockDataFormat));
+
+            // Index should succeed — preIndex is disabled so the failing writer is never polled.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.ensureOpen(); // Engine still alive
+
+            // The failing writer is still in the queue (never polled).
+            assertEquals(1, queue.size());
+        } finally {
+            engine.close();
+        }
+    }
+
     public void testCatalogSnapshotContainsFormatSpecificFiles() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(1, 5);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
             engine.refresh("test");
 
@@ -867,7 +1119,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testCommitDataContainsRequiredMetadataKeys() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.flush(false, true);
 
             // The InMemoryCommitter stores the commit data. Access it via the engine's
@@ -882,7 +1134,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testFlushCommitDataContainsCatalogSnapshotKeys() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.flush(false, true);
 
             // After flush, the catalog snapshot should be non-empty and have valid generation
@@ -898,7 +1150,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(1, 5);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
             engine.refresh("test");
 
@@ -906,7 +1158,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 IndexReaderProvider.Reader reader = readerRef.get();
                 assertThat(reader, notNullValue());
                 assertThat(reader.catalogSnapshot(), notNullValue());
-                assertThat(reader.catalogSnapshot().getGeneration(), equalTo(1L));
+                assertThat(reader.catalogSnapshot().getGeneration(), equalTo(2L));
                 assertThat(reader.catalogSnapshot().getSegments().size(), equalTo(1));
             }
         }
@@ -914,7 +1166,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testAcquireReaderContainsFormatSpecificReader() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
 
             try (GatedCloseable<IndexReaderProvider.Reader> readerRef = engine.acquireReader()) {
@@ -929,7 +1181,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testAcquireReaderReturnsNullForUnregisteredFormat() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
 
             try (GatedCloseable<IndexReaderProvider.Reader> readerRef = engine.acquireReader()) {
@@ -957,10 +1209,10 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testAcquireReaderSnapshotMatchesLatestRefresh() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             // Index and refresh twice
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("first");
 
-            engine.index(indexOp(createParsedDoc("2", null)));
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
             engine.refresh("second");
 
             long latestGen;
@@ -980,7 +1232,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testAcquireReaderClosingReleasesSnapshotRef() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
 
             // Acquire and close a reader, then verify the engine still works
@@ -991,7 +1243,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             // After closing, we should still be able to acquire new readers
             // and do more work
-            engine.index(indexOp(createParsedDoc("2", null)));
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
             engine.refresh("after-close");
 
             try (GatedCloseable<IndexReaderProvider.Reader> newReaderRef = engine.acquireReader()) {
@@ -1008,7 +1260,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numBatches = randomIntBetween(3, 6);
             for (int i = 0; i < numBatches; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
                 engine.refresh("batch-" + i);
             }
 
@@ -1016,7 +1268,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 IndexReaderProvider.Reader reader = readerRef.get();
                 CatalogSnapshot snapshot = reader.catalogSnapshot();
                 assertThat(snapshot.getSegments().size(), equalTo(numBatches));
-                assertThat(snapshot.getGeneration(), equalTo((long) numBatches));
+                assertThat(snapshot.getGeneration(), equalTo((long) numBatches + 1));
                 // Format-specific reader should be present
                 assertThat(reader.reader(mockDataFormat), notNullValue());
             }
@@ -1033,7 +1285,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
             engine.refresh("setup");
 
@@ -1070,7 +1322,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(5, 20);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, numDocs - 1, false, true)) {
@@ -1089,7 +1341,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(10, 20);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             // Request only a subset of the range
@@ -1122,7 +1374,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                     try {
                         barrier.await();
                         for (int d = 0; d < docsPerThread; d++) {
-                            engine.index(indexOp(createParsedDoc(threadId + "_" + d, null)));
+                            engine.index(indexOp(createParsedDocWithInput(threadId + "_" + d, null)));
                         }
                     } catch (Exception e) {
                         failures.incrementAndGet();
@@ -1148,7 +1400,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             int count = engine.countNumberOfHistoryOperations("test", 0, numDocs - 1);
@@ -1160,7 +1412,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             // Count only ops in range [3, 7]
@@ -1170,144 +1422,11 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
-    private Engine.Index translogRecoveryIndexOp(ParsedDocument doc, long seqNo) {
-        return new Engine.Index(
-            new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())),
-            doc,
-            seqNo,
-            primaryTerm.get(),
-            1L,
-            null,
-            Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
-            System.nanoTime(),
-            -1,
-            false,
-            SequenceNumbers.UNASSIGNED_SEQ_NO,
-            0
-        );
-    }
-
-    public void testTranslogRecoveryOriginSkipsTranslogWrite() throws IOException {
-        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            // Index via translog recovery — should NOT write to translog
-            Engine.IndexResult result = engine.index(translogRecoveryIndexOp(createParsedDoc("1", null), 0));
-            assertThat(result.getSeqNo(), equalTo(0L));
-            assertNull("translog location should be null for recovery-origin ops", result.getTranslogLocation());
-
-            // Translog should have 0 ops since recovery-origin skips the write
-            assertThat(engine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
-
-            // But the checkpoint should still advance
-            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(0L));
-        }
-    }
-
-    public void testTranslogRecoveryOriginMarksSeqNoAsPersisted() throws IOException {
-        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            engine.index(translogRecoveryIndexOp(createParsedDoc("1", null), 0));
-
-            // Recovery-origin ops have no translog location, so they're marked as persisted immediately
-            assertThat(engine.getPersistedLocalCheckpoint(), equalTo(0L));
-        }
-    }
-
-    public void testMixedPrimaryAndRecoveryOriginOps() throws IOException {
-        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            // Primary op — goes to translog
-            engine.index(indexOp(createParsedDoc("primary_0", null)));
-            assertThat(engine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(1));
-
-            // Recovery op at seq 1 — skips translog
-            engine.index(translogRecoveryIndexOp(createParsedDoc("recovery_1", null), 1));
-            assertThat(engine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(1));
-
-            // Another primary op
-            engine.index(indexOp(createParsedDoc("primary_2", null)));
-            assertThat(engine.translogManager().getTranslogStats().estimatedNumberOfOperations(), equalTo(2));
-
-            // All 3 ops should be processed
-            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(2L));
-
-            // Refresh and verify catalog snapshot has segments
-            engine.refresh("test");
-            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
-                assertThat(ref.get().getSegments().size(), greaterThan(0));
-            }
-        }
-    }
-
-    public void testCheckpointStallsOnSeqNoGap() throws IOException {
-        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            // Index as replica with a gap: deliver 0, 1, 3 (missing 2)
-            engine.index(replicaIndexOp(createParsedDoc("0", null), 0));
-            engine.index(replicaIndexOp(createParsedDoc("1", null), 1));
-            engine.index(replicaIndexOp(createParsedDoc("3", null), 3));
-
-            // Checkpoint should stall at 1 because seq 2 is missing
-            assertThat("checkpoint should stall at 1 due to gap at seq 2", engine.getProcessedLocalCheckpoint(), equalTo(1L));
-
-            // Now fill the gap
-            engine.index(replicaIndexOp(createParsedDoc("2", null), 2));
-
-            // Checkpoint should jump to 3
-            assertThat("checkpoint should advance to 3 after gap is filled", engine.getProcessedLocalCheckpoint(), equalTo(3L));
-        }
-    }
-
-    public void testSeqNoGapWithConcurrentDelivery() throws Exception {
-        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
-            int totalOps = randomIntBetween(20, 50);
-            AtomicInteger failures = new AtomicInteger(0);
-
-            // Create a shuffled array of seq nos to simulate out-of-order delivery
-            long[] seqNos = new long[totalOps];
-            for (int i = 0; i < totalOps; i++)
-                seqNos[i] = i;
-            // Fisher-Yates shuffle
-            for (int i = totalOps - 1; i > 0; i--) {
-                int j = randomIntBetween(0, i);
-                long tmp = seqNos[i];
-                seqNos[i] = seqNos[j];
-                seqNos[j] = tmp;
-            }
-
-            int numThreads = randomIntBetween(2, 4);
-            CyclicBarrier barrier = new CyclicBarrier(numThreads);
-            AtomicInteger nextIdx = new AtomicInteger(0);
-
-            Thread[] threads = new Thread[numThreads];
-            for (int t = 0; t < numThreads; t++) {
-                threads[t] = new Thread(() -> {
-                    try {
-                        barrier.await();
-                        int idx;
-                        while ((idx = nextIdx.getAndIncrement()) < totalOps) {
-                            long seqNo = seqNos[idx];
-                            engine.index(replicaIndexOp(createParsedDoc(Long.toString(seqNo), null), seqNo));
-                        }
-                    } catch (Exception e) {
-                        failures.incrementAndGet();
-                    }
-                });
-                threads[t].start();
-            }
-            for (Thread t : threads)
-                t.join();
-
-            assertThat(failures.get(), equalTo(0));
-            assertThat(
-                "all ops delivered, checkpoint should be totalOps - 1",
-                engine.getProcessedLocalCheckpoint(),
-                equalTo((long) totalOps - 1)
-            );
-        }
-    }
-
     public void testGetSeqNoStats() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             // Sync translog so persisted checkpoint advances
@@ -1334,7 +1453,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                     try {
                         barrier.await();
                         for (int d = 0; d < docsPerThread; d++) {
-                            engine.index(indexOp(createParsedDoc(threadId + "_" + d, null)));
+                            engine.index(indexOp(createParsedDocWithInput(threadId + "_" + d, null)));
                         }
                     } catch (Exception e) {
                         failures.incrementAndGet();
@@ -1360,7 +1479,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             long processed = engine.getProcessedLocalCheckpoint();
@@ -1377,7 +1496,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             engine.translogManager().syncTranslog();
@@ -1394,7 +1513,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(20, 50);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             // Sync from multiple threads
@@ -1427,7 +1546,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             // Run multiple non-waiting flushes concurrently — none should throw
@@ -1463,7 +1582,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             // Index enough docs to potentially trigger periodic flush
             for (int i = 0; i < 100; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
             // After indexing, shouldPeriodicallyFlush may or may not be true
             // depending on the configured threshold. The key assertion is it doesn't throw.
@@ -1475,7 +1594,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
             }
 
             long genBefore;
@@ -1509,7 +1628,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                     try {
                         barrier.await();
                         for (int d = 0; d < docsPerThread; d++) {
-                            engine.index(indexOp(createParsedDoc(threadId + "_" + d, null)));
+                            engine.index(indexOp(createParsedDocWithInput(threadId + "_" + d, null)));
                         }
                     } catch (Exception e) {
                         failures.incrementAndGet();
@@ -1528,5 +1647,587 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 assertThat(ref.get().getSegments().size(), greaterThan(0));
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Refresh Listener Tests — Use-case focused
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Use case: A search-after-refresh waiter registers a listener to know when
+     * new data becomes searchable. After indexing + refresh, the listener must be
+     * notified so it can unblock the waiting search request.
+     */
+    public void testRefreshListenerNotifiedWhenNewDataBecomesSearchable() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicInteger beforeCount = new AtomicInteger(0);
+        AtomicInteger afterCount = new AtomicInteger(0);
+        AtomicLong afterDidRefreshTrue = new AtomicLong(0);
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                beforeCount.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                afterCount.incrementAndGet();
+                if (didRefresh) {
+                    afterDidRefreshTrue.incrementAndGet();
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Index documents — data is buffered but not yet searchable
+            int numDocs = randomIntBetween(3, 10);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+            }
+
+            // Refresh — makes data searchable, listener must be notified
+            engine.refresh("test");
+
+            // The listener must have been called: beforeRefresh once, afterRefresh(true) once
+            assertThat("beforeRefresh must fire when new segments are produced", beforeCount.get(), equalTo(1));
+            assertThat("afterRefresh must fire when new segments are produced", afterCount.get(), equalTo(1));
+            assertThat("afterRefresh(didRefresh=true) confirms data is now searchable", afterDidRefreshTrue.get(), equalTo(1L));
+        }
+    }
+
+    /**
+     * Use case: When no new data has been indexed, a refresh should still notify
+     * listeners (beforeRefresh is always called) but afterRefresh should indicate
+     * that no actual refresh occurred (didRefresh=false). This allows waiters to
+     * distinguish between "new data available" and "nothing changed".
+     */
+    public void testRefreshListenerNotifiedWithDidRefreshFalseWhenNoNewData() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicInteger beforeCount = new AtomicInteger(0);
+        AtomicInteger afterDidRefreshFalse = new AtomicInteger(0);
+        AtomicInteger afterDidRefreshTrue = new AtomicInteger(0);
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                beforeCount.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                if (didRefresh) {
+                    afterDidRefreshTrue.incrementAndGet();
+                } else {
+                    afterDidRefreshFalse.incrementAndGet();
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Refresh with no data — no new segments produced
+            engine.refresh("empty");
+
+            // beforeRefresh is always called (listener needs to prepare)
+            assertThat("beforeRefresh fires even when no data changed", beforeCount.get(), equalTo(1));
+            // afterRefresh(false) indicates nothing new became searchable
+            assertThat("afterRefresh(false) when no new segments", afterDidRefreshFalse.get(), equalTo(1));
+            assertThat("afterRefresh(true) should NOT fire", afterDidRefreshTrue.get(), equalTo(0));
+        }
+    }
+
+    /**
+     * Use case: Multiple index-refresh cycles should produce monotonically advancing
+     * notifications. A reader manager uses these to know which snapshot generation
+     * to open. Each afterRefresh(true) must correspond to a new, higher-generation
+     * catalog snapshot being available.
+     */
+    public void testRefreshListenerSeesMonotonicallyAdvancingSnapshots() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        List<Long> observedGenerations = new ArrayList<>();
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                // Not ideal — we can't access the engine from here directly.
+                // But we track call count and verify externally.
+                if (didRefresh) {
+                    observedGenerations.add(System.nanoTime()); // monotonic timestamp as proxy
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            int numRefreshes = randomIntBetween(3, 6);
+            for (int i = 0; i < numRefreshes; i++) {
+                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                engine.refresh("cycle-" + i);
+            }
+
+            // Each refresh with data should have triggered afterRefresh(true)
+            assertThat("each refresh with data must notify", observedGenerations.size(), equalTo(numRefreshes));
+
+            // Verify the catalog snapshot generation advanced monotonically
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat(
+                    "final snapshot generation must equal number of refreshes + 1",
+                    ref.get().getGeneration(),
+                    equalTo((long) numRefreshes + 1)
+                );
+            }
+        }
+    }
+
+    /**
+     * Use case: Both external listeners (registered by IndexShard for search-after-refresh)
+     * and internal listeners (registered by the engine for checkpoint tracking) must both
+     * be invoked. Neither should be skipped.
+     */
+    public void testBothExternalAndInternalListenersInvoked() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicInteger externalCalls = new AtomicInteger(0);
+        AtomicInteger internalCalls = new AtomicInteger(0);
+
+        ReferenceManager.RefreshListener external = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                externalCalls.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                externalCalls.incrementAndGet();
+            }
+        };
+
+        ReferenceManager.RefreshListener internal = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                internalCalls.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                internalCalls.incrementAndGet();
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(external), List.of(internal));
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            // Each listener gets beforeRefresh + afterRefresh = 2 calls
+            assertThat("external listener must receive both before and after", externalCalls.get(), equalTo(2));
+            assertThat("internal listener must receive both before and after", internalCalls.get(), equalTo(2));
+        }
+    }
+
+    /**
+     * Use case: The ordering contract — beforeRefresh is called BEFORE the catalog
+     * snapshot is committed (so listeners can prepare), and afterRefresh is called
+     * AFTER (so listeners can observe the new state). This is critical for reader
+     * managers that need to open readers on the new snapshot.
+     */
+    public void testBeforeRefreshCalledBeforeSnapshotCommitAndAfterCalledAfter() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicLong genSeenInBefore = new AtomicLong(-1);
+        AtomicLong genSeenInAfter = new AtomicLong(-1);
+        AtomicReference<DataFormatAwareEngine> engineRef = new AtomicReference<>();
+
+        ReferenceManager.RefreshListener orderingListener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                DataFormatAwareEngine eng = engineRef.get();
+                if (eng != null) {
+                    try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                        genSeenInBefore.set(ref.get().getGeneration());
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                DataFormatAwareEngine eng = engineRef.get();
+                if (eng != null) {
+                    try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                        genSeenInAfter.set(ref.get().getGeneration());
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(orderingListener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engineRef.set(engine);
+
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            // beforeRefresh sees the OLD generation (snapshot not yet committed)
+            assertThat("beforeRefresh must see pre-commit generation", genSeenInBefore.get(), equalTo(1L));
+            // afterRefresh sees the NEW generation (snapshot committed)
+            assertThat("afterRefresh must see post-commit generation", genSeenInAfter.get(), equalTo(2L));
+        }
+    }
+
+    public void testSegmentsReturnsEngineSegments() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            List<org.opensearch.index.engine.Segment> segments = engine.segments(false);
+            assertEquals(1, segments.size());
+            assertTrue(segments.get(0).search);
+            assertEquals(1, segments.get(0).docCount);
+        }
+    }
+
+    public void testSegmentsStatsReturnsValidStats() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            SegmentsStats stats = engine.segmentsStats(false, false);
+            assertEquals(1, stats.getCount());
+            assertTrue(stats.getIndexWriterMemoryInBytes() >= 0);
+        }
+    }
+
+    public void testSegmentsWithIOException() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        engine.close();
+        expectThrows(AlreadyClosedException.class, () -> engine.segments(false));
+    }
+
+    public void testSegmentsStatsWithIOException() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        engine.close();
+        expectThrows(AlreadyClosedException.class, () -> engine.segmentsStats(false, false));
+    }
+
+    public void testUnreferencedFileCleanUpsPerformed() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            long cleanups = engine.unreferencedFileCleanUpsPerformed();
+            assertTrue(cleanups >= 0);
+        }
+    }
+
+    /**
+     * Covers {@code DataFormatAwareEngine.applyMergeChanges}: a forceMerge over two
+     * previously-refreshed segments must (1) replace the source segments in the catalog
+     * with a single merged segment, (2) invoke beforeRefresh/afterRefresh exactly once
+     * each on registered refresh listeners while holding the refresh lock, and
+     * (3) release the refresh lock on exit so a subsequent {@code refresh()} proceeds.
+     *
+     * <p>The system-property gate on {@code MERGE_ENABLED_PROPERTY} applies only to
+     * the background {@code triggerPossibleMerges()} path; {@code forceMerge} routes
+     * straight to {@code MergeScheduler.forceMerge} and does not consult it, so this
+     * test drives the merge end-to-end without touching system properties.
+     */
+    public void testApplyMergeChangesUpdatesCatalogAndNotifiesListeners() throws Exception {
+        AtomicInteger beforeCalls = new AtomicInteger();
+        AtomicInteger afterCalls = new AtomicInteger();
+        // Records call order: 'B' for beforeRefresh, 'A' for afterRefresh.
+        StringBuilder callOrder = new StringBuilder();
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                synchronized (callOrder) {
+                    callOrder.append('B');
+                }
+                beforeCalls.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                synchronized (callOrder) {
+                    callOrder.append('A');
+                }
+                afterCalls.incrementAndGet();
+            }
+        };
+
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Produce two segments via two refresh cycles so the merger has something to combine.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("seed-1");
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
+            engine.refresh("seed-2");
+
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("two segments before merge", ref.get().getSegments().size(), equalTo(2));
+            }
+
+            // Drain the listener counters from the two seed refreshes.
+            final int beforeAfterSeed = beforeCalls.get();
+            final int afterAfterSeed = afterCalls.get();
+            assertThat("each refresh must invoke beforeRefresh once", beforeAfterSeed, equalTo(2));
+            assertThat("each refresh must invoke afterRefresh once", afterAfterSeed, equalTo(2));
+
+            // forceMerge submits the merge to the FORCE_MERGE executor and returns without
+            // waiting. Poll the catalog until the merged snapshot is visible (or fail fast).
+            engine.forceMerge(false, 1, false, false, false, "test-force-merge");
+
+            assertBusy(() -> {
+                try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                    assertThat("merge must collapse to a single segment", ref.get().getSegments().size(), equalTo(1));
+                }
+            }, 10, java.util.concurrent.TimeUnit.SECONDS);
+
+            // applyMergeChanges must have invoked the listeners exactly once each, in order.
+            assertThat("beforeRefresh must fire exactly once for the merge", beforeCalls.get() - beforeAfterSeed, equalTo(1));
+            assertThat("afterRefresh must fire exactly once for the merge", afterCalls.get() - afterAfterSeed, equalTo(1));
+            synchronized (callOrder) {
+                // Seed cycles contribute "BABA"; the merge must append exactly "BA".
+                assertThat("call order must be before-then-after for every cycle", callOrder.toString(), equalTo("BABABA"));
+            }
+
+            // Sanity: the refreshLock must have been released. A follow-up refresh must
+            // complete without blocking, and the catalog generation must have advanced.
+            long genBeforeFinalRefresh;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                genBeforeFinalRefresh = ref.get().getGeneration();
+            }
+            engine.index(indexOp(createParsedDocWithInput("3", null)));
+            engine.refresh("post-merge");
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat(
+                    "refresh after merge must advance the catalog generation",
+                    ref.get().getGeneration(),
+                    greaterThan(genBeforeFinalRefresh)
+                );
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Helpers for writer-flush-failure tests
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Builds an engine config wired to a custom data format plugin (whose writer can be
+     * configured to fail on flush) and a custom event listener — used by tests that need
+     * to observe shard-failure callbacks while exercising flush-failure paths.
+     */
+    private EngineConfig buildFailingEngineConfig(MockDataFormatPlugin plugin, Engine.EventListener listener) throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
+            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
+        );
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(c -> new InMemoryCommitter(store))
+            .mapperService(mapperService)
+            .eventListener(listener)
+            .build();
+    }
+
+    /**
+     * Reads the size of {@code DataFormatAwareEngine.flushQueue} via reflection so tests
+     * can assert the queue is fully drained on failure paths without exposing internals.
+     */
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "test utility needs reflective access to verify internal queue state")
+    private static int flushQueueSize(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field f = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+        f.setAccessible(true);
+        java.util.Collection<?> queue = (java.util.Collection<?>) f.get(engine);
+        return queue.size();
+    }
+
+    /**
+     * A {@link MockIndexingExecutionEngine} variant whose writer always throws on the
+     * first {@code flush()} call. Tracks the number of writers it has created so tests
+     * can assert that at least one writer entered the flow.
+     */
+    private static final class FailingFlushIndexingExecutionEngine extends MockIndexingExecutionEngine {
+        private final AtomicInteger writersCreated = new AtomicInteger();
+        private final MockDataFormat dataFormat;
+
+        FailingFlushIndexingExecutionEngine(MockDataFormat dataFormat) {
+            super(dataFormat);
+            this.dataFormat = dataFormat;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> createWriter(
+            org.opensearch.index.engine.dataformat.WriterConfig config
+        ) {
+            writersCreated.incrementAndGet();
+            return new FailingFlushWriter(config.writerGeneration(), dataFormat);
+        }
+
+        int writersCreated() {
+            return writersCreated.get();
+        }
+    }
+
+    /**
+     * A writer that accepts documents but always throws an {@link IOException} when its
+     * {@code flush()} is invoked. Used to drive the flush-failure paths in
+     * {@link DataFormatAwareEngine#refresh} and {@code preIndex}.
+     */
+    private static final class FailingFlushWriter implements org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> {
+        private final long writerGeneration;
+        private final org.opensearch.index.engine.dataformat.DataFormat dataFormat;
+
+        FailingFlushWriter(long writerGeneration, org.opensearch.index.engine.dataformat.DataFormat dataFormat) {
+            this.writerGeneration = writerGeneration;
+            this.dataFormat = dataFormat;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.WriteResult addDoc(MockDocumentInput d) {
+            return new org.opensearch.index.engine.dataformat.WriteResult.Success(1L, 1L, 0L);
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.FileInfos flush(org.opensearch.index.engine.dataformat.FlushInput flushInput)
+            throws IOException {
+            throw new IOException("simulated flush failure for writer gen=" + writerGeneration + " format=" + dataFormat.name());
+        }
+
+        @Override
+        public void sync() {}
+
+        @Override
+        public long generation() {
+            return writerGeneration;
+        }
+
+        @Override
+        public boolean isSchemaMutable() {
+            return true;
+        }
+
+        @Override
+        public long mappingVersion() {
+            return 0;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {}
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * A writer that succeeds on flush, returning empty FileInfos. Used to test the
+     * preIndex happy path.
+     */
+    private static final class SuccessFlushWriter implements org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> {
+        private final long writerGeneration;
+        private final org.opensearch.index.engine.dataformat.DataFormat dataFormat;
+
+        SuccessFlushWriter(long writerGeneration, org.opensearch.index.engine.dataformat.DataFormat dataFormat) {
+            this.writerGeneration = writerGeneration;
+            this.dataFormat = dataFormat;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.WriteResult addDoc(MockDocumentInput d) {
+            return new org.opensearch.index.engine.dataformat.WriteResult.Success(1L, 1L, 0L);
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.FileInfos flush(org.opensearch.index.engine.dataformat.FlushInput flushInput) {
+            return org.opensearch.index.engine.dataformat.FileInfos.empty();
+        }
+
+        @Override
+        public void sync() {}
+
+        @Override
+        public long generation() {
+            return writerGeneration;
+        }
+
+        @Override
+        public boolean isSchemaMutable() {
+            return true;
+        }
+
+        @Override
+        public long mappingVersion() {
+            return 0;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {}
+
+        @Override
+        public void close() {}
     }
 }

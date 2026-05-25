@@ -1,0 +1,1 @@
+source = clickbench | where CounterID = 62 and EventDate >= '2013-07-01 00:00:00' and EventDate <= '2013-07-31 00:00:00' and DontCountHits = 0 and IsRefresh = 0 and URL != '' | stats count() as PageViews by URL | sort - PageViews | head 10

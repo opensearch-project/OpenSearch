@@ -67,6 +67,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexShardTestUtils;
+import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -88,6 +89,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -99,6 +101,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SE
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -762,6 +765,101 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             assertFalse(primaryFailed.get());
         }
         assertListenerThrows("should throw exception to trigger retry", listener, RetryOnPrimaryException.class);
+    }
+
+    public void testPrimaryClosedDuringFullReplicationTriggersRetry() throws Exception {
+        runPrimaryClosedDuringReplicationTest((replicasProxy, indexShardRoutingTable) -> new FanoutReplicationProxy<>(replicasProxy));
+    }
+
+    public void testPrimaryClosedDuringPrimaryTermValidationTriggersRetry() throws Exception {
+        // Remote-store write path: primary writes to remote, replicas receive only primary-term validation requests via
+        // ReplicationModeAwareProxy. The PrimaryShardClosedException intercept lives in ReplicationOperation's replica
+        // listener, so it must trip the retry path regardless of which proxy delivered the failure.
+        runPrimaryClosedDuringReplicationTest(
+            (replicasProxy, indexShardRoutingTable) -> new ReplicationModeAwareProxy<>(
+                ReplicationMode.PRIMARY_TERM_VALIDATION,
+                buildRemoteStoreEnabledDiscoveryNodes(indexShardRoutingTable),
+                replicasProxy,
+                replicasProxy,
+                true
+            )
+        );
+    }
+
+    private void runPrimaryClosedDuringReplicationTest(
+        BiFunction<TestReplicaProxy, IndexShardRoutingTable, ReplicationProxy<Request>> proxyFactory
+    ) throws Exception {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+
+        // Deterministic setup: one primary and two started replicas, all tracked. Two replicas so that the non-closed
+        // replica exercises the successful path alongside the closed one.
+        final ClusterState initialState = state(
+            index,
+            true,
+            ShardRoutingState.STARTED,
+            ShardRoutingState.STARTED,
+            ShardRoutingState.STARTED
+        );
+        IndexMetadata indexMetadata = initialState.getMetadata().index(index);
+        final long primaryTerm = indexMetadata.primaryTerm(0);
+        final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
+        final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+
+        final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
+        final Set<String> trackedShards = new HashSet<>();
+        for (ShardRouting shr : indexShardRoutingTable.shards()) {
+            trackedShards.add(shr.allocationId().getId());
+        }
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
+        assertThat("test requires two replicas", expectedReplicas, hasSize(2));
+        final ShardRouting closedReplica = expectedReplicas.iterator().next();
+
+        // Simulate a PrimaryShardClosedException on the chosen replica's performOn. This mirrors what
+        // PendingReplicationActions.close() does to in-flight replica requests when IndexShard closes.
+        final Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
+        simulatedFailures.put(closedReplica, new PrimaryShardClosedException(shardId));
+
+        final AtomicBoolean failShardCalled = new AtomicBoolean(false);
+        final TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures) {
+            @Override
+            public void failShardIfNeeded(
+                ShardRouting replica,
+                long term,
+                String message,
+                Exception exception,
+                ActionListener<Void> shardActionListener
+            ) {
+                failShardCalled.set(true);
+                shardActionListener.onResponse(null);
+            }
+        };
+
+        Request request = new Request(shardId);
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
+        final TestReplicationOperation op = new TestReplicationOperation(
+            request,
+            primary,
+            listener,
+            replicasProxy,
+            primaryTerm,
+            proxyFactory.apply(replicasProxy, indexShardRoutingTable)
+        );
+        op.execute();
+
+        assertTrue("request was not processed on primary", request.processedOnPrimary.get());
+        assertTrue("listener is not marked as done", listener.isDone());
+        assertFalse(
+            "failShardIfNeeded must not be invoked for PrimaryShardClosedException; the op should fail earlier",
+            failShardCalled.get()
+        );
+        assertListenerThrows(
+            "primary shard closed during replication must surface as a retry-able failure, not a silent ack",
+            listener,
+            RetryOnPrimaryException.class
+        );
     }
 
     public void testAddedReplicaAfterPrimaryOperation() throws Exception {

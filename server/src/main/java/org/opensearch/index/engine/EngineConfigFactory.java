@@ -34,6 +34,7 @@ import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -47,6 +48,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
@@ -184,7 +186,8 @@ public class EngineConfigFactory {
         ClusterApplierService clusterApplierService,
         MergedSegmentTransferTracker mergedSegmentTransferTracker,
         DataFormatRegistry dataFormatRegistry,
-        MapperService mapperService
+        MapperService mapperService,
+        Map<String, FormatChecksumStrategy> checksumStrategies
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -225,6 +228,7 @@ public class EngineConfigFactory {
             .dataFormatRegistry(dataFormatRegistry)
             .mapperService(mapperService)
             .committerFactory(committerFactory)
+            .checksumStrategies(checksumStrategies)
             .build();
     }
 

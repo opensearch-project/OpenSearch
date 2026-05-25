@@ -10,7 +10,10 @@ package org.opensearch.parquet.benchmark;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -76,10 +79,12 @@ public class VSRRotationBenchmark {
 
     private ThreadPool threadPool;
     private ArrowBufferPool bufferPool;
+    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
     private Schema schema;
     private List<MappedFieldType> fieldTypes;
     private VSRManager vsrManager;
     private String filePath;
+    private IndexSettings indexSettings;
 
     @Setup(Level.Trial)
     public void setupTrial() {
@@ -121,9 +126,14 @@ public class VSRRotationBenchmark {
 
     @Setup(Level.Invocation)
     public void setup() throws IOException {
-        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        nativeAllocator = new org.opensearch.arrow.allocator.ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         filePath = Path.of(System.getProperty("java.io.tmpdir"), "benchmark_vsr_" + System.nanoTime() + ".parquet").toString();
-        vsrManager = new VSRManager(filePath, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync);
+        Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("benchmark-index").settings(idxSettings).build();
+        indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        vsrManager = new VSRManager(filePath, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync, 0L);
     }
 
     @Benchmark
@@ -160,6 +170,10 @@ public class VSRRotationBenchmark {
             Files.deleteIfExists(Path.of(filePath));
         } catch (Exception ignored) {}
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
     }
 
     @TearDown(Level.Trial)

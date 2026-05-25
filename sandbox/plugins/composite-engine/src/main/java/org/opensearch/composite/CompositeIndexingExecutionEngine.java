@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.composite.merge.CompositeMerger;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -25,6 +26,7 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -114,7 +116,14 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         validateFormatsRegistered(dataFormatRegistry, primaryFormatName, secondaryFormatNames);
 
         Map<String, FormatChecksumStrategy> strategies = checksumStrategies != null ? checksumStrategies : Map.of();
-        IndexingEngineConfig engineSettings = new IndexingEngineConfig(committer, mapperService, indexSettings, store, dataFormatRegistry);
+        IndexingEngineConfig engineSettings = new IndexingEngineConfig(
+            committer,
+            mapperService,
+            indexSettings,
+            store,
+            dataFormatRegistry,
+            strategies
+        );
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormat primaryFormat = dataFormatRegistry.format(primaryFormatName);
@@ -129,7 +138,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
         this.secondaryEngines = Set.copyOf(secondaries);
 
-        this.compositeDataFormat = new CompositeDataFormat(allFormats);
+        this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
     }
 
@@ -170,18 +179,18 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     /**
      * Creates a {@link CompositeWriter} that fans out writes to all per-format engines.
      *
-     * @param writerGeneration the generation number for the new writer
+     * @param config the writer configuration
      * @return a composite writer bound to this engine
      */
     @Override
-    public Writer<CompositeDocumentInput> createWriter(long writerGeneration) {
-        return new CompositeWriter(this, writerGeneration);
+    public Writer<CompositeDocumentInput> createWriter(WriterConfig config) {
+        return new CompositeWriter(this, config);
     }
 
     /** {@inheritDoc} Delegates to the primary engine's merger. */
     @Override
     public Merger getMerger() {
-        return primaryEngine.getMerger();
+        return new CompositeMerger(this, compositeDataFormat);
     }
 
     /**
@@ -369,7 +378,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     private ReaderManagerConfig readerManagerConfig(ReaderManagerConfig config, DataFormat toAugment) {
-        return new ReaderManagerConfig(config.indexStoreProvider(), toAugment, config.registry(), config.shardPath());
+        return new ReaderManagerConfig(
+            config.indexStoreProvider(),
+            toAugment,
+            config.registry(),
+            config.shardPath(),
+            config.dataformatAwareStoreHandles()
+        );
     }
 
     /**

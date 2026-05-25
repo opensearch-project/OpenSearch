@@ -8,21 +8,33 @@
 
 package org.opensearch.analytics.backend;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
+
 import java.util.List;
 
 /**
- * Read-only view of a single record batch. Provides field names, row count,
- * and positional access to field values.
+ * Read-only view of a single record batch.
  * <p>
  * A batch is only valid until the next call to {@link java.util.Iterator#next()}
  * on the parent stream's iterator. The underlying data buffers may be reused
  * across batches, so callers must extract all needed values before advancing
  * the iterator. Accessing a batch after the iterator has advanced may throw
  * {@link IllegalStateException}.
+ * <p>
+ * Primary shape is the Arrow {@link VectorSchemaRoot} returned by
+ * {@link #getArrowRoot()} — the native columnar representation used by the
+ * streaming transport (zero-copy over gRPC). Row-oriented accessors
+ * ({@link #getFieldNames()}, {@link #getRowCount()}, {@link #getFieldValue})
+ * are a convenience view over the same data.
  *
  * @opensearch.internal
  */
 public interface EngineResultBatch {
+
+    /**
+     * The Arrow VSR backing this batch
+     */
+    VectorSchemaRoot getArrowRoot();
 
     /**
      * Ordered list of field (column) names in this batch.

@@ -17,6 +17,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
@@ -224,7 +225,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             vec.setValueCount(1);
             producerRoot.setRowCount(1);
 
-            // First batch: sharedRoot is null, so it should be created
+            // First batch: streamRoot is null, so it should be created
             when(mockFlightChannel.getRoot()).thenReturn(null);
 
             CountDownLatch latch = new CountDownLatch(1);
@@ -242,7 +243,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 assertNotNull(sentRoot);
                 assertEquals(1, sentRoot.getRowCount());
                 assertEquals(42, ((IntVector) sentRoot.getVector("val")).get(0));
-                // Clean up the shared root created by the handler
+                // Clean up the stream root created by the handler
                 sentRoot.close();
                 return null;
             }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class));
@@ -265,13 +266,13 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testProcessBatchTaskNativeArrowWithExistingSharedRoot() throws Exception {
+    public void testProcessBatchTaskNativeArrowWithExistingStreamRoot() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
             Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
 
-            // Simulate existing shared root (second batch scenario)
-            VectorSchemaRoot sharedRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(sharedRoot);
+            // Simulate existing stream root (second batch scenario)
+            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
+            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
 
             VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
             IntVector vec = (IntVector) producerRoot.getVector("val");
@@ -285,8 +286,8 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             doAnswer(invocation -> {
                 VectorStreamOutput out = invocation.getArgument(1);
                 VectorSchemaRoot sentRoot = out.getRoot();
-                // Should reuse the existing shared root
-                assertSame(sharedRoot, sentRoot);
+                // Should reuse the existing stream root
+                assertSame(streamRoot, sentRoot);
                 assertEquals(1, sentRoot.getRowCount());
                 assertEquals(99, ((IntVector) sentRoot.getVector("val")).get(0));
                 return null;
@@ -311,7 +312,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             );
 
             assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
-            sharedRoot.close();
+            streamRoot.close();
         }
     }
 

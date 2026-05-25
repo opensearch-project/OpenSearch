@@ -15,11 +15,11 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.number.IntegerParquetField;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 import org.opensearch.parquet.fields.core.metadata.IdParquetField;
 import org.opensearch.parquet.fields.core.metadata.IgnoredParquetField;
 import org.opensearch.parquet.fields.core.metadata.RoutingParquetField;
-import org.opensearch.parquet.fields.core.metadata.SizeParquetField;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,13 +36,13 @@ public class MetadataFieldPlugin implements ParquetFieldPlugin {
     public Map<String, ParquetField> getParquetFields() {
         final Map<String, ParquetField> fieldMap = new HashMap<>();
         fieldMap.put(DocCountFieldMapper.CONTENT_TYPE, new LongParquetField());
-        fieldMap.put("_size", new SizeParquetField());
+        fieldMap.put("_size", new IntegerParquetField());
         fieldMap.put(RoutingFieldMapper.CONTENT_TYPE, new RoutingParquetField());
         fieldMap.put(IgnoredFieldMapper.CONTENT_TYPE, new IgnoredParquetField());
         fieldMap.put(IdFieldMapper.CONTENT_TYPE, new IdParquetField());
-        fieldMap.put(SeqNoFieldMapper.CONTENT_TYPE, new LongParquetField());
-        fieldMap.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField());
-        fieldMap.put(VersionFieldMapper.CONTENT_TYPE, new LongParquetField());
+        fieldMap.put(SeqNoFieldMapper.CONTENT_TYPE, new LongParquetField(false));
+        fieldMap.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField(false));
+        fieldMap.put(VersionFieldMapper.CONTENT_TYPE, new LongParquetField(false));
         return fieldMap;
     }
 }

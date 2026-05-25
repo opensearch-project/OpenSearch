@@ -55,7 +55,32 @@ public enum FieldType {
     NESTED("nested"),
     OBJECT("object"),
     FLAT_OBJECT("flat_object"),
-    COMPLETION("completion");
+    COMPLETION("completion"),
+
+    // ── Composite ────────────────────────────────────────────────────
+    /**
+     * Array-typed expression result. Used for the return-type slot of array-producing scalar
+     * functions (PPL {@code array(…)}, {@code array_slice}, {@code array_distinct}). Has no
+     * OpenSearch mapping equivalent — arrays in OpenSearch are multi-value fields with the
+     * underlying element type, not a separate type. The mapping string is {@code "array"} as a
+     * placeholder; {@link #fromMappingType} keeps working unchanged because no source
+     * advertises that mapping string.
+     */
+    ARRAY("array"),
+
+    /**
+     * Map-typed expression result. In-tree producers include PPL {@code spath}'s auto-extract
+     * mode ({@code JSON_EXTRACT_ALL} returns {@code MAP<VARCHAR, VARCHAR>}) and PPL
+     * {@code parse} (named regex groups returned as {@code MAP<VARCHAR, VARCHAR>}). Mapping
+     * string is {@code "map"} as a placeholder — no OpenSearch storage format declares this
+     * mapping today, so {@link #fromMappingType} never resolves to it through the mapping
+     * path; columns reach MAP only through {@link #fromSqlTypeName}. Capability registrations
+     * for filter / project operators on MAP columns are intentionally minimal: callers (e.g.
+     * PPL {@code where doc.user.name}) always wrap the MAP column in an ITEM lookup whose
+     * result type is the map's value type, so the EQUALS / sort / aggregate operators see
+     * the value-level type by the time the runtime executes them.
+     */
+    MAP("map");
 
     private final String mappingType;
 
@@ -117,6 +142,8 @@ public enum FieldType {
             case TIME, TIMESTAMP, TIMESTAMP_WITH_LOCAL_TIME_ZONE -> FieldType.DATE;
             case BOOLEAN -> FieldType.BOOLEAN;
             case BINARY, VARBINARY -> FieldType.BINARY;
+            case ARRAY -> FieldType.ARRAY;
+            case MAP -> FieldType.MAP;
             default -> null;
         };
     }

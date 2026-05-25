@@ -143,4 +143,57 @@ public class LockablePoolTests extends OpenSearchTestCase {
         IllegalStateException ex = expectThrows(IllegalStateException.class, pool::checkoutAll);
         assertEquals("LockablePool is already closed", ex.getMessage());
     }
+
+    // --- Tests for filtered getAndLock with rejection ---
+
+    public void testFilteredGetAndLockReturnsCompatibleItem() {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry item = pool.getAndLock();
+        pool.releaseAndUnlock(item);
+
+        LockableEntry result = pool.getAndLock(e -> true);
+        assertSame(item, result);
+        pool.releaseAndUnlock(result);
+    }
+
+    public void testFilteredGetAndLockRejectsIncompatibleItem() {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry item = pool.getAndLock();
+        pool.releaseAndUnlock(item);
+
+        // Reject the existing item — predicate fails, pool creates new via supplier
+        LockableEntry result = pool.getAndLock(e -> !e.id.equals(item.id));
+        assertNotSame(item, result);
+        pool.releaseAndUnlock(result);
+    }
+
+    public void testCheckoutAllIncludesRejectedItems() {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry item = pool.getAndLock();
+        pool.releaseAndUnlock(item);
+
+        // Reject the existing item
+        LockableEntry fresh = pool.getAndLock(e -> !e.id.equals(item.id));
+        pool.releaseAndUnlock(fresh);
+
+        List<LockableEntry> all = pool.checkoutAll();
+        assertEquals(2, all.size());
+        assertTrue(all.contains(item));
+        assertTrue(all.contains(fresh));
+    }
+
+    public void testRejectedItemNotReturnedBySubsequentPoll() {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry item = pool.getAndLock();
+        pool.releaseAndUnlock(item);
+
+        // Reject it
+        LockableEntry fresh = pool.getAndLock(e -> !e.id.equals(item.id));
+        pool.releaseAndUnlock(fresh);
+
+        // Next poll should return fresh, not the rejected item
+        LockableEntry next = pool.getAndLock();
+        assertSame(fresh, next);
+        pool.releaseAndUnlock(next);
+    }
 }

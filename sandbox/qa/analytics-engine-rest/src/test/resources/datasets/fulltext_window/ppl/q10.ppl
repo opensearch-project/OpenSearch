@@ -1,0 +1,1 @@
+source=metrics | eventstats avg(cpu) as avgcpu by host | fields host, timestamp, cpu, avgcpu | sort host, timestamp | head 15

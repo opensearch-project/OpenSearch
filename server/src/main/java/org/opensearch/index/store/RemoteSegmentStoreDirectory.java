@@ -25,17 +25,23 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
@@ -779,6 +785,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param nodeId node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
+    @Deprecated
     public void uploadMetadata(
         Collection<String> segmentFiles,
         SegmentInfos segmentInfosSnapshot,
@@ -834,9 +841,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
-     * Upload metadata file using CatalogSnapshot.
-     * Uses polymorphic dispatch to CatalogSnapshot subclasses for Lucene version resolution
-     * and serialization, eliminating instanceof checks.
+     * Upload metadata file for a {@link CatalogSnapshot}. The snapshot supplies per-file format
+     * versions and the serialized Lucene {@link org.apache.lucene.index.SegmentInfos} bytes
+     * polymorphically; DFA snapshots embed the catalog in SegmentInfos userData so replicas
+     * can reconstruct it.
      *
      * @param segmentFiles         segment files that are part of the shard at the time of the latest refresh
      * @param catalogSnapshot      CatalogSnapshot containing segment metadata (either SegmentInfos-backed or Composite)
@@ -846,13 +854,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param nodeId               node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
+    @ExperimentalApi
     public void uploadMetadata(
         Collection<String> segmentFiles,
         CatalogSnapshot catalogSnapshot,
         Directory storeDirectory,
         long translogGeneration,
         ReplicationCheckpoint replicationCheckpoint,
-        String nodeId
+        String nodeId,
+        CheckedFunction<CatalogSnapshot, byte[], IOException> catalogSnapshotToCommitSerializer
     ) throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
@@ -872,16 +882,24 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     for (String file : segmentFiles) {
                         if (segmentsUploadedToRemoteStore.containsKey(file)) {
                             UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
-                            metadata.setWrittenByMajor(catalogSnapshot.getFormatVersionForFile(metadata.originalFilename));
+                            // DFA: writtenByMajor is best-effort — non-Lucene files collapse
+                            // to Lucene.LATEST. Accurate only for pure-Lucene shards.
+                            metadata.setWrittenByMajor(
+                                LuceneVersionConverter.toLuceneOrLatest(
+                                    catalogSnapshot.getFormatVersionForFile(metadata.originalFilename)
+                                ).major
+                            );
                             uploadedSegments.put(file, metadata.toString());
                         } else {
                             throw new NoSuchFileException(file);
                         }
                     }
 
-                    // Polymorphic dispatch — each CatalogSnapshot subclass knows how to serialize itself
-                    // to SegmentInfos bytes for the remote metadata file.
-                    byte[] segmentInfoSnapshotByteArray = catalogSnapshot.serialize();
+                    Objects.requireNonNull(
+                        catalogSnapshotToCommitSerializer,
+                        "catalogSnapshotToCommitSerializer must be supplied for upload"
+                    );
+                    final byte[] segmentInfoSnapshotByteArray = catalogSnapshotToCommitSerializer.apply(catalogSnapshot);
 
                     metadataStreamWrapper.writeStream(
                         indexOutput,
@@ -900,13 +918,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    // TODO: When RemoteStoreRefreshListener is migrated to use CatalogSnapshot-based uploadMetadata,
-    // the instanceof check for SegmentInfosCatalogSnapshot.setUserData() will no longer be needed
-    // since setUserData() is now properly implemented in SegmentInfosCatalogSnapshot.
-    // Also, the old uploadMetadata(SegmentInfos, ...) overload above can be removed at that point
-    // and getSegmentToLuceneVersion() can be deleted since it's encapsulated in
-    // SegmentInfosCatalogSnapshot.getFormatVersionForFile().
-
     /**
      * Parses the provided SegmentInfos to retrieve a mapping of the provided segment files to
      * the respective Lucene major version that wrote the segments
@@ -915,6 +926,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param segmentInfosSnapshot SegmentInfos instance to parse
      * @return Map of the segment file to its Lucene major version
      */
+    @Deprecated
     private Map<String, Integer> getSegmentToLuceneVersion(Collection<String> segmentFiles, SegmentInfos segmentInfosSnapshot) {
         Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
         for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
@@ -1083,6 +1095,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     public int getSegmentsUploadedToRemoteStoreSize() {
         return segmentsUploadedToRemoteStore.size();
+    }
+
+    /**
+     * Returns the blob path for the given data format.
+     * If a {@link FormatBlobRouter} is configured, uses format-specific routing
+     * (e.g., "basePath/parquet/" for parquet files). Otherwise falls back to the base path.
+     *
+     * @param format the data format name (e.g., "parquet", "lucene")
+     * @return the blob path as a string for the given format
+     */
+    public String getRemoteBasePath(String format) {
+        if (formatBlobRouter != null && format != null && format.isEmpty() == false) {
+            return formatBlobRouter.containerFor(format).path().buildAsString();
+        }
+        return remoteDataDirectory.getBlobContainer().path().buildAsString();
     }
 
     // Visible for testing
@@ -1303,6 +1330,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
+    /**
+     * Backward-compatible 6-arg overload preserved for the 2.3.0 {@code @PublicApi} contract.
+     * Delegates to the 7-arg variant with a {@code null} {@link IndexMetadata} — equivalent to
+     * the prior behaviour for callers that don't need data-format-aware routing.
+     *
+     * @deprecated Use the 7-arg variant that accepts {@link IndexMetadata} so that DFA-enabled
+     *             indices route to {@link org.opensearch.index.store.remote.DataFormatAwareRemoteDirectory}
+     *             during cleanup. This overload remains for backward compatibility but does not
+     *             enumerate per-format files (e.g., {@code parquet/}) and may leak them on cleanup
+     *             of DFA indices.
+     */
+    @Deprecated
     public static void remoteDirectoryCleanup(
         RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
         String remoteStoreRepoForIndex,
@@ -1311,12 +1350,29 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteStorePathStrategy pathStrategy,
         boolean forceClean
     ) {
+        remoteDirectoryCleanup(remoteDirectoryFactory, remoteStoreRepoForIndex, indexUUID, shardId, pathStrategy, forceClean, null);
+    }
+
+    public static void remoteDirectoryCleanup(
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        String remoteStoreRepoForIndex,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean,
+        IndexMetadata indexMetadata
+    ) {
         try {
+            IndexSettings indexSettings = indexMetadata != null ? new IndexSettings(indexMetadata, Settings.EMPTY) : null;
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
                 remoteStoreRepoForIndex,
                 indexUUID,
                 shardId,
-                pathStrategy
+                pathStrategy,
+                null,    // indexFixedPrefix
+                false,   // isServerSideEncryptionEnabled
+                false,   // isWarmIndex
+                indexSettings
             );
             if (forceClean) {
                 remoteSegmentStoreDirectory.delete();

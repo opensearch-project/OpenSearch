@@ -353,7 +353,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
     /**
      * A simple capturing {@link DocumentInput} that records addField calls for assertion in pluggable dataformat tests.
      */
-    protected static class CapturingDocumentInput implements DocumentInput<Object> {
+    public static class CapturingDocumentInput implements DocumentInput<Object> {
         private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
 
         @Override
@@ -368,6 +368,11 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
         @Override
         public void setRowId(String rowIdFieldName, long rowId) {}
+
+        @Override
+        public long getFieldCount(String fieldName) {
+            return capturedFields.stream().filter(e -> e.getKey().name().equals(fieldName)).count();
+        }
 
         @Override
         public void close() {}

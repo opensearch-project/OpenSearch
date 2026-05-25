@@ -10,6 +10,8 @@ package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -24,17 +26,24 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
+import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
+import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -76,6 +85,9 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         Files.createDirectories(dataPath);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        Path translogPath = dataPath.resolve("translog");
+        java.nio.file.Files.createDirectories(translogPath);
+        String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store = new Store(
             shardId,
             indexSettings,
@@ -84,13 +96,10 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             Store.OnClose.EMPTY,
             shardPath
         );
-        store.createEmpty(org.apache.lucene.util.Version.LATEST);
+        store.createEmpty(org.apache.lucene.util.Version.LATEST, translogUUID);
 
         PluginsService mockPluginsService = mock(PluginsService.class);
         when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(List.of(new LucenePlugin()));
-
-        Path translogPath = dataPath.resolve("translog");
-        java.nio.file.Files.createDirectories(translogPath);
         EngineConfig engineConfig = new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
             shardId,
             null,
@@ -123,9 +132,10 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
             null
         );
-        CommitterConfig settings = new CommitterConfig(engineConfig);
+        CommitterConfig settings = new CommitterConfig(engineConfig, () -> {});
         return new LuceneCommitter(settings);
     }
 
@@ -161,12 +171,10 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         // Use LuceneWriter to create segments (which sets the writer_generation attribute via LuceneWriterCodec)
         Path tempBase = createTempDir();
-        MappedFieldType textField = mock(MappedFieldType.class);
-        when(textField.typeName()).thenReturn("text");
-        when(textField.name()).thenReturn("content");
+        MappedFieldType textField = new org.opensearch.index.mapper.TextFieldMapper.TextFieldType("content");
 
         long generation = 1L;
-        try (LuceneWriter luceneWriter = new LuceneWriter(generation, luceneDataFormat, tempBase, null, Codec.getDefault())) {
+        try (LuceneWriter luceneWriter = new LuceneWriter(generation, 0L, luceneDataFormat, tempBase, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -174,7 +182,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 luceneWriter.addDoc(input);
             }
 
-            FileInfos fileInfos = luceneWriter.flush();
+            FileInfos fileInfos = luceneWriter.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(luceneDataFormat).get();
 
             // Build a Segment from the FileInfos
@@ -261,17 +269,17 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         int numDocs = randomIntBetween(3, 15);
         long generation = 1L;
 
-        MappedFieldType textField = mock(MappedFieldType.class);
-        when(textField.typeName()).thenReturn("text");
-        when(textField.name()).thenReturn("content");
-
-        MappedFieldType keywordField = mock(MappedFieldType.class);
-        when(keywordField.typeName()).thenReturn("keyword");
-        when(keywordField.name()).thenReturn("tag");
-        when(keywordField.hasDocValues()).thenReturn(true);
+        MappedFieldType textField = new TextFieldType("content");
+        final FieldType keywordFieldType = new FieldType();
+        keywordFieldType.setTokenized(false);
+        keywordFieldType.setStored(false);
+        keywordFieldType.setOmitNorms(true);
+        keywordFieldType.setIndexOptions(IndexOptions.DOCS);
+        keywordFieldType.freeze();
+        MappedFieldType keywordField = new KeywordFieldType("tag", keywordFieldType);
 
         // Create writer through the engine
-        LuceneWriter writer = (LuceneWriter) engine.createWriter(generation);
+        Writer<LuceneDocumentInput> writer = engine.createWriter(new WriterConfig(generation));
         try {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = engine.newDocumentInput();
@@ -281,7 +289,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(luceneDataFormat).get();
 
             // Build segment and refresh
@@ -316,9 +324,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
         IndexWriter sharedWriter = committer.getIndexWriter();
 
-        MappedFieldType textField = mock(MappedFieldType.class);
-        when(textField.typeName()).thenReturn("text");
-        when(textField.name()).thenReturn("body");
+        MappedFieldType textField = new org.opensearch.index.mapper.TextFieldMapper.TextFieldType("content");
 
         long gen1 = 1L;
         long gen2 = 2L;
@@ -327,8 +333,8 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         // Create writers through the engine — do NOT close them before refresh,
         // because close() deletes the temp directory that refresh needs to read.
-        LuceneWriter writer1 = (LuceneWriter) engine.createWriter(gen1);
-        LuceneWriter writer2 = (LuceneWriter) engine.createWriter(gen2);
+        LuceneWriter writer1 = (LuceneWriter) engine.createWriter(new WriterConfig(gen1));
+        LuceneWriter writer2 = (LuceneWriter) engine.createWriter(new WriterConfig(gen2));
         try {
             for (int i = 0; i < numDocs1; i++) {
                 LuceneDocumentInput input = engine.newDocumentInput();
@@ -336,7 +342,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer1.addDoc(input);
             }
-            FileInfos fileInfos1 = writer1.flush();
+            FileInfos fileInfos1 = writer1.flush(FlushInput.EMPTY);
 
             for (int i = 0; i < numDocs2; i++) {
                 LuceneDocumentInput input = engine.newDocumentInput();
@@ -344,7 +350,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer2.addDoc(input);
             }
-            FileInfos fileInfos2 = writer2.flush();
+            FileInfos fileInfos2 = writer2.flush(FlushInput.EMPTY);
 
             // Build segments and refresh with both
             WriterFileSet wfs1 = fileInfos1.getWriterFileSet(luceneDataFormat).get();

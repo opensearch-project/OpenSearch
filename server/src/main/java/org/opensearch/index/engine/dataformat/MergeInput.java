@@ -9,10 +9,12 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * input data for a merge operation.
@@ -21,14 +23,24 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration) {
 
     public MergeInput {
-        writerFiles = List.copyOf(writerFiles);
+        segments = List.copyOf(segments);
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.fileMetadataList), builder.rowIdMapping, builder.newWriterGeneration);
+        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration);
+    }
+
+    /**
+     * Returns the {@link WriterFileSet} for the given data format from each segment.
+     *
+     * @param formatName the data format name (e.g. "parquet")
+     * @return list of writer file sets for the format across all segments
+     */
+    public List<WriterFileSet> getFilesForFormat(String formatName) {
+        return segments.stream().map(seg -> seg.dfGroupedSearchableFiles().get(formatName)).filter(Objects::nonNull).toList();
     }
 
     /**
@@ -45,31 +57,31 @@ public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapp
      */
     @ExperimentalApi
     public static class Builder {
-        private List<WriterFileSet> fileMetadataList = new ArrayList<>();
+        private List<Segment> segments = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
 
         private Builder() {}
 
         /**
-         * Sets the list of writer file sets to merge.
+         * Sets the list of segments to merge.
          *
-         * @param fileMetadataList the writer file sets
+         * @param segments the segments to merge
          * @return this builder
          */
-        public Builder fileMetadataList(List<WriterFileSet> fileMetadataList) {
-            this.fileMetadataList = new ArrayList<>(fileMetadataList);
+        public Builder segments(List<Segment> segments) {
+            this.segments = new ArrayList<>(segments);
             return this;
         }
 
         /**
-         * Adds a writer file set to merge.
+         * Adds a segment to merge.
          *
-         * @param writerFileSet the writer file set to add
+         * @param segment the segment to add
          * @return this builder
          */
-        public Builder addFileMetadata(WriterFileSet writerFileSet) {
-            this.fileMetadataList.add(writerFileSet);
+        public Builder addSegment(Segment segment) {
+            this.segments.add(segment);
             return this;
         }
 

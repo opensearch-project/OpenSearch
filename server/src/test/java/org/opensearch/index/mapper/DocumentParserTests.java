@@ -42,7 +42,6 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.plugins.Plugin;
 
@@ -53,9 +52,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -3582,7 +3579,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testParseDocumentWithDocumentInputPropagated() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")), mockInput);
 
@@ -3608,7 +3605,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testParseDocumentWithDocumentInputAndDynamicMapping() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_field", "value")), mockInput);
 
@@ -3628,7 +3625,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.startObject("obj");
@@ -3638,27 +3635,5 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         assertThat(doc.getDocumentInput(), sameInstance(mockInput));
         assertNotNull(doc.rootDoc().getField("obj.inner"));
-    }
-
-    private static class TestDocumentInput implements DocumentInput<Map<String, Object>> {
-        private final Map<String, Object> fields = new HashMap<>();
-
-        @Override
-        public Map<String, Object> getFinalInput() {
-            return Collections.unmodifiableMap(fields);
-        }
-
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {
-            fields.put(fieldType != null ? fieldType.name() : "field_" + fields.size(), value);
-        }
-
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {
-            fields.put(rowIdFieldName, rowId);
-        }
-
-        @Override
-        public void close() {}
     }
 }

@@ -83,6 +83,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -2552,38 +2553,35 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         try {
             for (String index : indices) {
                 if (isSegmentReplicationEnabledForIndex(index)) {
-                    if (isInternalCluster()) {
+                    assertTrue("Unable to wait for replication with external test cluster", isInternalCluster());
+                    assertBusy(() -> {
                         IndexRoutingTable indexRoutingTable = getClusterState().routingTable().index(index);
                         if (indexRoutingTable != null) {
-                            assertBusy(() -> {
-                                for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                                    final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-                                    if (primaryRouting.state().toString().equals("STARTED")) {
-                                        if (isSegmentReplicationEnabledForIndex(index)) {
-                                            final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
-                                            final IndexShard primaryShard = getIndexShard(primaryRouting, index);
-                                            for (ShardRouting replica : replicaRouting) {
-                                                if (replica.state().toString().equals("STARTED")) {
-                                                    IndexShard replicaShard = getIndexShard(replica, index);
-                                                    if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
-                                                        assertEquals(
-                                                            "replica shards haven't caught up with primary",
-                                                            getLatestSegmentInfoVersion(primaryShard),
-                                                            getLatestSegmentInfoVersion(replicaShard)
-                                                        );
-                                                    }
+                            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                                final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+                                if (primaryRouting.state() == ShardRoutingState.STARTED) {
+                                    if (isSegmentReplicationEnabledForIndex(index)) {
+                                        final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
+                                        final IndexShard primaryShard = getIndexShard(primaryRouting, index);
+                                        for (ShardRouting replica : replicaRouting) {
+                                            if (replica.state() == ShardRoutingState.STARTED) {
+                                                IndexShard replicaShard = getIndexShard(replica, index);
+                                                if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+                                                    assertEquals(
+                                                        "replica shards haven't caught up with primary",
+                                                        getLatestSegmentInfoVersion(primaryShard),
+                                                        getLatestSegmentInfoVersion(replicaShard)
+                                                    );
                                                 }
+                                            } else if (replica.state() == ShardRoutingState.INITIALIZING) {
+                                                fail("replica shard still INITIALIZING, not caught up with primary");
                                             }
                                         }
                                     }
                                 }
-                            }, 30, TimeUnit.SECONDS);
+                            }
                         }
-                    } else {
-                        throw new IllegalStateException(
-                            "Segment Replication is not supported for testing tests using External Test Cluster"
-                        );
-                    }
+                    }, 30, TimeUnit.SECONDS);
                 }
             }
         } catch (Exception e) {

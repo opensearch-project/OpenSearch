@@ -1,0 +1,18 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "exists": {
+      "field": "UserID",
+      "boost": 1.0
+    }
+  },
+  "aggregations": {
+    "dc(UserID)": {
+      "cardinality": {
+        "field": "UserID"
+      }
+    }
+  }
+}

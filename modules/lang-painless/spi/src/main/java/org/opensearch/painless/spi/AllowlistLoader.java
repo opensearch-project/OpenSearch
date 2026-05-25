@@ -47,9 +47,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** Loads and creates a {@link Allowlist} from one to many text files. */
 public final class AllowlistLoader {
+
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     /**
      * Loads and creates a {@link Allowlist} from one to many text files using only the base annotation parsers.
@@ -312,9 +315,9 @@ public final class AllowlistLoader {
                             );
                         }
 
-                        String[] canonicalTypeNameParameters = line.substring(parameterStartIndex + 1, parameterEndIndex)
-                            .replaceAll("\\s+", "")
-                            .split(",");
+                        String[] canonicalTypeNameParameters = WHITESPACE.matcher(
+                            line.substring(parameterStartIndex + 1, parameterEndIndex)
+                        ).replaceAll("").split(",");
 
                         // Handle the case for a method with no parameters.
                         if ("".equals(canonicalTypeNameParameters[0])) {
@@ -397,7 +400,9 @@ public final class AllowlistLoader {
                                 );
                             }
 
-                            String[] canonicalTypeNameParameters = line.substring(1, parameterEndIndex).replaceAll("\\s+", "").split(",");
+                            String[] canonicalTypeNameParameters = WHITESPACE.matcher(line.substring(1, parameterEndIndex))
+                                .replaceAll("")
+                                .split(",");
 
                             // Handle the case for a constructor with no parameters.
                             if ("".equals(canonicalTypeNameParameters[0])) {
@@ -447,9 +452,9 @@ public final class AllowlistLoader {
                                 );
                             }
 
-                            String[] canonicalTypeNameParameters = line.substring(parameterStartIndex + 1, parameterEndIndex)
-                                .replaceAll("\\s+", "")
-                                .split(",");
+                            String[] canonicalTypeNameParameters = WHITESPACE.matcher(
+                                line.substring(parameterStartIndex + 1, parameterEndIndex)
+                            ).replaceAll("").split(",");
 
                             // Handle the case for a method with no parameters.
                             if ("".equals(canonicalTypeNameParameters[0])) {
@@ -521,7 +526,7 @@ public final class AllowlistLoader {
 
         List<Object> annotations;
 
-        if ("".equals(line.replaceAll("\\s+", ""))) {
+        if (line.isBlank()) {
             annotations = Collections.emptyList();
         } else {
             line = line.trim();

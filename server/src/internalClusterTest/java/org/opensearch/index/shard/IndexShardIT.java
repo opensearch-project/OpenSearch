@@ -734,6 +734,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             clusterService.getClusterApplierService(),
             MergedSegmentPublisher.EMPTY,
             ReferencedSegmentsPublisher.EMPTY,
+            Collections.emptyMap(),
             null // TODO
         );
     }

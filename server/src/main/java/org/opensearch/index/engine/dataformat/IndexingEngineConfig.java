@@ -12,7 +12,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
+
+import java.util.Map;
 
 /**
  * Initialization parameters for creating an {@link IndexingExecutionEngine} via
@@ -29,5 +32,5 @@ import org.opensearch.index.store.Store;
  */
 @ExperimentalApi
 public record IndexingEngineConfig(Committer committer, MapperService mapperService, IndexSettings indexSettings, Store store,
-    DataFormatRegistry registry) {
+    DataFormatRegistry registry, Map<String, FormatChecksumStrategy> checksumStrategies) {
 }

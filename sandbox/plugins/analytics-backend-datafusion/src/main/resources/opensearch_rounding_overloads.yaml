@@ -1,0 +1,22 @@
+%YAML 1.2
+---
+# Type-preserving ceil/floor on i32. NumericToDoubleAdapter (used for the
+# transcendental fns) would widen the input to fp64 and force an fp64 return,
+# breaking PPL's documented "same type as input" contract for ceil(int_col) /
+# floor(int_col) and the int schema assertion in testCeil/testFloor. Binding
+# the call at int width here lets DataFusion's native ceil/floor receive an
+# int directly and preserves the outer schema.
+urn: extension:io.substrait:functions_rounding
+scalar_functions:
+  - name: "ceil"
+    impls:
+      - args:
+          - name: x
+            value: i32
+        return: i32
+  - name: "floor"
+    impls:
+      - args:
+          - name: x
+            value: i32
+        return: i32

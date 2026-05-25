@@ -12,6 +12,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.dsl.result.ExecutionResult;
 
 import java.util.ArrayList;
@@ -40,25 +41,40 @@ public class DslQueryPlanExecutor {
     // TODO: add per-plan error handling so a failure in one plan
     // doesn't prevent returning partial results from other plans (e.g. HITS)
     /**
-     * Executes all plans and returns results in plan order.
+     * Executes all plans sequentially and delivers results, in plan order, to the listener.
      *
-     * @param plans the query plans to execute
-     * @return execution results, one per plan
+     * <p>Plans run one-at-a-time: plan {@code N+1} is dispatched only after plan {@code N}
+     * completes successfully. The first failure aborts the chain — the listener fires
+     * {@code onFailure} with that error and remaining plans do not run.
+     *
+     * @param plans    the query plans to execute
+     * @param listener receives the ordered list of results on success, or the first failure
      */
-    public List<ExecutionResult> execute(QueryPlans plans) {
+    public void execute(QueryPlans plans, ActionListener<List<ExecutionResult>> listener) {
         List<QueryPlans.QueryPlan> queryPlans = plans.getAll();
         List<ExecutionResult> results = new ArrayList<>(queryPlans.size());
+        executeNext(queryPlans, 0, results, listener);
+    }
 
-        for (QueryPlans.QueryPlan plan : queryPlans) {
-            RelNode relNode = plan.relNode();
-            logPlan(relNode);
-            // TODO: context param is null, may carry execution hints
-            Iterable<Object[]> rows = executor.execute(relNode, null);
+    private void executeNext(
+        List<QueryPlans.QueryPlan> queryPlans,
+        int index,
+        List<ExecutionResult> results,
+        ActionListener<List<ExecutionResult>> outer
+    ) {
+        if (index >= queryPlans.size()) {
+            outer.onResponse(results);
+            return;
+        }
+        QueryPlans.QueryPlan plan = queryPlans.get(index);
+        RelNode relNode = plan.relNode();
+        logPlan(relNode);
+        // TODO: context param is null, may carry execution hints
+        executor.execute(relNode, null, ActionListener.wrap(rows -> {
             logRows(rows);
             results.add(new ExecutionResult(plan, rows));
-        }
-
-        return results;
+            executeNext(queryPlans, index + 1, results, outer);
+        }, outer::onFailure));
     }
 
     private static void logRows(Iterable<Object[]> rows) {

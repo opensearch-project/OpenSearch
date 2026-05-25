@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "RequestId: (?<reqid>\S+)" | rex field=message "Duration: (?<duration>[\d.]+) ms" | fields reqid, duration | where reqid is not null

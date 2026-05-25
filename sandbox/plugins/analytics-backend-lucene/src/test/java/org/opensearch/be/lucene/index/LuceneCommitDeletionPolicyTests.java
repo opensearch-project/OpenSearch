@@ -78,14 +78,11 @@ public class LuceneCommitDeletionPolicyTests extends OpenSearchTestCase {
         verify(csCommit).delete();
     }
 
-    public void testPurgeCommitWithUnknownIdIsNoOp() throws IOException {
+    public void testPurgeCommitWithUnknownIdThrowsAssertion() throws IOException {
         LuceneCommitDeletionPolicy policy = new LuceneCommitDeletionPolicy();
         IndexCommit csCommit = mockCommit(Map.of(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, "blob", CatalogSnapshot.CATALOG_SNAPSHOT_ID, "1"));
 
         policy.onCommit(List.of(csCommit));
-        policy.purgeCommit(999L);
-        policy.onCommit(List.of(csCommit));
-
-        verify(csCommit, never()).delete();
+        expectThrows(AssertionError.class, () -> policy.purgeCommit(999L));
     }
 }

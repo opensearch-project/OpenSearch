@@ -158,7 +158,9 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         Object result = aggStateForResult(owningBucketOrdinal).combine();
-        if (result.getClass() != ScriptedAvg.class) StreamOutput.checkWriteable(result);
+        if (result != null && result.getClass() != ScriptedAvg.class) {
+            StreamOutput.checkWriteable(result);
+        }
         return new InternalScriptedMetric(name, singletonList(result), reduceScript, metadata());
     }
 

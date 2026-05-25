@@ -38,6 +38,12 @@ public class SearchTaskSettings {
         private static final double HEAP_PERCENT_THRESHOLD = 0.02;
         private static final double HEAP_VARIANCE_THRESHOLD = 2.0;
         private static final int HEAP_MOVING_AVERAGE_WINDOW_SIZE = 100;
+        // Native-memory tracking is opt-in. Zero keeps the tracker inert (see
+        // NativeMemoryUsageTracker); raise either threshold to engage cancellation for
+        // native-memory-heavy tasks while the node is in native-memory duress. The
+        // per-task threshold is expressed as a fraction of the backend-installed native
+        // memory budget (e.g. DataFusion's pool limit), mirroring HEAP_PERCENT_THRESHOLD.
+        private static final double NATIVE_MEMORY_PERCENT_THRESHOLD = 0.05;
     }
 
     /**
@@ -165,6 +171,24 @@ public class SearchTaskSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Defines the native-memory threshold (as a fraction of the backend-installed native-memory
+     * budget, in {@code [0.0, 1.0]}) for an individual search task before it is considered for
+     * cancellation. The effective per-task byte threshold is {@code budget * fraction}, where
+     * {@code budget} is the value installed via
+     * {@link org.opensearch.search.backpressure.NativeMemoryUsageService#setBudgetSupplier}.
+     * {@code 0.0} disables the check.
+     */
+    private volatile double nativeMemoryPercentThreshold;
+    public static final Setting<Double> SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD = Setting.doubleSetting(
+        "search_backpressure.search_task.native_memory_percent_threshold",
+        Defaults.NATIVE_MEMORY_PERCENT_THRESHOLD,
+        0.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public SearchTaskSettings(Settings settings, ClusterSettings clusterSettings) {
         this.totalHeapPercentThreshold = SETTING_TOTAL_HEAP_PERCENT_THRESHOLD.get(settings);
         this.cpuTimeMillisThreshold = SETTING_CPU_TIME_MILLIS_THRESHOLD.get(settings);
@@ -175,6 +199,7 @@ public class SearchTaskSettings {
         this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
         this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
+        this.nativeMemoryPercentThreshold = SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);
@@ -185,6 +210,7 @@ public class SearchTaskSettings {
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, this::setCancellationRatio);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, this::setCancellationRate);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD, this::setNativeMemoryPercentThreshold);
     }
 
     public double getTotalHeapPercentThreshold() {
@@ -233,6 +259,14 @@ public class SearchTaskSettings {
 
     public void setHeapMovingAverageWindowSize(int heapMovingAverageWindowSize) {
         this.heapMovingAverageWindowSize = heapMovingAverageWindowSize;
+    }
+
+    public double getNativeMemoryPercentThreshold() {
+        return nativeMemoryPercentThreshold;
+    }
+
+    private void setNativeMemoryPercentThreshold(double nativeMemoryPercentThreshold) {
+        this.nativeMemoryPercentThreshold = nativeMemoryPercentThreshold;
     }
 
     public double getCancellationRatio() {

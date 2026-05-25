@@ -14,9 +14,9 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
@@ -37,6 +37,17 @@ import java.util.function.Function;
  * <p>Single-format lookups return the stored list directly — no allocation at query time.
  * Multi-format aggregations build a new list by collecting across entries.
  *
+ * <p>TODO(refactor): This class has 10+ HashMaps with near-identical shapes, 4 redundant
+ * key record types, and per-call list allocations in {@code *ForField} methods:
+ * <ul>
+ *   <li>Unify key types (ScanKey, AggregateKey, ScalarKey) into a single record</li>
+ *   <li>Derive {@code *CapableBackends} sets directly from backend capabilities, not as
+ *       side effects of index population</li>
+ *   <li>Pre-flatten format maps to eliminate per-call allocation in {@code allBackends}
+ *       and {@code *ForField} methods</li>
+ *   <li>Extract repeated constructor indexing pattern into a shared helper</li>
+ * </ul>
+ *
  * @opensearch.internal
  */
 public class CapabilityRegistry {
@@ -48,7 +59,7 @@ public class CapabilityRegistry {
     // Per-capability indexes: (capability key, format) → backends
     // Shape: Map<Key, Map<format, List<backendName>>>
     private final Map<ScanKey, Map<String, List<String>>> scanIndex = new HashMap<>();
-    private final Map<FilterKey, Map<String, List<String>>> filterIndex = new HashMap<>();
+    private final Map<ScalarKey, Map<String, List<String>>> filterIndex = new HashMap<>();
     private final Map<AggregateKey, Map<String, List<String>>> aggregateIndex = new HashMap<>();
     private final Map<ScalarKey, Map<String, List<String>>> scalarIndex = new HashMap<>();
     // Backends that declared supportsLiteralEvaluation=true for a (function, fieldType)
@@ -87,9 +98,28 @@ public class CapabilityRegistry {
             for (DelegationType type : caps.supportedDelegations()) {
                 delegationSupporters.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
+            // Validate: if a backend supports FILTER delegation (i.e., it drives the tree walk),
+            // it must provide a FragmentInstructionHandlerFactory for instruction-based execution.
+            if (caps.supportedDelegations().contains(DelegationType.FILTER)) {
+                try {
+                    backend.getInstructionHandlerFactory();
+                } catch (UnsupportedOperationException exception) {
+                    throw new IllegalStateException(
+                        "Backend ["
+                            + name
+                            + "] declares supportedDelegations(FILTER) but does not implement"
+                            + " getInstructionHandlerFactory(). A driving backend must provide an instruction"
+                            + " handler factory to configure delegation at the data node."
+                    );
+                }
+            }
             for (DelegationType type : caps.acceptedDelegations()) {
                 delegationAcceptors.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
+            // Runtime validation in FragmentConversionDriver ensures a DelegatedPredicateSerializer
+            // exists for each function actually delegated to this backend. Startup validation is
+            // intentionally omitted — a backend may accept delegation for a subset of its filter
+            // capabilities, and which functions are delegated depends on the query.
             for (ScanCapability cap : caps.scanCapabilities()) {
                 for (FieldType fieldType : cap.supportedFieldTypes()) {
                     addToFormatMap(scanIndex, new ScanKey(cap.getClass(), fieldType), cap.formats(), name);
@@ -100,13 +130,13 @@ public class CapabilityRegistry {
                 switch (cap) {
                     case FilterCapability.Standard standard -> {
                         for (FieldType fieldType : standard.fieldTypes()) {
-                            addToFormatMap(filterIndex, new FilterKey(standard.operator(), fieldType), standard.formats(), name);
+                            addToFormatMap(filterIndex, new ScalarKey(standard.function(), fieldType), standard.formats(), name);
                         }
                     }
                     case FilterCapability.FullText fullText -> {
-                        addToFormatMap(filterIndex, new FilterKey(fullText.operator(), fullText.fieldType()), fullText.formats(), name);
+                        addToFormatMap(filterIndex, new ScalarKey(fullText.function(), fullText.fieldType()), fullText.formats(), name);
                         fullTextParamIndex.put(
-                            new FullTextParamKey(fullText.operator(), fullText.fieldType(), name),
+                            new FullTextParamKey(fullText.function(), fullText.fieldType(), name),
                             fullText.supportedParams()
                         );
                     }
@@ -182,8 +212,8 @@ public class CapabilityRegistry {
 
     // ---- Single-format lookups ----
 
-    public List<String> filterBackends(FilterOperator operator, FieldType fieldType, String format) {
-        return filterIndex.getOrDefault(new FilterKey(operator, fieldType), Map.of()).getOrDefault(format, List.of());
+    public List<String> filterBackends(ScalarFunction function, FieldType fieldType, String format) {
+        return filterIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()).getOrDefault(format, List.of());
     }
 
     public List<String> aggregateBackends(AggregateFunction function, FieldType fieldType, String format) {
@@ -197,14 +227,14 @@ public class CapabilityRegistry {
     // ---- Field-level lookups (iterates all formats a field has) ----
 
     /** All backends that can filter on this field across all its storage formats. */
-    public List<String> filterBackendsForField(FilterOperator operator, FieldStorageInfo field) {
+    public List<String> filterBackendsForField(ScalarFunction function, FieldStorageInfo field) {
         FieldType fieldType = field.getFieldType();
         List<String> result = new ArrayList<>();
         for (String format : field.getDocValueFormats()) {
-            result.addAll(filterBackends(operator, fieldType, format));
+            result.addAll(filterBackends(function, fieldType, format));
         }
         for (String format : field.getIndexFormats()) {
-            result.addAll(filterBackends(operator, fieldType, format));
+            result.addAll(filterBackends(function, fieldType, format));
         }
         return result;
     }
@@ -233,6 +263,16 @@ public class CapabilityRegistry {
 
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
         return allBackends(aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of()));
+    }
+
+    /**
+     * All backends declaring filter support for a (function, fieldType) ignoring storage formats.
+     * Used by the filter rule when the field is derived (e.g. produced by Union or Project) and
+     * therefore has no doc-value or index format to match against — the filter must run at whichever
+     * backend executes the producing operator, so format-level pushdown isn't applicable.
+     */
+    public List<String> filterBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {
+        return allBackends(filterIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()));
     }
 
     public List<String> scalarBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {
@@ -301,15 +341,12 @@ public class CapabilityRegistry {
     private record ScanKey(Class<? extends ScanCapability> kind, FieldType fieldType) {
     }
 
-    private record FilterKey(FilterOperator operator, FieldType fieldType) {
-    }
-
     private record AggregateKey(AggregateFunction function, FieldType fieldType) {
     }
 
     private record ScalarKey(ScalarFunction function, FieldType fieldType) {
     }
 
-    private record FullTextParamKey(FilterOperator operator, FieldType fieldType, String backendName) {
+    private record FullTextParamKey(ScalarFunction function, FieldType fieldType, String backendName) {
     }
 }

@@ -90,6 +90,15 @@ testClusters {
           systemProperty 'io.netty.tryUnsafe', 'true'
           systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
         }
+        if (p.equals("parquet-data-format") || p.equals("analytics-backend-datafusion")) {
+          // Composite engine / DataFusion requires pluggable dataformat feature flag
+          systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+          // Native lib path for DataFusion FFM bridge
+          def nativeLibDir = new File(project(':sandbox:libs:dataformat-native').projectDir, 'rust/target/release').absolutePath
+          systemProperty 'java.library.path', nativeLibDir
+          jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+          jvmArgs '--enable-native-access=ALL-UNNAMED'
+        }
       }
     }
   }

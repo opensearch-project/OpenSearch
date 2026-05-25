@@ -97,7 +97,7 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
                   "resource_limits" : {
                     "memory" : 0.3
                   },
-                  "search_settings" : { },
+                  "settings" : { },
                   "updated_at" : 4513232413
                 }
               ]
@@ -125,7 +125,7 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
                   "resource_limits" : {
                     "memory" : 0.3
                   },
-                  "search_settings" : { },
+                  "settings" : { },
                   "updated_at" : 4513232413
                 },
                 {
@@ -135,7 +135,7 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
                   "resource_limits" : {
                     "memory" : 0.6
                   },
-                  "search_settings" : { },
+                  "settings" : { },
                   "updated_at" : 4513232415
                 }
               ]
@@ -176,8 +176,8 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
                   "resource_limits" : {
                     "memory" : 0.5
                   },
-                  "search_settings" : {
-                    "timeout" : "30s"
+                  "settings" : {
+                    "search.default_search_timeout" : "30s"
                   },
                   "updated_at" : 4513232417
                 }

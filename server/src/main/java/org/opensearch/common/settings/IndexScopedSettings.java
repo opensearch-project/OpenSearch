@@ -61,6 +61,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.search.streaming.FlushModeResolver;
+import org.opensearch.storage.slowlogs.TieredStorageSearchSlowLog;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -312,6 +313,18 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexModule.INDEX_STORE_LOCALITY_SETTING,
                 IndexModule.INDEX_TIERING_STATE,
                 IndexModule.IS_WARM_INDEX_SETTING,
+
+                // Tiered storage search slow log settings
+                TieredStorageSearchSlowLog.TIERED_STORAGE_SEARCH_SLOWLOG_ENABLED,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING,
+                TieredStorageSearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

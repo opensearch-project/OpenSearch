@@ -421,7 +421,11 @@ gradle.projectsEvaluated {
         task.jvmArgs += [
             "--add-modules=jdk.incubator.vector",
             "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
-            "--enable-native-access=ALL-UNNAMED"
+            "--enable-native-access=ALL-UNNAMED",
+            // Disable ByteBuddy's Unsafe-based class injection path to avoid
+            // "sun.misc.Unsafe::objectFieldOffset has been called by ByteBuddy" JVM warnings on JDK 21+.
+            // ByteBuddy still falls back to Lookup/Reflection injection strategies.
+            "-Dnet.bytebuddy.safe=true"
         ]
 
         // Add Java Agent for security sandboxing

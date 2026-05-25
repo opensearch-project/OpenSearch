@@ -10,8 +10,14 @@ package org.opensearch.parquet.writer;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -31,24 +37,38 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
+
 public class ParquetWriterTests extends OpenSearchTestCase {
 
+    private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     private MappedFieldType idField;
     private MappedFieldType nameField;
     private MappedFieldType scoreField;
     private Schema schema;
     private ThreadPool threadPool;
+    private IndexSettings indexSettings;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
         schema = buildSchema(List.of(idField, nameField, scoreField));
+        Settings indexSettingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(indexSettingsBuilder).build();
+        indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         Settings settings = Settings.builder().put("node.name", "parquetwriter-test").build();
         threadPool = new ThreadPool(
             settings,
@@ -66,6 +86,10 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         terminate(threadPool);
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 
@@ -74,22 +98,25 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         ParquetWriter writer = new ParquetWriter(
             filePath,
             1L,
+            1L,
             new ParquetDataFormat(),
             schema,
             bufferPool,
-            Settings.EMPTY,
+            indexSettings,
             threadPool,
             null
         );
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");
         doc.addField(scoreField, 100L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
         WriteResult result = writer.addDoc(doc);
         assertTrue(result instanceof WriteResult.Success);
         doc.close();
-        writer.flush();
+        writer.flush(FlushInput.EMPTY);
     }
 
     public void testSingleDocumentFlush() throws Exception {
@@ -97,22 +124,25 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         ParquetWriter writer = new ParquetWriter(
             filePath,
             1L,
+            1L,
             new ParquetDataFormat(),
             schema,
             bufferPool,
-            Settings.EMPTY,
+            indexSettings,
             threadPool,
             null
         );
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
         doc.addField(idField, 42);
         doc.addField(nameField, "bob");
         doc.addField(scoreField, 500L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
         writer.addDoc(doc);
         doc.close();
 
-        writer.flush();
+        writer.flush(FlushInput.EMPTY);
         assertEquals(1, RustBridge.getFileMetadata(filePath).numRows());
     }
 
@@ -121,24 +151,27 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         ParquetWriter writer = new ParquetWriter(
             filePath,
             1L,
+            1L,
             new ParquetDataFormat(),
             schema,
             bufferPool,
-            Settings.EMPTY,
+            indexSettings,
             threadPool,
             null
         );
 
         for (int i = 0; i < 10; i++) {
             ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
             doc.addField(idField, i);
             doc.addField(nameField, "user_" + i);
             doc.addField(scoreField, (long) (i * 100));
+            doc.setRowId("__row_id__", i);
             writer.addDoc(doc);
             doc.close();
         }
 
-        FileInfos fileInfos = writer.flush();
+        FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
         assertNotNull(fileInfos);
         assertTrue(Files.exists(Path.of(filePath)));
         assertEquals(10, RustBridge.getFileMetadata(filePath).numRows());
@@ -149,14 +182,15 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         ParquetWriter writer = new ParquetWriter(
             filePath,
             1L,
+            1L,
             new ParquetDataFormat(),
             schema,
             bufferPool,
-            Settings.EMPTY,
+            indexSettings,
             threadPool,
             null
         );
-        assertEquals(FileInfos.empty(), writer.flush());
+        assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
     }
 
     public void testSyncAfterFlush() throws Exception {
@@ -164,22 +198,25 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         ParquetWriter writer = new ParquetWriter(
             filePath,
             1L,
+            1L,
             new ParquetDataFormat(),
             schema,
             bufferPool,
-            Settings.EMPTY,
+            indexSettings,
             threadPool,
             null
         );
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");
         doc.addField(scoreField, 100L);
+        doc.setRowId("__row_id__", 0);
         writer.addDoc(doc);
         doc.close();
 
-        writer.flush();
+        writer.flush(FlushInput.EMPTY);
         writer.sync();
         assertTrue(Files.exists(Path.of(filePath)));
     }
@@ -191,6 +228,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             assertNotNull("No ParquetField registered for type: " + ft.typeName(), pf);
             fields.add(new Field(ft.name(), pf.getFieldType(), null));
         }
+        fields.addAll(metadataFields());
         return new Schema(fields);
     }
 }

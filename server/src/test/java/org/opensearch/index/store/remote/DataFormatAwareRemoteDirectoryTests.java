@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import org.mockito.Mockito;
@@ -86,7 +87,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
         baseBlobPath = new BlobPath().add("segments").add("data");
 
         when(mockBlobStore.blobContainer(baseBlobPath)).thenReturn(baseBlobContainer);
-        when(mockBlobStore.blobContainer(baseBlobPath.add("parquet"))).thenReturn(parquetBlobContainer);
+        when(mockBlobStore.blobContainer(baseBlobPath.parent().add("parquet"))).thenReturn(parquetBlobContainer);
 
         // Identity rate limiters (no-op)
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter = UnaryOperator.identity();
@@ -107,7 +108,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         when(mockRegistry.getFormatDescriptors(any(IndexSettings.class))).thenReturn(
-            Map.of("parquet", new DataFormatDescriptor("parquet", new GenericCRC32ChecksumHandler()))
+            Map.of("parquet", (Supplier<DataFormatDescriptor>) () -> new DataFormatDescriptor("parquet", new GenericCRC32ChecksumHandler()))
         );
 
         directory = new DataFormatAwareRemoteDirectory(

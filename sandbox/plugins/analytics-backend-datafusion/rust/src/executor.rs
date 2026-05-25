@@ -8,12 +8,13 @@
 
 use futures::{future::BoxFuture, Future, FutureExt, TryFutureExt};
 use parking_lot::RwLock;
-use std::sync::{Arc, OnceLock};
-use std::time::Duration;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 use tokio::{
     runtime::Handle,
-    sync::{oneshot::error::RecvError, Notify},
-    task::JoinSet,
+    sync::{oneshot::error::RecvError, Notify, Semaphore, OwnedSemaphorePermit},
+    task::{AbortHandle, JoinSet},
 };
 
 use crate::io::register_io_runtime;
@@ -24,6 +25,64 @@ use crate::io::register_io_runtime;
 #[derive(Clone)]
 pub struct DedicatedExecutor {
     state: Arc<RwLock<State>>,
+    /// Per-query concurrency gate: limits how many query stream drivers can
+    /// run simultaneously on this executor. Acquired inside the spawned
+    /// CrossRtStream driver future and held for the query's entire lifetime.
+    concurrency_gate: Arc<ConcurrencyGate>,
+}
+
+/// Limits the number of concurrent query streams active on the CPU executor.
+/// The permit is acquired inside the spawned stream-driver future and held
+/// until the stream is fully consumed or dropped.
+pub struct ConcurrencyGate {
+    semaphore: Arc<Semaphore>,
+    max_permits: u32,
+    total_wait_ms: AtomicU64,
+    total_queries_admitted: AtomicU64,
+}
+
+impl ConcurrencyGate {
+    pub fn new(max_concurrent: usize) -> Self {
+        let permits = max_concurrent.max(1);
+        Self {
+            semaphore: Arc::new(Semaphore::new(permits)),
+            max_permits: permits as u32,
+            total_wait_ms: AtomicU64::new(0),
+            total_queries_admitted: AtomicU64::new(0),
+        }
+    }
+
+    /// Acquire a permit. Held for the entire query stream lifetime.
+    pub async fn acquire(&self) -> OwnedSemaphorePermit {
+        self.acquire_many(1).await
+    }
+
+    /// Acquire N permits (partition-weighted). Held for the entire query stream lifetime.
+    pub async fn acquire_many(&self, n: u32) -> OwnedSemaphorePermit {
+        let start = Instant::now();
+        let permit = self.semaphore.clone().acquire_many_owned(n).await
+            .expect("concurrency gate semaphore closed");
+        let elapsed_ms = start.elapsed().as_millis() as u64;
+        self.total_wait_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
+        self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
+        permit
+    }
+
+    pub fn max_permits(&self) -> u32 {
+        self.max_permits
+    }
+
+    pub fn active_permits(&self) -> u32 {
+        self.max_permits - self.semaphore.available_permits() as u32
+    }
+
+    pub fn total_wait_ms(&self) -> u64 {
+        self.total_wait_ms.load(Ordering::Relaxed)
+    }
+
+    pub fn total_queries_admitted(&self) -> u64 {
+        self.total_queries_admitted.load(Ordering::Relaxed)
+    }
 }
 
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(60 * 5);
@@ -33,7 +92,6 @@ pub enum JobError {
     WorkerGone,
     Panic { msg: String },
 }
-
 
 struct State {
     handle: Option<Handle>,
@@ -64,7 +122,7 @@ impl std::fmt::Debug for DedicatedExecutor {
 }
 
 impl DedicatedExecutor {
-    pub fn new(name: &str, runtime_builder: tokio::runtime::Builder) -> Self {
+    pub fn new(name: &str, runtime_builder: tokio::runtime::Builder, max_concurrent_queries: usize) -> Self {
         let name = name.to_owned();
         let notify_shutdown = Arc::new(Notify::new());
         let notify_shutdown_captured = Arc::clone(&notify_shutdown);
@@ -100,18 +158,31 @@ impl DedicatedExecutor {
         let state = State {
             handle: Some(handle),
             start_shutdown: notify_shutdown,
-            completed_shutdown: rx_shutdown
-                .map_err(Arc::new)
-                .boxed()
-                .shared(),
+            completed_shutdown: rx_shutdown.map_err(Arc::new).boxed().shared(),
             thread: Some(thread),
         };
         Self {
             state: Arc::new(RwLock::new(state)),
+            concurrency_gate: Arc::new(ConcurrencyGate::new(max_concurrent_queries)),
         }
     }
 
     pub fn spawn<T>(&self, task: T) -> impl Future<Output = Result<T::Output, JobError>>
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
+        let (_abort_handle, fut) = self.spawn_with_abort_handle(task);
+        fut
+    }
+
+
+    /// Like [`spawn`](Self::spawn), but also returns an [`AbortHandle`] that
+    /// can be used to cancel the CPU task from outside (e.g. from `cancel_query`).
+    pub fn spawn_with_abort_handle<T>(
+        &self,
+        task: T,
+    ) -> (Option<AbortHandle>, impl Future<Output = Result<T::Output, JobError>>)
     where
         T: Future + Send + 'static,
         T::Output: Send + 'static,
@@ -121,11 +192,11 @@ impl DedicatedExecutor {
             state.handle.clone()
         };
         let Some(handle) = handle else {
-            return futures::future::err(JobError::WorkerGone).boxed();
+            return (None, futures::future::err(JobError::WorkerGone).boxed());
         };
         let mut join_set = JoinSet::new();
-        join_set.spawn_on(task, &handle);
-        async move {
+        let abort_handle = join_set.spawn_on(task, &handle);
+        let fut = async move {
             join_set
                 .join_next()
                 .await
@@ -144,9 +215,9 @@ impl DedicatedExecutor {
                     Err(_) => JobError::WorkerGone,
                 })
         }
-        .boxed()
+        .boxed();
+        (Some(abort_handle), fut)
     }
-
     pub fn join_blocking(&self) {
         self.shutdown();
         let thread_handle = {
@@ -156,6 +227,19 @@ impl DedicatedExecutor {
         if let Some(handle) = thread_handle {
             let _ = handle.join();
         }
+    }
+
+    /// Returns a clone of the underlying Tokio runtime `Handle`, if the
+    /// executor has not been shut down. Used to create a
+    /// `tokio_metrics::RuntimeMonitor` for the CPU runtime.
+    pub fn handle(&self) -> Option<Handle> {
+        let state = self.state.read();
+        state.handle.clone()
+    }
+
+    /// Returns a reference to the concurrency gate for this executor.
+    pub fn concurrency_gate(&self) -> &Arc<ConcurrencyGate> {
+        &self.concurrency_gate
     }
 
     pub fn shutdown(&self) {
@@ -174,7 +258,7 @@ mod tests {
     fn test_exec(threads: usize) -> DedicatedExecutor {
         let mut builder = tokio::runtime::Builder::new_multi_thread();
         builder.worker_threads(threads).enable_all();
-        DedicatedExecutor::new("test-cpu", builder)
+        DedicatedExecutor::new("test-cpu", builder, threads)
     }
 
     #[tokio::test]
@@ -189,7 +273,10 @@ mod tests {
     async fn test_spawn_runs_on_different_thread() {
         let exec = test_exec(1);
         let caller_id = std::thread::current().id();
-        let spawned_id = exec.spawn(async { std::thread::current().id() }).await.unwrap();
+        let spawned_id = exec
+            .spawn(async { std::thread::current().id() })
+            .await
+            .unwrap();
         assert_ne!(caller_id, spawned_id);
         exec.join_blocking();
     }
@@ -200,11 +287,17 @@ mod tests {
         let exec = test_exec(2);
         let t1 = exec.spawn({
             let b = barrier.clone();
-            async move { b.wait(); 11 }
+            async move {
+                b.wait();
+                11
+            }
         });
         let t2 = exec.spawn({
             let b = barrier.clone();
-            async move { b.wait(); 22 }
+            async move {
+                b.wait();
+                22
+            }
         });
         barrier.wait();
         assert_eq!(t1.await.unwrap(), 11);

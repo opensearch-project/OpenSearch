@@ -40,6 +40,7 @@ public class MetadataFieldPluginTests extends OpenSearchTestCase {
         assertNotNull(fields.get(IgnoredFieldMapper.CONTENT_TYPE));
         assertNotNull(fields.get(IdFieldMapper.CONTENT_TYPE));
         assertNotNull(fields.get(SeqNoFieldMapper.CONTENT_TYPE));
+        assertNotNull(fields.get(SeqNoFieldMapper.PRIMARY_TERM_NAME));
         assertNotNull(fields.get(VersionFieldMapper.CONTENT_TYPE));
     }
 

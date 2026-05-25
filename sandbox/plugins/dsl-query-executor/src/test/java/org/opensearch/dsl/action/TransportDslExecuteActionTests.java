@@ -86,7 +86,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             buildEngineContext(),
-            (plan, ctx) -> Collections.emptyList(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
             resolver,
             mockThreadPool()
@@ -119,7 +119,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             buildEngineContext(),
-            (plan, ctx) -> Collections.emptyList(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
             resolver,
             mockThreadPool()

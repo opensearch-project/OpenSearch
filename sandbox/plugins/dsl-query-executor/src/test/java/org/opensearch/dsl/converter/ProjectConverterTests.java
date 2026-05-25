@@ -16,6 +16,8 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
+
 public class ProjectConverterTests extends OpenSearchTestCase {
 
     private final ProjectConverter converter = new ProjectConverter();
@@ -85,9 +87,12 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         RelNode result = converter.convert(scan, ctx);
 
         assertTrue(result instanceof LogicalProject);
-        assertEquals(2, result.getRowType().getFieldCount());
-        assertEquals("name", result.getRowType().getFieldNames().get(0));
-        assertEquals("brand", result.getRowType().getFieldNames().get(1));
+        assertEquals(8, result.getRowType().getFieldCount());
+        List<String> fieldNames = result.getRowType().getFieldNames();
+        assertTrue(fieldNames.contains("name"));
+        assertTrue(fieldNames.contains("brand"));
+        assertFalse(fieldNames.contains("price"));
+        assertFalse(fieldNames.contains("rating"));
     }
 
     public void testExcludesWithWildcard() throws ConversionException {
@@ -96,7 +101,7 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         RelNode result = converter.convert(scan, ctx);
 
         assertTrue(result instanceof LogicalProject);
-        assertEquals(3, result.getRowType().getFieldCount());
+        assertEquals(9, result.getRowType().getFieldCount());
         assertFalse(result.getRowType().getFieldNames().contains("rating"));
     }
 
@@ -111,7 +116,7 @@ public class ProjectConverterTests extends OpenSearchTestCase {
     }
 
     public void testWildcardIncludesWithExcludes() throws ConversionException {
-        // Include all fields matching "* ", exclude "rating"
+        // Include all fields matching "*", exclude "rating"
         SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(
             new FetchSourceContext(true, new String[] { "*" }, new String[] { "rating" })
         );
@@ -119,7 +124,7 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         RelNode result = converter.convert(scan, ctx);
 
         assertTrue(result instanceof LogicalProject);
-        assertEquals(3, result.getRowType().getFieldCount());
+        assertEquals(9, result.getRowType().getFieldCount());
         assertFalse(result.getRowType().getFieldNames().contains("rating"));
     }
 

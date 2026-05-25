@@ -10,6 +10,7 @@ package org.opensearch.storage.directory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -22,7 +23,10 @@ import java.util.function.Supplier;
 
 /**
  * Factory for creating {@link TieredDirectory} instances that combine local and remote storage.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class TieredDirectoryFactory implements IndexStorePlugin.CompositeDirectoryFactory {
 
     private static final Logger logger = LogManager.getLogger(TieredDirectoryFactory.class);

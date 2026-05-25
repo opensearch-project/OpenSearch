@@ -9,6 +9,7 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.javaagent.bootstrap.internal.StackCallerProtectionDomainChainExtractor;
 
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;

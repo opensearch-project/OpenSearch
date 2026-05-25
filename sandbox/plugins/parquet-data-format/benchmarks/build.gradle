@@ -33,6 +33,10 @@ dependencies {
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
 
+  // arrow-base provides ArrowNativeAllocator. parquet-data-format declares it as
+  // compileOnly (not exported), so the benchmark must declare it directly.
+  compileOnly project(':plugins:arrow-base')
+
   // JMH dependencies
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
@@ -54,7 +58,7 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes

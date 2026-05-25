@@ -10,6 +10,7 @@ package org.opensearch.dsl;
 
 import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
@@ -35,6 +36,39 @@ public class DslQueryIT extends DslIntegTestBase {
         assertOk(search(new SearchSourceBuilder().query(QueryBuilders.termQuery("name", "laptop"))));
     }
 
+    public void testTermsQuery() {
+        createTestIndex();
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop", "phone"))));
+    }
+
+    public void testTermsQueryWithBoostThrowsException() {
+        createTestIndex();
+        expectThrows(
+            ConversionException.class,
+            () -> search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").boost(2.0f)))
+        );
+    }
+
+    public void testTermsQueryWithNameThrowsException() {
+        createTestIndex();
+        expectThrows(
+            ConversionException.class,
+            () -> search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").queryName("my_query")))
+        );
+    }
+
+    public void testTermsQueryWithValueTypeThrowsException() {
+        createTestIndex();
+        expectThrows(
+            ConversionException.class,
+            () -> search(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.termsQuery("name", "laptop").valueType(org.opensearch.index.query.TermsQueryBuilder.ValueType.BITMAP)
+                )
+            )
+        );
+    }
+
     public void testWildcardQueryWithUnresolvedNode() {
         createTestIndex();
         // Wildcard query is not converted to standard Rex — wraps in UnresolvedQueryCall.
@@ -56,6 +90,29 @@ public class DslQueryIT extends DslIntegTestBase {
         expectThrows(
             Exception.class,
             () -> client().search(new SearchRequest(INDEX, "test-index-2").source(new SearchSourceBuilder())).actionGet()
+        );
+    }
+
+    public void testExistsQuery() {
+        createTestIndex();
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.existsQuery("name"))));
+    }
+
+    public void testExistsQueryWithBoostFails() {
+        createTestIndex();
+        expectThrows(Exception.class, () -> search(new SearchSourceBuilder().query(QueryBuilders.existsQuery("name").boost(2.0f))));
+    }
+
+    // TODO: Enable once BooleanQueryTranslatorExists is supported
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21442")
+    public void testExistsQueryWithBool() {
+        createTestIndex();
+        assertOk(
+            search(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.boolQuery().must(QueryBuilders.existsQuery("name")).filter(QueryBuilders.termQuery("brand", "brandX"))
+                )
+            )
         );
     }
 }

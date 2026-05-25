@@ -20,7 +20,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.nativebridge.spi.ArrowExport;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,10 +48,10 @@ public class ManagedVSR implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(ManagedVSR.class);
 
     private final String id;
-    private final VectorSchemaRoot vsr;
+    private VectorSchemaRoot vsr;
     private final BufferAllocator allocator;
     private final AtomicReference<VSRState> state = new AtomicReference<>(VSRState.ACTIVE);
-    private final Map<String, Field> fields = new HashMap<>();
+    private final Map<String, FieldVector> fields = new HashMap<>();
 
     /**
      * Creates a new ManagedVSR.
@@ -63,7 +65,7 @@ public class ManagedVSR implements AutoCloseable {
         this.vsr = VectorSchemaRoot.create(schema, allocator);
         this.allocator = allocator;
         for (Field field : vsr.getSchema().getFields()) {
-            fields.put(field.getName(), field);
+            fields.put(field.getName(), vsr.getVector(field));
         }
     }
 
@@ -93,8 +95,7 @@ public class ManagedVSR implements AutoCloseable {
         if (state.get() != VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot access vector in VSR state: " + state.get());
         }
-        Field field = fields.get(fieldName);
-        return field != null ? vsr.getVector(field) : null;
+        return fields.get(fieldName);
     }
 
     /** Transitions this VSR from ACTIVE to FROZEN state. */
@@ -135,6 +136,35 @@ public class ManagedVSR implements AutoCloseable {
      */
     public VSRState getState() {
         return state.get();
+    }
+
+    /**
+     * Dynamically adds a new field to this VSR. Creates the vector using the internal
+     * allocator and appends it to the schema. Only allowed in ACTIVE state.
+     *
+     * @param field the Arrow field descriptor
+     */
+    public void addFieldVector(Field field) {
+        if (state.get() != VSRState.ACTIVE) {
+            throw new IllegalStateException("Cannot add field to VSR in state: " + state.get());
+        }
+        FieldVector vector = field.createVector(allocator);
+        List<FieldVector> vectors = new ArrayList<>(vsr.getFieldVectors());
+        vectors.add(vector);
+        List<Field> newFields = new ArrayList<>(vsr.getSchema().getFields());
+        newFields.add(field);
+        int rowCount = vsr.getRowCount();
+        vsr = new VectorSchemaRoot(newFields, vectors, rowCount);
+        fields.put(field.getName(), vector);
+    }
+
+    /**
+     * Returns the current Arrow schema of this VSR.
+     *
+     * @return the schema
+     */
+    public Schema getSchema() {
+        return vsr.getSchema();
     }
 
     /**

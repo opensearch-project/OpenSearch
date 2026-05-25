@@ -15,10 +15,9 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
 import org.opensearch.index.store.checksum.LuceneChecksumHandler;
@@ -68,7 +67,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class DataFormatAwareStoreDirectory extends FilterDirectory {
+public class DataFormatAwareStoreDirectory extends FilterDirectory implements RemoteSyncListener {
 
     private static final Logger logger = LogManager.getLogger(DataFormatAwareStoreDirectory.class);
 
@@ -81,32 +80,59 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
     private static final FormatChecksumStrategy DEFAULT_CHECKSUM_STRATEGY = new GenericCRC32ChecksumHandler();
 
     /**
-     * Constructs a DataFormatAwareStoreDirectory with a {@link DataFormatRegistry} for format-aware
-     * checksum calculation and other format-specific operations.
+     * Constructs a DataFormatAwareStoreDirectory with pre-built checksum strategies for
+     * format-aware checksum calculation and other format-specific operations.
      *
      * @param delegate            the underlying FSDirectory (typically for &lt;shard&gt;/index/)
      * @param shardPath           the shard path for resolving subdirectories
-     * @param dataFormatRegistry  registry providing format-specific checksum handlers
+     * @param checksumStrategies  pre-built checksum strategies keyed by format name
      */
-    public DataFormatAwareStoreDirectory(
-        IndexSettings indexSettings,
-        Directory delegate,
-        ShardPath shardPath,
-        DataFormatRegistry dataFormatRegistry
-    ) {
+    public DataFormatAwareStoreDirectory(Directory delegate, ShardPath shardPath, Map<String, FormatChecksumStrategy> checksumStrategies) {
         super(new SubdirectoryAwareDirectory(delegate, shardPath));
         this.shardPath = shardPath;
-        Map<String, DataFormatDescriptor> descriptors = dataFormatRegistry.getFormatDescriptors(indexSettings);
-        this.checksumStrategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : descriptors.entrySet()) {
-            this.checksumStrategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
-        }
+        this.checksumStrategies = new HashMap<>(checksumStrategies);
         this.checksumStrategies.put(DEFAULT_FORMAT, new LuceneChecksumHandler());
-
         logger.debug(
             "Created DataFormatAwareStoreDirectory for shard {} with checksum strategies for formats: {}",
             shardPath.getShardId(),
-            checksumStrategies.keySet()
+            this.checksumStrategies.keySet()
+        );
+    }
+
+    /**
+     * Creates a DataFormatAwareStoreDirectory with a pre-built delegate directory (no wrapping).
+     * Intended for warm nodes where the delegate is already a TieredSubdirectoryAwareDirectory.
+     *
+     * @param delegate            the pre-built directory (e.g., TieredSubdirectoryAwareDirectory)
+     * @param shardPath           the shard path
+     * @param checksumStrategies  pre-built checksum strategies keyed by format name
+     * @return a new DataFormatAwareStoreDirectory wrapping the given delegate directly
+     */
+    public static DataFormatAwareStoreDirectory withDirectoryDelegate(
+        Directory delegate,
+        ShardPath shardPath,
+        Map<String, FormatChecksumStrategy> checksumStrategies
+    ) {
+        DataFormatAwareStoreDirectory dir = new DataFormatAwareStoreDirectory(delegate, shardPath, checksumStrategies, true);
+        return dir;
+    }
+
+    // Private constructor for withDirectoryDelegate — skips SubdirectoryAwareDirectory wrapping
+    private DataFormatAwareStoreDirectory(
+        Directory delegate,
+        ShardPath shardPath,
+        Map<String, FormatChecksumStrategy> checksumStrategies,
+        boolean directDelegate
+    ) {
+        super(delegate);
+        this.shardPath = shardPath;
+        this.checksumStrategies = new HashMap<>(checksumStrategies);
+        this.checksumStrategies.put(DEFAULT_FORMAT, new LuceneChecksumHandler());
+        logger.debug(
+            "Created DataFormatAwareStoreDirectory (directDelegate={}) for shard {} with checksum strategies for formats: {}",
+            directDelegate,
+            shardPath.getShardId(),
+            this.checksumStrategies.keySet()
         );
     }
 
@@ -139,6 +165,16 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
             fileName = toFileIdentifier(fm);
         }
         return fileName;
+    }
+
+    @Override
+    public void afterSyncToRemote(String file) {
+        Directory inner = getDelegate();
+        if (inner instanceof RemoteSyncListener) {
+            ((RemoteSyncListener) inner).afterSyncToRemote(file);
+        }
+        // On hot: inner is SubdirectoryAwareDirectory → not RemoteSyncListener → no-op
+        // On warm: inner is TieredSubdirectoryAwareDirectory → implements it → delegates
     }
 
     @Override
@@ -247,21 +283,22 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
     }
 
     /**
-     * Registers a {@link FormatChecksumStrategy} for a data format.
-     * Overrides any existing strategy
-     *
-     * <p>Use this to register strategies that support pre-computed checksums (e.g.,
-     * {@link PrecomputedChecksumStrategy} for Parquet files whose CRC32 is computed
-     * during write by the Rust writer).
-     *
-     * @param format the data format name (e.g., "parquet")
-     * @param strategy the checksum strategy to use for this format
+     * Returns CRC32 of the full file contents, for object-store transfer validation (e.g., S3
+     * CRC32 header). Uses {@code crc32_combine} for Lucene-format files (whose stored footer
+     * checksum covers only bytes {@code [0, length-8)}); other formats' strategies already
+     * return full-file CRC32. Distinct from {@link #calculateUploadChecksum}, which returns the
+     * metadata checksum used for segment replication comparison.
      */
-    public void registerChecksumStrategy(String format, FormatChecksumStrategy strategy) {
-        if (format != null && strategy != null) {
-            checksumStrategies.put(format, strategy);
-            logger.debug("Registered FormatChecksumStrategy for format [{}]", format);
+    @ExperimentalApi
+    public long calculateTransferChecksum(String name) throws IOException {
+        FileMetadata fm = toFileMetadata(name);
+        if (isDefaultFormat(fm.dataFormat())) {
+            String fileIdentifier = toFileIdentifier(fm);
+            try (IndexInput input = openInput(fileIdentifier, IOContext.READONCE)) {
+                return RemoteTransferContainer.checksumOfChecksum(input, 8);
+            }
         }
+        return calculateChecksum(fm);
     }
 
     /**
@@ -274,6 +311,78 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
      */
     public FormatChecksumStrategy getChecksumStrategy(String format) {
         return checksumStrategies.get(format);
+    }
+
+    /**
+     * Retains only checksums for files present in the current catalog snapshot, evicting all stale entries.
+     * Called after successful upload to keep the cache bounded to the active file set.
+     *
+     * @param currentSnapshotFiles the files in the current catalog snapshot (format-prefixed)
+     */
+    @ExperimentalApi
+    public void evictStaleChecksums(Collection<String> currentSnapshotFiles) {
+        for (Map.Entry<String, FormatChecksumStrategy> entry : checksumStrategies.entrySet()) {
+            if (isDefaultFormat(entry.getKey())) {
+                continue;
+            }
+            if (entry.getValue() instanceof PrecomputedChecksumStrategy precomputed) {
+                String prefix = entry.getKey() + "/";
+                Set<String> activeForFormat = currentSnapshotFiles.stream().filter(f -> f.startsWith(prefix)).collect(Collectors.toSet());
+                precomputed.retainOnly(activeForFormat);
+            }
+        }
+    }
+
+    /**
+     * Registers a checksum for a file downloaded from remote store (recovery or segment
+     * replication). Delegates to the format's {@link FormatChecksumStrategy#registerChecksum};
+     * strategies that don't support caching (default no-op) silently ignore it. Uses
+     * generation {@code 0} so later write-path registrations overwrite.
+     */
+    @ExperimentalApi
+    public void registerDownloadedChecksum(String fileName, String checksumStr) {
+        if (fileName == null || checksumStr == null) {
+            return;
+        }
+        final long checksum;
+        try {
+            checksum = Long.parseLong(checksumStr);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        FileMetadata fm = toFileMetadata(fileName);
+        FormatChecksumStrategy strategy = checksumStrategies.get(fm.dataFormat());
+        if (strategy != null) {
+            // Pass FileMetadata; the strategy owns key derivation.
+            strategy.registerChecksum(fm, checksum, 0L);
+        }
+    }
+
+    /** Bulk variant of {@link #registerDownloadedChecksum}. */
+    @ExperimentalApi
+    public void registerDownloadedChecksums(Map<String, String> fileToChecksum) {
+        if (fileToChecksum == null || fileToChecksum.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> e : fileToChecksum.entrySet()) {
+            registerDownloadedChecksum(e.getKey(), e.getValue());
+        }
+    }
+
+    /**
+     * Creates a {@link VerifyingIndexOutput} appropriate for the given file's format.
+     * Delegates to the format's {@link FormatChecksumStrategy#createVerifyingOutput} so that
+     * each format can use its own checksum algorithm (e.g., CRC32C for Parquet, codec footer for Lucene).
+     *
+     * @param metadata the expected file metadata (length, checksum)
+     * @param output the underlying index output to wrap
+     * @return a format-appropriate verifying output
+     */
+    @ExperimentalApi
+    public VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
+        String format = FileMetadata.parseDataFormat(metadata.name());
+        FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(format, DEFAULT_CHECKSUM_STRATEGY);
+        return strategy.createVerifyingOutput(metadata, output);
     }
 
     public IndexOutput createOutput(FileMetadata fm, IOContext context) throws IOException {
@@ -292,7 +401,14 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
     // Private Helpers
     // ═══════════════════════════════════════════════════════════════
 
-    private static boolean isDefaultFormat(String format) {
+    /**
+     * Returns true if files of this format live directly under the shard's {@code index/}
+     * directory rather than under a format-named subdirectory. {@code "lucene"} and
+     * {@code "metadata"} files (plus {@code null}/empty as defensive defaults) are laid out
+     * flat; every other format (e.g. {@code "parquet"}) gets its own subdirectory.
+     */
+    @ExperimentalApi
+    public static boolean isDefaultFormat(String format) {
         return format == null || format.isEmpty() || INDEX_DIRECTORY_FORMATS.contains(format.toLowerCase(Locale.ROOT));
     }
 }
