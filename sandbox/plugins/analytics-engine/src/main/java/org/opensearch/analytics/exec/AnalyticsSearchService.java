@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
@@ -31,6 +32,7 @@ import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
@@ -68,27 +70,31 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    /** Cross-phase reader cache for QTF — query phase stores, fetch phase acquires. */
+    private final ReaderContextStore readerContextStore;
     private TaskResourceTrackingService taskResourceTrackingService;
     private final BufferAllocator allocator;
     private final ArrowNativeAllocator nativeAllocator;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowNativeAllocator nativeAllocator) {
-        this(backends, List.of(), nativeAllocator, null);
+        this(backends, List.of(), nativeAllocator, null, null);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         ArrowNativeAllocator nativeAllocator,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        ReaderContextStore readerContextStore
     ) {
-        this(backends, List.of(), nativeAllocator, namedWriteableRegistry);
+        this(backends, List.of(), nativeAllocator, namedWriteableRegistry, readerContextStore);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
         ArrowNativeAllocator nativeAllocator,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        ReaderContextStore readerContextStore
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
@@ -103,6 +109,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
         this.allocator = queryPool.newChildAllocator("analytics-search-service", 0, Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.readerContextStore = readerContextStore;
     }
 
     @Override
@@ -169,12 +176,17 @@ public class AnalyticsSearchService implements AutoCloseable {
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
+        // QTF: hand the reader to the store so the fetch phase can reuse it without re-opening.
+        // FragmentResources holds a reference to the ReaderContext; close() releases it back
+        // to the store, the reaper closes after keepAlive.
+        ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), gatedReader);
+        assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
         Runnable trackerCleanup = null;
         try {
-            ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, shard, task);
+            ShardScanExecutionContext ctx = buildContext(request, readerContext.getReader(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
             // Apply instruction handlers in order — each builds upon the previous handler's backend context
@@ -219,7 +231,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
+            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup);
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -231,7 +243,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                 e
             );
             try {
-                new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
+                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -298,6 +310,120 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setQueryCache(shard.getQueryCache());
         ctx.setQueryCachingPolicy(shard.getQueryCachingPolicy());
         return ctx;
+    }
+
+    /**
+     * QTF fetch phase: retrieves specific rows by global row ID via the backend SPI.
+     *
+     * <p>Reuses the {@link ReaderContext} opened during the query phase. If the context
+     * is missing (expired before fetch arrived, or query-phase reader-store invariant
+     * broken), the call fails — there is no cold-start fallback because shard-global
+     * {@code __row_id__} values produced by one reader cannot be reinterpreted by
+     * another (segment topology may differ across reopens).
+     *
+     * <p>Caller owns {@code rowIds} memory; the BigIntVector is allocated here so the
+     * native side can read directly via the off-heap buffer address.
+     *
+     * @param task transport-layer task for cancellation propagation; may be null in tests
+     */
+    public EngineResultStream executeFetchByRowIds(
+        String queryId,
+        long[] rowIds,
+        String[] columns,
+        IndexShard shard,
+        AnalyticsShardTask task
+    ) {
+        if (task != null && task.isCancelled()) {
+            throw new TaskCancelledException("Fetch task cancelled before execution: " + task.getReasonCancelled());
+        }
+        if (rowIds == null || rowIds.length == 0 || columns == null || columns.length == 0) {
+            throw new IllegalArgumentException(
+                "fetch on " + shard.shardId() + " requires non-empty rowIds and columns; got rowIds="
+                    + (rowIds == null ? "null" : rowIds.length) + ", columns="
+                    + (columns == null ? "null" : columns.length)
+            );
+        }
+        // Caller must include __row_id__ in the projection so the result carries the
+        // shard-global identifier alongside the fetched columns.
+        boolean hasRowIdField = false;
+        for (String c : columns) {
+            if (DocumentInput.ROW_ID_FIELD.equals(c)) {
+                hasRowIdField = true;
+                break;
+            }
+        }
+        if (!hasRowIdField) {
+            throw new IllegalArgumentException(
+                "columns must include " + DocumentInput.ROW_ID_FIELD + " for fetch on " + shard.shardId() + ", got " + java.util.Arrays.toString(columns)
+            );
+        }
+        ReaderContext readerContext = readerContextStore.acquireContext(queryId);
+        if (readerContext == null) {
+            throw new IllegalStateException(
+                "No ReaderContext for queryId=" + queryId + " on " + shard.shardId() + " — query phase missing or context expired"
+            );
+        }
+        assert assertFetchInvariants(readerContext, queryId);
+        AnalyticsSearchBackendPlugin backend = backends.values().iterator().next();
+        // Caller contract: rowIds must already be sorted ascending (RowSelection invariant on
+        // native side). Asserted here so violations are caught in dev builds before the FFM call.
+        assert assertAscending(rowIds);
+        BigIntVector rowIdVector = null;
+        try {
+            rowIdVector = new BigIntVector(DocumentInput.ROW_ID_FIELD, allocator);
+            rowIdVector.allocateNew(rowIds.length);
+            for (int i = 0; i < rowIds.length; i++) {
+                rowIdVector.set(i, rowIds[i]);
+            }
+            rowIdVector.setValueCount(rowIds.length);
+            return backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+        } catch (Exception e) {
+            if (rowIdVector != null) rowIdVector.close();
+            throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
+        } finally {
+            // Mark the context not-in-use so the reaper can reap it after keepAlive.
+            // We never call freeContext directly — reaper owns the close.
+            readerContextStore.releaseContext(queryId);
+        }
+    }
+
+    // ── Assertion helpers (invoked only when -ea is enabled; bodies are dead in production) ──
+
+    private static boolean assertReaderInvariants(
+        GatedCloseable<Reader> gatedReader,
+        ReaderContext readerContext,
+        String queryId,
+        IndexShard shard
+    ) {
+        if (gatedReader == null) {
+            throw new AssertionError("acquireReader returned null for shard " + shard.shardId());
+        }
+        if (readerContext == null) {
+            throw new AssertionError("createContext returned null for queryId=" + queryId);
+        }
+        if (readerContext.getReader() == null) {
+            throw new AssertionError("ReaderContext returned null reader for queryId=" + queryId);
+        }
+        return true;
+    }
+
+    private boolean assertFetchInvariants(ReaderContext readerContext, String queryId) {
+        if (readerContext.getReader() == null) {
+            throw new AssertionError("acquired ReaderContext has null reader for queryId=" + queryId);
+        }
+        if (backends.isEmpty()) {
+            throw new AssertionError("no backends registered — service constructor invariant violated");
+        }
+        return true;
+    }
+
+    private static boolean assertAscending(long[] values) {
+        for (int i = 1; i < values.length; i++) {
+            if (values[i] < values[i - 1]) {
+                throw new AssertionError("rowIds not ascending at index " + i + ": " + values[i - 1] + " > " + values[i]);
+            }
+        }
+        return true;
     }
 
 }

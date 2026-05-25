@@ -11,40 +11,44 @@ package org.opensearch.analytics.exec;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
-import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 /**
- * Holds the per-fragment resources (reader, engine, result stream) kept alive for the
- * duration of a streaming fragment execution, and releases them in reverse order on close.
+ * Holds the per-fragment resources (reader context, engine, result stream) kept alive for
+ * the duration of a streaming fragment execution, and releases them in reverse order on close.
+ *
+ * <p>The reader is owned by {@link ReaderContextStore}, not by this class — close releases
+ * (does not free) the context, so the reader stays alive across the QTF query→fetch
+ * boundary. The store's reaper closes the underlying reader after keepAlive elapses.
  *
  * @opensearch.internal
  */
 public final class FragmentResources implements AutoCloseable {
 
-    private final GatedCloseable<Reader> gatedReader;
+    private final ReaderContextStore readerContextStore;
+    private final ReaderContext readerContext;
     private final SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine;
     private final EngineResultStream stream;
     private final Runnable onClose;
 
     public FragmentResources(
-        GatedCloseable<Reader> gatedReader,
-        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
-        EngineResultStream stream
-    ) {
-        this(gatedReader, engine, stream, null);
-    }
-
-    public FragmentResources(
-        GatedCloseable<Reader> gatedReader,
+        ReaderContextStore readerContextStore,
+        ReaderContext readerContext,
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
         Runnable onClose
     ) {
-        this.gatedReader = gatedReader;
+        assert assertCtorInvariants(readerContextStore, readerContext);
+        this.readerContextStore = readerContextStore;
+        this.readerContext = readerContext;
         this.engine = engine;
         this.stream = stream;
         this.onClose = onClose;
+    }
+
+    private static boolean assertCtorInvariants(ReaderContextStore store, ReaderContext ctx) {
+        if (store == null) throw new AssertionError("readerContextStore is required for FragmentResources");
+        if (ctx == null) throw new AssertionError("readerContext is required for FragmentResources");
+        return true;
     }
 
     public EngineResultStream stream() {
@@ -63,7 +67,16 @@ public final class FragmentResources implements AutoCloseable {
         }
         first = closeQuietly(stream, first);
         first = closeQuietly(engine, first);
-        first = closeQuietly(gatedReader, first);
+        // Release (not close) — the store's reaper closes after keepAlive, and the QTF
+        // fetch phase may still need this reader before then.
+        if (readerContext != null) {
+            try {
+                readerContextStore.releaseContext(readerContext.getQueryId());
+            } catch (Exception e) {
+                if (first == null) first = e;
+                else first.addSuppressed(e);
+            }
+        }
         if (first != null) throw first;
     }
 

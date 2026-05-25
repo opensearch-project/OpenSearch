@@ -21,6 +21,8 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.common.document.DocumentField;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +49,7 @@ import java.util.Set;
 public class OpenSearchLateMaterialization extends SingleRel implements OpenSearchRelNode {
 
     /** Shard-produced row id, last column on Scan output, propagates up through Sort. */
-    public static final String ROW_ID_FIELD = "___row_id";
+    public static final String ROW_ID_FIELD = DocumentInput.ROW_ID_FIELD;
 
     /** Coord-appended UGSI (shardOrd + indexUUID + nodeId), declared on ER output. */
     public static final String UGSI_FIELD = "___ugsi";

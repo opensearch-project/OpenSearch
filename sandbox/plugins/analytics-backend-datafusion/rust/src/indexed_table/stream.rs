@@ -33,9 +33,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use datafusion::arrow::array::{Array, BooleanArray};
+use datafusion::arrow::array::{Array, BooleanArray, UInt64Array};
 use datafusion::arrow::compute::filter_record_batch;
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Result;
 use datafusion::execution::SendableRecordBatchStream;
@@ -64,6 +64,7 @@ pub struct RowGroupInfo {
     pub first_row: i64,
     pub num_rows: i64,
 }
+
 
 /// Test-only override for the per-RG `min_skip_run` selectivity heuristic.
 /// `IndexedStream` normally picks `min_skip_run` from candidate
@@ -270,6 +271,13 @@ pub struct IndexedExec {
     /// from the same query; read once per RG into local fields inside
     /// `IndexedStream` so the hot path never touches the Arc.
     pub(crate) query_config: Arc<DatafusionQueryConfig>,
+    /// Cumulative row offset for this segment within the shard.
+    pub(crate) global_base: u64,
+    /// When true, the `___row_id` column is computed from position instead of read.
+    pub(crate) emit_row_ids: bool,
+    /// Index in the OUTPUT schema where computed `___row_id` should be inserted.
+    /// `None` when `emit_row_ids=false` or `___row_id` is not in projection.
+    pub(crate) row_id_output_index: Option<usize>,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -362,6 +370,9 @@ impl ExecutionPlan for IndexedExec {
             self.query_config.min_skip_run_selectivity_threshold,
             self.query_config.indexed_pushdown_filters,
             self.query_config.batch_size,
+            self.global_base,
+            self.emit_row_ids,
+            self.row_id_output_index,
         )))
     }
 }
@@ -424,6 +435,12 @@ struct IndexedStream {
     /// calling it twice (assert panic) and to signal "no more input
     /// will arrive; drain remaining completed batches."
     coalescer_finished: bool,
+    /// Cumulative row offset for this segment within the shard.
+    global_base: u64,
+    /// When true, the `___row_id` column is computed from position.
+    emit_row_ids: bool,
+    /// Index in the output schema where computed `___row_id` is inserted.
+    row_id_output_index: Option<usize>,
 }
 
 impl IndexedStream {
@@ -446,9 +463,13 @@ impl IndexedStream {
         min_skip_run_selectivity_threshold: f64,
         indexed_pushdown_filters: bool,
         target_batch_size: usize,
+        global_base: u64,
+        emit_row_ids: bool,
+        row_id_output_index: Option<usize>,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
-        let batch_coalescer = LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
+        let batch_coalescer =
+            LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
         Self {
             schema,
             full_schema,
@@ -480,6 +501,9 @@ impl IndexedStream {
             batch_coalescer,
             upstream_done: false,
             coalescer_finished: false,
+            global_base,
+            emit_row_ids,
+            row_id_output_index,
         }
     }
 
@@ -558,6 +582,18 @@ impl IndexedStream {
             t.add_duration(t_on_batch.elapsed());
         }
 
+        // Capture position info BEFORE mask is consumed (needed for row ID computation).
+        let row_id_ctx = if self.row_id_output_index.is_some() {
+            Some(super::row_id_injection::RowIdContext {
+                batch_offset: self.batch_offset,
+                position_map: self.current_position_map.as_ref().cloned(),
+                base: self.global_base + self.current_rg_first_row as u64,
+                eval_mask: eval_mask.clone(),
+            })
+        } else {
+            None
+        };
+
         let output = match eval_mask {
             Some(mask) => {
                 self.mask_offset += batch_len;
@@ -597,9 +633,21 @@ impl IndexedStream {
             }
         };
 
-        // Strip extra predicate columns to match output schema
+        // Strip extra predicate columns and inject computed __row_id__.
         let t_proj = Instant::now();
-        let output = if output.num_columns() > self.schema.fields().len() {
+        let output = if let Some(row_id_idx) = self.row_id_output_index {
+            let ctx = row_id_ctx.unwrap();
+            let mask_offset_before = self.mask_offset.saturating_sub(batch_len);
+            super::row_id_injection::inject_row_ids(
+                &output,
+                &ctx,
+                batch_len,
+                self.current_mask.as_ref(),
+                mask_offset_before,
+                row_id_idx,
+                &self.schema,
+            )?
+        } else if output.num_columns() > self.schema.fields().len() {
             let n = self.schema.fields().len();
             if n == 0 {
                 RecordBatch::try_new_with_options(

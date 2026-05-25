@@ -262,6 +262,67 @@ pub unsafe extern "C" fn df_execute_query(
         .map_err(|e| e.to_string())
 }
 
+/// Fetch specific rows by global row ID — QTF fetch phase.
+///
+/// Row IDs are passed as a direct pointer to i64 values (from BigIntVector's
+/// off-heap ArrowBuf). Zero-copy at FFM boundary: Rust reads directly from
+/// Java's off-heap buffer without any intermediate allocation.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_fetch_by_row_ids(
+    shard_view_ptr: i64,
+    row_ids_ptr: i64,
+    row_ids_count: i64,
+    col_names_ptr: *const *const u8,
+    col_names_len_ptr: *const i64,
+    col_names_count: i64,
+    runtime_ptr: i64,
+) -> i64 {
+    // Hard FFM-boundary checks (UB risk if violated): pointers must be non-zero before any deref.
+    // Always-on `assert!` (not debug_assert!) — these protect against use-after-close from Java.
+    assert!(shard_view_ptr != 0, "df_fetch_by_row_ids: shard_view_ptr is null");
+    assert!(runtime_ptr != 0, "df_fetch_by_row_ids: runtime_ptr is null");
+    assert!(row_ids_count >= 0, "df_fetch_by_row_ids: negative row_ids_count {}", row_ids_count);
+    assert!(col_names_count >= 0, "df_fetch_by_row_ids: negative col_names_count {}", col_names_count);
+    if row_ids_count > 0 {
+        assert!(row_ids_ptr != 0, "df_fetch_by_row_ids: row_ids_ptr is null but count={}", row_ids_count);
+    }
+    if col_names_count > 0 {
+        assert!(!col_names_ptr.is_null(), "df_fetch_by_row_ids: col_names_ptr is null but count={}", col_names_count);
+        assert!(!col_names_len_ptr.is_null(), "df_fetch_by_row_ids: col_names_len_ptr is null but count={}", col_names_count);
+    }
+
+    let mgr = get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const crate::api::ShardView);
+    let runtime = &*(runtime_ptr as *const crate::api::DataFusionRuntime);
+
+    // Zero-copy read from BigIntVector's direct buffer
+    let row_ids: Vec<i64> = slice::from_raw_parts(
+        row_ids_ptr as *const i64,
+        row_ids_count as usize,
+    ).to_vec();
+
+    // Parse column names
+    let mut columns: Vec<String> = Vec::with_capacity(col_names_count as usize);
+    for i in 0..col_names_count as usize {
+        let ptr = *col_names_ptr.add(i);
+        let len = *col_names_len_ptr.add(i);
+        let name = str_from_raw(ptr, len)
+            .map_err(|e| format!("df_fetch_by_row_ids: column name: {}", e))?;
+        columns.push(name.to_string());
+    }
+
+    mgr.io_runtime
+        .block_on(crate::api::fetch_by_row_ids(
+            shard_view,
+            runtime,
+            &mgr,
+            row_ids,
+            columns,
+        ))
+        .map_err(|e| e.to_string())
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
@@ -854,8 +915,16 @@ pub unsafe extern "C" fn df_execute_with_context(
     let cpu_for_cross = cpu_executor.clone();
     let mgr_for_spawn = Arc::clone(&mgr);
 
-    // Route based on whether the session was configured for indexed execution
-    if session_handle.indexed_config.is_some() {
+    // Route based on whether the session was configured for indexed execution,
+    // or if the plan projects __row_id__ (QTF query phase) under a non-ListingTable
+    // fetch strategy.
+    let has_row_id = plan_bytes
+        .windows(crate::ROW_ID_COLUMN_NAME.len())
+        .any(|w| w == crate::ROW_ID_COLUMN_NAME.as_bytes());
+    let query_strategy = session_handle.query_config.query_strategy;
+    let use_indexed = session_handle.indexed_config.is_some()
+        || (has_row_id && query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
+    if use_indexed {
         // Extract target_partitions BEFORE boxing into raw pointer (session_handle is consumed).
         let partition_weight = session_handle.query_config.target_partitions.max(1) as u32;
         // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly

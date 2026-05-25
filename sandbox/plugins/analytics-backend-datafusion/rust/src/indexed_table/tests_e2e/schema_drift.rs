@@ -96,6 +96,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     let tree = Arc::new(tree_bool);
@@ -135,6 +136,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

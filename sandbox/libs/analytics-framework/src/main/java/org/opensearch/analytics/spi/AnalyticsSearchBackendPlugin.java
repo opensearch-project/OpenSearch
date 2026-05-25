@@ -8,6 +8,10 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -132,6 +136,25 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * QTF fetch phase: reads specific rows by global row ID.
+     * Row IDs are passed as a BigIntVector for zero-copy transfer to native.
+     *
+     * @param reader the index reader for the target shard
+     * @param rowIdVector Arrow BigIntVector containing global row IDs
+     * @param columns column names to read
+     * @param allocator Arrow buffer allocator for result import
+     * @return a result stream containing the requested rows
+     */
+    default EngineResultStream fetchByRowIds(
+        IndexReaderProvider.Reader reader,
+        org.apache.arrow.vector.BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator
+    ) {
+        throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
     }
 
     /**

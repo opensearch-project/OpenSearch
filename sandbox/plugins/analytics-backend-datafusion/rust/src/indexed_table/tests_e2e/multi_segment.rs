@@ -130,6 +130,7 @@ async fn run_two_segment_query(
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
         });
     }
 
@@ -181,6 +182,7 @@ async fn run_two_segment_query(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();
@@ -335,6 +337,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
         });
     }
 
@@ -382,6 +385,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();
@@ -821,6 +825,7 @@ async fn run_wide_segments(
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
         });
     }
 
@@ -883,6 +888,7 @@ async fn run_wide_segments(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();
