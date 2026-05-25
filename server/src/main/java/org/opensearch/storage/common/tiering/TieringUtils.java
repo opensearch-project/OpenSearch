@@ -12,12 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.storage.action.tiering.IndexTieringRequest;
 
 import java.util.Arrays;
@@ -370,6 +372,24 @@ public class TieringUtils {
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
+    }
+
+    /**
+     * Checks if the index has pluggable data format enabled (is a DFA index).
+     */
+    public static boolean isDfaIndex(String indexName, ClusterState state) {
+        IndexMetadata indexMetadata = state.metadata().index(indexName);
+        return isDfaIndex(indexMetadata);
+    }
+
+    /**
+     * Checks if the index has pluggable data format enabled (is a DFA index).
+     */
+    public static boolean isDfaIndex(IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return false;
+        }
+        return indexMetadata.getSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
     }
 
 }

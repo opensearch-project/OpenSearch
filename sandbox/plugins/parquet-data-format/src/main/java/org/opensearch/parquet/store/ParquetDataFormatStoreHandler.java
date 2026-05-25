@@ -68,6 +68,15 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
         if (isWarm) {
             long remotePtr = (repo != null && repo.isLive()) ? repo.getPointer() : 0L;
 
+            if (remotePtr == 0L) {
+                throw new IllegalStateException(
+                    "["
+                        + shardId
+                        + "] warm shard requires a live NativeStoreRepository but got a null or dead repo."
+                        + " remotePtr=0 would cause a null-pointer dereference in the Rust TieredObjectStore."
+                );
+            }
+
             // Resolve preferred cache by name; EMPTY if unavailable (hot nodes or no matching cache).
             // owned by NodeCacheService and must not be freed here.
             NativeStoreHandle cacheHandle = (cacheRegistry != null)
