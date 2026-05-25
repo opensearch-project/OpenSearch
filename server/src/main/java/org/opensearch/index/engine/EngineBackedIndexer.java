@@ -31,6 +31,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * An indexer implementation that uses an engine to perform indexing operations.
@@ -300,6 +301,11 @@ public class EngineBackedIndexer implements Indexer {
     @Override
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         return engine.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+    }
+
+    @Override
+    public List<Segment> segments(boolean verbose) {
+        return engine.segments(verbose);
     }
 
     @Override

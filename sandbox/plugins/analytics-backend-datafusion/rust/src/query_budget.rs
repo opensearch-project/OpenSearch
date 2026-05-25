@@ -191,6 +191,13 @@ pub fn acquire_budget_with_projection(
 ///
 /// Tries to reserve a phantom at the configured parallelism. If the pool
 /// rejects it, iteratively halves target_partitions until it fits.
+///
+/// **Proactive RSS check**: before attempting pool reservation, consults
+/// jemalloc's resident bytes. If physical memory already exceeds the admission
+/// threshold (default 70% of pool limit), immediately reduces partitions to
+/// the minimum. This prevents the "20 queries all pass admission simultaneously"
+/// burst — each new query arriving when RSS is elevated starts at minimum
+/// parallelism, limiting its hash table growth and total memory footprint.
 fn acquire_budget_inner(
     pool: &Arc<dyn MemoryPool>,
     avg_row_bytes: usize,
@@ -201,6 +208,45 @@ fn acquire_budget_inner(
     let min_partitions = get_min_target_partitions();
     let mut target_partitions = configured_target_partitions.max(min_partitions);
     let mut batch_size = configured_batch_size.max(MIN_BATCH_SIZE);
+
+    // Proactive admission guard: only consult jemalloc RSS when the pool's own
+    // reservation accounting already shows pressure (>= admission threshold).
+    // This avoids the ~5µs jemalloc epoch.advance cost on the happy path.
+    if let Some(limit) = pool_limit(pool) {
+        let reserved = pool.reserved();
+        let thresholds = crate::memory_guard::get_thresholds();
+        let admission_bytes = (limit as f64 * thresholds.admission_throttle) as usize;
+        if reserved >= admission_bytes {
+            let resident = crate::memory_guard::cached_resident_bytes();
+            if resident > 0 {
+                let spill_bytes = (limit as f64 * thresholds.admission_reject) as i64;
+                if resident >= spill_bytes {
+                    // RSS at spill threshold (85%) — reject immediately.
+                    // Even at min partitions this query will hit spill on first batch.
+                    // Better to reject with clear backpressure than admit and fail slowly.
+                    native_bridge_common::log_info!(
+                        "Admission REJECTED: pool reserved={}B, RSS={}B >= spill threshold ({:.0}% of {}B). Node under memory pressure.",
+                        reserved, resident, thresholds.admission_reject * 100.0, limit
+                    );
+                    return Err(crate::native_error::admission_rejected_error(
+                        compute_untracked_bytes_with_columns(min_partitions, MIN_BATCH_SIZE, avg_row_bytes, num_columns),
+                        min_partitions,
+                        MIN_BATCH_SIZE,
+                        avg_row_bytes,
+                    ));
+                }
+                // RSS between admission (70%) and operator (85%) — reduce partitions
+                let admission_threshold_bytes = (limit as f64 * thresholds.admission_throttle) as i64;
+                if resident >= admission_threshold_bytes {
+                    native_bridge_common::log_info!(
+                        "Admission: pool reserved={}B, RSS={}B >= admission threshold ({:.0}%) — reducing to min partitions={}",
+                        reserved, resident, thresholds.admission_throttle * 100.0, min_partitions
+                    );
+                    target_partitions = min_partitions;
+                }
+            }
+        }
+    }
 
     loop {
         let phantom_bytes = compute_untracked_bytes_with_columns(

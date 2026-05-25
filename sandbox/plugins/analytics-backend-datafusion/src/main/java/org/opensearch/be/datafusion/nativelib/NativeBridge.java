@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion.nativelib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
@@ -26,8 +27,11 @@ import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -105,6 +109,7 @@ public final class NativeBridge {
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
+    private static final MethodHandle QUERY_REGISTRY_TOP_N_BY_CURRENT;
     private static final MethodHandle DF_NATIVE_NODE_STATS;
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
@@ -181,7 +186,7 @@ public final class NativeBridge {
 
         SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
             lib.find("df_set_memory_guard_thresholds").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         CREATE_READER = linker.downcallHandle(
@@ -468,6 +473,12 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
+        // i64 df_query_registry_top_n_by_current(out_ptr, cap_entries)
+        QUERY_REGISTRY_TOP_N_BY_CURRENT = linker.downcallHandle(
+            lib.find("df_query_registry_top_n_by_current").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
         // i64 df_native_node_stats(out_ptr, out_cap)
         DF_NATIVE_NODE_STATS = linker.downcallHandle(
             lib.find("df_native_node_stats").orElseThrow(),
@@ -691,10 +702,20 @@ public final class NativeBridge {
         }
     }
 
-    /** Sets the memory guard admission and operator thresholds (0.0–1.0). */
-    public static void setMemoryGuardThresholds(double admission, double operator) {
+    /** Sets the memory guard thresholds (0.0–1.0): admission throttle, admission reject, execution spill, execution critical. */
+    public static void setMemoryGuardThresholds(
+        double admissionThrottle,
+        double admissionReject,
+        double executionSpill,
+        double executionCritical
+    ) {
         try {
-            SET_MEMORY_GUARD_THRESHOLDS.invokeExact((long) (admission * 1000), (long) (operator * 1000));
+            SET_MEMORY_GUARD_THRESHOLDS.invokeExact(
+                (long) (admissionThrottle * 1000),
+                (long) (admissionReject * 1000),
+                (long) (executionSpill * 1000),
+                (long) (executionCritical * 1000)
+            );
         } catch (Throwable t) {
             logger.debug("Failed to set memory guard thresholds", t);
         }
@@ -848,6 +869,55 @@ public final class NativeBridge {
             var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
 
             return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
+        }
+    }
+
+    // ---- Per-query registry top-N snapshot ----
+
+    /**
+     * Snapshot the {@code n} heaviest live queries by {@code current_bytes}.
+     *
+     * <p>One FFM call: Java allocates an {@code n × ENTRY_BYTES} segment, Rust
+     * runs a bounded min-heap of size {@code n} over its registry and writes
+     * the survivors as {@link QueryRegistryLayout} entries. Completed and
+     * zero-byte trackers are filtered on the Rust side. Order within the
+     * buffer is unspecified.
+     *
+     * <p>Mirrors the {@link #stats()} pattern: the layout class decodes
+     * directly into the caller's final type ({@link QueryExecutionMetrics})
+     * with no transport-only intermediate.
+     *
+     * @param n maximum entries to return; must be non-negative. Zero short-circuits
+     *          without crossing the FFM boundary.
+     * @return a non-null map of {@code contextId → metrics}, possibly empty,
+     *         with at most {@code n} entries.
+     * @throws IllegalArgumentException if {@code n} is negative or implies a
+     *         buffer larger than {@link Integer#MAX_VALUE} bytes
+     */
+    public static Map<Long, QueryExecutionMetrics> getTopNQueriesByMemory(int n) {
+        if (n < 0) {
+            throw new IllegalArgumentException("n must be non-negative: " + n);
+        }
+        if (n == 0) {
+            return Collections.emptyMap();
+        }
+        long bytes = (long) n * QueryRegistryLayout.ENTRY_BYTES;
+        if (bytes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("n too large for a single snapshot: " + n);
+        }
+        try (var call = new NativeCall()) {
+            var seg = call.buf((int) bytes);
+            long written = call.invoke(QUERY_REGISTRY_TOP_N_BY_CURRENT, seg, (long) n);
+            if (written == 0L) {
+                return Collections.emptyMap();
+            }
+            int rows = (int) Math.min(written, (long) n);
+            Map<Long, QueryExecutionMetrics> out = new HashMap<>(rows);
+            for (int i = 0; i < rows; i++) {
+                long ctxId = QueryRegistryLayout.readContextId(seg, i);
+                out.put(ctxId, QueryRegistryLayout.readMetrics(seg, i));
+            }
+            return Collections.unmodifiableMap(out);
         }
     }
 

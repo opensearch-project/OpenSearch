@@ -485,6 +485,9 @@ public class CatalogSnapshotManager implements Closeable {
     private CatalogSnapshot acquireLatestSnapshot() {
         CatalogSnapshot snapshot;
         do {
+            if (closed.get()) {
+                throw new IllegalStateException("CatalogSnapshotManager is closed");
+            }
             snapshot = latestCatalogSnapshot;
         } while (!snapshot.tryIncRef());
         return snapshot;
@@ -583,6 +586,20 @@ public class CatalogSnapshotManager implements Closeable {
     @Override
     public void close() {
         closed.compareAndSet(false, true);
+    }
+
+    /**
+     * Returns the number of unreferenced file cleanup operations performed.
+     */
+    public long getUnreferencedFileCleanUpsPerformed() {
+        return indexFileDeleter.getCleanUpsPerformed();
+    }
+
+    /**
+     * Increments the merge failure cleanup counter.
+     */
+    public void incrementUnreferencedFileCleanUps() {
+        indexFileDeleter.incrementCleanUpsPerformed();
     }
 
     /**

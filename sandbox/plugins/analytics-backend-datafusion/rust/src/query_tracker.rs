@@ -189,6 +189,148 @@ impl QueryTracker {
 
 static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap::new);
 
+// ---------------------------------------------------------------------------
+// Registry snapshot — top-N FFM export
+// ---------------------------------------------------------------------------
+
+/// Wire representation of a single query's tracker, used by the top-N
+/// snapshot API. Fields are `i64` so the struct crosses the FFM boundary with
+/// a stable, alignment-safe layout (8-byte aligned on every target we support).
+///
+/// | Field         | Meaning                                                   |
+/// |---------------|-----------------------------------------------------------|
+/// | context_id    | `QueryTracker::context_id`                                |
+/// | current_bytes | `QueryMemoryPool::current_bytes`, clamped to `i64::MAX`   |
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct WireQueryMetric {
+    pub context_id: i64,
+    pub current_bytes: i64,
+}
+
+const _: () = assert!(std::mem::size_of::<WireQueryMetric>() == 2 * 8);
+
+fn usize_to_i64_saturating(value: usize) -> i64 {
+    if value > i64::MAX as usize {
+        i64::MAX
+    } else {
+        value as i64
+    }
+}
+
+impl WireQueryMetric {
+    fn from_tracker(tracker: &QueryTracker) -> Self {
+        Self {
+            context_id: tracker.context_id,
+            current_bytes: usize_to_i64_saturating(tracker.memory_pool.current_bytes()),
+        }
+    }
+}
+
+/// Top-N snapshot: copy at most `out.len()` of the heaviest live queries
+/// (ranked by `current_bytes` descending) into `out`. Returns the number of
+/// entries actually written.
+///
+/// Selection is done with a bounded min-heap of capacity `out.len()`, so a
+/// single pass over the registry runs in `O(M log N)` where `M` is the
+/// registry size and `N = out.len()`. The heap holds the *top N candidates*
+/// seen so far; the smallest of those sits at the root, and any new entry
+/// heavier than that root replaces it.
+///
+/// Order of entries written into `out` is unspecified — heap order, not
+/// sorted. Callers that need a sorted view sort the prefix client-side.
+///
+/// Filters applied on the Rust side, in this order:
+/// - completed trackers are skipped (a completed query's `current_bytes`
+///   drops to zero on `Drop` anyway, so this is mostly a fast path)
+/// - `current_bytes == 0` is skipped (registered but un-allocated trackers
+///   are not "heavy" candidates)
+///
+/// `out` may be a raw slice pointing at a Java-owned buffer; it must be valid
+/// for writes of `out.len() * size_of::<WireQueryMetric>()` bytes and properly
+/// aligned for `WireQueryMetric` (8-byte aligned).
+pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
+    use std::cmp::{Ordering, Reverse};
+    use std::collections::BinaryHeap;
+
+    /// Heap entry — orders purely by `bytes`. The tracker rides along but is
+    /// not part of the comparison, so `QueryTracker` doesn't need `Ord`.
+    struct HeapEntry {
+        bytes: i64,
+        tracker: Arc<QueryTracker>,
+    }
+
+    impl Eq for HeapEntry {}
+    impl PartialEq for HeapEntry {
+        fn eq(&self, other: &Self) -> bool {
+            self.bytes == other.bytes
+        }
+    }
+    impl Ord for HeapEntry {
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.bytes.cmp(&other.bytes)
+        }
+    }
+    impl PartialOrd for HeapEntry {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    let n = out.len();
+    if n == 0 {
+        return 0;
+    }
+
+    // BinaryHeap is a max-heap; Reverse flips it so the smallest current_bytes
+    // sits at the root. That root is the weakest member of the current top-N
+    // set — the one a heavier candidate displaces.
+    let mut heap: BinaryHeap<Reverse<HeapEntry>> = BinaryHeap::with_capacity(n);
+
+    let mut sample_logged = 0usize;
+
+    for entry in QUERY_REGISTRY.iter() {
+        let tracker = entry.value();
+        let bytes_raw = tracker.memory_pool.current_bytes();
+        let completed = tracker.is_completed();
+        if sample_logged < 5 {
+            sample_logged += 1;
+        }
+        if completed {
+            continue;
+        }
+        let bytes = usize_to_i64_saturating(bytes_raw);
+        if bytes == 0 {
+            continue;
+        }
+        if heap.len() < n {
+            heap.push(Reverse(HeapEntry {
+                bytes,
+                tracker: Arc::clone(tracker),
+            }));
+        } else if let Some(Reverse(min)) = heap.peek() {
+            // Strictly greater: equal-byte ties keep the first-seen entry.
+            if bytes > min.bytes {
+                heap.pop();
+                heap.push(Reverse(HeapEntry {
+                    bytes,
+                    tracker: Arc::clone(tracker),
+                }));
+            }
+        }
+    }
+
+    let mut written = 0usize;
+    for Reverse(entry) in heap.into_iter() {
+        // Re-read the tracker fields here so the wire entry reflects the live
+        // values at materialization time, consistent with from_tracker. Ranking
+        // and final values are independent point-in-time samples.
+        out[written] = WireQueryMetric::from_tracker(&entry.tracker);
+        written += 1;
+    }
+    written
+}
+
 /// Fire the cancellation token for the given context_id.
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
@@ -883,5 +1025,179 @@ mod tests {
         QUERY_REGISTRY.get(&ctx_id).map_or(false, |tracker| {
             tracker.cancelled_at.lock().map_or(false, |t| t.elapsed() >= threshold)
         })
+    }
+
+    // -----------------------------------------------------------------------
+    // Top-N snapshot tests
+    // -----------------------------------------------------------------------
+
+    /// Helper: drain all live tracker contexts so each top-N test starts from
+    /// a clean registry. Tests in this module are tagged with unique id ranges
+    /// but the registry is process-wide, so we only assert on contexts we own.
+    fn fresh_buf(n: usize) -> Vec<WireQueryMetric> {
+        vec![
+            WireQueryMetric {
+                context_id: 0,
+                current_bytes: 0,
+            };
+            n
+        ]
+    }
+
+    #[test]
+    fn test_top_n_zero_capacity_returns_zero() {
+        let mut buf: Vec<WireQueryMetric> = Vec::new();
+        let written = snapshot_top_n_by_current(&mut buf);
+        assert_eq!(written, 0);
+    }
+
+    #[test]
+    fn test_top_n_picks_highest_current_bytes() {
+        let global = make_global_pool(10_000_000);
+        let id_lo = 70_000;
+        let id_md = 70_001;
+        let id_hi = 70_002;
+
+        let ctx_lo = QueryTrackingContext::new(id_lo, Arc::clone(&global), QueryType::Shard);
+        let ctx_md = QueryTrackingContext::new(id_md, Arc::clone(&global), QueryType::Shard);
+        let ctx_hi = QueryTrackingContext::new(id_hi, Arc::clone(&global), QueryType::Shard);
+
+        let pool_lo: Arc<dyn MemoryPool> = ctx_lo.memory_pool().unwrap();
+        let pool_md: Arc<dyn MemoryPool> = ctx_md.memory_pool().unwrap();
+        let pool_hi: Arc<dyn MemoryPool> = ctx_hi.memory_pool().unwrap();
+
+        let mut r_lo = make_reservation(&pool_lo, "lo");
+        let mut r_md = make_reservation(&pool_md, "md");
+        let mut r_hi = make_reservation(&pool_hi, "hi");
+        r_lo.try_grow(1_000).unwrap();
+        r_md.try_grow(5_000).unwrap();
+        r_hi.try_grow(9_000).unwrap();
+
+        // Top-2 must contain ids hi and md but not lo. Other parallel tests
+        // may push entries into the registry, so we filter to our id range.
+        let mut buf = fresh_buf(2);
+        let written = snapshot_top_n_by_current(&mut buf);
+        assert!(written >= 1 && written <= 2);
+
+        let our: Vec<&WireQueryMetric> = buf[..written]
+            .iter()
+            .filter(|m| (id_lo..=id_hi).contains(&m.context_id))
+            .collect();
+        // At minimum, id_hi (the heaviest) must be in our slice if any of
+        // ours made it in.
+        if !our.is_empty() {
+            assert!(our.iter().any(|m| m.context_id == id_hi));
+            assert!(!our.iter().any(|m| m.context_id == id_lo));
+        }
+
+        drop(r_lo);
+        drop(r_md);
+        drop(r_hi);
+        drop(ctx_lo);
+        drop(ctx_md);
+        drop(ctx_hi);
+        QUERY_REGISTRY.remove(&id_lo);
+        QUERY_REGISTRY.remove(&id_md);
+        QUERY_REGISTRY.remove(&id_hi);
+    }
+
+    #[test]
+    fn test_top_n_skips_completed_and_zero_byte_trackers() {
+        let global = make_global_pool(1_000_000);
+        let live_id = 70_100;
+        let zero_id = 70_101;
+        let done_id = 70_102;
+
+        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global), QueryType::Shard);
+        let live_pool: Arc<dyn MemoryPool> = live_ctx.memory_pool().unwrap();
+        let mut r_live = make_reservation(&live_pool, "live");
+        r_live.try_grow(4_096).unwrap();
+
+        // Registered but never reserved — current_bytes stays 0.
+        let _zero_ctx = QueryTrackingContext::new(zero_id, Arc::clone(&global), QueryType::Shard);
+
+        // Completed before snapshot. Drop reservation first so QueryMemoryPool
+        // is settled, then drop the context to flip the completed flag.
+        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global), QueryType::Shard);
+        let done_pool: Arc<dyn MemoryPool> = done_ctx.memory_pool().unwrap();
+        let mut r_done = make_reservation(&done_pool, "done");
+        r_done.try_grow(8_192).unwrap();
+        drop(r_done);
+        drop(done_ctx);
+
+        let mut buf = fresh_buf(8);
+        let written = snapshot_top_n_by_current(&mut buf);
+
+        let our: Vec<&WireQueryMetric> = buf[..written]
+            .iter()
+            .filter(|m| [live_id, zero_id, done_id].contains(&m.context_id))
+            .collect();
+        assert!(our.iter().any(|m| m.context_id == live_id));
+        assert!(!our.iter().any(|m| m.context_id == zero_id));
+        assert!(!our.iter().any(|m| m.context_id == done_id));
+
+        drop(r_live);
+        drop(live_ctx);
+        QUERY_REGISTRY.remove(&live_id);
+        QUERY_REGISTRY.remove(&zero_id);
+        QUERY_REGISTRY.remove(&done_id);
+    }
+
+    #[test]
+    fn test_top_n_with_buffer_larger_than_live_set() {
+        let global = make_global_pool(1_000_000);
+        let id = 70_200;
+        let ctx = QueryTrackingContext::new(id, global, QueryType::Shard);
+        let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
+        let mut r = make_reservation(&pool, "only");
+        r.try_grow(2_048).unwrap();
+
+        let sentinel = WireQueryMetric {
+            context_id: -1,
+            current_bytes: -1,
+        };
+        let mut buf = vec![sentinel; 16];
+        let written = snapshot_top_n_by_current(&mut buf);
+        assert!(written >= 1);
+        assert!(written < buf.len());
+        // Tail past `written` keeps the sentinel — proves the snapshot did not
+        // touch it.
+        for slot in &buf[written..] {
+            assert_eq!(slot.context_id, -1);
+        }
+
+        drop(r);
+        drop(ctx);
+        QUERY_REGISTRY.remove(&id);
+    }
+
+    #[test]
+    fn test_top_n_caps_at_buffer_capacity() {
+        let global = make_global_pool(10_000_000);
+        let ids: Vec<i64> = (70_300..70_310).collect();
+        let mut contexts = Vec::with_capacity(ids.len());
+        let mut reservations = Vec::with_capacity(ids.len());
+        for (i, id) in ids.iter().enumerate() {
+            let ctx = QueryTrackingContext::new(*id, Arc::clone(&global), QueryType::Shard);
+            let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
+            let mut r = make_reservation(&pool, "cap");
+            r.try_grow((i as usize + 1) * 1_000).unwrap();
+            reservations.push(r);
+            contexts.push(ctx);
+        }
+
+        let mut buf = fresh_buf(3);
+        let written = snapshot_top_n_by_current(&mut buf);
+        assert!(written <= 3, "must not exceed buffer capacity");
+
+        for r in reservations.drain(..) {
+            drop(r);
+        }
+        for ctx in contexts.drain(..) {
+            drop(ctx);
+        }
+        for id in &ids {
+            QUERY_REGISTRY.remove(id);
+        }
     }
 }

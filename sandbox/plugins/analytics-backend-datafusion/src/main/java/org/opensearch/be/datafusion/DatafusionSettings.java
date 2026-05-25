@@ -191,8 +191,10 @@ public final class DatafusionSettings {
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
         DataFusionPlugin.DATAFUSION_MIN_TARGET_PARTITIONS,
-        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD,
-        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD,
+        DataFusionPlugin.DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD,
 
         // Cache settings — metadata and statistics cache configuration
         CacheSettings.METADATA_CACHE_SIZE_LIMIT,
