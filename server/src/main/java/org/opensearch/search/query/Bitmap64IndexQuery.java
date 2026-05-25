@@ -125,11 +125,7 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
                         final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                         final MergePointVisitor visitor = new MergePointVisitor(result);
                         values.intersect(visitor);
-                        final DocIdSetIterator iterator = result.build().iterator();
-                        if (iterator == null) {
-                            return null;
-                        }
-                        return new ConstantScoreScorer(score(), scoreMode, iterator);
+                        return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
                     @Override

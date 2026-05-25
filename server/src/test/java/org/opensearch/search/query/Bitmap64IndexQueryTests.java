@@ -167,9 +167,6 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         assertTrue(getMatchingValues(weight, reader).isEmpty());
-        for (LeafReaderContext leaf : reader.leaves()) {
-            assertNull(weight.scorer(leaf));
-        }
     }
 
     // ---------------- Helpers ----------------
