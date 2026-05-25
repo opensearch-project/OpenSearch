@@ -8,8 +8,6 @@
 
 package org.opensearch.arrow.allocator;
 
-import org.opensearch.arrow.spi.ArrowAllocatorPlugin;
-import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -22,6 +20,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
+import org.opensearch.plugins.ArrowAllocatorPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -349,8 +349,11 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ArrowAl
     }
 
     @Override
-    public NativeAllocator getNativeAllocator() {
-        return allocator;
+    public Supplier<NativeAllocatorPoolStats> getNativeAllocatorStatsSupplier() {
+        return () -> {
+            ArrowNativeAllocator a = this.allocator;
+            return a != null ? a.stats() : null;
+        };
     }
 
     private static void validateMinMax(String poolName, long min, long max) {

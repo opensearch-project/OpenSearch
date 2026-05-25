@@ -10,7 +10,7 @@ package org.opensearch.arrow.allocator;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ArrowNativeAllocatorTests extends OpenSearchTestCase {

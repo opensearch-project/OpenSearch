@@ -34,7 +34,6 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
-import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
@@ -62,6 +61,7 @@ import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;

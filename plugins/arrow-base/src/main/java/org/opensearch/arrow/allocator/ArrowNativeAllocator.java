@@ -11,7 +11,7 @@ package org.opensearch.arrow.allocator;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -176,7 +176,11 @@ public class ArrowNativeAllocator implements NativeAllocator {
         root.setLimit(limit);
     }
 
-    @Override
+    /**
+     * Returns a point-in-time stats snapshot across all pools. Used by the
+     * {@code ArrowAllocatorPlugin} supplier wired into {@code NodeService} to
+     * render allocator state under {@code _nodes/stats[/native_allocator]}.
+     */
     public NativeAllocatorPoolStats stats() {
         List<NativeAllocatorPoolStats.PoolStats> poolStats = new ArrayList<>();
         for (var entry : pools.entrySet()) {

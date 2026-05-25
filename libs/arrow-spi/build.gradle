@@ -11,12 +11,7 @@ apply plugin: 'opensearch.publish'
 dependencies {
     api project(':libs:opensearch-core')
     api project(':libs:opensearch-common')
-    testImplementation(project(':test:framework')) {
-        // Avoid jar-hell: server now `api`-depends on this module, so without the exclusion
-        // the test classpath would see opensearch-arrow-spi twice (once via :test:framework
-        // → :server, once from this module's own main classes). Mirrors :libs:opensearch-task-commons.
-        exclude group: 'org.opensearch', module: 'opensearch-arrow-spi'
-    }
+    testImplementation project(':test:framework')
 }
 
 tasks.named('forbiddenApisMain').configure {

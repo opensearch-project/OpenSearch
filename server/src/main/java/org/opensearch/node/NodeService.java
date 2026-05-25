@@ -38,8 +38,6 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchTransportService;
-import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -57,6 +55,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -71,6 +70,7 @@ import org.opensearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Services exposed to nodes
@@ -107,14 +107,15 @@ public class NodeService implements Closeable {
     private final CacheService cacheService;
 
     /**
-     * Native allocator (Arrow-backed). Set after construction via {@link #setNativeAllocator}
-     * because the allocator is created by the {@code ArrowBasePlugin} during
-     * {@code createComponents()}, which runs after this {@code NodeService} instance is
-     * built. Mirrors the deferred-wiring pattern used for native memory stats supplier in
+     * Supplier for native allocator pool stats. Set after construction via
+     * {@link #setNativeAllocatorStatsSupplier} because the allocator is created by the
+     * {@code ArrowBasePlugin} during {@code createComponents()}, which runs after this
+     * {@code NodeService} instance is built. Mirrors the deferred-wiring supplier pattern
+     * used for native memory stats in
      * {@link org.opensearch.monitor.memory.MemoryReportingService#setNativeStatsSupplier}.
      */
     @Nullable
-    private volatile NativeAllocator nativeAllocator;
+    private volatile Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier;
 
     NodeService(
         Settings settings,
@@ -175,12 +176,13 @@ public class NodeService implements Closeable {
     }
 
     /**
-     * Sets the node-level {@link NativeAllocator} that backs allocator stats rendered under
-     * {@code _nodes/stats/native_allocator}. Called by {@code Node.java} after the Arrow base
-     * plugin's {@code createComponents()} has produced the allocator.
+     * Sets the supplier that produces a {@link NativeAllocatorPoolStats} snapshot when
+     * {@code _nodes/stats/native_allocator} is requested. Called by {@code Node.java} after
+     * the Arrow base plugin's {@code createComponents()} has produced the allocator and
+     * registered its supplier via {@code ArrowAllocatorPlugin}.
      */
-    public void setNativeAllocator(NativeAllocator nativeAllocator) {
-        this.nativeAllocator = nativeAllocator;
+    public void setNativeAllocatorStatsSupplier(Supplier<NativeAllocatorPoolStats> supplier) {
+        this.nativeAllocatorStatsSupplier = supplier;
     }
 
     public NodeInfo info(
@@ -312,10 +314,8 @@ public class NodeService implements Closeable {
 
     @Nullable
     private NativeAllocatorPoolStats collectNativeAllocatorStats() {
-        if (nativeAllocator == null) {
-            return null;
-        }
-        return nativeAllocator.stats();
+        Supplier<NativeAllocatorPoolStats> supplier = nativeAllocatorStatsSupplier;
+        return supplier != null ? supplier.get() : null;
     }
 
     public IngestService getIngestService() {

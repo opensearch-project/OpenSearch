@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.spi;
+package org.opensearch.plugin.stats;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -20,19 +20,18 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Point-in-time snapshot of native memory pool statistics for a node.
+ * Point-in-time snapshot of native allocator pool statistics for a node.
  *
- * <p>Arrow-agnostic — describes pool utilization without referencing
- * Arrow classes. The concrete implementation (backed by Arrow's
- * {@code BufferAllocator}) lives in the plugin that owns the pools.
+ * <p>Arrow-agnostic POJO. The plugin that owns the allocator (e.g. {@code arrow-base})
+ * constructs instances of this class and exposes them via the
+ * {@code ArrowAllocatorPlugin} SPI. Server is the type's home so that the cross-module
+ * dependency from {@code :server} to {@code :libs:opensearch-arrow-spi} is unnecessary,
+ * mirroring the placement of {@link AnalyticsBackendNativeMemoryStats}.
  *
  * <p>Renders as the inner body of the {@code native_allocator} object inside
- * {@code _nodes/stats[/native_allocator]} — the caller (NodeStats.toXContent)
- * is responsible for opening the {@code native_allocator} wrapper. Each pool
- * exposes only {@code allocated_bytes} and {@code limit_bytes}; root exposes
- * the same. Peak and child-count are intentionally omitted from the JSON shape;
- * use the underlying Arrow {@code BufferAllocator} via the {@link NativeAllocator}
- * SPI if those values are needed at runtime.
+ * {@code _nodes/stats[/native_allocator]} — the caller ({@code NodeStats.toXContent})
+ * is responsible for opening the {@code native_allocator} wrapper. Each pool exposes
+ * only {@code allocated_bytes} and {@code limit_bytes}; root exposes the same.
  *
  * @opensearch.api
  */
