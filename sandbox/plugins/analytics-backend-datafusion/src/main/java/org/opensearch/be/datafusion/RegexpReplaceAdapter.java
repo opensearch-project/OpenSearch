@@ -13,6 +13,8 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
@@ -96,7 +98,13 @@ class RegexpReplaceAdapter implements ScalarFunctionAdapter {
             }
         }
 
-        if (rewrittenPattern == null && rewrittenReplacement == null) {
+        // Append "g" so DataFusion's regexp_replace (first-match-only by default) replaces
+        // every match — matching PPL's contract on the V2/Calcite path where the 3-arg form
+        // is already replace-all. Pure 3-arg calls become REGEXP_REPLACE_PG_4(..., "g").
+        boolean appendGlobalFlag = original.getOperator() == SqlLibraryOperators.REGEXP_REPLACE_3
+            && original.getOperands().size() == 3;
+
+        if (rewrittenPattern == null && rewrittenReplacement == null && !appendGlobalFlag) {
             return original;
         }
 
@@ -104,13 +112,20 @@ class RegexpReplaceAdapter implements ScalarFunctionAdapter {
         // makeLiteral(String) infers a CHAR type sized to the rewritten string. Reusing the
         // original literal's type would right-pad to the OLD length (e.g. CHAR(23) → 8 trailing
         // spaces after a 15-char rewrite), corrupting the value at runtime.
-        List<RexNode> newOperands = new ArrayList<>(original.getOperands().size());
+        List<RexNode> newOperands = new ArrayList<>(original.getOperands().size() + (appendGlobalFlag ? 1 : 0));
         newOperands.add(original.getOperands().get(0));
         newOperands.add(rewrittenPattern != null ? rexBuilder.makeLiteral(rewrittenPattern) : patternOperand);
         newOperands.add(rewrittenReplacement != null ? rexBuilder.makeLiteral(rewrittenReplacement) : replacementOperand);
         // Append any trailing operand (the flags string in the 4-arg form) verbatim.
         for (int i = 3; i < original.getOperands().size(); i++) {
             newOperands.add(original.getOperands().get(i));
+        }
+        if (appendGlobalFlag) {
+            newOperands.add(rexBuilder.makeLiteral(
+                "g",
+                rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR),
+                true));
+            return rexBuilder.makeCall(original.getType(), SqlLibraryOperators.REGEXP_REPLACE_PG_4, newOperands);
         }
         return rexBuilder.makeCall(original.getType(), original.getOperator(), newOperands);
     }
