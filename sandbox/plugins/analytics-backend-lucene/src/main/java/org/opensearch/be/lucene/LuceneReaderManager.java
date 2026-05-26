@@ -102,16 +102,12 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         }
         DirectoryReader refreshed = readerRefresher.apply(currentReader, LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot));
         if (refreshed != null) {
-            // Guard against refresh/merge-apply races: a prior IT regression surfaced when
-            // overlapping threads produced a refreshed reader whose leaves disagreed with the
-            // catalog snapshot being registered, effectively pairing the snapshot with a stale
-            // reader. This assert catches that drift in test builds before the mismatched pair
-            // is published to readers.
             currentReader = refreshed;
         } else {
-            // If same reader is used, assert that calalog snapshot is same.
             currentReader.incRef();
         }
+        // Catches refresh/merge-apply races where the refreshed reader's leaves disagree
+        // with the catalog snapshot being registered.
         assert readersAreSame(catalogSnapshot, currentReader);
 
         Map<Long, String> generationToSegmentName = buildGenerationToSegmentName(catalogSnapshot, currentReader.leaves());
