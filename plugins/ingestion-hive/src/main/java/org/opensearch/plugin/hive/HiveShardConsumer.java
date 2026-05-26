@@ -346,35 +346,23 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         switch (config.getPartitionOrder()) {
             case CREATE_TIME:
                 partitions = discoverByCreateTime();
-                break;
-            case PARTITION_TIME:
-                // Partition-time ordering cannot use Metastore server-side filter because
-                // lexicographic order may differ from extracted time order (e.g., hour=2 vs hour=11).
-                // Full retrieval with client-side filtering by extracted time is required.
-                partitions = discoverByPartitionTime();
-                break;
-            default:
-                partitions = discoverByPartitionName();
-                break;
-        }
-
-        logger.info("Shard {} discovered {} candidate partitions from Metastore", shardId, partitions.size());
-
-        // Sort partitions according to ordering strategy
-        switch (config.getPartitionOrder()) {
-            case CREATE_TIME:
                 partitions.sort(Comparator.comparingInt(MetastoreCatalog.PartitionInfo::getCreateTime));
                 break;
             case PARTITION_TIME:
+                partitions = discoverByPartitionTime();
                 partitions.sort(Comparator.comparing(this::extractPartitionTime));
                 break;
             default:
+                partitions = discoverByPartitionName();
                 partitions.sort((a, b) -> {
                     String aVal = String.join("/", a.getValues());
                     String bVal = String.join("/", b.getValues());
                     return aVal.compareTo(bVal);
                 });
+                break;
         }
+
+        logger.info("Shard {} discovered {} candidate partitions from Metastore", shardId, partitions.size());
 
         // Assign partitions to this shard using consistent hashing on partition name.
         // Each shard deterministically owns a subset of partitions (no coordination needed).
