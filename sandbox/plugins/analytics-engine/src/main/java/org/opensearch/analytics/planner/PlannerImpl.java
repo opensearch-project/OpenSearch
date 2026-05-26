@@ -110,7 +110,7 @@ public class PlannerImpl {
         if (listener != null) {
             RuleProfilingListener.PlannerProfile profile = listener.snapshot();
             context.recordProfilingResults(profile);
-            LOGGER.info("Planner profile:\n{}", profile.format());
+            LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
     }

@@ -218,16 +218,13 @@ public class DAGShapeTests extends BasePlannerRulesTests {
      *  collapses into a single stage. */
     public void testTopKAfterStatsDag_singleShard() {
         QueryDAG dag = buildDAG(1, buildTopKAfterStats());
-        assertDagShape(
-            """
-                QueryDAG(queryId=<random>)
-                Stage 0
-                  OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
-                    OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            dag
-        );
+        assertDagShape("""
+            QueryDAG(queryId=<random>)
+            Stage 0
+              OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, dag);
     }
 
     // ── Builders ─────────────────────────────────────────────────────────────

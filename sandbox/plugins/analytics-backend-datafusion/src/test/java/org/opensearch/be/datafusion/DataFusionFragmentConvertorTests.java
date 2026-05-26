@@ -679,7 +679,14 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         DataFusionFragmentConvertor convertor = newConvertor();
 
         RelDataType inputRowType = rowType("a");
-        RelNode innerStageScan = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, inputRowType, List.of("datafusion"));
+        RelNode innerStageScan = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            inputRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         byte[] innerBytes = convertor.convertFragment(innerStageScan);
 
         RelNode placeholderInput = buildTableScan("__placeholder__", "a");

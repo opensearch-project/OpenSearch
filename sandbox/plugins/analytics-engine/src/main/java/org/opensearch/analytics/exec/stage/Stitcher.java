@@ -15,6 +15,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSink;
 
@@ -153,12 +154,14 @@ public final class Stitcher {
                     dstVec.copyFromSafe(srcRow, dstRow, srcVec);
                 } catch (RuntimeException e) {
                     logger.error(
-                        "FIXME [RemoveBeforeMainMerge] copyFromSafe FAILED at col {}: src(minorType={}, type={}) → dst(minorType={}, type={})",
-                        outCol,
-                        srcVec.getMinorType(),
-                        srcVec.getField().getType(),
-                        dstVec.getMinorType(),
-                        dstVec.getField().getType(),
+                        new ParameterizedMessage(
+                            "FIXME [RemoveBeforeMainMerge] copyFromSafe FAILED at col {}: src(minorType={}, type={}) → dst(minorType={}, type={})",
+                            outCol,
+                            srcVec.getMinorType(),
+                            srcVec.getField().getType(),
+                            dstVec.getMinorType(),
+                            dstVec.getField().getType()
+                        ),
                         e
                     );
                     throw e;
@@ -195,11 +198,6 @@ public final class Stitcher {
         try {
             if (failures.isEmpty()) {
                 output.setRowCount(totalRows);
-                // FIXME [FixBeforeMainMerge] Arrow leak: the per-query allocator reports 256 bytes
-                // leaked at QueryContext.close after a successful run. Likely the output VSR's
-                // ownership transfer to parentSink.feed leaves a buffer un-closed somewhere down
-                // the parent's drain path. Reproduce, trace allocator ownership, and ensure every
-                // FieldVector reaches close().
                 parentSink.feed(output);
                 parentSink.close();
                 logger.debug("[Stitcher] emitted rows={}", totalRows);
