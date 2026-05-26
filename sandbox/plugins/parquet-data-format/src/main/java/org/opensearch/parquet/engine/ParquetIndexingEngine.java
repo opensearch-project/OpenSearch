@@ -262,6 +262,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             mappingVersion,
             dataFormat,
             schema,
+            () -> getOrBuildSchema(mappingVersionSupplier.get()),
             bufferPool,
             indexSettings,
             threadPool,
