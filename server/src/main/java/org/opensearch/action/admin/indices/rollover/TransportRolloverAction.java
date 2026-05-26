@@ -135,10 +135,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         if (writeIndex == null) {
             return null;
         }
-        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(
-            Collections.singletonList(writeIndex.getIndex().getName()),
-            state
-        );
+        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(Collections.singletonList(writeIndex.getIndex().getName()), state);
     }
 
     @Override
