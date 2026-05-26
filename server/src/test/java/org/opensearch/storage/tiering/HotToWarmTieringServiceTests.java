@@ -10,6 +10,8 @@ package org.opensearch.storage.tiering;
 
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -102,6 +104,25 @@ public class HotToWarmTieringServiceTests extends OpenSearchTestCase {
         assertEquals("false", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(TieringState.HOT.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals("default", settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
+        // blocks.write must be cleared on cancellation restore
+        assertEquals("false", settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+    }
+
+    public void testGetTieringStartClusterBlocksToAdd_IsNoOp() {
+        // H2W write blocks are set by TransportHotToWarmTierAction before tier(), so getTieringStartClusterBlocksToAdd is a no-op
+        ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        ClusterBlocks.Builder result = service.getTieringStartClusterBlocksToAdd(builder, "test-index");
+        assertSame("getTieringStartClusterBlocksToAdd must be a no-op for H2W", builder, result);
+    }
+
+    public void testGetIndexTierClusterBlocksToRestoreAfterCancellation_RemovesWriteBlock() {
+        // Cancel H2W: write block must be removed so the index is writable again
+        String indexName = "test-index";
+        ClusterBlocks.Builder builder = ClusterBlocks.builder().addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+
+        ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName).build();
+
+        assertFalse("INDEX_WRITE_BLOCK must be removed after H2W cancel", result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
     }
 
     public void testGetTieringStartTimeKey() {

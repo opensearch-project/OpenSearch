@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -116,6 +117,8 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         assertEquals("false", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(WARM_TO_HOT.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals("default", settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
+        // blocks.write must be cleared when W2H tiering starts (warm → hot means index becomes writable)
+        assertEquals("false", settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
     }
 
     public void testGetIndexTierSettingsToRestoreAfterCancellation() {
@@ -123,6 +126,31 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         assertEquals("true", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(TieringState.WARM.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals(TIERED_COMPOSITE_INDEX_TYPE, settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
+        // blocks.write must be restored on W2H cancel (index goes back to warm = write-blocked)
+        assertEquals("true", settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+    }
+
+    public void testGetTieringStartClusterBlocksToAdd_RemovesWriteBlock() {
+        // W2H tiering start: index transitions to hot → remove write block
+        String indexName = "test-index";
+        ClusterBlocks.Builder builder = ClusterBlocks.builder().addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+
+        ClusterBlocks result = service.getTieringStartClusterBlocksToAdd(builder, indexName).build();
+
+        assertFalse(
+            "INDEX_WRITE_BLOCK must be removed when W2H tiering starts",
+            result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+        );
+    }
+
+    public void testGetIndexTierClusterBlocksToRestoreAfterCancellation_AddsWriteBlock() {
+        // W2H cancel: index goes back to warm → restore write block
+        String indexName = "test-index";
+        ClusterBlocks.Builder builder = ClusterBlocks.builder();
+
+        ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName).build();
+
+        assertTrue("INDEX_WRITE_BLOCK must be restored after W2H cancel", result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
     }
 
     public void testGetTieringStartTimeKey() {

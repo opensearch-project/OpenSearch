@@ -60,6 +60,7 @@ import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 import static org.opensearch.index.IndexModule.TieringState.HOT_TO_WARM;
 import static org.opensearch.storage.common.tiering.TieringUtils.TIERING_CUSTOM_KEY;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -133,7 +134,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
             String indexName
         ) {
             // H2W cancel → back to HOT → remove write blocks
-            return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
                 .removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
         }
 
@@ -143,7 +144,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
                 .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
                 .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT)
                 .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
-                .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+                .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
                 .build();
         }
 
@@ -1043,6 +1044,36 @@ public class TieringServiceTests extends OpenSearchTestCase {
         assertEquals("1", updatedMetadata.getSettings().get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
     }
 
+    public void testUpdateIndexMetadataForTieringStart_OneReplica_DoesNotUpdateRoutingTable() {
+        // When user already has replicas: 1, updateNumberOfReplicas must NOT be called —
+        // the conditional branch `if (currentReplicas != 1)` is not entered.
+        Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
+        RoutingTable.Builder routingTableBuilder = mock(RoutingTable.Builder.class);
+
+        // Build index with 1 replica (already at target)
+        Settings oneReplicaSettings = Settings.builder()
+            .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put(INDEX_TIERING_STATE.getKey(), "HOT")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata oneReplicaIndex = IndexMetadata.builder("test-index")
+            .settings(oneReplicaSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        tieringService.updateIndexMetadataForTieringStart(metadataBuilder, routingTableBuilder, oneReplicaIndex, testIndex);
+
+        // Routing table and metadata must NOT have updateNumberOfReplicas called
+        verify(routingTableBuilder, never()).updateNumberOfReplicas(anyInt(), any(String[].class));
+        verify(metadataBuilder, never()).updateNumberOfReplicas(anyInt(), any(String[].class));
+
+        // IndexMetadata.Builder must still be put with the tiering settings applied
+        verify(metadataBuilder).put(any(IndexMetadata.Builder.class));
+    }
+
     public void testUpdateIndexMetadataPostTiering_DoesNotModifyAutoExpandReplicas() {
         // updateIndexMetadataPostTiering only updates INDEX_TIERING_STATE and removes tiering custom data.
         // It does NOT modify SETTING_AUTO_EXPAND_REPLICAS — that setting retains whatever value
@@ -1126,9 +1157,9 @@ public class TieringServiceTests extends OpenSearchTestCase {
         verify(metadataBuilder).put(captor.capture());
         IndexMetadata updatedMetadata = captor.getValue().build();
         assertEquals(
-            "Warm-to-hot tiering start should set read_only_allow_delete to false",
+            "Warm-to-hot tiering start should set blocks.write to false",
             "false",
-            updatedMetadata.getSettings().get(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey())
+            updatedMetadata.getSettings().get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
         );
     }
 
@@ -1205,14 +1236,14 @@ public class TieringServiceTests extends OpenSearchTestCase {
             resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
         assertFalse(
-            "tier() must NOT add INDEX_READ_ONLY_ALLOW_DELETE_BLOCK for H2W DFA — TransportHotToWarmTierAction handles that",
-            resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "tier() must NOT add INDEX_WRITE_BLOCK for H2W DFA — TransportHotToWarmTierAction handles that",
+            resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
     }
 
     /**
      * Test: When cancelling tiering for a DFA index, the cancelTiering() execute() method must
-     * REMOVE INDEX_WRITE_BLOCK and INDEX_READ_ONLY_ALLOW_DELETE_BLOCK from ClusterBlocks AND
+     * REMOVE INDEX_WRITE_BLOCK and INDEX_WRITE_BLOCK from ClusterBlocks AND
      * set blocks.write=false and blocks.read_only_allow_delete=false in IndexMetadata settings.
      *
      * Without this fix, a cancelled hot→warm tiering leaves the DFA index permanently write-blocked,
@@ -1233,7 +1264,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
             .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true)
-            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true)
             .build();
         IndexMetadata dfaTieringMeta = IndexMetadata.builder(dfaIndexName)
             .settings(dfaTieringSettings)
@@ -1262,7 +1293,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
         RoutingTable rt = RoutingTable.builder().addAsNew(meta.index(dfaIndexName)).build();
         ClusterBlocks blocksWithWriteBlock = ClusterBlocks.builder()
             .addIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
-            .addIndexBlock(dfaIndexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            .addIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
             .build();
         ClusterState stateWithBlocks = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(meta)
@@ -1288,8 +1319,8 @@ public class TieringServiceTests extends OpenSearchTestCase {
             resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
         assertFalse(
-            "INDEX_READ_ONLY_ALLOW_DELETE_BLOCK must be REMOVED from ClusterBlocks after cancel for DFA index",
-            resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "INDEX_WRITE_BLOCK must be REMOVED from ClusterBlocks after cancel for DFA index",
+            resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Verify IndexMetadata settings: blocks.write=false so blocks don't come back after restart
@@ -1300,15 +1331,15 @@ public class TieringServiceTests extends OpenSearchTestCase {
             updatedMeta.getSettings().get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
         );
         assertNotEquals(
-            "blocks.read_only_allow_delete must be false in IndexMetadata settings after cancel for DFA index",
+            "blocks.blocks.write must be false in IndexMetadata settings after cancel for DFA index",
             "true",
-            updatedMeta.getSettings().get(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey())
+            updatedMeta.getSettings().get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
         );
     }
 
     /**
      * Test: When tiering a DFA index warm→hot, the tier() execute() method must REMOVE
-     * INDEX_WRITE_BLOCK and INDEX_READ_ONLY_ALLOW_DELETE_BLOCK from ClusterBlocks AND
+     * INDEX_WRITE_BLOCK and INDEX_WRITE_BLOCK from ClusterBlocks AND
      * set blocks.write=false and blocks.read_only_allow_delete=false in IndexMetadata settings.
      *
      * This ensures that after warm→hot migration, the index becomes fully writable again.
@@ -1328,7 +1359,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
             .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true)
-            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true)
             .build();
         IndexMetadata dfaWarmMeta = IndexMetadata.builder(dfaIndexName)
             .settings(dfaWarmSettings)
@@ -1357,7 +1388,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
         RoutingTable rt = RoutingTable.builder().addAsNew(meta.index(dfaIndexName)).build();
         ClusterBlocks blocksWithWriteBlock = ClusterBlocks.builder()
             .addIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
-            .addIndexBlock(dfaIndexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            .addIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
             .build();
         ClusterState warmState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(meta)
@@ -1383,8 +1414,8 @@ public class TieringServiceTests extends OpenSearchTestCase {
             resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
         assertFalse(
-            "INDEX_READ_ONLY_ALLOW_DELETE_BLOCK must be REMOVED from ClusterBlocks after W2H tier start for DFA index",
-            resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "INDEX_WRITE_BLOCK must be REMOVED from ClusterBlocks after W2H tier start for DFA index",
+            resultState.blocks().hasIndexBlock(dfaIndexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Verify IndexMetadata settings: blocks.write=false so index stays writable after restart
@@ -1395,9 +1426,9 @@ public class TieringServiceTests extends OpenSearchTestCase {
             updatedMeta.getSettings().get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
         );
         assertNotEquals(
-            "blocks.read_only_allow_delete must be false in IndexMetadata settings after W2H tier start for DFA index",
+            "blocks.blocks.write must be false in IndexMetadata settings after W2H tier start for DFA index",
             "true",
-            updatedMeta.getSettings().get(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey())
+            updatedMeta.getSettings().get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
         );
     }
 
@@ -1463,8 +1494,8 @@ public class TieringServiceTests extends OpenSearchTestCase {
             resultState.blocks().hasIndexBlock("non-dfa-index", IndexMetadata.INDEX_WRITE_BLOCK)
         );
         assertFalse(
-            "INDEX_READ_ONLY_ALLOW_DELETE_BLOCK must NOT be added for non-DFA index",
-            resultState.blocks().hasIndexBlock("non-dfa-index", IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "INDEX_WRITE_BLOCK must NOT be added for non-DFA index",
+            resultState.blocks().hasIndexBlock("non-dfa-index", IndexMetadata.INDEX_WRITE_BLOCK)
         );
     }
 
@@ -1498,7 +1529,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
             return Settings.builder()
                 .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
                 .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM_TO_HOT)
-                .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+                .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
                 .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false")
                 .build();
@@ -1510,7 +1541,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
             String indexName
         ) {
             // W2H tier start removes write blocks (index is going back to HOT)
-            return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
                 .removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
         }
 

@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 import static org.opensearch.storage.common.tiering.TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT;
@@ -566,8 +567,11 @@ public abstract class TieringService implements ClusterStateListener {
             // 1. Build settings.
             Settings.Builder indexSettingsBuilder = Settings.builder().put(indexMetadata.getSettings()).put(getTieringStartSettingsToAdd());
 
-            // 2. Always set number_of_replicas to 1 to ensure routing table consistency.
-            indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            // 2. Handle replica updates if needed
+            int currentReplicas = Integer.parseInt(indexMetadata.getSettings().get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            if (currentReplicas != 1) {
+                indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            }
 
             // 3. Create tiering custom data
             Map<String, String> tieringCustomData = new HashMap<>();
@@ -581,14 +585,12 @@ public abstract class TieringService implements ClusterStateListener {
 
             metadataBuilder.put(indexMetadataBuilder);
 
-            // 5. Update routing table to ensure ReplicationTracker consistency.
-            // This must happen in the same cluster state update to keep the routing table
-            // consistent with the metadata. Without this, the ReplicationTracker on the warm
-            // node may see stale allocation IDs during shard relocation, causing an assertion
-            // failure in renewPeerRecoveryRetentionLeases.
-            final String[] indices = new String[] { index.getName() };
-            routingTableBuilder.updateNumberOfReplicas(1, indices);
-            metadataBuilder.updateNumberOfReplicas(1, indices);
+            // 5. Update routing table if replicas were changed
+            if (currentReplicas != 1) {
+                final String[] indices = new String[] { index.getName() };
+                routingTableBuilder.updateNumberOfReplicas(1, indices);
+                metadataBuilder.updateNumberOfReplicas(1, indices);
+            }
         } catch (Exception e) {
             throw new OpenSearchException("Failed to update index metadata for tiering start", e);
         }

@@ -98,7 +98,6 @@ public class WarmToHotTieringService extends TieringService {
             .put(IS_WARM_INDEX_SETTING.getKey(), false)
             .put(INDEX_TIERING_STATE.getKey(), WARM_TO_HOT)
             .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default")
-            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
             .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
             .build();
     }
@@ -109,15 +108,13 @@ public class WarmToHotTieringService extends TieringService {
             .put(IS_WARM_INDEX_SETTING.getKey(), true)
             .put(INDEX_TIERING_STATE.getKey(), WARM)
             .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), TIERED_COMPOSITE_INDEX_TYPE)
-            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
             .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true)
             .build();
     }
 
     @Override
     protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(ClusterBlocks.Builder blocksBuilder, String indexName) {
-        return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-            .removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+        return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
     @Override
@@ -125,8 +122,7 @@ public class WarmToHotTieringService extends TieringService {
         ClusterBlocks.Builder blocksBuilder,
         String indexName
     ) {
-        return blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-            .addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+        return blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
     @Override
