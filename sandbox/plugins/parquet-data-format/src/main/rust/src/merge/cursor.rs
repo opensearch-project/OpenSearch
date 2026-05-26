@@ -84,7 +84,8 @@ impl FileCursor {
             .build()?;
 
         // Estimate cursor memory: batch_size rows × avg_row_bytes × 2 (current + prefetch)
-        // Use uncompressed size from metadata as estimate
+        // RESERVATION: reserve_estimated for cursor memory (current batch + prefetch buffer).
+        // Estimate = 2× (num_fields × batch_size × 8). Reconciled after first batch read.
         let total_uncompressed: usize = parquet_schema_descr.root_schema().get_fields().len() * batch_size * 8; // rough estimate
         let cursor_estimate = total_uncompressed * 2;
         let estimate = reservation.reserve_estimated(cursor_estimate)
@@ -101,7 +102,8 @@ impl FileCursor {
             }
         };
 
-        // Reconcile with actual batch size × 2 (for prefetch)
+        // RESERVATION: reconcile estimate with actual first batch size × 2 (current + prefetch).
+        // If actual < estimate: shrinks the over-reservation. If actual > estimate: grows (infallible).
         let actual_batch_bytes = first_batch.get_array_memory_size();
         let actual_cursor_bytes = actual_batch_bytes * 2;
         reservation.reconcile(estimate, actual_cursor_bytes);
@@ -167,6 +169,13 @@ impl FileCursor {
         });
     }
 
+    /// Loads the next batch from the prefetch channel, replacing the current batch.
+    ///
+    /// # Reservation accounting (infallible grow/shrink on parent reservation):
+    /// - On success: adjusts by net delta (new_bytes - old_bytes). Uses infallible `grow`/`shrink`
+    ///   because the memory is already allocated by the prefetch thread — we're just tracking it.
+    ///   This means pool.used can temporarily exceed pool.limit without rejection.
+    /// - On exhaustion/error: shrinks by old_bytes (cursor no longer holds any batch).
     pub fn load_next_batch(&mut self, reservation: &mut MemoryReservation) -> MergeResult<bool> {
         let old_bytes = self.current_batch_bytes;
         self.current_batch = None;
@@ -178,7 +187,7 @@ impl FileCursor {
                 self.row_idx = 0;
                 self.prefetch_pending = false;
                 self.start_prefetch();
-                // Adjust reservation: shrink old, grow new (net delta)
+                // RESERVATION: infallible delta adjustment — memory already exists
                 if new_bytes > old_bytes {
                     reservation.grow(new_bytes - old_bytes);
                 } else if new_bytes < old_bytes {
@@ -189,12 +198,14 @@ impl FileCursor {
             }
             Ok(Some(Err(e))) => {
                 self.prefetch_pending = false;
+                // RESERVATION: cursor error — release all batch memory
                 reservation.shrink(old_bytes);
                 self.current_batch_bytes = 0;
                 Err(e)
             }
             Ok(None) | Err(_) => {
                 self.prefetch_pending = false;
+                // RESERVATION: cursor exhausted — release all batch memory
                 reservation.shrink(old_bytes);
                 self.current_batch_bytes = 0;
                 Ok(false)

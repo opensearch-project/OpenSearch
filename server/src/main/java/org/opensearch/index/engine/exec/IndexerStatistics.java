@@ -106,6 +106,13 @@ public interface IndexerStatistics {
     }
 
     /**
+     * Returns JVM heap bytes used by indexing buffers.
+     */
+    default long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /**
      * Returns per-segment metadata for this indexer.
      * Each segment includes committed/search state, doc count, and size.
      *

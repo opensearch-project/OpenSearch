@@ -122,6 +122,19 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     private final TimeValue inactiveTime;
     private final TimeValue interval;
 
+    /** Percentage of (ingest pool + write pool) to use as native memory budget. */
+    public static final Setting<Double> NATIVE_INDEX_BUFFER_PERCENT_SETTING = Setting.doubleSetting(
+        "indices.memory.native_index_buffer_percent",
+        80.0,
+        0.0,
+        100.0,
+        Property.NodeScope
+    );
+
+    /** Native allocator for querying pool limits. Set after plugins load. */
+    private volatile org.opensearch.arrow.spi.NativeAllocator nativeAllocator;
+    private final double nativeBufferPercent;
+
     /** Contains shards currently being throttled because we can't write segments quickly enough */
     private final Set<IndexShard> throttled = new HashSet<>();
 
@@ -159,6 +172,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         // we need to have this relatively small to free up heap quickly enough
         this.interval = SHARD_MEMORY_INTERVAL_TIME_SETTING.get(settings);
 
+        this.nativeBufferPercent = NATIVE_INDEX_BUFFER_PERCENT_SETTING.get(settings);
+
         this.statusChecker = new ShardsIndicesStatusChecker();
 
         logger.debug(
@@ -173,6 +188,16 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
         // Need to save this so we can later launch async "write indexing buffer to disk" on shards:
         this.threadPool = threadPool;
+    }
+
+    /** Sets the native allocator after plugins are loaded. */
+    public void setNativeAllocator(org.opensearch.arrow.spi.NativeAllocator allocator) {
+        this.nativeAllocator = allocator;
+    }
+
+    /** Returns how much native (off-heap) memory this shard is using for its indexing buffer. */
+    protected long getNativeBytesUsed(IndexShard shard) {
+        return shard.getNativeBytesUsed();
     }
 
     protected Cancellable scheduleTask(ThreadPool threadPool) {
@@ -333,9 +358,26 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             // NOTE: even if we hit an errant exc here, our ThreadPool.scheduledWithFixedDelay will log the exception and re-invoke us
             // again, on schedule
 
-            // First pass to sum up how much heap all shards' indexing buffers are using now, and how many bytes they are currently moving
-            // to disk:
-            long totalBytesUsed = 0;
+            // Compute native budget dynamically from allocator pool limits
+            long nativeBudget = 0;
+            org.opensearch.arrow.spi.NativeAllocator na = nativeAllocator;
+            if (na != null) {
+                try {
+                    org.opensearch.arrow.spi.NativeAllocatorPoolStats stats = na.stats();
+                    long ingestLimit = 0, writeLimit = 0;
+                    for (var ps : stats.getPools()) {
+                        if ("ingest".equals(ps.getName())) ingestLimit = ps.getLimitBytes();
+                        if ("write".equals(ps.getName())) writeLimit = ps.getLimitBytes();
+                    }
+                    nativeBudget = (long) ((ingestLimit + writeLimit) * nativeBufferPercent / 100);
+                } catch (Exception e) {
+                    logger.debug("Failed to compute native budget from allocator", e);
+                }
+            }
+
+            // First pass: sum heap and native usage across all shards
+            long totalHeapBytesUsed = 0;
+            long totalNativeUsed = 0;
             long totalBytesWriting = 0;
             for (IndexShard shard : availableShards()) {
 
@@ -351,87 +393,93 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 shardBytesUsed -= shardWritingBytes;
                 totalBytesWriting += shardWritingBytes;
 
-                // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
-                // have a negative value here. So we just skip this shard since that means it's now using very little heap:
                 if (shardBytesUsed < 0) {
-                    continue;
+                    shardBytesUsed = 0;
                 }
 
-                totalBytesUsed += shardBytesUsed;
+                totalHeapBytesUsed += shardBytesUsed;
+                totalNativeUsed += getNativeBytesUsed(shard);
             }
 
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                    new ByteSizeValue(totalBytesUsed),
-                    INDEX_BUFFER_SIZE_SETTING.getKey(),
+                    "total heap used [{}] vs heap budget [{}], native used [{}] vs native budget [{}], writing [{}]",
+                    new ByteSizeValue(totalHeapBytesUsed),
                     indexingBuffer,
+                    new ByteSizeValue(totalNativeUsed),
+                    new ByteSizeValue(nativeBudget),
                     new ByteSizeValue(totalBytesWriting)
                 );
             }
 
-            // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
-            // throttle the top shards to send back-pressure to ongoing indexing:
-            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.getBytes();
+            boolean heapOverBudget = totalHeapBytesUsed > indexingBuffer.getBytes();
+            boolean nativeOverBudget = nativeBudget > 0 && totalNativeUsed > nativeBudget;
 
-            if (totalBytesUsed > indexingBuffer.getBytes()) {
-                // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
+            // Throttle if significantly over budget
+            boolean doThrottle = (totalBytesWriting + totalHeapBytesUsed) > 1.5 * indexingBuffer.getBytes()
+                || (nativeBudget > 0 && totalNativeUsed > 1.5 * nativeBudget);
+
+            if (heapOverBudget || nativeOverBudget) {
+                if (nativeOverBudget) {
+                    logger.info(
+                        "IMC native over budget: native_used={}, native_budget={}, triggering refresh",
+                        new ByteSizeValue(totalNativeUsed),
+                        new ByteSizeValue(nativeBudget)
+                    );
+                }
+
+                // Build priority queue
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
 
                 for (IndexShard shard : availableShards()) {
-                    // How many bytes this shard is currently (async'd) moving from heap to disk:
                     long shardWritingBytes = getShardWritingBytes(shard);
-
-                    // How many heap bytes this shard is currently using
                     long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
-
-                    // Only count up bytes not already being refreshed:
                     shardBytesUsed -= shardWritingBytes;
-
-                    // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
-                    // have a negative value here. So we just skip this shard since that means it's now using very little heap:
                     if (shardBytesUsed < 0) {
-                        continue;
+                        shardBytesUsed = 0;
                     }
 
-                    if (shardBytesUsed > 0) {
-                        if (logger.isTraceEnabled()) {
-                            if (shardWritingBytes != 0) {
-                                logger.trace(
-                                    "shard [{}] is using [{}] heap, writing [{}] heap",
-                                    shard.shardId(),
-                                    shardBytesUsed,
-                                    shardWritingBytes
-                                );
-                            } else {
-                                logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
-                            }
-                        }
-                        queue.add(new ShardAndBytesUsed(shardBytesUsed, shard));
+                    long shardNativeUsed = getNativeBytesUsed(shard);
+
+                    // Sort key depends on which budget is exceeded
+                    long sortKey;
+                    if (heapOverBudget && nativeOverBudget) {
+                        sortKey = shardBytesUsed + shardNativeUsed;
+                    } else if (nativeOverBudget) {
+                        sortKey = shardNativeUsed;
+                    } else {
+                        sortKey = shardBytesUsed;
+                    }
+
+                    if (sortKey > 0) {
+                        queue.add(new ShardAndBytesUsed(sortKey, shard));
                     }
                 }
 
                 logger.debug(
-                    "now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], "
-                        + "currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
-                    new ByteSizeValue(totalBytesUsed),
-                    INDEX_BUFFER_SIZE_SETTING.getKey(),
+                    "now write some indexing buffers: heap used [{}] vs budget [{}], "
+                        + "native used [{}] vs budget [{}], writing [{}], [{}] shards queued",
+                    new ByteSizeValue(totalHeapBytesUsed),
                     indexingBuffer,
+                    new ByteSizeValue(totalNativeUsed),
+                    new ByteSizeValue(nativeBudget),
                     new ByteSizeValue(totalBytesWriting),
                     queue.size()
                 );
 
-                while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
+                while ((totalHeapBytesUsed > indexingBuffer.getBytes() || (nativeBudget > 0 && totalNativeUsed > nativeBudget))
+                    && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
                     logger.debug(
-                        "write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer",
+                        "write indexing buffer to disk for shard [{}] to free up [{}] bytes",
                         largest.shard.shardId(),
                         new ByteSizeValue(largest.bytesUsed)
                     );
                     writeIndexingBufferAsync(largest.shard);
-                    totalBytesUsed -= largest.bytesUsed;
+                    totalHeapBytesUsed -= getIndexBufferRAMBytesUsed(largest.shard);
+                    totalNativeUsed -= getNativeBytesUsed(largest.shard);
                     if (doThrottle && throttled.contains(largest.shard) == false) {
-                        logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
+                        logger.info("now throttling indexing for shard [{}]: memory pressure", largest.shard.shardId());
                         throttled.add(largest.shard);
                         activateThrottling(largest.shard);
                     }

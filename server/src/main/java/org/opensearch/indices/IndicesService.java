@@ -446,6 +446,12 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
+
+    /** Sets the native allocator on the IMC after plugins are loaded. */
+    public void setNativeAllocator(org.opensearch.arrow.spi.NativeAllocator allocator) {
+        indexingMemoryController.setNativeAllocator(allocator);
+    }
+
     private final TimeValue cleanInterval; // clean interval for the field data cache
     final IndicesRequestCache indicesRequestCache; // pkg-private for testing
     private final IndicesQueryCache indicesQueryCache;

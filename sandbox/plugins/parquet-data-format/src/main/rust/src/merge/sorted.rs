@@ -117,6 +117,8 @@ pub fn merge_sorted_with_pool(
     let num_cursors = cursors.len();
 
     // ── Phase 2: Create MergeContext (union schemas, writer, IO task) ───
+    // RESERVATION: child("merge:output_buffer") — sibling reservation on the same pool.
+    // Tracks memory for concat/encode operations in flush(). Dropped when MergeContext is consumed.
     let ctx_reservation = reservation.child("merge:output_buffer");
     let mut ctx = MergeContext::new(
         arrow_schemas.clone(),
@@ -138,10 +140,10 @@ pub fn merge_sorted_with_pool(
     // Row-ID mapping: pre-allocate the flat mapping array and compute offsets
     // from file metadata row counts (known before reading any data).
     let total_rows: usize = file_row_counts.iter().sum();
-    // Track mapping vec allocation — use reserve_estimated so merge can be rejected before allocating
+    // Mapping vec: total_rows × 8 bytes. NOT tracked in the reservation here because
+    // the mapping is passed to the caller (and ultimately to Java via FFI). The caller
+    // is responsible for pool tracking at the point of FFI transfer.
     let mapping_bytes = total_rows * std::mem::size_of::<i64>();
-    reservation.reserve_estimated(mapping_bytes)
-        .map_err(|e| super::MergeError::Logic(format!("Merge memory limit exceeded (mapping): {}", e)))?;
     log_info!(
         "[ALLOC] merge_sorted: mapping_vec={} bytes, total_rows={}, num_files={}, batch_size={}",
         mapping_bytes, total_rows, input_files.len(), batch_size

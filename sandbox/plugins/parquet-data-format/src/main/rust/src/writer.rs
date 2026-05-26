@@ -246,8 +246,9 @@ impl SortingChunkedWriter {
             return Ok(());
         }
 
-        // Pre-reserve estimated sort memory (blocks if pool is full)
-        // Estimate = 2× data size (covers peak when two copies coexist: read+concat or concat+sort)
+        // RESERVATION: request for sort-phase memory. Estimate = 2× chunk data size
+        // (covers peak when IPC read-back + concat coexist, or concat + sort coexist).
+        // Fallible — blocks (Wait behavior) until pool has capacity.
         let estimated = self.estimate_sort_chunk_memory();
         reservation.request(estimated)
             .map_err(|e| -> Box<dyn std::error::Error> {
@@ -307,9 +308,11 @@ impl SortingChunkedWriter {
         let _ = std::fs::remove_file(&ipc_path);
         self.open_new_ipc()?;
 
-        // Release sort-phase memory — data is now on disk as Parquet chunk
+        // RESERVATION: shrink(estimated) — sort phase complete, data written to disk as Parquet chunk.
         reservation.shrink(estimated);
-        // Track chunk_row_ids growth (long-lived until finish())
+        // RESERVATION: infallible grow for chunk_row_ids delta — these Vec<i64> are long-lived
+        // (held until finish() returns). Each chunk adds its own row IDs; we track the cumulative size.
+        // grow(new_total - current) ensures we only add the delta from this chunk.
         let row_ids_bytes = self.memory_size();
         let current = reservation.size();
         if row_ids_bytes > current {
@@ -533,10 +536,12 @@ impl NativeParquetWriter {
                         let num_cols = record_batch.num_columns();
                         let num_rows = record_batch.num_rows();
 
-                        // Pre-reserve estimated writer memory growth (4× batch size)
-                        // Blocks if pool is full — before any allocation happens
+                        // RESERVATION: reserve_estimated(4× batch_bytes) — pre-reserves before
+                        // the Parquet writer allocates internal buffers. The 4× multiplier covers:
+                        // raw batch + column encoding buffers + dictionary overhead + page buffer.
+                        // Fallible (Wait behavior) — blocks until pool has capacity.
                         let estimated_growth = batch_bytes * 4;
-                        let before_mem = state.reservation.size(); // = previous writer.memory_size()
+                        let before_mem = state.reservation.size();
                         state.reservation.reserve_estimated(estimated_growth)
                             .map_err(|e| -> Box<dyn std::error::Error> {
                                 format!("Write memory pool timeout: {}", e).into()
@@ -554,7 +559,9 @@ impl NativeParquetWriter {
                             batch_bytes, num_rows, num_cols, actual_mem, estimated_growth, actual_growth, temp_filename
                         );
 
-                        // Reconcile: adjust delta between estimate and actual growth
+                        // RESERVATION: reconcile(estimated_growth, actual_growth) — corrects the
+                        // over/under-estimate. If actual < estimated (typical): shrinks the excess.
+                        // If actual > estimated: infallible grow (memory already allocated by writer).
                         state.reservation.reconcile(estimated_growth, actual_growth);
                     }
                     Ok(())
@@ -710,10 +717,15 @@ impl NativeParquetWriter {
                     }
                 }
                 Some(mapping)
-                // mapping_reservation dropped here — memory transferred to Java via Box::into_raw
+                // POOL: tracked via write_pool().grow below — freed by parquet_free_row_id_mapping
             } else {
                 None
             };
+
+            // POOL: track mapping memory on write pool until Java calls parquet_free_row_id_mapping
+            if let Some(ref m) = row_id_mapping {
+                crate::memory::write_pool().grow(m.len() * std::mem::size_of::<i64>(), "write:mapping_to_java");
+            }
 
             return Ok((crc32, row_id_mapping));
         }
@@ -769,6 +781,11 @@ impl NativeParquetWriter {
         } else {
             None
         };
+
+        // POOL: track mapping memory on write pool until Java calls parquet_free_row_id_mapping
+        if let Some(ref m) = row_id_mapping {
+            crate::memory::write_pool().grow(m.len() * std::mem::size_of::<i64>(), "write:mapping_to_java");
+        }
 
         log_info!(
             "finalize_sorted_chunks: DONE file={}, chunks={}, merge_duration={:?}",

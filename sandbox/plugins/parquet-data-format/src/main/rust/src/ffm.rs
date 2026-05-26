@@ -559,6 +559,9 @@ pub unsafe extern "C" fn parquet_merge_files(
     // Write row-ID mapping into out-pointers as heap-allocated arrays.
     // Java reads them and then calls parquet_free_merge_result to deallocate.
     let mapping = result.mapping.into_boxed_slice();
+    // POOL: track mapping memory from now until Java calls parquet_free_merge_result
+    let mapping_track_bytes = mapping.len() * std::mem::size_of::<i64>();
+    crate::memory::merge_pool().grow(mapping_track_bytes, "merge:mapping_to_java");
     *out_mapping_len = mapping.len() as i64;
     *out_mapping_ptr = Box::into_raw(mapping) as *mut i64 as i64;
 
@@ -585,6 +588,9 @@ pub unsafe extern "C" fn parquet_free_merge_result(
     gen_count: i64,
 ) {
     if mapping_ptr != 0 && mapping_len > 0 {
+        // POOL: shrink merge pool — mapping memory being freed by Java
+        let mapping_bytes = mapping_len as usize * std::mem::size_of::<i64>();
+        crate::memory::merge_pool().shrink(mapping_bytes, "merge:mapping_to_java");
         let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
     }
     let n = gen_count as usize;
@@ -691,6 +697,9 @@ pub unsafe extern "C" fn parquet_free_row_id_mapping(
     mapping_len: i64,
 ) {
     if mapping_ptr != 0 && mapping_len > 0 {
+        // POOL: shrink write pool — mapping from finalize_sorted_chunks being freed by Java
+        let mapping_bytes = mapping_len as usize * std::mem::size_of::<i64>();
+        crate::memory::write_pool().shrink(mapping_bytes, "write:mapping_to_java");
         let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
     }
 }
@@ -705,6 +714,26 @@ pub extern "C" fn parquet_init_memory_pools(write_limit: i64, merge_limit: i64) 
     let wl = if write_limit < 0 { 0 } else { write_limit as usize };
     let ml = if merge_limit < 0 { 0 } else { merge_limit as usize };
     crate::memory::init_pools(wl, ml);
+    0
+}
+
+/// Write pool stats into caller-provided buffer: [write_limit, write_used, write_peak, merge_limit, merge_used, merge_peak].
+/// `out` must point to at least `out_len` i64 slots (minimum 6).
+#[no_mangle]
+pub extern "C" fn parquet_get_pool_stats(out: *mut i64, out_len: i64) -> i64 {
+    if out.is_null() || out_len < 6 {
+        return -1;
+    }
+    let wp = crate::memory::write_pool();
+    let mp = crate::memory::merge_pool();
+    unsafe {
+        *out.add(0) = wp.limit() as i64;
+        *out.add(1) = wp.used() as i64;
+        *out.add(2) = wp.peak() as i64;
+        *out.add(3) = mp.limit() as i64;
+        *out.add(4) = mp.used() as i64;
+        *out.add(5) = mp.peak() as i64;
+    }
     0
 }
 

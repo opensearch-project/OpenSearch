@@ -263,6 +263,15 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return total;
     }
 
+    @Override
+    public long getHeapBytesUsed() {
+        long total = primaryEngine.getHeapBytesUsed();
+        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+            total += engine.getHeapBytesUsed();
+        }
+        return total;
+    }
+
     /**
      * Deletes files from all per-format engines. If any engine fails, the first exception
      * is thrown with subsequent failures added as suppressed exceptions.

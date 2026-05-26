@@ -64,6 +64,10 @@ import java.util.function.Supplier;
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
+    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(
+        ParquetDataFormatPlugin.class
+    );
+
     /**
      * Current parquet writer format version, long-encoded (plugin-defined namespace; the
      * encoding happens to reuse {@code major * 1_000_000 + minor * 1_000 + patch} but is
@@ -112,6 +116,39 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             .addSettingsUpdateConsumer(ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR, v -> this.maxPerVsrAllocationDivisor = v);
         this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
             .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
+
+        // Register virtual pools for Rust-side write and merge memory tracking
+        // Budget = parquet.native_memory_percent of available native memory, split 60/40 write/merge
+        double nativePercent = ParquetSettings.NATIVE_MEMORY_PERCENT.get(settings);
+        long totalNativeMemory = org.opensearch.monitor.os.OsProbe.getInstance().getTotalPhysicalMemorySize()
+            - org.opensearch.monitor.jvm.JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        long rustBudget = (long) (totalNativeMemory * nativePercent / 100.0);
+        long writeLimit = (long) (rustBudget * 0.6);
+        long mergeLimit = (long) (rustBudget * 0.4);
+        var writePool = this.nativeAllocator.registerVirtualPool("write", writeLimit);
+        var mergePool = this.nativeAllocator.registerVirtualPool("merge", mergeLimit);
+
+        // Initialize Rust-side pool limits (0 = unlimited for testing)
+        org.opensearch.parquet.bridge.RustBridge.initMemoryPools(0, 0);
+        logger.info(
+            "Native memory pools initialized: total_native={}MB, budget={}MB ({}%), write={}MB, merge={}MB",
+            totalNativeMemory / (1024 * 1024),
+            rustBudget / (1024 * 1024),
+            nativePercent,
+            writeLimit / (1024 * 1024),
+            mergeLimit / (1024 * 1024)
+        );
+        this.nativeAllocator.setVirtualPoolStatsRefresher(() -> {
+            try {
+                long[] stats = org.opensearch.parquet.bridge.RustBridge.getPoolStats();
+                // stats: [write_limit, write_used, write_peak, merge_limit, merge_used, merge_peak]
+                writePool.updateStats(stats[1], stats[2]);
+                mergePool.updateStats(stats[4], stats[5]);
+            } catch (Exception e) {
+                // Best-effort — stats may be stale if native lib is unavailable
+            }
+        });
+
         return Collections.emptyList();
     }
 

@@ -109,8 +109,8 @@ pub fn merge_unsorted_with_pool(
     // old_row_id maps directly to new_row_id with a per-file offset.
     let total_rows: usize = file_row_counts.iter().sum();
     let mapping_bytes = total_rows * std::mem::size_of::<i64>();
-    reservation.reserve_estimated(mapping_bytes)
-        .map_err(|e| super::MergeError::Logic(format!("Merge memory limit exceeded (mapping): {}", e)))?;
+    // Mapping vec: NOT tracked in reservation — passed to caller/Java via FFI.
+    // Pool tracking happens at the FFI boundary (parquet_merge_files / parquet_free_merge_result).
     log_info!(
         "[ALLOC] merge_unsorted: mapping_vec={} bytes, total_rows={}, num_files={}",
         mapping_bytes, total_rows, input_files.len()

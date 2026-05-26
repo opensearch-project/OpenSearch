@@ -134,18 +134,12 @@ impl MergeContext {
 
     /// Buffers a batch (already padded to data_schema) and auto-flushes when
     /// the row count threshold is reached.
+    /// NOTE: Batches are often slices of a larger cursor batch and share the parent's
+    /// memory buffers. We do NOT track them in the reservation here — actual memory
+    /// allocation only happens in flush() when concat_batches creates a new contiguous batch.
     pub fn push_batch(&mut self, batch: RecordBatch) -> MergeResult<()> {
-        let batch_bytes = batch.get_array_memory_size();
         let num_rows = batch.num_rows();
-        let num_cols = batch.num_columns();
-        log_info!(
-            "[ALLOC] merge push_batch: batch_bytes={}, rows={}, cols={}, buffered_chunks={}, total_buffered_rows={}",
-            batch_bytes, num_rows, num_cols, self.output_chunks.len(), self.output_row_count
-        );
-        if let Err(e) = self.reservation.request(batch_bytes) {
-            return Err(MergeError::Logic(format!("Merge memory limit exceeded: {}", e)));
-        }
-        self.output_row_count += batch.num_rows();
+        self.output_row_count += num_rows;
         self.output_chunks.push(batch);
         if self.output_row_count >= self.output_flush_rows {
             self.flush()?;
@@ -160,7 +154,8 @@ impl MergeContext {
             return Ok(());
         }
 
-        let merged = if self.output_chunks.len() == 1 {
+        let num_chunks = self.output_chunks.len();
+        let merged = if num_chunks == 1 {
             self.output_chunks.pop().unwrap()
         } else {
             let m = concat_batches(&self.data_schema, self.output_chunks.as_slice())?;
@@ -169,7 +164,8 @@ impl MergeContext {
         };
         let n = merged.num_rows();
 
-        // Track temporary spike: merged + with_id coexist briefly
+        // RESERVATION: request for concat result — first real allocation in this flush cycle.
+        // Fallible (try_grow or wait_and_grow depending on pool behavior).
         let merged_bytes = merged.get_array_memory_size();
         if let Err(e) = self.reservation.request(merged_bytes) {
             return Err(MergeError::Logic(format!("Merge memory limit exceeded during flush (concat): {}", e)));
@@ -177,12 +173,17 @@ impl MergeContext {
 
         let with_id = append_row_id(&merged, self.next_row_id, &self.output_schema)?;
         let with_id_bytes = with_id.get_array_memory_size();
+        // RESERVATION: request for with_id batch — coexists briefly with merged.
         if let Err(e) = self.reservation.request(with_id_bytes) {
             return Err(MergeError::Logic(format!("Merge memory limit exceeded during flush (with_id): {}", e)));
         }
+
         log_info!(
-            "[ALLOC] merge flush: merged_bytes={}, with_id_bytes={}, rows={}", merged_bytes, with_id_bytes, n
+            "[ALLOC] merge flush: merged_bytes={}, with_id_bytes={}, rows={}, chunks_merged={}",
+            merged_bytes, with_id_bytes, n, num_chunks
         );
+
+        // RESERVATION: shrink merged_bytes — merged batch dropped, with_id holds the data now.
         drop(merged);
         self.reservation.shrink(merged_bytes);
 
@@ -217,7 +218,8 @@ impl MergeContext {
             encoded_chunks.push(r?);
         }
 
-        // Track encoded column memory (exists between encoding and IO send)
+        // RESERVATION: infallible grow for encoded column chunks — memory exists between
+        // encoding completion and IO send. Cannot reject since encoding already happened.
         let encoded_bytes: usize = encoded_chunks.iter()
             .map(|c| c.close().bytes_written as usize)
             .sum();
@@ -227,7 +229,9 @@ impl MergeContext {
             .blocking_send(IoCommand::WriteRowGroup(encoded_chunks))
             .map_err(|_| MergeError::Logic("IO task terminated unexpectedly".into()))?;
 
-        // Release: with_id + encoded chunks (moved to IO)
+        // RESERVATION: shrink (with_id + encoded) — both transferred to IO task.
+        // Net effect of this flush: reservation.size returns to 0.
+        //   +merged_bytes +with_id_bytes -merged_bytes +encoded_bytes -(with_id_bytes + encoded_bytes) = 0
         self.reservation.shrink(with_id_bytes + encoded_bytes);
 
         self.row_group_index += 1;
@@ -235,8 +239,10 @@ impl MergeContext {
         self.total_rows_written += n;
         self.output_row_count = 0;
 
-        // Release buffered batch memory — data has been encoded and sent to IO
-        self.reservation.free();
+        log_info!(
+            "[ALLOC] merge flush complete: row_group={}, rows={}, reservation_size={}",
+            self.row_group_index - 1, n, self.reservation.size()
+        );
 
         log_debug!(
             "[RUST] Flushed row group {}: {} rows (total: {})",

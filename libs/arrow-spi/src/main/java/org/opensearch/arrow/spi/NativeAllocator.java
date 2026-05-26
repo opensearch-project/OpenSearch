@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.spi;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.Closeable;
 
 /**
@@ -23,6 +25,7 @@ import java.io.Closeable;
  *
  * @opensearch.api
  */
+@PublicApi(since = "3.0.0")
 public interface NativeAllocator extends Closeable {
 
     /**
@@ -56,6 +59,16 @@ public interface NativeAllocator extends Closeable {
      * Collects a point-in-time stats snapshot across all pools.
      */
     NativeAllocatorPoolStats stats();
+
+    /**
+     * Returns the virtual pool handle for a Rust-side memory pool, or null if not registered.
+     *
+     * @param poolName logical pool name (e.g., "write", "merge")
+     * @return the pool handle, or null
+     */
+    default PoolHandle getVirtualPool(String poolName) {
+        return null;
+    }
 
     /**
      * Opaque handle to a memory pool. Plugins downcast to the concrete type

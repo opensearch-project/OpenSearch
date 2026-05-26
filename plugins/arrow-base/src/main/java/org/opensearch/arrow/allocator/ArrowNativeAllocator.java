@@ -46,10 +46,12 @@ public class ArrowNativeAllocator implements NativeAllocator {
 
     private final RootAllocator root;
     private final ConcurrentMap<String, ArrowPoolHandle> pools = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, VirtualPoolHandle> virtualPools = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Long> poolMins = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Long> poolMaxes = new ConcurrentHashMap<>();
     private final ScheduledExecutorService rebalancer;
     private volatile ScheduledFuture<?> rebalanceTask;
+    private volatile Runnable virtualPoolStatsRefresher;
     /**
      * True iff the rebalancer is configured to run periodically. Used by
      * {@link #getOrCreatePool} to decide each pool's initial child-allocator
@@ -178,6 +180,11 @@ public class ArrowNativeAllocator implements NativeAllocator {
 
     @Override
     public NativeAllocatorPoolStats stats() {
+        // Refresh Rust-side stats before collecting
+        Runnable refresher = this.virtualPoolStatsRefresher;
+        if (refresher != null) {
+            refresher.run();
+        }
         List<NativeAllocatorPoolStats.PoolStats> poolStats = new ArrayList<>();
         for (var entry : pools.entrySet()) {
             BufferAllocator alloc = entry.getValue().allocator;
@@ -190,6 +197,11 @@ public class ArrowNativeAllocator implements NativeAllocator {
                     alloc.getChildAllocators().size()
                 )
             );
+        }
+        // Include Rust-side virtual pools
+        for (var entry : virtualPools.entrySet()) {
+            VirtualPoolHandle vp = entry.getValue();
+            poolStats.add(new NativeAllocatorPoolStats.PoolStats(entry.getKey(), vp.allocatedBytes(), vp.peakBytes(), vp.limit(), 0));
         }
         return new NativeAllocatorPoolStats(root.getAllocatedMemory(), root.getPeakMemoryAllocation(), root.getLimit(), poolStats);
     }
@@ -351,5 +363,70 @@ public class ArrowNativeAllocator implements NativeAllocator {
         public BufferAllocator getAllocator() {
             return allocator;
         }
+    }
+
+    /**
+     * A virtual pool handle for Rust-side memory pools that report stats back to Java
+     * without using Arrow's BufferAllocator.
+     */
+    public static class VirtualPoolHandle implements PoolHandle {
+        private final String name;
+        private final long limit;
+        private volatile long allocatedBytes;
+        private volatile long peakBytes;
+
+        VirtualPoolHandle(String name, long limit) {
+            this.name = name;
+            this.limit = limit;
+        }
+
+        /** Called by the stats refresher to report current Rust-side usage. */
+        public void updateStats(long allocated, long peak) {
+            this.allocatedBytes = allocated;
+            this.peakBytes = peak;
+        }
+
+        @Override
+        public PoolHandle newChild(String childName, long childLimit) {
+            throw new UnsupportedOperationException("Virtual pool [" + name + "] does not support children");
+        }
+
+        @Override
+        public long allocatedBytes() {
+            return allocatedBytes;
+        }
+
+        @Override
+        public long peakBytes() {
+            return peakBytes;
+        }
+
+        @Override
+        public long limit() {
+            return limit;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Registers a virtual pool for a Rust-side memory pool.
+     */
+    public VirtualPoolHandle registerVirtualPool(String poolName, long limit) {
+        VirtualPoolHandle handle = new VirtualPoolHandle(poolName, limit);
+        virtualPools.put(poolName, handle);
+        return handle;
+    }
+
+    /** Returns the virtual pool handle for a given name, or null if not registered. */
+    @Override
+    public VirtualPoolHandle getVirtualPool(String poolName) {
+        return virtualPools.get(poolName);
+    }
+
+    /** Registers a callback that refreshes virtual pool stats from the native layer. */
+    public void setVirtualPoolStatsRefresher(Runnable refresher) {
+        this.virtualPoolStatsRefresher = refresher;
     }
 }

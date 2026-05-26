@@ -79,6 +79,15 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     }
 
     /**
+     * Returns JVM heap bytes used by indexing buffers that would be freed by a refresh.
+     *
+     * @return heap usage in bytes
+     */
+    default long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /**
      * Deletes the specified files grouped by directory.
      *
      * @param filesToDelete map of data format name to collections of file names to delete

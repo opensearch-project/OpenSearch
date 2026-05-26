@@ -1119,8 +1119,13 @@ public class DataFormatAwareEngine implements Indexer {
 
     /** {@inheritDoc} Returns the RAM bytes used by the indexing execution engine. */
     @Override
+    public long getHeapBytesUsed() {
+        return indexingExecutionEngine.getHeapBytesUsed();
+    }
+
+    @Override
     public long getIndexBufferRAMBytesUsed() {
-        return indexingExecutionEngine.getNativeBytesUsed();
+        return getHeapBytesUsed();
     }
 
     /** {@inheritDoc} Activates write throttling when merge pressure increases. */

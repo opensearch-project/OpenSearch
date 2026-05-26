@@ -374,6 +374,12 @@ impl MemoryReservation {
         self.consumer
     }
 
+    /// Returns a reference to the underlying pool (for direct grow/shrink when memory
+    /// outlives this reservation, e.g., FFI transfers to Java).
+    pub fn pool(&self) -> &Arc<MemoryPool> {
+        &self.pool
+    }
+
     /// Create a sibling reservation from the same pool and behavior, with a different consumer name.
     pub fn child(&self, consumer: &'static str) -> Self {
         Self {

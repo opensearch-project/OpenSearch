@@ -1176,6 +1176,10 @@ public class Node implements Closeable {
                 }
                 pluginComponents.addAll(components);
             }
+            // Wire native allocator to IMC for native memory budget tracking
+            pluginComponentRegistry.getComponent(org.opensearch.arrow.spi.NativeAllocator.class)
+                .ifPresent(na -> indicesService.setNativeAllocator(na));
+
             pluginComponentRegistry.seal();
 
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)

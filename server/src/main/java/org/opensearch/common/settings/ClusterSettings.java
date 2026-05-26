@@ -649,6 +649,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
                 IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+                IndexingMemoryController.NATIVE_INDEX_BUFFER_PERCENT_SETTING,
                 ResourceWatcherService.ENABLED,
                 ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                 ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,

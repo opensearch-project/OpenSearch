@@ -3400,6 +3400,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /** Returns native (off-heap) bytes used by indexing buffers for this shard, or 0 if closed. */
+    public long getNativeBytesUsed() {
+        Indexer engine = getIndexerOrNull();
+        if (engine == null) {
+            return 0;
+        }
+        try {
+            return engine.getNativeBytesUsed();
+        } catch (AlreadyClosedException ex) {
+            return 0;
+        }
+    }
+
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
         this.shardEventListener.delegates.add(onShardFailure);
     }

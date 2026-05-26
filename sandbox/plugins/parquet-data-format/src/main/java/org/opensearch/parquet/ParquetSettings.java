@@ -37,6 +37,16 @@ public final class ParquetSettings {
     public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 65536;
 
+    /** Percentage of available native memory (physical - JVM heap) allocated for Rust write+merge pools.
+     *  Split 60/40 between write and merge. Default: 5%. */
+    public static final Setting<Double> NATIVE_MEMORY_PERCENT = Setting.doubleSetting(
+        "parquet.native_memory_percent",
+        5.0,
+        0.0,
+        100.0,
+        Setting.Property.NodeScope
+    );
+
     /** Data page size limit in bytes (default 1MB). */
     public static final Setting<ByteSizeValue> PAGE_SIZE_BYTES = Setting.byteSizeSetting(
         "index.parquet.page_size_bytes",
@@ -668,6 +678,7 @@ public final class ParquetSettings {
     /** Returns all settings defined by the Parquet plugin. */
     public static List<Setting<?>> getSettings() {
         return List.of(
+            NATIVE_MEMORY_PERCENT,
             PAGE_SIZE_BYTES,
             PAGE_ROW_LIMIT,
             DICT_SIZE_BYTES,
