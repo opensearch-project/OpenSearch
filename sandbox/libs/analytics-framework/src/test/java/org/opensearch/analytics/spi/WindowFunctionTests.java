@@ -31,6 +31,7 @@ public class WindowFunctionTests extends OpenSearchTestCase {
         assertEquals(WindowFunction.ARG_MIN, WindowFunction.fromSqlKind(SqlKind.ARG_MIN));
         assertEquals(WindowFunction.ARG_MAX, WindowFunction.fromSqlKind(SqlKind.ARG_MAX));
         assertEquals(WindowFunction.ROW_NUMBER, WindowFunction.fromSqlKind(SqlKind.ROW_NUMBER));
+        assertEquals(WindowFunction.NTH_VALUE, WindowFunction.fromSqlKind(SqlKind.NTH_VALUE));
     }
 
     public void testFromSqlKindRefusesAmbiguousOtherFunction() {
