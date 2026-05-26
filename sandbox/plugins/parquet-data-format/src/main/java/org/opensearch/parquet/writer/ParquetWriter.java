@@ -14,7 +14,6 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
-import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.index.store.FileMetadata;
 import org.opensearch.index.store.FormatChecksumStrategy;
@@ -28,7 +27,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.function.Supplier;
 
 /**
  * Parquet file writer integrating OpenSearch's {@link Writer} interface with the VSR batching layer.
@@ -50,10 +48,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
     private final FormatChecksumStrategy checksumStrategy;
-    private final Supplier<Schema> schemaSupplier;
     private long mappingVersion;
-    private volatile WriterState state = WriterState.ACTIVE;
-    private long acceptedRows = 0L;
 
     /**
      * Creates a new ParquetWriter.
@@ -62,10 +57,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      * @param writerGeneration generation number for this writer
      * @param mappingVersion the initial mapping version
      * @param dataFormat the Parquet data format instance
-     * @param schema Arrow schema for vector creation at construction time
-     * @param schemaSupplier supplies the up-to-date schema when the mapping version
-     *                       advances, used by {@link #updateMappingVersion} to add new
-     *                       field vectors before {@code addDoc} encounters them
+     * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
      * @param indexSettings index settings for writer configuration
      * @param threadPool the thread pool for background native writes
@@ -77,7 +69,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         long mappingVersion,
         ParquetDataFormat dataFormat,
         Schema schema,
-        Supplier<Schema> schemaSupplier,
         ArrowBufferPool bufferPool,
         IndexSettings indexSettings,
         ThreadPool threadPool,
@@ -88,7 +79,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
         this.checksumStrategy = checksumStrategy;
-        this.schemaSupplier = schemaSupplier;
         this.vsrManager = new VSRManager(
             file,
             indexSettings,
@@ -102,42 +92,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
     @Override
     public WriteResult addDoc(ParquetDocumentInput d) throws IOException {
-        if (state != WriterState.ACTIVE) {
-            throw new IllegalStateException("Writer is not active, state=" + state);
-        }
-        // Schema mismatch is recoverable: the VSR rejected the doc pre-admission, so the
-        // caller-driven rollback no-ops in the VSR and restores ACTIVE.
-        try {
-            vsrManager.addDocument(d);
-        } catch (MismatchedInputException e) {
-            state = WriterState.PENDING_ROLLBACK;
-            return new WriteResult.Failure(e, -1, -1, -1);
-        }
-        acceptedRows++;
+        vsrManager.addDocument(d);
         return new WriteResult.Success(1L, 1L, 1L);
-    }
-
-    @Override
-    public void rollbackTo(long rowCount) throws IOException {
-        if (state != WriterState.ACTIVE && state != WriterState.PENDING_ROLLBACK) {
-            throw new IllegalStateException("rollbackTo requires ACTIVE or PENDING_ROLLBACK state but was " + state);
-        }
-        if (rowCount > acceptedRows) {
-            throw new IllegalStateException("Cannot rollback to " + rowCount + ": only " + acceptedRows + " rows admitted");
-        }
-        if (acceptedRows - rowCount > 1) {
-            throw new IllegalStateException(
-                "rollbackTo supports rolling back exactly 1 doc, but asked to roll back " + (acceptedRows - rowCount)
-            );
-        }
-        vsrManager.rollbackTo(rowCount);
-        acceptedRows = rowCount;
-        state = WriterState.ACTIVE;
-    }
-
-    @Override
-    public WriterState state() {
-        return state;
     }
 
     @Override
@@ -191,19 +147,12 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     public void updateMappingVersion(long newVersion) {
         if (newVersion > this.mappingVersion) {
             this.mappingVersion = newVersion;
-            // Reconcile the active VSR with the new mapping's schema so addDoc never has
-            // to add field vectors itself.
-            vsrManager.reconcileSchema(schemaSupplier.get());
         }
     }
 
     @Override
     public void close() throws IOException {
-        try {
-            vsrManager.close();
-        } finally {
-            state = WriterState.CLOSED;
-        }
+        vsrManager.close();
     }
 
 }
