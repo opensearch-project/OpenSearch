@@ -31,7 +31,11 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FieldType;
+import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.ScalarFunction;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -387,6 +391,172 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             }
         };
         return List.of(df, lucene);
+    }
+
+    // ---- Live-docs MATCHALL injection tests ----
+
+    /**
+     * Builds backends with delegation + MATCHALL registered on Lucene.
+     * Simulates composite (Parquet + Lucene) production configuration.
+     */
+    private List<AnalyticsSearchBackendPlugin> compositeDelegationBackends() {
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+        };
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            protected Set<FilterCapability> filterCapabilities() {
+                Set<FilterCapability> caps = new HashSet<>(super.filterCapabilities());
+                caps.add(
+                    new FilterCapability.FullText(
+                        ScalarFunction.MATCHALL,
+                        FieldType.TEXT,
+                        Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
+                        Set.of()
+                    )
+                );
+                caps.add(
+                    new FilterCapability.FullText(
+                        ScalarFunction.MATCHALL,
+                        FieldType.KEYWORD,
+                        Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
+                        Set.of()
+                    )
+                );
+                return caps;
+            }
+        };
+        return List.of(df, lucene);
+    }
+
+    // -- Composite format: Parquet + Lucene --
+
+    /**
+     * Composite shard with only Parquet-eligible predicates: MATCHALL should be injected
+     * so Lucene's scorer filters soft-deleted documents.
+     */
+    public void testCompositeFormat_parquetOnlyFilter_matchAllInjected() {
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("status", Map.of("type", "integer", "index", true)),
+            compositeDelegationBackends()
+        );
+        RelOptTable table = mockTable("test_index", new String[] { "status" }, new SqlTypeName[] { SqlTypeName.INTEGER });
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), makeEquals(0, SqlTypeName.INTEGER, 200));
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+
+        assertTrue(result instanceof OpenSearchFilter);
+        RexNode condition = ((OpenSearchFilter) result).getCondition();
+        assertTrue("Expected AND with injected MATCHALL", condition instanceof RexCall);
+        assertEquals(SqlKind.AND, ((RexCall) condition).getKind());
+
+        boolean hasMatchAll = false;
+        for (RexNode operand : ((RexCall) condition).getOperands()) {
+            if (operand instanceof AnnotatedPredicate ap && ap.getOriginal().toString().contains("MATCHALL")) {
+                hasMatchAll = true;
+                assertEquals(List.of(MockLuceneBackend.NAME), ap.getViableBackends());
+            }
+        }
+        assertTrue("Synthetic MATCHALL should be present", hasMatchAll);
+    }
+
+    /**
+     * Composite shard with a Lucene-only predicate (full-text MATCH_PHRASE):
+     * no MATCHALL injection needed — the existing predicate's scorer already filters live docs.
+     */
+    public void testCompositeFormat_luceneOnlyFilter_noMatchAllInjected() {
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("message", Map.of("type", "keyword", "index", true)),
+            compositeDelegationBackends()
+        );
+        RelOptTable table = mockTable("test_index", new String[] { "message" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
+        LogicalFilter filter = LogicalFilter.create(
+            stubScan(table),
+            makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 0, "hello world")
+        );
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+
+        assertTrue(result instanceof OpenSearchFilter);
+        RexNode condition = ((OpenSearchFilter) result).getCondition();
+        assertFalse("Should not inject MATCHALL when Lucene predicate already present", condition.toString().contains("MATCHALL"));
+    }
+
+    /**
+     * Composite shard with mixed predicates (Parquet integer filter AND Lucene full-text):
+     * no MATCHALL injection — the full-text predicate already ensures live-docs filtering.
+     */
+    public void testCompositeFormat_parquetAndLuceneFilter_noMatchAllInjected() {
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true)),
+            compositeDelegationBackends()
+        );
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "status", "message" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR }
+        );
+        LogicalFilter filter = LogicalFilter.create(
+            stubScan(table),
+            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 1, "timeout error"))
+        );
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+
+        assertTrue(result instanceof OpenSearchFilter);
+        RexNode condition = ((OpenSearchFilter) result).getCondition();
+        assertFalse("Should not inject MATCHALL when AND already contains Lucene predicate", condition.toString().contains("MATCHALL"));
+    }
+
+    // -- Parquet-only format --
+
+    /**
+     * Parquet-only shard (no Lucene index format on any field): no MATCHALL injection.
+     * Guard 1 prevents injection since no field has Lucene storage.
+     */
+    public void testParquetOnlyFormat_noMatchAllInjected() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("status", Map.of("type", "integer", "index", false, "doc_values", true)),
+            new String[] { "status" },
+            new SqlTypeName[] { SqlTypeName.INTEGER },
+            makeEquals(0, SqlTypeName.INTEGER, 200),
+            List.of(DATAFUSION),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+
+        assertFalse("Parquet-only shard should not have MATCHALL", result.getCondition().toString().contains("MATCHALL"));
+    }
+
+    // -- Lucene-only format --
+
+    /**
+     * Lucene-only shard where the predicate is already Lucene-eligible:
+     * no MATCHALL needed since the predicate's scorer naturally handles live docs.
+     */
+    public void testLuceneOnlyFormat_noMatchAllInjected() {
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("tag", Map.of("type", "keyword", "index", true)),
+            compositeDelegationBackends()
+        );
+        RelOptTable table = mockTable("test_index", new String[] { "tag" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), makeFullTextCall(fullTextSqlFunction("MATCH"), 0, "hello"));
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+
+        assertTrue(result instanceof OpenSearchFilter);
+        assertFalse(
+            "Lucene-only predicate should not trigger MATCHALL",
+            ((OpenSearchFilter) result).getCondition().toString().contains("MATCHALL")
+        );
     }
 
     public void testBackendWithFilterDelegationButNoFactory_throws() {
