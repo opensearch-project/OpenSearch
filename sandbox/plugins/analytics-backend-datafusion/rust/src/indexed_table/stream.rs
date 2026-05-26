@@ -597,9 +597,13 @@ impl IndexedStream {
             }
         };
 
-        // Strip extra predicate columns to match output schema
+        // Reorder/strip columns to match output schema. The parquet reader
+        // delivers columns in the file's physical order which may differ from
+        // the table schema order (e.g. when infer_schema sorted alphabetically).
         let t_proj = Instant::now();
-        let output = if output.num_columns() > self.schema.fields().len() {
+        let output = if output.schema().as_ref() == self.schema.as_ref() {
+            output
+        } else {
             let n = self.schema.fields().len();
             if n == 0 {
                 RecordBatch::try_new_with_options(
@@ -617,8 +621,6 @@ impl IndexedStream {
                     .collect();
                 output.project(&indices)?
             }
-        } else {
-            output
         };
         if let Some(ref t) = self.metrics.projection_fixup_time {
             t.add_duration(t_proj.elapsed());

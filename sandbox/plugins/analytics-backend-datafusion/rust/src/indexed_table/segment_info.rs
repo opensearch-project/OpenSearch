@@ -121,7 +121,10 @@ pub async fn build_segments(
     //      primitives (recursively merged for Struct/List/Union).
     //   5. Apply `binary_as_string` and `force_view_types` transforms
     //      if configured.
-    let format = ParquetFormat::default();
+    // Disable Utf8View: the indexed path uses the file's physical schema for
+    // ParquetSource (to avoid column reordering issues), so the inferred table
+    // schema must also use Utf8 (not Utf8View) to stay consistent.
+    let format = ParquetFormat::default().with_force_view_types(false);
     let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
         .await
         .map_err(|e| format!("infer_schema union: {}", e))?;
