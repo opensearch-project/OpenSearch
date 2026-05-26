@@ -35,6 +35,15 @@ public final class ArrowValues {
      * {@code getObject} returns), {@link Text#toString()} for any other vector
      * type whose {@code getObject} returns a {@link Text} and
      * {@link FieldVector#getObject} for every other vector type.
+     *
+     * <p>Containers ({@link MapVector}, {@link ListVector}) are recursively
+     * normalized so no Arrow {@link Text} wrapper escapes this boundary. This
+     * matters for nested shapes like {@code Map<String, List<String>>} (e.g.
+     * the PPL {@code patterns ... show_numbered_token=true} {@code tokens}
+     * column), where Arrow's {@code MapVector.getObject} yields entry structs
+     * whose values are themselves {@code List<Text>}; downstream consumers
+     * such as {@code ExprValueUtils.fromObjectValue} reject the raw {@code
+     * Text} as "unsupported object class".
      */
     public static Object toJavaValue(FieldVector vector, int index) {
         if (vector.isNull(index)) return null;
@@ -47,36 +56,54 @@ public final class ArrowValues {
         // JsonStringArrayList of entry structs rather than a Map. Reassemble
         // entries into a LinkedHashMap (insertion-order preserving) so the
         // downstream ExprValueUtils tuple converter sees the same shape as a
-        // legacy v2 Map<String, Object> column. Routes the values through
-        // Text→String normalization so JSON serialization doesn't choke on
-        // Arrow's UTF-8 byte wrapper. In-tree callers include spath's
-        // `json_extract_all` and parse's `parse` UDFs on the analytics-engine route.
+        // legacy v2 Map<String, Object> column. In-tree callers include
+        // spath's `json_extract_all`, parse's `parse` UDF, and the BRAIN
+        // patterns `tokens` column on the analytics-engine route.
         if (vector instanceof MapVector && vector.getObject(index) instanceof List<?> entries) {
             LinkedHashMap<String, Object> map = new LinkedHashMap<>();
             for (Object entry : entries) {
                 if (!(entry instanceof Map<?, ?> e)) continue;
                 Object k = e.get(MapVector.KEY_NAME);
                 Object v = e.get(MapVector.VALUE_NAME);
-                map.put(k instanceof Text t ? t.toString() : String.valueOf(k), v instanceof Text t ? t.toString() : v);
+                map.put(k instanceof Text t ? t.toString() : String.valueOf(k), normalize(v));
             }
             return map;
         }
         Object value = vector.getObject(index);
         if (vector instanceof ListVector && value instanceof List<?> raw) {
-            // ListVector.getObject returns a JsonStringArrayList whose elements are the
-            // child vector's typed values. For VarCharVector children that's Arrow's
-            // Text, which downstream consumers (e.g. {@code ExprValueUtils.fromObjectValue})
-            // don't recognize and reject as "unsupported object class". Mirror the
-            // top-level VarCharVector branch above and substitute Java strings.
-            List<Object> normalized = new ArrayList<>(raw.size());
-            for (Object element : raw) {
-                normalized.add(element instanceof Text t ? t.toString() : element);
-            }
-            return normalized;
+            return normalizeList(raw);
         }
+        return normalize(value);
+    }
+
+    /**
+     * Recursively converts Arrow {@link Text} wrappers to {@link String} inside
+     * arbitrary nested {@code List} / {@code Map} structures returned by
+     * {@code FieldVector#getObject}. Returns primitive values unchanged.
+     */
+    private static Object normalize(Object value) {
         if (value instanceof Text t) {
             return t.toString();
         }
+        if (value instanceof List<?> list) {
+            return normalizeList(list);
+        }
+        if (value instanceof Map<?, ?> m) {
+            LinkedHashMap<String, Object> out = new LinkedHashMap<>(m.size());
+            for (Map.Entry<?, ?> entry : m.entrySet()) {
+                Object k = entry.getKey();
+                out.put(k instanceof Text t ? t.toString() : String.valueOf(k), normalize(entry.getValue()));
+            }
+            return out;
+        }
         return value;
+    }
+
+    private static List<Object> normalizeList(List<?> raw) {
+        List<Object> out = new ArrayList<>(raw.size());
+        for (Object element : raw) {
+            out.add(normalize(element));
+        }
+        return out;
     }
 }
