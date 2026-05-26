@@ -64,6 +64,21 @@ scalar_functions:
           - { value: string, name: "unit" }
           - { value: "date", name: "value" }
         return: date
+  - name: "date_bin"
+    description: >-
+      Bucket a timestamp into fixed-width windows of size `stride` (a string-form
+      interval like `"40 milliseconds"`) starting from the Unix epoch. Lowering
+      target for PPL's sub-second multi-unit time span — `span(field, N us)` and
+      `span(field, N ms)` with `N > 1` — rewritten by `SpanAdapter`. Larger
+      fixed-length units (`s`, `m`, `h`, `d`, `w`) take the cheaper integer-seconds
+      arithmetic path in the same adapter and don't reach this signature. The
+      arg shape mirrors `date_trunc`: string stride then precision_timestamp,
+      so isthmus matchKeys binds it the same way.
+    impls:
+      - args:
+          - { value: string, name: "stride" }
+          - { value: "precision_timestamp<P>", name: "source" }
+        return: precision_timestamp<P>
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
