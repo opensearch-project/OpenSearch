@@ -324,6 +324,33 @@ fn acquire_budget_inner(
 }
 
 
+/// Attempt to acquire or grow the coordinator-reduce session's phantom
+/// reservation based on a child input's schema. Compares the estimated
+/// untracked memory for this schema against the reservation already held
+/// from a prior child registration (if any). Skips acquisition when the
+/// existing reservation already covers the new estimate (e.g. a prior child
+/// had a wider schema). Returns Ok(None) when the existing reservation already
+/// covers the estimate. Returns Err if the pool cannot fit the phantom even at
+/// target_partitions=1 — the reduce should be rejected.
+pub fn try_grow_reduce_budget(
+    pool: &Arc<dyn MemoryPool>,
+    schema: &SchemaRef,
+    batch_size: usize,
+    configured_target_partitions: usize,
+    prior_partition_reservation_bytes: usize,
+) -> Result<Option<QueryMemoryBudget>, DataFusionError> {
+    let avg_row_bytes = estimate_avg_row_bytes(schema);
+    let num_columns = schema.fields().len();
+    let needed = compute_untracked_bytes_with_columns(
+        configured_target_partitions, batch_size, avg_row_bytes, num_columns,
+    );
+    if needed <= prior_partition_reservation_bytes {
+        return Ok(None);
+    }
+    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, batch_size)
+        .map(Some)
+}
+
 /// Compute the untracked byte envelope for given parameters.
 fn compute_untracked_bytes(
     target_partitions: usize,
@@ -671,4 +698,53 @@ mod tests {
         assert!(single < multi);
     }
 
+    #[test]
+    fn try_grow_reduce_budget_skips_when_existing_covers() {
+        let pool = test_pool(1_000_000_000);
+        let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
+        let needed = compute_untracked_bytes_with_columns(4, 8192, estimate_avg_row_bytes(&schema), schema.fields().len());
+
+        // Existing reservation is larger — should return Ok(None)
+        let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, needed + 1).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn try_grow_reduce_budget_acquires_when_needed_exceeds_existing() {
+        let pool = test_pool(1_000_000_000);
+        let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
+
+        // No existing reservation — should acquire
+        let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, 0).unwrap();
+        assert!(result.is_some());
+        let budget = result.unwrap();
+        assert_eq!(budget.target_partitions, 4);
+        assert!(budget.phantom_bytes > 0);
+    }
+
+    #[test]
+    fn try_grow_reduce_budget_adapts_partitions_under_pressure() {
+        // Small pool forces partition reduction
+        let pool = test_pool(500_000);
+        let schema = schema_of(vec![
+            ("a", DataType::Int64),
+            ("b", DataType::Int64),
+            ("c", DataType::Utf8),
+        ]);
+
+        let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, 0).unwrap();
+        assert!(result.is_some());
+        let budget = result.unwrap();
+        assert!(budget.target_partitions < 4, "expected partitions < 4, got {}", budget.target_partitions);
+    }
+
+    #[test]
+    fn try_grow_reduce_budget_rejects_when_pool_exhausted() {
+        // Tiny pool that can't fit anything
+        let pool = test_pool(1024);
+        let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Utf8)]);
+
+        let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, 0);
+        assert!(result.is_err(), "expected Err when pool is exhausted");
+    }
 }
