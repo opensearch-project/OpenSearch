@@ -81,19 +81,19 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
     }
 
     public void testReadableFlag() {
-        SystemIndexDescriptor readable = new SystemIndexDescriptor(".test-index", "test", true);
+        ReadableSystemIndexDescriptor readable = new ReadableSystemIndexDescriptor(".test-index", "test");
         assertTrue(readable.isReadable());
 
-        SystemIndexDescriptor notReadable = new SystemIndexDescriptor(".test-index", "test", false);
+        SystemIndexDescriptor notReadable = new SystemIndexDescriptor(".test-index", "test");
         assertFalse(notReadable.isReadable());
     }
 
     public void testEqualsAndHashCode() {
-        SystemIndexDescriptor descriptor1 = new SystemIndexDescriptor(".test-index", "desc1", true);
-        SystemIndexDescriptor descriptor2 = new SystemIndexDescriptor(".test-index", "desc2", false);
-        SystemIndexDescriptor descriptor3 = new SystemIndexDescriptor(".other-index", "desc1", true);
+        ReadableSystemIndexDescriptor descriptor1 = new ReadableSystemIndexDescriptor(".test-index", "desc1");
+        SystemIndexDescriptor descriptor2 = new SystemIndexDescriptor(".test-index", "desc2");
+        SystemIndexDescriptor descriptor3 = new SystemIndexDescriptor(".other-index", "desc1");
 
-        // Same pattern means equal, regardless of description or readable flag
+        // Same pattern means equal, regardless of description or type
         assertEquals(descriptor1, descriptor2);
         assertEquals(descriptor1.hashCode(), descriptor2.hashCode());
 
@@ -102,10 +102,9 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        SystemIndexDescriptor descriptor = new SystemIndexDescriptor(".test-index", "test description", true);
+        ReadableSystemIndexDescriptor descriptor = new ReadableSystemIndexDescriptor(".test-index", "test description");
         String str = descriptor.toString();
         assertThat(str, containsString(".test-index"));
         assertThat(str, containsString("test description"));
-        assertThat(str, containsString("readable=[true]"));
     }
 }

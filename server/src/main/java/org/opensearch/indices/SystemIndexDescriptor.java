@@ -50,15 +50,13 @@ public class SystemIndexDescriptor {
     private final String indexPattern;
     private final String description;
     private final CharacterRunAutomaton indexPatternAutomaton;
-    private final boolean readable;
 
     /**
      *
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
      * @param description The name of the plugin responsible for this system index.
-     * @param readable Whether this system index is readable. A readable index is one where search and get actions are permitted.
      */
-    public SystemIndexDescriptor(String indexPattern, String description, boolean readable) {
+    public SystemIndexDescriptor(String indexPattern, String description) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException(
@@ -81,16 +79,6 @@ public class SystemIndexDescriptor {
         Automaton a = Operations.determinize(Regex.simpleMatchToAutomaton(indexPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         this.indexPatternAutomaton = new CharacterRunAutomaton(a);
         this.description = description;
-        this.readable = readable;
-    }
-
-    /**
-     *
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
-     * @param description The name of the plugin responsible for this system index.
-     */
-    public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, description, false);
     }
 
     /**
@@ -120,12 +108,12 @@ public class SystemIndexDescriptor {
      * @return A boolean corresponding to whether this system index is readable.
      */
     public boolean isReadable() {
-        return readable;
+        return this instanceof ReadableSystemIndexDescriptor;
     }
 
     @Override
     public String toString() {
-        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "], readable=[" + readable + "]]";
+        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
     }
 
     @Override
