@@ -56,6 +56,25 @@ public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P ex
     P parsePointerFromString(String pointer);
 
     /**
+     * Create a consumer to ingest messages from a shard of the streams, using the provided ingestion source directly.
+     * Implementations should override this method rather than the deprecated
+     * {@link #initialize(IngestionSource)} and {@link #createShardConsumer(String, int)} pair.
+     * <p>
+     * The default implementation delegates to the deprecated two-step pair for backward compatibility
+     * with existing implementations that override {@link #initialize(IngestionSource)}.
+     *
+     * @param clientId        the client id assigned to the consumer
+     * @param shardId         the id of the shard
+     * @param ingestionSource the ingestion source configuration
+     * @return the created consumer
+     */
+    @Deprecated(forRemoval = true)
+    default T createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
+        initialize(ingestionSource);
+        return createShardConsumer(clientId, shardId);
+    }
+
+    /**
      * Create a consumer to ingest messages from a shard of the streams, using the provided index metadata directly.
      * Implementations should override this method rather than the deprecated
      * {@link #initialize(IngestionSource)} and {@link #createShardConsumer(String, int)} pair.
