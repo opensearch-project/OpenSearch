@@ -655,11 +655,13 @@ pub async unsafe fn fetch_by_row_ids(
     // ── 2. Build ShardFileInfo with ParquetAccessPlan per file ──
 
     let store = ctx.state().runtime_env().object_store(&shard_view.table_path)?;
+    let metadata_cache = ctx.state().runtime_env().cache_manager.get_file_metadata_cache();
     let (segments, _schema) = build_segments(
         &ctx.state(),
         Arc::clone(&store),
         shard_view.object_metas.as_ref(),
         shard_view.writer_generations.as_ref(),
+        metadata_cache,
     )
         .await
         .map_err(DataFusionError::Execution)?;

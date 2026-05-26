@@ -21,6 +21,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;

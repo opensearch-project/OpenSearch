@@ -405,6 +405,6 @@ pub fn wrap_stream_as_handle(
         0,
         runtime.runtime_env.memory_pool.clone(),
     );
-    let handle = crate::api::QueryStreamHandle::new(wrapped, query_context);
+    let handle = crate::api::QueryStreamHandle::new(wrapped, query_context, None);
     Box::into_raw(Box::new(handle)) as i64
 }

@@ -17,7 +17,7 @@ import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.sql.SqlPlanRunner;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;

@@ -150,11 +150,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     @Override
-    public List<org.opensearch.common.settings.Setting<?>> getSettings() {
-        return List.of(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
     public Collection<Module> createGuiceModules() {
         return List.of(b -> {
@@ -177,7 +172,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(COORDINATOR_BUFFER_LIMIT);
+        return List.of(COORDINATOR_BUFFER_LIMIT, ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
     }
 
     @Override

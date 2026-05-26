@@ -521,16 +521,14 @@ pub unsafe extern "C" fn df_execute_local_plan(
     // The IO runtime still drives the outer block_on (bridging the synchronous FFI
     // call to the async spawn handle).
     timed_block_on(&mgr.io_runtime, "execute_local_plan", crate::task_monitors::coordinator_reduce_monitor().instrument(async move {
-            // Acquire coordinator gate on IO runtime BEFORE spawning on CPU.
-            // This blocks the Java search thread when the gate is full.
-            let coord_gate = mgr_for_spawn.coordinator_gate().clone();
-            let partition_weight = (num_cpus::get() as u32).max(1);
-            let permit = coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits())).await;
-
-
+            // No coordinator-gate acquire here. The QTF coordinator-reduce code path runs
+            // synchronously inside the SEARCH-thread FFM call (DatafusionReduceSink.<init>);
+            // gating it would deadlock when the gate is contended because the SEARCH thread
+            // is blocked waiting for permits its own work would release. Keep the gate
+            // exclusively on the data-node FFM entry points.
             let inner_fut = async move {
                 unsafe {
-                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id, Some(permit))
+                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id, None)
                         .await
                 }
             };
@@ -1130,14 +1128,8 @@ pub unsafe extern "C" fn df_execute_local_prepared_plan(
     context_id: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
-    // Acquire coordinator concurrency gate before executing the prepared plan.
-    // Gate is acquired on the IO runtime (block_on) so the Java search thread
-    // blocks here when the gate is full — creating backpressure at the threadpool level.
-    let partition_weight = (num_cpus::get() as u32).max(1);
-    let coord_gate = mgr.coordinator_gate().clone();
-    let permit = mgr.io_runtime.block_on(
-        coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits()))
-    );
-
-    api::execute_local_prepared_plan(session_ptr, &mgr, context_id, Some(permit)).map_err(|e| e.to_string())
+    // No coordinator-gate acquire here — see df_execute_local_plan for the rationale
+    // (the QTF coordinator-reduce path runs synchronously inside the SEARCH-thread FFM
+    // call and gating it can deadlock).
+    api::execute_local_prepared_plan(session_ptr, &mgr, context_id, None).map_err(|e| e.to_string())
 }

@@ -37,6 +37,7 @@ import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * Stateless transport dispatch component for fragment requests. Owns the
