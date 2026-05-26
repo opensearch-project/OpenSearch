@@ -1555,3 +1555,145 @@ pub unsafe fn register_memtable_on_session_context(
         })?;
     Ok(())
 }
+
+/// Hash-partitions one [`RecordBatch`] by the columns at `hash_key_indices` into
+/// `partition_count` buckets, using DataFusion's repartition seed
+/// (`REPARTITION_RANDOM_STATE`) so the assignment matches what `RepartitionExec` and
+/// `HashJoinExec` would produce on the receiver side. Returns `partition_count` output
+/// batches (some may be zero-row) as parallel `(array_ptr, schema_ptr)` pairs the JVM
+/// consumes via Arrow C Data Interface and ships over the analytics shuffle transport.
+///
+/// The input batch is borrowed (not consumed) — the Java caller retains ownership and is
+/// responsible for closing the input FFI structs after this call returns. Output structs
+/// are heap-allocated by Rust here; ownership transfers to Java on success.
+///
+/// # Safety
+/// - `input_array_ptr` and `input_schema_ptr` must point to populated FFI structs from a
+///   successful Arrow C export of the input record batch. They are read but not consumed
+///   by this function; the caller releases them.
+pub unsafe fn partition_batch_by_hash(
+    input_array_ptr: i64,
+    input_schema_ptr: i64,
+    hash_key_indices: &[i32],
+    partition_count: i32,
+) -> Result<Vec<(i64, i64)>, DataFusionError> {
+    if partition_count <= 0 {
+        return Err(DataFusionError::Execution(format!(
+            "partition_batch_by_hash: partition_count must be > 0, got {}",
+            partition_count
+        )));
+    }
+    if hash_key_indices.is_empty() {
+        return Err(DataFusionError::Execution(
+            "partition_batch_by_hash: hash_key_indices must be non-empty".to_string(),
+        ));
+    }
+
+    // Import the input batch via Arrow C. Because Java retains ownership we re-construct
+    // the FFI wrappers from raw pointers without consuming them — clone them by reading
+    // the underlying memory. The simplest path is to import normally (consuming the FFI
+    // structs from Rust's perspective) but mark them not-released by overwriting the
+    // release fn pointers... however that's brittle. Instead we copy the batch's columns
+    // into a fresh ArrayData per column via a clone after import. The clone is cheap (Arc
+    // bumps) and isolates the owned-by-Rust working batch from the input wrappers.
+    //
+    // arrow_array::ffi::from_ffi takes ownership of the FFI structs (via FFI_ArrowArray
+    // by value). Java's expectation is that ownership of the input does NOT transfer. We
+    // honor that by reconstructing the FFI structs only momentarily here, calling from_ffi,
+    // and then leaking the FFI handles back to the heap via Box::into_raw — leaving the
+    // Java-side FFI structs untouched. The actual *underlying* array buffers live in
+    // shared Arc'd memory; from_ffi's ArrayData copy is a refcount-clone, not a deep copy.
+    let ffi_array = FFI_ArrowArray::from_raw(input_array_ptr as *mut FFI_ArrowArray);
+    let ffi_schema = FFI_ArrowSchema::from_raw(input_schema_ptr as *mut FFI_ArrowSchema);
+    let array_data_result = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema);
+    // Recreate the FFI handles back in place so the caller's release closure on the
+    // Java side sees an intact, releasable struct. from_ffi consumed the FFI_ArrowArray
+    // by value (zeroing its release fn pointer to take ownership); we have to undo that
+    // for the input not to leak / double-free. The simplest way: convert the ArrayData
+    // we just got back to FFI again and write the result back into the input pointers.
+    let mut array_data = array_data_result.map_err(|e| {
+        DataFusionError::Execution(format!("Failed to import input Arrow C Data: {}", e))
+    })?;
+    // Re-export so the caller's Java-side close on the input wrappers still has a release
+    // fn to call. Otherwise the caller's close() segfaults on a null release pointer.
+    let (re_array, re_schema) = arrow_array::ffi::to_ffi(&array_data).map_err(|e| {
+        DataFusionError::Execution(format!("Failed to re-export input Arrow C Data: {}", e))
+    })?;
+    // Overwrite the input FFI structs with the re-exported ones. This is OK because the
+    // memory layouts match exactly (FFI_ArrowArray is a stable C struct).
+    std::ptr::write(input_array_ptr as *mut FFI_ArrowArray, re_array);
+    std::ptr::write(input_schema_ptr as *mut FFI_ArrowSchema, re_schema);
+
+    // Align buffers — Java IPC produces 8-byte alignment but DataFusion's SIMD paths want
+    // 64-byte. Mirror the same align_buffers dance the broadcast injection uses.
+    array_data.align_buffers();
+    let struct_array = StructArray::from(array_data);
+    let batch = RecordBatch::from(struct_array);
+
+    // Build PhysicalExprs from the column indices. Need the input schema for column types.
+    let schema = batch.schema();
+    let mut exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
+        Vec::with_capacity(hash_key_indices.len());
+    for &idx in hash_key_indices {
+        let col_idx = idx as usize;
+        if col_idx >= schema.fields().len() {
+            return Err(DataFusionError::Execution(format!(
+                "partition_batch_by_hash: hash key index {} out of range for {}-column schema",
+                col_idx,
+                schema.fields().len()
+            )));
+        }
+        let field_name = schema.field(col_idx).name().clone();
+        exprs.push(Arc::new(datafusion::physical_expr::expressions::Column::new(&field_name, col_idx)));
+    }
+
+    // Construct DataFusion's BatchPartitioner — exactly the type RepartitionExec uses
+    // internally — so the row-to-partition mapping matches what a downstream RepartitionExec
+    // / HashJoinExec would compute on the receiver side.
+    let timer = datafusion::physical_plan::metrics::Time::default();
+    let partitioning = datafusion::physical_plan::Partitioning::Hash(exprs, partition_count as usize);
+    // input_partition=0 / num_input_partitions=1 — we partition each batch independently here,
+    // not as part of a stream of partitioned batches, so the input "partition index" is 0 of 1.
+    let mut partitioner = datafusion::physical_plan::repartition::BatchPartitioner::try_new(
+        partitioning,
+        timer,
+        /* input_partition */ 0,
+        /* num_input_partitions */ 1,
+    )?;
+
+    // Pre-allocate the per-partition collectors. The partitioner's callback emits zero or
+    // more (partition_index, sub_batch) calls — we accumulate, then export each as one
+    // batch per partition. (For our use case the partitioner emits at most one sub-batch
+    // per partition per input batch, but using a Vec<RecordBatch> per partition keeps the
+    // logic robust to upstream changes.)
+    let mut per_partition: Vec<Vec<RecordBatch>> = (0..partition_count as usize)
+        .map(|_| Vec::with_capacity(1))
+        .collect();
+    partitioner.partition(batch, |partition_idx, sub_batch| {
+        per_partition[partition_idx].push(sub_batch);
+        Ok(())
+    })?;
+
+    // Concatenate per partition (or produce an empty batch with the input schema for
+    // partitions that received zero rows so the receiver side still sees a valid IPC chunk).
+    let mut output: Vec<(i64, i64)> = Vec::with_capacity(partition_count as usize);
+    for part in per_partition {
+        let combined = if part.is_empty() {
+            RecordBatch::new_empty(Arc::clone(&schema))
+        } else if part.len() == 1 {
+            part.into_iter().next().unwrap()
+        } else {
+            arrow::compute::concat_batches(&schema, &part).map_err(|e| {
+                DataFusionError::Execution(format!("partition_batch_by_hash: concat failed: {}", e))
+            })?
+        };
+        let combined_data: arrow::array::ArrayData = StructArray::from(combined).into();
+        let (out_array, out_schema) = arrow_array::ffi::to_ffi(&combined_data).map_err(|e| {
+            DataFusionError::Execution(format!("partition_batch_by_hash: export failed: {}", e))
+        })?;
+        let array_ptr = Box::into_raw(Box::new(out_array)) as i64;
+        let schema_ptr = Box::into_raw(Box::new(out_schema)) as i64;
+        output.push((array_ptr, schema_ptr));
+    }
+    Ok(output)
+}

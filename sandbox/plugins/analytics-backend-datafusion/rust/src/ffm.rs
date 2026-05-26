@@ -529,6 +529,40 @@ pub unsafe extern "C" fn df_register_partition_stream_on_session_context(
         .map_err(|e| e.to_string())
 }
 
+/// Hash-partitions one Arrow C Data batch into N output batches using DataFusion's
+/// `BatchPartitioner` (matches `RepartitionExec` and `HashJoinExec` row-to-partition
+/// mapping). Writes the resulting N (array_ptr, schema_ptr) pairs as 16N bytes into the
+/// caller-provided output buffer (8 bytes for array_ptr, 8 bytes for schema_ptr, repeated).
+/// The output FFI structs are heap-allocated by Rust; ownership transfers to Java which
+/// must close them via Arrow C Data Interface.
+///
+/// On success returns 0 and writes 16N to `out_len`. On error returns the FFM sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_partition_batch_by_hash(
+    input_array_ptr: i64,
+    input_schema_ptr: i64,
+    hash_key_indices_ptr: *const i32,
+    hash_key_indices_len: i64,
+    partition_count: i32,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
+) -> i64 {
+    let n = hash_key_indices_len as usize;
+    let key_slice: &[i32] = if n == 0 { &[] } else { slice::from_raw_parts(hash_key_indices_ptr, n) };
+    let pairs =
+        api::partition_batch_by_hash(input_array_ptr, input_schema_ptr, key_slice, partition_count).map_err(|e| e.to_string())?;
+    // Pack as parallel little-endian i64 pairs: [array_ptr_0, schema_ptr_0, array_ptr_1, ...]
+    let mut bytes = Vec::with_capacity(pairs.len() * 16);
+    for (a, s) in &pairs {
+        bytes.extend_from_slice(&a.to_le_bytes());
+        bytes.extend_from_slice(&s.to_le_bytes());
+    }
+    write_out_buffer(&bytes, out_ptr, out_cap, out_len, "partition_batch_by_hash output ptrs")?;
+    Ok(0)
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_create_cache(

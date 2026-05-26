@@ -79,6 +79,7 @@ public final class NativeBridge {
     private static final MethodHandle REGISTER_MEMTABLE;
     private static final MethodHandle REGISTER_MEMTABLE_ON_SESSION_CONTEXT;
     private static final MethodHandle REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT;
+    private static final MethodHandle PARTITION_BATCH_BY_HASH;
     private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
@@ -323,6 +324,27 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
+            )
+        );
+
+        // i64 df_partition_batch_by_hash(input_array_ptr, input_schema_ptr,
+        // hash_key_indices_ptr, hash_key_indices_len, partition_count,
+        // out_ptr, out_cap, out_len)
+        // Hash-partitions one Arrow C Data batch into N output batches via DataFusion's
+        // BatchPartitioner (matches RepartitionExec / HashJoinExec). Output buffer holds
+        // 16N bytes: N (array_ptr, schema_ptr) pairs as parallel little-endian i64s.
+        PARTITION_BATCH_BY_HASH = linker.downcallHandle(
+            lib.find("df_partition_batch_by_hash").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
             )
         );
 
@@ -1051,6 +1073,60 @@ public final class NativeBridge {
                 call.bytes(schemaIpc),
                 (long) schemaIpc.length
             );
+        }
+    }
+
+    /**
+     * Hash-partitions one Arrow C Data input batch into {@code partitionCount} output batches
+     * using DataFusion's {@code BatchPartitioner}. The row-to-partition mapping matches
+     * {@code RepartitionExec} / {@code HashJoinExec} so producers and probe-side consumers
+     * agree on assignments.
+     *
+     * <p>Input ownership: the caller's input FFI structs are read but not consumed; the caller
+     * still owns and must close them via Arrow C Data Interface after this call returns.
+     *
+     * <p>Output ownership: each returned pair is a heap-allocated FFI struct on the Rust side;
+     * ownership transfers to the caller. The caller imports each pair via
+     * {@code Data.importVectorSchemaRoot} and closes the wrappers when done.
+     *
+     * @return a flat array of {@code 2 * partitionCount} longs: {@code [array_ptr_0,
+     *     schema_ptr_0, array_ptr_1, schema_ptr_1, ...]}.
+     */
+    public static long[] partitionBatchByHash(long inputArrayPtr, long inputSchemaPtr, int[] hashKeyIndices, int partitionCount) {
+        if (inputArrayPtr == 0 || inputSchemaPtr == 0) {
+            throw new IllegalArgumentException("input array and schema pointers must be non-zero");
+        }
+        if (partitionCount <= 0) {
+            throw new IllegalArgumentException("partitionCount must be > 0, got " + partitionCount);
+        }
+        try (var call = new NativeCall()) {
+            var keys = call.ints(hashKeyIndices);
+            var out = call.outBuffer(16 * partitionCount);
+            long status = call.invoke(
+                PARTITION_BATCH_BY_HASH,
+                inputArrayPtr,
+                inputSchemaPtr,
+                keys,
+                (long) hashKeyIndices.length,
+                partitionCount,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
+            );
+            assert status == 0 : "df_partition_batch_by_hash returned non-zero on success: " + status;
+            byte[] outBytes = out.toByteArray();
+            int pairBytes = 16;
+            if (outBytes.length != partitionCount * pairBytes) {
+                throw new IllegalStateException(
+                    "df_partition_batch_by_hash returned " + outBytes.length + " bytes, expected " + partitionCount * pairBytes
+                );
+            }
+            long[] result = new long[partitionCount * 2];
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(outBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            for (int i = 0; i < result.length; i++) {
+                result[i] = bb.getLong();
+            }
+            return result;
         }
     }
 
