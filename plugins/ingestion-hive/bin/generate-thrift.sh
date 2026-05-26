@@ -24,6 +24,10 @@ LICENSE_HEADER='/*
 
 echo "Generating Thrift code from ${THRIFT_IDL}..."
 
+if [[ "${OUTPUT_DIR}" != src/main/java/* ]]; then
+  echo "ERROR: OUTPUT_DIR '${OUTPUT_DIR}' is outside expected path" >&2
+  exit 1
+fi
 rm -rf "${OUTPUT_DIR}"
 
 docker run -v "${PWD}:/build" --rm debian:unstable /bin/sh -c "
