@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.sql.api.UnifiedQueryContext;
 import org.opensearch.sql.api.UnifiedQueryPlanner;
 import org.opensearch.sql.executor.QueryType;
@@ -52,6 +53,18 @@ public class UnifiedQueryService {
      * PPL text → RelNode → planExecutor.execute() → PPLResponse.
      */
     public PPLResponse execute(String pplText) {
+        return execute(pplText, false);
+    }
+
+    /**
+     * Executes a PPL query with profiling: PPL text → RelNode →
+     * planExecutor.executeWithProfile() → PPLResponse with profile.
+     */
+    public PPLResponse executeWithProfile(String pplText) {
+        return execute(pplText, true);
+    }
+
+    private PPLResponse execute(String pplText, boolean profile) {
         // Extract tables from the SchemaPlus into a plain AbstractSchema.
         // SchemaPlus wraps CalciteSchema — passing it to catalog() causes double-nesting
         // where tables become inaccessible. A plain Schema avoids this.
@@ -93,14 +106,6 @@ public class UnifiedQueryService {
             UnifiedQueryPlanner planner = new UnifiedQueryPlanner(context);
             RelNode logicalPlan = planner.plan(pplText);
 
-            // Execute directly via the back-end engine — no Janino compilation needed.
-            // The executor API is async; this test frontend keeps a sync surface, so we bridge
-            // via PlainActionFuture. The block happens off the transport thread (the executor
-            // forks to SEARCH internally), so this is safe for test/IT use.
-            PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
-            planExecutor.execute(logicalPlan, null, future);
-            Iterable<Object[]> results = future.actionGet();
-
             // Extract column names from the RelNode's row type
             List<RelDataTypeField> fields = logicalPlan.getRowType().getFieldList();
             List<String> columns = new ArrayList<>(fields.size());
@@ -108,12 +113,35 @@ public class UnifiedQueryService {
                 columns.add(field.getName());
             }
 
-            // Collect result rows
+            if (profile) {
+                PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
+                planExecutor.executeWithProfile(logicalPlan, null, future);
+                ProfiledResult result = future.actionGet();
+
+                if (result.isSuccess() == false) {
+                    Throwable failure = result.failure();
+                    if (failure instanceof RuntimeException re) throw re;
+                    throw new RuntimeException("Query failed: " + failure.getMessage(), failure);
+                }
+
+                List<Object[]> rows = new ArrayList<>();
+                for (Object[] row : result.rows()) {
+                    rows.add(row);
+                }
+                return new PPLResponse(columns, rows, result.profile());
+            }
+
+            // Non-profile path: use execute() directly so exception conversion
+            // (e.g. CircuitBreakingException) is handled by DefaultPlanExecutor's
+            // convertingListener without being wrapped in ProfiledResult.
+            PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+            planExecutor.execute(logicalPlan, null, future);
+            Iterable<Object[]> results = future.actionGet();
+
             List<Object[]> rows = new ArrayList<>();
             for (Object[] row : results) {
                 rows.add(row);
             }
-
             return new PPLResponse(columns, rows);
         } catch (Exception e) {
             if (e instanceof RuntimeException) {

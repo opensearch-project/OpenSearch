@@ -174,9 +174,8 @@ public class PlannerImpl {
     /**
      * Phase 1b: decompose AVG / STDDEV / VAR into primitive SUM/COUNT (+ SUM_SQ for variance) plus a
      * scalar LogicalProject computing the quotient. Runs as its own HEP pass on plain LogicalAggregate
-     * so Calcite's type inference is clean — no AGG_CALL_ANNOTATION wrappers in aggCall.rexList to
-     * propagate AVG's DOUBLE return type to the derived primitive calls. Downstream the marking phase,
-     * the Volcano split rule, and the AggregateDecompositionResolver see correctly-typed primitives.
+     * before {@link OpenSearchAggregateRule} marks it; the marking phase, the Volcano split rule, and
+     * the AggregateDecompositionResolver then see correctly-typed primitives.
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();

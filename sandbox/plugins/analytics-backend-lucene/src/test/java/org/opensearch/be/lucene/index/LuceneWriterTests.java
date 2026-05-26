@@ -19,12 +19,16 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -82,7 +86,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 assertTrue(result instanceof WriteResult.Success);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             assertTrue(fileInfos.getWriterFileSet(dataFormat).isPresent());
 
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
@@ -110,7 +114,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
@@ -130,7 +134,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testFlushWithNoDocsReturnsEmpty() throws IOException {
         Path baseDir = createTempDir();
         try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             assertTrue(fileInfos.writerFilesMap().isEmpty());
         }
     }
@@ -147,7 +151,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
             writer.addDoc(input);
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
             assertThat(wfs.writerGeneration(), equalTo(gen));
         }
@@ -162,7 +166,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
             writer.addDoc(input);
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
@@ -202,7 +206,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
             assertThat(wfs.numRows(), equalTo((long) numDocs));
 
@@ -228,7 +232,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
@@ -279,7 +283,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer1.addDoc(input);
             }
-            fileInfos1 = writer1.flush();
+            fileInfos1 = writer1.flush(FlushInput.EMPTY);
 
             for (int i = 0; i < numDocs2; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -287,7 +291,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer2.addDoc(input);
             }
-            fileInfos2 = writer2.flush();
+            fileInfos2 = writer2.flush(FlushInput.EMPTY);
 
             // Verify each produces its own independent segment
             WriterFileSet wfs1 = fileInfos1.getWriterFileSet(dataFormat).get();
@@ -354,5 +358,68 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             () -> writer.deleteDocument(new DeleteInput("_id", new BytesRef("1"), 1L))
         );
         assertTrue(e.getMessage().contains("deleteDocument is not supported"));
+    }
+
+    /**
+     * Rollback path with the indexSort branch (LogByteSizeMergePolicy + IndexSort). Here
+     * forceMerge actually rewrites the segment, so the tombstone is physically expunged
+     * and maxDoc equals the live row count.
+     */
+    public void testRollbackInIndexSortBranchExpungesTombstone() throws IOException {
+        Path baseDir = createTempDir();
+        Sort indexSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+            MappedFieldType textField = mockTextField("content");
+            for (int i = 0; i < 5; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "value " + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                writer.addDoc(input);
+            }
+            LuceneDocumentInput rollback = new LuceneDocumentInput();
+            rollback.addField(textField, "to-rollback");
+            rollback.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 5);
+            writer.addDoc(rollback);
+            writer.rollbackTo(5);
+
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+            assertThat("WriterFileSet must report live row count only", wfs.numRows(), equalTo(5L));
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
+                assertThat(
+                    "forceMerge under real merge policy must expunge tombstone",
+                    reader.leaves().get(0).reader().maxDoc(),
+                    equalTo(5)
+                );
+                assertThat(reader.numDocs(), equalTo(5));
+            }
+        }
+    }
+
+    /**
+     * After rollbackLastDoc the writer must transition to RETIRED_FLUSHABLE — further addDoc
+     * calls are rejected. Holds for both no-sort and indexSort branches.
+     */
+    public void testRollbackRetiresWriterInBothBranches() throws IOException {
+        Path baseDir = createTempDir();
+        Sort indexSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
+        for (Sort sort : new Sort[] { null, indexSort }) {
+            try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, createTempDir(), null, Codec.getDefault(), sort)) {
+                MappedFieldType textField = mockTextField("content");
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "v");
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+                writer.addDoc(input);
+                writer.rollbackTo(0);
+
+                assertThat("rollback must retire the writer (sort=" + sort + ")", writer.state().toString(), equalTo("RETIRED_FLUSHABLE"));
+
+                LuceneDocumentInput nextDoc = new LuceneDocumentInput();
+                nextDoc.addField(textField, "should-fail");
+                nextDoc.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+                expectThrows(IllegalStateException.class, () -> writer.addDoc(nextDoc));
+            }
+        }
     }
 }

@@ -73,6 +73,19 @@ public final class NativeLibraryLoader {
         return Holder.LOOKUP;
     }
 
+    /**
+     * Returns {@code true} if the native library has been (or can be) successfully loaded.
+     * This method does not throw — it returns {@code false} if loading fails.
+     */
+    public static boolean isLoaded() {
+        try {
+            symbolLookup();
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     // ---- Error handling ----
 
     /**

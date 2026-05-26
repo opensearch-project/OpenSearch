@@ -35,7 +35,6 @@ import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * Stateless transport dispatch component for fragment requests. Owns the
@@ -88,21 +87,33 @@ public class AnalyticsSearchTransportService {
             FragmentExecutionRequest::new,
             (request, channel, task) -> {
                 IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
-                try (FragmentResources ctx = searchService.executeFragmentStreaming(request, shard, (AnalyticsShardTask) task)) {
-                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
-                    while (it.hasNext()) {
-                        EngineResultBatch batch = it.next();
-                        channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
-                    }
-                    channel.completeStream();
-                } catch (StreamException e) {
-                    if (e.getErrorCode() != StreamErrorCode.CANCELLED) {
-                        channel.sendResponse(e);
-                    }
-                    // CANCELLED: channel already torn down — exit silently
-                } catch (Exception e) {
-                    channel.sendResponse(e);
-                }
+                searchService.executeFragmentStreamingAsync(
+                    request,
+                    shard,
+                    (AnalyticsShardTask) task,
+                    new AnalyticsSearchService.StreamingFragmentResponseHandler() {
+                        @Override
+                        public void onBatch(EngineResultBatch batch) throws Exception {
+                            channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
+                        }
+
+                        @Override
+                        public void onComplete() {
+                            channel.completeStream();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof StreamException se && se.getErrorCode() == StreamErrorCode.CANCELLED) {
+                                return;
+                            }
+                            try {
+                                channel.sendResponse(e);
+                            } catch (Exception ignored) {}
+                        }
+                    },
+                    transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+                );
             }
         );
     }

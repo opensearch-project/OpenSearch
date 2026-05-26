@@ -1,0 +1,30 @@
+{
+  "schema": [
+    {
+      "name": "failed_attempts",
+      "type": "bigint"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "source_ip",
+      "type": "ip"
+    }
+  ],
+  "datarows": [
+    [
+      8,
+      "asmith",
+      "192.168.1.100"
+    ],
+    [
+      8,
+      "jdoe",
+      "192.168.1.100"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

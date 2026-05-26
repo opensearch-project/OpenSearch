@@ -40,6 +40,10 @@ import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.cache.service.NodeCacheStats;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -60,6 +64,9 @@ import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugins.BlockCacheStats;
+import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
@@ -71,6 +78,8 @@ import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -145,6 +154,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AggregateFileCacheStats fileCacheStats;
 
+    /** Populated only when ?detailed is requested: FileCache-only stats (no block cache contribution). */
+    @Nullable
+    private AggregateFileCacheStats fileCacheOnlyStats;
+
+    /** Populated only when ?detailed is requested: combined rollup across all BlockCache implementations. */
+    @Nullable
+    private BlockCacheStats blockCacheOnlyStats;
+
     @Nullable
     private TaskCancellationStats taskCancellationStats;
 
@@ -165,6 +182,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
     @Nullable
     private RemoteStoreNodeStats remoteStoreNodeStats;
+
+    private Map<String, PluginNodeStats> pluginStats;
+
+    @Nullable
+    private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);
@@ -212,6 +234,13 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             fileCacheStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            fileCacheOnlyStats = in.readOptionalWriteable(AggregateFileCacheStats::new);
+            blockCacheOnlyStats = in.readOptionalWriteable(BlockCacheStats::new);
+        } else {
+            fileCacheOnlyStats = null;
+            blockCacheOnlyStats = null;
+        }
         if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             taskCancellationStats = in.readOptionalWriteable(TaskCancellationStats::new);
         } else {
@@ -252,6 +281,56 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             remoteStoreNodeStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            pluginStats = readPluginStats(in);
+        } else {
+            pluginStats = Collections.emptyMap();
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            nativeMemoryStats = in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
+        } else {
+            nativeMemoryStats = null;
+        }
+    }
+
+    /**
+     * Reads the plugin nodeStats map from the wire. Each entry is framed as
+     * {@code (name, length-prefixed bytes)} so a receiver can skip any entry whose
+     * {@link PluginNodeStats} type is not registered locally — for example a
+     * coordinator that lacks a plugin a data node has installed. Unknown entries
+     * are dropped silently (counted in the debug log) instead of failing the entire
+     * NodeStats deserialization for that node.
+     */
+    private static Map<String, PluginNodeStats> readPluginStats(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
+        NamedWriteableRegistry registry = in.namedWriteableRegistry();
+        Map<String, PluginNodeStats> result = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String name = in.readString();
+            BytesReference payload = in.readBytesReference();
+            if (registry == null) {
+                // No registry attached to the parent stream — we can't deserialize any
+                // entry. Drop the whole map. This branch is defensive; production paths
+                // always set a registry when they expect named writeables.
+                continue;
+            }
+            try (
+                StreamInput rawIn = payload.streamInput();
+                NamedWriteableAwareStreamInput payloadIn = new NamedWriteableAwareStreamInput(rawIn, registry)
+            ) {
+                payloadIn.setVersion(in.getVersion());
+                PluginNodeStats stats = payloadIn.readNamedWriteable(PluginNodeStats.class);
+                result.put(name, stats);
+            } catch (IOException | IllegalArgumentException e) {
+                // Receiver doesn't have the plugin's NamedWriteable registered (typical
+                // during rolling upgrades or in a non-uniform plugin install). Drop the
+                // entry; the rest of NodeStats remains decodable.
+            }
+        }
+        return result;
     }
 
     public NodeStats(
@@ -278,13 +357,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable AggregateFileCacheStats fileCacheStats,
+        @Nullable AggregateFileCacheStats fileCacheOnlyStats,
+        @Nullable BlockCacheStats blockCacheOnlyStats,
         @Nullable TaskCancellationStats taskCancellationStats,
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
         @Nullable RepositoriesStats repositoriesStats,
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
-        @Nullable RemoteStoreNodeStats remoteStoreNodeStats
+        @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
+        @Nullable Map<String, PluginNodeStats> pluginStats,
+        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -309,6 +392,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
         this.weightedRoutingStats = weightedRoutingStats;
         this.fileCacheStats = fileCacheStats;
+        this.fileCacheOnlyStats = fileCacheOnlyStats;
+        this.blockCacheOnlyStats = blockCacheOnlyStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
         this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
@@ -316,6 +401,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.admissionControlStats = admissionControlStats;
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
+        this.pluginStats = pluginStats == null ? Collections.emptyMap() : pluginStats;
+        this.nativeMemoryStats = nativeMemoryStats;
     }
 
     public long getTimestamp() {
@@ -449,6 +536,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public AggregateFileCacheStats getFileCacheOnlyStats() {
+        return fileCacheOnlyStats;
+    }
+
+    @Nullable
+    public BlockCacheStats getBlockCacheOnlyStats() {
+        return blockCacheOnlyStats;
+    }
+
+    @Nullable
     public TaskCancellationStats getTaskCancellationStats() {
         return taskCancellationStats;
     }
@@ -481,6 +578,18 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     public RemoteStoreNodeStats getRemoteStoreNodeStats() {
         return remoteStoreNodeStats;
+    }
+
+    public Map<String, PluginNodeStats> getPluginStats() {
+        return pluginStats == null ? Collections.emptyMap() : pluginStats;
+    }
+
+    /**
+     * Returns the analytics backend native memory stats, or {@code null} if not available.
+     */
+    @Nullable
+    public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
+        return nativeMemoryStats;
     }
 
     @Override
@@ -520,6 +629,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(fileCacheStats);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(fileCacheOnlyStats);
+            out.writeOptionalWriteable(blockCacheOnlyStats);
+        }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(taskCancellationStats);
         }
@@ -543,6 +656,30 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            writePluginStats(out, pluginStats == null ? Collections.emptyMap() : pluginStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(nativeMemoryStats);
+        }
+    }
+
+    /**
+     * Writes the plugin nodeStats map with each entry framed as
+     * {@code (name, length-prefixed bytes)} so a receiver can skip entries whose
+     * {@link PluginNodeStats} type is not registered locally. Symmetric with
+     * {@link #readPluginStats(StreamInput)}.
+     */
+    private static void writePluginStats(StreamOutput out, Map<String, PluginNodeStats> stats) throws IOException {
+        out.writeVInt(stats.size());
+        for (Map.Entry<String, PluginNodeStats> entry : stats.entrySet()) {
+            out.writeString(entry.getKey());
+            try (BytesStreamOutput payloadOut = new BytesStreamOutput()) {
+                payloadOut.setVersion(out.getVersion());
+                payloadOut.writeNamedWriteable(entry.getValue());
+                out.writeBytesReference(payloadOut.bytes());
+            }
         }
     }
 
@@ -628,6 +765,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getFileCacheStats() != null) {
             getFileCacheStats().toXContent(builder, params);
         }
+        if (getFileCacheOnlyStats() != null) {
+            builder.startObject("file_cache");
+            getFileCacheOnlyStats().getOverallFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getFullFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getBlockFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getPinnedFileCacheStats().toXContent(builder, params);
+            builder.endObject();
+        }
+        if (getBlockCacheOnlyStats() != null) {
+            getBlockCacheOnlyStats().toXContent(builder, params);
+        }
         if (getTaskCancellationStats() != null) {
             getTaskCancellationStats().toXContent(builder, params);
         }
@@ -652,6 +800,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
+        }
+        for (Map.Entry<String, PluginNodeStats> e : getPluginStats().entrySet()) {
+            builder.startObject(e.getKey());
+            e.getValue().toXContent(builder, params);
+            builder.endObject();
+        }
+        if (getAnalyticsBackendNativeMemoryStats() != null) {
+            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
         }
         return builder;
     }

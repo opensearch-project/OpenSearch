@@ -36,5 +36,9 @@ import org.opensearch.index.engine.EngineConfig;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record CommitterConfig(EngineConfig engineConfig, Runnable preMergeCommitHook) {
+public record CommitterConfig(EngineConfig engineConfig, Runnable preMergeCommitHook, boolean isReplica) {
+
+    public CommitterConfig(EngineConfig engineConfig, Runnable preMergeCommitHook) {
+        this(engineConfig, preMergeCommitHook, false);
+    }
 }

@@ -20,13 +20,16 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
+import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -78,6 +81,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
+    private final Map<Long, LuceneReader> readers;
+    private final Sort userProvidedSort;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -104,6 +109,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.dataFormat = dataFormat;
         this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
+        this.readers = luceneCommitter.readers();
+        this.userProvidedSort = luceneCommitter.getUserProvidedSort();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
@@ -145,7 +152,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      */
     @Override
     public FormatStore getStore(DataFormat dataFormat) {
-        return new LuceneFormatStore(store, sharedWriter);
+        return new LuceneFormatStore(store, sharedWriter, readers);
     }
 
     /**
@@ -161,18 +168,49 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
             long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
-            return new LuceneWriter(
+            return buildLuceneWriter(
                 config.writerGeneration(),
                 mappingVersion,
                 dataFormat,
                 baseDirectory,
                 analyzer,
                 codec,
-                sharedWriter.getConfig().getIndexSort()
+                getChildWriterSortConfiguration()
             );
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
+    }
+
+    /**
+     * Factory hook for tests: builds the per-generation {@link LuceneWriter}. Subclasses
+     * (notably test-only fault-injecting variants) override this to return a custom
+     * {@link LuceneWriter} subclass — e.g., one that wraps the {@code Directory} with a
+     * fault injector to exercise {@code IndexWriter.addDocument} failure paths.
+     */
+    protected LuceneWriter buildLuceneWriter(
+        long writerGeneration,
+        long mappingVersion,
+        LuceneDataFormat dataFormat,
+        Path baseDirectory,
+        Analyzer analyzer,
+        Codec codec,
+        Sort indexSort
+    ) throws IOException {
+        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort);
+    }
+
+    private Sort getChildWriterSortConfiguration() {
+        // When Lucene is secondary, then clear child writer's sort configuration and restamp
+        // it at the flush end. In all other cases, propagate same sort configuration as it is.
+        Sort sortConfig = sharedWriter.getConfig().getIndexSort();
+        if (this.userProvidedSort != null
+            && sortConfig != null
+            && sortConfig.getSort().length == 1
+            && DocumentInput.ROW_ID_FIELD.equals(sortConfig.getSort()[0].getField())) {
+            sortConfig = null;
+        }
+        return sortConfig;
     }
 
     /**
@@ -270,7 +308,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                         if (!writerGenerations.contains(writerGen)) {
                             continue;
                         }
-                        long numDocs = segInfo.info.maxDoc();
+                        long numDocs = segReader.maxDoc();
 
                         WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
                             .directory(sharedDir)
@@ -292,10 +330,22 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         return new RefreshResult(List.copyOf(resultSegments));
     }
 
-    /** Returns {@code null} — merge scheduling is not yet implemented for the Lucene format. */
     @Override
     public Merger getMerger() {
         return this.luceneMerger;
+    }
+
+    /**
+     * Surfaces the shared {@link org.apache.lucene.index.IndexWriter}'s tragic exception
+     * so DFAE can fail the engine. Wraps non-Exception throwables (e.g., Errors from
+     * background merges) in {@link RuntimeException} since the contract returns Exception.
+     */
+    @Override
+    public Exception getTragicException() {
+        if (sharedWriter == null) return null;
+        Throwable tragic = sharedWriter.getTragicException();
+        if (tragic == null) return null;
+        return tragic instanceof Exception ? (Exception) tragic : new RuntimeException(tragic);
     }
 
     /**
@@ -329,6 +379,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      * @param store  the shard store
      * @param writer the shared index writer
      */
-    public static record LuceneFormatStore(Store store, IndexWriter writer) implements FormatStore {
+    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<Long, LuceneReader> readers) implements FormatStore {
     }
 }

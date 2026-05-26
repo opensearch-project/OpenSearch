@@ -36,7 +36,6 @@ import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.PlannerContext;
-import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -81,9 +80,12 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         OpenSearchProject.class.getSimpleName()
     );
 
+    // AggregateCallAnnotation is stored on OpenSearchAggregate as a side-map (not in
+    // aggCall.rexList), so it never appears in the plan's textual representation —
+    // hence it's not in this set. AnnotatedPredicate and AnnotatedProjectExpression
+    // still ride in their parent operators' RexNodes and DO appear textually.
     private static final Set<String> ANNOTATION_MARKERS = Set.of(
         AnnotatedPredicate.class.getSimpleName(),
-        AggregateCallAnnotation.class.getSimpleName(),
         AnnotatedProjectExpression.class.getSimpleName()
     );
 

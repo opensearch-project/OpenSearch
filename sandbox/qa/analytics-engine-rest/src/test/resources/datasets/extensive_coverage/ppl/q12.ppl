@@ -1,0 +1,1 @@
+source=test_data | eval year_val = year(timestamp), month_val = month(timestamp), day_val = day(timestamp) | fields timestamp, year_val, month_val, day_val | head 3

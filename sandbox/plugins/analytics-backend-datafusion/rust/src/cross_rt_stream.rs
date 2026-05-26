@@ -13,6 +13,7 @@ use std::{
 };
 
 use crate::executor::{DedicatedExecutor, JobError};
+use crate::phantom_corrector::PhantomCorrector;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
@@ -32,6 +33,7 @@ pub struct CrossRtStream {
     inner: ReceiverStream<Result<RecordBatch, DataFusionError>>,
     inner_done: bool,
     schema: SchemaRef,
+    phantom_corrector: Option<Arc<PhantomCorrector>>,
 }
 
 impl CrossRtStream {
@@ -40,7 +42,7 @@ impl CrossRtStream {
         F: FnOnce(Sender<Result<RecordBatch, DataFusionError>>) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel(2);
         let driver = f(tx).boxed();
         Self {
             driver,
@@ -48,6 +50,7 @@ impl CrossRtStream {
             inner: ReceiverStream::new(rx),
             inner_done: false,
             schema,
+            phantom_corrector: None,
         }
     }
 
@@ -101,6 +104,7 @@ impl CrossRtStream {
             inner: ReceiverStream::new(rx),
             inner_done: false,
             schema,
+            phantom_corrector: None,
         };
 
         (cross_rt, abort_handle)
@@ -108,6 +112,12 @@ impl CrossRtStream {
 
     pub fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
+    }
+
+    /// Attach a phantom corrector for self-correcting budget.
+    pub fn with_phantom_corrector(mut self, corrector: Arc<PhantomCorrector>) -> Self {
+        self.phantom_corrector = Some(corrector);
+        self
     }
 }
 
@@ -132,7 +142,12 @@ impl Stream for CrossRtStream {
         }
 
         match this.inner.poll_next_unpin(cx) {
-            Poll::Ready(Some(item)) => Poll::Ready(Some(item)),
+            Poll::Ready(Some(item)) => {
+                if let (Some(corrector), Ok(batch)) = (&this.phantom_corrector, &item) {
+                    corrector.observe_batch(batch.get_array_memory_size());
+                }
+                Poll::Ready(Some(item))
+            }
             Poll::Ready(None) => {
                 this.inner_done = true;
                 if this.driver_ready {
@@ -160,7 +175,7 @@ mod tests {
     fn test_exec() -> DedicatedExecutor {
         let mut builder = tokio::runtime::Builder::new_multi_thread();
         builder.worker_threads(2).enable_all();
-        DedicatedExecutor::new("test-cpu", builder)
+        DedicatedExecutor::new("test-cpu", builder, num_cpus::get())
     }
 
     fn test_schema() -> SchemaRef {

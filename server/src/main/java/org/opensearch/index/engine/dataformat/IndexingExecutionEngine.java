@@ -122,4 +122,15 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     default Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
         return config.registry().getReaderManager(config);
     }
+
+    /**
+     * Returns the tragic exception recorded by the underlying writer/store, if any.
+     * Composite engines multiplex this across delegates and surface the first non-null
+     * result so DFAE can fail the engine without consulting the committer.
+     *
+     * @return the tragic exception, or {@code null} if the engine has not turned tragic
+     */
+    default Exception getTragicException() {
+        return null;
+    }
 }

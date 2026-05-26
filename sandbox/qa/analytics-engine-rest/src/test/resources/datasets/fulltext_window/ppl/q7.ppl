@@ -1,0 +1,1 @@
+source=transactions | eventstats max(amount) as maxamt by userid | where amount = maxamt | fields userid, orderid, amount | sort userid
