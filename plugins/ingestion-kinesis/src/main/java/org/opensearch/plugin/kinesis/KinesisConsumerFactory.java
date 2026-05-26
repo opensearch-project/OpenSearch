@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.kinesis;
 
-import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.index.IngestionConsumerFactory;
 
 /**
@@ -22,8 +22,8 @@ public class KinesisConsumerFactory implements IngestionConsumerFactory<KinesisS
     public KinesisConsumerFactory() {}
 
     @Override
-    public KinesisShardConsumer createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
-        KinesisSourceConfig localConfig = new KinesisSourceConfig(ingestionSource.params());
+    public KinesisShardConsumer createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
+        KinesisSourceConfig localConfig = new KinesisSourceConfig(indexMetadata.getIngestionSource().params());
         return new KinesisShardConsumer(clientId, localConfig, shardId);
     }
 

@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.ingestion.fs;
 
-import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.index.IngestionConsumerFactory;
 
 /**
@@ -22,8 +22,8 @@ public class FileConsumerFactory implements IngestionConsumerFactory<FilePartiti
     public FileConsumerFactory() {}
 
     @Override
-    public FilePartitionConsumer createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
-        FileSourceConfig localConfig = new FileSourceConfig(ingestionSource.params());
+    public FilePartitionConsumer createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
+        FileSourceConfig localConfig = new FileSourceConfig(indexMetadata.getIngestionSource().params());
         return new FilePartitionConsumer(localConfig, shardId);
     }
 
