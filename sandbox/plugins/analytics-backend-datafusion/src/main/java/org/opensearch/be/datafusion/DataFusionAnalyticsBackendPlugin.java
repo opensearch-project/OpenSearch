@@ -475,7 +475,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.ARG_MIN,
                             WindowFunction.ARG_MAX,
                             WindowFunction.DISTINCT_COUNT_APPROX,
-                            WindowFunction.ROW_NUMBER
+                            WindowFunction.ROW_NUMBER,
+                            WindowFunction.NTH_VALUE
                         ),
                         Set.copyOf(plugin.getSupportedFormats())
                     )

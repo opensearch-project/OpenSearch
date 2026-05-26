@@ -49,7 +49,8 @@ public enum WindowFunction {
     ARG_MIN(SqlKind.ARG_MIN, "ARG_MIN"),
     ARG_MAX(SqlKind.ARG_MAX, "ARG_MAX"),
     DISTINCT_COUNT_APPROX(SqlKind.OTHER_FUNCTION, "DISTINCT_COUNT_APPROX"),
-    ROW_NUMBER(SqlKind.ROW_NUMBER, "ROW_NUMBER");
+    ROW_NUMBER(SqlKind.ROW_NUMBER, "ROW_NUMBER"),
+    NTH_VALUE(SqlKind.NTH_VALUE, "NTH_VALUE");
 
     private final SqlKind sqlKind;
     private final String operatorName;
