@@ -108,9 +108,10 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
             DocIdSetIterator disi = scorer.iterator();
             int docId;
             while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                dv.advanceExact(docId);
-                for (int count = 0; count < dv.docValueCount(); ++count) {
-                    actual.add((int) dv.nextValue());
+                if (dv.advanceExact(docId)) {
+                    for (int count = 0; count < dv.docValueCount(); ++count) {
+                        actual.add((int) dv.nextValue());
+                    }
                 }
             }
         }
