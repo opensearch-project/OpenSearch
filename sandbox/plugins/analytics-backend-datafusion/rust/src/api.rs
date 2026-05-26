@@ -1009,6 +1009,9 @@ fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::Re
 /// `create_global_runtime`.
 pub unsafe fn create_local_session(runtime_ptr: i64) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    // No phantom reservation at creation time — the schema isn't known yet.
+    // register_partition_stream acquires a schema-accurate phantom once the
+    // output schema is derived from the producer plan.
     let session = LocalSession::new(&runtime.runtime_env);
     Ok(Box::into_raw(Box::new(session)) as i64)
 }
@@ -1049,6 +1052,21 @@ pub unsafe fn register_partition_stream(
     // here through the partition channel are already typed to match this schema — no
     // per-batch cast at feed time.
     let schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+
+    // Acquire a schema-accurate phantom reservation for this reduce session.
+    // Adaptively reduces target_partitions if the phantom doesn't fit at full
+    // parallelism. Skip if a prior child already acquired a larger phantom.
+    let pool = &session.memory_pool();
+    let batch_size = session.batch_size();
+    let current_partitions = session.target_partitions();
+    let current_phantom = session.phantom_size();
+    if let Some(budget) = crate::query_budget::try_grow_reduce_budget(
+        pool, &schema, batch_size, current_partitions, current_phantom,
+    )? {
+        session.reduce_target_partitions(budget.target_partitions);
+        session.set_phantom(budget.phantom_reservation);
+    }
+
     let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
     let sender = session.register_partition(input_id, schema)?;
     Ok((Box::into_raw(Box::new(sender)) as i64, schema_ipc))

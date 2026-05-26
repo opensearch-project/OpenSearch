@@ -126,13 +126,39 @@ public class OpenSearchSchemaBuilder {
                 return SqlTypeName.TIMESTAMP;
             case "ip":
             case "binary":
-                // TODO: differentiate ip and binary as separate UDTs instead of collapsing both
-                // to VARBINARY. With the type preserved, literals can be converted into the
-                // on-disk byte form the planner expects.
                 return SqlTypeName.VARBINARY;
             default:
                 return null;
         }
+    }
+
+    /**
+     * Builds the Calcite {@link RelDataType} for a leaf column given the OpenSearch field-type
+     * string. For {@code ip} and {@code binary} this returns an {@link IpType} or
+     * {@link BinaryType} UDT (both backed by {@link SqlTypeName#VARBINARY}); for everything
+     * else it returns the {@link SqlTypeName} from {@link #mapFieldType} as a nullable basic
+     * SQL type. Returns {@code null} for unrecognized / unsupported field types.
+     *
+     * <p>Operator dispatch on the UDTs is unaffected because both extend
+     * {@link org.apache.calcite.sql.type.AbstractSqlType} with VARBINARY — the cidrmatch
+     * byte-range rewrite, equality / IN / BETWEEN coercion, and Substrait conversion all see
+     * the same shape they did before.
+     */
+    public static RelDataType buildLeafType(String opensearchType, RelDataTypeFactory typeFactory) {
+        if (opensearchType == null) {
+            return null;
+        }
+        if (IpType.NAME.equals(opensearchType)) {
+            return IpType.nullable();
+        }
+        if (BinaryType.NAME.equals(opensearchType)) {
+            return BinaryType.nullable();
+        }
+        SqlTypeName sqlType = mapFieldType(opensearchType);
+        if (sqlType == null) {
+            return null;
+        }
+        return typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true);
     }
 
     private static AbstractTable buildTable(Map<String, Object> properties) {
@@ -170,14 +196,14 @@ public class OpenSearchSchemaBuilder {
             if ("nested".equals(fieldType)) {
                 continue;
             }
-            SqlTypeName sqlType = mapFieldType(fieldType);
-            if (sqlType == null) {
+            RelDataType columnType = buildLeafType(fieldType, typeFactory);
+            if (columnType == null) {
                 // Unsupported (geo_point/shape/completion/…) or unknown plugin type. Drop the
                 // column; a query referencing it surfaces a Calcite "column not found" via the
                 // validator rather than a planning-time IllegalArgumentException.
                 continue;
             }
-            builder.add(fieldName, typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true));
+            builder.add(fieldName, columnType);
         }
     }
 }

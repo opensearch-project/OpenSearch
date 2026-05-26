@@ -82,6 +82,10 @@ regex = "=1.12.3"
 sha1 = "0.11"
 crc32fast = { workspace = true }
 
+# `base64` for the binary_to_base64 UDF — output of CAST(<BinaryType> AS VARCHAR)
+# rewrite. STANDARD alphabet matches the OpenSearch `binary` field wire contract.
+base64 = "0.22"
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
