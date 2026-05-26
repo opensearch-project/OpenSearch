@@ -10,7 +10,6 @@ package org.opensearch.index.engine.dataformat.stub;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
@@ -21,6 +20,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -30,6 +30,8 @@ import java.util.stream.StreamSupport;
  */
 public class InMemoryCommitter implements Committer {
     private volatile Map<String, String> committedData;
+    private volatile Supplier<Exception> commitFailure;
+    private volatile boolean markCorruptedCalled;
     private final long initialCommitGeneration;
     private final Store store;
 
@@ -40,17 +42,30 @@ public class InMemoryCommitter implements Committer {
         this.store = store;
     }
 
+    public void setCommitFailure(Supplier<Exception> supplier) {
+        this.commitFailure = supplier;
+    }
+
+    public boolean isMarkCorruptedCalled() {
+        return markCorruptedCalled;
+    }
+
+    public void setMarkCorruptedCalled(boolean v) {
+        this.markCorruptedCalled = v;
+    }
+
     @Override
-    public CommitResult commit(CommitInput commitData) {
+    public CommitResult commit(CommitInput commitData) throws IOException {
+        Supplier<Exception> supplier = commitFailure;
+        if (supplier != null) {
+            Exception failure = supplier.get();
+            if (failure != null) {
+                if (failure instanceof IOException) throw (IOException) failure;
+                throw new IOException(failure);
+            }
+        }
         this.committedData = StreamSupport.stream(commitData.userData().spliterator(), false)
-            .collect(
-                Collectors.toMap(
-                    Map.Entry::getKey,
-                    Map.Entry::getValue,
-                    (existing, replacement) -> replacement, // Merge function for duplicate keys
-                    HashMap::new
-                )
-            );
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> replacement, HashMap::new));
         return null;
     }
 
@@ -67,11 +82,6 @@ public class InMemoryCommitter implements Committer {
         } catch (IOException e) {
             return null;
         }
-    }
-
-    @Override
-    public SafeCommitInfo getSafeCommitInfo() {
-        return SafeCommitInfo.EMPTY;
     }
 
     @Override
@@ -103,5 +113,20 @@ public class InMemoryCommitter implements Committer {
     public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
         // Test stub does not upload to remote store.
         throw new UnsupportedOperationException("InMemoryCommitter does not serialize commits");
+    }
+
+    @Override
+    public void markStoreCorrupted(IOException cause) {
+        markCorruptedCalled = true;
+        if (store.tryIncRef() == false) {
+            return;
+        }
+        try {
+            store.markStoreCorrupted(cause);
+        } catch (IOException ignored) {
+            // test stub: best-effort
+        } finally {
+            store.decRef();
+        }
     }
 }

@@ -14,6 +14,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -37,7 +38,9 @@ import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateM
 
 public class VSRManagerTests extends OpenSearchTestCase {
 
+    private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
+    /** Minimal schema VSRManager is constructed with; addDocument tests reconcile metadata fields in via {@link #reconcileMetadata}. */
     private Schema schema;
     private ThreadPool threadPool;
     private IndexSettings indexSettings;
@@ -46,7 +49,9 @@ public class VSRManagerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
         Settings indexSettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -72,6 +77,10 @@ public class VSRManagerTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         terminate(threadPool);
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 
@@ -299,15 +308,20 @@ public class VSRManagerTests extends OpenSearchTestCase {
         manager.close();
     }
 
-    public void testAddDocumentWithUnknownFieldDynamicallyAddsVector() throws Exception {
+    public void testAddDocumentAfterReconcileSchemaAddsVector() throws Exception {
         String filePath = createTempDir().resolve("unknown-field.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+
+        // Simulate a mapping update: the new schema introduces a tag field. reconcileSchema
+        // adds the missing vector to the active VSR before addDocument runs.
+        Schema updatedSchema = schemaWith("tag", new ArrowType.Utf8());
+        manager.reconcileSchema(updatedSchema);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
         ParquetDocumentInput doc = new ParquetDocumentInput();
         populateMetadataFields(doc);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
         doc.addField(valField, 42);
         doc.addField(tagField, "hello");
         manager.addDocument(doc);
@@ -320,13 +334,14 @@ public class VSRManagerTests extends OpenSearchTestCase {
     public void testIsSchemaMutableBeforeAndAfterFlush() throws Exception {
         String filePath = createTempDir().resolve("schema-mutable.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+        reconcileMetadata(manager);
 
         assertTrue(manager.isSchemaMutable());
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         ParquetDocumentInput doc = new ParquetDocumentInput();
         populateMetadataFields(doc);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
         doc.addField(valField, 1);
         manager.addDocument(doc);
 
@@ -341,16 +356,20 @@ public class VSRManagerTests extends OpenSearchTestCase {
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
 
+        // Reconcile once before any docs — the tag vector must persist across the VSR
+        // rotation triggered by maxRowsPerVSR=1.
+        manager.reconcileSchema(schemaWith("tag", new ArrowType.Utf8()));
+
         ParquetDocumentInput doc1 = new ParquetDocumentInput();
         populateMetadataFields(doc1);
-        doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
+        doc1.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
         doc1.addField(valField, 1);
         doc1.addField(tagField, "a");
         manager.addDocument(doc1);
 
         ParquetDocumentInput doc2 = new ParquetDocumentInput();
         populateMetadataFields(doc2);
-        doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2L);
+        doc2.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
         doc2.addField(valField, 2);
         doc2.addField(tagField, "b");
         manager.addDocument(doc2);
@@ -359,9 +378,18 @@ public class VSRManagerTests extends OpenSearchTestCase {
         assertEquals(2, metadata.numRows());
     }
 
-    public void testAddDocumentWithMultipleUnknownFields() throws Exception {
+    public void testReconcileSchemaAddsMultipleVectorsAtOnce() throws Exception {
         String filePath = createTempDir().resolve("multi-unknown.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+
+        // Single reconcileSchema call adds three vectors plus the metadata fields the next
+        // addDocument needs.
+        List<Field> updatedFields = new ArrayList<>(schema.getFields());
+        updatedFields.addAll(metadataFields());
+        updatedFields.add(new Field("tag1", FieldType.nullable(new ArrowType.Utf8()), null));
+        updatedFields.add(new Field("tag2", FieldType.nullable(new ArrowType.Utf8()), null));
+        updatedFields.add(new Field("tag3", FieldType.nullable(new ArrowType.Utf8()), null));
+        manager.reconcileSchema(new Schema(updatedFields));
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         KeywordFieldMapper.KeywordFieldType tag1Field = new KeywordFieldMapper.KeywordFieldType("tag1");
@@ -370,7 +398,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         populateMetadataFields(doc);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
         doc.addField(valField, 1);
         doc.addField(tag1Field, "a");
         doc.addField(tag2Field, "b");
@@ -380,5 +408,93 @@ public class VSRManagerTests extends OpenSearchTestCase {
         ParquetFileMetadata metadata = manager.flush();
         assertNotNull(metadata);
         assertEquals(1, metadata.numRows());
+    }
+
+    /**
+     * Verifies that {@link VSRManager#getAcceptedRows} is incremented only after a
+     * successful row admit, and decremented by {@link VSRManager#rollbackTo(long)}.
+     */
+    public void testAcceptedRowsCounterTracksAdmitsAndRollbacks() throws Exception {
+        String filePath = createTempDir().resolve("accepted-counter.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
+        reconcileMetadata(manager);
+        try {
+            assertEquals(0L, manager.getAcceptedRows());
+
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+            manager.addDocument(doc1);
+            assertEquals(1L, manager.getAcceptedRows());
+
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
+            populateMetadataFields(doc2);
+            doc2.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
+            manager.addDocument(doc2);
+            assertEquals(2L, manager.getAcceptedRows());
+
+            manager.rollbackTo(1L);
+            assertEquals(1L, manager.getAcceptedRows());
+
+            // Next doc reuses rowId 1 (the slot freed by rollback).
+            ParquetDocumentInput doc3 = new ParquetDocumentInput();
+            populateMetadataFields(doc3);
+            doc3.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
+            manager.addDocument(doc3);
+            assertEquals(2L, manager.getAcceptedRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * Verifies that the rowId column in the active VSR is sorted, contiguous, and
+     * starts at 0 — the per-flush invariant that protects cross-format correlation.
+     * Reads the rowId vector directly so it doesn't depend on the native flush.
+     */
+    public void testRowIdColumnIsSortedAndContiguous() throws Exception {
+        String filePath = createTempDir().resolve("rowid-monotonic.parquet").toString();
+        // Schema must declare __row_id__ for VSRManager to populate the column.
+        List<Field> fields = new ArrayList<>(metadataFields());
+        fields.add(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        fields.add(new Field(DocumentInput.ROW_ID_FIELD, FieldType.nullable(new ArrowType.Int(64, true)), null));
+        Schema schemaWithRowId = new Schema(fields);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schemaWithRowId, bufferPool, 50000, threadPool, 0L);
+        try {
+            for (int i = 0; i < 50; i++) {
+                ParquetDocumentInput doc = new ParquetDocumentInput();
+                populateMetadataFields(doc);
+                doc.setRowId(DocumentInput.ROW_ID_FIELD, (long) i);
+                manager.addDocument(doc);
+            }
+
+            org.apache.arrow.vector.BigIntVector rowIdVector = (org.apache.arrow.vector.BigIntVector) manager.getActiveManagedVSR()
+                .getVector(DocumentInput.ROW_ID_FIELD);
+            assertNotNull(rowIdVector);
+            for (int i = 0; i < 50; i++) {
+                assertEquals("rowId at position " + i + " must equal " + i, (long) i, rowIdVector.get(i));
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** Returns a copy of the test schema with one extra field appended (alongside metadata fields). */
+    private Schema schemaWith(String name, ArrowType type) {
+        List<Field> fields = new ArrayList<>(schema.getFields());
+        fields.addAll(metadataFields());
+        fields.add(new Field(name, FieldType.nullable(type), null));
+        return new Schema(fields);
+    }
+
+    /**
+     * Simulates the production mapping-update path: reconcile the active VSR with the
+     * production-shaped schema (val + metadata fields) so that subsequent
+     * {@code addDocument} calls find every vector they need.
+     */
+    private void reconcileMetadata(VSRManager manager) {
+        List<Field> fields = new ArrayList<>(schema.getFields());
+        fields.addAll(metadataFields());
+        manager.reconcileSchema(new Schema(fields));
     }
 }

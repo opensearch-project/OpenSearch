@@ -11,6 +11,7 @@ package org.opensearch.parquet.writer;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -41,6 +42,7 @@ import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateM
 
 public class ParquetWriterTests extends OpenSearchTestCase {
 
+    private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     private MappedFieldType idField;
     private MappedFieldType nameField;
@@ -53,7 +55,9 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
@@ -82,6 +86,10 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         terminate(threadPool);
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 
@@ -93,6 +101,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
+            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -104,7 +113,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");
         doc.addField(scoreField, 100L);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
         WriteResult result = writer.addDoc(doc);
         assertTrue(result instanceof WriteResult.Success);
         doc.close();
@@ -119,6 +128,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
+            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -130,7 +140,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         doc.addField(idField, 42);
         doc.addField(nameField, "bob");
         doc.addField(scoreField, 500L);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
         writer.addDoc(doc);
         doc.close();
 
@@ -146,6 +156,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
+            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -177,6 +188,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
+            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -193,6 +205,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
+            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,

@@ -75,6 +75,9 @@ pub struct QueryStreamHandle {
     /// by the session; dropping it prematurely causes use-after-free.
     _session_ctx: Option<datafusion::prelude::SessionContext>,
     has_views: bool,
+    /// Concurrency gate permit — held for the query's entire lifetime.
+    /// Released on drop, which frees partition budget for other queries.
+    _concurrency_permit: Option<tokio::sync::OwnedSemaphorePermit>,
 }
 
 impl QueryStreamHandle {
@@ -87,6 +90,7 @@ impl QueryStreamHandle {
     pub fn new(
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Self {
         let has_views = Self::schema_has_views(&stream.schema());
         Self {
@@ -94,6 +98,7 @@ impl QueryStreamHandle {
             _query_tracking_context: query_context,
             _session_ctx: None,
             has_views,
+            _concurrency_permit: permit,
         }
     }
 
@@ -101,6 +106,7 @@ impl QueryStreamHandle {
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
         ctx: datafusion::prelude::SessionContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Self {
         let has_views = Self::schema_has_views(&stream.schema());
         Self {
@@ -108,6 +114,7 @@ impl QueryStreamHandle {
             _query_tracking_context: query_context,
             _session_ctx: Some(ctx),
             has_views,
+            _concurrency_permit: permit,
         }
     }
 }
@@ -440,7 +447,12 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
-    let query_future = async move {
+    // No concurrency gate here — this is the coordinator/legacy path.
+    // Gating happens inside the executor functions (execute_query / execute_indexed_query)
+    // which are always data-node work. Keeping the coordinator ungated avoids deadlock
+    // in single-JVM test topologies where coordinator and data node share a gate.
+
+    let query_future = async {
         if is_indexed {
             let qc = Arc::new(effective_config);
             crate::indexed_executor::execute_indexed_query(
@@ -475,7 +487,7 @@ pub async unsafe fn execute_query(
 
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let handle = QueryStreamHandle::new(stream, query_context);
+    let handle = QueryStreamHandle::new(stream, query_context, None);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -590,15 +602,21 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// Returns a heap-allocated FFI_ArrowArray pointer (as i64), or 0 if end-of-stream
 /// or cancelled.
 ///
+/// Acquires a partition gate permit before polling the stream. The permit is
+/// released after the batch is produced (or on cancellation/end-of-stream).
+///
 /// This is an async function — the bridge layer decides how to run it.
 ///
 /// # Safety
 /// `stream_ptr` must be a valid, non-zero pointer. Must not be called concurrently
 /// on the same stream.
-pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
+pub async unsafe fn stream_next(
+    stream_ptr: i64,
+) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
     let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
 
+    // Fetch the next batch (cancellation-aware)
     let result = cancellation::cancellable_or(
         token.as_ref(),
         None,
@@ -738,6 +756,9 @@ pub unsafe fn sql_to_substrait(
                     .with_file_metadata_cache(Some(
                         runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                     ))
+                    .with_metadata_cache_limit(
+                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                    )
                     .with_files_statistics_cache(
                         runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                     ),
@@ -988,6 +1009,9 @@ fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::Re
 /// `create_global_runtime`.
 pub unsafe fn create_local_session(runtime_ptr: i64) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    // No phantom reservation at creation time — the schema isn't known yet.
+    // register_partition_stream acquires a schema-accurate phantom once the
+    // output schema is derived from the producer plan.
     let session = LocalSession::new(&runtime.runtime_env);
     Ok(Box::into_raw(Box::new(session)) as i64)
 }
@@ -1028,6 +1052,21 @@ pub unsafe fn register_partition_stream(
     // here through the partition channel are already typed to match this schema — no
     // per-batch cast at feed time.
     let schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+
+    // Acquire a schema-accurate phantom reservation for this reduce session.
+    // Adaptively reduces target_partitions if the phantom doesn't fit at full
+    // parallelism. Skip if a prior child already acquired a larger phantom.
+    let pool = &session.memory_pool();
+    let batch_size = session.batch_size();
+    let current_partitions = session.target_partitions();
+    let current_phantom = session.phantom_size();
+    if let Some(budget) = crate::query_budget::try_grow_reduce_budget(
+        pool, &schema, batch_size, current_partitions, current_phantom,
+    )? {
+        session.reduce_target_partitions(budget.target_partitions);
+        session.set_phantom(budget.phantom_reservation);
+    }
+
     let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
     let sender = session.register_partition(input_id, schema)?;
     Ok((Box::into_raw(Box::new(sender)) as i64, schema_ipc))
@@ -1053,6 +1092,7 @@ pub async unsafe fn execute_local_plan(
     substrait_bytes: &[u8],
     manager: &RuntimeManager,
     context_id: i64,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
 ) -> Result<i64, DataFusionError> {
     let session = &*(session_ptr as *const LocalSession);
 
@@ -1081,7 +1121,7 @@ pub async unsafe fn execute_local_plan(
         CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context);
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1100,6 +1140,7 @@ pub unsafe fn execute_local_prepared_plan(
     session_ptr: i64,
     manager: &RuntimeManager,
     context_id: i64,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
 ) -> Result<i64, DataFusionError> {
     let session = &*(session_ptr as *const LocalSession);
 
@@ -1120,7 +1161,7 @@ pub unsafe fn execute_local_prepared_plan(
         CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context);
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 

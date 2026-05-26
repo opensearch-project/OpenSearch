@@ -863,7 +863,8 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
             mockTransportService,
             mock(ActionFilters.class),
             null,
-            mock(RemoteStoreSettings.class)
+            mock(RemoteStoreSettings.class),
+            null
         );
     }
 

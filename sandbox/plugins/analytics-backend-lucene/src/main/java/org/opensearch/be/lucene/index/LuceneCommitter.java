@@ -31,7 +31,6 @@ import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -205,17 +204,6 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
     }
 
-    /**
-     * Not yet implemented. Will return safe commit info once the index deleter is wired in.
-     *
-     * @return never returns normally
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    public SafeCommitInfo getSafeCommitInfo() {
-        throw new UnsupportedOperationException("TODO:: with index deleter");
-    }
-
     @Override
     public void deleteCommit(CatalogSnapshot snapshot) throws IOException {
         ensureOpen();
@@ -226,6 +214,20 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public boolean isCommitManagedFile(String fileName) {
         return fileName.startsWith(IndexFileNames.SEGMENTS) || fileName.equals(IndexWriter.WRITE_LOCK_NAME);
+    }
+
+    @Override
+    public void markStoreCorrupted(IOException cause) {
+        if (store.tryIncRef() == false) {
+            return;
+        }
+        try {
+            store.markStoreCorrupted(cause);
+        } catch (IOException e) {
+            logger.warn("Couldn't mark store corrupted", e);
+        } finally {
+            store.decRef();
+        }
     }
 
     /**

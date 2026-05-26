@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "tags",
+      "type": "string"
+    },
+    {
+      "name": "is_empty",
+      "type": "boolean"
+    }
+  ],
+  "datarows": [
+    [
+      "1",
+      "tag1,tag2,tag3",
+      false
+    ],
+    [
+      "2",
+      "tag2,tag4",
+      false
+    ],
+    [
+      "3",
+      "tag1,tag3,tag5",
+      false
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

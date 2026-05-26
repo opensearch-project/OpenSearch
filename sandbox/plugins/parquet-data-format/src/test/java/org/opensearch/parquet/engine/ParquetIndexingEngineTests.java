@@ -13,6 +13,8 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
@@ -35,7 +37,6 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
-import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.test.OpenSearchTestCase;
@@ -57,6 +58,7 @@ import static org.mockito.Mockito.when;
 
 public class ParquetIndexingEngineTests extends OpenSearchTestCase {
 
+    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
     private MappedFieldType idField;
     private MappedFieldType nameField;
     private MappedFieldType scoreField;
@@ -69,6 +71,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
@@ -91,6 +95,10 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         terminate(threadPool);
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 
@@ -122,7 +130,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             doc.addField(idField, (int) gen);
             doc.addField(nameField, "user_" + gen);
             doc.addField(scoreField, gen * 100);
-            doc.setRowId("__row_id__", gen);
+            // Each writer is fresh — rowIds restart at 0 within a writer's lifetime.
+            doc.setRowId("__row_id__", 0L);
 
             writer.addDoc(doc);
             doc.close();
@@ -199,14 +208,18 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             IndexMetadata indexMetadata = IndexMetadata.builder("test_index").settings(indexSettingsBuilder).build();
             IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             MapperService mapperService = createMockMapperService(schema, indexSettings);
+            // Use the test's pre-built schema directly. The mock MapperService has no
+            // documentMapper, so going through ArrowSchemaBuilder would yield only metadata
+            // fields and addDocument would reject id/name/score with MismatchedInputException.
             return new ParquetIndexingEngine(
                 Settings.EMPTY,
                 new ParquetDataFormat(),
                 shardPath,
-                () -> ArrowSchemaBuilder.getSchema(mapperService),
+                () -> schema,
                 () -> mapperService.getIndexSettings().getIndexMetadata().getMappingVersion(),
                 indexSettings,
-                threadPool
+                threadPool,
+                nativeAllocator
             );
         } catch (Exception e) {
             throw new RuntimeException(e);

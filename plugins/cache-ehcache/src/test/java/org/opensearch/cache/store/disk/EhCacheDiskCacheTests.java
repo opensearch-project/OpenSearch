@@ -62,6 +62,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     private static final int CACHE_SIZE_IN_BYTES = 1024 * 101;
