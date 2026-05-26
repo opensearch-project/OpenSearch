@@ -154,7 +154,7 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         String indexName = "test-index";
         ClusterBlocks.Builder builder = ClusterBlocks.builder().addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
 
-        ClusterBlocks result = service.getTieringStartClusterBlocksToAdd(builder, indexName).build();
+        ClusterBlocks result = service.getTieringStartClusterBlocksToAdd(builder, indexName, buildDfaIndexMetadata()).build();
 
         assertFalse(
             "INDEX_WRITE_BLOCK must be removed when W2H tiering starts",
@@ -167,7 +167,8 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         String indexName = "test-index";
         ClusterBlocks.Builder builder = ClusterBlocks.builder();
 
-        ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName).build();
+        ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName, buildDfaIndexMetadata())
+            .build();
 
         assertTrue("INDEX_WRITE_BLOCK must be restored after W2H cancel", result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
     }

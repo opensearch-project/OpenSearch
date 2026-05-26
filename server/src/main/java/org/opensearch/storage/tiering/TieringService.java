@@ -43,7 +43,6 @@ import org.opensearch.storage.action.tiering.CancelTieringRequest;
 import org.opensearch.storage.action.tiering.IndexTieringRequest;
 import org.opensearch.storage.action.tiering.status.model.TieringStatus;
 import org.opensearch.storage.common.tiering.TieringRejectionException;
-import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -153,14 +152,19 @@ public abstract class TieringService implements ClusterStateListener {
     protected abstract Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata);
 
     /** Returns the ClusterBlocks.Builder with tier-specific block changes for tier start. Only called for DFA indices. */
-    protected abstract ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(ClusterBlocks.Builder blocksBuilder, String indexName);
+    protected abstract ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    );
 
-    /** Returns the ClusterBlocks.Builder with tier-specific block changes for a cancel. Only called for DFA indices. Default is a no-op. */
+    /** Returns the ClusterBlocks.Builder with tier-specific block changes for a cancel. Default is a no-op. */
     protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
         ClusterBlocks.Builder blocksBuilder,
-        String indexName
+        String indexName,
+        IndexMetadata indexMetadata
     ) {
-        return blocksBuilder; // no-op: most tiers don't manage write blocks
+        return blocksBuilder;
     }
 
     /** Returns the key for tiering start time. @return the tiering start time key */
@@ -396,19 +400,14 @@ public abstract class TieringService implements ClusterStateListener {
 
                     ClusterState.Builder stateBuilder = ClusterState.builder(currentState)
                         .metadata(metadataBuilder)
-                        .routingTable(routingTableBuilder.build());
-
-                    // For DFA indices, delegate ClusterBlocks updates for cancel to the subclass
-                    // via getIndexTierClusterBlocksToRestoreAfterCancellation(). Non-DFA indices don't manage write
-                    // blocks so ClusterBlocks is left unchanged.
-                    if (TieringUtils.isDfaIndex(index.getName(), currentState)) {
-                        stateBuilder.blocks(
+                        .routingTable(routingTableBuilder.build())
+                        .blocks(
                             getIndexTierClusterBlocksToRestoreAfterCancellation(
                                 ClusterBlocks.builder().blocks(currentState.blocks()),
-                                index.getName()
+                                index.getName(),
+                                indexMetadata
                             )
                         );
-                    }
 
                     ClusterState updatedState = stateBuilder.build();
 
@@ -497,19 +496,16 @@ public abstract class TieringService implements ClusterStateListener {
                     final IndexMetadata indexMetadata = currentState.metadata().index(index);
 
                     updateIndexMetadataForTieringStart(metadataBuilder, routingTableBuilder, indexMetadata, index);
-
-                    // For DFA indices, delegate ClusterBlocks updates to the subclass via
-                    // getTieringStartClusterBlocksToAdd(). Non-DFA indices don't manage write
-                    // blocks so ClusterBlocks is left unchanged.
                     ClusterState.Builder stateBuilder = ClusterState.builder(currentState)
                         .metadata(metadataBuilder)
-                        .routingTable(routingTableBuilder.build());
-
-                    if (TieringUtils.isDfaIndex(index.getName(), currentState)) {
-                        stateBuilder.blocks(
-                            getTieringStartClusterBlocksToAdd(ClusterBlocks.builder().blocks(currentState.blocks()), index.getName())
+                        .routingTable(routingTableBuilder.build())
+                        .blocks(
+                            getTieringStartClusterBlocksToAdd(
+                                ClusterBlocks.builder().blocks(currentState.blocks()),
+                                index.getName(),
+                                indexMetadata
+                            )
                         );
-                    }
 
                     ClusterState updatedState = stateBuilder.build();
 

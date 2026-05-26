@@ -123,17 +123,18 @@ public class TieringServiceTests extends OpenSearchTestCase {
         @Override
         protected org.opensearch.cluster.block.ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
             org.opensearch.cluster.block.ClusterBlocks.Builder blocksBuilder,
-            String indexName
+            String indexName,
+            IndexMetadata indexMetadata
         ) {
-            return blocksBuilder; // no-op: H2W blocks set by TransportHotToWarmTierAction
+            return blocksBuilder;
         }
 
         @Override
         protected org.opensearch.cluster.block.ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
             org.opensearch.cluster.block.ClusterBlocks.Builder blocksBuilder,
-            String indexName
+            String indexName,
+            IndexMetadata indexMetadata
         ) {
-            // H2W cancel → back to HOT → remove write blocks
             return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
                 .removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
         }
@@ -1526,9 +1527,9 @@ public class TieringServiceTests extends OpenSearchTestCase {
         @Override
         protected org.opensearch.cluster.block.ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
             org.opensearch.cluster.block.ClusterBlocks.Builder blocksBuilder,
-            String indexName
+            String indexName,
+            IndexMetadata indexMetadata
         ) {
-            // W2H tier start removes write blocks (index is going back to HOT)
             return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
                 .removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
         }

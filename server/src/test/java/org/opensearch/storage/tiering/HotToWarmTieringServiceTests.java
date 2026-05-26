@@ -132,7 +132,7 @@ public class HotToWarmTieringServiceTests extends OpenSearchTestCase {
     public void testGetTieringStartClusterBlocksToAdd_IsNoOp() {
         // H2W write blocks are set by TransportHotToWarmTierAction before tier(), so getTieringStartClusterBlocksToAdd is a no-op
         ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        ClusterBlocks.Builder result = service.getTieringStartClusterBlocksToAdd(builder, "test-index");
+        ClusterBlocks.Builder result = service.getTieringStartClusterBlocksToAdd(builder, "test-index", buildDfaIndexMetadata());
         assertSame("getTieringStartClusterBlocksToAdd must be a no-op for H2W", builder, result);
     }
 
@@ -141,7 +141,8 @@ public class HotToWarmTieringServiceTests extends OpenSearchTestCase {
         String indexName = "test-index";
         ClusterBlocks.Builder builder = ClusterBlocks.builder().addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
 
-        ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName).build();
+        ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName, buildDfaIndexMetadata())
+            .build();
 
         assertFalse("INDEX_WRITE_BLOCK must be removed after H2W cancel", result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
     }

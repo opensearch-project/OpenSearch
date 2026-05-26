@@ -86,7 +86,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
     @Override
     protected void clusterManagerOperation(IndexTieringRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        if (TieringUtils.isDfaIndex(request.getIndex(), state)) {
+        if (TieringUtils.isDfaIndex(state.metadata().index(request.getIndex()))) {
             // Validate FIRST — before any state-mutating or expensive operations.
             // If validation fails (e.g. warm nodes full, too many concurrent requests),
             // reject immediately without adding a read-only block or running prepare.

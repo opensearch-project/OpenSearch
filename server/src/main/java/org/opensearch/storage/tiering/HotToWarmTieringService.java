@@ -138,15 +138,27 @@ public class HotToWarmTieringService extends TieringService {
     }
 
     @Override
-    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(ClusterBlocks.Builder blocksBuilder, String indexName) {
-        return blocksBuilder; // no-op: write blocks set by TransportHotToWarmTierAction before tier()
+    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        // For DFA: H2W write block is set by TransportHotToWarmTierAction.addWriteBlockAndPrepare()
+        // before tier() is called
+        // Non-DFA - Write block is not required
+        return blocksBuilder;
     }
 
     @Override
     protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
         ClusterBlocks.Builder blocksBuilder,
-        String indexName
+        String indexName,
+        IndexMetadata indexMetadata
     ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
+        // Cancel H2W: only DFA indices had a write block set — remove it so the index is writable again.
         return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 

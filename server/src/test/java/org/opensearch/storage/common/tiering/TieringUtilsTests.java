@@ -284,16 +284,6 @@ public class TieringUtilsTests extends OpenSearchTestCase {
         assertTrue("isDfaIndex must return true when PLUGGABLE_DATAFORMAT_ENABLED is true", TieringUtils.isDfaIndex(meta));
     }
 
-    public void testIsDfaIndex_ViaClusterState_IndexNotFound_ReturnsFalse() {
-        org.opensearch.cluster.ClusterState state = org.opensearch.cluster.ClusterState.builder(org.opensearch.cluster.ClusterName.DEFAULT)
-            .metadata(org.opensearch.cluster.metadata.Metadata.builder().build())
-            .build();
-        assertFalse(
-            "isDfaIndex via ClusterState must return false for non-existent index",
-            TieringUtils.isDfaIndex("missing-index", state)
-        );
-    }
-
     public void testIsDfaIndex_ViaClusterState_DfaIndex_ReturnsTrue() {
         IndexMetadata meta = IndexMetadata.builder("dfa-idx")
             .settings(
@@ -307,6 +297,9 @@ public class TieringUtilsTests extends OpenSearchTestCase {
         org.opensearch.cluster.ClusterState state = org.opensearch.cluster.ClusterState.builder(org.opensearch.cluster.ClusterName.DEFAULT)
             .metadata(org.opensearch.cluster.metadata.Metadata.builder().put(meta, false).build())
             .build();
-        assertTrue("isDfaIndex via ClusterState must return true for DFA index", TieringUtils.isDfaIndex("dfa-idx", state));
+        assertTrue(
+            "isDfaIndex via ClusterState must return true for DFA index",
+            TieringUtils.isDfaIndex(state.getMetadata().index("dfa-idx"))
+        );
     }
 }

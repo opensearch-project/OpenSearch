@@ -377,19 +377,9 @@ public class TieringUtils {
     /**
      * Checks if the index has pluggable data format enabled (is a DFA index).
      */
-    public static boolean isDfaIndex(String indexName, ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().index(indexName);
-        return isDfaIndex(indexMetadata);
-    }
-
-    /**
-     * Checks if the index has pluggable data format enabled (is a DFA index).
-     */
     public static boolean isDfaIndex(IndexMetadata indexMetadata) {
-        if (indexMetadata == null) {
-            return false;
-        }
-        return indexMetadata.getSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
+        return indexMetadata != null
+            && indexMetadata.getSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
     }
 
 }

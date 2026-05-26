@@ -118,15 +118,26 @@ public class WarmToHotTieringService extends TieringService {
     }
 
     @Override
-    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(ClusterBlocks.Builder blocksBuilder, String indexName) {
+    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
         return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
     @Override
     protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
         ClusterBlocks.Builder blocksBuilder,
-        String indexName
+        String indexName,
+        IndexMetadata indexMetadata
     ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
         return blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
