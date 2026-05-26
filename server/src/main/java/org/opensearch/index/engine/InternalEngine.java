@@ -545,28 +545,7 @@ public class InternalEngine extends Engine {
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
-            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-            final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
-            int numNoOpsAdded = 0;
-            for (long seqNo = localCheckpoint + 1; seqNo <= maxSeqNo; seqNo = localCheckpointTracker.getProcessedCheckpoint()
-                + 1 /* leap-frog the local checkpoint */) {
-                innerNoOp(new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling gaps"));
-                numNoOpsAdded++;
-                assert seqNo <= localCheckpointTracker.getProcessedCheckpoint() : "local checkpoint did not advance; was ["
-                    + seqNo
-                    + "], now ["
-                    + localCheckpointTracker.getProcessedCheckpoint()
-                    + "]";
-
-            }
-            translogManager.syncTranslog(); // to persist noops associated with the advancement of the local checkpoint
-            assert localCheckpointTracker.getPersistedCheckpoint() == maxSeqNo
-                : "persisted local checkpoint did not advance to max seq no; is ["
-                    + localCheckpointTracker.getPersistedCheckpoint()
-                    + "], max seq no ["
-                    + maxSeqNo
-                    + "]";
-            return numNoOpsAdded;
+            return SeqNoGapFiller.fillGaps(localCheckpointTracker, translogManager, primaryTerm, noOp -> innerNoOp(noOp));
         }
     }
 
@@ -1439,6 +1418,7 @@ public class InternalEngine extends Engine {
                         throw ex;
                     }
                 }
+
                 noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location location = translogManager.add(
