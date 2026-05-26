@@ -64,7 +64,8 @@ public interface FragmentInstructionHandlerFactory {
         int shufflePartitionIndex,
         int expectedSenders,
         String queryId,
-        int targetStageId
+        int targetStageId,
+        String side
     ) {
         return Optional.empty();
     }

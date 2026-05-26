@@ -210,6 +210,71 @@ pub async unsafe fn create_session_context(
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
+/// Creates a worker-mode SessionContext: no shard view, no listing table, no parquet
+/// metadata. The worker's substrait plan reads only from named-input streams that are
+/// later registered onto this session via `register_partition_stream_on_session_context`.
+/// All shard-specific fields on the handle are populated with empty defaults so the
+/// SessionContextHandle struct stays uniform with the shard-mode variant.
+pub async unsafe fn create_worker_session_context(
+    runtime_ptr: i64,
+    context_id: i64,
+    query_config: DatafusionQueryConfig,
+) -> Result<i64, DataFusionError> {
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+
+    let global_pool = runtime.runtime_env.memory_pool.clone();
+    let query_context = QueryTrackingContext::new(context_id, global_pool.clone());
+    let query_memory_pool = query_context
+        .memory_pool()
+        .map(|p| p as Arc<dyn MemoryPool>);
+
+    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env);
+    if let Some(pool) = query_memory_pool {
+        runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
+    }
+    let runtime_env = runtime_env_builder.build().map_err(|e| {
+        error!("create_worker_session_context: failed to build runtime env: {}", e);
+        e
+    })?;
+
+    let mut config = SessionConfig::new();
+    config.options_mut().execution.target_partitions = query_config.target_partitions;
+    config.options_mut().execution.batch_size = query_config.batch_size;
+
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_runtime_env(Arc::from(runtime_env))
+        .with_default_features()
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
+        .build();
+
+    let ctx = SessionContext::new_with_state(state);
+    crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
+
+    // Sentinel placeholder for table_path — workers never reference a listing table; the
+    // handle still requires a value here. Use the project root as a benign stable URL.
+    let placeholder_path = ListingTableUrl::parse("file:///").map_err(|e| {
+        error!("create_worker_session_context: failed to parse placeholder path: {}", e);
+        e
+    })?;
+
+    let handle = SessionContextHandle {
+        ctx,
+        table_path: placeholder_path,
+        object_metas: Arc::new(Vec::new()),
+        writer_generations: Arc::new(Vec::new()),
+        query_context,
+        table_name: String::new(),
+        indexed_config: None,
+        query_config,
+        aggregate_mode: crate::agg_mode::Mode::Default,
+        prepared_plan: None,
+        phantom_reservation: None,
+    };
+    Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
 /// Closes a SessionContext handle without executing. Used for cleanup on failure.
 ///
 /// # Safety

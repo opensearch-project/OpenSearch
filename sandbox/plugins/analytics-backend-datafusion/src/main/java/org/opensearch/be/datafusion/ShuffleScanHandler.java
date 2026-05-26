@@ -107,22 +107,34 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
                     + "AnalyticsSearchService.setShuffleBufferRegistry must be called at plugin startup."
             );
         }
-        // Determine which side this scan represents from the named-input id, which encodes
-        // (consumerStageId, side, partition) per HashShuffleDispatch.shuffleNamedInputId. The
-        // node also carries (queryId, targetStageId, partitionIndex) directly.
+        // The instruction carries side ("left"/"right") explicitly. namedInputId is the canonical
+        // "input-<producerStageId>" the fragment convertor emits for the StageInputScan leaf below
+        // the stripped OpenSearchShuffleExchange — that's what the worker's Substrait plan binds
+        // its NamedScan against.
         String inputId = node.getNamedInputId();
-        boolean isLeftSide = inputId.contains("-left-");
-        if (!isLeftSide && !inputId.contains("-right-")) {
+        String side = node.getSide();
+        boolean isLeftSide = "left".equals(side);
+        if (!isLeftSide && !"right".equals(side)) {
             throw new IllegalStateException(
-                "ShuffleScanHandler: cannot infer side from namedInputId '"
-                    + inputId
-                    + "' (expected pattern shuffle-<stage>-(left|right)-<partition>)"
+                "ShuffleScanHandler: side must be 'left' or 'right', got '" + side + "' (namedInputId=" + inputId + ")"
             );
         }
 
         ShuffleBufferAccess buffer = registry.getOrCreate(node.getQueryId(), node.getTargetStageId(), node.getShufflePartitionIndex());
+        // expectedSenders for both sides are set eagerly by the ShuffleWorkerSetupHandler
+        // (which runs before any ShuffleScanHandler) so the buffer knows BOTH sides' counts
+        // before either side's awaitReady call blocks. Setting them per-side here would
+        // deadlock — the second side's count is set only AFTER the first side's blocked.
 
         try {
+            LOGGER.debug(
+                "ShuffleScanHandler: awaiting partition stream queryId={}, stage={}, partition={}, side={}, expectedSenders={}",
+                node.getQueryId(),
+                node.getTargetStageId(),
+                node.getShufflePartitionIndex(),
+                side,
+                node.getExpectedSenders()
+            );
             // Block here until BOTH sides' producers have all reported isLast for this partition.
             // The buffer's awaitReady gates on left-and-right because the handler runs once for
             // each side; both invocations agree the buffer is fully populated before either
@@ -146,81 +158,77 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
         List<byte[]> sideData = isLeftSide ? buffer.getLeftData() : buffer.getRightData();
 
         BufferAllocator alloc = shardCtx.getAllocator();
-        long senderPtr = 0;
-        try {
-            // Register a partition-stream table on the session and capture the sender pointer.
-            // We need a schema upfront. Use the first IPC chunk's schema header as the
-            // authoritative schema; if there are no chunks (zero-row partition), register an
-            // empty memtable instead so the NamedScan still binds and the join yields zero
-            // rows for this partition.
-            if (sideData.isEmpty()) {
-                // Without a schema we can't register a streaming table. Fall back to an empty
-                // memtable registration with a synthetic empty schema. NamedScan resolution
-                // requires a schema; an empty schema (zero columns) is fine for INNER joins
-                // (zero rows × anything = zero) and for outer joins where this side is the
-                // optional one — null-padded rows still emit. The dispatcher should ideally
-                // ship a schema header chunk on every partition even when empty, but that's a
-                // producer-side change tracked separately.
-                LOGGER.warn(
-                    "ShuffleScanHandler: empty partition for {} (queryId={}, stage={}, part={}); registering empty memtable",
-                    inputId,
-                    node.getQueryId(),
-                    node.getTargetStageId(),
-                    node.getShufflePartitionIndex()
-                );
-                NativeBridge.registerMemtableOnSessionContext(
-                    sessionState.sessionContextHandle().getPointer(),
-                    inputId,
-                    new byte[0],
-                    new long[0],
-                    new long[0]
-                );
-                return backendContext;
-            }
-
-            // Read the schema header from the first chunk by opening an ArrowStreamReader and
-            // pulling its schema (without loading the body). We can't reuse the byte[] later for
-            // body decoding because ArrowStreamReader's stream cursor advances; so we open a
-            // fresh reader per chunk below.
-            byte[] schemaIpc;
-            try {
-                schemaIpc = extractSchemaIpc(sideData.get(0), alloc);
-            } catch (Exception e) {
-                throw new RuntimeException("ShuffleScanHandler: failed to extract schema for " + inputId, e);
-            }
-            senderPtr = NativeBridge.registerPartitionStreamOnSessionContext(
-                sessionState.sessionContextHandle().getPointer(),
-                inputId,
-                schemaIpc
-            );
-
-            // Drain each chunk: decode every batch in the IPC stream and push it into the
-            // native sender. Each chunk is one full IPC stream (schema + N batches) — the
-            // producer-side flush emits a complete stream per send so there's no need to
-            // splice or carry partial state between chunks.
-            int totalBatches = 0;
-            try {
-                for (byte[] chunk : sideData) {
-                    totalBatches += pumpChunkIntoSender(chunk, alloc, senderPtr);
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("ShuffleScanHandler: failed to drain shuffle data for " + inputId, e);
-            }
+        // Empty partition: register an empty memtable and return — no streaming drain needed.
+        if (sideData.isEmpty()) {
             LOGGER.debug(
-                "ShuffleScanHandler: drained {} batches across {} chunks for {} (queryId={}, stage={}, part={})",
-                totalBatches,
-                sideData.size(),
+                "ShuffleScanHandler: empty partition for {} (queryId={}, stage={}, part={}); registering empty memtable",
                 inputId,
                 node.getQueryId(),
                 node.getTargetStageId(),
                 node.getShufflePartitionIndex()
             );
-        } finally {
-            // Closing the sender signals end-of-stream to the native StreamingTable so the
-            // join operator's pull-side advances past this partition. Idempotent — tolerates a
-            // zero pointer (registration failed before we got the pointer).
-            NativeBridge.senderClose(senderPtr);
+            NativeBridge.registerMemtableOnSessionContext(
+                sessionState.sessionContextHandle().getPointer(),
+                inputId,
+                new byte[0],
+                new long[0],
+                new long[0]
+            );
+            return backendContext;
         }
+
+        // Schema from the first chunk's IPC header — needed at registration time.
+        byte[] schemaIpc;
+        try {
+            schemaIpc = extractSchemaIpc(sideData.get(0), alloc);
+        } catch (Exception e) {
+            throw new RuntimeException("ShuffleScanHandler: failed to extract schema for " + inputId, e);
+        }
+        long senderPtr = NativeBridge.registerPartitionStreamOnSessionContext(
+            sessionState.sessionContextHandle().getPointer(),
+            inputId,
+            schemaIpc
+        );
+        DatafusionPartitionSender sender = new DatafusionPartitionSender(senderPtr);
+
+        // Drain chunks into the native sender on a background thread. The native partition
+        // stream is a bounded mpsc (capacity 4): synchronous draining inside this handler
+        // would block on the 5th send because the consumer (engine.execute → HashJoinExec)
+        // doesn't run until ALL handlers finish. Running the drain off-thread lets
+        // engine.execute start in parallel, drain the channel, and unblock the sender.
+        //
+        // The background thread owns the sender's lifecycle: it closes the sender after the
+        // last chunk (signals EOF to the native StreamingTable). Failures stamp the closure
+        // and close the sender so the partition still terminates rather than hanging the join.
+        final List<byte[]> chunks = sideData;
+        final DatafusionPartitionSender finalSender = sender;
+        Thread drainThread = new Thread(() -> {
+            int totalBatches = 0;
+            try {
+                for (byte[] chunk : chunks) {
+                    totalBatches += pumpChunkIntoSender(chunk, alloc, finalSender);
+                }
+                LOGGER.debug(
+                    "ShuffleScanHandler.drain: drained {} batches across {} chunks for {} (side={}, partition={})",
+                    totalBatches,
+                    chunks.size(),
+                    inputId,
+                    side,
+                    node.getShufflePartitionIndex()
+                );
+            } catch (Throwable t) {
+                LOGGER.warn("ShuffleScanHandler.drain failed for " + inputId, t);
+            } finally {
+                try {
+                    finalSender.close();
+                } catch (Throwable closeErr) {
+                    LOGGER.warn("ShuffleScanHandler.drain: sender.close failed for " + inputId, closeErr);
+                }
+            }
+        }, "shuffle-drain-" + node.getQueryId() + "-" + node.getTargetStageId() + "-" + side + "-" + node.getShufflePartitionIndex());
+        drainThread.setDaemon(true);
+        drainThread.start();
+
         return backendContext;
     }
 
@@ -240,7 +248,7 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
      * Decodes every batch in {@code chunkIpc} and pushes each into the native sender via Arrow
      * C Data Interface. Returns the batch count for logging.
      */
-    private static int pumpChunkIntoSender(byte[] chunkIpc, BufferAllocator alloc, long senderPtr) throws Exception {
+    private static int pumpChunkIntoSender(byte[] chunkIpc, BufferAllocator alloc, DatafusionPartitionSender sender) throws Exception {
         int count = 0;
         try (ByteArrayInputStream in = new ByteArrayInputStream(chunkIpc); ArrowStreamReader reader = new ArrowStreamReader(in, alloc)) {
             VectorSchemaRoot rootView = reader.getVectorSchemaRoot();
@@ -252,7 +260,7 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
                 boolean handedOff = false;
                 try {
                     Data.exportVectorSchemaRoot(alloc, rootView, null, array, arrowSchema);
-                    NativeBridge.senderSend(senderPtr, array.memoryAddress(), arrowSchema.memoryAddress());
+                    sender.send(array.memoryAddress(), arrowSchema.memoryAddress());
                     handedOff = true;
                     count++;
                 } finally {

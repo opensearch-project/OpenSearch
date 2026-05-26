@@ -14,23 +14,23 @@ import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
+import org.opensearch.analytics.spi.ShuffleProducerOutputState;
 
 /**
  * Handler for {@link ShuffleProducerInstructionNode} on a scan-side data node.
  *
- * <p>Attaches a partitioning sink to the scan fragment's output so each batch is hash-partitioned
- * into {@code partitionCount} buckets, then ships each bucket to its target worker via
- * {@code AnalyticsShuffleDataAction} (with {@code ShuffleSenderRetry} handling
- * backpressure-reject retries).
+ * <p>Records the producer's partitioning + routing parameters into a
+ * {@link ShuffleProducerOutputState} that the framework picks up after the instruction-handler
+ * chain. The framework then routes this fragment's engine output through
+ * {@code ExchangeSinkProvider.createPartitionedSink} instead of the normal response handler.
  *
- * <p>TODO (M2 follow-up): Wire the partitioning logic itself. Two viable paths:
- * <ul>
- *   <li>JVM-side partitioning using Arrow's hash kernels against the key channels — matching
- *       DataFusion's {@code REPARTITION_RANDOM_STATE} seed so worker-side consumers and probe-side
- *       filters compute consistent partition assignments.</li>
- *   <li>Native-side partitioning via a {@code BatchPartitioner::new_hash_partitioner} callback
- *       through the FFM bridge. More work upfront, cheaper at runtime.</li>
- * </ul>
+ * <p>The handler itself does not partition — partitioning is the backend sink's responsibility,
+ * because the hash function must match the consumer-side join's hasher. Wiring partitioning at
+ * the framework layer would lock in DataFusion's hash and break a future Velox/Lucene producer.
+ *
+ * <p>Composes with a previous handler's backend context: if {@code backendContext} is non-null
+ * (e.g. session state set up by a prior handler), it is wrapped in the carrier so the engine
+ * factory still receives it.
  */
 public class ShuffleProducerHandler implements FragmentInstructionHandler<ShuffleProducerInstructionNode> {
 
@@ -43,7 +43,7 @@ public class ShuffleProducerHandler implements FragmentInstructionHandler<Shuffl
         BackendExecutionContext backendContext
     ) {
         LOGGER.debug(
-            "Shuffle producer handler invoked: keys={}, partitions={}, targets={}, query={}, stage={}, side={}",
+            "Shuffle producer handler: keys={}, partitions={}, targets={}, query={}, stage={}, side={}",
             node.getHashKeyChannels(),
             node.getPartitionCount(),
             node.getTargetWorkerNodeIds().size(),
@@ -51,10 +51,23 @@ public class ShuffleProducerHandler implements FragmentInstructionHandler<Shuffl
             node.getTargetStageId(),
             node.getSide()
         );
-        // TODO (M2 follow-up): attach a PartitionedArrowSink wrapper to the backend's output stream
-        // that splits each batch by hash and dispatches AnalyticsShuffleDataRequest (with
-        // ShuffleSenderRetry for backpressure handling) to the worker identified by
-        // targetWorkerNodeIds[partitionIndex].
-        return backendContext;
+        if (node.getTargetWorkerNodeIds().size() != node.getPartitionCount()) {
+            throw new IllegalStateException(
+                "Shuffle producer instruction has partitionCount="
+                    + node.getPartitionCount()
+                    + " but "
+                    + node.getTargetWorkerNodeIds().size()
+                    + " target node ids; the planner must emit one target per partition"
+            );
+        }
+        return new ShuffleProducerOutputState(
+            node.getHashKeyChannels(),
+            node.getPartitionCount(),
+            node.getTargetWorkerNodeIds(),
+            node.getQueryId(),
+            node.getTargetStageId(),
+            node.getSide(),
+            backendContext
+        );
     }
 }

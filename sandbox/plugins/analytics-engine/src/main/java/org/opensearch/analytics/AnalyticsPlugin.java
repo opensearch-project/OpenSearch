@@ -130,6 +130,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         }
         searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
         searchService.setShuffleBufferRegistry(shuffleBufferManager);
+        searchService.setShuffleSenderDeps(client, threadPool, clusterService);
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
 
         // Returned as components so Guice can inject them into DefaultPlanExecutor
@@ -177,7 +178,13 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+        return List.of(
+            new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
+            new ActionHandler<>(
+                org.opensearch.analytics.exec.action.AnalyticsShuffleDataAction.INSTANCE,
+                org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction.class
+            )
+        );
     }
 
     @Override

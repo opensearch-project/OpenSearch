@@ -171,7 +171,9 @@ public class Stage {
         TargetResolver targetResolver,
         RelNode fragment
     ) {
-        if (targetResolver != null) {
+        if (targetResolver instanceof WorkerTargetResolver) {
+            return StageExecutionType.WORKER_FRAGMENT;
+        } else if (targetResolver != null) {
             return StageExecutionType.SHARD_FRAGMENT;
         } else if (hasComputeLeaf(fragment)) {
             // Coord-only compute leaf (e.g. OpenSearchValues) — run the plan locally

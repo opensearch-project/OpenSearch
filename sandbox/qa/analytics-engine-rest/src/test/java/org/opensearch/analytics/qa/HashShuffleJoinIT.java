@@ -18,35 +18,20 @@ import java.util.Map;
 /**
  * End-to-end tests for the HASH_SHUFFLE join path on a 2-node cluster.
  *
+
  * <p>Mirrors {@link BroadcastJoinIT} but exercises the cost-model branch where both join inputs
- * are large enough that broadcast loses to hash-shuffle. The IT flips
- * {@code analytics.mpp.shuffle_enabled=true} (default in production is {@code false} until the
- * runtime is fully wired and proven) and asserts the cluster's HASH_SHUFFLE counter advances.
+ * are large enough that broadcast loses to hash-shuffle. The IT toggles
+ * {@code analytics.mpp.enabled} across cases and asserts that the cluster's HASH_SHUFFLE counter
+ * advances only when MPP is on and the cost gate picks hash-shuffle.
  *
  * <p>Data shape:
  * <ul>
- *   <li>{@code shuf_left} — 5 shards, ~30 rows. Both sides "large" so the broadcast cost
+ *   <li>{@code shuf_left} — 5 shards, ~5000 rows. Both sides "large" so the broadcast cost
  *       (~{@code rows × probeNodes}) loses to hash-shuffle (~{@code rows + N × setup}).</li>
- *   <li>{@code shuf_right} — 5 shards, ~30 rows. Same shape; both sides shuffle-eligible.</li>
+ *   <li>{@code shuf_right} — 5 shards, ~5000 rows. Same shape; both sides shuffle-eligible.</li>
  * </ul>
- *
- * <p><b>Status of the runtime:</b> the dispatch layer (DAGBuilder cuts at shuffle exchanges,
- * HashShuffleDispatch enriches plan alternatives with producer/consumer instructions, the
- * scheduler routes), the consumer-side handler (registers a streaming table on the
- * SessionContextHandle via {@code df_register_partition_stream_on_session_context}), and the
- * native batch partitioner ({@code df_partition_batch_by_hash}) are all in place. The
- * producer-side wire-shipping (sink replacement that hash-partitions each emitted batch and
- * ships via {@code AnalyticsShuffleDataAction} to {@code targetWorkerNodeIds[partition]}) is
- * still a stub. Until that lands, the consumer's {@code awaitReady} times out — so the
- * row-parity assertions in this IT are gated behind {@link #PRODUCER_WIRED} and only fire
- * once the flag flips. The dispatch / counter / setting assertions still run today and
- * protect the JVM-side architecture from regressions.
  */
 public class HashShuffleJoinIT extends AnalyticsRestTestCase {
-
-    /** Flip to {@code true} when the producer-side sink replacement lands and end-to-end runs
-     *  produce correct rows. The dispatch + counter assertions fire either way. */
-    private static final boolean PRODUCER_WIRED = false;
 
     private static final String LEFT_INDEX = "shuf_left";
     private static final String RIGHT_INDEX = "shuf_right";
@@ -67,7 +52,6 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         // handler-side awaitReady timeout (5s default) caps wall-clock so each test method
         // finishes inside ~10s even when the producer-side stub leaves the consumer waiting.
         resetSetting("analytics.mpp.enabled");
-        resetSetting("analytics.mpp.shuffle_enabled");
         resetSetting("analytics.mpp.broadcast_probe_estimate");
         super.tearDown();
     }
@@ -91,88 +75,60 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         // 2-node cluster, default probeNodes=2 and broadcast cost ~rows×2 ties hash on
         // small-medium data. probeEstimate=20 forces broadcast ~rows×20, well above hash.
         applySetting("analytics.mpp.broadcast_probe_estimate", "20");
-        String ppl = "source = "
-            + LEFT_INDEX
-            + " | inner join left=L right=R on L.id = R.id "
-            + RIGHT_INDEX
-            + " | sort L.id | head 100";
+        // Compare the FULL join output as multisets between coord-centric and hash-shuffle:
+        // any row dropped, duplicated, or mis-joined by the shuffle path shows up as a
+        // multiset mismatch. We deliberately do NOT use `sort L.id | head N` as an invariant
+        // — that PPL shape is non-deterministic on its own (reproduces on a single coord-
+        // centric path, two back-to-back runs return disjoint 100-row sets). The bug lives
+        // between Calcite's `Sort(fetch=N)` and DataFusion's substrait consumer; it is
+        // independent of M2 hash-shuffle.
+        String ppl = "source = " + LEFT_INDEX + " | inner join left=L right=R on L.id = R.id " + RIGHT_INDEX;
 
-        StrategyDelta baselineDelta = runWithMppShuffleAndCounters(ppl, /* mpp */ false, /* shuffle */ false);
-        StrategyDelta shuffleDelta = runWithMppShuffleAndCounters(ppl, /* mpp */ true, /* shuffle */ true);
+        StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
 
-        // Counter assertions run regardless of producer wiring — they protect the JVM-side
-        // dispatch decision: that mpp.enabled + mpp.shuffle_enabled actually steers CBO toward
-        // HASH_SHUFFLE for this query shape.
+        // Counter assertions guard the JVM-side dispatch decision: mpp.enabled steers CBO toward
+        // HASH_SHUFFLE for this query shape; mpp.enabled=false routes through coord-centric.
         assertEquals(
-            "HASH_SHUFFLE counter must NOT advance when mpp.shuffle_enabled=false",
+            "HASH_SHUFFLE counter must NOT advance when mpp.enabled=false",
             0L,
             baselineDelta.hashShuffleDelta
         );
-        assertCounterAdvanced(
-            "HASH_SHUFFLE fires when mpp.enabled=true and mpp.shuffle_enabled=true for large×large",
-            shuffleDelta.hashShuffleDelta
-        );
+        assertCounterAdvanced("HASH_SHUFFLE fires when mpp.enabled=true for large×large", shuffleDelta.hashShuffleDelta);
 
-        if (PRODUCER_WIRED) {
-            assertRowMultisetEquals(
-                "INNER large×large: HASH_SHUFFLE must match coord-centric baseline",
-                baselineDelta.rows,
-                shuffleDelta.rows
-            );
-            assertEquals(
-                "INNER large×large: matching ids occur once each",
-                expectedInnerJoinRowCount(),
-                baselineDelta.rows.size()
-            );
-        }
-    }
-
-    /**
-     * Negative: {@code mpp.shuffle_enabled=false} alone (with mpp.enabled=true) must keep the
-     * HASH_SHUFFLE counter at zero; the join falls through to BROADCAST or COORDINATOR_CENTRIC.
-     * The split-rule gates are independent — broadcast may still fire under mpp.enabled, but
-     * never hash-shuffle.
-     */
-    public void testShuffleKillSwitch_keepsHashShuffleCounterAtZero() throws IOException {
-        ensureDataProvisioned();
-        String ppl = "source = "
-            + LEFT_INDEX
-            + " | inner join left=L right=R on L.id = R.id "
-            + RIGHT_INDEX
-            + " | sort L.id | head 100";
-
-        StrategyDelta delta = runWithMppShuffleAndCounters(ppl, /* mpp */ true, /* shuffle */ false);
+        // Independently sanity-check the baseline so the parity assertion can't trivially
+        // pass on two equally-broken runs (e.g. each returning a Cartesian product).
         assertEquals(
-            "HASH_SHUFFLE counter must NOT advance when shuffle kill switch is off",
-            0L,
-            delta.hashShuffleDelta
+            "baseline INNER large×large: matching ids occur once each",
+            expectedInnerJoinRowCount(),
+            baselineDelta.rows.size()
+        );
+        assertEquals(
+            "shuffle INNER large×large: matching ids occur once each",
+            expectedInnerJoinRowCount(),
+            shuffleDelta.rows.size()
+        );
+        // Full multiset comparison: every row produced by coord-centric must also be
+        // produced by hash-shuffle, and vice versa. Catches dropped rows, mis-routed hash
+        // partitions, duplicated rows, and join-key mismatches.
+        assertRowMultisetEquals(
+            "INNER large×large: HASH_SHUFFLE must match coord-centric baseline (full row set)",
+            baselineDelta.rows,
+            shuffleDelta.rows
         );
     }
 
     /**
-     * Negative: with mpp completely off, neither BROADCAST nor HASH_SHUFFLE fires regardless of
-     * the shuffle kill switch. Master MPP_ENABLED gates both split rules.
+     * Negative: with mpp off, neither BROADCAST nor HASH_SHUFFLE fires; the master kill switch
+     * gates every MPP split rule.
      */
-    public void testMppDisabled_keepsHashShuffleCounterAtZero() throws IOException {
+    public void testMppDisabled_keepsAllMppCountersAtZero() throws IOException {
         ensureDataProvisioned();
-        String ppl = "source = "
-            + LEFT_INDEX
-            + " | inner join left=L right=R on L.id = R.id "
-            + RIGHT_INDEX
-            + " | sort L.id | head 100";
+        String ppl = "source = " + LEFT_INDEX + " | inner join left=L right=R on L.id = R.id " + RIGHT_INDEX;
 
-        // Even with shuffle_enabled=true, mpp.enabled=false dominates.
-        StrategyDelta delta = runWithMppShuffleAndCounters(ppl, /* mpp */ false, /* shuffle */ true);
-        assertEquals(
-            "HASH_SHUFFLE counter must NOT advance when mpp.enabled=false (master kill switch dominates)",
-            0L,
-            delta.hashShuffleDelta
-        );
-        assertEquals(
-            "BROADCAST counter must also stay at zero when mpp.enabled=false",
-            0L,
-            delta.broadcastDelta
-        );
+        StrategyDelta delta = runWithMppAndCounters(ppl, /* mpp */ false);
+        assertEquals("HASH_SHUFFLE counter must NOT advance when mpp.enabled=false", 0L, delta.hashShuffleDelta);
+        assertEquals("BROADCAST counter must also stay at zero when mpp.enabled=false", 0L, delta.broadcastDelta);
     }
 
     // ─── data provisioning ─────────────────────────────────────────────────────
@@ -246,31 +202,14 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
     // ─── PPL + cluster-setting helpers ─────────────────────────────────────────
 
     /**
-     * Apply both MPP gates, snapshot per-strategy counters, run the PPL, return rows + deltas
-     * for both BROADCAST and HASH_SHUFFLE so each test can assert on whichever it cares about.
-     *
-     * <p>The dispatcher records the routed strategy <em>before</em> kicking off async execution
-     * (see {@code DefaultPlanExecutor.executeInternal}'s {@code recordDispatch} call). So the
-     * counter delta is meaningful even when the producer side is still a stub and the query
-     * itself never returns rows — useful precisely for {@link #PRODUCER_WIRED}=false runs. We
-     * catch any query-level failure and substitute an empty row list so counter assertions
-     * still fire.
+     * Apply the MPP gate, snapshot per-strategy counters, run the PPL, return rows + deltas for
+     * both BROADCAST and HASH_SHUFFLE so each test can assert on whichever it cares about.
      */
-    private StrategyDelta runWithMppShuffleAndCounters(String ppl, boolean mppEnabled, boolean shuffleEnabled) throws IOException {
+    private StrategyDelta runWithMppAndCounters(String ppl, boolean mppEnabled) throws IOException {
         applySetting("analytics.mpp.enabled", String.valueOf(mppEnabled));
-        applySetting("analytics.mpp.shuffle_enabled", String.valueOf(shuffleEnabled));
         long broadcastBefore = readStrategyCounter("BROADCAST");
         long hashBefore = readStrategyCounter("HASH_SHUFFLE");
-        List<List<Object>> rows;
-        try {
-            rows = executePplRows(ppl);
-        } catch (org.opensearch.client.ResponseException e) {
-            // Until the producer side is wired the consumer's awaitReady will time out. The
-            // query fails — but the dispatcher has already recorded the routed strategy. Keep
-            // the counter assertions meaningful by surfacing an empty row list; the explicit
-            // PRODUCER_WIRED gate keeps row-parity assertions out of the comparison.
-            rows = List.of();
-        }
+        List<List<Object>> rows = executePplRows(ppl);
         long broadcastAfter = readStrategyCounter("BROADCAST");
         long hashAfter = readStrategyCounter("HASH_SHUFFLE");
         return new StrategyDelta(rows, broadcastAfter - broadcastBefore, hashAfter - hashBefore);

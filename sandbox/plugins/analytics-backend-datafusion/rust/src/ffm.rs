@@ -688,6 +688,23 @@ pub unsafe extern "C" fn df_create_session_context(
 
 #[ffm_safe]
 #[no_mangle]
+pub unsafe extern "C" fn df_create_worker_session_context(
+    runtime_ptr: i64,
+    context_id: i64,
+    query_config_ptr: i64,
+) -> i64 {
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            crate::session_context::create_worker_session_context(runtime_ptr, context_id, query_config),
+        ))
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
 pub unsafe extern "C" fn df_create_session_context_indexed(
     shard_view_ptr: i64,
     runtime_ptr: i64,

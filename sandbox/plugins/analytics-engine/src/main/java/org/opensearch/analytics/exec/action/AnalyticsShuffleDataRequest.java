@@ -33,14 +33,28 @@ public class AnalyticsShuffleDataRequest extends ActionRequest {
     private final int partitionIndex;
     private final byte[] data;
     private final boolean isLast;
+    private final String targetNodeId;
 
     public AnalyticsShuffleDataRequest(String queryId, int targetStageId, String side, int partitionIndex, byte[] data, boolean isLast) {
+        this(queryId, targetStageId, side, partitionIndex, data, isLast, null);
+    }
+
+    public AnalyticsShuffleDataRequest(
+        String queryId,
+        int targetStageId,
+        String side,
+        int partitionIndex,
+        byte[] data,
+        boolean isLast,
+        String targetNodeId
+    ) {
         this.queryId = queryId;
         this.targetStageId = targetStageId;
         this.side = side;
         this.partitionIndex = partitionIndex;
         this.data = data;
         this.isLast = isLast;
+        this.targetNodeId = targetNodeId;
     }
 
     public AnalyticsShuffleDataRequest(StreamInput in) throws IOException {
@@ -55,6 +69,7 @@ public class AnalyticsShuffleDataRequest extends ActionRequest {
             this.data = null;
         }
         this.isLast = in.readBoolean();
+        this.targetNodeId = in.readOptionalString();
     }
 
     @Override
@@ -71,6 +86,14 @@ public class AnalyticsShuffleDataRequest extends ActionRequest {
             out.writeBoolean(false);
         }
         out.writeBoolean(isLast);
+        out.writeOptionalString(targetNodeId);
+    }
+
+    /** Target worker node id for routing. Null means "execute on the receiving node" (already
+     *  routed by the caller). Set by {@code ShuffleSenderImpl} so the transport handler can
+     *  forward when this request lands on a node that isn't the intended target. */
+    public String getTargetNodeId() {
+        return targetNodeId;
     }
 
     @Override

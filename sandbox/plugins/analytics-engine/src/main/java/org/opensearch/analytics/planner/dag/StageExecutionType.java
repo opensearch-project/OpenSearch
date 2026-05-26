@@ -42,5 +42,12 @@ public enum StageExecutionType {
      * literal-row sources ({@code LogicalValues}) and any future leaf operator
      * whose data lives on the coordinator rather than on a shard.
      */
-    LOCAL_COMPUTE
+    LOCAL_COMPUTE,
+    /**
+     * Hash-shuffle worker: one fragment per partition, dispatched to a worker node.
+     * No shard scan; the fragment reads only from named-input streams registered by
+     * shuffle-scan instructions. Sibling of {@link #SHARD_FRAGMENT} but routed through
+     * a separate transport ({@code WorkerFragmentExecutionAction}).
+     */
+    WORKER_FRAGMENT
 }

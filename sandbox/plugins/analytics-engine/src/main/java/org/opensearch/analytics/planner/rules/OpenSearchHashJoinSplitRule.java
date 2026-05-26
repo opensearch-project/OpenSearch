@@ -33,7 +33,8 @@ import org.opensearch.analytics.planner.rel.OpenSearchJoin;
  *
  * <p>Gates:
  * <ul>
- *   <li>{@code analytics.mpp.shuffle_enabled} must be true (cluster setting; default true).</li>
+ *   <li>{@code analytics.mpp.enabled} must be true (the master kill switch covers all MPP
+ *       strategies; with MPP disabled this rule must stay out of CBO).</li>
  *   <li>{@code JoinInfo.isEqui()} must be true. Hash partitioning requires equality predicates;
  *       theta joins flow through {@link OpenSearchJoinSplitRule}'s coordinator-centric path.</li>
  *   <li>The resolved partition count (cluster setting → engine default) must be ≥ 2. A count
@@ -64,13 +65,9 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
 
     @Override
     public boolean matches(RelOptRuleCall call) {
-        // The master MPP kill switch must be on — shuffle is a sub-feature of MPP. With MPP
-        // disabled cluster-wide, the join routes through OpenSearchJoinSplitRule's
-        // coord-centric path; this rule must stay out of that decision.
+        // The master MPP kill switch must be on. With MPP disabled cluster-wide, the join routes
+        // through OpenSearchJoinSplitRule's coord-centric path; this rule must stay out of that.
         if (!AnalyticsSettings.MPP_ENABLED.get(context.getSettings())) {
-            return false;
-        }
-        if (!AnalyticsSettings.MPP_SHUFFLE_ENABLED.get(context.getSettings())) {
             return false;
         }
         OpenSearchJoin join = call.rel(0);

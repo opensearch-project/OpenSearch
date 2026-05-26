@@ -60,26 +60,6 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Hash-shuffle kill switch, layered under {@link #MPP_ENABLED}. When {@code true} and
-     * {@code MPP_ENABLED} is also true, CBO may pick HASH_SHUFFLE for equi-joins between two
-     * SHARD-localized scans. When {@code false}, the hash split rule is dormant and the join
-     * routes through BROADCAST or COORDINATOR_CENTRIC.
-     *
-     * <p>Default OFF until the M2 hash-shuffle runtime (DataFusion {@code ShuffleProducerHandler}
-     * + {@code ShuffleScanHandler} + the FFM {@code register_partition_stream_on_session_context}
-     * entry point) is wired end-to-end. Today the planner can produce a HASH_SHUFFLE plan but
-     * {@code DataFusionFragmentConvertor} rejects {@code OpenSearchShuffleExchange} with
-     * "Unable to handle node," failing the query at runtime. Flip the default to {@code true}
-     * once the producer/consumer handlers ship and integration tests confirm parity.
-     */
-    public static final Setting<Boolean> MPP_SHUFFLE_ENABLED = Setting.boolSetting(
-        "analytics.mpp.shuffle_enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Number of hash-shuffle output partitions. When set to a positive value, every
      * HASH_SHUFFLE query uses this exact partition count regardless of cluster shape. When
      * unset (or non-positive), the partition count is resolved per-query via
@@ -131,7 +111,6 @@ public final class AnalyticsSettings {
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
         MPP_ENABLED,
         BROADCAST_MAX_BYTES,
-        MPP_SHUFFLE_ENABLED,
         MPP_SHUFFLE_PARTITIONS,
         MPP_SHUFFLE_RECV_TIMEOUT,
         MPP_BROADCAST_PROBE_ESTIMATE

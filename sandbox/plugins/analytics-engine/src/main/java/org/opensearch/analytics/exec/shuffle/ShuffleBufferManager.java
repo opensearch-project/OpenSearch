@@ -102,10 +102,16 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         }
 
         public void setExpectedSenders(int leftSenders, int rightSenders) {
-            this.expectedLeftSenders = leftSenders;
-            this.expectedRightSenders = rightSenders;
-            checkCompletion("left");
-            checkCompletion("right");
+            // -1 means "leave unchanged"; allows per-side handlers to set their own count
+            // without clobbering the other side's.
+            if (leftSenders >= 0) {
+                this.expectedLeftSenders = leftSenders;
+                checkCompletion("left");
+            }
+            if (rightSenders >= 0) {
+                this.expectedRightSenders = rightSenders;
+                checkCompletion("right");
+            }
         }
 
         /**
@@ -193,6 +199,14 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
 
         public int getExpectedRightSenders() {
             return expectedRightSenders;
+        }
+
+        public int getLeftDoneCount() {
+            return leftDoneCount.get();
+        }
+
+        public int getRightDoneCount() {
+            return rightDoneCount.get();
         }
     }
 }

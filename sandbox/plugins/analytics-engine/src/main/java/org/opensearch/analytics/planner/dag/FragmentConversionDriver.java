@@ -24,6 +24,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
@@ -359,6 +360,20 @@ public class FragmentConversionDriver {
             // Strip ExchangeReducer — StageInputScan below it is the schema source.
             return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
         }
+        if (node instanceof OpenSearchShuffleExchange) {
+            // Strip ShuffleExchange — same shape as ExchangeReducer at this layer. The
+            // partitioning is enforced at runtime by the producer-side sink; the consumer
+            // fragment converts as if the input arrived as plain StageInputScan named-input.
+            return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
+        }
+        if (node instanceof OpenSearchStageInputScan) {
+            // Direct StageInputScan boundary — happens after the hash-shuffle rewriter inserts
+            // a worker stage and the consumer fragment becomes Sort/Project/StageInputScan
+            // (no intermediate ExchangeReducer wrapper). Treat the leaf itself as the boundary;
+            // the convertor's StageInputScan→NamedScan rewrite handles binding. Single-input
+            // ancestors above this boundary attach via attachFragmentOnTop on the way back up.
+            return convertor.convertFragment(node);
+        }
         if (node instanceof OpenSearchRelNode openSearchNode) {
             List<RelNode> strippedInputs = node.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
             Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(openSearchNode, node.getCluster().getRexBuilder());
@@ -411,6 +426,12 @@ public class FragmentConversionDriver {
             return node; // kept for schema inference at probe stage; backend rewriter maps to NamedScan
         }
         if (node instanceof OpenSearchExchangeReducer) {
+            return strip(node.getInputs().getFirst(), delegationBytes);
+        }
+        if (node instanceof OpenSearchShuffleExchange) {
+            // Strip the hash-shuffle wrapper. Partitioning happens at runtime inside the
+            // backend's createPartitionedSink (driven by ShuffleProducerOutputState), not in
+            // Substrait — the convertor never needs to lower the shuffle node itself.
             return strip(node.getInputs().getFirst(), delegationBytes);
         }
         List<RelNode> strippedChildren = new ArrayList<>(node.getInputs().size());

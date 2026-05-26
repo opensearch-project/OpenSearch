@@ -73,8 +73,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(
             Map.of("small_idx", 3, "large_idx", 3),
             Map.of("small_idx", SMALL, "large_idx", LARGE),
-            /* mppEnabled */ true,
-            /* shuffleEnabled */ true
+            /* mppEnabled */ true
         );
         RelNode result = runPlanner(makeJoin(context, "small_idx", "large_idx", JoinRelType.INNER, /* equi */ true), context);
 
@@ -88,8 +87,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(
             Map.of("big_left", 3, "big_right", 3),
             Map.of("big_left", LARGE, "big_right", LARGE),
-            /* mppEnabled */ true,
-            /* shuffleEnabled */ true
+            /* mppEnabled */ true
         );
         RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ true), context);
 
@@ -114,8 +112,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(
             Map.of("dim_idx", 3, "fact_idx", 3),
             Map.of("dim_idx", SMALL, "fact_idx", LARGE),
-            /* mppEnabled */ true,
-            /* shuffleEnabled */ true
+            /* mppEnabled */ true
         );
         RelNode result = runPlanner(makeJoin(context, "dim_idx", "fact_idx", JoinRelType.INNER, /* equi */ true), context);
 
@@ -128,8 +125,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(
             Map.of("big_left", 3, "big_right", 3),
             Map.of("big_left", LARGE, "big_right", LARGE),
-            /* mppEnabled */ false,
-            /* shuffleEnabled */ true
+            /* mppEnabled */ false
         );
         RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ true), context);
 
@@ -148,8 +144,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(
             Map.of("big_left", 3, "big_right", 3),
             Map.of("big_left", LARGE, "big_right", LARGE),
-            /* mppEnabled */ true,
-            /* shuffleEnabled */ true
+            /* mppEnabled */ true
         );
         RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ false), context);
 
@@ -164,17 +159,9 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
      *  via PlannerContext.tableRowCounts; the cluster nodes feed broadcast probe-count
      *  estimation; the shuffle-aware backend's defaultShuffleParallelism makes the hash
      *  rule's probeNodes > 1 gate pass. */
-    private PlannerContext buildMppContext(
-        Map<String, Integer> shardCounts,
-        Map<String, Long> rowCounts,
-        boolean mppEnabled,
-        boolean shuffleEnabled
-    ) {
+    private PlannerContext buildMppContext(Map<String, Integer> shardCounts, Map<String, Long> rowCounts, boolean mppEnabled) {
         ClusterState state = mockClusterStateWithDataNodes(shardCounts);
-        Settings settings = Settings.builder()
-            .put("analytics.mpp.enabled", mppEnabled)
-            .put("analytics.mpp.shuffle_enabled", shuffleEnabled)
-            .build();
+        Settings settings = Settings.builder().put("analytics.mpp.enabled", mppEnabled).build();
         ToLongFunction<String> rowCountLookup = name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);
         Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
         // Use a shuffle-aware DataFusion backend so OpenSearchHashJoinSplitRule's partitionCount

@@ -21,6 +21,7 @@ import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
+import org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode;
 
 import java.util.List;
 import java.util.Optional;
@@ -81,9 +82,12 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
         int shufflePartitionIndex,
         int expectedSenders,
         String queryId,
-        int targetStageId
+        int targetStageId,
+        String side
     ) {
-        return Optional.of(new ShuffleScanInstructionNode(namedInputId, shufflePartitionIndex, expectedSenders, queryId, targetStageId));
+        return Optional.of(
+            new ShuffleScanInstructionNode(namedInputId, shufflePartitionIndex, expectedSenders, queryId, targetStageId, side)
+        );
     }
 
     @Override
@@ -126,6 +130,9 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
         }
         if (node instanceof ShuffleProducerInstructionNode) {
             return new ShuffleProducerHandler();
+        }
+        if (node instanceof ShuffleWorkerSetupInstructionNode) {
+            return new ShuffleWorkerSetupHandler(plugin);
         }
         // TODO: FilterDelegationInstructionHandler, PartialAggregateInstructionHandler
         throw new UnsupportedOperationException("No handler for instruction type: " + node.type());

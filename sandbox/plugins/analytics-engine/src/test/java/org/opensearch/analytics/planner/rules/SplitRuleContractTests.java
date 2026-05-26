@@ -79,14 +79,8 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
     public void testThetaJoinFiresCoordRuleRegardlessOfSettings() {
         OpenSearchJoin theta = makeJoin(/* equi */ false);
         // Both mpp settings: theta routes coord-centric.
-        assertTrue(
-            "Coord rule must match theta when mpp.disabled",
-            coordRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(theta))
-        );
-        assertTrue(
-            "Coord rule must match theta when mpp.enabled",
-            coordRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(theta))
-        );
+        assertTrue("Coord rule must match theta when mpp.disabled", coordRule(/* mppEnabled */ false).matches(stubCallFor(theta)));
+        assertTrue("Coord rule must match theta when mpp.enabled", coordRule(/* mppEnabled */ true).matches(stubCallFor(theta)));
     }
 
     public void testThetaJoinDoesNotFireBroadcastRule() {
@@ -96,25 +90,16 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
 
     public void testThetaJoinDoesNotFireHashRule() {
         OpenSearchJoin theta = makeJoin(/* equi */ false);
-        assertFalse(
-            "Hash rule must not match theta",
-            hashRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(theta))
-        );
+        assertFalse("Hash rule must not match theta", hashRule(/* mppEnabled */ true).matches(stubCallFor(theta)));
     }
 
     // ── equi, mpp.enabled=false ───────────────────────────────────────────
 
     public void testEquiJoinMppDisabledFiresOnlyCoordRule() {
         OpenSearchJoin equi = makeJoin(/* equi */ true);
-        assertTrue(
-            "Coord rule must match equi when mpp.disabled",
-            coordRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(equi))
-        );
+        assertTrue("Coord rule must match equi when mpp.disabled", coordRule(/* mppEnabled */ false).matches(stubCallFor(equi)));
         assertFalse("Broadcast rule must not match when mpp.disabled", broadcastRule(/* mppEnabled */ false).matches(stubCallFor(equi)));
-        assertFalse(
-            "Hash rule must not match when mpp.disabled",
-            hashRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(equi))
-        );
+        assertFalse("Hash rule must not match when mpp.disabled", hashRule(/* mppEnabled */ false).matches(stubCallFor(equi)));
     }
 
     // ── equi, mpp.enabled=true ────────────────────────────────────────────
@@ -123,25 +108,10 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
         OpenSearchJoin equi = makeJoin(/* equi */ true);
         assertFalse(
             "Coord rule must NOT match equi when mpp.enabled — coord-centric is not a competitor for MPP equi joins",
-            coordRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(equi))
+            coordRule(/* mppEnabled */ true).matches(stubCallFor(equi))
         );
         assertTrue("Broadcast rule must match equi when mpp.enabled", broadcastRule(/* mppEnabled */ true).matches(stubCallFor(equi)));
-        assertTrue(
-            "Hash rule must match equi when mpp.enabled and shuffle.enabled",
-            hashRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(equi))
-        );
-    }
-
-    public void testEquiJoinShuffleDisabledFiresBroadcastButNotHash() {
-        OpenSearchJoin equi = makeJoin(/* equi */ true);
-        assertTrue(
-            "Broadcast rule must match equi when mpp.enabled (shuffle setting irrelevant)",
-            broadcastRule(/* mppEnabled */ true).matches(stubCallFor(equi))
-        );
-        assertFalse(
-            "Hash rule must NOT match when shuffle.disabled even if mpp.enabled",
-            hashRule(/* mppEnabled */ true, /* shuffleEnabled */ false).matches(stubCallFor(equi))
-        );
+        assertTrue("Hash rule must match equi when mpp.enabled", hashRule(/* mppEnabled */ true).matches(stubCallFor(equi)));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
@@ -178,23 +148,20 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
         );
     }
 
-    private OpenSearchJoinSplitRule coordRule(boolean mppEnabled, boolean shuffleEnabled) {
-        return new OpenSearchJoinSplitRule(makeContext(mppEnabled, shuffleEnabled));
+    private OpenSearchJoinSplitRule coordRule(boolean mppEnabled) {
+        return new OpenSearchJoinSplitRule(makeContext(mppEnabled));
     }
 
     private OpenSearchBroadcastJoinSplitRule broadcastRule(boolean mppEnabled) {
-        return new OpenSearchBroadcastJoinSplitRule(makeContext(mppEnabled, /* shuffleEnabled */ true));
+        return new OpenSearchBroadcastJoinSplitRule(makeContext(mppEnabled));
     }
 
-    private OpenSearchHashJoinSplitRule hashRule(boolean mppEnabled, boolean shuffleEnabled) {
-        return new OpenSearchHashJoinSplitRule(makeContext(mppEnabled, shuffleEnabled));
+    private OpenSearchHashJoinSplitRule hashRule(boolean mppEnabled) {
+        return new OpenSearchHashJoinSplitRule(makeContext(mppEnabled));
     }
 
-    private PlannerContext makeContext(boolean mppEnabled, boolean shuffleEnabled) {
-        Settings settings = Settings.builder()
-            .put("analytics.mpp.enabled", mppEnabled)
-            .put("analytics.mpp.shuffle_enabled", shuffleEnabled)
-            .build();
+    private PlannerContext makeContext(boolean mppEnabled) {
+        Settings settings = Settings.builder().put("analytics.mpp.enabled", mppEnabled).build();
         return new PlannerContext(
             new CapabilityRegistry(List.<AnalyticsSearchBackendPlugin>of(DATAFUSION, LUCENE), FieldStorageResolver::new),
             mockClusterState(),

@@ -25,6 +25,16 @@ import java.util.List;
 public interface ShuffleBufferAccess {
 
     /**
+     * Sets the number of senders this buffer will receive on each side. The consumer-side
+     * handler calls this on the worker node before {@link #awaitReady} so the buffer's
+     * completion latches know when to fire. {@code expectedLeft} / {@code expectedRight} should
+     * each equal the number of producer tasks (one per source shard) that will ship into this
+     * partition. Calling this multiple times with the same values is idempotent (CountDownLatch
+     * only fires once); calling with different values from concurrent threads is unsupported.
+     */
+    void setExpectedSenders(int expectedLeftSenders, int expectedRightSenders);
+
+    /**
      * Blocks until both sides' senders have all reported {@code isLast}, or {@code timeoutMillis}
      * elapses. Returns {@code true} on success, {@code false} on timeout. Throws
      * {@link InterruptedException} if the calling thread is interrupted (e.g. task cancellation).

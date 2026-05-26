@@ -194,10 +194,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             .put(clusterService.getSettings())
             .put(AnalyticsSettings.MPP_ENABLED.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED))
             .put(
-                AnalyticsSettings.MPP_SHUFFLE_ENABLED.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_ENABLED)
-            )
-            .put(
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
             )
@@ -460,15 +456,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             );
         }
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new org.opensearch.analytics.exec.join.HashShuffleDispatch(qscheduler, clusterService, shuffleBufferManager).run(
-            context,
-            dag,
-            leftProducer,
-            rightProducer,
-            consumer,
-            execRef::set,
-            terminal
-        );
+        new org.opensearch.analytics.exec.join.HashShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry)
+            .run(context, dag, leftProducer, rightProducer, consumer, execRef::set, terminal);
     }
 
     /** Walks {@code stage}'s subtree looking for the stage whose direct {@code childStages} list

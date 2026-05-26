@@ -728,11 +728,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                         break;
                     }
                 }
+                if (dfReader == null) {
+                    throw new IllegalStateException("No DatafusionReader available in the acquired reader");
+                }
             }
-
-            if (dfReader == null) {
-                throw new IllegalStateException("No DatafusionReader available in the acquired reader");
-            }
+            // dfReader may be null for hash-shuffle worker fragments — those have no shard scan
+            // and read only from named-input streams registered on the SessionContextHandle by
+            // the prior ShuffleScanHandler chain. The searcher's vanilla path is unreachable in
+            // that case (no reader handle); the searchWithSessionContext path is the only one
+            // that fires.
             DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
             if (backendContext != null) {
                 DataFusionSessionState sessionState = (DataFusionSessionState) backendContext;
@@ -767,6 +771,28 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             @Override
             public ExchangeSink createSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
                 return buildReduceSink(ctx, backendContext);
+            }
+
+            @Override
+            public ExchangeSink createPartitionedSink(
+                java.util.List<Integer> hashKeyChannels,
+                int partitionCount,
+                java.util.List<String> targetWorkerNodeIds,
+                org.opensearch.analytics.spi.ShuffleSender sender,
+                ExchangeSinkContext context
+            ) {
+                // queryId+stageId+side are stamped onto the framework-provided sender; the sink
+                // only needs an opaque tag for log messages so producers from different stages
+                // are distinguishable in mixed traces.
+                String logTag = context.queryId() + "/stage=" + context.stageId();
+                return new DatafusionPartitionedSink(
+                    context.allocator(),
+                    hashKeyChannels,
+                    partitionCount,
+                    targetWorkerNodeIds,
+                    sender,
+                    logTag
+                );
             }
         };
     }

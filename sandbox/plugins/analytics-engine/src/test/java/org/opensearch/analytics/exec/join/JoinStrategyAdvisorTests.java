@@ -66,7 +66,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     private static final int CLUSTER_DATA_NODES = 3;
 
     public void testNonJoinQueryReturnsCoordinatorCentric() {
-        PlannerContext context = buildMppContext(Map.of("idx", 1), Map.of("idx", SMALL), /* mppEnabled */ true, /* shuffleEnabled */ true);
+        PlannerContext context = buildMppContext(Map.of("idx", 1), Map.of("idx", SMALL), /* mppEnabled */ true);
         RelNode marked = PlannerImpl.createPlan(stubScan(mockTable("idx", "status", "size")), context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
 
@@ -79,12 +79,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     public void testJoinWithMppDisabledReportsCoordinatorCentric() {
         // mpp.enabled=false → broadcast and hash split rules don't fire; only coord-centric
         // alternative survives. Advisor must report COORDINATOR_CENTRIC.
-        PlannerContext context = buildMppContext(
-            Map.of("a", 3, "b", 3),
-            Map.of("a", LARGE, "b", LARGE),
-            /* mppEnabled */ false,
-            /* shuffleEnabled */ true
-        );
+        PlannerContext context = buildMppContext(Map.of("a", 3, "b", 3), Map.of("a", LARGE, "b", LARGE), /* mppEnabled */ false);
         RelNode join = makeInnerEquiJoin("a", "b");
         QueryDAG dag = buildDag(join, context);
 
@@ -94,12 +89,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     }
 
     public void testSmallByLargeJoinReportsBroadcast() {
-        PlannerContext context = buildMppContext(
-            Map.of("dim", 3, "fact", 3),
-            Map.of("dim", SMALL, "fact", LARGE),
-            /* mppEnabled */ true,
-            /* shuffleEnabled */ true
-        );
+        PlannerContext context = buildMppContext(Map.of("dim", 3, "fact", 3), Map.of("dim", SMALL, "fact", LARGE), /* mppEnabled */ true);
         QueryDAG dag = buildDag(makeInnerEquiJoin("dim", "fact"), context);
 
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
@@ -115,12 +105,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     }
 
     public void testLargeByLargeJoinReportsHashShuffle() {
-        PlannerContext context = buildMppContext(
-            Map.of("a", 3, "b", 3),
-            Map.of("a", LARGE, "b", LARGE),
-            /* mppEnabled */ true,
-            /* shuffleEnabled */ true
-        );
+        PlannerContext context = buildMppContext(Map.of("a", 3, "b", 3), Map.of("a", LARGE, "b", LARGE), /* mppEnabled */ true);
         QueryDAG dag = buildDag(makeInnerEquiJoin("a", "b"), context);
 
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
@@ -140,12 +125,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     public void testThetaJoinReportsCoordinatorCentric() {
         // Theta condition keeps broadcast/hash rules dormant; coord-centric is the only legal
         // alternative. Even with mpp.enabled=true, observe() returns COORDINATOR_CENTRIC.
-        PlannerContext context = buildMppContext(
-            Map.of("a", 3, "b", 3),
-            Map.of("a", LARGE, "b", LARGE),
-            /* mppEnabled */ true,
-            /* shuffleEnabled */ true
-        );
+        PlannerContext context = buildMppContext(Map.of("a", 3, "b", 3), Map.of("a", LARGE, "b", LARGE), /* mppEnabled */ true);
         QueryDAG dag = buildDag(makeThetaJoin("a", "b"), context);
 
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
@@ -189,17 +169,9 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     /** Mirrors {@code JoinStrategyCBOSelectionTests.buildMppContext} — multi-data-node cluster
      *  + per-index row-count lookup + shuffle-aware backend so the broadcast / hash split rules
      *  pass their probeNodes / partitionCount gates. */
-    private PlannerContext buildMppContext(
-        Map<String, Integer> shardCounts,
-        Map<String, Long> rowCounts,
-        boolean mppEnabled,
-        boolean shuffleEnabled
-    ) {
+    private PlannerContext buildMppContext(Map<String, Integer> shardCounts, Map<String, Long> rowCounts, boolean mppEnabled) {
         ClusterState state = mockClusterStateWithDataNodes(shardCounts);
-        Settings settings = Settings.builder()
-            .put("analytics.mpp.enabled", mppEnabled)
-            .put("analytics.mpp.shuffle_enabled", shuffleEnabled)
-            .build();
+        Settings settings = Settings.builder().put("analytics.mpp.enabled", mppEnabled).build();
         ToLongFunction<String> rowCountLookup = name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);
         AnalyticsSearchBackendPlugin shuffleAware = new ShuffleAwareDataFusionBackend(CLUSTER_DATA_NODES);
         CapabilityRegistry registry = new CapabilityRegistry(List.of(shuffleAware, LUCENE), FieldStorageResolver::new);

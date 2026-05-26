@@ -17,6 +17,7 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.WorkerFragmentRequest;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
@@ -68,6 +69,9 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
     private org.opensearch.analytics.spi.ShuffleBufferRegistry shuffleBufferRegistry;
+    private org.opensearch.transport.client.Client client;
+    private org.opensearch.threadpool.ThreadPool threadPool;
+    private org.opensearch.cluster.service.ClusterService clusterService;
     private final BufferAllocator allocator;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
@@ -114,6 +118,22 @@ public class AnalyticsSearchService implements AutoCloseable {
         this.shuffleBufferRegistry = registry;
     }
 
+    /**
+     * Plumb the transport client + thread pool + cluster state needed to construct a
+     * {@link org.opensearch.analytics.spi.ShuffleSender} for hash-shuffle producer fragments.
+     * Until set, fragments that emit a {@code ShuffleProducerOutputState} fail fast with a typed
+     * error (rather than null-deref) so misconfiguration is obvious during plugin startup.
+     */
+    public void setShuffleSenderDeps(
+        org.opensearch.transport.client.Client client,
+        org.opensearch.threadpool.ThreadPool threadPool,
+        org.opensearch.cluster.service.ClusterService clusterService
+    ) {
+        this.client = client;
+        this.threadPool = threadPool;
+        this.clusterService = clusterService;
+    }
+
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         try {
@@ -130,6 +150,18 @@ public class AnalyticsSearchService implements AutoCloseable {
     /**
      * Async variant that forks fragment execution onto the given executor and streams
      * batches back through the channel. The transport thread returns immediately.
+     *
+     * <p>Two output paths:
+     * <ul>
+     *   <li><b>Standard path:</b> batches go back to the originating coordinator through
+     *       {@code responseHandler.onBatch} / {@code onComplete}.</li>
+     *   <li><b>Hash-shuffle producer path:</b> when the fragment's instruction chain produced a
+     *       {@code ShuffleProducerOutputState}, the engine's output drains into the partitioned
+     *       sink the framework attached to {@link FragmentResources#partitionedSink}; the
+     *       response handler still receives a single {@code onComplete} (no batches) so the
+     *       coordinator's transport stream closes cleanly. The peer-to-peer shuffle traffic
+     *       happens out-of-band on {@code AnalyticsShuffleDataAction}.</li>
+     * </ul>
      */
     public void executeFragmentStreamingAsync(
         FragmentExecutionRequest request,
@@ -141,9 +173,20 @@ public class AnalyticsSearchService implements AutoCloseable {
         try {
             executor.execute(() -> {
                 try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
-                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
-                    while (it.hasNext()) {
-                        responseHandler.onBatch(it.next());
+                    if (ctx.partitionedSink() != null) {
+                        // Drain into the partitioned sink AND emit a single header-only
+                        // zero-row response on the coordinator-bound stream so it has at
+                        // least one Arrow Flight frame (the streaming transport requires ≥1
+                        // schema-bearing frame before completeStream — see
+                        // DatafusionResultStream's empty-stream synthesis comment). The
+                        // response carries no row data; producer output reaches the worker
+                        // peer-to-peer via the shuffle transport.
+                        drainAndEmitHeader(ctx, responseHandler);
+                    } else {
+                        Iterator<EngineResultBatch> it = ctx.stream().iterator();
+                        while (it.hasNext()) {
+                            responseHandler.onBatch(it.next());
+                        }
                     }
                     responseHandler.onComplete();
                 } catch (Exception e) {
@@ -153,6 +196,187 @@ public class AnalyticsSearchService implements AutoCloseable {
         } catch (Exception e) {
             responseHandler.onFailure(e);
         }
+    }
+
+    /**
+     * Drains the engine result stream into the producer's partitioned sink. The sink is
+     * responsible for hash-partitioning each batch and shipping it via the framework
+     * {@code ShuffleSender}. We call {@code close()} after the iterator drains so the sink
+     * emits {@code isLast=true} on every target — without that the consumer's awaitReady latches
+     * never fire and the worker stage hangs.
+     *
+     * <p>Failures: any exception during draining propagates up to the caller, which closes the
+     * sink as part of try-with-resources via {@link FragmentResources#close} — but only AFTER
+     * we've already closed the sink here on the success path. We bracket the close-on-failure
+     * via the explicit catch so the sink's isLast still ships even on partial failure.
+     */
+    /**
+     * Drains the engine result stream into the producer's partitioned sink AND emits a
+     * single header-only zero-row response on the coordinator-bound stream. Without that
+     * frame, the streaming transport never sees an end-of-stream marker (Flight requires
+     * ≥1 schema-bearing frame before completeStream), so the coordinator's stage listener
+     * never fires onResponse(null) and the producer task hangs.
+     *
+     * <p>Schema selection: take the schema from the first batch the engine emits and
+     * transfer that batch into the sink. If the engine emits zero batches, fall back to an
+     * empty schema so the response carries a recognizable Arrow Flight frame.
+     */
+    private void drainAndEmitHeader(FragmentResources ctx, StreamingFragmentResponseHandler responseHandler) throws Exception {
+        org.opensearch.analytics.spi.ExchangeSink sink = ctx.partitionedSink();
+        int count = 0;
+        org.apache.arrow.vector.types.pojo.Schema capturedSchema = null;
+        try {
+            Iterator<EngineResultBatch> it = ctx.stream().iterator();
+            while (it.hasNext()) {
+                org.apache.arrow.vector.VectorSchemaRoot batch = it.next().getArrowRoot();
+                if (capturedSchema == null) {
+                    capturedSchema = batch.getSchema();
+                }
+                sink.feed(batch);
+                count++;
+            }
+            LOGGER.debug("drainAndEmitHeader: drained {} batches, closing sink", count);
+        } finally {
+            // Close the sink here so isLast markers ship before FragmentResources.close() tears
+            // down the engine. close() is idempotent on the sink contract; FragmentResources
+            // does NOT redundantly close it (see comment in FragmentResources.close()).
+            sink.close();
+        }
+
+        // Emit one zero-row response carrying the captured schema. The Flight transport
+        // serializes this as a regular frame; the coordinator's listener treats it the
+        // same as any other batch, decrements the partial-task counter, and the stage
+        // transitions to SUCCEEDED on isLast=true.
+        if (capturedSchema == null) {
+            capturedSchema = new org.apache.arrow.vector.types.pojo.Schema(java.util.List.of());
+        }
+        try (
+            org.apache.arrow.vector.VectorSchemaRoot headerRoot = org.apache.arrow.vector.VectorSchemaRoot.create(capturedSchema, allocator)
+        ) {
+            headerRoot.setRowCount(0);
+            final org.apache.arrow.vector.VectorSchemaRoot vsrRef = headerRoot;
+            final org.apache.arrow.vector.types.pojo.Schema schemaRef = capturedSchema;
+            responseHandler.onBatch(new EngineResultBatch() {
+                @Override
+                public org.apache.arrow.vector.VectorSchemaRoot getArrowRoot() {
+                    return vsrRef;
+                }
+
+                @Override
+                public java.util.List<String> getFieldNames() {
+                    return schemaRef.getFields().stream().map(org.apache.arrow.vector.types.pojo.Field::getName).toList();
+                }
+
+                @Override
+                public int getRowCount() {
+                    return 0;
+                }
+
+                @Override
+                public Object getFieldValue(String fieldName, int rowIndex) {
+                    return null;
+                }
+            });
+        }
+    }
+
+    /**
+     * Async variant for hash-shuffle worker fragments. Skips {@code IndicesService.getShard}
+     * and reader acquisition: workers don't scan shards, they read only from named-input
+     * streams that {@link org.opensearch.analytics.spi.ShuffleScanInstructionNode} handlers
+     * register on the session context (created by {@link
+     * org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode}).
+     *
+     * <p>Builds a {@link ShardScanExecutionContext} with {@code reader=null}; the backend's
+     * {@link org.opensearch.analytics.spi.SearchExecEngineProvider} must tolerate this and
+     * route through its session-context execution path rather than the shard-scan one.
+     */
+    public void executeWorkerFragmentStreamingAsync(
+        WorkerFragmentRequest request,
+        org.opensearch.analytics.exec.task.AnalyticsShardTask task,
+        StreamingFragmentResponseHandler responseHandler,
+        Executor executor
+    ) {
+        try {
+            executor.execute(() -> {
+                FragmentInstructionHandler handler;
+                SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
+                EngineResultStream stream = null;
+                BackendExecutionContext backendContext = null;
+                try {
+                    FragmentExecutionRequest.PlanAlternative plan = selectWorkerPlan(request);
+                    AnalyticsSearchBackendPlugin backend = backends.get(plan.getBackendId());
+                    ShardScanExecutionContext ctx = new ShardScanExecutionContext(/* tableName */ "", task, /* reader */ null);
+                    ctx.setFragmentBytes(plan.getFragmentBytes());
+                    ctx.setAllocator(allocator);
+                    ctx.setNamedWriteableRegistry(namedWriteableRegistry);
+                    ctx.setShuffleBufferRegistry(shuffleBufferRegistry);
+
+                    List<InstructionNode> instructions = plan.getInstructions();
+                    if (!instructions.isEmpty()) {
+                        FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
+                        for (InstructionNode node : instructions) {
+                            handler = factory.createHandler(node);
+                            backendContext = handler.apply(node, ctx, backendContext);
+                        }
+                    }
+
+                    engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
+                    stream = engine.execute(ctx);
+                    Iterator<EngineResultBatch> it = stream.iterator();
+                    while (it.hasNext()) {
+                        responseHandler.onBatch(it.next());
+                    }
+                    responseHandler.onComplete();
+                } catch (Exception e) {
+                    LOGGER.error(
+                        () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                            "executeWorkerFragmentStreamingAsync failed [queryId={}, stageId={}, partition={}]",
+                            request.getQueryId(),
+                            request.getStageId(),
+                            request.getPartitionIndex()
+                        ),
+                        e
+                    );
+                    responseHandler.onFailure(e);
+                } finally {
+                    if (stream != null) {
+                        try {
+                            stream.close();
+                        } catch (Exception ignore) {}
+                    }
+                    if (engine != null) {
+                        try {
+                            engine.close();
+                        } catch (Exception ignore) {}
+                    }
+                    if (backendContext != null) {
+                        try {
+                            backendContext.close();
+                        } catch (Exception ignore) {}
+                    }
+                }
+            });
+        } catch (Exception e) {
+            responseHandler.onFailure(e);
+        }
+    }
+
+    /** Selects the first plan alternative whose backend is registered on this node — same logic
+     *  the shard-fragment path uses but inlined here so workers don't need a shardId/IndexShard
+     *  to drive selection. */
+    private FragmentExecutionRequest.PlanAlternative selectWorkerPlan(WorkerFragmentRequest request) {
+        for (FragmentExecutionRequest.PlanAlternative alt : request.getPlanAlternatives()) {
+            if (backends.containsKey(alt.getBackendId())) {
+                return alt;
+            }
+        }
+        throw new IllegalArgumentException(
+            "No worker plan alternative matches available backends. Alternatives: "
+                + request.getPlanAlternatives().stream().map(FragmentExecutionRequest.PlanAlternative::getBackendId).toList()
+                + ". Available: "
+                + backends.keySet()
+        );
     }
 
     /**
@@ -217,9 +441,27 @@ public class AnalyticsSearchService implements AutoCloseable {
                 }
             }
 
+            // Hash-shuffle producer routing: if the instruction chain produced a
+            // ShuffleProducerOutputState, build the framework ShuffleSender + the backend's
+            // partitioned sink, and unwrap the carrier so the engine factory sees the upstream
+            // session state (not the carrier). The drain into the sink happens later in
+            // executeFragmentStreamingAsync; we just attach the sink to FragmentResources here.
+            org.opensearch.analytics.spi.ExchangeSink partitionedSink = null;
+            if (backendContext instanceof org.opensearch.analytics.spi.ShuffleProducerOutputState producerState) {
+                if (client == null || threadPool == null || clusterService == null) {
+                    throw new IllegalStateException(
+                        "AnalyticsSearchService: shuffle sender deps not plumbed; "
+                            + "setShuffleSenderDeps(client, threadPool, clusterService) must be called at plugin startup"
+                    );
+                }
+                partitionedSink = buildPartitionedSink(backend, producerState, ctx, resolved);
+                // Engine sees the upstream session state, not the carrier.
+                backendContext = producerState.getDelegate();
+            }
+
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
+            return new FragmentResources(gatedReader, engine, stream, trackerCleanup, partitionedSink, ctx);
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -247,6 +489,49 @@ public class AnalyticsSearchService implements AutoCloseable {
             }
             throw e;
         }
+    }
+
+    /**
+     * Builds the backend-specific partitioned sink for a hash-shuffle producer fragment. The
+     * framework constructs the {@link org.opensearch.analytics.spi.ShuffleSender} pre-stamped
+     * with {@code (queryId, targetStageId, side)} from {@code producerState}, then hands it to
+     * the backend's {@code createPartitionedSink}. The backend never sees transport types.
+     */
+    private org.opensearch.analytics.spi.ExchangeSink buildPartitionedSink(
+        AnalyticsSearchBackendPlugin backend,
+        org.opensearch.analytics.spi.ShuffleProducerOutputState producerState,
+        ShardScanExecutionContext ctx,
+        ResolvedFragment resolved
+    ) {
+        org.opensearch.analytics.spi.ShuffleSender sender = new org.opensearch.analytics.exec.shuffle.ShuffleSenderImpl(
+            client,
+            threadPool,
+            clusterService,
+            producerState.getQueryId(),
+            producerState.getTargetStageId(),
+            producerState.getSide()
+        );
+        // Producer's ExchangeSinkContext carries no child inputs (the producer IS the source) and
+        // no downstream sink (the partitioned sink ships out-of-band via the ShuffleSender, not
+        // into another in-process sink). fragmentBytes is left empty for the same reason — the
+        // partitioning operates on the engine's terminal output, not on a plan.
+        org.opensearch.analytics.spi.ExchangeSinkContext sinkCtx = new org.opensearch.analytics.spi.ExchangeSinkContext(
+            resolved.queryId,
+            resolved.stageId,
+            ctx.getTask() == null ? 0L : ctx.getTask().getId(),
+            new byte[0],
+            ctx.getAllocator(),
+            java.util.List.of(),
+            /* downstream */ null
+        );
+        return backend.getExchangeSinkProvider()
+            .createPartitionedSink(
+                producerState.getHashKeyChannels(),
+                producerState.getPartitionCount(),
+                producerState.getTargetWorkerNodeIds(),
+                sender,
+                sinkCtx
+            );
     }
 
     private record ResolvedFragment(IndexReaderProvider readerProvider, FragmentExecutionRequest.PlanAlternative plan, String queryId,

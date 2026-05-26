@@ -92,6 +92,7 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
+    private static final MethodHandle CREATE_WORKER_SESSION_CONTEXT;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
@@ -411,6 +412,12 @@ public final class NativeBridge {
                 ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_LONG
             )
+        );
+
+        // i64 df_create_worker_session_context(runtime_ptr, context_id, query_config_ptr)
+        CREATE_WORKER_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_create_worker_session_context").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count)
@@ -1157,6 +1164,21 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
             long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId, queryConfigPtr);
+            return new SessionContextHandle(ptr);
+        }
+    }
+
+    /**
+     * Creates a worker-mode SessionContext: no shard view, no listing table, no parquet
+     * metadata. Used for hash-shuffle worker fragments whose plans read only from named-input
+     * streams subsequently registered via {@link #registerPartitionStreamOnSessionContext}.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
+     */
+    public static SessionContextHandle createWorkerSessionContext(long runtimePtr, long contextId, long queryConfigPtr) {
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (var call = new NativeCall()) {
+            long ptr = call.invoke(CREATE_WORKER_SESSION_CONTEXT, runtimePtr, contextId, queryConfigPtr);
             return new SessionContextHandle(ptr);
         }
     }

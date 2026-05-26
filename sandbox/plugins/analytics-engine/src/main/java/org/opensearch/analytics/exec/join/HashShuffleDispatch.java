@@ -14,12 +14,14 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
+import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
+import org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
@@ -73,11 +75,18 @@ public final class HashShuffleDispatch {
     private final QueryScheduler scheduler;
     private final ClusterService clusterService;
     private final ShuffleBufferManager shuffleBufferManager;
+    private final CapabilityRegistry capabilityRegistry;
 
-    public HashShuffleDispatch(QueryScheduler scheduler, ClusterService clusterService, ShuffleBufferManager shuffleBufferManager) {
+    public HashShuffleDispatch(
+        QueryScheduler scheduler,
+        ClusterService clusterService,
+        ShuffleBufferManager shuffleBufferManager,
+        CapabilityRegistry capabilityRegistry
+    ) {
         this.scheduler = scheduler;
         this.clusterService = clusterService;
         this.shuffleBufferManager = shuffleBufferManager;
+        this.capabilityRegistry = capabilityRegistry;
     }
 
     /**
@@ -142,49 +151,59 @@ public final class HashShuffleDispatch {
             return;
         }
 
-        // Pre-allocate buffers and tell each its expected sender count. Each partition's buffer
-        // expects exactly one sender per side per producer-stage's worker — and each producer
-        // stage runs as one task per shard. The consumer pulls per-partition tasks and each
-        // task drains exactly one buffer entry.
-        //
-        // expectedSenders here is the count of senders THIS partition expects on EACH side.
-        // Each producer dispatches the partition's bucket from every shard task that holds rows
-        // for that partition, so the count is partitionCount-independent — it's the number of
-        // producer-side shard tasks that will report isLast for the side. With a partitioned
-        // sink the producer marks isLast once per (partition, side) pair, so the count is the
-        // number of producer shard tasks (= partitionCount of the producer's input scan).
-        //
-        // The exact count is wired in by the producer handler when it issues isLast markers; we
-        // pre-set it here from the producer stages' shard counts so the buffer's awaitReady
-        // succeeds. Today producer scan stages run one task per shard (ShardFragmentStageExecution).
+        // 1) Lift the join into a new SHUFFLE_WORKER stage between the producers and the existing
+        // consumer. The rewriter rebuilds the DAG, swaps the consumer's child list, and
+        // re-runs FragmentConversionDriver.convertAll on the rewritten graph.
+        HashShuffleDAGRewriter.Rewritten rewritten = HashShuffleDAGRewriter.rewrite(
+            dag,
+            consumer,
+            leftProducer,
+            rightProducer,
+            targetWorkerNodeIds,
+            capabilityRegistry
+        );
+        Stage workerStage = rewritten.worker();
+
+        // 2) Compute per-side expected sender counts: each producer task (one per shard) ships
+        // to all N partitions and reports isLast once per (partition, side). The
+        // consumer-side ShuffleScanHandler calls setExpectedSenders on the WORKER node's
+        // buffer (where data actually lands). We thread the count through the
+        // ShuffleScanInstructionNode as expectedSenders so the worker handler picks it up.
         int leftExpectedSenders = expectedSendersFor(leftProducer);
         int rightExpectedSenders = expectedSendersFor(rightProducer);
-        for (int p = 0; p < partitionCount; p++) {
-            ShuffleBufferManager.ShuffleBuffer buf = shuffleBufferManager.getOrCreateBuffer(ctx.queryId(), consumer.getStageId(), p);
-            buf.setExpectedSenders(leftExpectedSenders, rightExpectedSenders);
-        }
 
-        // Append shuffle instructions to plan alternatives. Producers learn the partition
-        // targets and side label; consumer learns the per-side namedInputIds and per-partition
-        // sender counts.
-        enrichProducerAlternatives(leftProducer, ctx.queryId(), consumer.getStageId(), partitionCount, targetWorkerNodeIds, "left");
-        enrichProducerAlternatives(rightProducer, ctx.queryId(), consumer.getStageId(), partitionCount, targetWorkerNodeIds, "right");
-        enrichConsumerAlternatives(consumer, partitionCount, leftExpectedSenders, rightExpectedSenders, ctx.queryId());
+        // 3) Append shuffle instructions to plan alternatives. Producers learn the partition
+        // targets and side label; the WORKER stage (not the original consumer) gets the
+        // per-side ShuffleScan instructions plus a SETUP_SHUFFLE_WORKER instruction at the
+        // head to bootstrap a worker-mode session context.
+        enrichProducerAlternatives(leftProducer, ctx.queryId(), workerStage.getStageId(), partitionCount, targetWorkerNodeIds, "left");
+        enrichProducerAlternatives(rightProducer, ctx.queryId(), workerStage.getStageId(), partitionCount, targetWorkerNodeIds, "right");
+        enrichWorkerAlternatives(
+            workerStage,
+            partitionCount,
+            leftExpectedSenders,
+            rightExpectedSenders,
+            ctx.queryId(),
+            leftProducer.getStageId(),
+            rightProducer.getStageId()
+        );
 
         LOGGER.debug(
-            "[HashShuffleDispatch] dispatching: query={}, consumerStage={}, partitions={}, leftSenders={}, rightSenders={}",
+            "[HashShuffleDispatch] dispatching: query={}, workerStage={}, consumerStage={}, partitions={}, leftSenders={}, rightSenders={}, targets={}",
             ctx.queryId(),
+            workerStage.getStageId(),
             consumer.getStageId(),
             partitionCount,
             leftExpectedSenders,
-            rightExpectedSenders
+            rightExpectedSenders,
+            targetWorkerNodeIds
         );
 
-        // The standard scheduler walks the DAG: producers and consumer dispatch concurrently;
-        // the consumer's per-partition tasks block on ShuffleBuffer.awaitReady until both
-        // producer sides mark isLast. Cancellation cascades through the walker's existing
-        // task-tracking, so no separate onCancel installation is needed.
-        org.opensearch.analytics.exec.QueryExecution exec = scheduler.execute(ctx, terminal);
+        // 4) Hand the rewritten DAG to the scheduler. Producers dispatch concurrently with the
+        // worker stage; each worker task blocks on ShuffleBuffer.awaitReady until both
+        // producer sides have shipped their isLast for that partition. Worker results stream
+        // up to the coordinator's reduce sink as plain Arrow batches.
+        org.opensearch.analytics.exec.QueryExecution exec = scheduler.execute(ctx.withDag(rewritten.dag()), terminal);
         if (queryExecutionSink != null) {
             queryExecutionSink.accept(exec);
         }
@@ -221,17 +240,16 @@ public final class HashShuffleDispatch {
      * instead. The current value works because every producer task reports isLast for every
      * partition it produced rows for.
      */
-    private static int expectedSendersFor(Stage producer) {
-        // For now: every producer task hashes to all N partitions and reports isLast on the
-        // partition path it sent rows for. With one producer task per shard, partition p's
-        // buffer expects one isLast from each shard task. The shard count for the producer
-        // stage is encoded in its TargetResolver (ShardTargetResolver) and not directly
-        // accessible here; until the handler-side wiring is done, fall back to the partition
-        // count as a conservative proxy. BufferAwaitReady refuses to count down past
-        // expectedSenders, so over-estimating risks consumer hang on partitions a producer
-        // didn't reach. Under-estimating risks early consumer wake-up. The handler must update
-        // this number once the actual shard task count is known.
-        return producer.getExchangeInfo().partitionCount();
+    private int expectedSendersFor(Stage producer) {
+        // Each producer task (one per shard) ships data to ALL N partitions and reports isLast
+        // once per partition. So per-partition we expect exactly shardCount senders. Resolve via
+        // the stage's TargetResolver — ShardTargetResolver returns one ExecutionTarget per shard.
+        if (producer.getTargetResolver() == null) {
+            return 1;
+        }
+        java.util.List<org.opensearch.analytics.planner.dag.ExecutionTarget> targets = producer.getTargetResolver()
+            .resolve(clusterService.state(), null);
+        return Math.max(targets.size(), 1);
     }
 
     /**
@@ -264,50 +282,55 @@ public final class HashShuffleDispatch {
      * separate {@code NamedScan}, and the handler resolves each name to a {@code StreamingTable}
      * backed by the corresponding partition's buffer slice. Package-private for unit testing.
      */
-    static void enrichConsumerAlternatives(
-        Stage consumerStage,
+    /**
+     * Appends every (partition × side) {@link ShuffleScanInstructionNode} to the worker
+     * stage's plan alternatives, prefixed by a {@link ShuffleWorkerSetupInstructionNode} that
+     * bootstraps a worker-mode session context. The
+     * {@link org.opensearch.analytics.exec.stage.worker.WorkerFragmentStageExecutionFactory}
+     * filters this list down to the two ShuffleScan instructions for each task's partition
+     * before sending the per-task request — the setup instruction passes through unfiltered.
+     */
+    static void enrichWorkerAlternatives(
+        Stage workerStage,
         int partitionCount,
         int leftExpectedSenders,
         int rightExpectedSenders,
-        String queryId
+        String queryId,
+        int leftProducerStageId,
+        int rightProducerStageId
     ) {
-        int consumerStageId = consumerStage.getStageId();
-        List<StagePlan> enriched = new ArrayList<>(consumerStage.getPlanAlternatives().size());
-        for (StagePlan sp : consumerStage.getPlanAlternatives()) {
+        int workerStageId = workerStage.getStageId();
+        // The fragment convertor strips OpenSearchShuffleExchange, so the worker fragment ends
+        // up with two OpenSearchStageInputScan leaves the convertor rewrites to
+        // "input-<producerStageId>" NamedScans. The handler must register its streaming table
+        // under that exact name.
+        String leftInputId = canonicalInputId(leftProducerStageId);
+        String rightInputId = canonicalInputId(rightProducerStageId);
+        List<StagePlan> enriched = new ArrayList<>(workerStage.getPlanAlternatives().size());
+        for (StagePlan sp : workerStage.getPlanAlternatives()) {
             List<InstructionNode> existing = sp.instructions();
-            List<InstructionNode> merged = new ArrayList<>(existing.size() + 2 * partitionCount);
+            List<InstructionNode> merged = new ArrayList<>(1 + existing.size() + 2 * partitionCount);
+            // Placeholder setup with partition=-1 — the per-task filter in
+            // WorkerFragmentStageExecutionFactory replaces this with a partition-specific copy
+            // carrying both sides' expected sender counts. We don't know the partition at this
+            // step (one alternative serves all partitions; per-task filtering picks the right
+            // one).
+            merged.add(new ShuffleWorkerSetupInstructionNode(queryId, workerStageId, -1, leftExpectedSenders, rightExpectedSenders));
             merged.addAll(existing);
             for (int p = 0; p < partitionCount; p++) {
-                merged.add(
-                    new ShuffleScanInstructionNode(
-                        shuffleNamedInputId(consumerStageId, "left", p),
-                        p,
-                        leftExpectedSenders,
-                        queryId,
-                        consumerStageId
-                    )
-                );
-                merged.add(
-                    new ShuffleScanInstructionNode(
-                        shuffleNamedInputId(consumerStageId, "right", p),
-                        p,
-                        rightExpectedSenders,
-                        queryId,
-                        consumerStageId
-                    )
-                );
+                merged.add(new ShuffleScanInstructionNode(leftInputId, p, leftExpectedSenders, queryId, workerStageId, "left"));
+                merged.add(new ShuffleScanInstructionNode(rightInputId, p, rightExpectedSenders, queryId, workerStageId, "right"));
             }
             enriched.add(sp.withInstructions(merged));
         }
-        consumerStage.setPlanAlternatives(enriched);
+        workerStage.setPlanAlternatives(enriched);
     }
 
-    /**
-     * Canonical name for a shuffle-shipped partition stream. Both producer (when it ships) and
-     * consumer (when it registers a {@code NamedScan}) compute the name from the same
-     * {@code (consumerStageId, side, partition)} triple so they meet at the same buffer slice.
-     */
-    public static String shuffleNamedInputId(int consumerStageId, String side, int partition) {
-        return "shuffle-" + consumerStageId + "-" + side + "-" + partition;
+    /** Canonical {@code "input-<producerStageId>"} name the fragment convertor emits when it
+     *  rewrites the consumer fragment's {@link org.opensearch.analytics.planner.rel.OpenSearchStageInputScan}
+     *  leaves. The handler must register streaming tables under this exact name so the worker
+     *  plan's NamedScan binds correctly. */
+    public static String canonicalInputId(int producerStageId) {
+        return "input-" + producerStageId;
     }
 }

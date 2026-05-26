@@ -40,7 +40,10 @@ public enum InstructionType {
     /** Shuffle producer — hash-partition local output and ship each partition to a worker node (M2). */
     SHUFFLE_PRODUCER,
     /** Shuffle consumer — register a channel-backed partition stream as a NamedScan for the worker plan (M2). */
-    SHUFFLE_SCAN;
+    SHUFFLE_SCAN,
+    /** Worker session setup — creates a backend session with no shard view; the worker's hash-join plan
+     *  reads only from named-input streams subsequently registered by {@link #SHUFFLE_SCAN} handlers (M2). */
+    SETUP_SHUFFLE_WORKER;
 
     /** Deserializes an {@link InstructionNode} from the stream based on this type. */
     public InstructionNode readNode(StreamInput in) throws IOException {
@@ -52,6 +55,7 @@ public enum InstructionType {
             case INJECT_BROADCAST -> new BroadcastInjectionInstructionNode(in);
             case SHUFFLE_PRODUCER -> new ShuffleProducerInstructionNode(in);
             case SHUFFLE_SCAN -> new ShuffleScanInstructionNode(in);
+            case SETUP_SHUFFLE_WORKER -> new ShuffleWorkerSetupInstructionNode(in);
         };
     }
 }

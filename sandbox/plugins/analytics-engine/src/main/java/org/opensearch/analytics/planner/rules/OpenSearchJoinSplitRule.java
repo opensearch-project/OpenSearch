@@ -39,10 +39,10 @@ import java.util.List;
  *   <li>Equi joins with {@code analytics.mpp.enabled=true}: only when neither MPP rule will
  *       fire. Specifically, coord-centric SUPPRESSES itself iff broadcast OR hash would emit
  *       a viable alternative — meaning {@code probeNodes > 1} and the join type has an
- *       eligible build side (broadcast), OR {@code shuffle_enabled=true} and partition count
- *       {@literal > 1} (hash). When neither MPP rule can produce (single-node cluster, FULL
- *       OUTER equi join, MPP-but-shuffle-off + non-multi-shard inputs), coord-centric must
- *       still fire so Volcano has a plan to satisfy the root SINGLETON demand.</li>
+ *       eligible build side (broadcast), OR partition count {@literal > 1} (hash). When
+ *       neither MPP rule can produce (single-node cluster, FULL OUTER equi join, single-shard
+ *       inputs), coord-centric must still fire so Volcano has a plan to satisfy the root
+ *       SINGLETON demand.</li>
  * </ul>
  *
  * <p><b>Co-location fast path.</b> When both sides are SHARD+SINGLETON scans with
@@ -82,14 +82,14 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         // - AND at least one of broadcast/hash will fire and produce a non-empty alt:
         // broadcast: probeNodes > 1 AND joinType not FULL OUTER (FULL has no eligible
         // build side; broadcast emits zero alternatives)
-        // hash: mpp.shuffle_enabled=true AND partitionCount > 1
+        // hash: partitionCount > 1
         // - both inputs are multi-shard SHARD scans (the structural check both MPP rules
         // impose; otherwise neither fires)
         //
-        // Production ships with mpp.shuffle_enabled=false, so most clusters need the
-        // broadcast eligibility check to also pass before coord-rule retreats. Single-node
-        // clusters (probeNodes=1) get coord-centric for all equi joins because broadcast
-        // bails on probeNodes <= 1 and hash is disabled.
+        // Single-node clusters (probeNodes=1) still get coord-centric for all equi joins:
+        // broadcast bails on probeNodes <= 1, and hash bails on partitionCount <= 1 (a
+        // single-node cluster's defaultShuffleParallelism is 1). With neither MPP rule
+        // viable, coord-rule suppression doesn't kick in.
         if (!shouldSuppressCoord(join)) {
             return true;
         }
@@ -147,12 +147,8 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         return leftAsBuild || rightAsBuild;
     }
 
-    /** Hash-shuffle emits an alternative when mpp.shuffle_enabled is on AND a viable backend
-     *  reports a partition count > 1. */
+    /** Hash-shuffle emits an alternative when a viable backend reports a partition count > 1. */
     private boolean hashWillFire(OpenSearchJoin join) {
-        if (!AnalyticsSettings.MPP_SHUFFLE_ENABLED.get(context.getSettings())) {
-            return false;
-        }
         // Resolve partition count via the same helper OpenSearchHashJoinSplitRule uses.
         // Need viableBackends from the OpenSearchJoin to feed into the resolver.
         if (!(join instanceof OpenSearchRelNode osRel)) {

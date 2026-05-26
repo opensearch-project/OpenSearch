@@ -42,14 +42,36 @@ public interface ExchangeSinkProvider {
     /**
      * Creates a partitioned sink for hash-shuffle producers. The sink consumes the data-node's
      * local scan output and must hash-partition each batch by {@code hashKeyChannels} into
-     * {@code partitionCount} buckets, shipping each bucket to its assigned worker via the
-     * framework's shuffle transport.
+     * {@code partitionCount} buckets, shipping each bucket to the worker at
+     * {@code targetWorkerNodeIds[partitionIndex]} via the framework-supplied {@link ShuffleSender}.
+     *
+     * <p>Backends never touch {@code Client} or the transport action types directly — the
+     * framework builds the sender, stamps it with {@code (queryId, targetStageId, side)}, and
+     * applies backpressure retry via {@code ShuffleSenderRetry} under the hood. Backends own
+     * the partitioning algorithm only; the framework owns the wire.
      *
      * <p>Default impl throws {@link UnsupportedOperationException} — backends without shuffle
      * support do not need to opt in. Backends that support shuffle must override AND declare
      * at least one {@link DataTransferCapability} with {@link DataTransferCapability.Kind#PRODUCER}.
+     *
+     * @param hashKeyChannels     0-indexed input channels to hash on
+     * @param partitionCount      total number of consumer partitions; the sink must produce
+     *                            partition indices in {@code [0, partitionCount)}
+     * @param targetWorkerNodeIds {@code targetWorkerNodeIds.size() == partitionCount}; the sink
+     *                            uses {@code targetWorkerNodeIds.get(p)} as the destination for
+     *                            partition {@code p}
+     * @param sender              framework-provided transport wrapper; the sink calls
+     *                            {@link ShuffleSender#send} once per partition per batch and
+     *                            once per partition at close with {@code isLast=true}
+     * @param context             the standard sink context (allocator, child inputs, etc.)
      */
-    default ExchangeSink createPartitionedSink(java.util.List<Integer> hashKeyChannels, int partitionCount, ExchangeSinkContext context) {
+    default ExchangeSink createPartitionedSink(
+        java.util.List<Integer> hashKeyChannels,
+        int partitionCount,
+        java.util.List<String> targetWorkerNodeIds,
+        ShuffleSender sender,
+        ExchangeSinkContext context
+    ) {
         throw new UnsupportedOperationException(
             "Backend does not support hash-partitioned shuffle sinks. "
                 + "Declare a DataTransferCapability(PRODUCER, ...) and override createPartitionedSink."
