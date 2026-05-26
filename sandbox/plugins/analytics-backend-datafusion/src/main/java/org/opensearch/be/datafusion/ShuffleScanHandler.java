@@ -64,11 +64,20 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
 
     private static final Logger LOGGER = LogManager.getLogger(ShuffleScanHandler.class);
 
-    /** Conservative cap on how long the consumer may wait for both producer sides to finish.
-     *  Operator-tuneable via the {@code analytics.mpp.shuffle_recv_timeout} cluster setting in
-     *  the dispatcher; the handler enforces this cap as a defensive backstop in case the
-     *  setting wiring drifts. The buffer's own timeout already plumbs through the setting. */
-    private static final long DEFAULT_AWAIT_READY_TIMEOUT_MS = 60_000L;
+    /** Cap on how long the consumer waits for both producer sides to mark {@code isLast}.
+     *  Real producers complete within milliseconds on a healthy cluster — the cap exists
+     *  solely as a backstop against stuck producers (cancelled queries cascade through the
+     *  walker faster than this). Operator-tuneable via {@code analytics.mpp.shuffle_recv_timeout}
+     *  once that cluster setting is plumbed into {@link ShardScanExecutionContext}; today the
+     *  handler reads the JVM system property of the same name as a stopgap so integration
+     *  tests can dial it down without waiting on full SPI plumbing.
+     *
+     *  <p>5s default keeps test timelines tight while leaving headroom for slow CI hosts.
+     *  Real shuffle producers are far faster — a single batch RTT over local transport is
+     *  microseconds. */
+    private static final long DEFAULT_AWAIT_READY_TIMEOUT_MS = Long.parseLong(
+        System.getProperty("analytics.mpp.shuffle_recv_timeout_ms", "5000")
+    );
 
     @Override
     public BackendExecutionContext apply(

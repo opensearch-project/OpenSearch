@@ -167,14 +167,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             // transport handlers and is only legal to call once per node).
             b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
-            // Bind the buffer manager to the instance we created in createComponents so
-            // DefaultPlanExecutor (which pre-allocates buffers before producer dispatch),
-            // TransportAnalyticsShuffleDataAction (which populates them on the wire path), and
-            // AnalyticsSearchService (which threads it into ShardScanExecutionContext for the
-            // hash-shuffle scan handlers) all see the same node-local registry. Without
-            // toInstance Guice's JIT would create per-injection instances and the consumer's
-            // awaitReady would never observe the producer's senderDone.
-            b.bind(ShuffleBufferManager.class).toInstance(shuffleBufferManager);
+            // ShuffleBufferManager is auto-bound by OpenSearch as a node-level component (we
+            // return the singleton instance from createComponents), so DefaultPlanExecutor,
+            // TransportAnalyticsShuffleDataAction, and AnalyticsSearchService all see the same
+            // node-local registry. No explicit Guice binding needed here — adding one would
+            // collide with the auto-bind ("already configured at _unknown_").
         });
     }
 

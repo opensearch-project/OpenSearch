@@ -15,11 +15,14 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.opensearch.analytics.AnalyticsSettings;
+import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 
 import java.util.List;
 
@@ -33,10 +36,13 @@ import java.util.List;
  *       is the only legal path.</li>
  *   <li>Equi joins with {@code analytics.mpp.enabled=false}: ALWAYS. The kill switch forces
  *       coord-centric for all joins.</li>
- *   <li>Equi joins with {@code analytics.mpp.enabled=true}: NEVER. CBO must pick between
- *       BROADCAST and HASH_SHUFFLE only — coord-centric is not a competitor in this case.
- *       The {@link OpenSearchBroadcastJoinSplitRule} and {@link OpenSearchHashJoinSplitRule}
- *       cover this path.</li>
+ *   <li>Equi joins with {@code analytics.mpp.enabled=true}: only when neither MPP rule will
+ *       fire. Specifically, coord-centric SUPPRESSES itself iff broadcast OR hash would emit
+ *       a viable alternative — meaning {@code probeNodes > 1} and the join type has an
+ *       eligible build side (broadcast), OR {@code shuffle_enabled=true} and partition count
+ *       {@literal > 1} (hash). When neither MPP rule can produce (single-node cluster, FULL
+ *       OUTER equi join, MPP-but-shuffle-off + non-multi-shard inputs), coord-centric must
+ *       still fire so Volcano has a plan to satisfy the root SINGLETON demand.</li>
  * </ul>
  *
  * <p><b>Co-location fast path.</b> When both sides are SHARD+SINGLETON scans with
@@ -65,23 +71,100 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
     public boolean matches(RelOptRuleCall call) {
         OpenSearchJoin join = call.rel(0);
         if (joinAlreadyResolved(join)) return false;
-        // Contract: this rule produces COORDINATOR_CENTRIC. Per M2's strategy table, that
-        // strategy is legal when (a) the join is theta (no MPP alternative exists),
-        // (b) MPP is killed cluster-wide, or (c) the structural shape disqualifies the MPP
-        // rules — broadcast and hash both require multi-shard SHARD-distributed inputs on
-        // both sides. Inputs like {@code Project(Filter(Scan))} where the underlying scan
-        // is 1-shard, or non-scan inputs like {@code Values} / {@code Aggregate} sub-trees,
-        // can't satisfy that. Without (c), {@code CannotPlanException} fires because no
-        // rule produces a plan for those shapes under mpp.enabled=true. The check unwraps
-        // RelSubsets via {@code best/original} so transient demanded-trait subsets don't
-        // accidentally flip the answer mid-CBO.
-        boolean mppEnabled = AnalyticsSettings.MPP_ENABLED.get(context.getSettings());
-        JoinInfo info = join.analyzeCondition();
-        boolean isEqui = info.isEqui();
-        if (mppEnabled && isEqui && bothInputsCouldBeMppShardScans(join)) {
+        // Contract: this rule produces COORDINATOR_CENTRIC. Suppress it only when at least
+        // one MPP rule (broadcast or hash) will actually produce a viable alternative for
+        // this join — otherwise Volcano has no plan to satisfy the root SINGLETON demand
+        // and throws CannotPlanException.
+        //
+        // Concretely we suppress coord only if:
+        // - mpp.enabled=true (gate on broadcast + hash rules)
+        // - join is equi (theta is structurally ineligible for both MPP rules)
+        // - AND at least one of broadcast/hash will fire and produce a non-empty alt:
+        // broadcast: probeNodes > 1 AND joinType not FULL OUTER (FULL has no eligible
+        // build side; broadcast emits zero alternatives)
+        // hash: mpp.shuffle_enabled=true AND partitionCount > 1
+        // - both inputs are multi-shard SHARD scans (the structural check both MPP rules
+        // impose; otherwise neither fires)
+        //
+        // Production ships with mpp.shuffle_enabled=false, so most clusters need the
+        // broadcast eligibility check to also pass before coord-rule retreats. Single-node
+        // clusters (probeNodes=1) get coord-centric for all equi joins because broadcast
+        // bails on probeNodes <= 1 and hash is disabled.
+        if (!shouldSuppressCoord(join)) {
+            return true;
+        }
+        return false;
+    }
+
+    /** True iff at least one MPP rule (broadcast or hash) will produce a viable alternative
+     *  for this join. Coord rule suppresses itself only when this returns true; otherwise it
+     *  fires so Volcano has a plan. */
+    private boolean shouldSuppressCoord(OpenSearchJoin join) {
+        if (!AnalyticsSettings.MPP_ENABLED.get(context.getSettings())) {
             return false;
         }
-        return true;
+        JoinInfo info = join.analyzeCondition();
+        if (!info.isEqui()) {
+            return false;
+        }
+        // Both MPP rules need multi-shard SHARD scans on both sides. Single-shard or non-
+        // scan inputs (Values, Aggregate, Project(Aggregate(...))) make both rules dormant.
+        if (!bothInputsCouldBeMppShardScans(join)) {
+            return false;
+        }
+        // OK, the structural shape can support an MPP alternative. Now check whether at
+        // least one of broadcast or hash will actually fire.
+        return broadcastWillFire(join) || hashWillFire(join);
+    }
+
+    /** Broadcast emits at least one alternative when probeNodes > 1 AND the join type has at
+     *  least one eligible build side. FULL OUTER has no eligible side (broadcast can't
+     *  replicate either side without breaking row-preservation semantics). */
+    private boolean broadcastWillFire(OpenSearchJoin join) {
+        // Resolve probe-node estimate the same way OpenSearchBroadcastJoinSplitRule does:
+        // setting override (positive) wins; otherwise data-node count.
+        Integer override = AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.get(context.getSettings());
+        int probeNodes;
+        if (override != null && override > 0) {
+            probeNodes = override;
+        } else {
+            org.opensearch.cluster.ClusterState state = context.getClusterState();
+            if (state == null || state.nodes() == null) {
+                probeNodes = 1;
+            } else {
+                probeNodes = Math.max(state.nodes().getDataNodes().size(), 1);
+            }
+        }
+        if (probeNodes <= 1) {
+            return false;
+        }
+        JoinRelType jt = join.getJoinType();
+        // Mirror OpenSearchBroadcastJoinSplitRule.onMatch: at least one of left-as-build or
+        // right-as-build must be eligible. INNER, LEFT, RIGHT, SEMI, ANTI all have an
+        // eligible side; FULL has none.
+        boolean leftAsBuild = jt == JoinRelType.INNER || jt == JoinRelType.RIGHT;
+        boolean rightAsBuild = jt == JoinRelType.INNER || jt == JoinRelType.LEFT || jt == JoinRelType.SEMI || jt == JoinRelType.ANTI;
+        return leftAsBuild || rightAsBuild;
+    }
+
+    /** Hash-shuffle emits an alternative when mpp.shuffle_enabled is on AND a viable backend
+     *  reports a partition count > 1. */
+    private boolean hashWillFire(OpenSearchJoin join) {
+        if (!AnalyticsSettings.MPP_SHUFFLE_ENABLED.get(context.getSettings())) {
+            return false;
+        }
+        // Resolve partition count via the same helper OpenSearchHashJoinSplitRule uses.
+        // Need viableBackends from the OpenSearchJoin to feed into the resolver.
+        if (!(join instanceof OpenSearchRelNode osRel)) {
+            return false;
+        }
+        int partitionCount = MppShufflePartitions.resolve(
+            context.getSettings(),
+            context.getClusterState(),
+            context.getCapabilityRegistry(),
+            osRel.getViableBackends()
+        );
+        return partitionCount > 1;
     }
 
     /** True when both inputs originate from SHARD-distributed scans with shardCount > 1

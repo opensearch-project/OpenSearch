@@ -129,7 +129,16 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
         // after the listener is installed, so the resulting CANCELLED transition fires the
         // listener and propagates to terminal.onFailure.
         QueryDAG rewritten = new QueryDAG("qid", root);
-        new BroadcastDispatch(builder, scheduler).run(ctx, rewritten, build, probe, root, () -> mock(ExchangeSink.class), terminal);
+        new BroadcastDispatch(builder, scheduler).run(
+            ctx,
+            rewritten,
+            build,
+            probe,
+            root,
+            () -> mock(ExchangeSink.class),
+            /* queryExecutionSink */ null,
+            terminal
+        );
 
         assertNotNull(
             "terminal.onFailure must fire when the task was cancelled before BroadcastDispatch.run installed its callbacks; "

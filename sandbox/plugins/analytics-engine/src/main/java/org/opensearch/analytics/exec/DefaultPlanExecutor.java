@@ -218,11 +218,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
-        PlanForker.forkAll(dag, capabilityRegistry);
-        BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
-        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Join strategy resolution under the CBO-driven model:
         // - The Volcano CBO already chose between coord-centric, broadcast, and hash-shuffle
@@ -233,10 +228,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // - The advisor here is read-only: it inspects role tags so we know which dispatch
         // path to invoke and which counter to increment. No decisions, no mutations.
         //
-        // Master kill switch — when analytics.mpp.enabled=false, the broadcast and hash split
-        // rules don't fire at all (gated in their matches()), so the DAG cannot contain any MPP
-        // role tags. We don't need a separate kill check here; the absence of tags drives the
-        // coord-centric fallthrough. The setting is read solely for the legacy log line below.
+        // Counter recording sits BEFORE the plan-side pipeline (PlanForker / BackendPlanAdapter /
+        // FragmentConversionDriver) so the strategy that CBO picked is observable even when
+        // backend conversion fails for a not-yet-wired shape (e.g. HASH_SHUFFLE before the
+        // M2 producer is filled). The "routed" claim is honest: counter reflects what the
+        // dispatcher would route IF execution proceeds — partial wiring failures don't hide
+        // the planner's decision from /_analytics/_strategies observers.
         final JoinStrategy joinStrategy = JoinStrategyAdvisor.observe(dag);
         final Stage broadcastBuild = JoinStrategyAdvisor.findBroadcastBuild(dag);
         final Stage broadcastProbe = JoinStrategyAdvisor.findBroadcastProbe(dag);
@@ -252,6 +249,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             && shuffleRight != null
             && isQueryScheduler;
 
+        if (JoinStrategyAdvisor.containsJoin(dag)) {
+            JoinStrategy routedStrategy;
+            if (dispatchBroadcast) {
+                routedStrategy = JoinStrategy.BROADCAST;
+            } else if (dispatchHashShuffle) {
+                routedStrategy = JoinStrategy.HASH_SHUFFLE;
+            } else {
+                routedStrategy = JoinStrategy.COORDINATOR_CENTRIC;
+            }
+            joinStrategyMetrics.recordDispatch(routedStrategy);
+        }
+
+        PlanForker.forkAll(dag, capabilityRegistry);
+        BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
+        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
+        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
+        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+
         if (joinStrategy == JoinStrategy.HASH_SHUFFLE && !dispatchHashShuffle) {
             logger.info(
                 "[DefaultPlanExecutor] HASH_SHUFFLE plan-shape produced but dispatch ineligible (left={}, right={}, scheduler={}); falling back to single-pass execution.",
@@ -264,22 +279,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 "[DefaultPlanExecutor] BROADCAST plan-shape produced but scheduler is {}, not QueryScheduler; falling back to single-pass execution.",
                 scheduler.getClass().getSimpleName()
             );
-        }
-
-        // Record the routed strategy — what we actually run, not just what CBO picked. A
-        // BROADCAST or HASH_SHUFFLE DAG that fails its dispatch eligibility gate (non-QueryScheduler,
-        // missing role tags) collapses to COORDINATOR_CENTRIC for counting purposes since the
-        // join then runs on the coord under the standard walker.
-        if (JoinStrategyAdvisor.containsJoin(dag)) {
-            JoinStrategy routedStrategy;
-            if (dispatchBroadcast) {
-                routedStrategy = JoinStrategy.BROADCAST;
-            } else if (dispatchHashShuffle) {
-                routedStrategy = JoinStrategy.HASH_SHUFFLE;
-            } else {
-                routedStrategy = JoinStrategy.COORDINATOR_CENTRIC;
-            }
-            joinStrategyMetrics.recordDispatch(routedStrategy);
         }
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
@@ -358,9 +357,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // the task registered and the allocator open.
         try {
             if (dispatchBroadcast) {
-                dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, batchesListener);
+                dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, execRef, batchesListener);
             } else if (dispatchHashShuffle) {
-                dispatchHashShuffle(dag, shuffleLeft, shuffleRight, context, batchesListener);
+                dispatchHashShuffle(dag, shuffleLeft, shuffleRight, context, execRef, batchesListener);
             } else {
                 // execRef read by profile listener after execution completes
                 execRef.set(scheduler.execute(context, batchesListener));
@@ -390,6 +389,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         Stage build,
         Stage probe,
         QueryContext context,
+        AtomicReference<QueryExecution> execRef,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         Stage root = dag.rootStage();
@@ -425,6 +425,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             () -> capabilityRegistry.getBackend(captureBackendId)
                 .getExchangeSinkProvider()
                 .createBroadcastCaptureSink(context.bufferAllocator(), buildRowType, broadcastMaxBytes),
+            execRef::set,
             terminal
         );
     }
@@ -444,6 +445,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         Stage leftProducer,
         Stage rightProducer,
         QueryContext context,
+        AtomicReference<QueryExecution> execRef,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         // Both producers share the same parent (the consumer / join stage). We find it via the
@@ -464,6 +466,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             leftProducer,
             rightProducer,
             consumer,
+            execRef::set,
             terminal
         );
     }
@@ -495,7 +498,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         ActionListener<ProfiledResult> listener
     ) {
         return ActionListener.wrap(rows -> {
-            QueryProfile qp = QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, fullPlan, planningTimeMs);
+            // execRef is populated by scheduler.execute (single-pass) or by the MPP dispatchers
+            // (BROADCAST / HASH_SHUFFLE). The dispatcher path threads its inner scheduler.execute
+            // result through a Consumer back to execRef. If something in that wiring drifts and
+            // execRef stays null, fall back to a planning-only profile rather than NPE-ing —
+            // the failure path below uses the same fallback for consistency.
+            QueryProfile qp = execRef.get() != null && execRef.get().getGraph() != null
+                ? QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, fullPlan, planningTimeMs)
+                : new QueryProfile(context.queryId(), java.util.List.of(), planningTimeMs, 0L, java.util.List.of());
             listener.onResponse(new ProfiledResult(rows, null, qp));
         }, e -> {
             QueryProfile qp = execRef.get() != null && execRef.get().getGraph() != null

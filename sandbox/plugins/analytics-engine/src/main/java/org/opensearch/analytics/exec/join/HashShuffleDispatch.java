@@ -92,6 +92,11 @@ public final class HashShuffleDispatch {
      * @param leftProducer the SHUFFLE_SCAN_LEFT child stage.
      * @param rightProducer the SHUFFLE_SCAN_RIGHT child stage.
      * @param consumer the parent of both producers (the join's stage).
+     * @param queryExecutionSink optional callback invoked with the {@link
+     *     org.opensearch.analytics.exec.QueryExecution} returned by the inner
+     *     {@code scheduler.execute} call — used by {@code DefaultPlanExecutor.executeWithProfile}
+     *     to populate its {@code execRef} so the profile listener can snapshot stage timings.
+     *     May be null when profiling is disabled.
      * @param terminal fires on overall completion — success when the root stage emits joined
      *     rows, failure on any producer-side or consumer-side error.
      */
@@ -101,6 +106,7 @@ public final class HashShuffleDispatch {
         Stage leftProducer,
         Stage rightProducer,
         Stage consumer,
+        java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         assert leftProducer.getRole() == Stage.StageRole.SHUFFLE_SCAN_LEFT
@@ -178,7 +184,10 @@ public final class HashShuffleDispatch {
         // the consumer's per-partition tasks block on ShuffleBuffer.awaitReady until both
         // producer sides mark isLast. Cancellation cascades through the walker's existing
         // task-tracking, so no separate onCancel installation is needed.
-        scheduler.execute(ctx, terminal);
+        org.opensearch.analytics.exec.QueryExecution exec = scheduler.execute(ctx, terminal);
+        if (queryExecutionSink != null) {
+            queryExecutionSink.accept(exec);
+        }
     }
 
     /**

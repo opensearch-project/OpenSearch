@@ -87,6 +87,11 @@ public final class BroadcastDispatch {
      *     {@link ExchangeSink} that additionally exposes a {@code CompletableFuture&lt;byte[]&gt;}
      *     via {@code ipcBytesFuture()}; the dispatcher retrieves IPC bytes via reflection on that
      *     method to keep analytics-engine from depending on the DataFusion backend directly.
+     * @param queryExecutionSink optional callback invoked with the pass-2
+     *     {@link org.opensearch.analytics.exec.QueryExecution} once {@code scheduler.execute}
+     *     returns — used by {@code DefaultPlanExecutor.executeWithProfile} to populate its
+     *     {@code execRef} so the profile listener can snapshot stage timings. May be null when
+     *     profiling is disabled.
      * @param terminal fires on overall completion — success when the root stage emits joined
      *     rows, failure on any build-side or probe-side error.
      */
@@ -97,6 +102,7 @@ public final class BroadcastDispatch {
         Stage probeStage,
         Stage rootStage,
         Supplier<ExchangeSink> captureSinkFactory,
+        java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         assert buildStage.getRole() == Stage.StageRole.BROADCAST_BUILD : "BroadcastDispatch: buildStage role must be BROADCAST_BUILD";
@@ -153,7 +159,7 @@ public final class BroadcastDispatch {
                     }
 
                     try {
-                        startPass2(ctx, dag, buildStage, probeStage, rootStage, ipcBytes, terminal);
+                        startPass2(ctx, dag, buildStage, probeStage, rootStage, ipcBytes, queryExecutionSink, terminal);
                     } catch (Exception e) {
                         LOGGER.warn("[BroadcastDispatch] pass 2 failed to start", e);
                         terminal.onFailure(e);
@@ -282,6 +288,7 @@ public final class BroadcastDispatch {
         Stage probeStage,
         Stage rootStage,
         byte[] ipcBytes,
+        java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         int buildSideIndex = deriveBuildSideIndex(rootStage, buildStage);
@@ -292,16 +299,22 @@ public final class BroadcastDispatch {
             buildSideIndex
         );
 
-        // Build pass-2 DAG: root → probe (childless). Root's fragment / sink / instruction
-        // handler factory / plan alternatives all carry over untouched; we're just stripping
-        // the probe stage's reference to the build child (which has already run to completion).
-        Stage pass2Probe = copyAsLeaf(probeStage);
-        Stage pass2Root = copyWithSingleChild(rootStage, pass2Probe);
+        // Build pass-2 DAG: walk from the original root, replacing only the probe stage
+        // with a leaf copy (its build child has already run to completion). Sibling stages
+        // are preserved so multi-input root shapes — e.g. UNION with a broadcast-join in
+        // one branch and a non-broadcast scan in another — keep the non-broadcast stages
+        // intact. An earlier version rebuilt the root with a single child (just the probe),
+        // silently dropping siblings while the root fragment still referenced their stage
+        // inputs, producing missing rows or execution failure.
+        Stage pass2Root = rebuildPass2(dag.rootStage(), probeStage);
         QueryDAG pass2Dag = new QueryDAG(dag.queryId(), pass2Root);
         QueryContext pass2Ctx = ctx.withDag(pass2Dag);
 
         LOGGER.debug("[BroadcastDispatch] starting pass 2 (probe {} + root {})", probeStage.getStageId(), rootStage.getStageId());
-        scheduler.execute(pass2Ctx, terminal);
+        org.opensearch.analytics.exec.QueryExecution exec = scheduler.execute(pass2Ctx, terminal);
+        if (queryExecutionSink != null) {
+            queryExecutionSink.accept(exec);
+        }
     }
 
     /**
@@ -333,11 +346,33 @@ public final class BroadcastDispatch {
         return 0;
     }
 
-    private Stage copyAsLeaf(Stage source) {
+    /**
+     * Rebuilds the pass-2 DAG by walking from {@code source} and replacing the probe stage
+     * with a leaf copy (its already-run build child stripped). Every other stage is copied
+     * with its children rebuilt recursively, so siblings of the probe are preserved.
+     *
+     * <p>This is identity-comparing the probe stage instance (the original probe handed to
+     * {@link #run}, before this rebuild). Pass-2 dispatch sees that the probe still has its
+     * shard target resolver + instruction-enriched plan alternatives but no children — the
+     * walker treats it as a shard-fragment leaf.
+     */
+    private Stage rebuildPass2(Stage source, Stage probeStage) {
+        if (source == probeStage) {
+            return copyAsLeaf(source);
+        }
+        List<Stage> originalChildren = source.getChildStages();
+        if (originalChildren.isEmpty()) {
+            // Already a leaf — copy unchanged. Cheaper than a full rebuild call.
+            return copyAsLeaf(source);
+        }
+        List<Stage> rebuiltChildren = new ArrayList<>(originalChildren.size());
+        for (Stage child : originalChildren) {
+            rebuiltChildren.add(rebuildPass2(child, probeStage));
+        }
         Stage copy = new Stage(
             source.getStageId(),
             source.getFragment(),
-            List.of(),
+            rebuiltChildren,
             source.getExchangeInfo(),
             source.getExchangeSinkProvider(),
             source.getTargetResolver()
@@ -350,11 +385,11 @@ public final class BroadcastDispatch {
         return copy;
     }
 
-    private Stage copyWithSingleChild(Stage source, Stage newChild) {
+    private Stage copyAsLeaf(Stage source) {
         Stage copy = new Stage(
             source.getStageId(),
             source.getFragment(),
-            List.of(newChild),
+            List.of(),
             source.getExchangeInfo(),
             source.getExchangeSinkProvider(),
             source.getTargetResolver()
