@@ -20,7 +20,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import org.apache.thrift.transport.TTransportException;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.secure_sm.AccessController;
@@ -260,13 +259,14 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private List<ReadResult<HivePointer, HiveMessage>> executeWithRetry(ReadAction action) {
         try {
             return action.execute();
-        } catch (TTransportException e) {
-            logger.warn("Metastore connection lost for shard {}, attempting reconnect: {}", shardId, e.getMessage());
+        } catch (IOException e) {
+            logger.warn("IO error for shard {}, attempting recovery: {}", shardId, e.getMessage());
             try {
+                closeCurrentReader();
                 reconnectMetastore();
                 return action.execute();
             } catch (Exception retryEx) {
-                logger.error("Failed to recover Metastore connection for shard {}: {}", shardId, retryEx.getMessage());
+                logger.error("Recovery failed for shard {}: {}", shardId, retryEx.getMessage());
                 return Collections.emptyList();
             }
         } catch (Throwable e) {
