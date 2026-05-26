@@ -8,6 +8,7 @@
 
 package org.opensearch.storage.tiering;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -23,6 +24,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -92,20 +94,39 @@ public class HotToWarmTieringServiceTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    public void testGetTieringStartSettingsToAdd() {
-        Settings settings = service.getTieringStartSettingsToAdd();
+    public void testGetTieringStartSettingsToAdd_DfaIndex() {
+        Settings settings = service.getTieringStartSettingsToAdd(buildDfaIndexMetadata());
         assertEquals("true", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(HOT_TO_WARM.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals(TIERED_COMPOSITE_INDEX_TYPE, settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
     }
 
-    public void testGetIndexTierSettingsToRestoreAfterCancellation() {
-        Settings settings = service.getIndexTierSettingsToRestoreAfterCancellation();
+    public void testGetTieringStartSettingsToAdd_NonDfaIndex_NoWriteBlockSetting() {
+        Settings settings = service.getTieringStartSettingsToAdd(buildNonDfaIndexMetadata());
+        assertEquals("true", settings.get(IS_WARM_INDEX_SETTING.getKey()));
+        assertEquals(HOT_TO_WARM.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
+        assertNull(
+            "blocks.write must NOT be set for non-DFA on H2W start",
+            settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
+        );
+    }
+
+    public void testGetIndexTierSettingsToRestoreAfterCancellation_DfaIndex() {
+        Settings settings = service.getIndexTierSettingsToRestoreAfterCancellation(buildDfaIndexMetadata());
         assertEquals("false", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(TieringState.HOT.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals("default", settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
-        // blocks.write must be cleared on cancellation restore
         assertEquals("false", settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+    }
+
+    public void testGetIndexTierSettingsToRestoreAfterCancellation_NonDfaIndex_NoWriteBlockSetting() {
+        Settings settings = service.getIndexTierSettingsToRestoreAfterCancellation(buildNonDfaIndexMetadata());
+        assertEquals("false", settings.get(IS_WARM_INDEX_SETTING.getKey()));
+        assertEquals(TieringState.HOT.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
+        assertNull(
+            "blocks.write must NOT be set for non-DFA on H2W cancel",
+            settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
+        );
     }
 
     public void testGetTieringStartClusterBlocksToAdd_IsNoOp() {
@@ -139,6 +160,35 @@ public class HotToWarmTieringServiceTests extends OpenSearchTestCase {
 
     public void testGetTieringType() {
         assertEquals(HOT_TO_WARM, service.getTieringType());
+    }
+
+    private IndexMetadata buildDfaIndexMetadata() {
+        return IndexMetadata.builder("test-dfa")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "dfa-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+    }
+
+    private IndexMetadata buildNonDfaIndexMetadata() {
+        return IndexMetadata.builder("test-non-dfa")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "non-dfa-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
     }
 
     public void testIsShardInTargetTier() {

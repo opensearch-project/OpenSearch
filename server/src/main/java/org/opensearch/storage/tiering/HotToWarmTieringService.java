@@ -25,6 +25,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.Set;
 
@@ -116,7 +117,7 @@ public class HotToWarmTieringService extends TieringService {
     }
 
     @Override
-    protected Settings getTieringStartSettingsToAdd() {
+    protected Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata) {
         return Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), true)
             .put(INDEX_TIERING_STATE.getKey(), HOT_TO_WARM)
@@ -125,13 +126,15 @@ public class HotToWarmTieringService extends TieringService {
     }
 
     @Override
-    protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
-        return Settings.builder()
+    protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
+        Settings.Builder builder = Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), false)
             .put(INDEX_TIERING_STATE.getKey(), HOT)
-            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default")
-            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
-            .build();
+            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default");
+        if (TieringUtils.isDfaIndex(indexMetadata)) {
+            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
+        }
+        return builder.build();
     }
 
     @Override

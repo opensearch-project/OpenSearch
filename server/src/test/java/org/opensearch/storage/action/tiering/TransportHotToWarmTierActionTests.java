@@ -103,7 +103,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Adds a read-only block to the cluster state (same logic as TransportHotToWarmTierAction.addReadOnlyBlockAndPrepare).
+     * Adds a read-only block to the cluster state (same logic as TransportHotToWarmTierAction.addWriteBlockAndPrepare).
      */
     private ClusterState addReadOnlyBlock(ClusterState currentState, String indexName) {
         IndexMetadata indexMetadata = currentState.metadata().index(indexName);

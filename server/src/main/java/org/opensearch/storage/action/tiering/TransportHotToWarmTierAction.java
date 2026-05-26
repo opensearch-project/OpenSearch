@@ -100,7 +100,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                 return;
             }
             logger.info("Index [{}] is a DFA index, adding read-only block and performing pre-tiering sync", request.getIndex());
-            addReadOnlyBlockAndPrepare(request, state, listener);
+            addWriteBlockAndPrepare(request, state, listener);
         } else {
             super.clusterManagerOperation(request, state, listener);
         }
@@ -112,11 +112,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      * cleanly removed on cancel or failure.
      * On success, proceeds to step 2 (prepare tiering).
      */
-    private void addReadOnlyBlockAndPrepare(
-        IndexTieringRequest request,
-        ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    private void addWriteBlockAndPrepare(IndexTieringRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
             "add-read-only-block-for-tiering [" + request.getIndex() + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {

@@ -147,10 +147,10 @@ public abstract class TieringService implements ClusterStateListener {
     }
 
     /** Returns the settings to add when tiering starts. @return the tiering start settings */
-    protected abstract Settings getTieringStartSettingsToAdd();
+    protected abstract Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata);
 
     /** Returns the index tier settings to restore after cancellation. @return the settings to restore */
-    protected abstract Settings getIndexTierSettingsToRestoreAfterCancellation();
+    protected abstract Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata);
 
     /** Returns the ClusterBlocks.Builder with tier-specific block changes for tier start. Only called for DFA indices. */
     protected abstract ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(ClusterBlocks.Builder blocksBuilder, String indexName);
@@ -564,8 +564,9 @@ public abstract class TieringService implements ClusterStateListener {
         final Index index
     ) {
         try {
-            // 1. Build settings.
-            Settings.Builder indexSettingsBuilder = Settings.builder().put(indexMetadata.getSettings()).put(getTieringStartSettingsToAdd());
+            Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put(indexMetadata.getSettings())
+                .put(getTieringStartSettingsToAdd(indexMetadata));
 
             // 2. Handle replica updates if needed
             int currentReplicas = Integer.parseInt(indexMetadata.getSettings().get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
@@ -631,11 +632,11 @@ public abstract class TieringService implements ClusterStateListener {
      */
     void updateIndexMetadataForTieringCancel(final Metadata.Builder metadataBuilder, final IndexMetadata indexMetadata) {
         try {
-            // 1. Build settings - remove tiering-specific settings and disable auto-expand
+            // 1. Build settings - remove tiering-specific settings and disable auto-expand.
+            // write-block settings only for DFA indices.
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(indexMetadata.getSettings())
-                .put(getIndexTierSettingsToRestoreAfterCancellation())
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false");
+                .put(getIndexTierSettingsToRestoreAfterCancellation(indexMetadata));
 
             // 2. Build and update metadata
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)

@@ -70,10 +70,7 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
 
             if (remotePtr == 0L) {
                 throw new IllegalStateException(
-                    "["
-                        + shardId
-                        + "] warm shard requires a live NativeStoreRepository but got a null or dead repo."
-                        + " remotePtr=0 would cause a null-pointer dereference in the Rust TieredObjectStore."
+                    "[" + shardId + "] remote object store is not available for this warm shard. Cannot serve read requests."
                 );
             }
 

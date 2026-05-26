@@ -52,12 +52,7 @@ public class ParquetDataFormatStoreHandlerTests extends OpenSearchTestCase {
      */
     public void testHotNode_DeadRepo_CreatesEmptyHandler() throws Exception {
         // NativeStoreRepository.EMPTY wraps NativeStoreHandle.EMPTY → isLive()=false
-        ParquetDataFormatStoreHandler handler = new ParquetDataFormatStoreHandler(
-            TEST_SHARD_ID,
-            false,
-            NativeStoreRepository.EMPTY,
-            null
-        );
+        ParquetDataFormatStoreHandler handler = new ParquetDataFormatStoreHandler(TEST_SHARD_ID, false, NativeStoreRepository.EMPTY, null);
         assertFalse("Hot handler should always create an empty (no-op) store handle", handler.getFormatStoreHandle().isLive());
         handler.close();
     }
@@ -79,9 +74,9 @@ public class ParquetDataFormatStoreHandlerTests extends OpenSearchTestCase {
             () -> new ParquetDataFormatStoreHandler(TEST_SHARD_ID, true, null, null)
         );
         assertThat(
-            "Error message should identify remotePtr=0 as the cause",
+            "Error message should indicate remote store is unavailable",
             e.getMessage(),
-            containsString("remotePtr=0")
+            containsString("remote object store is not available")
         );
         assertThat("Error message should include the shard ID for debugging", e.getMessage(), containsString("test-index"));
     }
@@ -104,9 +99,9 @@ public class ParquetDataFormatStoreHandlerTests extends OpenSearchTestCase {
             () -> new ParquetDataFormatStoreHandler(TEST_SHARD_ID, true, NativeStoreRepository.EMPTY, null)
         );
         assertThat(
-            "Error message should identify that remotePtr=0 is the cause",
+            "Error message should indicate remote store is unavailable",
             e.getMessage(),
-            containsString("remotePtr=0")
+            containsString("remote object store is not available")
         );
     }
 

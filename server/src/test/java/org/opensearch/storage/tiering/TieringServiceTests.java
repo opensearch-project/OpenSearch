@@ -113,7 +113,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected Settings getTieringStartSettingsToAdd() {
+        protected Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata) {
             return Settings.builder()
                 .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
                 .put(INDEX_TIERING_STATE.getKey(), HOT_TO_WARM)
@@ -139,7 +139,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
+        protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
             return Settings.builder()
                 .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
                 .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT)
@@ -1100,19 +1100,6 @@ public class TieringServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testUpdateIndexMetadataForTieringCancel_SetsAutoExpandReplicasFalse() {
-        Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
-        when(metadataBuilder.put(any(IndexMetadata.Builder.class))).thenReturn(metadataBuilder);
-
-        tieringService.updateIndexMetadataForTieringCancel(metadataBuilder, indexMetadata);
-
-        ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
-        verify(metadataBuilder).put(captor.capture());
-
-        IndexMetadata updatedMetadata = captor.getValue().build();
-        assertEquals("false", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
-    }
-
     public void testWarmToHotTieringStart_DisablesAutoExpandReplicas() {
         // Verify that WarmToHotTieringService's getTieringStartSettingsToAdd includes
         // auto_expand_replicas: false. The base class updateIndexMetadataForTieringStart
@@ -1128,7 +1115,8 @@ public class TieringServiceTests extends OpenSearchTestCase {
             shardLimitValidator
         );
 
-        Settings tieringStartSettings = warmToHotService.getTieringStartSettingsToAdd();
+        // Pass a DFA index metadata so the W2H subclass returns its full settings
+        Settings tieringStartSettings = warmToHotService.getTieringStartSettingsToAdd(buildDfaIndexMetadata("w2h-check-idx", "w2h-uuid"));
         assertEquals(
             "Warm-to-hot getTieringStartSettingsToAdd should include auto_expand_replicas: false",
             "false",
@@ -1525,7 +1513,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected Settings getTieringStartSettingsToAdd() {
+        protected Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata) {
             return Settings.builder()
                 .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
                 .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM_TO_HOT)
@@ -1546,7 +1534,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
+        protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
             return Settings.builder()
                 .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
                 .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM)
