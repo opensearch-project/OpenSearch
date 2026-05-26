@@ -37,10 +37,12 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.number.OrderingComparison.greaterThan;
+import static org.hamcrest.number.OrderingComparison.lessThanOrEqualTo;
 
 public class OpenSearchThreadPoolExecutorTests extends OpenSearchSingleNodeTestCase {
 
@@ -97,4 +99,60 @@ public class OpenSearchThreadPoolExecutorTests extends OpenSearchSingleNodeTestC
         assertTrue(rejected.get());
     }
 
+    public void testForcePutBypassesQueueCapacity() throws InterruptedException {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            "test-search",
+            1,
+            5,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
+
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        CountDownLatch threadOccupied = new CountDownLatch(1);
+
+        // occupy only one thread
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws InterruptedException {
+                threadOccupied.countDown(); // thread 점유 완료 신호
+                blockLatch.await();
+            }
+            @Override
+            public void onFailure(Exception e) {}
+        });
+
+        // wait until the thread is truly occupied to prevent race condition
+        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
+
+        // fill queue with max capacity 5
+        for (int i = 0; i < 5; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override protected void doRun() {}
+                @Override public void onFailure(Exception e) {}
+            });
+        }
+
+        // execute forceTask with forceExecution = true
+        AbstractRunnable forceTask = new AbstractRunnable() {
+            @Override public boolean isForceExecution() { return true; }
+            @Override protected void doRun() {}
+            @Override public void onFailure(Exception e) {}
+        };
+
+        executor.execute(forceTask);
+
+        // check the bug: capacity(5) exceeded → forcePut ignored back-pressure
+        assertThat(
+            "forcePut is executed with ignoring queue capacity (back pressure) : Bug",
+            executor.getQueue().size(),
+            greaterThan(5) // 이 테스트는 forceExecution이 true일때 forceput을 무시하는 테스트. 이거 말고, isForceExecution이 존재할때를 테스트해야함.
+        );
+
+        blockLatch.countDown();
+        executor.shutdown();
+        assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+    }
 }

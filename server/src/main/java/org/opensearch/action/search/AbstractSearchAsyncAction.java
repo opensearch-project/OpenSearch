@@ -48,6 +48,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
@@ -409,6 +410,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             @Override
             public boolean isForceExecution() {
                 // we can not allow a stuffed queue to reject execution here
+                boolean permitForcePut = true;
+                if(permitForcePut) return true;
+                else {
+                    if(executor instanceof OpenSearchThreadPoolExecutor) {
+                        int currentSize = ((OpenSearchThreadPoolExecutor) executor).getQueue().size();
+                        return currentSize < 5; // 5 : dummy  threshold. should be injected from feature flag
+                    }
+                }
                 return true;
             }
         });

@@ -478,6 +478,167 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Tests that when {@code isForceExecution()} conditionally checks queue size below a threshold,
+     * the task is force-put into the queue even when the queue is at capacity.
+     *
+     * <p>This mirrors the conditional logic in {@code AbstractSearchAsyncAction.fork()}:
+     * force put is permitted only when the current queue size is below the threshold.
+     *
+     * <p>Scenario: queueCapacity=4, threshold=5. After filling the queue to capacity (size=4),
+     * {@code isForceExecution()} returns {@code true} (4 {@literal <} 5), so the task bypasses the capacity
+     * limit and the queue grows to 5.
+     */
+    public void testConditionalForceExecutionAllowedBelowThreshold() throws Exception {
+        final int queueCapacity = 4;
+        final int forcePutThreshold = 5;
+
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            getName(),
+            1,
+            queueCapacity,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
+
+        final CountDownLatch blockLatch = new CountDownLatch(1);
+        final CountDownLatch threadOccupied = new CountDownLatch(1);
+
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws InterruptedException {
+                threadOccupied.countDown();
+                blockLatch.await();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
+
+        for (int i = 0; i < queueCapacity; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {}
+
+                @Override
+                public void onFailure(Exception e) {}
+            });
+        }
+        assertThat(executor.getQueue().size(), equalTo(queueCapacity));
+
+        final AtomicBoolean executed = new AtomicBoolean();
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                // Mirrors AbstractSearchAsyncAction.fork(): allow force put only when queue is below threshold
+                return executor.getQueue().size() < forcePutThreshold;
+            }
+
+            @Override
+            protected void doRun() {
+                executed.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+
+        assertThat(
+            "Force put should bypass queue capacity when queue size is below threshold",
+            executor.getQueue().size(),
+            equalTo(queueCapacity + 1)
+        );
+
+        blockLatch.countDown();
+        terminate(executor);
+        assertTrue("Force-put task should have been executed", executed.get());
+    }
+
+    /**
+     * Tests that when {@code isForceExecution()} conditionally checks queue size at or above a threshold,
+     * the task is rejected rather than force-put into the queue.
+     *
+     * <p>This validates the back-pressure protection in {@code AbstractSearchAsyncAction.fork()}:
+     * when the queue is already at or beyond the threshold, force put is denied to prevent
+     * unbounded queue growth.
+     *
+     * <p>Scenario: queueCapacity=5, threshold=5. After filling the queue to capacity (size=5),
+     * {@code isForceExecution()} returns {@code false} (5 {@literal <} 5 is false), so the task is rejected
+     * with {@link org.opensearch.core.concurrency.OpenSearchRejectedExecutionException} and the
+     * queue size stays at 5.
+     */
+    public void testConditionalForceExecutionDeniedAtThreshold() throws Exception {
+        final int queueCapacity = 5;
+        final int forcePutThreshold = 5;
+
+        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
+            getName(),
+            1,
+            queueCapacity,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
+
+        final CountDownLatch blockLatch = new CountDownLatch(1);
+        final CountDownLatch threadOccupied = new CountDownLatch(1);
+
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws InterruptedException {
+                threadOccupied.countDown();
+                blockLatch.await();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
+
+        for (int i = 0; i < queueCapacity; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {}
+
+                @Override
+                public void onFailure(Exception e) {}
+            });
+        }
+        assertThat(executor.getQueue().size(), equalTo(queueCapacity));
+
+        final AtomicBoolean rejected = new AtomicBoolean(false);
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                // Mirrors AbstractSearchAsyncAction.fork(): deny force put when queue is at or above threshold
+                return executor.getQueue().size() < forcePutThreshold;
+            }
+
+            @Override
+            protected void doRun() {}
+
+            @Override
+            public void onFailure(Exception e) {}
+
+            @Override
+            public void onRejection(Exception e) {
+                // OpenSearchThreadPoolExecutor.execute() swallows the rejection exception for AbstractRunnable
+                // and routes it here instead of rethrowing — use this callback to detect rejection
+                rejected.set(true);
+            }
+        });
+
+        assertTrue("Task must be rejected when isForceExecution returns false", rejected.get());
+        assertThat(
+            "Queue must not grow beyond threshold when isForceExecution returns false",
+            executor.getQueue().size(),
+            equalTo(queueCapacity)
+        );
+
+        blockLatch.countDown();
+        terminate(executor);
+    }
+
     public void testNodeProcessorsBound() {
         runProcessorsBoundTest(OpenSearchExecutors.NODE_PROCESSORS_SETTING);
     }
