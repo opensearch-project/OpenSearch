@@ -1523,8 +1523,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNativeAllocatorStatsBwcEmptyOnOldVersion() throws IOException {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
+            2048L,
             8192L,
-            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 2048L))
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
         );
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         NodeStats original = newNodeStatsWithNativeAllocator(node, stats);
@@ -1552,11 +1553,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNativeAllocatorStatsRoundTripCurrentVersion() throws IOException {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
+            2048L,
             8192L,
             List.of(
-                new NativeAllocatorPoolStats.PoolStats("flight", 100L, 2048L),
-                new NativeAllocatorPoolStats.PoolStats("ingest", 200L, 4096L),
-                new NativeAllocatorPoolStats.PoolStats("query", 300L, 2048L)
+                new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L),
+                new NativeAllocatorPoolStats.PoolStats("ingest", 200L, 400L, 4096L),
+                new NativeAllocatorPoolStats.PoolStats("query", 300L, 600L, 2048L)
             )
         );
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -1571,10 +1573,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 NativeAllocatorPoolStats decoded = roundtripped.getNativeAllocatorStats();
                 assertNotNull("native allocator stats must round-trip on current wire version", decoded);
                 assertEquals(1024L, decoded.getRootAllocatedBytes());
+                assertEquals(2048L, decoded.getRootPeakBytes());
                 assertEquals(8192L, decoded.getRootLimitBytes());
                 assertEquals(3, decoded.getPools().size());
                 assertEquals("flight", decoded.getPools().get(0).getName());
                 assertEquals(100L, decoded.getPools().get(0).getAllocatedBytes());
+                assertEquals(200L, decoded.getPools().get(0).getPeakBytes());
                 assertEquals(2048L, decoded.getPools().get(0).getLimitBytes());
             }
         }
@@ -1589,8 +1593,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNativeAllocatorStatsXContentRendersInsideNativeMemory() throws IOException {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
+            2048L,
             8192L,
-            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 2048L))
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
         );
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         NodeStats nodeStats = newNodeStatsWithNativeAllocator(node, stats);
@@ -1609,12 +1614,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> rootBlock = (Map<String, Object>) nativeAllocator.get("root");
         assertEquals(1024L, ((Number) rootBlock.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) rootBlock.get("peak_bytes")).longValue());
         assertEquals(8192L, ((Number) rootBlock.get("limit_bytes")).longValue());
         @SuppressWarnings("unchecked")
         Map<String, Object> pools = (Map<String, Object>) nativeAllocator.get("pools");
         @SuppressWarnings("unchecked")
         Map<String, Object> flight = (Map<String, Object>) pools.get("flight");
         assertEquals(100L, ((Number) flight.get("allocated_bytes")).longValue());
+        assertEquals(200L, ((Number) flight.get("peak_bytes")).longValue());
         assertEquals(2048L, ((Number) flight.get("limit_bytes")).longValue());
     }
 

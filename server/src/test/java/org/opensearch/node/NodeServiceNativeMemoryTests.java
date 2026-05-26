@@ -376,8 +376,9 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
     public void testStatsWithNativeAllocatorTrueAndSupplierPresent() {
         NativeAllocatorPoolStats expected = new NativeAllocatorPoolStats(
             1024L,
+            2048L,
             8192L,
-            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 2048L))
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
         );
         NodeService nodeService = createNodeService(null, () -> expected);
 
