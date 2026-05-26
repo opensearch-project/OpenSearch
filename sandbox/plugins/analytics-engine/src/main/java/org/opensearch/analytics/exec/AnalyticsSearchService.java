@@ -67,6 +67,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final AnalyticsOperationListener listener;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
+    private org.opensearch.analytics.spi.ShuffleBufferRegistry shuffleBufferRegistry;
     private final BufferAllocator allocator;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
@@ -100,6 +101,17 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
         this.taskResourceTrackingService = service;
+    }
+
+    /**
+     * Per-node shuffle buffer registry. Plumbed into every {@link ShardScanExecutionContext} so
+     * hash-shuffle scan handlers can reach the buffer slice they need without a hard dependency
+     * on the analytics-engine plugin's internals (the registry is an SPI surface). Set once at
+     * plugin startup; null until then, in which case hash-shuffle handlers see a null registry
+     * and fail-fast with a typed error rather than null-deref.
+     */
+    public void setShuffleBufferRegistry(org.opensearch.analytics.spi.ShuffleBufferRegistry registry) {
+        this.shuffleBufferRegistry = registry;
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
@@ -283,6 +295,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setMapperService(shard.mapperService());
         ctx.setIndexSettings(shard.indexSettings());
         ctx.setNamedWriteableRegistry(namedWriteableRegistry);
+        ctx.setShuffleBufferRegistry(shuffleBufferRegistry);
         return ctx;
     }
 

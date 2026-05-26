@@ -95,6 +95,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
     private final JoinStrategyMetrics joinStrategyMetrics = new JoinStrategyMetrics();
+    private final ShuffleBufferManager shuffleBufferManager = new ShuffleBufferManager();
 
     @SuppressWarnings("rawtypes")
     @Override
@@ -128,12 +129,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             backEndsByName.put(be.name(), be);
         }
         searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
+        searchService.setShuffleBufferRegistry(shuffleBufferManager);
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
 
         // Returned as components so Guice can inject them into DefaultPlanExecutor
         // (a HandledTransportAction registered via getActions() — constructed by Guice
-        // after createComponents) and into AnalyticsSearchTransportService.
-        return List.of(searchService, ctx, capabilityRegistry, joinStrategyMetrics);
+        // after createComponents) and into AnalyticsSearchTransportService. The shuffle
+        // buffer manager is exposed both here (for Guice-injected consumers like
+        // DefaultPlanExecutor) and via createGuiceModules' toInstance binding so the
+        // transport handler that populates buffers from the wire side sees the same instance.
+        return List.of(searchService, ctx, capabilityRegistry, joinStrategyMetrics, shuffleBufferManager);
     }
 
     @Override
@@ -162,12 +167,14 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             // transport handlers and is only legal to call once per node).
             b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
-            // Singleton bind on the buffer manager so DefaultPlanExecutor (which pre-allocates
-            // buffers before producer dispatch) and TransportAnalyticsShuffleDataAction (which
-            // populates them on the wire path) see the same node-local registry. Without an
-            // explicit binding Guice's JIT would create per-injection instances and the
-            // consumer's awaitReady would never observe the producer's senderDone.
-            b.bind(ShuffleBufferManager.class).asEagerSingleton();
+            // Bind the buffer manager to the instance we created in createComponents so
+            // DefaultPlanExecutor (which pre-allocates buffers before producer dispatch),
+            // TransportAnalyticsShuffleDataAction (which populates them on the wire path), and
+            // AnalyticsSearchService (which threads it into ShardScanExecutionContext for the
+            // hash-shuffle scan handlers) all see the same node-local registry. Without
+            // toInstance Guice's JIT would create per-injection instances and the consumer's
+            // awaitReady would never observe the producer's senderDone.
+            b.bind(ShuffleBufferManager.class).toInstance(shuffleBufferManager);
         });
     }
 

@@ -10,6 +10,8 @@ package org.opensearch.analytics.exec.shuffle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.spi.ShuffleBufferAccess;
+import org.opensearch.analytics.spi.ShuffleBufferRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,12 +42,17 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-public class ShuffleBufferManager {
+public class ShuffleBufferManager implements ShuffleBufferRegistry {
 
     private static final Logger LOGGER = LogManager.getLogger(ShuffleBufferManager.class);
 
     private final Map<String, ShuffleBuffer> buffers = new ConcurrentHashMap<>();
     private volatile long bufferMaxBytes = Long.MAX_VALUE;
+
+    @Override
+    public ShuffleBufferAccess getOrCreate(String queryId, int targetStageId, int partitionIndex) {
+        return getOrCreateBuffer(queryId, targetStageId, partitionIndex);
+    }
 
     /** Configure the per-buffer cap for newly-created buffers. Existing buffers keep their cap. */
     public void setBufferMaxBytes(long bufferMaxBytes) {
@@ -77,7 +84,7 @@ public class ShuffleBufferManager {
      * concurrently; one consumer thread drains via {@link #getLeftData} / {@link #getRightData}
      * after {@link #awaitReady} returns.
      */
-    public static class ShuffleBuffer {
+    public static class ShuffleBuffer implements ShuffleBufferAccess {
         private final List<byte[]> leftData = Collections.synchronizedList(new ArrayList<>());
         private final List<byte[]> rightData = Collections.synchronizedList(new ArrayList<>());
         private final AtomicInteger leftDoneCount = new AtomicInteger();
