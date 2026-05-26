@@ -91,6 +91,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final NodeClient client;
     private final JoinStrategyMetrics joinStrategyMetrics;
     private final EngineContext engineContext;
+    private final org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager;
     // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
     // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
     private final BufferAllocator coordinatorAllocator;
@@ -107,7 +108,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         NodeClient client,
         Scheduler scheduler,
         JoinStrategyMetrics joinStrategyMetrics,
-        ArrowAllocatorService allocatorService
+        ArrowAllocatorService allocatorService,
+        org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("Transport path not implemented yet");
@@ -121,6 +123,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.scheduler = scheduler;
         this.joinStrategyMetrics = joinStrategyMetrics;
         this.engineContext = engineContext;
+        this.shuffleBufferManager = shuffleBufferManager;
         this.coordinatorAllocator = allocatorService.newChildAllocator("coordinator", Long.MAX_VALUE);
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -237,18 +240,25 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         final JoinStrategy joinStrategy = JoinStrategyAdvisor.observe(dag);
         final Stage broadcastBuild = JoinStrategyAdvisor.findBroadcastBuild(dag);
         final Stage broadcastProbe = JoinStrategyAdvisor.findBroadcastProbe(dag);
+        final Stage shuffleLeft = JoinStrategyAdvisor.findShuffleScanLeft(dag);
+        final Stage shuffleRight = JoinStrategyAdvisor.findShuffleScanRight(dag);
+        final boolean isQueryScheduler = scheduler instanceof QueryScheduler;
         final boolean dispatchBroadcast = joinStrategy == JoinStrategy.BROADCAST
             && broadcastBuild != null
             && broadcastProbe != null
-            && scheduler instanceof QueryScheduler;
+            && isQueryScheduler;
+        final boolean dispatchHashShuffle = joinStrategy == JoinStrategy.HASH_SHUFFLE
+            && shuffleLeft != null
+            && shuffleRight != null
+            && isQueryScheduler;
 
-        if (joinStrategy == JoinStrategy.HASH_SHUFFLE) {
-            // HASH_SHUFFLE produces a shuffle-shaped DAG but the runtime dispatch (producer/
-            // consumer orchestration, RepartitionExec wrapping, NamedScan registration) is the
-            // bulk of M2 implementation still in flight. Falling through to scheduler.execute
-            // means the shuffle-shape stages run as ordinary single-pass stages — correct
-            // behavior is gated on the runtime work; for now this path silently degrades.
-            logger.info("[DefaultPlanExecutor] HASH_SHUFFLE plan-shape produced; runtime dispatch falls back to single-pass execution.");
+        if (joinStrategy == JoinStrategy.HASH_SHUFFLE && !dispatchHashShuffle) {
+            logger.info(
+                "[DefaultPlanExecutor] HASH_SHUFFLE plan-shape produced but dispatch ineligible (left={}, right={}, scheduler={}); falling back to single-pass execution.",
+                shuffleLeft != null,
+                shuffleRight != null,
+                scheduler.getClass().getSimpleName()
+            );
         } else if (joinStrategy == JoinStrategy.BROADCAST && !dispatchBroadcast) {
             logger.info(
                 "[DefaultPlanExecutor] BROADCAST plan-shape produced but scheduler is {}, not QueryScheduler; falling back to single-pass execution.",
@@ -257,10 +267,19 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         }
 
         // Record the routed strategy — what we actually run, not just what CBO picked. A
-        // BROADCAST DAG that fails the dispatchBroadcast gate (non-QueryScheduler) collapses
-        // to COORDINATOR_CENTRIC for counting purposes since the join then runs on the coord.
+        // BROADCAST or HASH_SHUFFLE DAG that fails its dispatch eligibility gate (non-QueryScheduler,
+        // missing role tags) collapses to COORDINATOR_CENTRIC for counting purposes since the
+        // join then runs on the coord under the standard walker.
         if (JoinStrategyAdvisor.containsJoin(dag)) {
-            joinStrategyMetrics.recordDispatch(dispatchBroadcast ? JoinStrategy.BROADCAST : JoinStrategy.COORDINATOR_CENTRIC);
+            JoinStrategy routedStrategy;
+            if (dispatchBroadcast) {
+                routedStrategy = JoinStrategy.BROADCAST;
+            } else if (dispatchHashShuffle) {
+                routedStrategy = JoinStrategy.HASH_SHUFFLE;
+            } else {
+                routedStrategy = JoinStrategy.COORDINATOR_CENTRIC;
+            }
+            joinStrategyMetrics.recordDispatch(routedStrategy);
         }
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
@@ -340,6 +359,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         try {
             if (dispatchBroadcast) {
                 dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, batchesListener);
+            } else if (dispatchHashShuffle) {
+                dispatchHashShuffle(dag, shuffleLeft, shuffleRight, context, batchesListener);
             } else {
                 // execRef read by profile listener after execution completes
                 execRef.set(scheduler.execute(context, batchesListener));
@@ -406,6 +427,60 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 .createBroadcastCaptureSink(context.bufferAllocator(), buildRowType, broadcastMaxBytes),
             terminal
         );
+    }
+
+    /**
+     * Runs the hash-shuffle path against a CBO-produced DAG. The DAG already has the shuffle
+     * shape — root with two SHUFFLE_SCAN_* producer children — because the cost model picked
+     * the hash alternative emitted by {@link
+     * org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule} and DAGBuilder cut at
+     * the resulting {@link org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange}s and
+     * tagged the children. Pre-allocates per-partition shuffle buffers, attaches per-side
+     * ShuffleProducerInstructionNodes to the producers and ShuffleScanInstructionNodes to the
+     * consumer, then hands off to the standard scheduler for concurrent dispatch.
+     */
+    private void dispatchHashShuffle(
+        QueryDAG dag,
+        Stage leftProducer,
+        Stage rightProducer,
+        QueryContext context,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        // Both producers share the same parent (the consumer / join stage). We find it via the
+        // root walk: the consumer is the parent of both producers; for a CBO-produced
+        // hash-shuffle DAG with no extra wrappers the consumer IS the root, but for
+        // wrappers-above-join shapes (Sort, Project) the consumer is whichever ancestor
+        // contains both producers as its direct child stages. Walk from the root.
+        Stage consumer = findConsumerStage(dag.rootStage(), leftProducer, rightProducer);
+        if (consumer == null) {
+            throw new IllegalStateException(
+                "HashShuffleDispatch: could not locate consumer stage that holds both shuffle producers as children"
+            );
+        }
+        QueryScheduler qscheduler = (QueryScheduler) scheduler;
+        new org.opensearch.analytics.exec.join.HashShuffleDispatch(qscheduler, clusterService, shuffleBufferManager).run(
+            context,
+            dag,
+            leftProducer,
+            rightProducer,
+            consumer,
+            terminal
+        );
+    }
+
+    /** Walks {@code stage}'s subtree looking for the stage whose direct {@code childStages} list
+     *  contains both producers. */
+    private static Stage findConsumerStage(Stage stage, Stage left, Stage right) {
+        if (stage == null) return null;
+        List<Stage> children = stage.getChildStages();
+        if (children.contains(left) && children.contains(right)) {
+            return stage;
+        }
+        for (Stage child : children) {
+            Stage found = findConsumerStage(child, left, right);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     /**

@@ -68,10 +68,10 @@ public final class JoinStrategyAdvisor {
      * <p>Resolution priority (in order):
      * <ol>
      *   <li>Any stage tagged {@link Stage.StageRole#BROADCAST_BUILD} → {@link JoinStrategy#BROADCAST}.</li>
-     *   <li>Any stage whose exchange-info distribution is HASH_DISTRIBUTED → {@link JoinStrategy#HASH_SHUFFLE}.
-     *       DAGBuilder.cutShuffle records the shuffle's hash distribution on the child stage;
-     *       we don't role-tag at cut time because cutShuffle doesn't know which side of the
-     *       parent join the shuffle feeds.</li>
+     *   <li>Any stage tagged {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} or
+     *       {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} → {@link JoinStrategy#HASH_SHUFFLE}.
+     *       (Fallback: any HASH_DISTRIBUTED ExchangeInfo, for shuffle stages whose parent isn't
+     *       an OpenSearchJoin — e.g. shuffle below an aggregate.)</li>
      *   <li>Otherwise (including non-join queries) → {@link JoinStrategy#COORDINATOR_CENTRIC}.</li>
      * </ol>
      *
@@ -86,10 +86,30 @@ public final class JoinStrategyAdvisor {
         if (anyStageHasRole(root, Stage.StageRole.BROADCAST_BUILD)) {
             return JoinStrategy.BROADCAST;
         }
-        if (anyStageHasHashExchange(root)) {
+        if (anyStageHasRole(root, Stage.StageRole.SHUFFLE_SCAN_LEFT)
+            || anyStageHasRole(root, Stage.StageRole.SHUFFLE_SCAN_RIGHT)
+            || anyStageHasHashExchange(root)) {
             return JoinStrategy.HASH_SHUFFLE;
         }
         return JoinStrategy.COORDINATOR_CENTRIC;
+    }
+
+    /**
+     * Locates the {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} stage in the DAG, or {@code null}
+     * if absent. Used by {@code HashShuffleDispatch} to thread the {@code side="left"} label
+     * onto the producer's instruction without re-walking the DAG.
+     */
+    public static Stage findShuffleScanLeft(QueryDAG dag) {
+        Stage root = dag.rootStage();
+        if (root == null) return null;
+        return findStageByRole(root, Stage.StageRole.SHUFFLE_SCAN_LEFT);
+    }
+
+    /** Locates the {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} stage in the DAG. */
+    public static Stage findShuffleScanRight(QueryDAG dag) {
+        Stage root = dag.rootStage();
+        if (root == null) return null;
+        return findStageByRole(root, Stage.StageRole.SHUFFLE_SCAN_RIGHT);
     }
 
     /**

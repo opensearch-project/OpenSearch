@@ -22,6 +22,7 @@ import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.Scheduler;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.join.JoinStrategyMetrics;
+import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.rest.RestJoinStrategyStatsAction;
@@ -161,6 +162,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             // transport handlers and is only legal to call once per node).
             b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
+            // Singleton bind on the buffer manager so DefaultPlanExecutor (which pre-allocates
+            // buffers before producer dispatch) and TransportAnalyticsShuffleDataAction (which
+            // populates them on the wire path) see the same node-local registry. Without an
+            // explicit binding Guice's JIT would create per-injection instances and the
+            // consumer's awaitReady would never observe the producer's senderDone.
+            b.bind(ShuffleBufferManager.class).asEagerSingleton();
         });
     }
 

@@ -1438,6 +1438,54 @@ pub unsafe fn register_memtable(
     Ok(schema_ipc)
 }
 
+/// Registers a streaming partition input on a `SessionContextHandle` under `input_id`,
+/// returning a [`PartitionStreamSender`] pointer the caller drives to push batches in.
+/// Sibling of [`register_partition_stream`] but for the shard-scan path's
+/// [`crate::session_context::SessionContextHandle`] — the M2 hash-shuffle worker registers
+/// each partition's left/right input on the same session that already has the local shard
+/// scan registered, so the join's two `NamedScan`s resolve against streaming tables alongside
+/// the shard's parquet listing.
+///
+/// Unlike [`register_partition_stream`] this entry point takes an Arrow IPC schema blob
+/// directly. The hash-shuffle path has no producer-side substrait plan to derive the schema
+/// from — the shipped record batches arrive over the wire pre-typed, and the caller computes
+/// the schema once on the dispatch side and threads it through the
+/// [`org.opensearch.analytics.spi.ShuffleScanInstructionNode`] equivalent. Mirrors how
+/// [`register_memtable_on_session_context`] also takes a schema blob.
+///
+/// Returns the sender pointer; the caller frees it via [`crate::ffm::df_sender_close`] once
+/// all batches for this partition have been pushed (or on cancellation).
+///
+/// # Safety
+/// - `session_ctx_handle_ptr` must be a valid, non-zero pointer returned by
+///   `create_session_context` (or `create_session_context_indexed`).
+/// - `schema_ipc` must be a complete Arrow IPC schema-message blob.
+pub unsafe fn register_partition_stream_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id: &str,
+    schema_ipc: &[u8],
+) -> Result<i64, DataFusionError> {
+    let table_schema = schema_from_ipc_bytes(schema_ipc)?;
+    let (sender, receiver) = crate::partition_stream::channel(Arc::clone(&table_schema));
+    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> =
+        Arc::new(crate::partition_stream::SingleReceiverPartition::new(receiver));
+    let table = datafusion::catalog::streaming::StreamingTable::try_new(
+        Arc::clone(&table_schema),
+        vec![partition],
+    )?;
+    let handle = &*(session_ctx_handle_ptr as *const crate::session_context::SessionContextHandle);
+    handle
+        .ctx
+        .register_table(input_id, Arc::new(table))
+        .map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Failed to register streaming table '{}' on session context: {}",
+                input_id, e
+            ))
+        })?;
+    Ok(Box::into_raw(Box::new(sender)) as i64)
+}
+
 /// Variant of [`register_memtable`] for the shard-scan path's `SessionContextHandle`. The
 /// probe-side `BroadcastInjectionHandler` runs against the same `SessionContextHandle` that
 /// `ShardScanInstructionHandler` produced; the M1 broadcast memtable lives alongside the

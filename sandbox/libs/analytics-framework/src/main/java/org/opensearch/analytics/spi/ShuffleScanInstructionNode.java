@@ -20,6 +20,11 @@ import java.io.IOException;
  * it as a {@code NamedScan} under {@code namedInputId}. The worker's Substrait plan references that
  * name, so the hash-join's input resolves to the partitioned stream.
  *
+ * <p>{@code queryId} and {@code targetStageId} key the worker-side shuffle buffer — paired with
+ * {@code shufflePartitionIndex} they identify the {@code (queryId, stageId, partitionIndex)} bucket
+ * the producers send into and the consumer drains here. Mirrors the same triple
+ * {@link ShuffleProducerInstructionNode} carries.
+ *
  * <p>{@code expectedSenders} tells the consumer how many upstream senders will mark {@code isLast}
  * before the stream is considered complete — i.e. the {@code awaitReady} count for this partition.
  *
@@ -30,17 +35,29 @@ public class ShuffleScanInstructionNode implements InstructionNode {
     private final String namedInputId;
     private final int shufflePartitionIndex;
     private final int expectedSenders;
+    private final String queryId;
+    private final int targetStageId;
 
-    public ShuffleScanInstructionNode(String namedInputId, int shufflePartitionIndex, int expectedSenders) {
+    public ShuffleScanInstructionNode(
+        String namedInputId,
+        int shufflePartitionIndex,
+        int expectedSenders,
+        String queryId,
+        int targetStageId
+    ) {
         this.namedInputId = namedInputId;
         this.shufflePartitionIndex = shufflePartitionIndex;
         this.expectedSenders = expectedSenders;
+        this.queryId = queryId;
+        this.targetStageId = targetStageId;
     }
 
     public ShuffleScanInstructionNode(StreamInput in) throws IOException {
         this.namedInputId = in.readString();
         this.shufflePartitionIndex = in.readVInt();
         this.expectedSenders = in.readVInt();
+        this.queryId = in.readString();
+        this.targetStageId = in.readVInt();
     }
 
     public String getNamedInputId() {
@@ -55,6 +72,14 @@ public class ShuffleScanInstructionNode implements InstructionNode {
         return expectedSenders;
     }
 
+    public String getQueryId() {
+        return queryId;
+    }
+
+    public int getTargetStageId() {
+        return targetStageId;
+    }
+
     @Override
     public InstructionType type() {
         return InstructionType.SHUFFLE_SCAN;
@@ -65,5 +90,7 @@ public class ShuffleScanInstructionNode implements InstructionNode {
         out.writeString(namedInputId);
         out.writeVInt(shufflePartitionIndex);
         out.writeVInt(expectedSenders);
+        out.writeString(queryId);
+        out.writeVInt(targetStageId);
     }
 }

@@ -17,7 +17,7 @@ import java.util.List;
 public class ShuffleInstructionNodeTests extends OpenSearchTestCase {
 
     public void testShuffleScanWireRoundtrip() throws Exception {
-        ShuffleScanInstructionNode original = new ShuffleScanInstructionNode("input-0", 2, 5);
+        ShuffleScanInstructionNode original = new ShuffleScanInstructionNode("input-0", 2, 5, "q-xyz", 9);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -25,6 +25,8 @@ public class ShuffleInstructionNodeTests extends OpenSearchTestCase {
                 assertEquals("input-0", decoded.getNamedInputId());
                 assertEquals(2, decoded.getShufflePartitionIndex());
                 assertEquals(5, decoded.getExpectedSenders());
+                assertEquals("q-xyz", decoded.getQueryId());
+                assertEquals(9, decoded.getTargetStageId());
                 assertEquals(InstructionType.SHUFFLE_SCAN, decoded.type());
             }
         }
@@ -55,7 +57,7 @@ public class ShuffleInstructionNodeTests extends OpenSearchTestCase {
     }
 
     public void testInstructionTypeReadNodeDispatch() throws Exception {
-        ShuffleScanInstructionNode scan = new ShuffleScanInstructionNode("x", 0, 1);
+        ShuffleScanInstructionNode scan = new ShuffleScanInstructionNode("x", 0, 1, "q", 0);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             scan.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {

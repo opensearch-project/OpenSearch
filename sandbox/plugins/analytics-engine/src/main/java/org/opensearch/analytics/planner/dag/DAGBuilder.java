@@ -86,11 +86,13 @@ public class DAGBuilder {
         ClusterService clusterService
     ) {
         List<RelNode> newInputs = new ArrayList<>();
-        for (RelNode input : node.getInputs()) {
+        List<RelNode> rawInputs = node.getInputs();
+        for (int inputIndex = 0; inputIndex < rawInputs.size(); inputIndex++) {
+            RelNode input = rawInputs.get(inputIndex);
             if (input instanceof OpenSearchExchangeReducer reducer) {
                 newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService));
             } else if (input instanceof OpenSearchShuffleExchange shuffle) {
-                newInputs.add(cutShuffle(shuffle, counter, childStages, registry, clusterService));
+                newInputs.add(cutShuffle(shuffle, counter, childStages, registry, clusterService, node, inputIndex));
             } else if (input instanceof OpenSearchBroadcastExchange broadcast) {
                 newInputs.add(cutBroadcast(broadcast, counter, childStages, registry, clusterService));
             } else {
@@ -180,18 +182,22 @@ public class DAGBuilder {
      * carries the shuffle keys and partition count so the dispatcher can size partition buffers
      * and ship per-partition output to the right consumer node.
      *
-     * <p>The child stage's role stays at the default {@link Stage.StageRole#SHARD_SOURCE} — the
-     * advisor re-tags it as {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} or
-     * {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} once it knows which side of the parent join
-     * the shuffle feeds. Tagging at cut time would require the cutter to track its position in
-     * the join's input list, which it doesn't know.
+     * <p>When the parent is an {@link org.opensearch.analytics.planner.rel.OpenSearchJoin} the
+     * cutter tags the child stage {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} or
+     * {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} based on whether the shuffle feeds input 0 or 1
+     * — {@code HashShuffleDispatch} consumes that tag to assign the {@code "left"} / {@code "right"}
+     * side label on each producer's instruction. For other parents (Aggregate, intermediate Project)
+     * the role stays at the default {@link Stage.StageRole#SHARD_SOURCE} since there is no
+     * join-side semantics to encode.
      */
     private static RelNode cutShuffle(
         OpenSearchShuffleExchange shuffle,
         int[] counter,
         List<Stage> parentChildStages,
         CapabilityRegistry registry,
-        ClusterService clusterService
+        ClusterService clusterService,
+        RelNode parent,
+        int parentInputIndex
     ) {
         // Recurse into the shuffle's input with full sever() so any nested exchanges below the
         // shuffle (e.g. a partial-aggregate that itself reduces) are also cut into their own
@@ -217,6 +223,17 @@ public class DAGBuilder {
             childSinkProvider,
             targetResolver
         );
+        // Tag join-side role when the shuffle feeds an OpenSearchJoin's left or right input.
+        // HashShuffleDispatch reads this to assemble the {@code side="left"|"right"} label on
+        // each producer's ShuffleProducerInstructionNode and to compose the worker fragment's
+        // two NamedScans (one per side).
+        if (parent instanceof org.opensearch.analytics.planner.rel.OpenSearchJoin) {
+            if (parentInputIndex == 0) {
+                childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_LEFT);
+            } else if (parentInputIndex == 1) {
+                childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_RIGHT);
+            }
+        }
         parentChildStages.add(childStage);
 
         OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(

@@ -76,8 +76,14 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     }
 
     @Override
-    public Optional<InstructionNode> createShuffleScanNode(String namedInputId, int shufflePartitionIndex, int expectedSenders) {
-        return Optional.of(new ShuffleScanInstructionNode(namedInputId, shufflePartitionIndex, expectedSenders));
+    public Optional<InstructionNode> createShuffleScanNode(
+        String namedInputId,
+        int shufflePartitionIndex,
+        int expectedSenders,
+        String queryId,
+        int targetStageId
+    ) {
+        return Optional.of(new ShuffleScanInstructionNode(namedInputId, shufflePartitionIndex, expectedSenders, queryId, targetStageId));
     }
 
     @Override

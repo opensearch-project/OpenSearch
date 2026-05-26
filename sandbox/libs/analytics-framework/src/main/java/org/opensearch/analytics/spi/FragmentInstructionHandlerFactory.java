@@ -59,7 +59,13 @@ public interface FragmentInstructionHandlerFactory {
      * channel-backed partition stream tied to the node-local shuffle buffer as the backend's
      * source for {@code namedInputId}.
      */
-    default Optional<InstructionNode> createShuffleScanNode(String namedInputId, int shufflePartitionIndex, int expectedSenders) {
+    default Optional<InstructionNode> createShuffleScanNode(
+        String namedInputId,
+        int shufflePartitionIndex,
+        int expectedSenders,
+        String queryId,
+        int targetStageId
+    ) {
         return Optional.empty();
     }
 

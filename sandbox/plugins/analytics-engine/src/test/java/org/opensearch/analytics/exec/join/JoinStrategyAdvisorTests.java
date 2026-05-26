@@ -126,6 +126,15 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
         assertEquals(JoinStrategy.HASH_SHUFFLE, JoinStrategyAdvisor.observe(dag));
         assertNull("hash-shuffle DAG must NOT have a BROADCAST_BUILD stage", JoinStrategyAdvisor.findBroadcastBuild(dag));
+
+        // DAGBuilder.cutShuffle should role-tag each child stage based on which join input it
+        // feeds. HashShuffleDispatch consumes those tags to thread the {@code side="left"|"right"}
+        // label onto each producer's instruction without re-walking the join's RelNode.
+        Stage left = JoinStrategyAdvisor.findShuffleScanLeft(dag);
+        Stage right = JoinStrategyAdvisor.findShuffleScanRight(dag);
+        assertNotNull("hash-shuffle DAG must have a SHUFFLE_SCAN_LEFT stage", left);
+        assertNotNull("hash-shuffle DAG must have a SHUFFLE_SCAN_RIGHT stage", right);
+        assertNotEquals("left and right stages must be distinct", left.getStageId(), right.getStageId());
     }
 
     public void testThetaJoinReportsCoordinatorCentric() {

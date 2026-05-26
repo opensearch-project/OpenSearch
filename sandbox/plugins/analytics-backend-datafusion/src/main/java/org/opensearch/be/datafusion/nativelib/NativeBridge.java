@@ -78,6 +78,7 @@ public final class NativeBridge {
     private static final MethodHandle SENDER_CLOSE;
     private static final MethodHandle REGISTER_MEMTABLE;
     private static final MethodHandle REGISTER_MEMTABLE_ON_SESSION_CONTEXT;
+    private static final MethodHandle REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT;
     private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
@@ -305,6 +306,21 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // i64 df_register_partition_stream_on_session_context(session_ctx_handle_ptr,
+        // input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len)
+        // Returns the PartitionStreamSender pointer (cast to i64) for the M2 hash-shuffle worker.
+        REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_register_partition_stream_on_session_context").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
@@ -1005,6 +1021,35 @@ public final class NativeBridge {
                 call.longs(arrayPtrs),
                 call.longs(schemaPtrs),
                 (long) arrayPtrs.length
+            );
+        }
+    }
+
+    /**
+     * Streaming sibling of {@link #registerMemtableOnSessionContext}. Registers a partitioned
+     * streaming input on a {@code SessionContextHandle} session under {@code inputId} and
+     * returns the producer-side {@code PartitionStreamSender} pointer the caller drives via
+     * {@link #senderSend} / {@link #senderClose}. Used by M2's hash-shuffle worker to register
+     * the per-side partition input alongside the shard-scan listing table on the same session.
+     *
+     * <p>The schema is taken as IPC bytes (the same shape as
+     * {@link #registerMemtableOnSessionContext}) — the producer side ships record batches whose
+     * schema must match this declaration exactly.
+     *
+     * @return the sender pointer (non-zero); caller must free via {@link #senderClose} when
+     *     done. A Rust-side error throws via {@link NativeCall}.
+     */
+    public static long registerPartitionStreamOnSessionContext(long sessionContextHandlePtr, String inputId, byte[] schemaIpc) {
+        NativeHandle.validatePointer(sessionContextHandlePtr, "sessionContextHandle");
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_PARTITION_STREAM_ON_SESSION_CONTEXT,
+                sessionContextHandlePtr,
+                id.segment(),
+                id.len(),
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length
             );
         }
     }

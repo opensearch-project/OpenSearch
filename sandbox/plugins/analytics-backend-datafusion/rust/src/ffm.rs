@@ -504,6 +504,31 @@ pub unsafe extern "C" fn df_register_memtable_on_session_context(
     .map_err(|e| e.to_string())
 }
 
+/// Streaming sibling of `df_register_memtable_on_session_context`. Registers a partitioned
+/// streaming input on the shard-scan session under `input_id` and returns the producer-side
+/// channel sender pointer. M2 hash-shuffle workers register left/right partition inputs via
+/// this entry; the per-batch feed reuses the existing `df_sender_send` / `df_sender_close`
+/// FFM exports because `PartitionStreamSender` is the same type whether the session was
+/// created via `df_create_local_session` or `df_create_session_context`.
+///
+/// On success the function returns the sender pointer cast to `i64`. On error it returns
+/// the FFM error sentinel; the bridge layer converts that to a Java exception.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_partition_stream_on_session_context: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    api::register_partition_stream_on_session_context(session_ctx_handle_ptr, input_id, schema_ipc)
+        .map_err(|e| e.to_string())
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_create_cache(
