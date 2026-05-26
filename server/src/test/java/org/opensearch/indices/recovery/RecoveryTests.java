@@ -437,7 +437,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             replica.onSettingsChanged();
             shards.recoverReplica(replica);
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
-            assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
+            assertBusy(() -> assertThat(getIndexer(replica).shouldPeriodicallyFlush(), equalTo(false)));
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
             assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
             shards.assertAllEqual(numDocs);

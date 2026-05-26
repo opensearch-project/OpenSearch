@@ -93,6 +93,10 @@ public final class ShardPath {
         return path.resolve(INDEX_FOLDER_NAME);
     }
 
+    public Path resolve(String subDirectory) {
+        return path.resolve(subDirectory);
+    }
+
     public Path getDataPath() {
         return path;
     }

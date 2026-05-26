@@ -776,6 +776,15 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
+     * Returns <code>true</code> if the setting for the given key is sensitive, meaning it requires
+     * security admin privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public boolean isSensitiveSetting(String key) {
+        final Setting<?> setting = get(key);
+        return setting != null && setting.isSensitive();
+    }
+
+    /**
      * Returns a settings object that contains all settings that are not
      * already set in the given source. The diff contains either the default value for each
      * setting or the settings value in the given default settings.

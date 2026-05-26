@@ -156,6 +156,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new IllegalStateException("Should never be called");
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

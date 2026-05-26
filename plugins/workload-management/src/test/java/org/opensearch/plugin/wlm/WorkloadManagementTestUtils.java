@@ -51,7 +51,7 @@ public class WorkloadManagementTestUtils {
     public static final long TIMESTAMP_ONE = 4513232413L;
     public static final long TIMESTAMP_TWO = 4513232415L;
     public static final long TIMESTAMP_THREE = 4513232417L;
-    public static final Map<String, String> TEST_SEARCH_SETTINGS = Map.of("timeout", "30s");
+    public static final Settings TEST_SEARCH_SETTINGS = Settings.builder().put("search.default_search_timeout", "30s").build();
     public static final WorkloadGroup workloadGroupOne = builder().name(NAME_ONE)
         ._id(_ID_ONE)
         .mutableWorkloadGroupFragment(

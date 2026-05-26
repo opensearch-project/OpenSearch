@@ -252,7 +252,15 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        validateConstantValue(context);
+    }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        validateConstantValue(context);
+    }
+
+    private void validateConstantValue(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -266,7 +274,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         if (!value.equals(fieldType().value)) {
             throw new IllegalArgumentException("constant keyword field [" + name() + "] must have a value of [" + this.value + "]");
         }
-
     }
 
     @Override

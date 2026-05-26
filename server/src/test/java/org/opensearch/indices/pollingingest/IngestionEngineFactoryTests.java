@@ -27,8 +27,6 @@ public class IngestionEngineFactoryTests extends OpenSearchTestCase {
     public void testConstructorWithNullIngestServiceSupplier() {
         IngestionConsumerFactory consumerFactory = mock(IngestionConsumerFactory.class);
 
-        // Null supplier should be accepted
-        IngestionEngineFactory factory = new IngestionEngineFactory(consumerFactory, null);
-        assertNotNull(factory);
+        expectThrows(NullPointerException.class, () -> new IngestionEngineFactory(consumerFactory, null));
     }
 }

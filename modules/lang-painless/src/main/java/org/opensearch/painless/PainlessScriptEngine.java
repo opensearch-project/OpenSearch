@@ -90,10 +90,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
+        Map<List<Allowlist>, PainlessLookup> allowlistsToLookups = new HashMap<>();
 
         for (Map.Entry<ScriptContext<?>, List<Allowlist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            PainlessLookup lookup = PainlessLookupBuilder.buildFromAllowlists(entry.getValue());
+            List<Allowlist> allowlists = List.copyOf(entry.getValue());
+            PainlessLookup lookup = allowlistsToLookups.computeIfAbsent(allowlists, PainlessLookupBuilder::buildFromAllowlists);
             contextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)

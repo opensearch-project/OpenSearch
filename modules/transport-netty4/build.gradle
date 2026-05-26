@@ -165,6 +165,7 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLCredential',
 
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',

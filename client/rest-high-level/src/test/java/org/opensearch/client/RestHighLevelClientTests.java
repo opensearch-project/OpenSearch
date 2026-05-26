@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
@@ -86,6 +84,7 @@ import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

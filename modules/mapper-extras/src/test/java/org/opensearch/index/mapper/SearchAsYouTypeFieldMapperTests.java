@@ -52,6 +52,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -768,5 +770,117 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         final Mapper mapper = defaultMapper.mappers().getMapper(fieldName);
         assertThat(mapper, instanceOf(PrefixFieldMapper.class));
         return (PrefixFieldMapper) mapper;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatSearchAsYouTypeValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "hello world")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("hello world"));
+        assertTrue("Expected search_as_you_type value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatSearchAsYouTypeNullSkipped() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no field entry for null value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatSearchAsYouTypeExternalValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("sayt").field("type", "search_as_you_type").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_sayt")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.sayt") && e.getValue().equals("external_sayt"));
+        assertTrue("Expected search_as_you_type sub-field captured with external value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPrefixFieldMapperThrows() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject()));
+        PrefixFieldMapper prefixMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
+        expectThrows(UnsupportedOperationException.class, () -> prefixMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatShingleFieldMapperThrows() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject()));
+        ShingleFieldMapper shingleMapper = getShingleFieldMapper(mapper, "field._2gram");
+        expectThrows(UnsupportedOperationException.class, () -> shingleMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: search_as_you_type value
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.field("field", "hello world")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(
+                pluggableSettings,
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            pluggableMapper.parse(source(b -> b.field("field", "hello world")), docInput);
+
+            assertTrue("Lucene path should produce field 'field'", luceneFields.length > 0);
+            assertEquals("hello world", luceneFields[0].stringValue());
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("hello world"));
+            assertTrue("Pluggable path should capture field 'field' with value 'hello world'", pluggableFound);
+        }
+
+        // Scenario 2: null value — no field produced
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.nullField("field")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(
+                pluggableSettings,
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            pluggableMapper.parse(source(b -> b.nullField("field")), docInput);
+
+            assertEquals("Lucene path should produce no field 'field'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+            assertFalse("Pluggable path should produce no field 'field'", pluggableHasField);
+        }
     }
 }

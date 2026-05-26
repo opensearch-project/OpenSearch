@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.transport.grpc.proto.response.search.SearchResponseProtoUtils;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import java.io.IOException;
@@ -27,22 +28,28 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
     private static final Logger logger = LogManager.getLogger(SearchRequestActionListener.class);
 
     private final StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
+    private final AggregateProtoConverterRegistry aggregateRegistry;
 
     /**
      * Constructs a new SearchRequestActionListener.
      *
      * @param responseObserver the gRPC stream observer to send the search response to
+     * @param aggregateRegistry the converter registry for dispatching aggregation conversions
      */
-    public SearchRequestActionListener(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver) {
+    public SearchRequestActionListener(
+        StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver,
+        AggregateProtoConverterRegistry aggregateRegistry
+    ) {
         super();
         this.responseObserver = responseObserver;
+        this.aggregateRegistry = aggregateRegistry;
     }
 
     @Override
     public void onResponse(SearchResponse response) {
         // Search execution succeeded. Convert the opensearch internal response to protobuf
         try {
-            org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(response);
+            org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(response, aggregateRegistry);
             responseObserver.onNext(protoResponse);
             responseObserver.onCompleted();
         } catch (RuntimeException | IOException e) {

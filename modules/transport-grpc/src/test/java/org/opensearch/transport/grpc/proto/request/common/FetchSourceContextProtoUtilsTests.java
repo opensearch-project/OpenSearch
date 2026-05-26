@@ -352,4 +352,26 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
         assertArrayEquals("includes should match", new String[] { "include1", "include2" }, context.includes());
         assertArrayEquals("excludes should match", new String[] { "exclude1", "exclude2" }, context.excludes());
     }
+
+    public void testFromProtoWithSourceConfigFilterAmbiguousIncludesAndExcludes() {
+        // Create a SourceConfig with filter includes and excludes
+        final SourceConfig sourceConfig = SourceConfig.newBuilder()
+            .setFilter(
+                SourceFilter.newBuilder()
+                    .addIncludes("theSameEntry")
+                    .addIncludes("include2")
+                    .addExcludes("theSameEntry")
+                    .addExcludes("exclude2")
+                    .build()
+            )
+            .build();
+
+        // Exception when attempting to convert to FetchSourceContext
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FetchSourceContextProtoUtils.fromProto(sourceConfig)
+        );
+
+        assertEquals("The same entry [theSameEntry] cannot be both included and excluded in _source.", e.getMessage());
+    }
 }

@@ -86,6 +86,8 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
@@ -181,7 +183,7 @@ public class InternalEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
-    private final IndexThrottle throttle;
+    private final IndexingThrottler throttle;
 
     private final CombinedDeletionPolicy combinedDeletionPolicy;
 
@@ -263,7 +265,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings(),
                 getMergedSegmentTransferTracker()
             );
-            throttle = new IndexThrottle();
+            throttle = new IndexingThrottler();
             try {
                 store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
@@ -336,7 +338,7 @@ public class InternalEngine extends Engine {
 
             // Set the Refresh checkpoint first and then sync child with parent to ensure parent Checkpoint is grater than Refresh
             // checkpoint.
-            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
+            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             internalReaderManager.addListener(documentIndexWriter);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(
@@ -1815,6 +1817,24 @@ public class InternalEngine extends Engine {
         return new GatedCloseable<>(safeCommit, () -> releaseIndexCommit(safeCommit));
     }
 
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        // Parallel to acquireSafeIndexCommit: pin a safe Lucene commit, wrap its SegmentInfos.
+        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+        try {
+            final SegmentInfos infos = Lucene.readSegmentInfos(safeCommit);
+            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            return new GatedCloseable<>(snapshot, () -> releaseIndexCommit(safeCommit));
+        } catch (IOException e) {
+            try {
+                releaseIndexCommit(safeCommit);
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw new EngineException(shardId, "Failed to materialize safe CatalogSnapshot", e);
+        }
+    }
+
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
         if (combinedDeletionPolicy.releaseCommit(snapshot)) {
@@ -2533,14 +2553,14 @@ public class InternalEngine extends Engine {
      * Returned the last local checkpoint value has been refreshed internally.
      */
     public final long lastRefreshedCheckpoint() {
-        return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
+        return lastRefreshedCheckpointListener.lastRefreshedCheckpoint();
     }
 
     /**
      * Returns the current local checkpoint getting refreshed internally.
      */
     public final long currentOngoingRefreshCheckpoint() {
-        return lastRefreshedCheckpointListener.pendingCheckpoint.get();
+        return lastRefreshedCheckpointListener.pendingCheckpoint();
     }
 
     private final Object refreshIfNeededMutex = new Object();
@@ -2555,38 +2575,6 @@ public class InternalEngine extends Engine {
                     refresh(source, SearcherScope.INTERNAL, true);
                 }
             }
-        }
-    }
-
-    private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
-        final AtomicLong refreshedCheckpoint;
-        volatile AtomicLong pendingCheckpoint;
-
-        LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
-            this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
-            this.pendingCheckpoint = new AtomicLong(initialLocalCheckpoint);
-        }
-
-        @Override
-        public void beforeRefresh() {
-            // all changes until this point should be visible after refresh
-            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, localCheckpointTracker.getProcessedCheckpoint()));
-        }
-
-        @Override
-        public void afterRefresh(boolean didRefresh) {
-            if (didRefresh) {
-                updateRefreshedCheckpoint(pendingCheckpoint.get());
-            }
-        }
-
-        void updateRefreshedCheckpoint(long checkpoint) {
-            refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
-            assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
-            // This shouldn't be required ideally, but we're also invoking this method from refresh as of now.
-            // This change is added as safety check to ensure that our checkpoint values are consistent at all times.
-            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
-
         }
     }
 

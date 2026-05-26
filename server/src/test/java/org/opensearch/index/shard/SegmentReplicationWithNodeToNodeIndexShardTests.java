@@ -21,9 +21,11 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -294,7 +296,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 }
             }, ThreadPool.Names.GENERIC, "");
             latch.await();
-            assertEquals(nextPrimary.getEngine().getClass(), InternalEngine.class);
+            assertEquals(getEngine(nextPrimary).getClass(), InternalEngine.class);
             nextPrimary.refresh("test");
 
             oldPrimary.close("demoted", false, false);
@@ -409,7 +411,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                         .collect(Collectors.toList());
 
                     // Step 4. Perform a commit on replica shard.
-                    NRTReplicationEngine engine = (NRTReplicationEngine) indexShard.getEngine();
+                    NRTReplicationEngine engine = (NRTReplicationEngine) ((EngineBackedIndexer) (indexShard.getIndexer())).getEngine();
                     engine.updateSegments(engine.getSegmentInfosSnapshot().get());
 
                     // Step 5. Validate temporary files are not deleted from store.
@@ -502,7 +504,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         final IndexShard primaryTarget = newShard(
             primarySource.routingEntry().getTargetRelocatingShard(),
             getIndexSettings(),
-            new NRTReplicationEngineFactory()
+            new EngineBackedIndexerFactory(new NRTReplicationEngineFactory())
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
 
@@ -540,7 +542,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         final RecoverySettings recoverySettings = new RecoverySettings(
             Settings.builder()
                 .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE.getKey(), true)
-                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.getKey(), 11000)
+                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.getKey(), 1000)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
@@ -554,7 +556,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 MergedSegmentPublisher.EMPTY
             )
         ) {
-            doPrimaryPromotion(shards, randomInt(10), randomIntBetween(30000, 40000));
+            doPrimaryPromotion(shards, randomInt(10), randomIntBetween(1100, 2000));
         }
     }
 
@@ -605,8 +607,8 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
         shards.recoverReplica(oldPrimary);
 
-        assertEquals(NRTReplicationEngine.class, oldPrimary.getEngine().getClass());
-        assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
+        assertEquals(NRTReplicationEngine.class, getEngine(oldPrimary).getClass());
+        assertEquals(InternalEngine.class, getEngine(nextPrimary).getClass());
         assertDocCounts(nextPrimary, totalDocs, totalDocs);
         assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
 

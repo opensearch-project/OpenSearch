@@ -62,9 +62,6 @@ class ScaleIndexOperationValidator {
                     throw new IllegalStateException("Index [" + index + "] is already in search-only mode");
                 }
 
-                if (indexMetadata.getNumberOfSearchOnlyReplicas() == 0) {
-                    throw new IllegalArgumentException("Cannot scale to zero without search replicas for index: " + index);
-                }
                 if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false) {
                     throw new IllegalArgumentException(
                         "To scale to zero, " + IndexMetadata.SETTING_REMOTE_STORE_ENABLED + " must be enabled for index: " + index

@@ -552,7 +552,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .setSize(0)
             .setRequestCache(true)
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
-            .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now"))
+            .addAggregation(dateRange("foo").field("s").addRange("2016-01-01", "now"))
             .get();
         OpenSearchAssertions.assertAllSuccessful(r5);
         assertThat(r5.getHits().getTotalHits().value(), equalTo(7L));
@@ -575,7 +575,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .setSize(0)
             .setRequestCache(true)
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
-            .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now")))
+            .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("2016-01-01").to("now")))
             .get();
         OpenSearchAssertions.assertAllSuccessful(r4);
         assertThat(r4.getHits().getTotalHits().value(), equalTo(7L));

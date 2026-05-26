@@ -67,8 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class XContentBuilderTests extends OpenSearchTestCase {
     public void testPrettyWithLfAtEnd() throws Exception {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        XContentGenerator generator = MediaTypeRegistry.JSON.xContent().createGenerator(os);
-        generator.usePrettyPrint();
+        XContentGenerator generator = MediaTypeRegistry.JSON.xContent().createGenerator(os, true);
         generator.usePrintLineFeedAtEnd();
 
         generator.writeStartObject();

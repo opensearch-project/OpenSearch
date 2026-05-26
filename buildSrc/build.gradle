@@ -94,6 +94,7 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
+  maven { url = uri("https://ci.opensearch.org/maven2/") }
   mavenCentral()
   gradlePluginPortal()
 }
@@ -290,6 +291,12 @@ if (project != rootProject) {
   publishing.publications.named("nebula").configure {
     suppressPomMetadataWarningsFor("testFixturesApiElements")
     suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
+  }
+
+  // Gradle 9.4 changed the default to enforce stricter validation. Disabling
+  // the validation for now and will follow up with a fix.
+  tasks.validatePlugins {
+    enableStricterValidation = false
   }
 }
 

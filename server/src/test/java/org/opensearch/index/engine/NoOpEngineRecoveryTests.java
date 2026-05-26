@@ -34,6 +34,7 @@ package org.opensearch.index.engine;
 import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 
@@ -57,7 +58,7 @@ public class NoOpEngineRecoveryTests extends IndexShardTestCase {
             indexShard,
             initWithSameId(shardRouting, ExistingStoreRecoverySource.INSTANCE),
             indexShard.indexSettings().getIndexMetadata(),
-            NoOpEngine::new,
+            new EngineBackedIndexerFactory(NoOpEngine::new),
             new EngineConfigFactory(indexShard.indexSettings()),
             null
         );
@@ -65,7 +66,7 @@ public class NoOpEngineRecoveryTests extends IndexShardTestCase {
         assertEquals(primary.seqNoStats().getMaxSeqNo(), primary.getMaxSeqNoOfUpdatesOrDeletes());
         assertEquals(nbDocs, primary.docStats().getCount());
 
-        IndexShard replica = newShard(false, Settings.EMPTY, NoOpEngine::new);
+        IndexShard replica = newShard(false, Settings.EMPTY, new EngineBackedIndexerFactory(NoOpEngine::new));
         recoverReplica(replica, primary, true);
         assertEquals(replica.seqNoStats().getMaxSeqNo(), replica.getMaxSeqNoOfUpdatesOrDeletes());
         assertEquals(nbDocs, replica.docStats().getCount());

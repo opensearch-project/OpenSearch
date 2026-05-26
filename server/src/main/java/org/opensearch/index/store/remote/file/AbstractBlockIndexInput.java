@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.file;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.lang.ref.Cleaner;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -83,6 +85,25 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
     private final BlockHolder blockHolder = new BlockHolder();
     protected final Cleaner.Cleanable cleanable;
 
+    /**
+     * Set to true after {@link #unpinBlock()} is called. An unpinned input must not be read from;
+     * any subsequent access will throw {@link AlreadyClosedException}.
+     */
+    private boolean unpinned;
+
+    /**
+     * Optional callback invoked when a new derived input (slice or clone) is created.
+     * Propagated to slices and clones so callers can track all derived inputs.
+     */
+    protected Consumer<AbstractBlockIndexInput> onClone;
+
+    /**
+     * Sets a callback that will be invoked on new slices/clones and propagated to them.
+     */
+    public void setOnClone(Consumer<AbstractBlockIndexInput> onClone) {
+        this.onClone = onClone;
+    }
+
     protected AbstractBlockIndexInput(Builder builder) {
         super(builder.resourceDescription);
         this.isClone = builder.isClone;
@@ -136,8 +157,29 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         currentBlockId = 0;
     }
 
+    /**
+     * Unpin the currently held block and mark this input as unusable for direct reads.
+     * Clone and slice still work — they create fresh inputs that can be read normally.
+     */
+    public void unpinBlock() {
+        unpinned = true;
+        if (blockHolder.block == null) return;
+        try {
+            blockHolder.close();
+        } catch (IOException e) {
+            logger.info("Exception thrown while unpin block", e);
+        }
+    }
+
+    private void ensureNotUnpinned() {
+        if (unpinned) {
+            throw new AlreadyClosedException("This input has been unpinned and must not be read from: " + this);
+        }
+    }
+
     @Override
     public long getFilePointer() {
+        ensureNotUnpinned();
         if (blockHolder.block == null) return 0L;
         return currentBlockStart() + currentBlockPosition() - offset;
     }
@@ -149,6 +191,7 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
 
     @Override
     public byte readByte() throws IOException {
+        ensureNotUnpinned();
         if (blockHolder.block == null) {
             // seek to the beginning
             seek(0);
@@ -206,6 +249,7 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
 
     @Override
     public void seek(long pos) throws IOException {
+        ensureNotUnpinned();
         if (pos > length()) {
             throw new EOFException("read past EOF: pos=" + pos + " vs length=" + length() + ": " + this);
         }
@@ -275,6 +319,7 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
 
     @Override
     public final void readBytes(byte[] b, int offset, int len) throws IOException {
+        ensureNotUnpinned();
         if (blockHolder.block == null) {
             // lazy seek to the beginning
             seek(0);
@@ -412,6 +457,7 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
      * NOTE: the pos should be an adjusted position for slices
      */
     private void seekInternal(long pos) throws IOException {
+        ensureNotUnpinned();
         if (blockHolder.block == null || !isInCurrentBlockRange(pos)) {
             demandBlock(getBlock(pos));
         }

@@ -467,6 +467,7 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLCredential',
 
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',

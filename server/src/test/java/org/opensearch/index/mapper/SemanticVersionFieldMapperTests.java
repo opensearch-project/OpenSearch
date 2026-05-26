@@ -29,7 +29,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -850,5 +852,37 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
             () -> searchOnlyFieldType.fielddataBuilder("test_index", null)
         );
         assertThat(fieldDataException.getMessage(), containsString("does not have doc_values enabled"));
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatSemanticVersion() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "version").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "1.2.3")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("1.2.3"));
+        assertTrue("Expected version field captured with value '1.2.3'", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "version").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
     }
 }

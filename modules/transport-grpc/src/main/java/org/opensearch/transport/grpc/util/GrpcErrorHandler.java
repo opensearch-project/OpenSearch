@@ -8,9 +8,6 @@
 
 package org.opensearch.transport.grpc.util;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
@@ -21,6 +18,8 @@ import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.tools.jackson.core.InputCoercionException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;

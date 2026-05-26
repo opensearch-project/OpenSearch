@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The underlying TcpChannel is closed when release is called.
  * @opensearch.internal
  */
-class FlightTransportChannel extends TcpTransportChannel {
+class FlightTransportChannel extends TcpTransportChannel implements ArrowFlightChannel {
     private static final Logger logger = LogManager.getLogger(FlightTransportChannel.class);
 
     private final AtomicBoolean streamOpen = new AtomicBoolean(true);
@@ -147,5 +148,10 @@ class FlightTransportChannel extends TcpTransportChannel {
 
     public void releaseChannel(boolean isExceptionResponse) {
         release(isExceptionResponse);
+    }
+
+    @Override
+    public BufferAllocator getAllocator() {
+        return ((FlightServerChannel) getChannel()).getAllocator();
     }
 }

@@ -68,6 +68,24 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         setRefreshPolicy(refreshPolicy);
     }
 
+    BulkShardRequest setPrimaryResponses(BulkItemResponse[] primaryResponses) {
+        if (primaryResponses == null || primaryResponses.length != items.length) {
+            throw new IllegalArgumentException("Primary responses must have same length as BulkItemRequests");
+        }
+        BulkItemRequest[] newRequests = new BulkItemRequest[items.length];
+        for (int i = 0; i < items.length; i++) {
+            BulkItemRequest request = items[i];
+            if (request == null) {
+                newRequests[i] = null;
+            } else {
+                newRequests[i] = new BulkItemRequest(request.id(), request.request(), primaryResponses[i]);
+            }
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, getRefreshPolicy(), newRequests);
+        cloneProperties(bulkShardRequest);
+        return bulkShardRequest;
+    }
+
     public BulkItemRequest[] items() {
         return items;
     }

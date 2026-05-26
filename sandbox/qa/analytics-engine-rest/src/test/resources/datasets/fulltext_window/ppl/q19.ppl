@@ -1,0 +1,1 @@
+source=app_logs | where level = "ERROR" AND status >= 500 | eventstats avg(latency) as avglatency by service | where latency > avglatency | fields service, message, latency, avglatency | sort service, latency desc | head 10

@@ -68,6 +68,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
@@ -596,9 +597,17 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
                 .build();
             final IndexService indexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
             if (value != null && value) {
-                assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
+                assertThat(indexService.getIndexerFactory(), instanceOf(EngineBackedIndexerFactory.class));
+                assertThat(
+                    ((EngineBackedIndexerFactory) indexService.getIndexerFactory()).getEngineFactory(),
+                    instanceOf(FooEnginePlugin.FooEngineFactory.class)
+                );
             } else {
-                assertThat(indexService.getEngineFactory(), instanceOf(InternalEngineFactory.class));
+                assertThat(indexService.getIndexerFactory(), instanceOf(EngineBackedIndexerFactory.class));
+                assertThat(
+                    ((EngineBackedIndexerFactory) indexService.getIndexerFactory()).getEngineFactory(),
+                    instanceOf(InternalEngineFactory.class)
+                );
             }
         }
     }

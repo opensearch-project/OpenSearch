@@ -67,7 +67,7 @@ public class NestedIdentityTests extends OpenSearchTestCase {
         XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(xcontentType);
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         builder = nestedIdentity.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser parser = createParser(builder)) {
@@ -79,8 +79,7 @@ public class NestedIdentityTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         NestedIdentity nestedIdentity = new NestedIdentity("foo", 5, null);
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -93,8 +92,7 @@ public class NestedIdentityTests extends OpenSearchTestCase {
             }""", builder.toString());
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
-        builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
+        builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();

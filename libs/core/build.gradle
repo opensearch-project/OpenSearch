@@ -37,7 +37,7 @@ base {
 dependencies {
   api project(':libs:opensearch-common')
 
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api libs.jackson3.core
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"

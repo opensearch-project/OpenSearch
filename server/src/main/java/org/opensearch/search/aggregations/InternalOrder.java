@@ -536,6 +536,10 @@ public abstract class InternalOrder extends BucketOrder {
             if (orderKey == null) {
                 throw new ParsingException(parser.getTokenLocation(), "Must specify at least one field for [order]");
             }
+            return resolveOrderParam(orderKey, orderAsc);
+        }
+
+        public static BucketOrder resolveOrderParam(String orderKey, boolean orderAsc) {
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
                 deprecationLogger.deprecate(

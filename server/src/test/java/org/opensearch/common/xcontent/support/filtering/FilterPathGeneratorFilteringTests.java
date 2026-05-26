@@ -32,16 +32,16 @@
 
 package org.opensearch.common.xcontent.support.filtering;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
-import com.fasterxml.jackson.core.filter.TokenFilter.Inclusion;
-
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.xcontent.filtering.FilterPathBasedFilter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
+
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.filter.FilteringGeneratorDelegate;
+import tools.jackson.core.filter.TokenFilter.Inclusion;
+import tools.jackson.core.json.JsonFactory;
 
 import static org.hamcrest.Matchers.equalTo;
 

@@ -8,7 +8,7 @@
 
 package org.opensearch.javaagent;
 
-import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.javaagent.bootstrap.internal.SubjectInterceptor;
 
 import javax.security.auth.Subject;
 
@@ -18,14 +18,11 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.Map;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.type.TypeDescription;
-import net.bytebuddy.dynamic.ClassFileLocator;
-import net.bytebuddy.dynamic.loading.ClassInjector;
 import net.bytebuddy.implementation.Implementation;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.matcher.ElementMatcher.Junction;
@@ -95,20 +92,6 @@ public class Agent {
         final AgentBuilder.Transformer subjectTransformer = (b, typeDescription, classLoader, module, pd) -> b.method(
             ElementMatchers.named("getSubject")
         ).intercept(MethodDelegation.to(SubjectInterceptor.class));
-
-        ClassInjector.UsingUnsafe.ofBootLoader()
-            .inject(
-                Map.of(
-                    new TypeDescription.ForLoadedType(StackCallerProtectionDomainChainExtractor.class),
-                    ClassFileLocator.ForClassLoader.read(StackCallerProtectionDomainChainExtractor.class),
-                    new TypeDescription.ForLoadedType(StackCallerClassChainExtractor.class),
-                    ClassFileLocator.ForClassLoader.read(StackCallerClassChainExtractor.class),
-                    new TypeDescription.ForLoadedType(AgentPolicy.class),
-                    ClassFileLocator.ForClassLoader.read(AgentPolicy.class),
-                    new TypeDescription.ForLoadedType(SubjectInterceptor.class),
-                    ClassFileLocator.ForClassLoader.read(SubjectInterceptor.class)
-                )
-            );
 
         final ByteBuddy byteBuddy = new ByteBuddy().with(Implementation.Context.Disabled.Factory.INSTANCE);
         var builder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)

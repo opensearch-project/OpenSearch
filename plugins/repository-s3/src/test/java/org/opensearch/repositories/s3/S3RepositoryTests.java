@@ -44,6 +44,9 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.plugins.NativeStoreHandle;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
@@ -53,6 +56,7 @@ import org.hamcrest.Matchers;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -186,6 +190,64 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             // Don't expect any Exception
             assertTrue(s3Repo.isSeverSideEncryptionEnabled());
         }
+    }
+
+    public void testLiveNativeStoreIsAssignedDuringConstruction() {
+        AtomicBoolean destroyed = new AtomicBoolean(false);
+        NativeStoreHandle liveHandle = new NativeStoreHandle(99L, ptr -> destroyed.set(true));
+        NativeStoreRepository liveStore = new NativeStoreRepository(liveHandle);
+
+        NativeRemoteObjectStoreProvider provider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "s3";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata md, Settings nodeSettings) {
+                return liveStore;
+            }
+        };
+
+        try (S3Repository repository = createS3RepoWithNativeProvider(provider)) {
+            assertFalse("Live store should not have been destroyed", destroyed.get());
+            assertSame(liveStore, repository.getNativeStore());
+            assertTrue(repository.getNativeStore().isLive());
+        }
+        assertTrue("Native handle should be destroyed after repository close", destroyed.get());
+    }
+
+    public void testNullNativeProviderKeepsEmptyStore() {
+        try (S3Repository repository = createS3RepoWithNativeProvider(null)) {
+            assertSame(NativeStoreRepository.EMPTY, repository.getNativeStore());
+        }
+    }
+
+    private S3Repository createS3RepoWithNativeProvider(NativeRemoteObjectStoreProvider nativeProvider) {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        return new S3Repository(
+            metadata,
+            NamedXContentRegistry.EMPTY,
+            new DummyS3Service(configPath()),
+            BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            nativeProvider
+        ) {
+            @Override
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually on test/main threads
+            }
+        };
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {

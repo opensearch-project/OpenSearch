@@ -94,6 +94,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
         conf.setCodec(getCodec());
+        conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
 
         // Index documents with values for our dimensions and metrics

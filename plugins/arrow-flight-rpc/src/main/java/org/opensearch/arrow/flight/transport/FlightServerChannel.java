@@ -39,7 +39,7 @@ import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCal
  * TcpChannel implementation for Arrow Flight. It is created per call in ArrowFlightProducer.
  * This implementation is not thread safe; consumer must ensure to invoke sendBatch serially and call completeStream() at the end
  */
-class FlightServerChannel implements TcpChannel {
+class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private static final String PROFILE_NAME = "flight";
 
     private final Logger logger = LogManager.getLogger(FlightServerChannel.class);

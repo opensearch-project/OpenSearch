@@ -1,0 +1,1 @@
+source=test_data | eval null_check = isnull(status), not_null = isnotnull(status) | fields status, null_check, not_null | head 3

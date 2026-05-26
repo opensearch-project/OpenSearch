@@ -78,6 +78,25 @@ public class AbstractBlockIndexInputLifecycleTests extends OpenSearchTestCase {
         }
     }
 
+    public void testUnpinBlockClosesHeldBlock() throws IOException {
+        try (AbstractBlockIndexInput indexInput = createTestAbstractBlockIndexInput()) {
+            indexInput.seek(0); // loads block 0
+            MatcherAssert.assertThat("Expected one block to be fetched", allIndexInputs, hasSize(1));
+            assertFalse("Block should be open before unpin", allIndexInputs.get(0).isClosed());
+
+            indexInput.unpinBlock();
+            assertTrue("Block should be closed after unpin", allIndexInputs.get(0).isClosed());
+        }
+    }
+
+    public void testUnpinBlockNoOpWhenNoBlock() throws IOException {
+        try (AbstractBlockIndexInput indexInput = createTestAbstractBlockIndexInput()) {
+            // No seek, so no block loaded — unpinBlock should be a no-op
+            indexInput.unpinBlock();
+            assertTrue("No blocks should have been created", allIndexInputs.isEmpty());
+        }
+    }
+
     private AbstractBlockIndexInput createTestAbstractBlockIndexInput() {
         return new TestAbstractBlockIndexInput(this::createCloseTrackingIndexInput, false);
     }

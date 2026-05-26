@@ -285,10 +285,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         // the primary calculates the non-expired retention leases and syncs them to replicas
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-        final Set<String> leaseIdsForCurrentPeers = routingTable.assignedShards()
-            .stream()
-            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
-            .collect(Collectors.toSet());
+        final Set<String> leaseIdsForCurrentPeers;
+        if (indexSettings.isRemoteStoreEnabled()) {
+            leaseIdsForCurrentPeers = Collections.singleton(getPeerRecoveryRetentionLeaseId(routingTable.primaryShard().currentNodeId()));
+        } else {
+            leaseIdsForCurrentPeers = routingTable.assignedShards()
+                .stream()
+                .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                .collect(Collectors.toSet());
+        }
         final boolean allShardsStarted = routingTable.allShardsStarted();
         final long minimumReasonableRetainedSeqNo = allShardsStarted ? 0L : getMinimumReasonableRetainedSeqNo();
         final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases.leases()

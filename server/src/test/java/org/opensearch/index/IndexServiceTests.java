@@ -600,6 +600,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         task = indexService.getReplicationTask();
         assertTrue(task.isScheduled());
         assertTrue(task.mustReschedule());
+        assertTrue(task.shouldRun());
         assertEquals(5000, task.getInterval().millis());
 
         // test we can update the interval
@@ -615,7 +616,30 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(task.isClosed());
         assertTrue(updatedTask.isScheduled());
         assertTrue(updatedTask.mustReschedule());
+        assertTrue(updatedTask.shouldRun());
         assertEquals(1000, updatedTask.getInterval().millis());
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), "true"))
+            .get();
+
+        updatedTask = indexService.getReplicationTask();
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertFalse(updatedTask.shouldRun());
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), "false"))
+            .get();
+
+        updatedTask = indexService.getReplicationTask();
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertTrue(updatedTask.shouldRun());
     }
 
     public void testPublishReferencedSegmentsTask() throws Exception {

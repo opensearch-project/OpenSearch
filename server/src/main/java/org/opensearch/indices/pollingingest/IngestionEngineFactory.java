@@ -9,7 +9,6 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.metadata.IngestionSource;
-import org.opensearch.common.Nullable;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
@@ -27,12 +26,11 @@ import java.util.function.Supplier;
 public class IngestionEngineFactory implements EngineFactory {
 
     private final IngestionConsumerFactory ingestionConsumerFactory;
-    @Nullable
     private final Supplier<IngestService> ingestServiceSupplier;
 
     public IngestionEngineFactory(IngestionConsumerFactory ingestionConsumerFactory, Supplier<IngestService> ingestServiceSupplier) {
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
-        this.ingestServiceSupplier = ingestServiceSupplier;
+        this.ingestServiceSupplier = Objects.requireNonNull(ingestServiceSupplier);
     }
 
     /**
@@ -45,9 +43,8 @@ public class IngestionEngineFactory implements EngineFactory {
         IngestionSource ingestionSource = config.getIndexSettings().getIndexMetadata().getIngestionSource();
         boolean isAllActiveIngestion = ingestionSource != null && ingestionSource.isAllActiveIngestionEnabled();
 
-        IngestService ingestService = ingestServiceSupplier != null ? ingestServiceSupplier.get() : null;
-        assert ingestService != null || ingestServiceSupplier == null
-            : "IngestService supplier returned null. This indicates a initialization ordering issue.";
+        IngestService ingestService = ingestServiceSupplier.get();
+        assert ingestService != null : "IngestService supplier returned null. This indicates a initialization ordering issue.";
 
         if (isAllActiveIngestion) {
             // use ingestion engine on both primary and replica in all-active mode

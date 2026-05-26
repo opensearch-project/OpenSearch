@@ -221,7 +221,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
     private IncludeExclude serialize(IncludeExclude incExc, ParseField field) throws IOException {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         builder.startObject();
         incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -267,7 +267,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
     private IncludeExclude serializeMixedRegex(IncludeExclude incExc) throws IOException {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         builder.startObject();
         incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);

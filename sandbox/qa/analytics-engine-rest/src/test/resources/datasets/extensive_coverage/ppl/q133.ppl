@@ -1,0 +1,1 @@
+source=test_data | eval micro = microsecond(timestamp) | fields timestamp, micro | head 3

@@ -13,6 +13,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -1495,5 +1496,17 @@ public class StarTreeMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatStarTreeThrows() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, getExpandedMappingWithJustAvg("status", "size"));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("startree", "some_value")), docInput)
+        );
+        assertThat(ex.getCause().getMessage(), containsString("star tree field and cannot be added inside a document"));
     }
 }

@@ -32,6 +32,8 @@
 
 package org.opensearch.repositories.s3;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -47,6 +49,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
@@ -81,7 +85,9 @@ import java.util.function.Supplier;
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
-public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
+
+    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
 
     private static final String URGENT_FUTURE_COMPLETION = "urgent_future_completion";
     private static final String URGENT_STREAM_READER = "urgent_stream_reader";
@@ -106,6 +112,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     protected SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
     protected TransferSemaphoresHolder transferSemaphoresHolder;
     protected GenericStatsMetricPublisher genericStatsMetricPublisher;
+
+    /** Native store provider loaded via ExtensiblePlugin — null if no native plugin is present. */
+    private NativeRemoteObjectStoreProvider nativeStoreProvider;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -177,6 +186,35 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         this.s3AsyncService = Objects.requireNonNull(s3AsyncService, "S3AsyncService must not be null");
         this.service.refreshAndClearCache(clientsSettings);
         this.s3AsyncService.refreshAndClearCache(clientsSettings);
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<NativeRemoteObjectStoreProvider> providers = loader.loadExtensions(NativeRemoteObjectStoreProvider.class);
+        int matchCount = 0;
+        for (NativeRemoteObjectStoreProvider provider : providers) {
+            if (S3Repository.TYPE.equals(provider.repositoryType())) {
+                matchCount++;
+                if (this.nativeStoreProvider == null) {
+                    this.nativeStoreProvider = provider;
+                    logger.info(
+                        "Loaded native object store provider [{}] for repository type [{}]",
+                        provider.getClass().getName(),
+                        S3Repository.TYPE
+                    );
+                }
+            }
+        }
+        if (matchCount > 1) {
+            logger.warn(
+                "Multiple native object store providers found for repository type [{}], using [{}]",
+                S3Repository.TYPE,
+                this.nativeStoreProvider.getClass().getName()
+            );
+        }
+        if (this.nativeStoreProvider == null) {
+            logger.info("No native object store provider found for repository type [{}]", S3Repository.TYPE);
+        }
     }
 
     private static int boundedBy(int value, int min, int max) {
@@ -325,7 +363,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             configPath,
             normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ,
-            genericStatsMetricPublisher
+            genericStatsMetricPublisher,
+            nativeStoreProvider
         );
     }
 

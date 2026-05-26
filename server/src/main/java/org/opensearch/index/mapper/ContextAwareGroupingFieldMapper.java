@@ -175,6 +175,11 @@ public class ContextAwareGroupingFieldMapper extends ParametrizedFieldMapper {
         throw new MapperParsingException("context_aware_grouping cannot be ingested in the document");
     }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new MapperParsingException("context_aware_grouping cannot be ingested in the document");
+    }
+
     public ContextAwareGroupingFieldType fieldType() {
         return (ContextAwareGroupingFieldType) mappedFieldType;
     }

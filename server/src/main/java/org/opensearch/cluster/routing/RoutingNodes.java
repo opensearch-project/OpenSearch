@@ -174,6 +174,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 }
             }
         }
+        assert nodesToShards.values().stream().allMatch(RoutingNode::invariant);
     }
 
     private void addRecovery(ShardRouting routing) {
@@ -563,6 +564,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
         ShardRouting initializedShard = unassignedShard.initialize(nodeId, existingAllocationId, expectedSize);
         node(nodeId).add(initializedShard);
+        assert node(nodeId).invariant();
         inactiveShardCount++;
         if (initializedShard.primary()) {
             inactivePrimaryCount++;
@@ -591,6 +593,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ShardRouting target = source.getTargetRelocatingShard();
         updateAssigned(startedShard, source);
         node(target.currentNodeId()).add(target);
+        assert node(target.currentNodeId()).invariant();
         assignedShardsAdd(target);
         addRecovery(target);
         changes.relocationStarted(startedShard, target);
@@ -872,6 +875,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private void remove(ShardRouting shard) {
         assert shard.unassigned() == false : "only assigned shards can be removed here (" + shard + ")";
         node(shard.currentNodeId()).remove(shard);
+        assert node(shard.currentNodeId()).invariant();
         if (shard.initializing() && shard.relocatingNodeId() == null) {
             inactiveShardCount--;
             assert inactiveShardCount >= 0;
@@ -951,6 +955,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " by shard assigned to same node but was "
             + newShard;
         node(oldShard.currentNodeId()).update(oldShard, newShard);
+        assert node(oldShard.currentNodeId()).invariant();
         List<ShardRouting> shardsWithMatchingShardId = assignedShards.computeIfAbsent(oldShard.shardId(), k -> new ArrayList<>());
         int previousShardIndex = shardsWithMatchingShardId.indexOf(oldShard);
         assert previousShardIndex >= 0 : "shard to update " + oldShard + " does not exist in list of assigned shards";

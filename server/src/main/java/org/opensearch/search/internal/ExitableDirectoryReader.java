@@ -39,6 +39,7 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
@@ -209,6 +210,53 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         public BytesRef next() throws IOException {
             checkAndThrowWithSampling();
             return in.next();
+        }
+
+        @Override
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+            // Don't reuse when wrapping, since the wrapper type differs from the delegate type
+            final PostingsEnum postings = in.postings(null, flags);
+            return new ExitablePostingsEnum(postings, queryCancellation);
+        }
+    }
+
+    /**
+     * Wrapper class for {@link PostingsEnum} that checks for query cancellation or timeout
+     * during document iteration. This closes the gap where field data loading iterates
+     * postings (e.g., {@code OrdinalsBuilder.addDoc()}) without cancellation checks.
+     *
+     * <p>Extends {@link FilterLeafReader.FilterPostingsEnum} so that callers (including plugins
+     * with custom codec PostingsEnum implementations) can use {@link #unwrap()} to access the
+     * underlying delegate PostingsEnum.
+     */
+    static class ExitablePostingsEnum extends FilterLeafReader.FilterPostingsEnum {
+
+        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
+
+        private final QueryCancellation queryCancellation;
+        private int calls;
+
+        ExitablePostingsEnum(PostingsEnum in, QueryCancellation queryCancellation) {
+            super(in);
+            this.queryCancellation = queryCancellation;
+        }
+
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                queryCancellation.checkCancelled();
+            }
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            checkAndThrowWithSampling();
+            return super.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            queryCancellation.checkCancelled();
+            return super.advance(target);
         }
     }
 

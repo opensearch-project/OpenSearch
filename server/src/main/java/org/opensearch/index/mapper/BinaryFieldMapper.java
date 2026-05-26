@@ -194,14 +194,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
-        }
+        byte[] value = parseBinaryValue(context);
         if (value == null) {
             return;
         }
@@ -223,6 +216,27 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
             // no doc values
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        byte[] value = parseBinaryValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private byte[] parseBinaryValue(ParseContext context) throws IOException {
+        byte[] value = context.parseExternalValue(byte[].class);
+        if (value == null) {
+            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+                return null;
+            } else {
+                value = context.parser().binaryValue();
+            }
+        }
+        return value;
     }
 
     @Override

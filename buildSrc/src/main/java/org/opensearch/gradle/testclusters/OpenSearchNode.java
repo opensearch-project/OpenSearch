@@ -130,7 +130,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private static final List<String> MESSAGES_WE_DONT_CARE_ABOUT = Arrays.asList(
         "Option UseConcMarkSweepGC was deprecated",
         "is a pre-release version of OpenSearch",
-        "max virtual memory areas vm.max_map_count"
+        "max virtual memory areas vm.max_map_count",
+        "WARNING: A restricted method in java.lang.foreign.Linker has been called",
+        "WARNING: java.lang.foreign.Linker::downcallHandle has been called by the unnamed module",
+        "WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module",
+        "System::setSecurityManager",
+        "Please consider reporting this to the maintainers of org.opensearch.bootstrap.OpenSearch",
+        "net.bytebuddy.dynamic.loading.ClassInjector"
     );
     private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
     private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
@@ -1001,7 +1007,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     private void logFileContents(String description, Path from) {
-        final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
+        final Map<LogMessage, Integer> errorsAndWarnings = new LinkedHashMap<>();
         LinkedList<String> ring = new LinkedList<>();
         try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
@@ -1013,10 +1019,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
                         lineToAdd = line;
                         // check to see if the previous message (possibly combined from multiple lines) was an error or
                         // warning as we want to show all of them
-                        String previousMessage = normalizeLogLine(ring.getLast());
-                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(previousMessage::contains)
-                            && (previousMessage.contains("ERROR") || previousMessage.contains("WARN"))) {
-                            errorsAndWarnings.put(previousMessage, errorsAndWarnings.getOrDefault(previousMessage, 0) + 1);
+                        String previousMessage = ring.getLast();
+                        String normalizedMessage = normalizeLogLine(previousMessage);
+                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(normalizedMessage::contains)
+                            && (normalizedMessage.contains("ERROR") || normalizedMessage.contains("WARN"))) {
+                            LogMessage logMsg = new LogMessage(previousMessage, normalizedMessage);
+                            errorsAndWarnings.put(logMsg, errorsAndWarnings.getOrDefault(logMsg, 0) + 1);
                         }
                     } else {
                         // We combine multi line log messages to make sure we never break exceptions apart
@@ -1037,8 +1045,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
         }
         if (errorsAndWarnings.isEmpty() == false) {
             LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
-            errorsAndWarnings.forEach((message, count) -> {
-                LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
+            errorsAndWarnings.forEach((logMsg, count) -> {
+                LOGGER.lifecycle("» " + logMsg.fullMessage().replace("\n", "\n»  "));
                 if (count > 1) {
                     LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
                 }
@@ -1049,11 +1057,24 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
         if (ring.isEmpty() == false) {
             LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
-            ring.forEach(message -> {
-                if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
-                    LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                }
-            });
+            ring.stream()
+                .filter(message -> !message.contains("ERROR") && !message.contains("WARN"))
+                .forEach(message -> LOGGER.lifecycle("» " + message.replace("\n", "\n»  ")));
+        }
+    }
+
+    private record LogMessage(String fullMessage, String normalizedMessage) {
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            LogMessage that = (LogMessage) o;
+            return normalizedMessage.equals(that.normalizedMessage);
+        }
+
+        @Override
+        public int hashCode() {
+            return normalizedMessage.hashCode();
         }
     }
 

@@ -37,6 +37,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         FeatureFlags.TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
-        FeatureFlags.STREAM_TRANSPORT_SETTING
+        FeatureFlags.STREAM_TRANSPORT_SETTING,
+        FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING
     );
 }

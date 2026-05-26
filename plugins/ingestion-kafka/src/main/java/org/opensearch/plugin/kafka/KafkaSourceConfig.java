@@ -20,11 +20,14 @@ import java.util.Map;
 public class KafkaSourceConfig {
     private final String PROP_TOPIC = "topic";
     private final String PROP_BOOTSTRAP_SERVERS = "bootstrap_servers";
+    private static final String PROP_TOPIC_METADATA_FETCH_TIMEOUT_MS = "topic_metadata_fetch_timeout_ms";
+    private static final int DEFAULT_TOPIC_METADATA_FETCH_TIMEOUT_MS = 1000;
 
     private final String topic;
     private final String bootstrapServers;
     private final String autoOffsetResetConfig;
     private final int maxPollRecords;
+    private final int topicMetadataFetchTimeoutMs;
 
     private final Map<String, Object> consumerConfigsMap;
 
@@ -46,9 +49,21 @@ public class KafkaSourceConfig {
         // maxPollSize will be used instead.
         this.maxPollRecords = ConfigurationUtils.readIntProperty(params, ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollSize);
 
+        this.topicMetadataFetchTimeoutMs = ConfigurationUtils.readIntProperty(
+            params,
+            PROP_TOPIC_METADATA_FETCH_TIMEOUT_MS,
+            DEFAULT_TOPIC_METADATA_FETCH_TIMEOUT_MS
+        );
+        if (this.topicMetadataFetchTimeoutMs <= 0) {
+            throw new IllegalArgumentException(
+                "topic_metadata_fetch_timeout_ms must be positive, got: " + this.topicMetadataFetchTimeoutMs
+            );
+        }
+
         // remove metadata configurations
         consumerConfigsMap.remove(PROP_TOPIC);
         consumerConfigsMap.remove(PROP_BOOTSTRAP_SERVERS);
+        consumerConfigsMap.remove(PROP_TOPIC_METADATA_FETCH_TIMEOUT_MS);
 
         // add or overwrite required configurations with defaults if not present
         consumerConfigsMap.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetResetConfig);
@@ -83,5 +98,13 @@ public class KafkaSourceConfig {
 
     public Map<String, Object> getConsumerConfigurations() {
         return consumerConfigsMap;
+    }
+
+    /**
+     * Get the topic metadata fetch timeout in milliseconds
+     * @return the topic metadata fetch timeout in milliseconds
+     */
+    public int getTopicMetadataFetchTimeoutMs() {
+        return topicMetadataFetchTimeoutMs;
     }
 }

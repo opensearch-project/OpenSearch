@@ -139,7 +139,7 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
             XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                builder.prettyPrint();
+                builder = builder.prettyPrint();
             }
 
             XContentBuilder shuffled;
@@ -561,7 +561,7 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(contentType);
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         highlight.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder;

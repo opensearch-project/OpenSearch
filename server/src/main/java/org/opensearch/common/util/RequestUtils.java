@@ -27,22 +27,17 @@ public final class RequestUtils {
     }
 
     /**
-     * Validate whether X-Request-id is valid or not.
+     * Validate whether X-Request-Id is valid or not.
+     * The request ID must be non-empty and not exceed the configured maximum length.
      */
-    public static void validateRequestId(String requestId) {
+    public static void validateRequestId(String requestId, int maxLength) {
         if (requestId == null || requestId.isBlank()) {
             throw new IllegalArgumentException("X-Request-Id should not be null or empty");
         }
-
-        if (requestId.length() != 32) {
-            throw new IllegalArgumentException("Invalid X-Request-Id passed. Should be 32 hexadecimal characters: " + requestId);
-        }
-
-        for (int i = 0; i < requestId.length(); i++) {
-            char c = requestId.charAt(i);
-            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
-                throw new IllegalArgumentException("Invalid X-Request-Id passed: " + requestId);
-            }
+        if (requestId.length() > maxLength) {
+            throw new IllegalArgumentException(
+                "X-Request-Id length [" + requestId.length() + "] exceeds maximum allowed length [" + maxLength + "]"
+            );
         }
     }
 

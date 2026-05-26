@@ -75,6 +75,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -380,6 +381,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
         private final SimilarityService similarityService;
         private final MapperService mapperService;
         private final BitsetFilterCache bitsetFilterCache;
+        private final IndicesBitsetFilterCache indicesBitsetFilterCache;
         private final ScriptService scriptService;
         private final Client client;
         private final long nowInMillis;
@@ -450,7 +452,8 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 mapperService,
                 threadPool
             );
-            bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
+            indicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+            bitsetFilterCache = new BitsetFilterCache(idxSettings, indicesBitsetFilterCache, new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {
 
@@ -528,7 +531,9 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        public void close() throws IOException {}
+        public void close() throws IOException {
+            indicesBitsetFilterCache.close();
+        }
 
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(

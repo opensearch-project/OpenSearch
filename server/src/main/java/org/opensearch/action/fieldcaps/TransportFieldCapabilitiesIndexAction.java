@@ -180,6 +180,12 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                     if (mapperService.fieldType(parentField) == null) {
                         // no field type, it must be an object field
                         ObjectMapper mapper = mapperService.getObjectMapper(parentField);
+                        if (mapper == null) {
+                            // parentField is part of a literal dotted field name under a disable_objects=true parent
+                            // No ObjectMapper exists for this intermediate path so skip it and continue up the chain
+                            dotIndex = parentField.lastIndexOf('.');
+                            continue;
+                        }
                         String type = mapper.nested().isNested() ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,

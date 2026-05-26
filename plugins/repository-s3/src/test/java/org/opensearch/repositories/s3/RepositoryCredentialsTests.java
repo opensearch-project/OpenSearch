@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
@@ -286,6 +287,11 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
 
         public ProxyS3RepositoryPlugin(Settings settings, Path configPath) {
             super(settings, configPath, new ProxyS3Service(configPath), new S3AsyncService(configPath));
+        }
+
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            // No-op in tests — avoids interference with async client initialization
         }
 
         @Override

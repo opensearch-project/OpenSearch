@@ -481,6 +481,15 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Range range = parseRange(context);
+        if (range == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), range);
+    }
+
     private Range parseRange(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             return context.parseExternalValue(Range.class);

@@ -8,9 +8,9 @@
 
 package org.opensearch.common.xcontent;
 
-import com.fasterxml.jackson.core.StreamReadConstraints;
-
 import org.opensearch.common.annotation.InternalApi;
+
+import tools.jackson.core.StreamReadConstraints;
 
 /**
  * Consolidates the XContent constraints (primarily reflecting Jackson's {@link StreamReadConstraints} constraints)
@@ -19,6 +19,7 @@ import org.opensearch.common.annotation.InternalApi;
  */
 @InternalApi
 public interface XContentConstraints {
+    final String DEFAULT_BUFFER_SIZE_PROPERTY = "opensearch.xcontent.buffer.size";
     final String DEFAULT_CODEPOINT_LIMIT_PROPERTY = "opensearch.xcontent.codepoint.max";
     final String DEFAULT_MAX_STRING_LEN_PROPERTY = "opensearch.xcontent.string.length.max";
     final String DEFAULT_MAX_NAME_LEN_PROPERTY = "opensearch.xcontent.name.length.max";
@@ -35,4 +36,7 @@ public interface XContentConstraints {
     );
 
     final int DEFAULT_CODEPOINT_LIMIT = Integer.parseInt(System.getProperty(DEFAULT_CODEPOINT_LIMIT_PROPERTY, "52428800" /* ~50 Mb */));
+    final int DEFAULT_BUFFER_SIZE = Integer.parseInt(
+        System.getProperty(DEFAULT_BUFFER_SIZE_PROPERTY, "8000" /* UTF8Reader#DEFAULT_BUFFER_SIZE */)
+    );
 }

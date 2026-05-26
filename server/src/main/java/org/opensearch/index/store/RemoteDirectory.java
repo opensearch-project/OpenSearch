@@ -33,6 +33,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.remote.FormatBlobRouter;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -43,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -75,7 +77,7 @@ public class RemoteDirectory extends Directory {
      * Map containing the mapping of segment files that are pending download as part of the pre-copy (warm) phase of
      * {@link org.opensearch.index.engine.MergedSegmentWarmer}. The key is the local filename and value is the remote filename.
      */
-    final Map<String, String> pendingDownloadMergedSegments;
+    protected final Map<String, String> pendingDownloadMergedSegments;
 
     /**
      * Number of bytes in the segment file to store checksum
@@ -382,6 +384,10 @@ public class RemoteDirectory extends Directory {
         blobContainer.delete();
     }
 
+    public Optional<FormatBlobRouter> getFormatBlobRouter() {
+        return Optional.empty();
+    }
+
     public boolean copyFrom(
         Directory from,
         String src,
@@ -403,7 +409,7 @@ public class RemoteDirectory extends Directory {
         return false;
     }
 
-    private void uploadBlob(
+    protected void uploadBlob(
         Directory from,
         String src,
         String remoteFileName,
@@ -413,6 +419,20 @@ public class RemoteDirectory extends Directory {
         boolean lowPriorityUpload,
         CryptoMetadata cryptoMetadata
     ) throws Exception {
+        uploadBlob(from, src, remoteFileName, ioContext, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata, blobContainer);
+    }
+
+    protected void uploadBlob(
+        Directory from,
+        String src,
+        String remoteFileName,
+        IOContext ioContext,
+        Runnable postUploadRunner,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata,
+        BlobContainer targetBlobContainer
+    ) throws Exception {
         assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
@@ -420,7 +440,7 @@ public class RemoteDirectory extends Directory {
         try {
             contentLength = indexInput.length();
             boolean remoteIntegrityEnabled = false;
-            if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer asyncContainer) {
+            if (targetBlobContainer instanceof AsyncMultiStreamBlobContainer asyncContainer) {
                 remoteIntegrityEnabled = asyncContainer.remoteIntegrityCheckSupported();
             }
             lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
@@ -488,7 +508,7 @@ public class RemoteDirectory extends Directory {
             });
 
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
-            ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
+            ((AsyncMultiStreamBlobContainer) targetBlobContainer).asyncBlobUpload(writeContext, completionListener);
         } catch (Exception e) {
             logger.warn("Exception while calling asyncBlobUpload, closing IndexInput to avoid leak");
             indexInput.close();
@@ -496,7 +516,7 @@ public class RemoteDirectory extends Directory {
         }
     }
 
-    private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
+    protected long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
         try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             try {
                 return checksumOfChecksum(indexInput, SEGMENT_CHECKSUM_BYTES);

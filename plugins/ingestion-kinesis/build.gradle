@@ -158,6 +158,7 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLSession',
     'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.SSLCredential',
 
     'lzma.sdk.lzma.Encoder',
     'net.jpountz.lz4.LZ4Compressor',

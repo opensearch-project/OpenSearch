@@ -62,8 +62,7 @@ public class ScaleIndexOperationValidatorTests extends OpenSearchTestCase {
         // Pass zero for the number of search-only replicas.
         IndexMetadata indexMetadata = createTestIndexMetadata("test-index", settings, 0);
         boolean result = validator.validateScalePrerequisites(indexMetadata, "test-index", listener, true);
-        assertFalse(result);
-        verify(listener).onFailure(argThat(new ExceptionMatcher("Cannot scale to zero without search replicas")));
+        assertTrue(result);
     }
 
     public void testValidateScalePrerequisites_ScaleDown_RemoteStoreNotEnabled() {

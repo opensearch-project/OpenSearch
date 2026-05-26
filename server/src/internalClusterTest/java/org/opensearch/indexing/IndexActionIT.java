@@ -44,6 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.search.SearchHit;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
@@ -97,12 +98,22 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                     logger.debug("running search");
                     SearchResponse response = client().prepareSearch(indexName).get();
                     if (response.getHits().getTotalHits().value() != numOfDocs) {
+                        // Fetch all docs to identify the unexpected documents
+                        SearchResponse allDocs = client().prepareSearch(indexName)
+                            .setSize((int) response.getHits().getTotalHits().value())
+                            .get();
+                        StringBuilder docDetails = new StringBuilder();
+                        for (SearchHit hit : allDocs.getHits().getHits()) {
+                            docDetails.append("\n  id=").append(hit.getId()).append(" source=").append(hit.getSourceAsString());
+                        }
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value()
                             + " but "
                             + numOfDocs
                             + " was expected. "
-                            + OpenSearchAssertions.formatShardStatus(response);
+                            + OpenSearchAssertions.formatShardStatus(response)
+                            + "\nAll documents:"
+                            + docDetails;
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }

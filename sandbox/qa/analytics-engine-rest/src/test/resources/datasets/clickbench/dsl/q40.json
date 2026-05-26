@@ -1,0 +1,111 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "CounterID": {
+              "value": 62,
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "range": {
+            "EventDate": {
+              "from": "2013-07-01T00:00:00.000Z",
+              "to": "2013-07-31T00:00:00.000Z",
+              "include_lower": true,
+              "include_upper": true,
+              "format": "date_time",
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "term": {
+            "IsRefresh": {
+              "value": 0,
+              "boost": 1.0
+            }
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "EventDate",
+      "TraficSourceID",
+      "AdvEngineID",
+      "URL",
+      "SearchEngineID",
+      "IsRefresh",
+      "Referer",
+      "CounterID"
+    ],
+    "excludes": []
+  },
+  "aggregations": {
+    "TraficSourceID|SearchEngineID|AdvEngineID|Src|Dst": {
+      "multi_terms": {
+        "terms": [
+          {
+            "field": "TraficSourceID"
+          },
+          {
+            "field": "SearchEngineID"
+          },
+          {
+            "field": "AdvEngineID"
+          },
+          {
+            "script": {
+              "source": "{\"langType\":\"calcite\",\"script\":\"rO0ABXQGCnsKICAib3AiOiB7CiAgICAibmFtZSI6ICJDQVNFIiwKICAgICJraW5kIjogIkNBU0UiLAogICAgInN5bnRheCI6ICJTUEVDSUFMIgogIH0sCiAgIm9wZXJhbmRzIjogWwogICAgewogICAgICAib3AiOiB7CiAgICAgICAgIm5hbWUiOiAiQU5EIiwKICAgICAgICAia2luZCI6ICJBTkQiLAogICAgICAgICJzeW50YXgiOiAiQklOQVJZIgogICAgICB9LAogICAgICAib3BlcmFuZHMiOiBbCiAgICAgICAgewogICAgICAgICAgIm9wIjogewogICAgICAgICAgICAibmFtZSI6ICI9IiwKICAgICAgICAgICAgImtpbmQiOiAiRVFVQUxTIiwKICAgICAgICAgICAgInN5bnRheCI6ICJCSU5BUlkiCiAgICAgICAgICB9LAogICAgICAgICAgIm9wZXJhbmRzIjogWwogICAgICAgICAgICB7CiAgICAgICAgICAgICAgImR5bmFtaWNQYXJhbSI6IDAsCiAgICAgICAgICAgICAgInR5cGUiOiB7CiAgICAgICAgICAgICAgICAidHlwZSI6ICJTTUFMTElOVCIsCiAgICAgICAgICAgICAgICAibnVsbGFibGUiOiB0cnVlCiAgICAgICAgICAgICAgfQogICAgICAgICAgICB9LAogICAgICAgICAgICB7CiAgICAgICAgICAgICAgImR5bmFtaWNQYXJhbSI6IDEsCiAgICAgICAgICAgICAgInR5cGUiOiB7CiAgICAgICAgICAgICAgICAidHlwZSI6ICJJTlRFR0VSIiwKICAgICAgICAgICAgICAgICJudWxsYWJsZSI6IGZhbHNlCiAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgICBdCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAib3AiOiB7CiAgICAgICAgICAgICJuYW1lIjogIj0iLAogICAgICAgICAgICAia2luZCI6ICJFUVVBTFMiLAogICAgICAgICAgICAic3ludGF4IjogIkJJTkFSWSIKICAgICAgICAgIH0sCiAgICAgICAgICAib3BlcmFuZHMiOiBbCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAiZHluYW1pY1BhcmFtIjogMiwKICAgICAgICAgICAgICAidHlwZSI6IHsKICAgICAgICAgICAgICAgICJ0eXBlIjogIlNNQUxMSU5UIiwKICAgICAgICAgICAgICAgICJudWxsYWJsZSI6IHRydWUKICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0sCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAiZHluYW1pY1BhcmFtIjogMywKICAgICAgICAgICAgICAidHlwZSI6IHsKICAgICAgICAgICAgICAgICJ0eXBlIjogIklOVEVHRVIiLAogICAgICAgICAgICAgICAgIm51bGxhYmxlIjogZmFsc2UKICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICAgIF0KICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJkeW5hbWljUGFyYW0iOiA0LAogICAgICAidHlwZSI6IHsKICAgICAgICAidHlwZSI6ICJWQVJDSEFSIiwKICAgICAgICAibnVsbGFibGUiOiB0cnVlLAogICAgICAgICJwcmVjaXNpb24iOiAtMQogICAgICB9CiAgICB9LAogICAgewogICAgICAiZHluYW1pY1BhcmFtIjogNSwKICAgICAgInR5cGUiOiB7CiAgICAgICAgInR5cGUiOiAiVkFSQ0hBUiIsCiAgICAgICAgIm51bGxhYmxlIjogZmFsc2UsCiAgICAgICAgInByZWNpc2lvbiI6IC0xCiAgICAgIH0KICAgIH0KICBdCn0=\"}",
+              "lang": "opensearch_compounded_script",
+              "params": {
+                "utcTimestamp": 1765261855083734000,
+                "SOURCES": [
+                  0,
+                  2,
+                  0,
+                  2,
+                  0,
+                  2
+                ],
+                "DIGESTS": [
+                  "SearchEngineID",
+                  0,
+                  "AdvEngineID",
+                  0,
+                  "Referer",
+                  ""
+                ]
+              }
+            }
+          },
+          {
+            "field": "URL"
+          }
+        ],
+        "size": 1010,
+        "min_doc_count": 1,
+        "shard_min_doc_count": 0,
+        "show_term_doc_count_error": false,
+        "order": [
+          {
+            "_count": "desc"
+          },
+          {
+            "_key": "asc"
+          }
+        ]
+      }
+    }
+  }
+}

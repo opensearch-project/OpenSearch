@@ -45,9 +45,6 @@ import org.opensearch.index.translog.Translog;
 
 import java.util.Arrays;
 
-import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_QUEUE_SIZE;
-import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_SERVICE_TIME_IN_NANOS;
-
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
  * More specifically, it maintains an index to the current executing bulk item, which allows execution
@@ -91,19 +88,21 @@ class BulkPrimaryExecutionContext {
     private int currentIndex = -1;
 
     private ItemProcessingState currentItemState;
-    private DocWriteRequest requestToExecute;
+    private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int retryCounter;
+    private final BulkItemResponse[] primaryResponses;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
         this.primary = primary;
+        this.primaryResponses = new BulkItemResponse[request.items().length];
         advance();
     }
 
     private int findNextNonAborted(int startIndex) {
         final int length = request.items().length;
-        while (startIndex < length && isAborted(request.items()[startIndex].getPrimaryResponse())) {
+        while (startIndex < length && isAborted(request.items()[startIndex].primaryResponse())) {
             startIndex++;
         }
         return startIndex;
@@ -131,7 +130,7 @@ class BulkPrimaryExecutionContext {
     }
 
     public BulkShardRequest getBulkShardRequest() {
-        return request;
+        return request.setPrimaryResponses(primaryResponses);
     }
 
     /** returns the result of the request that has been executed on the shard */
@@ -145,19 +144,9 @@ class BulkPrimaryExecutionContext {
         return retryCounter;
     }
 
-    /** returns true if the current request has been executed on the primary */
-    public boolean isOperationExecuted() {
-        return currentItemState == ItemProcessingState.EXECUTED;
-    }
-
     /** returns true if the request needs to wait for a mapping update to arrive from the cluster-manager */
     public boolean requiresWaitingForMappingUpdate() {
         return currentItemState == ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;
-    }
-
-    /** returns true if the current request should be retried without waiting for an external event */
-    public boolean requiresImmediateRetry() {
-        return currentItemState == ItemProcessingState.IMMEDIATE_RETRY;
     }
 
     /**
@@ -206,10 +195,10 @@ class BulkPrimaryExecutionContext {
     }
 
     /**
-     * sets the request that should actually be executed on the primary. This can be different then the request
+     * sets the request that should actually be executed on the primary. This can be different from the request
      * received from the user (specifically, an update request is translated to an indexing or delete request).
      */
-    public void setRequestToExecute(DocWriteRequest writeRequest) {
+    public void setRequestToExecute(DocWriteRequest<?> writeRequest) {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
@@ -217,6 +206,7 @@ class BulkPrimaryExecutionContext {
     }
 
     /** returns the request that should be executed on the shard. */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteRequest<T>> T getRequestToExecute() {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         return (T) requestToExecute;
@@ -252,7 +242,7 @@ class BulkPrimaryExecutionContext {
     public void failOnMappingUpdate(Exception cause) {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         currentItemState = ItemProcessingState.EXECUTED;
-        final DocWriteRequest docWriteRequest = getCurrentItem().request();
+        final DocWriteRequest<?> docWriteRequest = getCurrentItem().request();
         executionResult = new BulkItemResponse(
             getCurrentItem().id(),
             docWriteRequest.opType(),
@@ -267,7 +257,7 @@ class BulkPrimaryExecutionContext {
     public void markOperationAsExecuted(Engine.Result result) {
         assertInvariants(ItemProcessingState.TRANSLATED);
         final BulkItemRequest current = getCurrentItem();
-        DocWriteRequest docWriteRequest = getRequestToExecute();
+        DocWriteRequest<?> docWriteRequest = getRequestToExecute();
         switch (result.getResultType()) {
             case SUCCESS:
                 final DocWriteResponse response;
@@ -347,24 +337,16 @@ class BulkPrimaryExecutionContext {
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
-        getCurrentItem().setPrimaryResponse(translatedResponse);
+        primaryResponses[currentIndex] = translatedResponse;
         currentItemState = ItemProcessingState.COMPLETED;
+        assertInvariants(ItemProcessingState.COMPLETED);
         advance();
     }
 
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse(long serviceTimeEWMAInNanos, int nodeQueueSize) {
         assert hasMoreOperationsToExecute() == false;
-        return new BulkShardResponse(
-            request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new),
-            serviceTimeEWMAInNanos,
-            nodeQueueSize
-        );
-    }
-
-    public BulkShardResponse buildShardResponse() {
-        return buildShardResponse(DEFAULT_SERVICE_TIME_IN_NANOS, DEFAULT_QUEUE_SIZE);
+        return new BulkShardResponse(request.shardId(), primaryResponses, serviceTimeEWMAInNanos, nodeQueueSize);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
@@ -379,7 +361,7 @@ class BulkPrimaryExecutionContext {
                 assert requestToExecute == null : requestToExecute;
                 assert executionResult == null : executionResult;
                 break;
-            case TRANSLATED:
+            case TRANSLATED, IMMEDIATE_RETRY:
                 assert requestToExecute != null;
                 assert executionResult == null : executionResult;
                 break;
@@ -387,18 +369,14 @@ class BulkPrimaryExecutionContext {
                 assert requestToExecute == null;
                 assert executionResult == null : executionResult;
                 break;
-            case IMMEDIATE_RETRY:
-                assert requestToExecute != null;
-                assert executionResult == null : executionResult;
-                break;
             case EXECUTED:
                 // requestToExecute can be null if the update ended up as NOOP
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                assert requestToExecute != null;
+                // requestToExecute can be null if the update ended up as NOOP
                 assert executionResult != null;
-                assert getCurrentItem().getPrimaryResponse() != null;
+                assert primaryResponses[currentIndex] != null;
                 break;
         }
         return true;

@@ -382,6 +382,15 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        String value = context.parser().textOrNull();
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         Builder builder = new Builder(name());
         builder.init(this);

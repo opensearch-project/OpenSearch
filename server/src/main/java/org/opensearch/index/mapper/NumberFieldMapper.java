@@ -32,9 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -78,6 +75,7 @@ import org.opensearch.search.query.Bitmap64DocValuesQuery;
 import org.opensearch.search.query.Bitmap64IndexQuery;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -2177,6 +2175,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Number numericValue = getFieldValue(context);
+        if (numericValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), numericValue);
+    }
+
+    @Override
     protected Number getFieldValue(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Number value;
@@ -2189,7 +2196,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         } else {
             try {
                 value = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            } catch (JsonParseException | IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
                     return null;

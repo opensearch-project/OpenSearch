@@ -72,4 +72,8 @@ public class Netty4CompositeHttpServerTransport extends AbstractLifecycleCompone
             IOUtils.closeWhileHandlingException(transport);
         }
     }
+
+    AbstractHttpServerTransport[] transports() {
+        return transports;
+    }
 }

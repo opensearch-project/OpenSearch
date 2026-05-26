@@ -8,26 +8,13 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
-    public void testInitialize() {
+    public void testCreateShardConsumerWithNullSource() {
         KafkaConsumerFactory factory = new KafkaConsumerFactory();
-        Map<String, Object> params = new HashMap<>();
-        params.put("topic", "test-topic");
-        params.put("bootstrap_servers", "localhost:9092");
-
-        factory.initialize(new IngestionSource.Builder("KAFKA").setParams(params).build());
-
-        KafkaSourceConfig config = factory.config;
-        Assert.assertNotNull("Config should be initialized", config);
-        Assert.assertEquals("Topic should be correctly initialized", "test-topic", config.getTopic());
-        Assert.assertEquals("Bootstrap servers should be correctly initialized", "localhost:9092", config.getBootstrapServers());
+        expectThrows(NullPointerException.class, () -> factory.createShardConsumer("test-client", 0, null));
     }
 
     public void testParsePointerFromString() {

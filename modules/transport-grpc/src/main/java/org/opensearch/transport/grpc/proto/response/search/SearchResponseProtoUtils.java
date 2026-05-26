@@ -12,6 +12,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ClusterStatistics;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,12 +33,16 @@ public class SearchResponseProtoUtils {
      * This method is equivalent to {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param response The SearchResponse to convert
+     * @param aggregateRegistry The converter registry for dispatching aggregation conversions
      * @return A Protocol Buffer SearchResponse representation
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.SearchResponse toProto(SearchResponse response) throws IOException {
+    public static org.opensearch.protobufs.SearchResponse toProto(
+        SearchResponse response,
+        AggregateProtoConverterRegistry aggregateRegistry
+    ) throws IOException {
         org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        toProto(response, searchResponseProtoBuilder);
+        toProto(response, searchResponseProtoBuilder, aggregateRegistry);
         return searchResponseProtoBuilder.build();
     }
 
@@ -47,10 +52,14 @@ public class SearchResponseProtoUtils {
      *
      * @param response The SearchResponse to convert
      * @param searchResponseProtoBuilder The builder to populate with the SearchResponse data
+     * @param aggregateRegistry The converter registry for dispatching aggregation conversions
      * @throws IOException if there's an error during conversion
      */
-    public static void toProto(SearchResponse response, org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder)
-        throws IOException {
+    public static void toProto(
+        SearchResponse response,
+        org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder,
+        AggregateProtoConverterRegistry aggregateRegistry
+    ) throws IOException {
 
         // Set optional fields only if they exist
         if (response.getScrollId() != null) {
@@ -93,7 +102,7 @@ public class SearchResponseProtoUtils {
         ClustersProtoUtils.toProto(searchResponseProtoBuilder, response.getClusters());
 
         // Add search response sections
-        SearchResponseSectionsProtoUtils.toProto(searchResponseProtoBuilder, response);
+        SearchResponseSectionsProtoUtils.toProto(searchResponseProtoBuilder, response, aggregateRegistry);
 
     }
 

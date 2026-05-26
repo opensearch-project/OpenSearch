@@ -104,6 +104,11 @@ class MaxAggregatorFactory extends MetricAggregatorFactory implements StreamingC
     }
 
     @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
+
+    @Override
     public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         return StreamingCostMetrics.neutral();
     }

@@ -814,24 +814,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String dateAsString = getFieldValue(context);
-        long timestamp;
-        if (dateAsString == null) {
-            if (nullValue == null) {
-                return;
-            }
-            timestamp = nullValue;
-        } else {
-            try {
-                timestamp = fieldType().parse(dateAsString);
-            } catch (IllegalArgumentException | OpenSearchParseException | DateTimeException | ArithmeticException e) {
-                if (ignoreMalformed().value()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
+        Long timestamp = parseTimestamp(context);
+        if (timestamp == null) {
+            return;
         }
 
         if (indexed) {
@@ -849,6 +834,38 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Long timestamp = parseTimestamp(context);
+        if (timestamp == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), timestamp);
+    }
+
+    private Long parseTimestamp(ParseContext context) throws IOException {
+        String dateAsString = getFieldValue(context);
+        long timestamp;
+        if (dateAsString == null) {
+            if (nullValue == null) {
+                return null;
+            }
+            timestamp = nullValue;
+        } else {
+            try {
+                timestamp = fieldType().parse(dateAsString);
+            } catch (IllegalArgumentException | OpenSearchParseException | DateTimeException | ArithmeticException e) {
+                if (ignoreMalformed().value()) {
+                    context.addIgnoredField(mappedFieldType.name());
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
+        }
+        return timestamp;
     }
 
     boolean isSkiplistDefaultEnabled(IndexSortConfig indexSortConfig, String fieldName) {

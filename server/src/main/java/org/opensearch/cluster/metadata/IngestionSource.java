@@ -25,8 +25,11 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INT
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING;
 
 /**
  * Class encapsulating the configuration of an ingestion source.
@@ -45,6 +48,8 @@ public class IngestionSource {
     private final TimeValue pointerBasedLagUpdateInterval;
     private final IngestionMessageMapper.MapperType mapperType;
     private final Map<String, Object> mapperSettings;
+    private final WarmupConfig warmupConfig;
+    private final SourcePartitionStrategy sourcePartitionStrategy;
 
     private IngestionSource(
         String type,
@@ -58,7 +63,9 @@ public class IngestionSource {
         boolean allActiveIngestion,
         TimeValue pointerBasedLagUpdateInterval,
         IngestionMessageMapper.MapperType mapperType,
-        Map<String, Object> mapperSettings
+        Map<String, Object> mapperSettings,
+        WarmupConfig warmupConfig,
+        SourcePartitionStrategy sourcePartitionStrategy
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -72,6 +79,8 @@ public class IngestionSource {
         this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
         this.mapperType = mapperType;
         this.mapperSettings = mapperSettings != null ? Collections.unmodifiableMap(mapperSettings) : Collections.emptyMap();
+        this.warmupConfig = warmupConfig;
+        this.sourcePartitionStrategy = sourcePartitionStrategy;
     }
 
     public String getType() {
@@ -122,6 +131,14 @@ public class IngestionSource {
         return mapperSettings;
     }
 
+    public WarmupConfig getWarmupConfig() {
+        return warmupConfig;
+    }
+
+    public SourcePartitionStrategy getSourcePartitionStrategy() {
+        return sourcePartitionStrategy;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -138,7 +155,9 @@ public class IngestionSource {
             && Objects.equals(allActiveIngestion, ingestionSource.allActiveIngestion)
             && Objects.equals(pointerBasedLagUpdateInterval, ingestionSource.pointerBasedLagUpdateInterval)
             && Objects.equals(mapperType, ingestionSource.mapperType)
-            && Objects.equals(mapperSettings, ingestionSource.mapperSettings);
+            && Objects.equals(mapperSettings, ingestionSource.mapperSettings)
+            && Objects.equals(warmupConfig, ingestionSource.warmupConfig)
+            && Objects.equals(sourcePartitionStrategy, ingestionSource.sourcePartitionStrategy);
     }
 
     @Override
@@ -155,7 +174,9 @@ public class IngestionSource {
             allActiveIngestion,
             pointerBasedLagUpdateInterval,
             mapperType,
-            mapperSettings
+            mapperSettings,
+            warmupConfig,
+            sourcePartitionStrategy
         );
     }
 
@@ -190,7 +211,45 @@ public class IngestionSource {
             + '\''
             + ", mapperSettings="
             + mapperSettings
+            + ", warmupConfig="
+            + warmupConfig
+            + ", sourcePartitionStrategy='"
+            + sourcePartitionStrategy
+            + '\''
             + '}';
+    }
+
+    /**
+     * Strategy for mapping source stream partitions to OpenSearch shards.
+     */
+    @PublicApi(since = "3.7.0")
+    public enum SourcePartitionStrategy {
+        SIMPLE("simple"),
+        MODULO("modulo");
+
+        private final String name;
+
+        SourcePartitionStrategy(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public static SourcePartitionStrategy fromString(String name) {
+            for (SourcePartitionStrategy strategy : values()) {
+                if (strategy.getName().equalsIgnoreCase(name)) {
+                    return strategy;
+                }
+            }
+            throw new IllegalArgumentException("Unknown partition strategy: [" + name + "]. Valid values are [simple, modulo]");
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     /**
@@ -234,6 +293,21 @@ public class IngestionSource {
     }
 
     /**
+     * Record encapsulating the warmup configuration for pull-based ingestion.
+     * When warmup is enabled (timeout >= 0), shards will wait for lag to catch up before serving queries
+     * after node restart or shard relocation. A timeout of -1 means warmup is disabled.
+     */
+    @PublicApi(since = "3.6.0")
+    public record WarmupConfig(TimeValue timeout, long lagThreshold) {
+        /**
+         * Returns true if warmup is enabled (timeout >= 0).
+         */
+        public boolean isEnabled() {
+            return timeout.millis() >= 0;
+        }
+    }
+
+    /**
      * Builder for {@link IngestionSource}.
      *
      */
@@ -253,6 +327,10 @@ public class IngestionSource {
         );
         private IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.getDefault(Settings.EMPTY);
         private Map<String, Object> mapperSettings = new HashMap<>();
+        private SourcePartitionStrategy sourcePartitionStrategy = INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.getDefault(Settings.EMPTY);
+        // Warmup configuration
+        private TimeValue warmupTimeout = INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
+        private long warmupLagThreshold = INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
 
         public Builder(String type) {
             this.type = type;
@@ -269,6 +347,11 @@ public class IngestionSource {
             this.pointerBasedLagUpdateInterval = ingestionSource.pointerBasedLagUpdateInterval;
             this.mapperType = ingestionSource.mapperType;
             this.mapperSettings = new HashMap<>(ingestionSource.mapperSettings);
+            this.sourcePartitionStrategy = ingestionSource.sourcePartitionStrategy;
+            // Copy warmup config
+            WarmupConfig wc = ingestionSource.warmupConfig;
+            this.warmupTimeout = wc.timeout();
+            this.warmupLagThreshold = wc.lagThreshold();
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -331,7 +414,29 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setSourcePartitionStrategy(SourcePartitionStrategy sourcePartitionStrategy) {
+            this.sourcePartitionStrategy = sourcePartitionStrategy;
+            return this;
+        }
+
+        public Builder setWarmupTimeout(TimeValue warmupTimeout) {
+            this.warmupTimeout = warmupTimeout;
+            return this;
+        }
+
+        public Builder setWarmupLagThreshold(long warmupLagThreshold) {
+            this.warmupLagThreshold = warmupLagThreshold;
+            return this;
+        }
+
+        public Builder setWarmupConfig(WarmupConfig warmupConfig) {
+            this.warmupTimeout = warmupConfig.timeout();
+            this.warmupLagThreshold = warmupConfig.lagThreshold();
+            return this;
+        }
+
         public IngestionSource build() {
+            WarmupConfig warmupConfig = new WarmupConfig(warmupTimeout, warmupLagThreshold);
             return new IngestionSource(
                 type,
                 pointerInitReset,
@@ -344,7 +449,9 @@ public class IngestionSource {
                 allActiveIngestion,
                 pointerBasedLagUpdateInterval,
                 mapperType,
-                mapperSettings
+                mapperSettings,
+                warmupConfig,
+                sourcePartitionStrategy
             );
         }
 

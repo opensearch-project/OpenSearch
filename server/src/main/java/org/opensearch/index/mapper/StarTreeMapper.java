@@ -569,6 +569,17 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         );
     }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+        throw new MapperParsingException(
+            String.format(
+                Locale.ROOT,
+                "Field [%s] is a star tree field and cannot be added inside a document. Use the index API request parameters.",
+                name()
+            )
+        );
+    }
+
     /**
      * Star tree mapped field type containing dimensions, metrics, star tree specs
      *

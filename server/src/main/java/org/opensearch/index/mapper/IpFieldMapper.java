@@ -654,6 +654,15 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final InetAddress address = getFieldValue(context);
+        if (address == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), address);
+    }
+
+    @Override
     protected InetAddress getFieldValue(ParseContext context) throws IOException {
         Object addressAsObject;
         if (context.externalValueSet()) {
