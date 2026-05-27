@@ -66,16 +66,6 @@ public final class VectorUtils {
      */
     public static VectorSchemaRoot appendConstantInt(VectorSchemaRoot input, String name, int value, BufferAllocator allocator) {
         int rowCount = input.getRowCount();
-        // FIXME [RemoveBeforeMainMerge] diagnostics for QTF VSR.addVector failure
-        LOGGER.info(
-            "FIXME [RemoveBeforeMainMerge] appendConstantInt: name={} value={} rowCount={} fieldVectorsSize={} schema={}",
-            name,
-            value,
-            rowCount,
-            input.getFieldVectors().size(),
-            input.getSchema()
-        );
-
         IntVector constantVector = new IntVector(name, allocator);
         constantVector.allocateNew(rowCount);
         for (int i = 0; i < rowCount; i++) {

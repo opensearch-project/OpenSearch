@@ -29,7 +29,9 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.stream.StreamErrorCode;
@@ -94,27 +96,7 @@ public class AnalyticsSearchTransportService {
                     request,
                     shard,
                     (AnalyticsShardTask) task,
-                    new AnalyticsSearchService.StreamingFragmentResponseHandler() {
-                        @Override
-                        public void onBatch(EngineResultBatch batch) throws Exception {
-                            channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
-                        }
-
-                        @Override
-                        public void onComplete() {
-                            channel.completeStream();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (e instanceof StreamException se && se.getErrorCode() == StreamErrorCode.CANCELLED) {
-                                return;
-                            }
-                            try {
-                                channel.sendResponse(e);
-                            } catch (Exception ignored) {}
-                        }
-                    },
+                    channelResponseHandler(channel),
                     transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
                 );
             }
@@ -146,31 +128,42 @@ public class AnalyticsSearchTransportService {
                     request,
                     shard,
                     (AnalyticsShardTask) task,
-                    new AnalyticsSearchService.StreamingFragmentResponseHandler() {
-                        @Override
-                        public void onBatch(EngineResultBatch batch) throws Exception {
-                            channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
-                        }
-
-                        @Override
-                        public void onComplete() {
-                            channel.completeStream();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (e instanceof StreamException se && se.getErrorCode() == StreamErrorCode.CANCELLED) {
-                                return;
-                            }
-                            try {
-                                channel.sendResponse(e);
-                            } catch (Exception ignored) {}
-                        }
-                    },
+                    channelResponseHandler(channel),
                     transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
                 );
             }
         );
+    }
+
+    /**
+     * Adapter from {@link AnalyticsSearchService.StreamingFragmentResponseHandler} to the
+     * channel streaming API. Each batch is sent on the channel; onComplete completes the
+     * stream; onFailure ignores cancellation and forwards everything else as an exception
+     * response. Shared by the streaming-fragment and fetch-by-rowids handlers — the dispatch
+     * shape is identical, only the request type differs.
+     */
+    private static AnalyticsSearchService.StreamingFragmentResponseHandler channelResponseHandler(TransportChannel channel) {
+        return new AnalyticsSearchService.StreamingFragmentResponseHandler() {
+            @Override
+            public void onBatch(EngineResultBatch batch) throws Exception {
+                channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
+            }
+
+            @Override
+            public void onComplete() {
+                channel.completeStream();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof StreamException se && se.getErrorCode() == StreamErrorCode.CANCELLED) {
+                    return;
+                }
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception ignored) {}
+            }
+        };
     }
 
     Transport.Connection getConnection(String clusterAlias, String nodeId) {
@@ -185,80 +178,7 @@ public class AnalyticsSearchTransportService {
         Task parentTask,
         PendingExecutions pending
     ) {
-        TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
-            @Override
-            public FragmentExecutionArrowResponse read(StreamInput in) throws IOException {
-                return new FragmentExecutionArrowResponse(in);
-            }
-
-            @Override
-            public boolean skipsDeserialization() {
-                return true;
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
-                try {
-                    FragmentExecutionArrowResponse current;
-                    FragmentExecutionArrowResponse last = null;
-                    // FIXME do we need to drain the entire stream here, or should we hand back
-                    // pressure when the listener / downstream consumer is slow?
-                    while ((current = stream.nextResponse()) != null) {
-                        if (last != null) {
-                            listener.onStreamResponse(last, false);
-                        }
-                        last = current;
-                    }
-                    if (last != null) {
-                        listener.onStreamResponse(last, true);
-                    }
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                } finally {
-                    try {
-                        stream.close();
-                    } catch (Exception ignore) {}
-                    pending.finishAndRunNext();
-                }
-            }
-
-            @Override
-            public void handleResponse(FragmentExecutionArrowResponse response) {
-                try {
-                    listener.onStreamResponse(response, true);
-                } finally {
-                    pending.finishAndRunNext();
-                }
-            }
-
-            @Override
-            public void handleException(TransportException e) {
-                try {
-                    listener.onFailure(e);
-                } finally {
-                    pending.finishAndRunNext();
-                }
-            }
-        };
-
-        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
-        pending.tryRun(() -> {
-            try {
-                Transport.Connection connection = getConnection(null, targetNode.getId());
-                transportService.sendChildRequest(connection, FragmentExecutionAction.NAME, request, parentTask, options, handler);
-            } catch (Exception e) {
-                try {
-                    listener.onFailure(e);
-                } finally {
-                    pending.finishAndRunNext();
-                }
-            }
-        });
+        dispatchStreaming(FragmentExecutionAction.NAME, request, targetNode, listener, parentTask, pending);
     }
 
     /**
@@ -274,6 +194,24 @@ public class AnalyticsSearchTransportService {
         Task parentTask,
         PendingExecutions pending
     ) {
+        dispatchStreaming(FetchByRowIdsAction.NAME, request, targetNode, listener, parentTask, pending);
+    }
+
+    /**
+     * Shared streaming dispatch path for {@link FragmentExecutionAction} and
+     * {@link FetchByRowIdsAction}. Drains the response stream inline — backpressure flows
+     * because {@code listener.onStreamResponse} blocks until the downstream sink accepts
+     * the batch, which gates the next {@code stream.nextResponse} call and propagates
+     * gRPC flow control back to the data node.
+     */
+    private void dispatchStreaming(
+        String actionName,
+        TransportRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FragmentExecutionArrowResponse> listener,
+        Task parentTask,
+        PendingExecutions pending
+    ) {
         TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
             @Override
             public FragmentExecutionArrowResponse read(StreamInput in) throws IOException {
@@ -295,8 +233,6 @@ public class AnalyticsSearchTransportService {
                 try {
                     FragmentExecutionArrowResponse current;
                     FragmentExecutionArrowResponse last = null;
-                    // FIXME do we need to drain the entire stream here, or should we hand back
-                    // pressure when the listener / downstream consumer is slow?
                     while ((current = stream.nextResponse()) != null) {
                         if (last != null) {
                             listener.onStreamResponse(last, false);
@@ -339,7 +275,7 @@ public class AnalyticsSearchTransportService {
         pending.tryRun(() -> {
             try {
                 Transport.Connection connection = getConnection(null, targetNode.getId());
-                transportService.sendChildRequest(connection, FetchByRowIdsAction.NAME, request, parentTask, options, handler);
+                transportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
             } catch (Exception e) {
                 try {
                     listener.onFailure(e);
