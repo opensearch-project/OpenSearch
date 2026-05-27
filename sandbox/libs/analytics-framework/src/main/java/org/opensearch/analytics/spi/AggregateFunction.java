@@ -46,6 +46,7 @@ public enum AggregateFunction {
     VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null))),
     PATTERN(Type.STATE_EXPANDING, SqlKind.OTHER);
 
+    /** Category of aggregate function; affects execution strategy (shuffle vs map-reduce). */
     public enum Type {
         SIMPLE,
         STATISTICAL,
@@ -57,6 +58,7 @@ public enum AggregateFunction {
     public record IntermediateField(String name, IntermediateTypeResolver typeResolver, AggregateFunction reducer) {
     }
 
+    /** Resolves the Calcite type of an intermediate field from a FINAL aggregate's arg types. */
     @FunctionalInterface
     public interface IntermediateTypeResolver {
         RelDataType resolve(List<RelDataType> argTypes, RelDataTypeFactory typeFactory);
