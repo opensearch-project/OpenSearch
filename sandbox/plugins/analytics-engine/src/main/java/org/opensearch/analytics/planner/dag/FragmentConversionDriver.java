@@ -130,8 +130,6 @@ public class FragmentConversionDriver {
         if (leaf instanceof OpenSearchTableScan) {
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                // Delegation exists — use ShardScanWithDelegationInstructionNode which carries
-                // treeShape + count for the driving backend to configure its custom scan operator
                 factory.createShardScanWithDelegationNode(treeShape, delegated.size()).ifPresent(instructions::add);
             } else {
                 factory.createShardScanNode().ifPresent(instructions::add);
