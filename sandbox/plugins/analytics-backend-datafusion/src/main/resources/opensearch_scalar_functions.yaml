@@ -64,6 +64,21 @@ scalar_functions:
           - { value: string, name: "unit" }
           - { value: "date", name: "value" }
         return: date
+  - name: "date_bin"
+    description: >-
+      Bucket a timestamp into fixed-width windows of size `stride` (a string-form
+      interval like `"40 milliseconds"`) starting from the Unix epoch. Lowering
+      target for PPL's sub-second multi-unit time span — `span(field, N us)` and
+      `span(field, N ms)` with `N > 1` — rewritten by `SpanAdapter`. Larger
+      fixed-length units (`s`, `m`, `h`, `d`, `w`) take the cheaper integer-seconds
+      arithmetic path in the same adapter and don't reach this signature. The
+      arg shape mirrors `date_trunc`: string stride then precision_timestamp,
+      so isthmus matchKeys binds it the same way.
+    impls:
+      - args:
+          - { value: string, name: "stride" }
+          - { value: "precision_timestamp<P>", name: "source" }
+        return: precision_timestamp<P>
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
@@ -913,6 +928,20 @@ scalar_functions:
           - { name: input, value: "string" }
         nullability: DECLARED_OUTPUT
         return: i64
+
+  # conv(n, fromBase, toBase) — base conversion. Java side at ConvAdapter; Rust UDF at
+  # rust/src/udf/conv.rs. Semantics: Long.toString(Long.parseLong(n, fromBase), toBase).
+  # The first slot uses `any1` to accept both string and integer sources PPL emits; the
+  # Rust UDF's coerce_types canonicalizes it to Utf8.
+  - name: "conv"
+    description: "Convert n from fromBase to toBase, returning the result as a string."
+    impls:
+      - args:
+          - { value: "any1", name: "n" }
+          - { value: "i32", name: "fromBase" }
+          - { value: "i32", name: "toBase" }
+        nullability: DECLARED_OUTPUT
+        return: "any1"
 
   # span_bucket(value, span) — PPL fixed-width bucket label. Rust UDF at
   # rust/src/udf/span_bucket.rs. Takes two numerics, returns a VARCHAR label
