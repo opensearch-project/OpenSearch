@@ -15,8 +15,9 @@ import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 /**
@@ -39,6 +40,23 @@ import java.util.function.UnaryOperator;
  *       attribution come from.</li>
  * </ol>
  *
+ * <h2>Instruction model</h2>
+ *
+ * <p>{@link #addRuleInstance(RelOptRule)} and {@link #addRuleCollection(Collection)} mirror
+ * the same-named methods on {@link HepProgramBuilder}. Each call appends one Hep
+ * instruction; instructions execute in the order they were added. The two shapes are
+ * <strong>not</strong> interchangeable:
+ *
+ * <ul>
+ *   <li>{@code addRuleInstance(R)} — R runs to fixpoint, then the next instruction
+ *       starts. Use this when a later rule must observe the post-fixpoint output of
+ *       this one (e.g. {@code FILTER_MERGE} after the filter transposes have settled).</li>
+ *   <li>{@code addRuleCollection([R1, R2, ...])} — every rule in the group is tried at
+ *       each vertex within a single fixpoint loop, so a rewrite by one rule can cascade
+ *       into a match by another in the same pass. Use this when the rules are mutually
+ *       independent and should converge together.</li>
+ * </ul>
+ *
  * <p>Each {@code run(...)} invocation creates a fresh {@link HepPlanner} — {@code
  * HepPlanner} is not reusable across phases (its {@code mainProgram} is final, and
  * {@code findBestExp()} collects garbage and dumps rule-attempt counters at the end).
@@ -47,11 +65,12 @@ import java.util.function.UnaryOperator;
  *
  * <p>Usage:
  * <pre>
- * RelNode out = HepPhase.named("subquery-remove")
- *     .addRules(CoreRules.FILTER_SUB_QUERY_TO_CORRELATE,
- *               CoreRules.PROJECT_SUB_QUERY_TO_CORRELATE,
- *               CoreRules.JOIN_SUB_QUERY_TO_CORRELATE)
- *     .postProcess(rel -&gt; RelDecorrelator.decorrelateQuery(rel, ...))
+ * RelNode out = HepPhase.named("pushdown-rules")
+ *     .bottomUp()
+ *     .addRuleCollection(List.of(CoreRules.FILTER_PROJECT_TRANSPOSE,
+ *                                CoreRules.FILTER_AGGREGATE_TRANSPOSE,
+ *                                CoreRules.FILTER_INTO_JOIN))   // cascade within one fixpoint
+ *     .addRuleInstance(CoreRules.FILTER_MERGE)                  // only after the group converges
  *     .run(input, listener);
  * </pre>
  *
@@ -60,7 +79,7 @@ import java.util.function.UnaryOperator;
 public final class HepPhase {
 
     private final String name;
-    private final List<RelOptRule> rules = new ArrayList<>();
+    private final List<Consumer<HepProgramBuilder>> instructions = new ArrayList<>();
     private boolean bottomUp = false;
     private UnaryOperator<RelNode> postProcess = UnaryOperator.identity();
 
@@ -80,18 +99,18 @@ public final class HepPhase {
         return this;
     }
 
-    /** Add one or more rules to the Hep program. Calls accumulate; order is preserved.
-     *  {@code addRuleCollection} and {@code addRuleInstance} are semantically equivalent
-     *  inside a single Hep run. */
-    public HepPhase addRules(RelOptRule... rules) {
-        this.rules.addAll(Arrays.asList(rules));
+    /** Append a {@link HepProgramBuilder#addRuleInstance(RelOptRule)} instruction.
+     *  The rule runs to fixpoint before any later instruction starts. */
+    public HepPhase addRuleInstance(RelOptRule rule) {
+        instructions.add(builder -> builder.addRuleInstance(rule));
         return this;
     }
 
-    /** Add multiple rules from an existing list (avoids varargs warning at the call site
-     *  when the rule list is already a {@code List<RelOptRule>}). */
-    public HepPhase addRules(List<? extends RelOptRule> rules) {
-        this.rules.addAll(rules);
+    /** Append a {@link HepProgramBuilder#addRuleCollection(Collection)} instruction.
+     *  All rules in the group cascade-fire within a single fixpoint loop. */
+    public HepPhase addRuleCollection(Collection<? extends RelOptRule> rules) {
+        List<RelOptRule> snapshot = List.copyOf(rules);
+        instructions.add(builder -> builder.addRuleCollection(snapshot));
         return this;
     }
 
@@ -112,10 +131,8 @@ public final class HepPhase {
         if (bottomUp) {
             builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
         }
-        if (rules.size() == 1) {
-            builder.addRuleInstance(rules.get(0));
-        } else {
-            builder.addRuleCollection(rules);
+        for (Consumer<HepProgramBuilder> instruction : instructions) {
+            instruction.accept(builder);
         }
         HepPlanner planner = new HepPlanner(builder.build());
         if (listener != null) {

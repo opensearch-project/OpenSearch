@@ -135,10 +135,12 @@ public class PlannerImpl {
      */
     private static RelNode removeSubQueries(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("subquery-remove")
-            .addRules(
-                CoreRules.FILTER_SUB_QUERY_TO_CORRELATE,
-                CoreRules.PROJECT_SUB_QUERY_TO_CORRELATE,
-                CoreRules.JOIN_SUB_QUERY_TO_CORRELATE
+            .addRuleCollection(
+                List.of(
+                    CoreRules.FILTER_SUB_QUERY_TO_CORRELATE,
+                    CoreRules.PROJECT_SUB_QUERY_TO_CORRELATE,
+                    CoreRules.JOIN_SUB_QUERY_TO_CORRELATE
+                )
             )
             // RexSubQuery removal introduces LogicalCorrelate; decorrelate back to a
             // straight join shape that the marking + capability rules already handle.
@@ -172,7 +174,7 @@ public class PlannerImpl {
      * {@code LITERAL_AGG} directly via {@code RelBuilder.literalAgg(...)}.
      */
     private static RelNode extractLiteralAgg(RelNode input, RuleProfilingListener listener) {
-        return HepPhase.named("literal-agg-extract").addRules(new ExtractLiteralAggRule()).run(input, listener);
+        return HepPhase.named("literal-agg-extract").addRuleInstance(new ExtractLiteralAggRule()).run(input, listener);
     }
 
     /**
@@ -187,9 +189,11 @@ public class PlannerImpl {
     private static RelNode reduceExpressions(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("reduce-expressions")
             .bottomUp()
-            .addRules(
-                new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
-                new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+            .addRuleCollection(
+                List.of(
+                    new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
+                    new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+                )
             )
             .run(input, listener);
     }
@@ -202,20 +206,25 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("pushdown-rules")
             .bottomUp()
-            // Push Filters below Project/Aggregate/Join, then merge adjacent
-            // Filters. FILTER_MERGE runs after the transposes so any
-            // auto-injected NOT NULL collapses with the user's WHERE.
-            // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE assist QTF (late-materialization)
-            // detection by lifting Project above Sort so the rewriter sees a single
-            // Project layer above the anchor.
-            .addRules(
-                CoreRules.FILTER_PROJECT_TRANSPOSE,
-                CoreRules.FILTER_AGGREGATE_TRANSPOSE,
-                CoreRules.FILTER_INTO_JOIN,
-                CoreRules.SORT_PROJECT_TRANSPOSE,
-                CoreRules.PROJECT_MERGE,
-                CoreRules.FILTER_MERGE
+            // Transposes (filter-into-* and sort-into-project) cascade together within
+            // one fixpoint, alongside PROJECT_MERGE which collapses the intermediate
+            // adjacent Projects that SORT_PROJECT_TRANSPOSE produces. FILTER_MERGE
+            // runs as its own instruction so it only fires after the transposes have
+            // settled — that way any auto-injected NOT NULL collapses with the user's
+            // WHERE on the post-pushdown filter, not on a half-pushed intermediate.
+            // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE feed the QTF (late-materialization)
+            // rewriter by lifting Project above Sort so it sees a single Project layer
+            // above the anchor.
+            .addRuleCollection(
+                List.of(
+                    CoreRules.FILTER_PROJECT_TRANSPOSE,
+                    CoreRules.FILTER_AGGREGATE_TRANSPOSE,
+                    CoreRules.FILTER_INTO_JOIN,
+                    CoreRules.SORT_PROJECT_TRANSPOSE,
+                    CoreRules.PROJECT_MERGE
+                )
             )
+            .addRuleInstance(CoreRules.FILTER_MERGE)
             .run(input, listener);
     }
 
@@ -226,7 +235,7 @@ public class PlannerImpl {
      * the AggregateDecompositionResolver then see correctly-typed primitives.
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
-        return HepPhase.named("aggregate-decompose").bottomUp().addRules(new OpenSearchAggregateReduceRule()).run(input, listener);
+        return HepPhase.named("aggregate-decompose").bottomUp().addRuleInstance(new OpenSearchAggregateReduceRule()).run(input, listener);
     }
 
     /**
@@ -241,15 +250,17 @@ public class PlannerImpl {
     private static RelNode mark(RelNode input, PlannerContext context, RuleProfilingListener listener) {
         return HepPhase.named("marking")
             .bottomUp()
-            .addRules(
-                new OpenSearchTableScanRule(context),
-                new OpenSearchFilterRule(context),
-                new OpenSearchProjectRule(context),
-                new OpenSearchAggregateRule(context),
-                new OpenSearchJoinRule(context),
-                new OpenSearchSortRule(context),
-                new OpenSearchUnionRule(context),
-                new OpenSearchValuesRule(context)
+            .addRuleCollection(
+                List.of(
+                    new OpenSearchTableScanRule(context),
+                    new OpenSearchFilterRule(context),
+                    new OpenSearchProjectRule(context),
+                    new OpenSearchAggregateRule(context),
+                    new OpenSearchJoinRule(context),
+                    new OpenSearchSortRule(context),
+                    new OpenSearchUnionRule(context),
+                    new OpenSearchValuesRule(context)
+                )
             )
             .run(input, listener);
     }
