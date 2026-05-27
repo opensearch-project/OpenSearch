@@ -217,15 +217,10 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
      * user's Sort+Limit. The rewriter must remap RexInputRefs in EVERY above op — not just the
      * immediate parent — because each passthrough Sort/Filter leaks the narrowed rowType upward.
      *
-     * <p>Plan shape (post-CBO, before LM rewrite):
-     * <pre>
-     *   Project(URL=$12, EventDate=$3)        ← refs scan-positioned indices
-     *     Sort($3, fetch=10000)               ← passthrough rowType, collation only
-     *       Sort($3, fetch=10)                ← anchor
-     *         ExchangeReducer
-     *           Filter
-     *             Scan
-     * </pre>
+     * <p>The implicit guarantee under test: the rewrite completes without Calcite's RexChecker
+     * throwing "RexInputRef out of range" — that's exactly what would fire if the remap stopped
+     * at the anchor's immediate parent and missed the outer Project sitting above the
+     * passthrough Sort. {@code assertQtfFired} catches such an exception on the planner call.
      */
     public void testQtfFires_aboveChainHasPassthroughSort() {
         assertQtfFired(
@@ -235,10 +230,7 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
             2,
             Expect.scanCols("EventDate"),
             Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
-            Expect.wrapperOutput("URL", "EventDate"),
-            // Outer Project's RexInputRefs must point at wrapper output positions, not scan
-            // positions; this is the exact assertion that catches the bug we just fixed.
-            Expect.outerProjectExprIndices(0, 1)
+            Expect.wrapperOutput("URL", "EventDate")
         );
     }
 

@@ -164,6 +164,125 @@ public class AnalyticsSearchService implements AutoCloseable {
     }
 
     /**
+     * QTF fetch phase: retrieves specific rows by global row ID via the backend SPI and
+     * streams batches via {@link StreamingFragmentResponseHandler}. Forks onto
+     * {@code executor} so the iterator drain doesn't pin the transport thread — mirrors
+     * {@link #executeFragmentStreamingAsync}.
+     *
+     * <p>Reuses the {@link ReaderContext} opened during the query phase. If the context
+     * is missing (expired before fetch arrived, or query-phase reader-store invariant
+     * broken), the call fails — there is no cold-start fallback because shard-global
+     * {@code __row_id__} values produced by one reader cannot be reinterpreted by
+     * another (segment topology may differ across reopens).
+     */
+    public void executeFetchByRowIdsAsync(
+        FetchByRowIdsRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task,
+        StreamingFragmentResponseHandler responseHandler,
+        Executor executor
+    ) {
+        try {
+            executor.execute(() -> drainFetchByRowIds(request, shard, task, responseHandler));
+        } catch (Exception e) {
+            responseHandler.onFailure(e);
+        }
+    }
+
+    /**
+     * Acquires the per-shard {@link ReaderContext}, materialises the rowId vector, invokes
+     * the backend, drains the stream into {@code responseHandler}, and releases all resources
+     * in a single try-with-resources scope. Runs on the caller's executor — exhausting the
+     * iterator here lets the native engine apply backpressure when the channel is slow.
+     */
+    private void drainFetchByRowIds(
+        FetchByRowIdsRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task,
+        StreamingFragmentResponseHandler responseHandler
+    ) {
+        if (task != null && task.isCancelled()) {
+            responseHandler.onFailure(new TaskCancelledException("Fetch task cancelled before execution: " + task.getReasonCancelled()));
+            return;
+        }
+        long[] rowIds = request.getRowIds();
+        String[] columns = request.getColumns();
+        if (rowIds == null || rowIds.length == 0 || columns == null || columns.length == 0) {
+            responseHandler.onFailure(
+                new IllegalArgumentException(
+                    "fetch on "
+                        + shard.shardId()
+                        + " requires non-empty rowIds and columns; got rowIds="
+                        + (rowIds == null ? "null" : rowIds.length)
+                        + ", columns="
+                        + (columns == null ? "null" : columns.length)
+                )
+            );
+            return;
+        }
+        ReaderContext readerContext = readerContextStore.acquireContext(request.getQueryId(), shard.shardId());
+        if (readerContext == null) {
+            responseHandler.onFailure(
+                new IllegalStateException(
+                    "No ReaderContext for queryId="
+                        + request.getQueryId()
+                        + " on "
+                        + shard.shardId()
+                        + " — query phase missing or context expired"
+                )
+            );
+            return;
+        }
+        assert assertFetchInvariants(readerContext, request.getQueryId());
+        AnalyticsSearchBackendPlugin backend = backends.get(request.getBackendId());
+        if (backend == null) {
+            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            responseHandler.onFailure(
+                new IllegalStateException(
+                    "No backend registered for backendId="
+                        + request.getBackendId()
+                        + " on "
+                        + shard.shardId()
+                        + "; available: "
+                        + backends.keySet()
+                )
+            );
+            return;
+        }
+        // Caller contract: rowIds must already be sorted ascending (RowSelection invariant on
+        // native side). Asserted here so violations are caught in dev builds before the FFM call.
+        assert assertAscending(rowIds);
+        BigIntVector rowIdVector = null;
+        FragmentResources resources = null;
+        try {
+            rowIdVector = new BigIntVector(DocumentInput.ROW_ID_FIELD, allocator);
+            rowIdVector.allocateNew(rowIds.length);
+            for (int i = 0; i < rowIds.length; i++) {
+                rowIdVector.set(i, rowIds[i]);
+            }
+            rowIdVector.setValueCount(rowIds.length);
+            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+            // FragmentResources keeps the rowIdVector alive until the stream drains — closing
+            // it earlier would pull off-heap memory out from under the native FFM call.
+            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
+        } catch (Exception e) {
+            if (rowIdVector != null) rowIdVector.close();
+            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            responseHandler.onFailure(new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e));
+            return;
+        }
+        try (FragmentResources ctx = resources) {
+            Iterator<EngineResultBatch> it = ctx.stream().iterator();
+            while (it.hasNext()) {
+                responseHandler.onBatch(it.next());
+            }
+            responseHandler.onComplete();
+        } catch (Exception e) {
+            responseHandler.onFailure(e);
+        }
+    }
+
+    /**
      * Callback interface for async fragment streaming results.
      */
     public interface StreamingFragmentResponseHandler {
@@ -311,106 +430,6 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setQueryCache(shard.getQueryCache());
         ctx.setQueryCachingPolicy(shard.getQueryCachingPolicy());
         return ctx;
-    }
-
-    /**
-     * QTF fetch phase: retrieves specific rows by global row ID via the backend SPI.
-     * Sibling of {@link #executeFragmentStreaming} — no Substrait fragment, no plan
-     * conversion, just a backend-direct fetch using rowIds the coordinator collected
-     * during the query phase.
-     *
-     * <p>Reuses the {@link ReaderContext} opened during the query phase. If the context
-     * is missing (expired before fetch arrived, or query-phase reader-store invariant
-     * broken), the call fails — there is no cold-start fallback because shard-global
-     * {@code __row_id__} values produced by one reader cannot be reinterpreted by
-     * another (segment topology may differ across reopens).
-     *
-     * <p>Backend selection honors {@link FetchByRowIdsRequest#getBackendId()} — replaces
-     * the prior 5-arg signature that picked an arbitrary backend via
-     * {@code backends.values().iterator().next()}.
-     *
-     * <p>Returns a {@link FragmentResources} that owns the result stream, the rowId
-     * Arrow vector (kept alive across the FFM call's lifetime), and the readerContext
-     * release. Caller closes it after draining the stream.
-     *
-     * @param task transport-layer task for cancellation propagation; may be null in tests
-     */
-    public FragmentResources executeFetchByRowIds(FetchByRowIdsRequest request, IndexShard shard, AnalyticsShardTask task) {
-        if (task != null && task.isCancelled()) {
-            throw new TaskCancelledException("Fetch task cancelled before execution: " + task.getReasonCancelled());
-        }
-        long[] rowIds = request.getRowIds();
-        String[] columns = request.getColumns();
-        if (rowIds == null || rowIds.length == 0 || columns == null || columns.length == 0) {
-            throw new IllegalArgumentException(
-                "fetch on "
-                    + shard.shardId()
-                    + " requires non-empty rowIds and columns; got rowIds="
-                    + (rowIds == null ? "null" : rowIds.length)
-                    + ", columns="
-                    + (columns == null ? "null" : columns.length)
-            );
-        }
-        boolean hasRowIdField = false;
-        for (String c : columns) {
-            if (DocumentInput.ROW_ID_FIELD.equals(c)) {
-                hasRowIdField = true;
-                break;
-            }
-        }
-        if (!hasRowIdField) {
-            throw new IllegalArgumentException(
-                "columns must include "
-                    + DocumentInput.ROW_ID_FIELD
-                    + " for fetch on "
-                    + shard.shardId()
-                    + ", got "
-                    + java.util.Arrays.toString(columns)
-            );
-        }
-        ReaderContext readerContext = readerContextStore.acquireContext(request.getQueryId(), shard.shardId());
-        if (readerContext == null) {
-            throw new IllegalStateException(
-                "No ReaderContext for queryId="
-                    + request.getQueryId()
-                    + " on "
-                    + shard.shardId()
-                    + " — query phase missing or context expired"
-            );
-        }
-        assert assertFetchInvariants(readerContext, request.getQueryId());
-        AnalyticsSearchBackendPlugin backend = backends.get(request.getBackendId());
-        if (backend == null) {
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
-            throw new IllegalStateException(
-                "No backend registered for backendId="
-                    + request.getBackendId()
-                    + " on "
-                    + shard.shardId()
-                    + "; available: "
-                    + backends.keySet()
-            );
-        }
-        // Caller contract: rowIds must already be sorted ascending (RowSelection invariant on
-        // native side). Asserted here so violations are caught in dev builds before the FFM call.
-        assert assertAscending(rowIds);
-        BigIntVector rowIdVector = null;
-        try {
-            rowIdVector = new BigIntVector(DocumentInput.ROW_ID_FIELD, allocator);
-            rowIdVector.allocateNew(rowIds.length);
-            for (int i = 0; i < rowIds.length; i++) {
-                rowIdVector.set(i, rowIds[i]);
-            }
-            rowIdVector.setValueCount(rowIds.length);
-            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
-            // FragmentResources keeps the rowIdVector alive until the stream drains — closing
-            // it earlier would pull off-heap memory out from under the native FFM call.
-            return new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
-        } catch (Exception e) {
-            if (rowIdVector != null) rowIdVector.close();
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
-            throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
-        }
     }
 
     // ── Assertion helpers (invoked only when -ea is enabled; bodies are dead in production) ──

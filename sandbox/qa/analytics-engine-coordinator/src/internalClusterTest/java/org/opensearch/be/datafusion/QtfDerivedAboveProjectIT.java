@@ -212,7 +212,7 @@ public class QtfDerivedAboveProjectIT extends OpenSearchIntegTestCase {
                     "URL",
                     "https://example.com/page" + i,
                     "EventDate",
-                    "2026-05-" + String.format("%02d", i + 1),
+                    "2026-05-" + String.format(java.util.Locale.ROOT, "%02d", i + 1),
                     "CounterID",
                     i + 1
                 )

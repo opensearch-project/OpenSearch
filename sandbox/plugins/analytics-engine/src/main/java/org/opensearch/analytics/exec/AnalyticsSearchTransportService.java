@@ -37,7 +37,6 @@ import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * Stateless transport dispatch component for fragment requests. Owns the
@@ -124,10 +123,10 @@ public class AnalyticsSearchTransportService {
 
     /**
      * Mirrors {@link #registerStreamingFragmentHandler} for the QTF fetch-by-rowids path.
-     * Routes incoming {@link FetchByRowIdsRequest}s to
-     * {@code AnalyticsSearchService.executeFetchByRowIds}, streams Arrow batches back to
-     * the coordinator, closes the {@link FragmentResources} (releases the rowId vector and
-     * the readerContext) once the stream drains.
+     * Forks the iterator drain onto the SEARCH executor via
+     * {@link AnalyticsSearchService#executeFetchByRowIdsAsync} so a slow coordinator parks
+     * a search thread, not the transport thread, and the engine sees natural backpressure
+     * through the blocking {@code channel.sendResponseBatch} call.
      */
     private static void registerFetchByRowIdsHandler(
         StreamTransportService transportService,
@@ -143,22 +142,33 @@ public class AnalyticsSearchTransportService {
             FetchByRowIdsRequest::new,
             (request, channel, task) -> {
                 IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
-                try (FragmentResources ctx = searchService.executeFetchByRowIds(request, shard, (AnalyticsShardTask) task)) {
-                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
-                    // FIXME do we need to drain the entire stream here, or can we hand back
-                    // pressure to the engine when the channel/coordinator is slow?
-                    while (it.hasNext()) {
-                        EngineResultBatch batch = it.next();
-                        channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
-                    }
-                    channel.completeStream();
-                } catch (StreamException e) {
-                    if (e.getErrorCode() != StreamErrorCode.CANCELLED) {
-                        channel.sendResponse(e);
-                    }
-                } catch (Exception e) {
-                    channel.sendResponse(e);
-                }
+                searchService.executeFetchByRowIdsAsync(
+                    request,
+                    shard,
+                    (AnalyticsShardTask) task,
+                    new AnalyticsSearchService.StreamingFragmentResponseHandler() {
+                        @Override
+                        public void onBatch(EngineResultBatch batch) throws Exception {
+                            channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
+                        }
+
+                        @Override
+                        public void onComplete() {
+                            channel.completeStream();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof StreamException se && se.getErrorCode() == StreamErrorCode.CANCELLED) {
+                                return;
+                            }
+                            try {
+                                channel.sendResponse(e);
+                            } catch (Exception ignored) {}
+                        }
+                    },
+                    transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+                );
             }
         );
     }

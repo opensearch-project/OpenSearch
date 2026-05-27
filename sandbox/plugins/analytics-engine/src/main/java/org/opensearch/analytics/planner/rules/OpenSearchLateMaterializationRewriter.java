@@ -108,9 +108,7 @@ public final class OpenSearchLateMaterializationRewriter {
     public static Optional<RelNode> rewrite(RelNode root) {
         Detection detection = detect(root);
         if (detection == null) return Optional.empty();
-        // FIXME [RemoveBeforeMainMerge] temporarily INFO to surface QTF engagement vs.
-        // skip reasons per query during clickbench bring-up. Drop back to DEBUG before merge.
-        LOGGER.info(
+        LOGGER.debug(
             "[QTF] fired: aboveAnchorPhysicalFields={}, belowAnchorPhysicalFields={}",
             detection.aboveAnchorPhysicalFields(),
             detection.belowAnchorPhysicalFields()
@@ -128,19 +126,19 @@ public final class OpenSearchLateMaterializationRewriter {
         AnchorContext anchorCtx = findAnchor(root);
         if (anchorCtx == null) return null;
         if (!isAboveAllowed(anchorCtx.aboveAnchorOperators)) {
-            LOGGER.info("[QTF] above-anchor allow-list rejected; skipping rewrite");
+            LOGGER.debug("[QTF] above-anchor allow-list rejected; skipping rewrite");
             return null;
         }
 
         BelowChain belowChain = analyzeBelow(anchorCtx.anchor.getInput());
         if (belowChain == null) {
-            LOGGER.info("[QTF] below-anchor allow-list rejected; skipping rewrite");
+            LOGGER.debug("[QTF] below-anchor allow-list rejected; skipping rewrite");
             return null;
         }
 
         // Single-shard plans don't trigger late materialization.
         if (!belowChain.hasExchangeReducer()) {
-            LOGGER.info("[QTF] single-shard plan (no ExchangeReducer below anchor); skipping rewrite");
+            LOGGER.debug("[QTF] single-shard plan (no ExchangeReducer below anchor); skipping rewrite");
             return null;
         }
 
@@ -153,7 +151,7 @@ public final class OpenSearchLateMaterializationRewriter {
         // Skip predicate: aboveAnchorPhysicalFields - belowAnchorPhysicalFields must be non-empty.
         boolean hasFetchOnly = aboveAnchorPhysicalFields.stream().anyMatch(name -> !belowAnchorPhysicalFields.contains(name));
         if (!hasFetchOnly) {
-            LOGGER.info("[QTF] aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields; QTF would not save any I/O — skipping");
+            LOGGER.debug("[QTF] aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields; QTF would not save any I/O — skipping");
             return null;
         }
 
@@ -229,7 +227,7 @@ public final class OpenSearchLateMaterializationRewriter {
             if (n instanceof OpenSearchExchangeReducer) hasExchangeReducer = true;
             if (n instanceof OpenSearchProject p) {
                 if (belowProjOutToScan != null) {
-                    LOGGER.info("[QTF] multiple Projects below anchor — skipping");
+                    LOGGER.debug("[QTF] multiple Projects below anchor — skipping");
                     return null;
                 }
                 int[] outToScan = passthroughMap(p);
@@ -244,7 +242,7 @@ public final class OpenSearchLateMaterializationRewriter {
                     // adding requires threading the derived RexNode into Detection and emitting
                     // a synthesized above-Project during rewrite. Separate slice. The non-QTF
                     // path remains correct in the meantime.
-                    LOGGER.info("[QTF] expression below-Project — skipping (derived-pushup not yet implemented)");
+                    LOGGER.debug("[QTF] expression below-Project — skipping (derived-pushup not yet implemented)");
                     return null;
                 }
                 belowProjOutToScan = outToScan;

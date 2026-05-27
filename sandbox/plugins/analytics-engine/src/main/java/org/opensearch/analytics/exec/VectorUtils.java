@@ -76,7 +76,6 @@ public final class VectorUtils {
             input.getSchema()
         );
 
-        // TODO/FIXME: reserve `rowCount * 4` bytes against the query CircuitBreaker before allocateNew.
         IntVector constantVector = new IntVector(name, allocator);
         constantVector.allocateNew(rowCount);
         for (int i = 0; i < rowCount; i++) {
