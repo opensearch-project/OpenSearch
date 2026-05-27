@@ -1,0 +1,28 @@
+{
+  "rows": [
+    [
+      1,
+      "https://example.com/page2"
+    ],
+    [
+      1,
+      "https://docs.aws.amazon.com"
+    ],
+    [
+      1,
+      "https://github.com/opensearch"
+    ],
+    [
+      7,
+      "https://reddit.com/r/tech"
+    ],
+    [
+      1,
+      "https://example.com/products/widget-123"
+    ],
+    [
+      4,
+      ""
+    ]
+  ]
+}

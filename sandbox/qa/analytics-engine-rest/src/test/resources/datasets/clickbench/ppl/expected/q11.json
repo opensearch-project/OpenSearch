@@ -1,0 +1,21 @@
+{
+  "rows": [
+    [
+      111,
+      "iPhone"
+    ],
+    [
+      137,
+      "Pixel"
+    ],
+    [
+      124,
+      "OnePlus"
+    ],
+    [
+      128,
+      "Samsung Galaxy"
+    ]
+  ],
+  "tolerance": 2
+}

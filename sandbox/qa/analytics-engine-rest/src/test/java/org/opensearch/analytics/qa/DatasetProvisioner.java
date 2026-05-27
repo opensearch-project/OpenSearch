@@ -46,13 +46,23 @@ public final class DatasetProvisioner {
      * Provision the dataset into the cluster with parquet as the primary data format.
      */
     public static void provision(RestClient client, Dataset dataset, int numberOfShards) throws IOException {
-        for (String indexName : dataset.indexNames) {
-            provisionIndex(client, dataset, indexName, numberOfShards);
-        }
+        provision(client, dataset, numberOfShards, -1);
     }
 
     public static void provision(RestClient client, Dataset dataset) throws IOException {
-        provision(client, dataset, 0);
+        provision(client, dataset, 0, -1);
+    }
+
+    /**
+     * Provision with optional overrides for {@code number_of_shards} and {@code number_of_replicas}.
+     * Pass {@code 0} for shards or {@code -1} for replicas to keep the value from
+     * {@code mapping.json}. Tests can pair this with {@code randomIntBetween} to exercise
+     * multiple shard/replica configurations across runs.
+     */
+    public static void provision(RestClient client, Dataset dataset, int numberOfShards, int numberOfReplicas) throws IOException {
+        for (String indexName : dataset.indexNames) {
+            provisionIndex(client, dataset, indexName, numberOfShards, numberOfReplicas);
+        }
     }
 
     /**
@@ -60,7 +70,7 @@ public final class DatasetProvisioner {
      * Pass {@code 0} to keep the mapping's value. Used by tests that need multi-shard
      * coverage of planner paths (exchange insertion, sort split, etc.).
      */
-    private static void provisionIndex(RestClient client, Dataset dataset, String indexName, int numberOfShards) throws IOException {
+    private static void provisionIndex(RestClient client, Dataset dataset, String indexName, int numberOfShards, int numberOfReplicas) throws IOException {
         // Delete if exists
         try {
             client.performRequest(new Request("DELETE", "/" + indexName));
@@ -76,6 +86,9 @@ public final class DatasetProvisioner {
         String indexBody = injectParquetSettings(mapping);
         if (numberOfShards > 0) {
             indexBody = overrideNumberOfShards(indexBody, numberOfShards);
+        }
+        if (numberOfReplicas >= 0) {
+            indexBody = overrideNumberOfReplicas(indexBody, numberOfReplicas);
         }
         Request createIndex = new Request("PUT", "/" + indexName);
         createIndex.setJsonEntity(indexBody);
@@ -119,6 +132,14 @@ public final class DatasetProvisioner {
      */
     private static String overrideNumberOfShards(String mappingBody, int numberOfShards) {
         return mappingBody.replaceAll("\"number_of_shards\"\\s*:\\s*\\d+", "\"number_of_shards\": " + numberOfShards);
+    }
+
+    /**
+     * Replace the {@code number_of_replicas} value in the mapping body. Matches the form
+     * {@code "number_of_replicas": <int>} produced by the canonical dataset mappings.
+     */
+    private static String overrideNumberOfReplicas(String mappingBody, int numberOfReplicas) {
+        return mappingBody.replaceAll("\"number_of_replicas\"\\s*:\\s*\\d+", "\"number_of_replicas\": " + numberOfReplicas);
     }
 
     /**

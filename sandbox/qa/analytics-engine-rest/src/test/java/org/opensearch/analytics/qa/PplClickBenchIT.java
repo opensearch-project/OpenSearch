@@ -46,7 +46,14 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
 
     private void ensureDataProvisioned() throws Exception {
         if (dataProvisioned == false) {
-            DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET);
+            // Randomize shard/replica configuration per test class run so we exercise both
+            // single-shard (no exchange) and multi-shard (PARTIAL/FINAL split, distributed agg)
+            // planner paths over time. dc() baselines tolerate ±1 to absorb HLL register-merge
+            // variance across shard counts.
+            int shards = randomIntBetween(1, 2);
+            int replicas = randomIntBetween(0, 1);
+            logger.info("Provisioning ClickBench with shards={} replicas={}", shards, replicas);
+            DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET, shards, replicas);
             dataProvisioned = true;
         }
     }

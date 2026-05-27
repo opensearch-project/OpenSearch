@@ -98,6 +98,9 @@ public final class ResponseValidator {
         // Extract datarows from both responses
         List<List<Object>> expectedRows = extractDataRows(expected);
         List<List<Object>> actualRows = extractDataRows(actual);
+        // Optional per-query numeric tolerance (default 0 = strict). Use for approximate aggregates
+        // like dc()/percentile_approx that vary slightly across shard configurations.
+        long tolerance = expected.get("tolerance") instanceof Number ? ((Number) expected.get("tolerance")).longValue() : 0L;
 
         if (expectedRows == null && actualRows == null) {
             return null; // both empty
@@ -116,6 +119,13 @@ public final class ResponseValidator {
         if (expectedRows.size() != actualRows.size()) {
             return String.format(java.util.Locale.ROOT, "%s Q%d: Row count mismatch - expected %d, got %d",
                 language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedRows.size(), actualRows.size());
+        }
+
+        // With a tolerance, sort-then-compare-by-index is unsafe because a number differing by ±1
+        // can shift the row's rank. Switch to order-invariant matching: for each expected row, find
+        // a remaining actual row whose non-numeric cells equal and numeric cells fall within tolerance.
+        if (tolerance > 0) {
+            return compareRowsWithTolerance(expectedRows, actualRows, tolerance, language, queryNumber);
         }
 
         // Sort both row sets for unordered comparison
@@ -141,6 +151,48 @@ public final class ResponseValidator {
         }
 
         return null; // validation passed
+    }
+
+    /**
+     * Order-invariant row comparison with per-cell numeric tolerance. Used when the expected file
+     * declares {@code "tolerance": N}: two numbers count as equal if they differ by at most N
+     * (typically 1 for HLL/dc() across shard configurations). Non-numeric cells still must match
+     * exactly — they act as the row-identity key.
+     */
+    private static String compareRowsWithTolerance(
+        List<List<Object>> expectedRows, List<List<Object>> actualRows,
+        long tolerance, String language, int queryNumber
+    ) {
+        List<List<Object>> remaining = new java.util.ArrayList<>(actualRows);
+        for (List<Object> exp : expectedRows) {
+            int matchIdx = -1;
+            for (int i = 0; i < remaining.size(); i++) {
+                if (rowMatchesWithTolerance(exp, remaining.get(i), tolerance)) {
+                    matchIdx = i;
+                    break;
+                }
+            }
+            if (matchIdx < 0) {
+                return String.format(java.util.Locale.ROOT,
+                    "%s Q%d: no actual row matches expected %s within tolerance %d (remaining unmatched actual rows: %s)",
+                    language.toUpperCase(java.util.Locale.ROOT), queryNumber, exp, tolerance, remaining);
+            }
+            remaining.remove(matchIdx);
+        }
+        return null;
+    }
+
+    private static boolean rowMatchesWithTolerance(List<Object> a, List<Object> b, long tolerance) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            Object x = a.get(i), y = b.get(i);
+            if (x instanceof Number && y instanceof Number) {
+                if (Math.abs(((Number) x).doubleValue() - ((Number) y).doubleValue()) > tolerance) return false;
+            } else if (!Objects.equals(x, y)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

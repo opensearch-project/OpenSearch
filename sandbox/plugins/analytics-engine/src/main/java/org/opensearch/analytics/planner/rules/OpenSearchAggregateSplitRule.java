@@ -10,6 +10,7 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -180,21 +181,75 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         RelNode gathered = convert(partial, finalTraits);
         Map<Integer, List<RexLiteral>> finalExtraLiterals = captureLiteralArgsForFinal(aggregate.getAggCallList(), child);
 
+        // Align FINAL aggCall types with what Calcite infers from the gathered input. Upstream
+        // parsers can hand us aggCalls with loose nullability (e.g. COUNT() declared BIGINT
+        // when Calcite infers BIGINT NOT NULL); Aggregate.<init>'s typeMatchesInferred would
+        // otherwise throw on the mismatch.
+        List<AggregateCall> finalAggCalls = alignToInferredReturnTypes(aggregate.getAggCallList(), gathered, aggregate.getGroupSets());
+
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             finalTraits,
             gathered,
             aggregate.getGroupSet(),
             aggregate.getGroupSets(),
-            aggregate.getAggCallList(),
+            finalAggCalls,
             AggregateMode.FINAL,
             aggregate.getViableBackends(),
             aggregate.getCallAnnotations(),
             finalExtraLiterals
         );
 
+        // If tightening aggCall types changed the FINAL's row type relative to the original,
+        // wrap in a cast Project so the transformed sub-tree's row type equals the original's
+        // (Volcano's transformTo enforces row-type equivalence between rel and equiv class).
+        RelNode result = finalAggregate;
+        if (!finalAggregate.getRowType().equals(aggregate.getRowType())) {
+            result = RelOptUtil.createCastRel(finalAggregate, aggregate.getRowType(), /*rename=*/true);
+        }
+
         call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
-        call.transformTo(finalAggregate);
+        call.transformTo(result);
+    }
+
+    /**
+     * Re-derive each aggCall's declared return type via the operator's
+     * {@link org.apache.calcite.sql.SqlAggFunction#inferReturnType} so it matches what
+     * the FINAL {@code OpenSearchAggregate} constructor's
+     * {@code typeMatchesInferred(Litmus.THROW)} will check. Uses the
+     * {@link AggregateCall#create} overload that takes {@code RelNode input} and
+     * {@code type == null}, which delegates to the operator binding.
+     */
+    private static List<AggregateCall> alignToInferredReturnTypes(
+        List<AggregateCall> aggCalls,
+        RelNode input,
+        List<org.apache.calcite.util.ImmutableBitSet> groupSets
+    ) {
+        if (aggCalls.isEmpty()) return aggCalls;
+        boolean hasEmptyGroup = groupSets.contains(org.apache.calcite.util.ImmutableBitSet.of());
+        List<AggregateCall> rebuilt = null;
+        for (int i = 0; i < aggCalls.size(); i++) {
+            AggregateCall call = aggCalls.get(i);
+            AggregateCall derived = AggregateCall.create(
+                call.getAggregation(),
+                call.isDistinct(),
+                call.isApproximate(),
+                call.ignoreNulls(),
+                call.rexList,
+                call.getArgList(),
+                call.filterArg,
+                call.distinctKeys,
+                call.collation,
+                hasEmptyGroup,
+                input,
+                null,  // type=null → Calcite derives via op.inferReturnType(callBinding)
+                call.getName()
+            );
+            if (derived.getType().equals(call.getType())) continue;
+            if (rebuilt == null) rebuilt = new ArrayList<>(aggCalls);
+            rebuilt.set(i, derived);
+        }
+        return rebuilt != null ? rebuilt : aggCalls;
     }
 
     /**
