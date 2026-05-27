@@ -17,6 +17,7 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -63,12 +64,16 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      *
      * <p>Two cases are unsafe today:
      * <ul>
-     *   <li><b>percentile_approx</b> is a 2-arg aggregate (field, percent) whose FINAL phase
-     *       needs (tdigest_state, percent_literal). {@code AggregateDecompositionResolver}'s
-     *       single-field rewrite paths only produce a single-arg FINAL call, yielding
+     *   <li><b>STATE_EXPANDING aggregates</b> ({@link AggregateFunction.Type#STATE_EXPANDING}
+     *       — {@code TAKE}/{@code FIRST}/{@code LAST}/{@code LIST}/{@code VALUES}/{@code COLLECT}/
+     *       {@code LISTAGG}/{@code PERCENTILE_*}/{@code PATTERN}): the FINAL phase needs to merge
+     *       per-key state (e.g. tdigest, list, ARRAY&lt;VARCHAR&gt;), but
+     *       {@code AggregateDecompositionResolver}'s single-field rewrite paths only produce a
+     *       single-arg FINAL call. The result is a row-type mismatch like
      *       {@code "Type mismatch: rel rowtype: RecordType(BIGINT p50, BIGINT p50_0) NOT NULL,
-     *       equiv rowtype: RecordType(INTEGER bucket, BIGINT p50)"}. Other aggCalls in the
-     *       same Aggregate (SUM, AVG, etc.) inherit the single-stage execution.</li>
+     *       equiv rowtype: RecordType(INTEGER bucket, BIGINT p50)"} for {@code percentile_approx}
+     *       or argList shift for {@code take(field, N)}. Other aggCalls in the same Aggregate
+     *       (SUM, AVG, etc.) inherit the single-stage execution.</li>
      *   <li><b>Cross-family non-prefix groupSet</b>: PARTIAL's output places group keys at
      *       positions {@code [0..groupCount)}. FINAL reuses ORIGINAL's groupSet against
      *       PARTIAL's output. When an input column at index {@code k >= groupCount} is a group
@@ -85,33 +90,25 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      *       {@code PlanShapeTests.testJoinWithDifferentGroupKeys_multiShard}.</li>
      * </ul>
      *
-     * <p>Until {@code AggregateDecompositionResolver} gains engine-native merge support
-     * (percentile_approx) and ORIGINAL→FINAL groupSet remapping (cross-family non-prefix),
-     * the split is conservative in those shapes — distributed parallelism is traded for
-     * correctness.
+     * <p>Until {@code AggregateDecompositionResolver} gains engine-native merge support for
+     * STATE_EXPANDING aggregates and ORIGINAL→FINAL groupSet remapping (cross-family
+     * non-prefix), the split is conservative in those shapes — distributed parallelism is
+     * traded for correctness.
      */
     private static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
+        // State-expanding aggs (TAKE/FIRST/LAST/LIST/VALUES/COLLECT/LISTAGG/PERCENTILE_*)
+        // crash Aggregate.<init>'s typeMatchesInferred at FINAL construction: FINAL reuses
+        // the original argList pointing into input columns (e.g. TAKE($1=content, $2=N_literal)),
+        // but FINAL's input is the PARTIAL output where those positions hold STATE columns of
+        // different types (count_state BIGINT, take_state ARRAY<VARCHAR>). The operator's
+        // return-type inference applied to the shifted args no longer agrees with the declared
+        // output type — the rule throws before DistributedAggregateRewriter (which DOES remap
+        // correctly) can run. SINGLE-on-SINGLETON runs correctly on multi-shard too (gather
+        // → coordinator-side aggregate, exercised by PatternsCommandIT on a 3-shard index)
+        // but trades distributed parallelism. Per-phase operator overloads (or constructing
+        // FINAL with a remapped argList + explicit type here) is a follow-up.
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
-            if (isPercentileApprox(aggCall)) {
-                return true;
-            }
-            // State-expanding aggs (TAKE, FIRST, LAST, LIST, VALUES) crash
-            // Aggregate.<init>'s typeMatchesInferred at FINAL construction time:
-            // the FINAL aggCall list reuses the original argList which points into
-            // input columns (e.g. TAKE($1=content, $2=N_literal)), but the FINAL's
-            // input is the PARTIAL output where those positions hold STATE columns
-            // of different types (count_state BIGINT, take_state ARRAY<VARCHAR>).
-            // The operator's return-type inference applied to the shifted args no
-            // longer agrees with the declared output type — the rule throws before
-            // DistributedAggregateRewriter (which DOES remap correctly) can run.
-            // Skip the split for these; the SINGLE-on-SINGLETON alternative runs
-            // correctly on multi-shard too (gather to the coordinator, then aggregate
-            // — exercised by PatternsCommandIT on a 3-shard index) but trades away
-            // distributed parallelism. Distributed parallelism for state-expanding
-            // aggs is a follow-up (requires per-phase operator overloads or
-            // constructing the FINAL with remapped argList + explicit type here).
-            AggregateFunction fn = AggregateFunction.fromSqlAggFunction(aggCall.getAggregation());
-            if (fn != null && fn.getType() == AggregateFunction.Type.STATE_EXPANDING) {
+            if (isStateExpanding(aggCall.getAggregation())) {
                 return true;
             }
         }
@@ -142,8 +139,18 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return false;
     }
 
-    private static boolean isPercentileApprox(AggregateCall aggCall) {
-        return "PERCENTILE_APPROX".equalsIgnoreCase(aggCall.getAggregation().getName());
+    /**
+     * Returns true if the operator is a registered STATE_EXPANDING aggregate. Returns false
+     * (rather than throwing) for operators not in the {@link AggregateFunction} registry —
+     * unknown aggregates are treated as non-state-expanding so the PARTIAL/FINAL split path
+     * still gets a chance to run for them.
+     */
+    private static boolean isStateExpanding(SqlAggFunction op) {
+        try {
+            return AggregateFunction.fromSqlAggFunction(op).getType() == AggregateFunction.Type.STATE_EXPANDING;
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
     }
 
     @Override
