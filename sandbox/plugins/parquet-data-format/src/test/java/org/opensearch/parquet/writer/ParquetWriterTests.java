@@ -101,7 +101,6 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
-            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -113,7 +112,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");
         doc.addField(scoreField, 100L);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
         WriteResult result = writer.addDoc(doc);
         assertTrue(result instanceof WriteResult.Success);
         doc.close();
@@ -128,7 +127,6 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
-            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -140,7 +138,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         doc.addField(idField, 42);
         doc.addField(nameField, "bob");
         doc.addField(scoreField, 500L);
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
         writer.addDoc(doc);
         doc.close();
 
@@ -156,7 +154,6 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
-            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -188,7 +185,6 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
-            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -205,7 +201,6 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             1L,
             new ParquetDataFormat(),
             schema,
-            () -> schema,
             bufferPool,
             indexSettings,
             threadPool,

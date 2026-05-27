@@ -37,6 +37,7 @@ import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A composite {@link IndexingExecutionEngine} that orchestrates indexing across
@@ -192,22 +194,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     /**
-     * Multiplexes tragic-exception detection across primary and secondary engines.
-     * Returns the first non-null tragic exception found (primary checked first), or
-     * {@code null} if every delegate is healthy.
-     */
-    @Override
-    public Exception getTragicException() {
-        Exception primaryTragic = primaryEngine.getTragicException();
-        if (primaryTragic != null) return primaryTragic;
-        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-            Exception tragic = engine.getTragicException();
-            if (tragic != null) return tragic;
-        }
-        return null;
-    }
-
-    /**
      * Refreshes all per-format engines and merges their results into a unified list of
      * {@link Segment} instances. Each segment groups its per-format {@link WriterFileSet}
      * entries by writer generation.
@@ -218,15 +204,16 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
-        Map<DataFormat, RefreshResult> resultsByFormat = new LinkedHashMap<>();
-        resultsByFormat.put(primaryEngine.getDataFormat(), primaryEngine.refresh(refreshInput));
+        RefreshResult primary = primaryEngine.refresh(refreshInput);
+        List<RefreshResult> secResults = new ArrayList<>();
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-            resultsByFormat.put(engine.getDataFormat(), engine.refresh(refreshInput));
+            secResults.add(engine.refresh(refreshInput));
         }
 
         Map<Long, Segment.Builder> mergedByGen = new LinkedHashMap<>();
-        for (Map.Entry<DataFormat, RefreshResult> entry : resultsByFormat.entrySet()) {
-            buildSegment(entry.getKey(), entry.getValue(), mergedByGen);
+        buildSegment(primary, mergedByGen);
+        for (RefreshResult secResult : secResults) {
+            buildSegment(secResult, mergedByGen);
         }
 
         List<Segment> merged = new ArrayList<>(mergedByGen.size());
@@ -234,22 +221,15 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             merged.add(builder.build());
         }
 
-        assert merged.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
-            : "refresh result segments must contain all configured formats";
         return new RefreshResult(merged);
     }
 
-    /**
-     * Adds only the {@code ownFormat}'s {@link WriterFileSet} from each segment in
-     * {@code result.refreshedSegments()} into {@code mergedByGen}. Any other formats present
-     * in the per-engine result (e.g. echoed back from {@link RefreshInput#writerFiles()}) are
-     * intentionally ignored so each format's authoritative entry comes solely from its own engine.
-     */
-    private void buildSegment(DataFormat ownFormat, RefreshResult result, Map<Long, Segment.Builder> mergedByGen) {
-        for (Segment seg : result.refreshedSegments()) {
-            WriterFileSet ownFiles = seg.dfGroupedSearchableFiles().get(ownFormat.name());
+    private void buildSegment(RefreshResult primary, Map<Long, Segment.Builder> mergedByGen) {
+        for (Segment seg : primary.refreshedSegments()) {
             Segment.Builder builder = mergedByGen.computeIfAbsent(seg.generation(), Segment::builder);
-            builder.addSearchableFiles(ownFormat, ownFiles);
+            for (Map.Entry<String, WriterFileSet> entry : seg.dfGroupedSearchableFiles().entrySet()) {
+                builder.addSearchableFiles(entry.getKey(), entry.getValue());
+            }
         }
     }
 
@@ -371,22 +351,17 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             {
                 Map<DataFormat, IndexStoreProvider> tempProviders = new HashMap<>();
                 tempProviders.put(primaryEngine.getDataFormat(), primaryEngine.getProvider());
-                if (primaryEngine.getProvider() == null) {
-                    logger.debug("IndexStoreProvider is null for primary engine [{}]", primaryEngine.getDataFormat().name());
-                }
-                for (IndexingExecutionEngine<?, ?> eng : secondaryEngines) {
-                    tempProviders.put(eng.getDataFormat(), eng.getProvider());
-                    if (eng.getProvider() == null) {
-                        logger.debug("IndexStoreProvider is null for secondary engine [{}]", eng.getDataFormat().name());
-                    }
-                }
+                tempProviders.putAll(
+                    secondaryEngines.stream()
+                        .map(eng -> new AbstractMap.SimpleEntry<>(eng.getDataFormat(), eng.getProvider()))
+                        .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue))
+                );
                 providers = tempProviders;
             }
 
             @Override
             public FormatStore getStore(DataFormat dataFormat) {
-                IndexStoreProvider provider = providers.get(dataFormat);
-                return provider != null ? provider.getStore(dataFormat) : null;
+                return providers.get(dataFormat).getStore(dataFormat);
             }
         };
     }

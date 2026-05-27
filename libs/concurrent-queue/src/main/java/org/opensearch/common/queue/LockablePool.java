@@ -8,8 +8,6 @@
 
 package org.opensearch.common.queue;
 
-import org.opensearch.common.lease.Releasable;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,23 +134,6 @@ public final class LockablePool<T extends Lockable> implements Iterable<T>, Clos
      */
     public synchronized boolean isRegistered(T item) {
         return items.contains(item);
-    }
-
-    /**
-     * Removes a single already-locked item from the pool. The returned {@link Releasable}
-     * unlocks the item when closed, intended for use with try-with-resources. The caller
-     * still owns the item itself and is responsible for closing any underlying resources.
-     *
-     * @param item the locked item to remove
-     * @return a releasable whose {@code close()} unlocks the item
-     * @throws IllegalArgumentException if the item is not registered in this pool
-     */
-    public synchronized Releasable checkout(T item) {
-        if (items.remove(item) == false) {
-            throw new IllegalArgumentException("Item is not registered in this pool");
-        }
-        availableItems.remove(item);
-        return item::unlock;
     }
 
     private void ensureOpen() {
