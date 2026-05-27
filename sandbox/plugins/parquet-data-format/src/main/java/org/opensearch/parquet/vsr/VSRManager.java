@@ -27,6 +27,7 @@ import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.writer.FieldValuePair;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.ThreadPool;
@@ -69,6 +70,7 @@ public class VSRManager implements AutoCloseable {
     private final ThreadPool threadPool;
     private final String vsrRotationThread;
     private final long writerGeneration;
+    private final ParquetShardStatsTracker stats;
     private volatile Future<?> pendingWrite;
     private NativeParquetWriter writer;
     private final int ROTATION_TIMEOUT = 120;
@@ -84,9 +86,61 @@ public class VSRManager implements AutoCloseable {
         ArrowBufferPool bufferPool,
         int maxRowsPerVSR,
         ThreadPool threadPool,
+        long writerGeneration,
+        ParquetShardStatsTracker stats
+    ) {
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, stats);
+    }
+
+    /**
+     * Creates a new VSRManager with asynchronous background writes and no stats collection.
+     */
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
         long writerGeneration
     ) {
-        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration);
+        this(
+            fileName,
+            indexSettings,
+            schema,
+            bufferPool,
+            maxRowsPerVSR,
+            threadPool,
+            true,
+            writerGeneration,
+            new ParquetShardStatsTracker()
+        );
+    }
+
+    /**
+     * Creates a new VSRManager without stats collection.
+     */
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
+        boolean runAsync,
+        long writerGeneration
+    ) {
+        this(
+            fileName,
+            indexSettings,
+            schema,
+            bufferPool,
+            maxRowsPerVSR,
+            threadPool,
+            runAsync,
+            writerGeneration,
+            new ParquetShardStatsTracker()
+        );
     }
 
     /**
@@ -101,6 +155,7 @@ public class VSRManager implements AutoCloseable {
      * @param runAsync if true, frozen VSR writes run on the background thread pool;
      *                 if false, they run on the calling thread (for benchmarks/tests)
      * @param writerGeneration the writer generation to store in file metadata
+     * @param stats shard-level stats tracker
      */
     public VSRManager(
         String fileName,
@@ -110,16 +165,18 @@ public class VSRManager implements AutoCloseable {
         int maxRowsPerVSR,
         ThreadPool threadPool,
         boolean runAsync,
-        long writerGeneration
+        long writerGeneration,
+        ParquetShardStatsTracker stats
     ) {
         this.fileName = fileName;
         this.indexSettings = indexSettings;
         this.writerGeneration = writerGeneration;
+        this.stats = stats;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
         this.managedVSR.set(vsrPool.getActiveVSR());
-        this.writer = new NativeParquetWriter(fileName);
+        this.writer = new NativeParquetWriter(fileName, stats);
     }
 
     /**
@@ -167,6 +224,7 @@ public class VSRManager implements AutoCloseable {
         if (rotated == false) {
             return;
         }
+        stats.incVsrRotations();
         logger.debug("VSR rotation occurred for {}", fileName);
         ManagedVSR frozenVSR = vsrPool.getFrozenVSR();
         if (frozenVSR != null) {
@@ -265,13 +323,16 @@ public class VSRManager implements AutoCloseable {
         if (pendingWrite == null) {
             return;
         }
+        long startNanos = System.nanoTime();
         try {
             if (timeoutSeconds > 0) {
                 pendingWrite.get(timeoutSeconds, TimeUnit.SECONDS);
             } else {
                 pendingWrite.get();
             }
+            stats.incBackgroundWriteTotal();
         } catch (TimeoutException e) {
+            stats.incBackgroundWriteTimeouts();
             if (ignoreTimeout) {
                 logger.warn("Timed out waiting for background VSR write for {}", fileName);
             } else {
@@ -280,6 +341,8 @@ public class VSRManager implements AutoCloseable {
         } catch (Exception e) {
             throw new IOException("Background VSR write failed for " + fileName, e.getCause());
         } finally {
+            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            stats.addBackgroundWriteWaitMillis(elapsed);
             pendingWrite = null;
         }
     }

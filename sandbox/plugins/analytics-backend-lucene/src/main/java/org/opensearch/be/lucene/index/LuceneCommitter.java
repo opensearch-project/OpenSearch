@@ -29,6 +29,7 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneReader;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -51,7 +52,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -98,6 +101,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private final Sort userProvidedSort;
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
+    private final LuceneShardStatsTracker stats;
     private final AtomicBoolean isClosed = new AtomicBoolean();
     // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
     private final Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
@@ -107,10 +111,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
      * then opens the IndexWriter.
      *
      * @param committerConfig the committer committerConfig (shard path, index committerConfig, engine config, store)
+     * @param stats           the shard-level stats collector
      * @throws IOException if opening the IndexWriter fails
      */
-    public LuceneCommitter(CommitterConfig committerConfig) throws IOException {
+    public LuceneCommitter(CommitterConfig committerConfig, LuceneShardStatsTracker stats) throws IOException {
         super(committerConfig);
+        this.stats = stats;
         this.store = Objects.requireNonNull(committerConfig.engineConfig().getStore());
         this.userProvidedSort = committerConfig.engineConfig().getIndexSort();
         this.store.incRef();
@@ -137,13 +143,19 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public synchronized CommitResult commit(CommitInput commitData) throws IOException {
         ensureOpen();
-        indexWriter.setLiveCommitData(commitData.userData());
-        indexWriter.commit();
-        SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        long start = System.nanoTime();
+        try {
+            indexWriter.setLiveCommitData(commitData.userData());
+            indexWriter.commit();
+            SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
 
-        // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
-        long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
-        return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
+            // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
+            long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
+            return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
+        } finally {
+            stats.incCommitTotal();
+            stats.addCommitTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        }
     }
 
     /**
@@ -352,7 +364,14 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         if (snapshots.isEmpty()) {
             return;
         }
-        String translogUUID = snapshots.getLast().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        // Read translog UUID from the top-level IndexCommit user data, which is authoritative.
+        // During peer recovery, store.associateIndexWithNewTranslog() updates the top-level
+        // TRANSLOG_UUID_KEY but does NOT update the serialized CatalogSnapshot embedded in
+        // CATALOG_SNAPSHOT_KEY. Reading from the CatalogSnapshot's internal userData would
+        // return the stale primary UUID, causing TranslogCorruptedException during peer recovery.
+        Map.Entry<IndexCommit, CatalogSnapshot> lastEntry = ((SequencedMap<IndexCommit, CatalogSnapshot>) committed).sequencedEntrySet()
+            .getLast();
+        String translogUUID = lastEntry.getKey().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
         CatalogSnapshot safeCommit = CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(snapshots, globalCheckpoint);
         IndexCommit targetCommit = null;

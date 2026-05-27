@@ -14,6 +14,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
@@ -77,8 +78,10 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
             .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, Collections.emptyList()))
             .build();
 
-        committer = (LuceneCommitter) new LuceneCommitterFactory().getCommitter(new CommitterConfig(engineConfig, () -> {}));
-        deleteEngine = new LuceneDeleteExecutionEngine(new LuceneDataFormat(), committer);
+        committer = (LuceneCommitter) new LuceneCommitterFactory(new LuceneShardStatsTracker()).getCommitter(
+            new CommitterConfig(engineConfig, () -> {})
+        );
+        deleteEngine = new LuceneDeleteExecutionEngine(new LuceneDataFormat(), committer, new LuceneShardStatsTracker());
         dataFormat = new LuceneDataFormat();
     }
 
@@ -99,7 +102,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
     private LuceneWriter createLuceneWriter(long generation) throws IOException {
         Path writerDir = baseDir.resolve("writers");
         Files.createDirectories(writerDir);
-        return new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
+        return new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, new LuceneShardStatsTracker());
     }
 
     private Writer<?> createMockCompositeWriter(long generation, boolean hasLucene, boolean hasParquet) {

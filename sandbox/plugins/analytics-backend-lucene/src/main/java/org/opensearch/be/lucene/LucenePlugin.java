@@ -12,6 +12,7 @@ import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
 import org.opensearch.be.lucene.index.LuceneDeleteExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -40,7 +41,7 @@ import java.util.function.Supplier;
  * Plugin providing Lucene as a data format, search back-end, and committer
  * for the composite engine.
  * <p>
- * Implements three plugin interfaces:
+ * Implements four plugin interfaces:
  * <ul>
  *   <li>{@link DataFormatPlugin} — registers Lucene as a data format that can write
  *       inverted indices for text fields via {@link LuceneIndexingExecutionEngine}</li>
@@ -54,6 +55,7 @@ import java.util.function.Supplier;
 public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin {
 
     private static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+    private final LuceneShardStatsTracker stats = new LuceneShardStatsTracker();
 
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}
@@ -136,11 +138,11 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
      */
     @Override
     public Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
-        return Optional.of(new LuceneCommitterFactory());
+        return Optional.of(new LuceneCommitterFactory(stats));
     }
 
     @Override
     public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
-        return new LuceneDeleteExecutionEngine(DATA_FORMAT, committer);
+        return new LuceneDeleteExecutionEngine(DATA_FORMAT, committer, stats);
     }
 }

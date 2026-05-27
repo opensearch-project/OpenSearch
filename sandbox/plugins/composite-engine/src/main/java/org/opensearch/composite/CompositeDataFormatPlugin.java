@@ -10,13 +10,37 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.composite.action.CatalogSnapshotAction;
+import org.opensearch.composite.action.CatalogSnapshotActionType;
+import org.opensearch.composite.action.DataFormatStatsAction;
+import org.opensearch.composite.action.DataFormatStatsActionType;
+import org.opensearch.composite.action.TransportCatalogSnapshotAction;
+import org.opensearch.composite.action.TransportDataFormatStatsAction;
+import org.opensearch.composite.action.format.lucene.LuceneNodeStatsAction;
+import org.opensearch.composite.action.format.lucene.LuceneNodeStatsActionType;
+import org.opensearch.composite.action.format.lucene.LuceneStatsAction;
+import org.opensearch.composite.action.format.lucene.LuceneStatsActionType;
+import org.opensearch.composite.action.format.lucene.TransportLuceneNodeStatsAction;
+import org.opensearch.composite.action.format.lucene.TransportLuceneStatsAction;
+import org.opensearch.composite.action.format.parquet.ParquetNodeStatsAction;
+import org.opensearch.composite.action.format.parquet.ParquetNodeStatsActionType;
+import org.opensearch.composite.action.format.parquet.ParquetStatsAction;
+import org.opensearch.composite.action.format.parquet.ParquetStatsActionType;
+import org.opensearch.composite.action.format.parquet.TransportParquetNodeStatsAction;
+import org.opensearch.composite.action.format.parquet.TransportParquetStatsAction;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -32,9 +56,12 @@ import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -77,7 +104,7 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin {
+public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
 
@@ -321,5 +348,47 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(strategies);
+    }
+
+    /**
+     * SECURITY TODO: The REST actions registered below currently have no authorization checks.
+     * Before promoting to GA, add cluster/index permission requirements via
+     * {@link ActionPlugin#getRestHandlerWrapper}.
+     */
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(
+            new ActionHandler<>(DataFormatStatsActionType.INSTANCE, TransportDataFormatStatsAction.class),
+            new ActionHandler<>(CatalogSnapshotActionType.INSTANCE, TransportCatalogSnapshotAction.class),
+            new ActionHandler<>(ParquetStatsActionType.INSTANCE, TransportParquetStatsAction.class),
+            new ActionHandler<>(ParquetNodeStatsActionType.INSTANCE, TransportParquetNodeStatsAction.class),
+            new ActionHandler<>(LuceneStatsActionType.INSTANCE, TransportLuceneStatsAction.class),
+            new ActionHandler<>(LuceneNodeStatsActionType.INSTANCE, TransportLuceneNodeStatsAction.class)
+        );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(
+            new DataFormatStatsAction(),
+            new CatalogSnapshotAction(),
+            new ParquetStatsAction(),
+            new ParquetNodeStatsAction(),
+            new LuceneStatsAction(),
+            new LuceneNodeStatsAction()
+        );
+    }
+
+    @Override
+    public Collection<Module> createGuiceModules() {
+        return List.of(b -> b.bind(CompositeRegistryInitializer.class).asEagerSingleton());
     }
 }

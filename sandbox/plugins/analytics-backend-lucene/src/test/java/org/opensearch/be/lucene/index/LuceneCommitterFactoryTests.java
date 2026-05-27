@@ -11,6 +11,7 @@ package org.opensearch.be.lucene.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Version;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
@@ -58,7 +59,7 @@ public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
                 .translogConfig(new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false))
                 .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, Collections.emptyList()))
                 .build();
-            LuceneCommitterFactory committerFactory = new LuceneCommitterFactory();
+            LuceneCommitterFactory committerFactory = new LuceneCommitterFactory(new LuceneShardStatsTracker());
             committer = committerFactory.getCommitter(new CommitterConfig(engineConfig, () -> {}));
 
             assertTrue("getCommitter() should return a LuceneCommitter instance", committer instanceof LuceneCommitter);

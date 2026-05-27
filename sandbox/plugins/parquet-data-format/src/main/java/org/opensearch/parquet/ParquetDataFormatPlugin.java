@@ -8,12 +8,19 @@
 
 package org.opensearch.parquet;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Module;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -28,13 +35,20 @@ import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.parquet.action.ParquetAnalyzeAction;
+import org.opensearch.parquet.action.ParquetAnalyzeActionType;
+import org.opensearch.parquet.action.ParquetRegistryInitializer;
+import org.opensearch.parquet.action.TransportParquetAnalyzeAction;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.parquet.store.ParquetStoreStrategy;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
@@ -62,7 +76,7 @@ import java.util.function.Supplier;
  * routing directory events, and closing native resources are all handled
  * there. The plugin stays purely declarative.
  */
-public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
+public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, ActionPlugin {
 
     /**
      * Current parquet writer format version, long-encoded (plugin-defined namespace; the
@@ -174,5 +188,28 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
                 "thread_pool." + PARQUET_THREAD_POOL_NAME
             )
         );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(new ParquetAnalyzeAction());
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(new ActionHandler<>(ParquetAnalyzeActionType.INSTANCE, TransportParquetAnalyzeAction.class));
+    }
+
+    @Override
+    public Collection<Module> createGuiceModules() {
+        return List.of(b -> b.bind(ParquetRegistryInitializer.class).asEagerSingleton());
     }
 }

@@ -45,6 +45,7 @@ public class RustBridge {
     private static final MethodHandle FREE_MERGE_RESULT;
     private static final MethodHandle READ_AS_JSON;
     private static final MethodHandle FREE_ROW_ID_MAPPING;
+    private static final MethodHandle ANALYZE_FILE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -251,6 +252,21 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG                          // mapping_len
             )
         );
+        ANALYZE_FILE = lib.find("parquet_analyze_file")
+            .map(
+                symbol -> linker.downcallHandle(
+                    symbol,
+                    FunctionDescriptor.of(
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,   // file
+                        ValueLayout.ADDRESS,     // out_buf
+                        ValueLayout.JAVA_LONG,   // buf_capacity
+                        ValueLayout.ADDRESS      // out_len
+                    )
+                )
+            )
+            .orElse(null);
     }
 
     public static void initLogger() {}
@@ -623,6 +639,24 @@ public class RustBridge {
             seg.setAtIndex(ValueLayout.JAVA_LONG, i, bools.get(i) ? 1L : 0L);
         }
         return seg;
+    }
+
+    /**
+     * Analyzes a parquet file and returns column-level statistics as a JSON string.
+     */
+    public static String analyzeFile(String file) throws IOException {
+        if (ANALYZE_FILE == null) {
+            throw new UnsupportedOperationException("parquet_analyze_file not available in native library");
+        }
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            int bufSize = 10 * 1024 * 1024; // 10MB
+            var outBuf = call.buf(bufSize);
+            var outLen = call.longOut();
+            call.invokeIO(ANALYZE_FILE, f.segment(), f.len(), outBuf, (long) bufSize, outLen);
+            int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        }
     }
 
     /**
