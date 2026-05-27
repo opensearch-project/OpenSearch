@@ -21,7 +21,6 @@ import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,31 +73,18 @@ public class QueryScheduler implements Scheduler {
     }
 
     /**
-     * Materialises {@code stage}'s tasks via {@link StageExecution#start()}, then dispatches each
-     * through {@link StageExecution#taskRunner()} with a scheduler-owned {@link ActionListener}.
-     * Skips dispatch when {@code start()} transitions straight to a terminal (empty target
-     * resolution → SUCCEEDED; concurrent cancel → CANCELLED).
-     *
-     * <p>TODO: in-flight cap - we have pendingExecutions but that's per query per node
+     * Materialises {@code stage}'s tasks via {@link StageExecution#start()}, then hands the
+     * scheduler-owned per-task listener factory to {@link StageExecution#dispatchTasks} —
+     * the stage decides whether to dispatch eagerly (default for-loop) or incrementally
+     * (shard fan-outs that want to bound the outbound-throttle queue depth). Skips dispatch
+     * when {@code start()} transitions straight to a terminal (empty target resolution →
+     * SUCCEEDED; concurrent cancel → CANCELLED).
      */
     void scheduleStage(StageExecution stage) {
         stage.start();
         if (stage.getState() != StageExecution.State.RUNNING) return;
-        // Stage owns both tasks() and taskRunner() — the variant types match by construction.
-        @SuppressWarnings("unchecked")
-        TaskRunner<StageTask> runner = (TaskRunner<StageTask>) stage.taskRunner();
-        List<StageTask> tasks = stage.tasks();
-        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), tasks.size());
-        for (StageTask task : tasks) {
-            assert task.state() == StageTaskState.CREATED : "stage "
-                + stage.getStageId()
-                + " task "
-                + task.id()
-                + " expected CREATED, got "
-                + task.state();
-            task.transitionTo(StageTaskState.RUNNING);
-            runner.run(task, handleFor(stage, task));
-        }
+        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
+        stage.dispatchTasks(this::handleFor);
     }
 
     /**
