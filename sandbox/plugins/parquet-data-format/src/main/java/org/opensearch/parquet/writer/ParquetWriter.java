@@ -9,7 +9,6 @@
 package org.opensearch.parquet.writer;
 
 import org.apache.arrow.vector.types.pojo.Schema;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IndexSettings;

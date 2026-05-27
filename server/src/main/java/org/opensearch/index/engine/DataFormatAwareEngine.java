@@ -14,9 +14,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.cluster.ClusterChangedEvent;
-import org.opensearch.cluster.ClusterStateListener;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -139,7 +136,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
+public class DataFormatAwareEngine implements Indexer {
 
     private final Logger logger;
     private final EngineConfig engineConfig;
@@ -157,7 +154,6 @@ public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
     private final Committer committer;
     private final List<ReferenceManager.RefreshListener> refreshListeners;
     private final CatalogSnapshotStatsCache statsCache;
-    private volatile long currentMappingVersion = -1;
 
     // Translog for durability and recovery
     private final TranslogManager translogManager;
@@ -269,8 +265,6 @@ public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
 
         boolean success = false;
         TranslogManager translogManagerRef = null;
-        currentMappingVersion = engineConfig.getIndexSettings().getIndexMetadata().getMappingVersion();
-        engineConfig.getClusterApplierService().addListener(this);
 
         try {
             store.incRef();
@@ -1805,7 +1799,6 @@ public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
             try {
                 // Discard any pending segments not yet picked up by refresh
                 pendingSegments.clear();
-                engineConfig.getClusterApplierService().removeListener(this);
                 // Close any writers queued for deferred close (their files won't reach the catalog)
                 Writer<?> pendingWriter;
                 while ((pendingWriter = pendingWritersToClose.poll()) != null) {
@@ -1817,7 +1810,6 @@ public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
                 }
                 IOUtils.close(indexingExecutionEngine, committer, translogManager);
                 closeReaders();
-
             } catch (Exception e) {
                 logger.warn("failed to close engine resources", e);
             } finally {
@@ -1858,7 +1850,7 @@ public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
     }
 
     private long currentMappingVersion() {
-        return currentMappingVersion;
+        return engineConfig.getMapperService().documentMapper().getVersion();
     }
 
     /**
@@ -2079,15 +2071,5 @@ public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
     /** Returns the store. Visible for testing only. */
     Store getStore() {
         return store;
-    }
-
-    @Override
-    public synchronized void clusterChanged(ClusterChangedEvent event) {
-        IndexMetadata newIndexMetadata = event.state().metadata().indices().get(this.config().getShardId().getIndexName());
-        IndexMetadata oldIndexMetadata = event.previousState().metadata().indices().get(this.config().getShardId().getIndexName());
-        if (oldIndexMetadata == null || ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) {
-            logger.debug("Mapping version from {} to {}", currentMappingVersion, newIndexMetadata.getMappingVersion());
-            currentMappingVersion = newIndexMetadata.getMappingVersion();
-        }
     }
 }

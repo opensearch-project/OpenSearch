@@ -9,7 +9,6 @@
 package org.opensearch.parquet.vsr;
 
 import org.apache.arrow.c.ArrowSchema;
-import java.util.stream.Collectors;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -166,9 +165,7 @@ public class VSRManager implements AutoCloseable {
                     "[Gen: {}] VSR schema mismatch: field [{}] not in active VSR. VSR schema fields: {}",
                     writerGeneration,
                     fieldType.name(),
-                    activeVSR.getSchema().getFields().stream()
-                        .map(f -> f.getName())
-                        .collect(java.util.stream.Collectors.joining(", "))
+                    activeVSR.getSchema().getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
                 );
                 throw new MismatchedInputException(
                     "Active VSR has no vector for field ["
