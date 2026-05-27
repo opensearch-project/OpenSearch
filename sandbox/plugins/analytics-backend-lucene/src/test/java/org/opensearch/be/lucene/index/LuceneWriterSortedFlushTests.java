@@ -539,12 +539,12 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         final int override = maxBufferedDocsOverride;
         return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null) {
             @Override
-            protected double ramBufferSizeMB() {
+            double ramBufferSizeMB() {
                 return 1024.0;
             }
 
             @Override
-            protected int maxBufferedDocs() {
+            int maxBufferedDocs() {
                 return override;
             }
         };

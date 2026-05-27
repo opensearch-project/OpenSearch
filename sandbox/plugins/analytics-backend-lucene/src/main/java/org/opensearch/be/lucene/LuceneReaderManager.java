@@ -112,6 +112,11 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         DirectoryReader refreshed = readerRefresher.apply(currentReader, LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot));
         DirectoryReader readerForSnapshot;
         if (refreshed != null) {
+            // Guard against refresh/merge-apply races: a prior IT regression surfaced when
+            // overlapping threads produced a refreshed reader whose leaves disagreed with the
+            // catalog snapshot being registered, effectively pairing the snapshot with a stale
+            // reader. This assert catches that drift in test builds before the mismatched pair
+            // is published to readers.
             currentReader = refreshed;
             // New wrapper — its creation ref (refCount=1) serves as the snapshot's ref.
             currentWrappedReader = OpenSearchDirectoryReader.wrap(currentReader, shardId);
@@ -121,8 +126,6 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             currentWrappedReader.incRef();
             readerForSnapshot = currentWrappedReader;
         }
-        // Catches refresh/merge-apply races where the refreshed reader's leaves disagree
-        // with the catalog snapshot being registered.
         assert readersAreSame(catalogSnapshot, currentReader);
         assert OpenSearchDirectoryReader.unwrap(currentWrappedReader) == currentReader;
 
