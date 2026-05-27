@@ -138,6 +138,12 @@ public class LuceneMerger implements Merger {
         // writer_generation attribute onto the merged SegmentInfo via setMergeInfo, which
         // Lucene invokes immediately before codec.segmentInfoFormat().write(...) — so the
         // attribute is persisted to the .si file and survives a writer reopen.
+        if (indexWriter.isOpen() == false) {
+            throw new org.apache.lucene.store.AlreadyClosedException(
+                "IndexWriter is closed, cannot merge generations " + generationsToMerge
+            );
+        }
+
         MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
         indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
