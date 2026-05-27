@@ -730,7 +730,7 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         ensureGreen(indexName);
 
         for (int batch = 0; batch < bulkBatches; batch++) {
-            var bulkRequest = client().prepareBulk().setRefreshPolicy(org.opensearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            var bulkRequest = client().prepareBulk().setRefreshPolicy(org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int d = 0; d < docsPerBatch; d++) {
                 int id = batch * docsPerBatch + d;
                 bulkRequest.add(client().prepareIndex(indexName).setSource("name", "bulk_" + id, "value", id));
