@@ -92,7 +92,7 @@ public final class FragmentResources implements AutoCloseable {
         // fetch phase may still need this reader before then.
         if (readerContext != null) {
             try {
-                readerContextStore.releaseContext(readerContext.getQueryId());
+                readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
             } catch (Exception e) {
                 if (first == null) first = e;
                 else first.addSuppressed(e);

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -38,7 +39,14 @@ public class ReaderContextStore {
         Setting.Property.Dynamic
     );
 
-    private final Map<String, ReaderContext> activeContexts = new ConcurrentHashMap<>();
+    /**
+     * Multi-shard QTF queries call {@link #createContext} once per shard with the same
+     * {@code queryId}. Keying by {@code queryId} alone would collide and overwrite.
+     */
+    public record Key(String queryId, ShardId shardId) {
+    }
+
+    private final Map<Key, ReaderContext> activeContexts = new ConcurrentHashMap<>();
     private volatile long defaultKeepAliveMillis;
 
     public ReaderContextStore(ThreadPool threadPool) {
@@ -55,29 +63,29 @@ public class ReaderContextStore {
     }
 
     /**
-     * Create and store a new reader context for the given query.
+     * Create and store a new reader context for the given query/shard.
      * Acquires the reader and marks it in-use.
      */
-    public ReaderContext createContext(String queryId, GatedCloseable<Reader> gatedReader) {
-        ReaderContext ctx = new ReaderContext(queryId, gatedReader, defaultKeepAliveMillis);
+    public ReaderContext createContext(String queryId, ShardId shardId, GatedCloseable<Reader> gatedReader) {
+        ReaderContext ctx = new ReaderContext(queryId, shardId, gatedReader, defaultKeepAliveMillis);
         ctx.markInUse();
-        activeContexts.put(queryId, ctx);
+        activeContexts.put(new Key(queryId, shardId), ctx);
         return ctx;
     }
 
     /**
-     * Get an existing context by queryId. Returns null if not found or expired.
+     * Get an existing context by queryId/shardId. Returns null if not found or expired.
      */
-    public ReaderContext getContext(String queryId) {
-        return activeContexts.get(queryId);
+    public ReaderContext getContext(String queryId, ShardId shardId) {
+        return activeContexts.get(new Key(queryId, shardId));
     }
 
     /**
      * Acquire a context for use (fetch phase). Marks it in-use.
      * Returns null if not found or already closed.
      */
-    public ReaderContext acquireContext(String queryId) {
-        ReaderContext ctx = activeContexts.get(queryId);
+    public ReaderContext acquireContext(String queryId, ShardId shardId) {
+        ReaderContext ctx = activeContexts.get(new Key(queryId, shardId));
         if (ctx == null) return null;
         if (ctx.markInUse()) {
             return ctx;
@@ -88,8 +96,8 @@ public class ReaderContextStore {
     /**
      * Release a context after use (query or fetch done). Marks it not-in-use.
      */
-    public void releaseContext(String queryId) {
-        ReaderContext ctx = activeContexts.get(queryId);
+    public void releaseContext(String queryId, ShardId shardId) {
+        ReaderContext ctx = activeContexts.get(new Key(queryId, shardId));
         if (ctx != null) {
             ctx.markDone();
         }
@@ -98,13 +106,13 @@ public class ReaderContextStore {
     /**
      * Remove and close a context (fetch complete, no longer needed).
      */
-    public void freeContext(String queryId) {
-        ReaderContext ctx = activeContexts.remove(queryId);
+    public void freeContext(String queryId, ShardId shardId) {
+        ReaderContext ctx = activeContexts.remove(new Key(queryId, shardId));
         if (ctx != null) {
             try {
                 ctx.close();
             } catch (Exception e) {
-                logger.warn("[ReaderContextStore] Failed to close context for query={}: {}", queryId, e);
+                logger.warn("[ReaderContextStore] Failed to close context for query={} shard={}: {}", queryId, shardId, e);
             }
         }
     }
@@ -118,8 +126,8 @@ public class ReaderContextStore {
         public void run() {
             for (ReaderContext ctx : activeContexts.values()) {
                 if (ctx.isExpired()) {
-                    logger.debug("[ReaderContextStore] Freeing expired context for query={}", ctx.getQueryId());
-                    freeContext(ctx.getQueryId());
+                    logger.debug("[ReaderContextStore] Freeing expired context for query={} shard={}", ctx.getQueryId(), ctx.getShardId());
+                    freeContext(ctx.getQueryId(), ctx.getShardId());
                 }
             }
         }

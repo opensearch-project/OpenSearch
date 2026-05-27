@@ -9,6 +9,8 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -18,6 +20,8 @@ import static org.mockito.Mockito.mock;
 
 public class ReaderContextTests extends OpenSearchTestCase {
 
+    private static final ShardId SHARD_0 = new ShardId(new Index("idx", "uuid"), 0);
+
     private GatedCloseable<Reader> mockGatedReader() {
         Reader reader = mock(Reader.class);
         AtomicBoolean closed = new AtomicBoolean(false);
@@ -26,7 +30,7 @@ public class ReaderContextTests extends OpenSearchTestCase {
 
     public void testMarkInUseAndDone() {
         GatedCloseable<Reader> gated = mockGatedReader();
-        ReaderContext ctx = new ReaderContext("q1", gated, 30_000);
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 30_000);
 
         assertTrue("Should mark in-use successfully", ctx.markInUse());
         assertFalse("Second markInUse should fail (already in-use)", ctx.markInUse());
@@ -37,7 +41,7 @@ public class ReaderContextTests extends OpenSearchTestCase {
 
     public void testNotExpiredWhileInUse() {
         GatedCloseable<Reader> gated = mockGatedReader();
-        ReaderContext ctx = new ReaderContext("q1", gated, 1); // 1ms keepAlive
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 1); // 1ms keepAlive
 
         ctx.markInUse();
         assertFalse("Should not expire while in-use", ctx.isExpired());
@@ -45,7 +49,7 @@ public class ReaderContextTests extends OpenSearchTestCase {
 
     public void testExpiresAfterKeepAlive() throws Exception {
         GatedCloseable<Reader> gated = mockGatedReader();
-        ReaderContext ctx = new ReaderContext("q1", gated, 50); // 50ms keepAlive
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 50); // 50ms keepAlive
 
         ctx.markInUse();
         ctx.markDone();
@@ -56,7 +60,7 @@ public class ReaderContextTests extends OpenSearchTestCase {
 
     public void testNotExpiredBeforeKeepAlive() {
         GatedCloseable<Reader> gated = mockGatedReader();
-        ReaderContext ctx = new ReaderContext("q1", gated, 30_000);
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 30_000);
 
         ctx.markInUse();
         ctx.markDone();
@@ -69,7 +73,7 @@ public class ReaderContextTests extends OpenSearchTestCase {
         Reader reader = mock(Reader.class);
         GatedCloseable<Reader> gated = new GatedCloseable<>(reader, () -> closed.set(true));
 
-        ReaderContext ctx = new ReaderContext("q1", gated, 30_000);
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 30_000);
         ctx.close();
 
         assertTrue("Reader should be closed", closed.get());
@@ -77,7 +81,7 @@ public class ReaderContextTests extends OpenSearchTestCase {
 
     public void testMarkInUseAfterCloseReturnsFalse() throws Exception {
         GatedCloseable<Reader> gated = mockGatedReader();
-        ReaderContext ctx = new ReaderContext("q1", gated, 30_000);
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 30_000);
         ctx.close();
 
         assertFalse("markInUse should fail after close", ctx.markInUse());
@@ -86,21 +90,21 @@ public class ReaderContextTests extends OpenSearchTestCase {
     public void testGetReader() {
         Reader reader = mock(Reader.class);
         GatedCloseable<Reader> gated = new GatedCloseable<>(reader, () -> {});
-        ReaderContext ctx = new ReaderContext("q1", gated, 30_000);
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 30_000);
 
         assertSame(reader, ctx.getReader());
     }
 
     public void testGetQueryId() {
         GatedCloseable<Reader> gated = mockGatedReader();
-        ReaderContext ctx = new ReaderContext("test-query-123", gated, 30_000);
+        ReaderContext ctx = new ReaderContext("test-query-123", SHARD_0, gated, 30_000);
 
         assertEquals("test-query-123", ctx.getQueryId());
     }
 
     public void testLastAccessTimeUpdatedOnMarkInUse() throws Exception {
         GatedCloseable<Reader> gated = mockGatedReader();
-        ReaderContext ctx = new ReaderContext("q1", gated, 30_000);
+        ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 30_000);
 
         long timeAfterCreate = ctx.getLastAccessTime();
 

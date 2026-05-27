@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.planner.rules;
 
-import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
@@ -109,9 +108,9 @@ public final class OpenSearchLateMaterializationRewriter {
     public static Optional<RelNode> rewrite(RelNode root) {
         Detection detection = detect(root);
         if (detection == null) return Optional.empty();
-        // DEBUG (off by default in prod). Tests flip the logger via cluster-settings to assert
-        // engagement; production stays log-quiet on the hot path.
-        LOGGER.debug(
+        // FIXME [RemoveBeforeMainMerge] temporarily INFO to surface QTF engagement vs.
+        // skip reasons per query during clickbench bring-up. Drop back to DEBUG before merge.
+        LOGGER.info(
             "[QTF] fired: aboveAnchorPhysicalFields={}, belowAnchorPhysicalFields={}",
             detection.aboveAnchorPhysicalFields(),
             detection.belowAnchorPhysicalFields()
@@ -129,19 +128,19 @@ public final class OpenSearchLateMaterializationRewriter {
         AnchorContext anchorCtx = findAnchor(root);
         if (anchorCtx == null) return null;
         if (!isAboveAllowed(anchorCtx.aboveAnchorOperators)) {
-            LOGGER.debug("[QTF] above-anchor allow-list rejected; skipping rewrite");
+            LOGGER.info("[QTF] above-anchor allow-list rejected; skipping rewrite");
             return null;
         }
 
         BelowChain belowChain = analyzeBelow(anchorCtx.anchor.getInput());
         if (belowChain == null) {
-            LOGGER.debug("[QTF] below-anchor allow-list rejected; skipping rewrite");
+            LOGGER.info("[QTF] below-anchor allow-list rejected; skipping rewrite");
             return null;
         }
 
         // Single-shard plans don't trigger late materialization.
         if (!belowChain.hasExchangeReducer()) {
-            LOGGER.debug("[QTF] single-shard plan (no ExchangeReducer below anchor); skipping rewrite");
+            LOGGER.info("[QTF] single-shard plan (no ExchangeReducer below anchor); skipping rewrite");
             return null;
         }
 
@@ -154,7 +153,7 @@ public final class OpenSearchLateMaterializationRewriter {
         // Skip predicate: aboveAnchorPhysicalFields - belowAnchorPhysicalFields must be non-empty.
         boolean hasFetchOnly = aboveAnchorPhysicalFields.stream().anyMatch(name -> !belowAnchorPhysicalFields.contains(name));
         if (!hasFetchOnly) {
-            LOGGER.debug("[QTF] aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields; QTF would not save any I/O — skipping");
+            LOGGER.info("[QTF] aboveAnchorPhysicalFields ⊆ belowAnchorPhysicalFields; QTF would not save any I/O — skipping");
             return null;
         }
 
@@ -230,7 +229,7 @@ public final class OpenSearchLateMaterializationRewriter {
             if (n instanceof OpenSearchExchangeReducer) hasExchangeReducer = true;
             if (n instanceof OpenSearchProject p) {
                 if (belowProjOutToScan != null) {
-                    LOGGER.debug("[QTF] multiple Projects below anchor — skipping");
+                    LOGGER.info("[QTF] multiple Projects below anchor — skipping");
                     return null;
                 }
                 int[] outToScan = passthroughMap(p);
@@ -245,7 +244,7 @@ public final class OpenSearchLateMaterializationRewriter {
                     // adding requires threading the derived RexNode into Detection and emitting
                     // a synthesized above-Project during rewrite. Separate slice. The non-QTF
                     // path remains correct in the meantime.
-                    LOGGER.debug("[QTF] expression below-Project — skipping (derived-pushup not yet implemented)");
+                    LOGGER.info("[QTF] expression below-Project — skipping (derived-pushup not yet implemented)");
                     return null;
                 }
                 belowProjOutToScan = outToScan;
@@ -355,21 +354,11 @@ public final class OpenSearchLateMaterializationRewriter {
         // 2d. Wrapper. Output rowType = aboveAnchorPhysicalFields in iteration order.
         OpenSearchLateMaterialization wrapper = buildWrapper(newAnchor, detection.aboveAnchorPhysicalFields, origScan, detection.anchor);
 
-        // 2e. Above chain: RexInputRef remap via anchor.slot → physicalName → wrapperOut.idx.
-        Map<String, Integer> physToWrapperIdx = new HashMap<>(detection.aboveAnchorPhysicalFields.size());
-        int wrapperIdx = 0;
-        for (String name : detection.aboveAnchorPhysicalFields) {
-            physToWrapperIdx.put(name, wrapperIdx++);
-        }
-        int[] anchorToWrapperOut = new int[detection.anchorSlotToPhysicalField.size()];
-        for (int slot = 0; slot < anchorToWrapperOut.length; slot++) {
-            Integer mapped = physToWrapperIdx.get(detection.anchorSlotToPhysicalField.get(slot));
-            // -1 when this anchor slot's physical field isn't in the wrapper output (e.g. sort-only or
-            // helper). Above-ops shouldn't reference such slots — the above-walk only fed
-            // physical names into aboveAnchorPhysicalFields by following actual references.
-            anchorToWrapperOut[slot] = mapped == null ? -1 : mapped;
-        }
-        return rebuildAboveChain(RelNodeUtils.unwrapHep(root), detection.anchor, wrapper, anchorToWrapperOut);
+        // 2e. Above chain: every op's RexInputRefs remapped by column name from its origChild's
+        // rowType to its newChild's rowType. Pass-through ops (Filter, Sort) leak the narrowed
+        // rowType upward, so a single immediate-parent remap is insufficient — every above op
+        // needs the same treatment, recursively.
+        return rebuildAboveChain(RelNodeUtils.unwrapHep(root), detection.anchor, wrapper);
     }
 
     // ── 2a. Narrowed Scan ─────────────────────────────────────────────
@@ -566,63 +555,65 @@ public final class OpenSearchLateMaterializationRewriter {
     // ── 2e. Above chain rebuild ───────────────────────────────────────
 
     /**
-     * Walks down the above chain from {@code current}, swapping the anchor's slot with
-     * {@code wrapper}. The immediate parent of the anchor gets its RexNodes remapped via
-     * {@code anchorToWrapperOut}; ops above the immediate parent reference their child's
-     * output rowType (which doesn't shift past the immediate-parent rebuild) and propagate
-     * via {@code copy}.
+     * Walks down the above chain, swapping the anchor's slot with {@code wrapper}, then on
+     * the way up rewrites every op's RexInputRefs via a by-name remap from {@code origChild}'s
+     * rowType to {@code newChild}'s rowType. Names are the stable identity that survives
+     * narrowing — they exist in both rowTypes verbatim for kept columns, and resolve to -1
+     * (rejected by {@link IndexRemapShuttle}) for dropped ones.
      */
-    private static RelNode rebuildAboveChain(
-        RelNode current,
-        OpenSearchSort origAnchor,
-        OpenSearchLateMaterialization wrapper,
-        int[] anchorToWrapperOut
-    ) {
+    private static RelNode rebuildAboveChain(RelNode current, OpenSearchSort origAnchor, OpenSearchLateMaterialization wrapper) {
         if (current == origAnchor) return wrapper;
         if (current.getInputs().size() != 1) {
             throw new IllegalStateException("Multi-input parent in QTF chain: " + current.getClass().getSimpleName());
         }
         RelNode origChild = RelNodeUtils.unwrapHep(current.getInput(0));
-        RelNode newChild = rebuildAboveChain(origChild, origAnchor, wrapper, anchorToWrapperOut);
-        boolean immediate = origChild == origAnchor;
+        RelNode newChild = rebuildAboveChain(origChild, origAnchor, wrapper);
+
+        int[] remap = buildByNameRemap(origChild.getRowType(), newChild.getRowType());
+        IndexRemapShuttle shuttle = new IndexRemapShuttle(remap, newChild.getRowType());
 
         switch (current) {
             case OpenSearchProject project -> {
-                List<RexNode> newExprs = project.getProjects();
-                if (immediate) {
-                    IndexRemapShuttle shuttle = new IndexRemapShuttle(anchorToWrapperOut, newChild.getRowType());
-                    newExprs = new ArrayList<>(project.getProjects().size());
-                    for (RexNode expr : project.getProjects()) {
-                        newExprs.add(expr.accept(shuttle));
-                    }
+                List<RexNode> newExprs = new ArrayList<>(project.getProjects().size());
+                for (RexNode expr : project.getProjects()) {
+                    newExprs.add(expr.accept(shuttle));
                 }
                 return project.copy(project.getTraitSet(), newChild, newExprs, project.getRowType());
             }
             case OpenSearchFilter filter -> {
-                RexNode cond = immediate
-                    ? filter.getCondition().accept(new IndexRemapShuttle(anchorToWrapperOut, newChild.getRowType()))
-                    : filter.getCondition();
-                return filter.copy(filter.getTraitSet(), newChild, cond);
+                return filter.copy(filter.getTraitSet(), newChild, filter.getCondition().accept(shuttle));
             }
             case OpenSearchSort sort -> {
-                RelCollation coll = sort.getCollation();
-                if (immediate) {
-                    List<RelFieldCollation> remapped = new ArrayList<>(sort.getCollation().getFieldCollations().size());
-                    for (RelFieldCollation fc : sort.getCollation().getFieldCollations()) {
-                        int newIdx = anchorToWrapperOut[fc.getFieldIndex()];
-                        if (newIdx < 0) {
-                            throw new IllegalStateException(
-                                "Above-anchor Sort references slot " + fc.getFieldIndex() + " not in wrapper output"
-                            );
-                        }
-                        remapped.add(fc.withFieldIndex(newIdx));
+                List<RelFieldCollation> remapped = new ArrayList<>(sort.getCollation().getFieldCollations().size());
+                for (RelFieldCollation fc : sort.getCollation().getFieldCollations()) {
+                    int newIdx = remap[fc.getFieldIndex()];
+                    if (newIdx < 0) {
+                        throw new IllegalStateException(
+                            "Above-anchor Sort references column at slot " + fc.getFieldIndex() + " not present in narrowed rowType"
+                        );
                     }
-                    coll = RelCollations.of(remapped);
+                    remapped.add(fc.withFieldIndex(newIdx));
                 }
-                return sort.copy(sort.getTraitSet(), newChild, coll, sort.offset, sort.fetch);
+                return sort.copy(sort.getTraitSet(), newChild, RelCollations.of(remapped), sort.offset, sort.fetch);
             }
             default -> throw new IllegalStateException("Unexpected above-anchor operator: " + current.getClass().getSimpleName());
         }
+    }
+
+    /** Maps each index of {@code origType} to the index of the same-named field in {@code newType}, or -1 if dropped. */
+    private static int[] buildByNameRemap(RelDataType origType, RelDataType newType) {
+        Map<String, Integer> newIdxByName = new HashMap<>(newType.getFieldCount());
+        List<RelDataTypeField> newFields = newType.getFieldList();
+        for (int i = 0; i < newFields.size(); i++) {
+            newIdxByName.put(newFields.get(i).getName(), i);
+        }
+        List<RelDataTypeField> origFields = origType.getFieldList();
+        int[] remap = new int[origFields.size()];
+        for (int i = 0; i < origFields.size(); i++) {
+            Integer mapped = newIdxByName.get(origFields.get(i).getName());
+            remap[i] = mapped == null ? -1 : mapped;
+        }
+        return remap;
     }
 
     // ── Records ────────────────────────────────────────────────────────

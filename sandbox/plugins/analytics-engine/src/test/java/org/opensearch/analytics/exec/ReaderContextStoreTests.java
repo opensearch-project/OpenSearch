@@ -9,6 +9,8 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -19,6 +21,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.mockito.Mockito.mock;
 
 public class ReaderContextStoreTests extends OpenSearchTestCase {
+
+    private static final ShardId SHARD_0 = new ShardId(new Index("idx", "uuid"), 0);
+    private static final ShardId SHARD_1 = new ShardId(new Index("idx", "uuid"), 1);
 
     private ThreadPool threadPool;
 
@@ -44,16 +49,16 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
         GatedCloseable<Reader> gated = mockGatedReader(closed);
-        ReaderContext ctx = store.createContext("q1", gated);
+        ReaderContext ctx = store.createContext("q1", SHARD_0, gated);
 
         assertNotNull(ctx);
         assertEquals(1, store.activeCount());
 
         // Release from query phase
-        store.releaseContext("q1");
+        store.releaseContext("q1", SHARD_0);
 
         // Acquire for fetch phase
-        ReaderContext fetched = store.acquireContext("q1");
+        ReaderContext fetched = store.acquireContext("q1", SHARD_0);
         assertNotNull("Should acquire for fetch", fetched);
         assertSame(ctx.getReader(), fetched.getReader());
     }
@@ -61,26 +66,26 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
     public void testAcquireNonExistentReturnsNull() {
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        assertNull(store.acquireContext("no-such-query"));
+        assertNull(store.acquireContext("no-such-query", SHARD_0));
     }
 
     public void testAcquireWhileInUseReturnsNull() {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        store.createContext("q1", mockGatedReader(closed));
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
         // Context is already in-use from createContext
 
-        assertNull("Should not acquire while in-use", store.acquireContext("q1"));
+        assertNull("Should not acquire while in-use", store.acquireContext("q1", SHARD_0));
     }
 
     public void testFreeContextClosesReader() {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        store.createContext("q1", mockGatedReader(closed));
-        store.releaseContext("q1");
-        store.freeContext("q1");
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        store.releaseContext("q1", SHARD_0);
+        store.freeContext("q1", SHARD_0);
 
         assertTrue("Reader should be closed after freeContext", closed.get());
         assertEquals(0, store.activeCount());
@@ -90,19 +95,19 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        store.createContext("q1", mockGatedReader(closed));
-        store.releaseContext("q1");
-        store.freeContext("q1");
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        store.releaseContext("q1", SHARD_0);
+        store.freeContext("q1", SHARD_0);
 
-        assertNull("Should not find after free", store.getContext("q1"));
+        assertNull("Should not find after free", store.getContext("q1", SHARD_0));
     }
 
     public void testReaperCleansExpiredContexts() throws Exception {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool, 50); // 50ms keepAlive
 
-        store.createContext("q1", mockGatedReader(closed));
-        store.releaseContext("q1");
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        store.releaseContext("q1", SHARD_0);
 
         // Wait for expiry + reaper cycle
         assertBusy(() -> {
@@ -115,7 +120,7 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool, 1); // 1ms keepAlive
 
-        store.createContext("q1", mockGatedReader(closed));
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
         // Still in-use (not released)
 
         Thread.sleep(50);
@@ -123,8 +128,8 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         assertEquals(1, store.activeCount());
 
         // Cleanup
-        store.releaseContext("q1");
-        store.freeContext("q1");
+        store.releaseContext("q1", SHARD_0);
+        store.freeContext("q1", SHARD_0);
     }
 
     public void testMultipleContexts() {
@@ -132,18 +137,18 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         AtomicBoolean closed2 = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        store.createContext("q1", mockGatedReader(closed1));
-        store.createContext("q2", mockGatedReader(closed2));
+        store.createContext("q1", SHARD_0, mockGatedReader(closed1));
+        store.createContext("q2", SHARD_1, mockGatedReader(closed2));
         assertEquals(2, store.activeCount());
 
-        store.releaseContext("q1");
-        store.freeContext("q1");
+        store.releaseContext("q1", SHARD_0);
+        store.freeContext("q1", SHARD_0);
         assertEquals(1, store.activeCount());
         assertTrue(closed1.get());
         assertFalse(closed2.get());
 
-        store.releaseContext("q2");
-        store.freeContext("q2");
+        store.releaseContext("q2", SHARD_1);
+        store.freeContext("q2", SHARD_1);
         assertEquals(0, store.activeCount());
         assertTrue(closed2.get());
     }
@@ -153,23 +158,23 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
         // Query phase: create + use
-        store.createContext("q1", mockGatedReader(closed));
-        ReaderContext ctx = store.getContext("q1");
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        ReaderContext ctx = store.getContext("q1", SHARD_0);
         assertNotNull(ctx);
         assertNotNull(ctx.getReader());
 
         // Query done
-        store.releaseContext("q1");
+        store.releaseContext("q1", SHARD_0);
         assertFalse("Reader stays open between phases", closed.get());
 
         // Fetch phase: acquire + use
-        ReaderContext fetchCtx = store.acquireContext("q1");
+        ReaderContext fetchCtx = store.acquireContext("q1", SHARD_0);
         assertNotNull(fetchCtx);
         assertSame(ctx.getReader(), fetchCtx.getReader());
 
         // Fetch done: free
         fetchCtx.markDone();
-        store.freeContext("q1");
+        store.freeContext("q1", SHARD_0);
         assertTrue("Reader closed after fetch", closed.get());
     }
 }

@@ -180,7 +180,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         // QTF: hand the reader to the store so the fetch phase can reuse it without re-opening.
         // FragmentResources holds a reference to the ReaderContext; close() releases it back
         // to the store, the reaper closes after keepAlive.
-        ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), gatedReader);
+        ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), shard.shardId(), gatedReader);
         assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
@@ -368,7 +368,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                     + java.util.Arrays.toString(columns)
             );
         }
-        ReaderContext readerContext = readerContextStore.acquireContext(request.getQueryId());
+        ReaderContext readerContext = readerContextStore.acquireContext(request.getQueryId(), shard.shardId());
         if (readerContext == null) {
             throw new IllegalStateException(
                 "No ReaderContext for queryId="
@@ -381,7 +381,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         assert assertFetchInvariants(readerContext, request.getQueryId());
         AnalyticsSearchBackendPlugin backend = backends.get(request.getBackendId());
         if (backend == null) {
-            readerContextStore.releaseContext(request.getQueryId());
+            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
             throw new IllegalStateException(
                 "No backend registered for backendId="
                     + request.getBackendId()
@@ -408,7 +408,7 @@ public class AnalyticsSearchService implements AutoCloseable {
             return new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
         } catch (Exception e) {
             if (rowIdVector != null) rowIdVector.close();
-            readerContextStore.releaseContext(request.getQueryId());
+            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
             throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
         }
     }

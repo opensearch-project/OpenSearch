@@ -9,6 +9,8 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -23,6 +25,8 @@ import static org.mockito.Mockito.mock;
  * fetch phase reuses the same reader, and context is freed after fetch.
  */
 public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
+
+    private static final ShardId SHARD_0 = new ShardId(new Index("idx", "uuid"), 0);
 
     private ThreadPool threadPool;
 
@@ -53,22 +57,22 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         // Simulate query phase: acquire reader and store in context
         GatedCloseable<Reader> gatedReader = mockGatedReader(closed);
         Reader originalReader = gatedReader.get();
-        ReaderContext ctx = store.createContext("query-1", gatedReader);
+        ReaderContext ctx = store.createContext("query-1", SHARD_0, gatedReader);
         assertNotNull(ctx);
         assertSame(originalReader, ctx.getReader());
 
         // Query phase completes, release context (reader stays alive for fetch)
-        store.releaseContext("query-1");
+        store.releaseContext("query-1", SHARD_0);
         assertFalse("Reader must not be closed between phases", closed.get());
 
         // Simulate fetch phase: acquire the same context
-        ReaderContext fetchCtx = store.acquireContext("query-1");
+        ReaderContext fetchCtx = store.acquireContext("query-1", SHARD_0);
         assertNotNull("Fetch phase must find the context", fetchCtx);
         assertSame("Fetch must get the SAME reader instance", originalReader, fetchCtx.getReader());
 
         // Fetch completes
         fetchCtx.markDone();
-        store.freeContext("query-1");
+        store.freeContext("query-1", SHARD_0);
         assertTrue("Reader must be closed after completeFetch", closed.get());
         assertEquals(0, store.activeCount());
     }
@@ -80,8 +84,8 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool, 50); // 50ms keepAlive
 
-        store.createContext("query-expired", mockGatedReader(closed));
-        store.releaseContext("query-expired");
+        store.createContext("query-expired", SHARD_0, mockGatedReader(closed));
+        store.releaseContext("query-expired", SHARD_0);
 
         // Wait for reaper to clean up the expired context
         assertBusy(() -> {
@@ -90,7 +94,7 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         });
 
         // Fetch arrives too late
-        ReaderContext fetchCtx = store.acquireContext("query-expired");
+        ReaderContext fetchCtx = store.acquireContext("query-expired", SHARD_0);
         assertNull("Expired context must not be acquirable", fetchCtx);
     }
 
@@ -100,7 +104,7 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
     public void testFetchWithoutPriorQuery() {
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        ReaderContext ctx = store.acquireContext("nonexistent-query");
+        ReaderContext ctx = store.acquireContext("nonexistent-query", SHARD_0);
         assertNull("Unknown queryId must return null", ctx);
     }
 
@@ -111,16 +115,16 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        store.createContext("query-2", mockGatedReader(closed));
+        store.createContext("query-2", SHARD_0, mockGatedReader(closed));
         // Query phase done
-        store.releaseContext("query-2");
+        store.releaseContext("query-2", SHARD_0);
 
         // Between phases: reader must still be alive
         assertFalse("Reader must remain open while awaiting fetch", closed.get());
         assertEquals(1, store.activeCount());
 
         // Cleanup
-        store.freeContext("query-2");
+        store.freeContext("query-2", SHARD_0);
     }
 
     /**
@@ -130,20 +134,20 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool);
 
-        store.createContext("query-3", mockGatedReader(closed));
-        store.releaseContext("query-3");
+        store.createContext("query-3", SHARD_0, mockGatedReader(closed));
+        store.releaseContext("query-3", SHARD_0);
 
-        ReaderContext fetchCtx = store.acquireContext("query-3");
+        ReaderContext fetchCtx = store.acquireContext("query-3", SHARD_0);
         assertNotNull(fetchCtx);
         assertFalse("Reader must not be closed during fetch", closed.get());
 
         // Simulate completeFetch
         fetchCtx.markDone();
-        store.freeContext("query-3");
+        store.freeContext("query-3", SHARD_0);
 
         assertTrue("Reader must be closed after freeContext", closed.get());
         assertEquals(0, store.activeCount());
-        assertNull("Context must be removed from store", store.getContext("query-3"));
+        assertNull("Context must be removed from store", store.getContext("query-3", SHARD_0));
     }
 
     /**
@@ -159,33 +163,33 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         Reader reader1 = gated1.get();
         Reader reader2 = gated2.get();
 
-        store.createContext("q1", gated1);
-        store.createContext("q2", gated2);
+        store.createContext("q1", SHARD_0, gated1);
+        store.createContext("q2", SHARD_0, gated2);
         assertEquals(2, store.activeCount());
 
         // Release both query phases
-        store.releaseContext("q1");
-        store.releaseContext("q2");
+        store.releaseContext("q1", SHARD_0);
+        store.releaseContext("q2", SHARD_0);
 
         // Fetch q1
-        ReaderContext fetch1 = store.acquireContext("q1");
+        ReaderContext fetch1 = store.acquireContext("q1", SHARD_0);
         assertNotNull(fetch1);
         assertSame(reader1, fetch1.getReader());
         assertNotSame("Different queries must have different readers", reader1, reader2);
 
         // Free q1 while q2 still alive
         fetch1.markDone();
-        store.freeContext("q1");
+        store.freeContext("q1", SHARD_0);
         assertTrue("q1 reader closed", closed1.get());
         assertFalse("q2 reader still alive", closed2.get());
         assertEquals(1, store.activeCount());
 
         // Fetch q2
-        ReaderContext fetch2 = store.acquireContext("q2");
+        ReaderContext fetch2 = store.acquireContext("q2", SHARD_0);
         assertNotNull(fetch2);
         assertSame(reader2, fetch2.getReader());
         fetch2.markDone();
-        store.freeContext("q2");
+        store.freeContext("q2", SHARD_0);
         assertTrue("q2 reader closed", closed2.get());
         assertEquals(0, store.activeCount());
     }
@@ -198,17 +202,17 @@ public class QueryThenFetchDataNodeTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         ReaderContextStore store = new ReaderContextStore(threadPool, 50); // short keepAlive for reaper test
 
-        store.createContext("query-failed", mockGatedReader(closed));
+        store.createContext("query-failed", SHARD_0, mockGatedReader(closed));
 
         // Simulate "query failure": release the context without explicit cleanup
-        store.releaseContext("query-failed");
+        store.releaseContext("query-failed", SHARD_0);
 
         // Context still exists immediately after failure
         assertFalse("Reader not yet closed", closed.get());
         assertEquals(1, store.activeCount());
 
         // A fetch could still arrive in time
-        ReaderContext fetchCtx = store.acquireContext("query-failed");
+        ReaderContext fetchCtx = store.acquireContext("query-failed", SHARD_0);
         assertNotNull("Context survives query failure for potential fetch", fetchCtx);
         fetchCtx.markDone();
 

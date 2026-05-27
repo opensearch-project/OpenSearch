@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 import java.io.Closeable;
@@ -32,14 +33,16 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ReaderContext implements Closeable {
 
     private final String queryId;
+    private final ShardId shardId;
     private final GatedCloseable<Reader> gatedReader;
     private final AtomicBoolean inUse = new AtomicBoolean(false);
     private final AtomicLong lastAccessTime;
     private volatile long keepAliveMillis;
     private volatile boolean closed;
 
-    public ReaderContext(String queryId, GatedCloseable<Reader> gatedReader, long keepAliveMillis) {
+    public ReaderContext(String queryId, ShardId shardId, GatedCloseable<Reader> gatedReader, long keepAliveMillis) {
         this.queryId = queryId;
+        this.shardId = shardId;
         this.gatedReader = gatedReader;
         this.keepAliveMillis = keepAliveMillis;
         this.lastAccessTime = new AtomicLong(System.currentTimeMillis());
@@ -47,6 +50,10 @@ public class ReaderContext implements Closeable {
 
     public String getQueryId() {
         return queryId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 
     public Reader getReader() {
