@@ -230,6 +230,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         // Merge on refresh: when multiple writer segments exist and size is within threshold,
         // merge all formats. Like Lucene's getReader: prepare inside lock, merge outside lock.
+        final long mergeOnRefreshStartNanos = System.nanoTime();
         if (refreshInput.hasNextGeneration() && shouldMergeOnRefresh(refreshInput.writerFiles())) {
             Set<Long> existingGens = refreshInput.existingSegments().stream().map(Segment::generation).collect(Collectors.toSet());
             List<Segment> onlyNew = newSegments.stream().filter(s -> existingGens.contains(s.generation()) == false).toList();
@@ -241,12 +242,17 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                     .newWriterGeneration(refreshInput.nextAvailableGeneration())
                     .build();
                 MergeResult primaryResult = primaryMerger.merge(primaryMergeInput);
+                final long primaryMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                    System.nanoTime() - mergeOnRefreshStartNanos
+                );
+
                 WriterFileSet primaryMerged = primaryResult.getMergedWriterFileSetForDataformat(primaryEngine.getDataFormat());
 
                 if (primaryMerged != null) {
                     Segment.Builder consolidated = Segment.builder(refreshInput.nextAvailableGeneration());
                     consolidated.addSearchableFiles(primaryEngine.getDataFormat(), primaryMerged);
 
+                    final long secMergeStartNanos = System.nanoTime();
                     primaryResult.rowIdMapping().ifPresent(rowIdMapping -> {
                         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
                             try {
@@ -266,10 +272,29 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                             }
                         }
                     });
+                    final long secMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secMergeStartNanos);
+                    final long totalMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                        System.nanoTime() - mergeOnRefreshStartNanos
+                    );
 
                     List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
                     Segment mergedSegment = consolidated.build();
                     result.add(mergedSegment);
+
+                    final long totalElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                        System.nanoTime() - mergeOnRefreshStartNanos
+                    );
+                    logger.info(
+                        "merge-on-refresh: merged {} segments into gen={}, primaryMerge={}ms, secondaryMerge={}ms, total={}ms, "
+                            + "resultSegments={}, existingSegments={}",
+                        onlyNew.size(),
+                        refreshInput.nextAvailableGeneration(),
+                        primaryMergeMs,
+                        secMergeMs,
+                        totalElapsedMs,
+                        result.size(),
+                        refreshInput.existingSegments().size()
+                    );
 
                     assert result.size() == refreshInput.existingSegments().size() + 1
                         : "merge on refresh must produce exactly 1 new segment, got "
@@ -284,6 +309,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
 
         // No merge on refresh — pass through all segments
+        final long passThruElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - mergeOnRefreshStartNanos);
+        logger.info(
+            "merge-on-refresh: skipped (elapsed={}ms), resultSegments={}, existingSegments={}",
+            passThruElapsedMs,
+            newSegments.size(),
+            refreshInput.existingSegments().size()
+        );
         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
             : "refresh result segments must contain all configured formats";
         return new RefreshResult(List.copyOf(newSegments));
