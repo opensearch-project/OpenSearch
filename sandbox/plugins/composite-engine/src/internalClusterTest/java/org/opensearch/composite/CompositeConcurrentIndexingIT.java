@@ -460,6 +460,9 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         // Verify no data loss — all docs present regardless of which merge path handled them
         verifyIndex(indexName, 1, totalDocs);
 
+        // Verify shard is healthy (not failed due to merge race)
+        ensureGreen(indexName);
+
         // Verify background merge actually ran
         IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get();
         long totalMerges = statsResponse.getIndex(indexName).getTotal().getMerge().getTotal();
