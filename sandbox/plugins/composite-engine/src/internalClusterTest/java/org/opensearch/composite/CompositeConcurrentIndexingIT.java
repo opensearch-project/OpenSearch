@@ -646,13 +646,15 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Force merge to 1 segment on a sorted index after merge-on-refresh has produced
-     * consolidated segments. Verifies that forceMerge correctly merges inline-merged
-     * segments (which have WRITER_GENERATION_ATTRIBUTE) and produces a single segment.
+     * Force merge to 1 segment on a sorted index with merge-on-refresh ENABLED.
+     * Multiple refresh cycles each produce 1 consolidated segment via merge-on-refresh.
+     * After 5 cycles → 5 segments. forceMerge(1) must merge them into 1.
+     * Verifies data correctness and that force merge actually ran.
      */
     public void testForceMergeAfterMergeOnRefreshSorted() throws Exception {
         String indexName = "force-merge-sorted";
-        int cycles = 3;
+        // Use enough cycles so multiple segments accumulate regardless of writer distribution
+        int cycles = 5;
         int threadsPerCycle = 3;
         int docsPerThread = 5;
         int totalDocs = cycles * threadsPerCycle * docsPerThread;
@@ -697,15 +699,19 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
 
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
-        // Force merge should consolidate all segments (including inline-merged ones) into 1
+        // Force merge: 5 cycles produce at least 2 segments (even if some cycles use 1 writer),
+        // so forceMerge(1) must actually merge.
         client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
 
-        // Verify merge stats confirm merges happened
+        // Verify force merge actually ran (5 cycles guarantees >1 segment before forceMerge)
         IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get();
-        assertTrue("Force merge should register in stats", stats.getIndex(indexName).getTotal().getMerge().getTotal() > 0);
+        assertTrue(
+            "Force merge must register in stats (5 cycles guarantees multiple segments)",
+            stats.getIndex(indexName).getTotal().getMerge().getTotal() > 0
+        );
 
         client().admin().indices().prepareDelete(indexName).get();
     }
