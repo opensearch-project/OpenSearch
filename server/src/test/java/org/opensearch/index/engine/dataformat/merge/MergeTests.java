@@ -150,6 +150,7 @@ public class MergeTests extends OpenSearchTestCase {
         return new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mergeResult, oneMerge) -> {},
+            () -> {},
             SHARD_ID,
             idxSettings,
             mockThreadPool()
@@ -371,6 +372,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mr, om) -> {},
+            () -> {},
             SHARD_ID,
             idxSettings,
             mockThreadPool()
@@ -398,6 +400,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> captured.set(mr),
+            () -> {},
             SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
@@ -419,7 +422,14 @@ public class MergeTests extends OpenSearchTestCase {
         };
         MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
 
-        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
 
         scheduler.triggerMerges();
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -440,7 +450,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {
             captured.set(mr);
             latch.countDown();
-        }, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        }, () -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
 
         scheduler.forceMerge(1);
         assertTrue(latch.await(5, TimeUnit.SECONDS));

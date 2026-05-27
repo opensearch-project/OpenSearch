@@ -160,4 +160,40 @@ public class RelNodeUtils {
         return null;
     }
 
+    /** Maximum recursion depth when walking a RelNode tree to extract indices. */
+    static final int MAX_EXTRACT_INDICES_DEPTH = 15;
+
+    /**
+     * Extracts all index names referenced by {@link org.apache.calcite.rel.core.TableScan}
+     * nodes in the plan. Walks the tree up to {@link #MAX_EXTRACT_INDICES_DEPTH} levels to
+     * guard against pathologically deep plans constructed from complex user queries.
+     *
+     * @param plan the root of the RelNode tree
+     * @return array of distinct index names in encounter order
+     * @throws IllegalStateException if the plan exceeds the maximum depth
+     */
+    public static String[] extractIndices(RelNode plan) {
+        java.util.Set<String> indices = new java.util.LinkedHashSet<>();
+        if (!collectIndices(plan, indices, 0)) {
+            throw new IllegalStateException("Query plan exceeds maximum depth (" + MAX_EXTRACT_INDICES_DEPTH + ") for index extraction");
+        }
+        return indices.toArray(String[]::new);
+    }
+
+    private static boolean collectIndices(RelNode node, java.util.Set<String> indices, int depth) {
+        if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
+            return false;
+        }
+        if (node instanceof org.apache.calcite.rel.core.TableScan scan) {
+            java.util.List<String> names = scan.getTable().getQualifiedName();
+            indices.add(names.get(names.size() - 1));
+        }
+        for (RelNode input : node.getInputs()) {
+            if (!collectIndices(input, indices, depth + 1)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }

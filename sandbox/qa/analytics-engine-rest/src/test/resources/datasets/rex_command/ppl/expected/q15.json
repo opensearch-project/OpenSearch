@@ -1,0 +1,30 @@
+{
+  "schema": [
+    {
+      "name": "cnt",
+      "type": "bigint"
+    },
+    {
+      "name": "httpmethod",
+      "type": "string"
+    },
+    {
+      "name": "httpstatus",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      1,
+      "GET",
+      "503"
+    ],
+    [
+      2,
+      "PUT",
+      "500"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

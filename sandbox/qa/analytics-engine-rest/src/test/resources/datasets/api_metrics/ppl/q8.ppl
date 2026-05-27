@@ -1,0 +1,1 @@
+source=api_metrics | where status != 200 | stats count() as error_count by status, endpoint | sort - error_count

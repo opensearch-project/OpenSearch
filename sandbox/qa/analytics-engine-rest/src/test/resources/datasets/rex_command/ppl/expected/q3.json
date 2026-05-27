@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "username",
+      "type": "string"
+    },
+    {
+      "name": "result",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "alice",
+      "success"
+    ],
+    [
+      "bob",
+      "failure"
+    ],
+    [
+      "charlie",
+      "success"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

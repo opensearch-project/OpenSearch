@@ -12,6 +12,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
@@ -922,6 +923,44 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             }
             assertTrue("pre-existing files must not be touched by empty-initial bootstrap", Files.exists(leftover));
         }
+    }
+
+    public void testGetSafeCommitInfoDelegatesToPolicy() throws IOException {
+        AtomicLong globalCP = new AtomicLong(100);
+        CombinedCatalogSnapshotDeletionPolicy policy = new CombinedCatalogSnapshotDeletionPolicy(
+            logger,
+            new DefaultTranslogDeletionPolicy(-1, -1, 0),
+            globalCP::get
+        );
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(
+            1L,
+            1L,
+            0L,
+            List.of(),
+            1L,
+            Map.of("local_checkpoint", "50", "max_seq_no", "100", "translog_uuid", "test-uuid")
+        );
+        snapshot.setLastCommitInfo("segments_1", 1L, 0L);
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(snapshot),
+            policy,
+            files -> Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            mock(CommitFileManager.class)
+        );
+        SafeCommitInfo info = manager.getSafeCommitInfo();
+        assertEquals(50L, info.localCheckpoint);
+        assertEquals(0, info.docCount);
+        manager.close();
+    }
+
+    public void testGetSafeCommitInfoWithKeepLatestOnlyReturnsEmpty() throws IOException {
+        CatalogSnapshotManager manager = createRandomManager();
+        SafeCommitInfo info = manager.getSafeCommitInfo();
+        assertEquals(SafeCommitInfo.EMPTY, info);
+        manager.close();
     }
 
     private CatalogSnapshotManager createRandomManager() {

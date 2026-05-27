@@ -55,6 +55,8 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -68,6 +70,9 @@ import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -246,6 +251,7 @@ public class NodeService implements Closeable {
         boolean admissionControl,
         boolean cacheService,
         boolean remoteStoreNodeStats,
+        boolean pluginStats,
         boolean nativeMemory
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
@@ -283,8 +289,19 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
+            pluginStats ? collectPluginStats() : Collections.emptyMap(),
             nativeMemory ? monitorService.memoryReportingService().nativeStats() : null
         );
+    }
+
+    private Map<String, PluginNodeStats> collectPluginStats() {
+        Map<String, PluginNodeStats> result = new HashMap<>();
+        for (Plugin plugin : pluginService.filterPlugins(Plugin.class)) {
+            for (PluginNodeStats stats : plugin.nodeStats()) {
+                result.put(stats.getWriteableName(), stats);
+            }
+        }
+        return result;
     }
 
     public IngestService getIngestService() {

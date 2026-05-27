@@ -1,0 +1,1 @@
+source=app_logs | where match(message, "timeout") | sort service, latency desc | streamstats count() as rn by service | where rn <= 2 | fields service, message, latency, rn | sort service, rn

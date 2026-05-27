@@ -9,6 +9,8 @@
 package org.opensearch.analytics.backend;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.ShuffleBufferRegistry;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -34,6 +36,8 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private IndexSettings indexSettings;
     private NamedWriteableRegistry namedWriteableRegistry;
     private ShuffleBufferRegistry shuffleBufferRegistry;
+    private QueryCache queryCache;
+    private QueryCachingPolicy queryCachingPolicy;
 
     /**
      * Constructs an execution context.
@@ -127,5 +131,25 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
      *  {@code AnalyticsSearchService} when building the context. */
     public void setShuffleBufferRegistry(ShuffleBufferRegistry shuffleBufferRegistry) {
         this.shuffleBufferRegistry = shuffleBufferRegistry;
+    }
+
+    /** Returns the node-level query cache for Lucene filter delegation. */
+    public QueryCache getQueryCache() {
+        return queryCache;
+    }
+
+    /** Sets the node-level query cache. */
+    public void setQueryCache(QueryCache queryCache) {
+        this.queryCache = queryCache;
+    }
+
+    /** Returns the query caching policy for Lucene filter delegation. */
+    public QueryCachingPolicy getQueryCachingPolicy() {
+        return queryCachingPolicy;
+    }
+
+    /** Sets the query caching policy. */
+    public void setQueryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+        this.queryCachingPolicy = queryCachingPolicy;
     }
 }
