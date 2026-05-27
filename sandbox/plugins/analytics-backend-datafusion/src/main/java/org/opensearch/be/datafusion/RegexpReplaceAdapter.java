@@ -101,8 +101,7 @@ class RegexpReplaceAdapter implements ScalarFunctionAdapter {
         // Append "g" so DataFusion's regexp_replace (first-match-only by default) replaces
         // every match — matching PPL's contract on the V2/Calcite path where the 3-arg form
         // is already replace-all. Pure 3-arg calls become REGEXP_REPLACE_PG_4(..., "g").
-        boolean appendGlobalFlag = original.getOperator() == SqlLibraryOperators.REGEXP_REPLACE_3
-            && original.getOperands().size() == 3;
+        boolean appendGlobalFlag = original.getOperator() == SqlLibraryOperators.REGEXP_REPLACE_3 && original.getOperands().size() == 3;
 
         if (rewrittenPattern == null && rewrittenReplacement == null && !appendGlobalFlag) {
             return original;
@@ -121,10 +120,7 @@ class RegexpReplaceAdapter implements ScalarFunctionAdapter {
             newOperands.add(original.getOperands().get(i));
         }
         if (appendGlobalFlag) {
-            newOperands.add(rexBuilder.makeLiteral(
-                "g",
-                rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR),
-                true));
+            newOperands.add(rexBuilder.makeLiteral("g", rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR), true));
             return rexBuilder.makeCall(original.getType(), SqlLibraryOperators.REGEXP_REPLACE_PG_4, newOperands);
         }
         return rexBuilder.makeCall(original.getType(), original.getOperator(), newOperands);
