@@ -9,6 +9,9 @@
 package org.opensearch.parquet.writer;
 
 import org.apache.arrow.vector.types.pojo.Schema;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
@@ -45,13 +48,15 @@ import java.util.function.Supplier;
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
+    private static final Logger logger = LogManager.getLogger(ParquetWriter.class);
+
     private final String file;
     private final long writerGeneration;
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
     private final FormatChecksumStrategy checksumStrategy;
     private final Supplier<Schema> schemaSupplier;
-    private long mappingVersion;
+    private volatile long mappingVersion;
     private volatile WriterState state = WriterState.ACTIVE;
     private long acceptedRows = 0L;
 
@@ -190,10 +195,29 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     @Override
     public void updateMappingVersion(long newVersion) {
         if (newVersion > this.mappingVersion) {
+            logger.info(
+                "[Gen: {}] updateMappingVersion: advancing from {} to {}, will reconcile schema",
+                writerGeneration,
+                this.mappingVersion,
+                newVersion
+            );
             this.mappingVersion = newVersion;
-            // Reconcile the active VSR with the new mapping's schema so addDoc never has
-            // to add field vectors itself.
-            vsrManager.reconcileSchema(schemaSupplier.get());
+            Schema schema = schemaSupplier.get();
+            logger.info(
+                "[Gen: {}] updateMappingVersion: schema from supplier has {} fields: {}",
+                writerGeneration,
+                schema.getFields().size(),
+                schema.getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
+            );
+            boolean updated = vsrManager.reconcileSchema(schema);
+            logger.info("updateMappingVersion: reconcileSchema returned updated={}", updated);
+        } else {
+            logger.info(
+                "[Gen: {}] updateMappingVersion: no-op, newVersion={} <= current mappingVersion={}",
+                writerGeneration,
+                newVersion,
+                this.mappingVersion
+            );
         }
     }
 
