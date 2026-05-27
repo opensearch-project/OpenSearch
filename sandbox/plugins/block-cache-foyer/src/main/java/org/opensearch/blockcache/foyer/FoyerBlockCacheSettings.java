@@ -157,5 +157,35 @@ public final class FoyerBlockCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * How often (seconds) the independent persist task flushes the key_index to disk.
+     *
+     * <p>The persist task is decoupled from the sweep task so that persist frequency
+     * (a cheap file write, default 60 s) and sweep frequency (an expensive DashMap scan)
+     * can be tuned independently.
+     *
+     * <p>The task uses {@code used_bytes} as a change signal: if {@code used_bytes} has
+     * not changed since the last successful write, the tick is skipped (no disk I/O).
+     * This means idle caches produce zero I/O even if the interval is short.
+     *
+     * <p>{@code 0} = disabled — the key_index is only persisted on graceful shutdown
+     * via the {@code Drop} impl (i.e. when the JVM shuts down cleanly). In this mode
+     * the maximum durability window after a crash equals the node uptime since startup.
+     *
+     * <p>Default: {@code 60} seconds. Range: [0, 3600].
+     *
+     * <p>Configure in {@code opensearch.yml}:
+     * <pre>{@code
+     * block_cache.foyer.key_index_persist_interval_seconds: 60
+     * }</pre>
+     */
+    public static final Setting<Long> KEY_INDEX_PERSIST_INTERVAL_SETTING = Setting.longSetting(
+        "block_cache.foyer.key_index_persist_interval_seconds",
+        60L,   // default: 60 seconds
+        0L,    // min: 0 (0 = disabled, persist only on graceful shutdown)
+        3600L, // max: 1 hour
+        Setting.Property.NodeScope
+    );
+
     private FoyerBlockCacheSettings() {}
 }

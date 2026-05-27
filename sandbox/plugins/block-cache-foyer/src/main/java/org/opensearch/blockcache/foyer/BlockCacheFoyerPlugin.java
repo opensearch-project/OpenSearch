@@ -98,7 +98,8 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
             FoyerBlockCacheSettings.IO_ENGINE_SETTING,
             FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING,
-            FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING
+            FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING,
+            FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING
         );
     }
 
@@ -159,6 +160,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
         final long sweepIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING.get(settings);
         final double sweepThresholdRatio = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(settings);
+        final long persistIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING.get(settings);
         // Use the exact capacity reserved by NodeCacheService during budget phase.
         final long diskCapacityBytes = reservedCapacityBytes;
 
@@ -189,18 +191,27 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         }
 
         try {
-            cache = new FoyerBlockCache(diskCapacityBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs, sweepThresholdRatio);
+            cache = new FoyerBlockCache(
+                diskCapacityBytes,
+                diskDir,
+                blockSizeBytes,
+                ioEngine,
+                sweepIntervalSecs,
+                sweepThresholdRatio,
+                persistIntervalSecs
+            );
         } catch (final Throwable t) {
             throw new IllegalStateException("Failed to initialise Foyer block cache (diskDir=" + diskDir + ")", t);
         }
         logger.info(
             "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={}, "
-                + "sweepIntervalSecs={}, sweepThresholdRatio={})",
+                + "sweepIntervalSecs={}, sweepThresholdRatio={}, persistIntervalSecs={})",
             diskDir,
             blockSizeBytes,
             ioEngine,
             sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
-            sweepThresholdRatio == 0.0 ? "disabled" : sweepThresholdRatio
+            sweepThresholdRatio == 0.0 ? "always-sweep (no threshold)" : sweepThresholdRatio,
+            persistIntervalSecs == 0 ? "disabled" : persistIntervalSecs + "s"
         );
         return List.of(cache);
     }

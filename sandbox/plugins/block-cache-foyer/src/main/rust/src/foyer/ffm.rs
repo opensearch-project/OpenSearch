@@ -28,6 +28,8 @@ use crate::foyer::foyer_cache::FoyerCache;
 /// - `sweep_threshold_ratio` — minimum `used_bytes / disk_bytes` ratio required to run the
 ///   sweep. When the ratio is below this value the sweep tick is skipped (no-op). `0.0` =
 ///   disabled (always sweep). Maps to `block_cache.foyer.key_index_sweep_threshold`.
+/// - `persist_interval_secs` — how often (in seconds) the independent persist task flushes the
+///   key_index to disk. `0` = disabled (only graceful-shutdown `Drop` persists).
 ///
 /// # Safety
 /// `dir_ptr` must point to `dir_len` consecutive valid UTF-8 bytes.
@@ -43,6 +45,7 @@ pub unsafe extern "C" fn foyer_create_cache(
     io_engine_len: u64,
     sweep_interval_secs: u64,
     sweep_threshold_ratio: f64,
+    persist_interval_secs: u64,
 ) -> i64 {
     if dir_ptr.is_null() {
         return Err("dir_ptr is null".to_string());
@@ -63,6 +66,7 @@ pub unsafe extern "C" fn foyer_create_cache(
         io_engine,
         sweep_interval_secs,
         sweep_threshold_ratio,
+        persist_interval_secs,
     ));
     Ok(Box::into_raw(Box::new(cache)) as i64)
 }

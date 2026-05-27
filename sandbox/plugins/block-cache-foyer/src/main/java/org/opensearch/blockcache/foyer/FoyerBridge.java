@@ -49,7 +49,7 @@ public final class FoyerBridge {
 
         // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len,
         // u64 block_size_bytes, *const u8 io_engine_ptr, u64 io_engine_len,
-        // u64 sweep_interval_secs, f64 sweep_threshold_ratio)
+        // u64 sweep_interval_secs, f64 sweep_threshold_ratio, u64 persist_interval_secs)
         // Returns Box<Arc<dyn BlockCache>> fat pointer.
         FOYER_CREATE_CACHE = linker.downcallHandle(
             lib.find("foyer_create_cache").orElseThrow(),
@@ -62,7 +62,8 @@ public final class FoyerBridge {
                 ValueLayout.ADDRESS,     // io_engine_ptr: *const u8
                 ValueLayout.JAVA_LONG,   // io_engine_len: u64
                 ValueLayout.JAVA_LONG,   // sweep_interval_secs: u64 (0 = disabled)
-                ValueLayout.JAVA_DOUBLE  // sweep_threshold_ratio: f64 (0.0 = disabled)
+                ValueLayout.JAVA_DOUBLE, // sweep_threshold_ratio: f64 (0.0 = disabled)
+                ValueLayout.JAVA_LONG    // persist_interval_secs: u64 (0 = disabled)
             )
         );
 
@@ -127,6 +128,9 @@ public final class FoyerBridge {
      *                               the sweep. When the ratio is below this value the sweep tick is
      *                               skipped (no-op). {@code 0.0} = disabled (always sweep).
      *                               Maps to {@code block_cache.foyer.key_index_sweep_threshold}.
+     * @param persistIntervalSecs    how often (seconds) the independent persist task flushes the
+     *                               key_index to disk. {@code 0} = disabled (only {@code Drop} persists).
+     *                               Maps to {@code block_cache.foyer.key_index_persist_interval_seconds}.
      * @return an opaque fat pointer representing the cache instance; always positive on success
      * @throws RuntimeException if the native call fails or the directory is invalid
      */
@@ -136,7 +140,8 @@ public final class FoyerBridge {
         long blockSizeBytes,
         String ioEngine,
         long sweepIntervalSecs,
-        double sweepThresholdRatio
+        double sweepThresholdRatio,
+        long persistIntervalSecs
     ) {
         try (var call = new NativeCall()) {
             var dir = call.str(diskDir);
@@ -150,19 +155,21 @@ public final class FoyerBridge {
                 engine.segment(),
                 engine.len(),
                 sweepIntervalSecs,
-                sweepThresholdRatio
+                sweepThresholdRatio,
+                persistIntervalSecs
             );
             if (ptr <= 0) {
                 throw new IllegalStateException("foyer_create_cache returned an invalid handle");
             }
             logger.info(
                 "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, "
-                    + "sweepIntervalSecs={}, sweepThresholdRatio={}, dir={}",
+                    + "sweepIntervalSecs={}, sweepThresholdRatio={}, persistIntervalSecs={}, dir={}",
                 diskBytes,
                 blockSizeBytes,
                 ioEngine,
                 sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
-                sweepThresholdRatio == 0.0 ? "disabled" : sweepThresholdRatio,
+                sweepThresholdRatio == 0.0 ? "always-sweep (no threshold)" : sweepThresholdRatio,
+                persistIntervalSecs == 0 ? "disabled" : persistIntervalSecs + "s",
                 diskDir
             );
             return ptr;
