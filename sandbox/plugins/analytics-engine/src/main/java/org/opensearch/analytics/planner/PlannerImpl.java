@@ -26,6 +26,7 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -85,7 +86,6 @@ public class PlannerImpl {
 
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
-        LOGGER.info("After removeSubQueries:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
@@ -155,8 +155,7 @@ public class PlannerImpl {
 
     /**
      * Phase 0b: lower {@code LITERAL_AGG(literal)} aggregate calls into an
-     * {@code Aggregate + Project} shape via {@link
-     * org.opensearch.analytics.planner.rules.ExtractLiteralAggRule}.
+     * {@code Aggregate + Project} shape via {@link ExtractLiteralAggRule}.
      *
      * <p>{@code LITERAL_AGG} is a Calcite-internal aggregate that Calcite expects
      * each backend to implement natively (Calcite's own Interpreter and Enumerable
@@ -173,9 +172,7 @@ public class PlannerImpl {
      * {@code LITERAL_AGG} directly via {@code RelBuilder.literalAgg(...)}.
      */
     private static RelNode extractLiteralAgg(RelNode input, RuleProfilingListener listener) {
-        return HepPhase.named("literal-agg-extract")
-            .addRules(new org.opensearch.analytics.planner.rules.ExtractLiteralAggRule())
-            .run(input, listener);
+        return HepPhase.named("literal-agg-extract").addRules(new ExtractLiteralAggRule()).run(input, listener);
     }
 
     /**

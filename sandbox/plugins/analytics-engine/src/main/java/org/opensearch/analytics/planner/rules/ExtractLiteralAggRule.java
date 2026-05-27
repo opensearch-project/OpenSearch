@@ -22,6 +22,7 @@ import org.apache.calcite.rex.RexNode;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Rewrites a {@link LogicalAggregate} that contains one or more {@code LITERAL_AGG}
@@ -124,7 +125,7 @@ public class ExtractLiteralAggRule extends RelOptRule {
             }
         }
         // Nothing to do if no LITERAL_AGG present.
-        if (literalAtSlot.stream().noneMatch(java.util.Objects::nonNull)) {
+        if (literalAtSlot.stream().noneMatch(Objects::nonNull)) {
             return;
         }
 
