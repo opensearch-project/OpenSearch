@@ -35,6 +35,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * End-to-end IT for QTF (late materialization) Stage 3 — verifies the post-LM
@@ -212,7 +213,7 @@ public class QtfDerivedAboveProjectIT extends OpenSearchIntegTestCase {
                     "URL",
                     "https://example.com/page" + i,
                     "EventDate",
-                    "2026-05-" + String.format(java.util.Locale.ROOT, "%02d", i + 1),
+                    "2026-05-" + String.format(Locale.ROOT, "%02d", i + 1),
                     "CounterID",
                     i + 1
                 )

@@ -9,8 +9,9 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 import java.util.Collections;
 import java.util.List;
@@ -148,12 +149,7 @@ public interface AnalyticsSearchBackendPlugin {
      * @param allocator Arrow buffer allocator for result import
      * @return a result stream containing the requested rows
      */
-    default EngineResultStream fetchByRowIds(
-        IndexReaderProvider.Reader reader,
-        org.apache.arrow.vector.BigIntVector rowIdVector,
-        String[] columns,
-        BufferAllocator allocator
-    ) {
+    default EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
         throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
     }
 

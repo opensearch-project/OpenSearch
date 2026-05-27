@@ -38,6 +38,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -539,7 +540,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         Integer[] order = new Integer[n];
         for (int i = 0; i < n; i++)
             order[i] = i;
-        java.util.Arrays.sort(order, (a, b) -> Long.compare(rowIds[a], rowIds[b]));
+        Arrays.sort(order, (a, b) -> Long.compare(rowIds[a], rowIds[b]));
         long[] sortedRowIds = new long[n];
         int[] sortedPositions = new int[n];
         for (int i = 0; i < n; i++) {

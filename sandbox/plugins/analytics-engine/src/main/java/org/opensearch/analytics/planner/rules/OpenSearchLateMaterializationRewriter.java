@@ -34,6 +34,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -271,7 +272,7 @@ public final class OpenSearchLateMaterializationRewriter {
      * set in scan-original order.
      */
     private static Set<String> computeBelowAnchorPhysicalFields(OpenSearchSort anchor, BelowChain belowChain) {
-        Set<String> fields = new java.util.HashSet<>();
+        Set<String> fields = new HashSet<>();
         List<RelDataTypeField> scanFields = belowChain.scan.getRowType().getFieldList();
         // Anchor sort cols (anchor space → scan space → physical name)
         for (RelFieldCollation fc : anchor.getCollation().getFieldCollations()) {

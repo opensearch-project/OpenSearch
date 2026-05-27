@@ -13,6 +13,7 @@ import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.prepare.CalciteCatalogReader;
@@ -122,10 +123,10 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         // Parse → CBO → DAG → forker → fragment conversion.
         RelNode parsed = parseSql(sql, clusterState);
         LOGGER.info("[QTF-DUMP] sql:\n{}", sql);
-        LOGGER.info("[QTF-DUMP] parsed RelNode:\n{}", org.apache.calcite.plan.RelOptUtil.toString(parsed));
+        LOGGER.info("[QTF-DUMP] parsed RelNode:\n{}", RelOptUtil.toString(parsed));
 
         RelNode cbo = PlannerImpl.runAllOptimizations(parsed, context);
-        LOGGER.info("[QTF-DUMP] post-CBO+QTF RelNode:\n{}", org.apache.calcite.plan.RelOptUtil.toString(cbo));
+        LOGGER.info("[QTF-DUMP] post-CBO+QTF RelNode:\n{}", RelOptUtil.toString(cbo));
 
         QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService());
         LOGGER.info("[QTF-DUMP] QueryDAG (pre-conversion):\n{}", dag);

@@ -8,15 +8,19 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -39,9 +43,12 @@ import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -810,12 +817,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public org.opensearch.analytics.backend.EngineResultStream fetchByRowIds(
-        org.opensearch.index.engine.exec.IndexReaderProvider.Reader reader,
-        org.apache.arrow.vector.BigIntVector rowIdVector,
-        String[] columns,
-        org.apache.arrow.memory.BufferAllocator allocator
-    ) {
+    public EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
         DataFusionService dataFusionService = plugin.getDataFusionService();
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionService not initialized");
@@ -838,7 +840,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
         long streamPtr;
         if (bufAddr != 0 && count > 0) {
-            streamPtr = org.opensearch.be.datafusion.nativelib.NativeBridge.fetchByRowIds(
+            streamPtr = NativeBridge.fetchByRowIds(
                 dfReader.getReaderHandle().getPointer(),
                 bufAddr,
                 count,
@@ -848,15 +850,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         } else {
             throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
         }
-        org.opensearch.be.datafusion.nativelib.StreamHandle streamHandle = new org.opensearch.be.datafusion.nativelib.StreamHandle(
-            streamPtr,
-            dataFusionService.getNativeRuntime()
-        );
+        StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
         return new DatafusionResultStream(streamHandle, allocator);
     }
 
     @Override
-    public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
+    public void setDelegationThreadTracker(DelegationThreadTracker tracker) {
         FilterTreeCallbacks.setThreadTracker(tracker);
     }
 

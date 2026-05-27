@@ -10,6 +10,7 @@ package org.opensearch.analytics.spi;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -22,7 +23,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ShardScanInstructionNode implements InstructionNode {
+public class ShardScanInstructionNode implements InstructionNode, Writeable {
 
     private final boolean requestsRowIds;
 
