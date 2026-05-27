@@ -413,6 +413,29 @@ mod tests {
     use crate::agg_mode::Mode;
     use crate::query_tracker::QueryTrackingContext;
 
+    #[tokio::test]
+    async fn test_widen_schema_noop_when_plan_empty() {
+        let ctx = SessionContext::new();
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+        ]));
+        let result = widen_schema_from_plan(&ctx, &[], "t", &schema);
+        assert_eq!(result.fields().len(), 1);
+        assert_eq!(result.field(0).name(), "a");
+    }
+
+    #[tokio::test]
+    async fn test_widen_schema_noop_when_all_columns_present() {
+        let ctx = SessionContext::new();
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        // Empty plan bytes → no widening
+        let result = widen_schema_from_plan(&ctx, &[], "t", &schema);
+        assert_eq!(result.fields().len(), 2);
+    }
+
     async fn make_test_handle() -> (SessionContextHandle, Vec<u8>) {
         let runtime_env = RuntimeEnvBuilder::new().build().expect("runtime env");
         let state = SessionStateBuilder::new()

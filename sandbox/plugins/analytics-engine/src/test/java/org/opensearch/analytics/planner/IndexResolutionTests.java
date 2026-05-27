@@ -153,6 +153,28 @@ public class IndexResolutionTests extends OpenSearchTestCase {
         assertTrue("error must mention the unmatched expression: " + ex.getMessage(), ex.getMessage().contains("nomatch*"));
     }
 
+    public void testMissingConcreteNameWithResolverStillThrows() {
+        ClusterState state = clusterStateOf(indexBuilder("bank", longField("age")));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexResolution.resolve("does_not_exist", state, RESOLVER)
+        );
+        assertTrue("error must mention the missing name: " + ex.getMessage(), ex.getMessage().contains("does_not_exist"));
+    }
+
+    public void testExclusionPatternResolvesCorrectly() {
+        ClusterState state = clusterStateOf(
+            indexBuilder("test", longField("age")),
+            indexBuilder("test1", longField("age")),
+            indexBuilder("test2", longField("age"))
+        );
+
+        IndexResolution result = IndexResolution.resolve("test*,-test2", state, RESOLVER);
+
+        assertThat(result.concreteIndexNames(), org.hamcrest.Matchers.containsInAnyOrder("test", "test1"));
+        assertFalse("test2 must be excluded", result.concreteIndexNames().contains("test2"));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private static IndexMetadata.Builder indexBuilder(String name, String mappingJson) {

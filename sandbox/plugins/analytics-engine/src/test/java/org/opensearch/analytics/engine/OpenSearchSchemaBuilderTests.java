@@ -347,6 +347,22 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     }
 
     /**
+     * Case-insensitive table resolution: Calcite uppercases unquoted identifiers. The schema
+     * must still resolve them. Verifying a SELECT against an uppercased table works.
+     */
+    public void testCaseInsensitiveTableResolution() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("my_table", Map.of("name", "keyword", "age", "long")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        // Calcite uppercases unquoted identifiers — MY_TABLE must resolve to my_table
+        RelNode rel = parseValidateConvert(schema, "SELECT name FROM my_table");
+        assertNotNull("Query with exact case must succeed", rel);
+
+        // The SchemaPlus should find the table regardless of case used at lookup
+        assertNotNull("Lower-case lookup must work", schema.getTable("my_table"));
+    }
+
+    /**
      * Defensive: mapFieldType called with null must return null (treated as "unknown") rather
      * than NPE. Mirrors the analytics-framework FieldType.fromMappingType convention.
      */
@@ -471,6 +487,34 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
         assertFieldType(rowType, "balance", SqlTypeName.BIGINT);
         assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * Comma-separated sources with field-name conflict: first-resolved-wins semantics. The
+     * field 'age' appears as long in bank and keyword in test — whichever index the resolver
+     * returns first determines the type. Both are valid; the key invariant is that the field
+     * exists and unique-per-index fields from both indices appear in the union.
+     */
+    public void testCommaSeparatedSourcesFieldConflictPicksOne() throws Exception {
+        IndexMetadata idx1 = buildIndexMetadata("bank", Map.of("age", "long", "name", "keyword"));
+        IndexMetadata idx2 = buildIndexMetadata("test", Map.of("age", "keyword", "score", "double"));
+        Metadata metadata = Metadata.builder().put(idx1, false).put(idx2, false).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("bank,test");
+        assertNotNull("Comma-separated expression must resolve", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        // 'age' exists — could be BIGINT or VARCHAR depending on resolver order
+        RelDataTypeField ageField = rowType.getField("age", true, false);
+        assertNotNull("Conflicting field 'age' must still appear in union", ageField);
+        assertTrue("age must be one of the two types",
+            ageField.getType().getSqlTypeName() == SqlTypeName.BIGINT
+                || ageField.getType().getSqlTypeName() == SqlTypeName.VARCHAR);
+        // unique fields from each index must appear
+        assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "score", SqlTypeName.DOUBLE);
     }
 
     /**

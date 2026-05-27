@@ -1390,6 +1390,16 @@ mod tests {
     }
 
     #[test]
+    fn test_first_named_table_name_returns_none_on_empty() {
+        assert_eq!(super::first_named_table_name(&[]), None);
+    }
+
+    #[test]
+    fn test_first_named_table_name_returns_none_on_garbage() {
+        assert_eq!(super::first_named_table_name(&[0xFF, 0x00, 0x01]), None);
+    }
+
+    #[test]
     fn view_needs_gc_detects_bloat() {
         let strings: Vec<String> = (0..10_000)
             .map(|i| format!("long_string_value_{:06}_padding", i))
