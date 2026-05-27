@@ -328,7 +328,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         blockingQueueContainer.startProcessorThreads();
 
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
@@ -393,7 +393,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         blockingQueueContainer.startProcessorThreads();
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
@@ -507,7 +507,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(readResultsBatch2).thenReturn(Collections.emptyList());
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
@@ -613,7 +613,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         when(reinitializedConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(initialConsumer)
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(initialConsumer)
             .thenReturn(reinitializedConsumer);
 
         poller = new DefaultStreamPoller(
@@ -686,7 +686,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         // Create a mock consumer factory that fails on first call but succeeds on second call
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenThrow(
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenThrow(
             new RuntimeException("Simulated consumer initialization failure")
         ).thenReturn(mockConsumer);
 
@@ -718,7 +718,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         }, 30, TimeUnit.SECONDS);
 
         // Verify the consumer factory was called twice (once for failure, once for success)
-        verify(mockConsumerFactory, times(2)).createShardConsumer(anyString(), anyInt(), any());
+        verify(mockConsumerFactory, times(2)).createShardConsumer(anyString(), anyInt(), (IndexMetadata) any());
         assertNotNull(poller.getConsumer());
     }
 
@@ -939,7 +939,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer factory that always reports high lag
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L); // High lag
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
@@ -1012,7 +1012,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer factory that returns negative pointer-based lag (unsupported)
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(-1L); // Negative means unsupported
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
@@ -1048,7 +1048,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer factory that reports lag slightly above threshold then drops to threshold
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         // Return lag of 50 which is below threshold of 100
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(50L);
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
@@ -1118,7 +1118,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a poller with warmup enabled but starting in PAUSED state
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L);
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
@@ -1193,7 +1193,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer that always reports high lag so warmup never completes on its own
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L);
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
