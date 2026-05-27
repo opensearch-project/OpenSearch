@@ -105,7 +105,11 @@ repositories {
       excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
     }
   }
-  gradlePluginPortal()
+  gradlePluginPortal {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
 }
 
 dependencies {
