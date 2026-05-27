@@ -47,6 +47,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -216,6 +217,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
@@ -1059,6 +1063,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         DataFormatRegistry registry = createMockRegistry();
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         EngineConfig config = new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
@@ -2097,6 +2104,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         DataFormatRegistry registry = createMockRegistry();
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -2148,6 +2158,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         PluginsService pluginsService = mock(PluginsService.class);
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
@@ -2621,6 +2634,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
         EngineConfig config = new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
