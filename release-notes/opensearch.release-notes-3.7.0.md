@@ -139,12 +139,9 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.7.0
 
 ### Maintenance
 
-* Bump Netty to 4.2.13.Final ([#21490](https://github.com/opensearch-project/OpenSearch/pull/21490))
 * Bump Netty to 4.2.14.Final ([#21772](https://github.com/opensearch-project/OpenSearch/pull/21772))
-* Update Jackson to 3.1.2 ([#21271](https://github.com/opensearch-project/OpenSearch/pull/21271))
 * Update Jackson to 2.21.3 / 3.1.3 ([#21493](https://github.com/opensearch-project/OpenSearch/pull/21493))
 * Update ASM to 9.10 ([#21764](https://github.com/opensearch-project/OpenSearch/pull/21764))
-* Update OpenTelemetry to 1.61.0 ([#21218](https://github.com/opensearch-project/OpenSearch/pull/21218))
 * Update OpenTelemetry to 1.62.0 and SemConv to 1.41.0 ([#21595](https://github.com/opensearch-project/OpenSearch/pull/21595))
 * Update Project Reactor to 3.8.5 and Reactor Netty to 1.3.5 ([#21226](https://github.com/opensearch-project/OpenSearch/pull/21226))
 * Update bundled JDK to JDK 25.0.3 ([#21353](https://github.com/opensearch-project/OpenSearch/pull/21353))
