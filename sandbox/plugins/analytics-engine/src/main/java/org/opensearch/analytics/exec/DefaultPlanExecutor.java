@@ -51,6 +51,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -264,9 +265,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
         // executor so the calling thread — which may be a transport thread — is freed
         // immediately. The listener is wrapped to convert backend-specific exceptions.
+        String opaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID);
         ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(
             listener::onResponse,
-            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+            e -> {
+                logFailure(opaqueId, request.indices(), e);
+                listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e);
+            }
         );
         searchExecutor.execute(() -> {
             try {
@@ -286,6 +291,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 );
             }
         });
+    }
+
+    private void logFailure(String opaqueId, String[] indices, Throwable e) {
+        if (e instanceof org.opensearch.OpenSearchException osEx && osEx.status().getStatus() < 500) {
+            return; // 4xx errors (security denials, client errors) are not logged here
+        }
+        String id = opaqueId != null ? opaqueId : "-";
+        logger.error("[opaque-id={}] Analytics query failed for indices {}", id, Arrays.toString(indices), e);
     }
 
     /**
