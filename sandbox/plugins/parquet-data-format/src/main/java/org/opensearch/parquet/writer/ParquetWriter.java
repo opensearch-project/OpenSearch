@@ -195,7 +195,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     @Override
     public void updateMappingVersion(long newVersion) {
         if (newVersion > this.mappingVersion) {
-            logger.info(
+            logger.debug(
                 "[Gen: {}] updateMappingVersion: advancing from {} to {}, will reconcile schema",
                 writerGeneration,
                 this.mappingVersion,
@@ -203,16 +203,16 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             );
             this.mappingVersion = newVersion;
             Schema schema = schemaSupplier.get();
-            logger.info(
+            logger.trace(
                 "[Gen: {}] updateMappingVersion: schema from supplier has {} fields: {}",
                 writerGeneration,
                 schema.getFields().size(),
                 schema.getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
             );
             boolean updated = vsrManager.reconcileSchema(schema);
-            logger.info("updateMappingVersion: reconcileSchema returned updated={}", updated);
+            logger.debug("updateMappingVersion: reconcileSchema returned updated={}", updated);
         } else {
-            logger.info(
+            logger.trace(
                 "[Gen: {}] updateMappingVersion: no-op, newVersion={} <= current mappingVersion={}",
                 writerGeneration,
                 newVersion,

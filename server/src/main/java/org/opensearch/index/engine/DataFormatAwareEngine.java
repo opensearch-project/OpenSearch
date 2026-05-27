@@ -2086,7 +2086,7 @@ public class DataFormatAwareEngine implements Indexer, ClusterStateListener {
         IndexMetadata newIndexMetadata = event.state().metadata().indices().get(this.config().getShardId().getIndexName());
         IndexMetadata oldIndexMetadata = event.previousState().metadata().indices().get(this.config().getShardId().getIndexName());
         if (oldIndexMetadata == null || ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) {
-            logger.info("Mapping version from {} to {}", currentMappingVersion, newIndexMetadata.getMappingVersion());
+            logger.debug("Mapping version from {} to {}", currentMappingVersion, newIndexMetadata.getMappingVersion());
             currentMappingVersion = newIndexMetadata.getMappingVersion();
         }
     }

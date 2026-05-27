@@ -215,7 +215,7 @@ public class VSRManager implements AutoCloseable {
         if (changed) {
             vsrPool.updateSchema(activeVSR.getSchema());
         } else {
-            logger.info("no changes in schema despite change in mapping version");
+            logger.debug("no changes in schema despite change in mapping version");
         }
         return changed;
     }
