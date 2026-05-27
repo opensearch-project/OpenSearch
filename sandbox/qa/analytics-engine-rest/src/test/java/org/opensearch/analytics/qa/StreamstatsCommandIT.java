@@ -669,23 +669,62 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsGlobalWithNull. */
+    /** sql IT: testStreamstatsGlobalWithNull. {@code global=true} lowers to a self-join with a
+     *  BETWEEN frame predicate (non-equi) AND-ed with the group equality. The non-equi predicate
+     *  used to be rejected at the join marker rule until theta-join routing was restored, after
+     *  which {@code OpenSearchJoinSplitRule} sends both sides through coord-singleton ERs and
+     *  DataFusion's NestedLoopJoinExec evaluates the frame predicate.
+     *
+     *  <p>For our calcs dataset the {@code str0} groups (FURNITURE / OFFICE SUPPLIES /
+     *  TECHNOLOGY) are ingested contiguously, so each row's window of {seq−1, seq} naturally
+     *  stays inside one group — making the {@code global=true} output identical to {@code
+     *  global=false} on this data. Both null bucket variants behave the same here because no
+     *  row has a null {@code str0}. */
     public void testStreamstatsGlobalWithNull() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
-            "source=" + DATASET.indexName
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats window=2 global=true avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
+        assertRowsEqualList(response, EXPECTED_GLOBAL_TRUE_ROWS);
     }
 
-    /** sql IT: testStreamstatsGlobalWithNullBucket. */
+    /** Same data shape as {@link #testStreamstatsGlobalWithNull} — see the comment there for the
+     *  reason this matches {@code testStreamstatsGlobal}. {@code bucket_nullable=false} only
+     *  changes the both-null group-key handling, and no row in calcs has a null {@code str0}. */
     public void testStreamstatsGlobalWithNullBucket() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
-            "source=" + DATASET.indexName
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats bucket_nullable=false window=2 global=true avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
+        assertRowsEqualList(response, EXPECTED_GLOBAL_TRUE_ROWS);
     }
+
+    /** Per-row {@code window=2} running average of {@code int0} over the calcs dataset, computed
+     *  by hand and shared by the two {@code global=true} cases. Frame is {@code rightSeq IN
+     *  {leftSeq−1, leftSeq}} AND {@code rightStr0 = leftStr0}; nulls in {@code int0} are dropped
+     *  by AVG; left-join semantics keep every left row even when the frame matches no right
+     *  rows that contribute a non-null value. */
+    private static final List<List<Object>> EXPECTED_GLOBAL_TRUE_ROWS = List.of(
+        row("key00", "FURNITURE",       1,    1.0),
+        row("key01", "FURNITURE",       null, 1.0),
+        row("key02", "OFFICE SUPPLIES", null, null),
+        row("key03", "OFFICE SUPPLIES", null, null),
+        row("key04", "OFFICE SUPPLIES", 7,    7.0),
+        row("key05", "OFFICE SUPPLIES", 3,    5.0),
+        row("key06", "OFFICE SUPPLIES", 8,    5.5),
+        row("key07", "OFFICE SUPPLIES", null, 8.0),
+        row("key08", "TECHNOLOGY",      null, null),
+        row("key09", "TECHNOLOGY",      8,    8.0),
+        row("key10", "TECHNOLOGY",      4,    6.0),
+        row("key11", "TECHNOLOGY",      10,   7.0),
+        row("key12", "TECHNOLOGY",      null, 10.0),
+        row("key13", "TECHNOLOGY",      4,    4.0),
+        row("key14", "TECHNOLOGY",      11,   7.5),
+        row("key15", "TECHNOLOGY",      4,    7.5),
+        row("key16", "TECHNOLOGY",      8,    6.0)
+    );
 
     /** sql IT: testStreamstatsReset. {@code reset_before} / {@code reset_after} use
      *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver. */
@@ -1219,11 +1258,16 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
     @SafeVarargs
     @SuppressWarnings({"unchecked", "varargs"})
     private final void assertRowsEqual(Map<String, Object> response, List<Object>... expected) {
+        assertRowsEqualList(response, Arrays.asList(expected));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRowsEqualList(Map<String, Object> response, List<List<Object>> expected) {
         List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
         assertNotNull("Response missing 'rows'", actualRows);
-        assertEquals("Row count mismatch", expected.length, actualRows.size());
-        for (int i = 0; i < expected.length; i++) {
-            List<Object> want = expected[i];
+        assertEquals("Row count mismatch", expected.size(), actualRows.size());
+        for (int i = 0; i < expected.size(); i++) {
+            List<Object> want = expected.get(i);
             List<Object> got = actualRows.get(i);
             assertEquals("Column count mismatch at row " + i, want.size(), got.size());
             for (int j = 0; j < want.size(); j++) {
