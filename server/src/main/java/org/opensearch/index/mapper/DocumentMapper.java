@@ -158,7 +158,7 @@ public class DocumentMapper implements ToXContentFragment {
     private final long version;
 
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
-        this(mapperService, mapping, 0L);
+        this(mapperService, mapping, 1L);
     }
 
     public DocumentMapper(MapperService mapperService, Mapping mapping, long version) {
