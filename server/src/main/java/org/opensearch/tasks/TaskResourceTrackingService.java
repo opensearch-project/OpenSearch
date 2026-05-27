@@ -233,18 +233,16 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
     }
 
-    public boolean isThreadTrackedForTask(Task task, long threadId) {
+    private boolean isCurrentThreadWorkingOnTask(Task task) {
+        long threadId = Thread.currentThread().threadId();
         List<ThreadResourceInfo> threadResourceInfos = task.getResourceStats().getOrDefault(threadId, Collections.emptyList());
+
         for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
             if (threadResourceInfo.isActive()) {
                 return true;
             }
         }
         return false;
-    }
-
-    private boolean isCurrentThreadWorkingOnTask(Task task) {
-        return isThreadTrackedForTask(task, Thread.currentThread().threadId());
     }
 
     private List<Long> getThreadsWorkingOnTask(Task task) {

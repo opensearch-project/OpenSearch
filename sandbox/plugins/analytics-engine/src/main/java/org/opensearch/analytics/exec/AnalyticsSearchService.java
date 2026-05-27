@@ -333,14 +333,10 @@ public class AnalyticsSearchService implements AutoCloseable {
                 if (task != null && taskResourceTrackingService != null) {
                     long taskId = task.getId();
                     TaskResourceTrackingService service = taskResourceTrackingService;
-                    Task trackedTask = task;
                     tracker = new DelegationThreadTracker() {
                         @Override
                         public long trackStart() {
                             long threadId = Thread.currentThread().threadId();
-                            if (service.isThreadTrackedForTask(trackedTask, threadId)) {
-                                return -1;
-                            }
                             service.taskExecutionStartedOnThread(taskId, threadId);
                             return threadId;
                         }
