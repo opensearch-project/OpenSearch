@@ -168,7 +168,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
             long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
-            return buildLuceneWriter(
+            return new LuceneWriter(
                 config.writerGeneration(),
                 mappingVersion,
                 dataFormat,
@@ -180,24 +180,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
-    }
-
-    /**
-     * Factory hook for tests: builds the per-generation {@link LuceneWriter}. Subclasses
-     * (notably test-only fault-injecting variants) override this to return a custom
-     * {@link LuceneWriter} subclass — e.g., one that wraps the {@code Directory} with a
-     * fault injector to exercise {@code IndexWriter.addDocument} failure paths.
-     */
-    protected LuceneWriter buildLuceneWriter(
-        long writerGeneration,
-        long mappingVersion,
-        LuceneDataFormat dataFormat,
-        Path baseDirectory,
-        Analyzer analyzer,
-        Codec codec,
-        Sort indexSort
-    ) throws IOException {
-        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort);
     }
 
     private Sort getChildWriterSortConfiguration() {
@@ -308,7 +290,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                         if (!writerGenerations.contains(writerGen)) {
                             continue;
                         }
-                        long numDocs = segReader.maxDoc();
+                        long numDocs = segInfo.info.maxDoc();
 
                         WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
                             .directory(sharedDir)
@@ -330,22 +312,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         return new RefreshResult(List.copyOf(resultSegments));
     }
 
+    /** Returns {@code null} — merge scheduling is not yet implemented for the Lucene format. */
     @Override
     public Merger getMerger() {
         return this.luceneMerger;
-    }
-
-    /**
-     * Surfaces the shared {@link org.apache.lucene.index.IndexWriter}'s tragic exception
-     * so DFAE can fail the engine. Wraps non-Exception throwables (e.g., Errors from
-     * background merges) in {@link RuntimeException} since the contract returns Exception.
-     */
-    @Override
-    public Exception getTragicException() {
-        if (sharedWriter == null) return null;
-        Throwable tragic = sharedWriter.getTragicException();
-        if (tragic == null) return null;
-        return tragic instanceof Exception ? (Exception) tragic : new RuntimeException(tragic);
     }
 
     /**

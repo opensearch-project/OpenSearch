@@ -206,6 +206,36 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * fp MOD reaches DataFusion via the substrait {@code modulus} fp overloads supplied by
+     * {@code opensearch_arithmetic_overloads.yaml} (standard substrait declares integer impls
+     * only). num0=12.3 (fp64) % 2 = ~0.3 — within 1e-6 of decimal 0.3 because fp64 representation
+     * of 12.3 is accurate to ~15 sig digits.
+     */
+    public void testArithmeticModFp() throws IOException {
+        assertSingleRowApprox(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 2 | fields r",
+            0.3,
+            1e-6
+        );
+    }
+
+    /** MOD on zero divisor follows IEEE 754 for fp: {@code num0 % 0} → NaN (serialized as string). */
+    public void testArithmeticModByZero() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 0 | fields r",
+            "NaN"
+        );
+    }
+
+    /** DIVIDE by zero follows IEEE 754 for fp: positive numerator over 0 → +Infinity (serialized as string). */
+    public void testArithmeticDivideByZero() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval q = num0 / 0 | fields q",
+            "Infinity"
+        );
+    }
+
     // ── Project-side comparisons: eval boolean result, filter by it ───────────
 
     public void testEqualsInEvalProjection() throws IOException {
