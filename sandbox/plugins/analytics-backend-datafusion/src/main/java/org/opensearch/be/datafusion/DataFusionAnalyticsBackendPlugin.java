@@ -13,6 +13,9 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
@@ -65,6 +68,8 @@ import java.util.Set;
  * creates per-shard execution engines.
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
+
+    private static final Logger LOGGER = LogManager.getLogger(DataFusionAnalyticsBackendPlugin.class);
 
     private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.VALUES);
 
@@ -818,7 +823,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         BackendExecutionContext backendContext
     ) {
         FilterTreeCallbacks.register(contextId, handle, tracker);
-        return () -> FilterTreeCallbacks.unregister(contextId);
+        return () -> {
+            FilterTreeCallbacks.unregister(contextId);
+            try {
+                handle.close();
+            } catch (Exception e) {
+                LOGGER.warn(new ParameterizedMessage("FilterDelegationHandle.close() failed for contextId={}", contextId), e);
+            }
+        };
     }
 
     @Override

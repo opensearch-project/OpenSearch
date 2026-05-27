@@ -268,12 +268,15 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
     }
 
     /**
-     * Demonstrates why per-query isolation is necessary. When multiple queries share
-     * the same contextId (simulating the old global singleton behavior), concurrent
-     * upcalls read the wrong handle and get incorrect results.
+     * Demonstrates why per-query isolation is necessary. Simulates the old global-singleton
+     * race: each thread installs its own per-query handle but at a shared contextId. The race
+     * is between {@code register(SHARED, myHandle)} and the subsequent upcalls — another
+     * thread may overwrite the binding with its handle before our upcalls fire, so we read
+     * back the wrong handle's data.
      *
-     * This test is expected to FAIL if all queries share a single contextId (the old bug).
-     * It passes only because each query has its own contextId.
+     * This test asserts that corruption count is greater than zero — proving the singleton
+     * pattern is unsafe under concurrency. Use of distinct contextIds eliminates this race
+     * (see {@link #testConcurrentQueriesIsolated}).
      */
     public void testSharedContextIdCausesDataCorruption() throws Exception {
         int queryCount = 4;
@@ -295,7 +298,11 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
                 try {
                     barrier.await(5, TimeUnit.SECONDS);
                     for (int i = 0; i < 20; i++) {
-                        // Each iteration overwrites the shared binding — last writer wins
+                        // Each thread re-registers ITS OWN handle at the shared contextId before
+                        // every iteration. This mirrors the old global-singleton race where each
+                        // query installed its handle into a single AtomicReference. Concurrent
+                        // threads will overwrite each other's binding between this register call
+                        // and the upcalls below — leading to wrong-handle reads.
                         FilterTreeCallbacks.register(SHARED_CONTEXT_ID, handles[queryIdx], null);
 
                         int pk = FilterTreeCallbacks.createProvider(SHARED_CONTEXT_ID, 1);
