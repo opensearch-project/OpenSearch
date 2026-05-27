@@ -20,7 +20,11 @@ repositories {
       excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
     }
   }
-  gradlePluginPortal()
+  gradlePluginPortal {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
   // TODO: Find the way to use the repositories from RepositoriesSetupPlugin
   maven {
     url = "https://ci.opensearch.org/ci/dbc/snapshots/lucene/"
