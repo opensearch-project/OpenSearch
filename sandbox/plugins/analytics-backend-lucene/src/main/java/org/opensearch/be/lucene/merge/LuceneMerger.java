@@ -120,11 +120,21 @@ public class LuceneMerger implements Merger {
         List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
 
         if (matchingSegments.isEmpty()) {
-            logger.debug(
-                "No Lucene segments found matching writer generations {} — already consumed by a concurrent merge",
-                generationsToMerge
+            // Segments may have been consumed by a concurrent inline merge-on-refresh.
+            // Validate: if the writer still has segments (just not the ones we want),
+            // a prior merge consumed them. If the writer is empty or closed, something else is wrong.
+            if (segmentInfos.size() > 0 || indexWriter.isOpen() == false) {
+                throw new org.apache.lucene.store.AlreadyClosedException(
+                    "Lucene segments for generations "
+                        + generationsToMerge
+                        + " already consumed by a concurrent merge (current segmentInfos size="
+                        + segmentInfos.size()
+                        + ")"
+                );
+            }
+            throw new IOException(
+                "No Lucene segments found matching writer generations " + generationsToMerge + " and no other segments exist"
             );
-            return new MergeResult(Map.of());
         }
 
         logger.debug(
