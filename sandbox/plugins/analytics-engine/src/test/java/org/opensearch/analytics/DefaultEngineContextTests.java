@@ -41,9 +41,14 @@ public class DefaultEngineContextTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         IndexNameExpressionResolver injectedResolver = mock(IndexNameExpressionResolver.class);
-        when(injectedResolver.concreteIndexNames(same(clusterState), any(IndicesOptions.class), any(String[].class))).thenReturn(
-            new String[0]
-        );
+        when(
+            injectedResolver.concreteIndexNames(
+                same(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[0]);
 
         AnalyticsPlugin.DefaultEngineContext ctx = new AnalyticsPlugin.DefaultEngineContext(
             clusterService,
@@ -58,6 +63,11 @@ public class DefaultEngineContextTests extends OpenSearchTestCase {
         // (in IndexResolution.resolve's fallback path), which is what we're pinning.
         schema.getTable("any_table");
 
-        verify(injectedResolver, atLeastOnce()).concreteIndexNames(same(clusterState), any(IndicesOptions.class), any(String[].class));
+        verify(injectedResolver, atLeastOnce()).concreteIndexNames(
+            same(clusterState),
+            any(IndicesOptions.class),
+            org.mockito.ArgumentMatchers.anyBoolean(),
+            any(String[].class)
+        );
     }
 }

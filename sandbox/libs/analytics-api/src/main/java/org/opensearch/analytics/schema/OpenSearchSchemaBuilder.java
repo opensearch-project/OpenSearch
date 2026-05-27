@@ -119,9 +119,14 @@ public class OpenSearchSchemaBuilder {
             try {
                 // Comma-split first: concreteIndexNames treats each vararg as one expression, and
                 // splitting lets the resolver honor exclusions across tokens (e.g. "test*,-test1").
+                // includeDataStreams=true so wildcards / comma-lists that match a data stream NAME
+                // expand to its backings (the resolver normally excludes data streams from
+                // wildcard expansion otherwise). Literal data stream / alias names take the
+                // abstraction short-circuit above and skip the resolver entirely.
                 concrete = resolver.concreteIndexNames(
                     clusterState,
                     IndicesOptions.lenientExpandOpen(),
+                    true,
                     Strings.splitStringByCommaToArray(expression)
                 );
             } catch (IndexNotFoundException e) {

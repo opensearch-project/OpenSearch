@@ -583,8 +583,14 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
 
     /** Parse + validate + convert SQL against the given Calcite schema; throws on validator error. */
     private static RelNode parseValidateConvert(SchemaPlus schema, String sql) throws Exception {
+        // Preserve the original case of unquoted identifiers so both table names and column names
+        // reach the validator as-typed. Default Calcite parsing uppercases unquoted identifiers
+        // (Lex.ORACLE), which would force a case-insensitive validator + getTableNames()
+        // enumeration — incompatible with the lazy schema (table names aren't enumerable until
+        // resolved). PPL hits the schema via RelBuilder.scan with the user-typed case directly;
+        // this config mirrors that for SQL-based unit tests.
         FrameworkConfig config = Frameworks.newConfigBuilder()
-            .parserConfig(SqlParser.config().withCaseSensitive(false))
+            .parserConfig(SqlParser.config().withUnquotedCasing(org.apache.calcite.avatica.util.Casing.UNCHANGED))
             .defaultSchema(schema)
             .operatorTable(SqlStdOperatorTable.instance())
             .build();

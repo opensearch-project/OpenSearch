@@ -88,6 +88,130 @@ public class DataStreamIT extends AnalyticsRestTestCase {
         assertContains(error, "divergent");
     }
 
+    /**
+     * Wildcard expression that matches a data stream name (e.g. {@code logs*} → {@code logs_ds}).
+     * The schema's literal-name short-circuit only fires for exact matches, so this exercises the
+     * resolver path. The data stream backings are hidden indices, so this asserts the schema /
+     * IndexResolution paths correctly expand hidden backings for data stream patterns.
+     */
+    public void testDataStreamMatchedByWildcardFansOut() throws IOException {
+        ensureCleanup();
+        createDataStreamTemplate();
+        bulkIntoStream(STREAM, """
+            {"@timestamp":"2026-05-01T00:00:00Z","v":1}
+            {"@timestamp":"2026-05-01T00:00:01Z","v":2}
+            """);
+        rolloverStream(STREAM);
+        bulkIntoStream(STREAM, """
+            {"@timestamp":"2026-05-02T00:00:00Z","v":3}
+            """);
+
+        long count = singleCount("source=logs* | stats count() as c");
+        assertEquals("wildcard matching a data stream must fan out across all open backings", 3L, count);
+    }
+
+    /**
+     * A closed older-generation backing must be silently filtered (matching the alias path's
+     * lenientExpandOpen behavior). Asserts the query returns only the open generation's rows
+     * — a regression that surfaces the closed backing into shard routing would fail at search.
+     */
+    public void testDataStreamSkipsClosedBackingGeneration() throws IOException {
+        ensureCleanup();
+        createDataStreamTemplate();
+        bulkIntoStream(STREAM, """
+            {"@timestamp":"2026-05-01T00:00:00Z","v":1}
+            {"@timestamp":"2026-05-01T00:00:01Z","v":2}
+            """);
+        rolloverStream(STREAM);
+        bulkIntoStream(STREAM, """
+            {"@timestamp":"2026-05-02T00:00:00Z","v":3}
+            {"@timestamp":"2026-05-02T00:00:01Z","v":4}
+            {"@timestamp":"2026-05-02T00:00:02Z","v":5}
+            """);
+        // Close the older generation; only generation 2's rows (3 docs) should be visible.
+        client().performRequest(new Request("POST", "/.ds-" + STREAM + "-000001/_close"));
+
+        long count = singleCount("source=" + STREAM + " | stats count() as c");
+        assertEquals("closed gen-1 backing excluded: only gen-2's 3 rows", 3L, count);
+    }
+
+    /**
+     * Comma-separated source expression mixing a data stream with a plain index:
+     * {@code source = logs_ds,plain_index}. Comma splitting routes through the resolver path,
+     * which must include the data stream's hidden backings — not just the plain index. Asserts
+     * the row count is the sum of both sides.
+     */
+    public void testCommaListMixingDataStreamAndConcreteIndex() throws IOException {
+        ensureCleanup();
+        createDataStreamTemplate();
+        bulkIntoStream(STREAM, """
+            {"@timestamp":"2026-05-01T00:00:00Z","v":1}
+            {"@timestamp":"2026-05-01T00:00:01Z","v":2}
+            """);
+
+        String plain = "plain_logs";
+        // DELETE first to keep this test self-contained across re-runs.
+        try {
+            client().performRequest(new Request("DELETE", "/" + plain));
+        } catch (ResponseException ignored) {}
+        Request createPlain = new Request("PUT", "/" + plain);
+        createPlain.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.number_of_shards\":1,\"index.number_of_replicas\":0},"
+                + "\"mappings\":{\"properties\":{\"@timestamp\":{\"type\":\"date\"},\"v\":{\"type\":\"long\"}}}}"
+        );
+        client().performRequest(createPlain);
+        Request bulkPlain = new Request("POST", "/" + plain + "/_bulk");
+        bulkPlain.setJsonEntity(
+            "{\"index\":{}}\n{\"@timestamp\":\"2026-05-01T00:00:00Z\",\"v\":10}\n"
+                + "{\"index\":{}}\n{\"@timestamp\":\"2026-05-01T00:00:01Z\",\"v\":11}\n"
+                + "{\"index\":{}}\n{\"@timestamp\":\"2026-05-01T00:00:02Z\",\"v\":12}\n"
+        );
+        bulkPlain.addParameter("refresh", "true");
+        bulkPlain.setOptions(bulkPlain.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build());
+        client().performRequest(bulkPlain);
+
+        long count = singleCount("source=" + STREAM + "," + plain + " | stats count() as c");
+        assertEquals("comma-list across data stream (2) + plain index (3) must fan out", 5L, count);
+    }
+
+    /**
+     * Multi-bucket group-by spanning rollover boundaries: each generation has rows tagged with a
+     * category field, and the aggregation must reduce correctly across both backings. Exercises
+     * the coordinator-reduce stage for data streams (different code path than single-column
+     * scalar aggregates like sum/count).
+     */
+    public void testDataStreamGroupByAcrossBackings() throws IOException {
+        ensureCleanup();
+        createDataStreamTemplateWithCategory();
+        // Generation 1: 2× "alpha", 1× "beta".
+        bulkIntoStream(STREAM, """
+            {"@timestamp":"2026-05-01T00:00:00Z","v":1,"category":"alpha"}
+            {"@timestamp":"2026-05-01T00:00:01Z","v":2,"category":"alpha"}
+            {"@timestamp":"2026-05-01T00:00:02Z","v":3,"category":"beta"}
+            """);
+        rolloverStream(STREAM);
+        // Generation 2: 1× "alpha", 2× "beta".
+        bulkIntoStream(STREAM, """
+            {"@timestamp":"2026-05-02T00:00:00Z","v":4,"category":"alpha"}
+            {"@timestamp":"2026-05-02T00:00:01Z","v":5,"category":"beta"}
+            {"@timestamp":"2026-05-02T00:00:02Z","v":6,"category":"beta"}
+            """);
+
+        Map<String, Object> body = executePpl("source=" + STREAM + " | stats count() as c by category | sort category");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        assertNotNull(rows);
+        assertEquals("two distinct categories", 2, rows.size());
+        // After sort by category: alpha (3), beta (3).
+        assertEquals("alpha", rows.get(0).get(1));
+        assertEquals(3L, ((Number) rows.get(0).get(0)).longValue());
+        assertEquals("beta", rows.get(1).get(1));
+        assertEquals(3L, ((Number) rows.get(1).get(0)).longValue());
+    }
+
     // ── setup helpers ────────────────────────────────────────────────────
 
     /** Removes any leftover data stream + template from a prior run. */
@@ -121,6 +245,30 @@ public class DataStreamIT extends AnalyticsRestTestCase {
                 + "\"mappings\":{\"properties\":{"
                 + "\"@timestamp\":{\"type\":\"date\"},"
                 + "\"v\":{\"type\":\"long\"}"
+                + "}}"
+                + "}}"
+        );
+        client().performRequest(put);
+    }
+
+    /** Template variant that also maps a {@code category} keyword field for group-by tests. */
+    private void createDataStreamTemplateWithCategory() throws IOException {
+        Request put = new Request("PUT", "/_index_template/" + TEMPLATE);
+        put.setJsonEntity(
+            "{\"index_patterns\":[\"" + STREAM + "\"],"
+                + "\"data_stream\":{},"
+                + "\"template\":{"
+                + "\"settings\":{"
+                + "\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.number_of_shards\":1,"
+                + "\"index.number_of_replicas\":0"
+                + "},"
+                + "\"mappings\":{\"properties\":{"
+                + "\"@timestamp\":{\"type\":\"date\"},"
+                + "\"v\":{\"type\":\"long\"},"
+                + "\"category\":{\"type\":\"keyword\"}"
                 + "}}"
                 + "}}"
         );

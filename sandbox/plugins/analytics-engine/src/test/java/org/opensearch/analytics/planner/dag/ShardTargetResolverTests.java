@@ -102,8 +102,22 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         when(nodesB.get("node-b")).thenReturn(nodeB);
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndexNames(eq(stateA), any(IndicesOptions.class), any(String[].class))).thenReturn(new String[] { "idx_a" });
-        when(resolver.concreteIndexNames(eq(stateB), any(IndicesOptions.class), any(String[].class))).thenReturn(new String[] { "idx_b" });
+        when(
+            resolver.concreteIndexNames(
+                eq(stateA),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "idx_a" });
+        when(
+            resolver.concreteIndexNames(
+                eq(stateB),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "idx_b" });
 
         ShardId shardA = new ShardId(new Index("idx_a", "uuid-a"), 0);
         ShardId shardB = new ShardId(new Index("idx_b", "uuid-b"), 0);

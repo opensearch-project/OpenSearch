@@ -115,7 +115,11 @@ public final class IndexResolution {
             String[] expressions = Strings.splitStringByCommaToArray(name);
             String[] concrete;
             try {
-                concrete = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), expressions);
+                // includeDataStreams=true so wildcards and comma-lists matching a data stream NAME
+                // expand to its backings — the resolver excludes data streams from wildcard
+                // expansion otherwise. Literal data stream names take the abstraction short-circuit
+                // above (resolveDataStream) and skip the resolver entirely.
+                concrete = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), true, expressions);
             } catch (IndexNotFoundException e) {
                 throw new IllegalArgumentException("Index or alias [" + name + "] not found in cluster state", e);
             }
