@@ -120,20 +120,10 @@ public class LuceneMerger implements Merger {
         List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
 
         if (matchingSegments.isEmpty()) {
-            // Segments may have been consumed by a concurrent inline merge-on-refresh.
-            // Validate: if the writer still has segments (just not the ones we want),
-            // a prior merge consumed them. If the writer is empty or closed, something else is wrong.
-            if (segmentInfos.size() > 0 || indexWriter.isOpen() == false) {
-                throw new org.apache.lucene.store.AlreadyClosedException(
-                    "Lucene segments for generations "
-                        + generationsToMerge
-                        + " already consumed by a concurrent merge (current segmentInfos size="
-                        + segmentInfos.size()
-                        + ")"
-                );
-            }
             throw new IOException(
-                "No Lucene segments found matching writer generations " + generationsToMerge + " and no other segments exist"
+                "No Lucene segments found matching writer generations "
+                    + generationsToMerge
+                    + " — segments may have been consumed by a concurrent merge"
             );
         }
 
@@ -148,12 +138,6 @@ public class LuceneMerger implements Merger {
         // writer_generation attribute onto the merged SegmentInfo via setMergeInfo, which
         // Lucene invokes immediately before codec.segmentInfoFormat().write(...) — so the
         // attribute is persisted to the .si file and survives a writer reopen.
-        if (indexWriter.isOpen() == false) {
-            throw new org.apache.lucene.store.AlreadyClosedException(
-                "IndexWriter is closed, cannot merge generations " + generationsToMerge
-            );
-        }
-
         MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
         indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
