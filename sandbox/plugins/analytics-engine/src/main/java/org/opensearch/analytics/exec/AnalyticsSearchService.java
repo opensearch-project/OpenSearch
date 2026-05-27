@@ -297,6 +297,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setNamedWriteableRegistry(namedWriteableRegistry);
         ctx.setQueryCache(shard.getQueryCache());
         ctx.setQueryCachingPolicy(shard.getQueryCachingPolicy());
+        ctx.setShardId(shard.shardId());
         return ctx;
     }
 
