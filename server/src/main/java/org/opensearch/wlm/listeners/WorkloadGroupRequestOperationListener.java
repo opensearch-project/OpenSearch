@@ -44,7 +44,8 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
         final String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
         workloadGroupService.rejectIfNeeded(workloadGroupId);
-        applyWorkloadGroupSearchSettings(workloadGroupId, searchRequestContext.getRequest());
+        WorkloadGroup workloadGroup = workloadGroupService.getCurrentWorkloadGroup();
+        applyWorkloadGroupSearchSettings(workloadGroup, searchRequestContext.getRequest());
     }
 
     @Override
@@ -61,15 +62,10 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
      * applied when the request does not already have an explicit value set.
      * When {@code true}, WLM settings always take precedence over request-level values.
      *
-     * @param workloadGroupId the workload group identifier from thread context
+     * @param workloadGroup the resolved workload group, or null if none is attached to the request
      * @param searchRequest the search request to modify
      */
-    private void applyWorkloadGroupSearchSettings(String workloadGroupId, SearchRequest searchRequest) {
-        if (workloadGroupId == null) {
-            return;
-        }
-
-        WorkloadGroup workloadGroup = workloadGroupService.getWorkloadGroupById(workloadGroupId);
+    private void applyWorkloadGroupSearchSettings(WorkloadGroup workloadGroup, SearchRequest searchRequest) {
         if (workloadGroup == null) {
             return;
         }
