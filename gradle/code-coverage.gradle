@@ -9,6 +9,7 @@
 apply plugin: 'jacoco'
 
 repositories {
+  maven { url = "https://ci.opensearch.org/maven2/" }
   mavenCentral()
   gradlePluginPortal()
   // TODO: Find the way to use the repositories from RepositoriesSetupPlugin

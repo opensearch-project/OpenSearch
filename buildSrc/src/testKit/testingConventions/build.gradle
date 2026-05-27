@@ -18,6 +18,7 @@ allprojects {
   apply plugin: 'opensearch.build'
 
   repositories {
+    maven { url = "https://ci.opensearch.org/maven2/" }
     mavenCentral()
   }
   dependencies {
