@@ -229,81 +229,86 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
 
         // Merge on refresh: when multiple writer segments exist and size is within threshold,
-        // merge all formats. Like Lucene's getReader: prepare inside lock, merge outside lock.
+        // merge all formats. On failure, fall back to normal per-writer segments (background
+        // merge will consolidate later). This ensures refresh never fails due to merge errors
+        // (e.g., merge pool rejection, resource contention).
         final long mergeOnRefreshStartNanos = System.nanoTime();
         if (refreshInput.hasNextGeneration() && shouldMergeOnRefresh(refreshInput.writerFiles())) {
             Set<Long> existingGens = refreshInput.existingSegments().stream().map(Segment::generation).collect(Collectors.toSet());
             List<Segment> onlyNew = newSegments.stream().filter(s -> existingGens.contains(s.generation()) == false).toList();
 
             if (onlyNew.size() > 1) {
-                Merger primaryMerger = primaryEngine.getMerger();
-                MergeInput primaryMergeInput = MergeInput.builder()
-                    .segments(onlyNew)
-                    .newWriterGeneration(refreshInput.nextAvailableGeneration())
-                    .build();
-                MergeResult primaryResult = primaryMerger.merge(primaryMergeInput);
-                final long primaryMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
-                    System.nanoTime() - mergeOnRefreshStartNanos
-                );
+                try {
+                    Merger primaryMerger = primaryEngine.getMerger();
+                    MergeInput primaryMergeInput = MergeInput.builder()
+                        .segments(onlyNew)
+                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
+                        .build();
+                    MergeResult primaryResult = primaryMerger.merge(primaryMergeInput);
+                    final long primaryMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                        System.nanoTime() - mergeOnRefreshStartNanos
+                    );
 
-                WriterFileSet primaryMerged = primaryResult.getMergedWriterFileSetForDataformat(primaryEngine.getDataFormat());
+                    WriterFileSet primaryMerged = primaryResult.getMergedWriterFileSetForDataformat(primaryEngine.getDataFormat());
 
-                if (primaryMerged != null) {
-                    Segment.Builder consolidated = Segment.builder(refreshInput.nextAvailableGeneration());
-                    consolidated.addSearchableFiles(primaryEngine.getDataFormat(), primaryMerged);
+                    if (primaryMerged != null) {
+                        Segment.Builder consolidated = Segment.builder(refreshInput.nextAvailableGeneration());
+                        consolidated.addSearchableFiles(primaryEngine.getDataFormat(), primaryMerged);
 
-                    final long secMergeStartNanos = System.nanoTime();
-                    primaryResult.rowIdMapping().ifPresent(rowIdMapping -> {
-                        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-                            try {
-                                Merger secMerger = engine.getMerger();
-                                MergeInput secMergeInput = MergeInput.builder()
-                                    .segments(onlyNew)
-                                    .rowIdMapping(rowIdMapping)
-                                    .newWriterGeneration(refreshInput.nextAvailableGeneration())
-                                    .build();
-                                MergeResult secResult = secMerger.merge(secMergeInput);
-                                WriterFileSet secMerged = secResult.getMergedWriterFileSetForDataformat(engine.getDataFormat());
-                                if (secMerged != null) {
-                                    consolidated.addSearchableFiles(engine.getDataFormat(), secMerged);
+                        final long secMergeStartNanos = System.nanoTime();
+                        primaryResult.rowIdMapping().ifPresent(rowIdMapping -> {
+                            for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+                                try {
+                                    Merger secMerger = engine.getMerger();
+                                    MergeInput secMergeInput = MergeInput.builder()
+                                        .segments(onlyNew)
+                                        .rowIdMapping(rowIdMapping)
+                                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
+                                        .build();
+                                    MergeResult secResult = secMerger.merge(secMergeInput);
+                                    WriterFileSet secMerged = secResult.getMergedWriterFileSetForDataformat(engine.getDataFormat());
+                                    if (secMerged != null) {
+                                        consolidated.addSearchableFiles(engine.getDataFormat(), secMerged);
+                                    }
+                                } catch (IOException e) {
+                                    throw new java.io.UncheckedIOException(e);
                                 }
-                            } catch (IOException e) {
-                                throw new java.io.UncheckedIOException(e);
                             }
-                        }
-                    });
-                    final long secMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secMergeStartNanos);
-                    final long totalMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
-                        System.nanoTime() - mergeOnRefreshStartNanos
-                    );
+                        });
+                        final long secMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secMergeStartNanos);
 
-                    List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
-                    Segment mergedSegment = consolidated.build();
-                    result.add(mergedSegment);
+                        List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
+                        Segment mergedSegment = consolidated.build();
+                        result.add(mergedSegment);
 
-                    final long totalElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
-                        System.nanoTime() - mergeOnRefreshStartNanos
-                    );
-                    logger.info(
-                        "merge-on-refresh: merged {} segments into gen={}, primaryMerge={}ms, secondaryMerge={}ms, total={}ms, "
-                            + "resultSegments={}, existingSegments={}",
-                        onlyNew.size(),
-                        refreshInput.nextAvailableGeneration(),
-                        primaryMergeMs,
-                        secMergeMs,
-                        totalElapsedMs,
-                        result.size(),
-                        refreshInput.existingSegments().size()
-                    );
+                        final long totalElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                            System.nanoTime() - mergeOnRefreshStartNanos
+                        );
+                        logger.info(
+                            "merge-on-refresh: merged {} segments into gen={}, primaryMerge={}ms, secondaryMerge={}ms, total={}ms, "
+                                + "resultSegments={}, existingSegments={}",
+                            onlyNew.size(),
+                            refreshInput.nextAvailableGeneration(),
+                            primaryMergeMs,
+                            secMergeMs,
+                            totalElapsedMs,
+                            result.size(),
+                            refreshInput.existingSegments().size()
+                        );
 
-                    assert result.size() == refreshInput.existingSegments().size() + 1
-                        : "merge on refresh must produce exactly 1 new segment, got "
-                            + (result.size() - refreshInput.existingSegments().size())
-                            + " new segments";
-                    assert result.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
-                        : "refresh result segments must contain all configured formats";
+                        assert result.size() == refreshInput.existingSegments().size() + 1
+                            : "merge on refresh must produce exactly 1 new segment, got "
+                                + (result.size() - refreshInput.existingSegments().size())
+                                + " new segments";
+                        assert result.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
+                            : "refresh result segments must contain all configured formats";
 
-                    return new RefreshResult(List.copyOf(result));
+                        return new RefreshResult(List.copyOf(result));
+                    }
+                } catch (Exception e) {
+                    // Merge-on-refresh is best-effort. On failure, fall back to normal per-writer
+                    // segments. Background merge will consolidate them later.
+                    logger.warn("merge-on-refresh failed, falling back to per-writer segments", e);
                 }
             }
         }
