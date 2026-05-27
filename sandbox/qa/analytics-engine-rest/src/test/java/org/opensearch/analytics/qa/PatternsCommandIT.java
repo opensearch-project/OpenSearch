@@ -56,7 +56,24 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         if (multiProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET_MULTI, 3);
             multiProvisioned = true;
+            // Self-check: the QA integTest cluster runs with 2 nodes (per build.gradle), so a
+            // 3-shard index distributes shards across nodes and gathering is genuinely
+            // cross-node. Verify the shard count came through DatasetProvisioner override.
+            Request settingsRequest = new Request("GET", "/" + DATASET_MULTI.indexName + "/_settings");
+            Response settingsResponse = client().performRequest(settingsRequest);
+            Map<String, Object> settings = assertOkAndParse(settingsResponse, "settings: " + DATASET_MULTI.indexName);
+            String shardCount = extractShardCount(settings, DATASET_MULTI.indexName);
+            assertEquals("Multi-shard index must report number_of_shards=3", "3", shardCount);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String extractShardCount(Map<String, Object> settings, String indexName) {
+        Map<String, Object> indexSection = (Map<String, Object>) settings.get(indexName);
+        assertNotNull("Settings response missing index entry", indexSection);
+        Map<String, Object> settingsSection = (Map<String, Object>) indexSection.get("settings");
+        Map<String, Object> indexSettings = (Map<String, Object>) settingsSection.get("index");
+        return String.valueOf(indexSettings.get("number_of_shards"));
     }
 
     // ── SIMPLE patterns label mode (single-shard) ──────────────────────────────
