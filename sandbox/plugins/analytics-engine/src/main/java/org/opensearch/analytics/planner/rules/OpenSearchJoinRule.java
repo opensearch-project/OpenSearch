@@ -56,27 +56,12 @@ public class OpenSearchJoinRule extends RelOptRule {
     public boolean matches(RelOptRuleCall call) {
         LogicalJoin join = call.rel(0);
         JoinRelType joinType = join.getJoinType();
-        // Accept INNER / LEFT / RIGHT / FULL / SEMI / ANTI joins. FULL is needed
-        // by PPL's `appendcol` lowering (ROW_NUMBER pairing via a full outer join on the
-        // row numbers).
-        if (joinType != JoinRelType.INNER
-            && joinType != JoinRelType.LEFT
-            && joinType != JoinRelType.RIGHT
-            && joinType != JoinRelType.FULL
-            && joinType != JoinRelType.SEMI
-            && joinType != JoinRelType.ANTI) {
-            return false;
-        }
-        // All condition shapes — equi, mixed, null-safe, expression-key, pure
-        // non-equi — are accepted. DataFusion's join planner picks the right
-        // physical strategy:
-        // * equi keys present → HashJoin
-        // * IS_NOT_DISTINCT_FROM → HashJoin with null-safe key
-        // * pure non-equi → NestedLoopJoin (RelDecorrelator output for
-        // correlated subqueries with non-equi correlation predicates,
-        // e.g. {@code outer.id > inner.uid}, lands here)
-        // * literal-true (cross join) → CrossJoin
-        return true;
+        return joinType == JoinRelType.INNER
+            || joinType == JoinRelType.LEFT
+            || joinType == JoinRelType.RIGHT
+            || joinType == JoinRelType.FULL
+            || joinType == JoinRelType.SEMI
+            || joinType == JoinRelType.ANTI;
     }
 
     @Override
