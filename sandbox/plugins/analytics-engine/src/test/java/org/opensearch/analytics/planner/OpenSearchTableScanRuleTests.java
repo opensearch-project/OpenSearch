@@ -36,9 +36,9 @@ public class OpenSearchTableScanRuleTests extends BasePlannerRulesTests {
         // proceed past resolution. The verify() afterwards is the contract: the rule must have
         // gone through THIS resolver, not constructed its own.
         IndexNameExpressionResolver resolverFromContext = mock(IndexNameExpressionResolver.class);
-        when(
-            resolverFromContext.concreteIndexNames(any(ClusterState.class), any(IndicesOptions.class), any(String[].class))
-        ).thenReturn(new String[] { "test_index" });
+        when(resolverFromContext.concreteIndexNames(any(ClusterState.class), any(IndicesOptions.class), any(String[].class))).thenReturn(
+            new String[] { "test_index" }
+        );
 
         PlannerContext context = buildContextWithResolver(resolverFromContext);
         RelOptTable table = mockTable("test_index", "status", "size");

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner.dag;
 
+import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
@@ -18,7 +19,6 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -102,10 +102,8 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         when(nodesB.get("node-b")).thenReturn(nodeB);
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndexNames(eq(stateA), any(IndicesOptions.class), any(String[].class)))
-            .thenReturn(new String[] { "idx_a" });
-        when(resolver.concreteIndexNames(eq(stateB), any(IndicesOptions.class), any(String[].class)))
-            .thenReturn(new String[] { "idx_b" });
+        when(resolver.concreteIndexNames(eq(stateA), any(IndicesOptions.class), any(String[].class))).thenReturn(new String[] { "idx_a" });
+        when(resolver.concreteIndexNames(eq(stateB), any(IndicesOptions.class), any(String[].class))).thenReturn(new String[] { "idx_b" });
 
         ShardId shardA = new ShardId(new Index("idx_a", "uuid-a"), 0);
         ShardId shardB = new ShardId(new Index("idx_b", "uuid-b"), 0);
@@ -123,10 +121,12 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         OperationRouting routing = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(routing);
-        when(routing.searchShards(eq(stateA), eq(new String[] { "idx_a" }), any(), any()))
-            .thenReturn(new GroupShardsIterator<>(List.of(iterA)));
-        when(routing.searchShards(eq(stateB), eq(new String[] { "idx_b" }), any(), any()))
-            .thenReturn(new GroupShardsIterator<>(List.of(iterB)));
+        when(routing.searchShards(eq(stateA), eq(new String[] { "idx_a" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(List.of(iterA))
+        );
+        when(routing.searchShards(eq(stateB), eq(new String[] { "idx_b" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(List.of(iterB))
+        );
 
         RelNode fragment = stubScanForAlias("my_alias");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);

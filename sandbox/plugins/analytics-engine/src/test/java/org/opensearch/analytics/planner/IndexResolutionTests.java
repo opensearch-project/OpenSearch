@@ -10,7 +10,9 @@ package org.opensearch.analytics.planner;
 
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DataStreamTestHelper;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -18,6 +20,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -197,8 +200,10 @@ public class IndexResolutionTests extends OpenSearchTestCase {
     public void testNestedFieldTypeMismatchIsNotCaughtAtResolution() {
         // a.b is long in index "left", keyword in index "right" — but a itself is "object" in both,
         // and validateSchemaCompatibility only compares the object/object pair at top level.
-        IndexMetadata.Builder left = indexBuilder("left", "{\"properties\":{\"a\":{\"type\":\"object\",\"properties\":{\"b\":{\"type\":\"long\"}}}}}")
-            .putAlias(AliasMetadata.builder("both").build());
+        IndexMetadata.Builder left = indexBuilder(
+            "left",
+            "{\"properties\":{\"a\":{\"type\":\"object\",\"properties\":{\"b\":{\"type\":\"long\"}}}}}"
+        ).putAlias(AliasMetadata.builder("both").build());
         IndexMetadata.Builder right = indexBuilder(
             "right",
             "{\"properties\":{\"a\":{\"type\":\"object\",\"properties\":{\"b\":{\"type\":\"keyword\"}}}}}"
@@ -208,6 +213,63 @@ public class IndexResolutionTests extends OpenSearchTestCase {
         IndexResolution result = IndexResolution.resolve("both", state);
 
         assertThat(result.concreteIndexNames(), org.hamcrest.Matchers.containsInAnyOrder("left", "right"));
+    }
+
+    /**
+     * Data streams fan out to their backing indices, just like aliases. The same closed-filter
+     * and schema-compat checks apply — DS backings should have identical mappings by construction,
+     * but a manual amendment could drift, so we still validate.
+     */
+    public void testDataStreamResolvesToBackingIndices() {
+        IndexMetadata b1 = indexBuilder(DataStream.getDefaultBackingIndexName("logs", 1), longField("age")).build();
+        IndexMetadata b2 = indexBuilder(DataStream.getDefaultBackingIndexName("logs", 2), longField("age")).build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(
+                Metadata.builder()
+                    .put(b1, false)
+                    .put(b2, false)
+                    .put(
+                        new DataStream(
+                            "logs",
+                            DataStreamTestHelper.createTimestampField("@timestamp"),
+                            List.of(b1.getIndex(), b2.getIndex())
+                        )
+                    )
+                    .build()
+            )
+            .build();
+
+        IndexResolution result = IndexResolution.resolve("logs", state, RESOLVER);
+
+        assertEquals("logs", result.requestedName());
+        assertThat(result.concreteIndexNames(), org.hamcrest.Matchers.containsInAnyOrder(b1.getIndex().getName(), b2.getIndex().getName()));
+    }
+
+    /**
+     * Data stream backings with conflicting mappings fail the same schema-compat check as aliases.
+     * (DS backings *should* be identical by construction, but manual mapping amendments can drift.)
+     */
+    public void testDataStreamRejectsConflictingBackingMappings() {
+        IndexMetadata b1 = indexBuilder(DataStream.getDefaultBackingIndexName("logs", 1), longField("age")).build();
+        IndexMetadata b2 = indexBuilder(DataStream.getDefaultBackingIndexName("logs", 2), keywordField("age")).build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(
+                Metadata.builder()
+                    .put(b1, false)
+                    .put(b2, false)
+                    .put(
+                        new DataStream(
+                            "logs",
+                            DataStreamTestHelper.createTimestampField("@timestamp"),
+                            List.of(b1.getIndex(), b2.getIndex())
+                        )
+                    )
+                    .build()
+            )
+            .build();
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> IndexResolution.resolve("logs", state, RESOLVER));
+        assertTrue("error must mention the conflicting field: " + ex.getMessage(), ex.getMessage().contains("age"));
     }
 
     public void testExclusionPatternResolvesCorrectly() {

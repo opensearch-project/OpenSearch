@@ -101,7 +101,7 @@ public final class IndexResolution {
             return switch (abstraction.getType()) {
                 case CONCRETE_INDEX -> resolveConcrete(name, abstraction.getIndices());
                 case ALIAS -> resolveAlias(name, abstraction.getIndices());
-                case DATA_STREAM -> throw new IllegalStateException("Data stream [" + name + "] is not supported by analytics queries");
+                case DATA_STREAM -> resolveDataStream(name, abstraction.getIndices());
             };
         }
         // Not a literal name: treat as an index expression and resolve through the canonical
@@ -154,6 +154,24 @@ public final class IndexResolution {
             }
         }
         return new IndexResolution(name, backing);
+    }
+
+    private static IndexResolution resolveDataStream(String dataStreamName, List<IndexMetadata> backing) {
+        // Same closed-filter and schema-compat semantics as aliases. Data stream backings are
+        // managed by the rollover lifecycle and should have identical mappings, but manual
+        // mapping amendments can drift — so validate. Skip the filter-aliases check (irrelevant
+        // for data streams) and the per-error wording mentions "data stream" for clarity.
+        List<IndexMetadata> open = new ArrayList<>(backing.size());
+        for (IndexMetadata index : backing) {
+            if (index.getState() == IndexMetadata.State.OPEN) {
+                open.add(index);
+            }
+        }
+        if (open.isEmpty()) {
+            throw new IllegalArgumentException("Data stream [" + dataStreamName + "] resolves only to closed indices");
+        }
+        validateSchemaCompatibility(dataStreamName, open);
+        return new IndexResolution(dataStreamName, open);
     }
 
     private static IndexResolution resolveAlias(String aliasName, List<IndexMetadata> backing) {

@@ -204,12 +204,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
      * system-index access checks, and ThreadContext threading. Building schemas with a fresh
      * resolver would silently bypass those checks.
      */
-    record DefaultEngineContext(
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        SqlOperatorTable operatorTable,
-        Map<String, AnalyticsSearchBackendPlugin> backends
-    ) implements EngineContext {
+    record DefaultEngineContext(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
+        SqlOperatorTable operatorTable, Map<String, AnalyticsSearchBackendPlugin> backends) implements EngineContext {
 
         @Override
         public SchemaPlus getSchema() {

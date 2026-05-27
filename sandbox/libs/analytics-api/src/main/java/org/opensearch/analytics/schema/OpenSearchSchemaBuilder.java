@@ -27,12 +27,10 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 
-import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Builds a Calcite {@link SchemaPlus} from OpenSearch {@link ClusterState} index mappings.
@@ -65,47 +63,30 @@ public class OpenSearchSchemaBuilder {
      */
     public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver) {
         Schema lazySchema = new AbstractSchema() {
-            // Caches resolved Tables keyed by lower-cased name. PPL hands user-typed case directly
-            // to RelBuilder.scan; SQL identifier folding can deliver upper-cased names — both must
-            // resolve to the same cached entry to avoid re-running the mapping union per query.
-            private final Map<String, Table> resolved = new HashMap<>();
-
-            // Schema-facing view: keySet() exposes the cluster's index + alias names so that
-            // AbstractSchema.getTableNames() (final, reads getTableMap().keySet()) enumerates
-            // them for Calcite's case-insensitive validator path — without forcing eager mapping
-            // walks at construction. get() resolves and caches lazily on first reference per name.
-            private final Map<String, Table> view = new AbstractMap<>() {
-                @Override
-                public Set<Map.Entry<String, Table>> entrySet() {
-                    // AbstractSchema.getTableMap() consumers only call keySet() and get(name);
-                    // entrySet enumeration would force resolution of every index. Return a view
-                    // built from the names (with null values) — Calcite never touches the values
-                    // through entrySet because it goes through get(name) for each matched name.
-                    return clusterState.metadata().getIndicesLookup().keySet().stream()
-                        .map(n -> (Map.Entry<String, Table>) new java.util.AbstractMap.SimpleEntry<String, Table>(n, null))
-                        .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
-                }
-
-                @Override
-                public Set<String> keySet() {
-                    return clusterState.metadata().getIndicesLookup().keySet();
-                }
-
+            // Truly lazy table map, mirroring sql-plugin's OpenSearchSchema pattern: no upfront
+            // enumeration of cluster indices. get() registers on first lookup and caches under the
+            // lower-cased name. PPL's RelBuilder.scan and Calcite's case-sensitive validator both
+            // reach the schema via getTable(name), which routes here directly — no entrySet /
+            // keySet iteration needed for production resolution. Callers that need name
+            // enumeration (Calcite's withCaseSensitive(false) parser path used in some unit tests)
+            // get only resolved names back, which is fine when the lookup name is exact-case.
+            private final Map<String, Table> tableMap = new HashMap<>() {
                 @Override
                 public Table get(Object key) {
                     String name = ((String) key).toLowerCase(java.util.Locale.ROOT);
-                    return resolved.computeIfAbsent(name, n -> resolveTable(clusterState, resolver, n));
-                }
-
-                @Override
-                public boolean containsKey(Object key) {
-                    return get(key) != null;
+                    if (!super.containsKey(name)) {
+                        Table resolved = resolveTable(clusterState, resolver, name);
+                        if (resolved != null) {
+                            super.put(name, resolved);
+                        }
+                    }
+                    return super.get(name);
                 }
             };
 
             @Override
             protected Map<String, Table> getTableMap() {
-                return view;
+                return tableMap;
             }
         };
 
@@ -123,24 +104,39 @@ public class OpenSearchSchemaBuilder {
      */
     @SuppressWarnings("unchecked")
     private static Table resolveTable(ClusterState clusterState, IndexNameExpressionResolver resolver, String expression) {
-        String[] concrete;
-        try {
-            // Comma-split first: concreteIndexNames treats each vararg as one expression, and
-            // splitting lets the resolver honor exclusions across tokens (e.g. "test*,-test1").
-            concrete = resolver.concreteIndexNames(
-                clusterState,
-                IndicesOptions.lenientExpandOpen(),
-                Strings.splitStringByCommaToArray(expression)
-            );
-        } catch (IndexNotFoundException e) {
-            return null;
+        // Short-circuit literal alias / data stream names so the resolver's lenientExpandOpen
+        // (which does not include hidden backings) doesn't filter out data stream backings. The
+        // alias / data-stream abstraction already carries the full backing list — use it directly.
+        java.util.SortedMap<String, org.opensearch.cluster.metadata.IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
+        org.opensearch.cluster.metadata.IndexAbstraction abstraction = lookup == null ? null : lookup.get(expression);
+        List<IndexMetadata> backing;
+        if (abstraction != null
+            && (abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.ALIAS
+                || abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM)) {
+            backing = abstraction.getIndices();
+        } else {
+            String[] concrete;
+            try {
+                // Comma-split first: concreteIndexNames treats each vararg as one expression, and
+                // splitting lets the resolver honor exclusions across tokens (e.g. "test*,-test1").
+                concrete = resolver.concreteIndexNames(
+                    clusterState,
+                    IndicesOptions.lenientExpandOpen(),
+                    Strings.splitStringByCommaToArray(expression)
+                );
+            } catch (IndexNotFoundException e) {
+                return null;
+            }
+            backing = new java.util.ArrayList<>(concrete.length);
+            for (String name : concrete) {
+                IndexMetadata index = clusterState.metadata().index(name);
+                if (index != null) {
+                    backing.add(index);
+                }
+            }
         }
         LinkedHashMap<String, Object> merged = new LinkedHashMap<>();
-        for (String name : concrete) {
-            IndexMetadata index = clusterState.metadata().index(name);
-            if (index == null) {
-                continue;
-            }
+        for (IndexMetadata index : backing) {
             MappingMetadata mapping = index.mapping();
             if (mapping == null) {
                 continue;
