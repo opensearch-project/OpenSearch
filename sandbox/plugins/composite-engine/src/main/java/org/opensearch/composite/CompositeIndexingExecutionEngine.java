@@ -232,30 +232,26 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         // merge all formats. On failure, fall back to normal per-writer segments (background
         // merge will consolidate later). This ensures refresh never fails due to merge errors
         // (e.g., merge pool rejection, resource contention).
-        final long mergeOnRefreshStartNanos = System.nanoTime();
         if (refreshInput.hasNextGeneration() && shouldMergeOnRefresh(refreshInput.writerFiles())) {
             Set<Long> existingGens = refreshInput.existingSegments().stream().map(Segment::generation).collect(Collectors.toSet());
             List<Segment> onlyNew = newSegments.stream().filter(s -> existingGens.contains(s.generation()) == false).toList();
 
             if (onlyNew.size() > 1) {
                 try {
+                    final long mergeStartNanos = System.nanoTime();
+
                     Merger primaryMerger = primaryEngine.getMerger();
                     MergeInput primaryMergeInput = MergeInput.builder()
                         .segments(onlyNew)
                         .newWriterGeneration(refreshInput.nextAvailableGeneration())
                         .build();
                     MergeResult primaryResult = primaryMerger.merge(primaryMergeInput);
-                    final long primaryMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
-                        System.nanoTime() - mergeOnRefreshStartNanos
-                    );
-
                     WriterFileSet primaryMerged = primaryResult.getMergedWriterFileSetForDataformat(primaryEngine.getDataFormat());
 
                     if (primaryMerged != null) {
                         Segment.Builder consolidated = Segment.builder(refreshInput.nextAvailableGeneration());
                         consolidated.addSearchableFiles(primaryEngine.getDataFormat(), primaryMerged);
 
-                        final long secMergeStartNanos = System.nanoTime();
                         primaryResult.rowIdMapping().ifPresent(rowIdMapping -> {
                             for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
                                 try {
@@ -275,26 +271,24 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                                 }
                             }
                         });
-                        final long secMergeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secMergeStartNanos);
 
                         List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
                         Segment mergedSegment = consolidated.build();
                         result.add(mergedSegment);
 
-                        final long totalElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
-                            System.nanoTime() - mergeOnRefreshStartNanos
-                        );
-                        logger.info(
-                            "merge-on-refresh: merged {} segments into gen={}, primaryMerge={}ms, secondaryMerge={}ms, total={}ms, "
-                                + "resultSegments={}, existingSegments={}",
-                            onlyNew.size(),
-                            refreshInput.nextAvailableGeneration(),
-                            primaryMergeMs,
-                            secMergeMs,
-                            totalElapsedMs,
-                            result.size(),
-                            refreshInput.existingSegments().size()
-                        );
+                        if (logger.isDebugEnabled()) {
+                            final long totalElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                                System.nanoTime() - mergeStartNanos
+                            );
+                            logger.debug(
+                                "merge-on-refresh: merged {} segments into gen={}, total={}ms, " + "resultSegments={}, existingSegments={}",
+                                onlyNew.size(),
+                                refreshInput.nextAvailableGeneration(),
+                                totalElapsedMs,
+                                result.size(),
+                                refreshInput.existingSegments().size()
+                            );
+                        }
 
                         assert result.size() == refreshInput.existingSegments().size() + 1
                             : "merge on refresh must produce exactly 1 new segment, got "
@@ -314,13 +308,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
 
         // No merge on refresh — pass through all segments
-        final long passThruElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - mergeOnRefreshStartNanos);
-        logger.info(
-            "merge-on-refresh: skipped (elapsed={}ms), resultSegments={}, existingSegments={}",
-            passThruElapsedMs,
-            newSegments.size(),
-            refreshInput.existingSegments().size()
-        );
         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
             : "refresh result segments must contain all configured formats";
         return new RefreshResult(List.copyOf(newSegments));
