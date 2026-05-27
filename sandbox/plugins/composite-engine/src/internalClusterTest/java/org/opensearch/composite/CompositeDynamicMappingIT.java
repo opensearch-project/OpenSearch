@@ -24,6 +24,7 @@ import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -80,7 +81,13 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
+        return Arrays.asList(
+            ArrowBasePlugin.class,
+            ParquetDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class,
+            DataFusionPlugin.class
+        );
     }
 
     @Override
@@ -100,7 +107,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
      * 4. Refresh + flush
      * 5. Verify all documents indexed, parquet files generated with correct segments
      */
-    public void testDynamicMappingWithParquet() throws IOException {
+    public void testDynamicMappingWithParquet() throws Exception {
         Settings indexSettings = parquetOnlySettings();
 
         // Create index with initial mapping
@@ -135,13 +142,10 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         // Index documents with NEW dynamic fields
         indexDocsWithDynamicFields(INDEX_NAME, 5, 10);
 
-        // Verify dynamic fields are now present in the mapping
-        mappingsResponse = client().admin().indices().prepareGetMappings(INDEX_NAME).get();
-        mappingSource = mappingsResponse.mappings().get(INDEX_NAME).sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> updatedProperties = (Map<String, Object>) mappingSource.get("properties");
-        assertTrue("Mapping should contain dynamic field 'dynamic_text'", updatedProperties.containsKey("dynamic_text"));
-        assertTrue("Mapping should contain dynamic field 'dynamic_long'", updatedProperties.containsKey("dynamic_long"));
+        // Verify dynamic fields are now present in the mapping.
+        // Note: The cluster-manager applies its own cluster state after publication completes,
+        // so there's a brief window where GetMappings on the cluster-manager may return stale data.
+        assertMappingsContain(INDEX_NAME, "dynamic_text", "dynamic_long");
 
         // Refresh and flush to produce parquet files
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(INDEX_NAME).get();
@@ -180,11 +184,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         }
 
         // Verify new dynamic field in mapping
-        mappingsResponse = client().admin().indices().prepareGetMappings(INDEX_NAME).get();
-        mappingSource = mappingsResponse.mappings().get(INDEX_NAME).sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> finalProperties = (Map<String, Object>) mappingSource.get("properties");
-        assertTrue("Mapping should contain dynamic field 'dynamic_extra'", finalProperties.containsKey("dynamic_extra"));
+        assertMappingsContain(INDEX_NAME, "dynamic_extra");
 
         // Refresh + flush again
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
@@ -575,20 +575,34 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
     // Private helpers: assertions
     // ══════════════════════════════════════════════════════════════════════
 
+    /**
+     * Asserts that the given fields are present in the index mapping, polling with assertBusy
+     * to account for the cluster-manager applying its own cluster state after publication completes.
+     */
+    private void assertMappingsContain(String indexName, String... expectedFields) throws Exception {
+        assertBusy(() -> {
+            GetMappingsResponse mappings = client().admin().indices().prepareGetMappings(indexName).get();
+            Map<String, Object> mappingSource = mappings.getMappings().get(indexName).sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
+            for (String field : expectedFields) {
+                assertTrue("Mapping should contain field '" + field + "'", properties.containsKey(field));
+            }
+        });
+    }
+
     private void assertDynamicFieldCount(List<Map<String, Object>> rows, String fieldName, long expectedCount) {
         long count = rows.stream().filter(row -> row.containsKey(fieldName) && row.get(fieldName) != null).count();
         assertEquals(expectedCount + " rows should have " + fieldName + " field populated", expectedCount, count);
     }
 
-    private void assertConcurrentMappings(String indexName, int numThreads) throws IOException {
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings(indexName).get();
-        Map<String, Object> mappingSource = mappings.getMappings().get(indexName).sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
+    private void assertConcurrentMappings(String indexName, int numThreads) throws Exception {
+        String[] expectedFields = new String[numThreads * 2];
         for (int i = 0; i < numThreads; i++) {
-            assertTrue("Mapping should contain fieldA_" + i, properties.containsKey("fieldA_" + i));
-            assertTrue("Mapping should contain fieldB_" + i, properties.containsKey("fieldB_" + i));
+            expectedFields[i * 2] = "fieldA_" + i;
+            expectedFields[i * 2 + 1] = "fieldB_" + i;
         }
+        assertMappingsContain(indexName, expectedFields);
     }
 
     private void assertConcurrentFieldValues(List<Map<String, Object>> rows, int numThreads) {

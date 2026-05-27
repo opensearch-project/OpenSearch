@@ -48,14 +48,11 @@ pub async fn execute_query(
     plan_bytes: Vec<u8>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
-    // Per-query memory pool, or None when context_id is 0 (tracking disabled).
-    // Not all query flows pass a context_id yet; this fallback allows queries
-    // to execute using the global pool. Can be made required once all flows
-    // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
     query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
     context_id: i64,
     shard_store: Arc<dyn ObjectStore>,
+    phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -74,6 +71,9 @@ pub async fn execute_query(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
@@ -134,10 +134,16 @@ pub async fn execute_query(
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);
 
-    let provider = Arc::new(ListingTable::try_new(table_config).map_err(|e| {
-        error!("Failed to create listing table: {}", e);
-        e
-    })?);
+    // Wire the global statistics cache into the ListingTable.
+    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
+    let provider = Arc::new(
+        ListingTable::try_new(table_config)
+            .map_err(|e| {
+                error!("Failed to create listing table: {}", e);
+                e
+            })?
+            .with_cache(stats_cache),
+    );
 
     ctx.register_table(&table_name, provider).map_err(|e| {
         error!("Failed to register table: {}", e);
@@ -152,6 +158,13 @@ pub async fn execute_query(
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    // Retag any physical-plan output columns whose type tags differ from what Substrait
+    // declared on bit-compatible Int↔UInt pairs (see crate::relabel_exec). The target is
+    // schema_coerce::coerce_inferred_schema(physical_schema) — the same narrowing the
+    // partition-stream registration uses, so the consumer's StreamingTable and the
+    // batches arriving from this producer agree by construction.
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
 
     let df_stream = execute_stream(physical_plan, ctx.task_ctx()).map_err(|e| {
         error!("Failed to create execution stream: {}", e);
@@ -165,6 +178,12 @@ pub async fn execute_query(
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
     }
+
+    // Attach phantom corrector for self-correcting budget (if provided)
+    let cross_rt_stream = match phantom_corrector {
+        Some(corrector) => cross_rt_stream.with_phantom_corrector(corrector),
+        None => cross_rt_stream,
+    };
 
     let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
         cross_rt_stream.schema(),
@@ -184,7 +203,12 @@ pub async fn execute_with_context(
     handle: SessionContextHandle,
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
+    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
+    // Permit was acquired by the caller (ffm.rs) on the IO runtime before
+    // spawning on the CPU runtime, so the Java search thread blocks at the
+    // gate when it is full — creating backpressure at the Java threadpool level.
+
     let context_id = handle.query_context.context_id();
     let token = crate::query_tracker::get_cancellation_token(context_id);
 
@@ -197,6 +221,8 @@ pub async fn execute_with_context(
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
+        let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
         log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
         let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
@@ -225,6 +251,8 @@ pub async fn execute_with_context(
 
     // Reconstruct the stream from the raw pointer
     let stream = unsafe { *Box::from_raw(stream_ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<CrossRtStream>) };
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx);
+    // Permit is held until the QueryStreamHandle is dropped (query complete).
+    // If cancellation fires → stream drops → handle drops → permit drops → gate releases.
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

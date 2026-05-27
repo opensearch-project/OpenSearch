@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 
 import java.util.Map;
 
@@ -63,6 +64,19 @@ public class WorkloadGroupSearchSettings {
     public static final Setting<Integer> WLM_BATCHED_REDUCE_SIZE = Setting.intSetting("search.batched_reduce_size", 512, 2);
 
     /**
+     * The WLM max buckets setting. Caps the number of aggregation buckets a request in this
+     * workload group may produce. Mirrors the cluster-level {@code search.max_buckets}; when
+     * set on a workload group, this value always takes precedence over the cluster default for
+     * requests assigned to the group. {@code override_request_values} is not relevant for this
+     * setting because {@code search.max_buckets} is not a per-request parameter.
+     */
+    public static final Setting<Integer> WLM_MAX_BUCKETS = Setting.intSetting(
+        "search.max_buckets",
+        MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+        0
+    );
+
+    /**
      * Controls whether WLM search settings should override values explicitly set in the
      * search request query parameters. When {@code false} (default), WLM settings are only
      * applied when the request does not have an explicit value. When {@code true}, WLM
@@ -82,6 +96,8 @@ public class WorkloadGroupSearchSettings {
         WLM_MAX_CONCURRENT_SHARD_REQUESTS,
         "search.batched_reduce_size",
         WLM_BATCHED_REDUCE_SIZE,
+        "search.max_buckets",
+        WLM_MAX_BUCKETS,
         "override_request_values",
         WLM_OVERRIDE_REQUEST_VALUES
     );

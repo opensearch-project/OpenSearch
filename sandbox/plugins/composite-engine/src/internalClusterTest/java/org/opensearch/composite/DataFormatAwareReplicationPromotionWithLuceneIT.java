@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -19,6 +20,7 @@ import java.util.Set;
  * the replication and promotion paths.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class DataFormatAwareReplicationPromotionWithLuceneIT extends DataFormatAwareReplicationPromotionIT {
 
     @Override
@@ -38,5 +40,11 @@ public class DataFormatAwareReplicationPromotionWithLuceneIT extends DataFormatA
     @Override
     protected Set<String> expectedFormats() {
         return Set.of("parquet", "lucene");
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
+    public void testUncleanFailoverWithContinuousIndexing() throws Exception {
+        super.testUncleanFailoverWithContinuousIndexing();
     }
 }

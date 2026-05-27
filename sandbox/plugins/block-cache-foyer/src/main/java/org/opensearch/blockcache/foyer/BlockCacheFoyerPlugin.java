@@ -14,11 +14,13 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheConstants;
 import org.opensearch.plugins.BlockCacheProvider;
@@ -80,8 +82,14 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
 
     /**
      * Registers Foyer-specific settings with the OpenSearch settings framework.
-     * Includes {@code block_cache.size} (capacity fraction) and Foyer-internal settings
-     * ({@code block_cache.block_size}, {@code block_cache.io_engine}).
+     * Includes {@code block_cache.foyer.size} (capacity fraction) and Foyer-internal settings
+     * ({@code block_cache.foyer.block_size}, {@code block_cache.foyer.io_engine},
+     * {@code block_cache.foyer.key_index_sweep_interval_seconds},
+     * {@code block_cache.foyer.key_index_sweep_threshold}).
+     *
+     * <p>Note: the data-to-cache amplification ratio is NOT registered here.
+     * It is read from the server-side setting {@code cluster.filecache.remote_data_ratio}
+     * so that the file cache and block cache always use a consistent ratio.
      */
     @Override
     public List<Setting<?>> getSettings() {
@@ -89,22 +97,27 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             FoyerBlockCacheSettings.CACHE_SIZE_SETTING,
             FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
             FoyerBlockCacheSettings.IO_ENGINE_SETTING,
-            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING
+            FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING,
+            FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING
         );
     }
 
     /**
      * Returns the data-to-cache amplification ratio for this plugin's block cache.
-     * Used by {@code WarmFsService} to compute virtual warm-node capacity for shard placement.
+     *
+     * <p>Reads from {@code cluster.filecache.remote_data_ratio} — the same setting
+     * used by the file cache — so both caches use a consistent ratio on the warm node.
+     * The removed plugin-specific setting {@code block_cache.foyer.data_to_cache_ratio}
+     * was redundant; operators should use {@code cluster.filecache.remote_data_ratio} instead.
      */
     @Override
     public double dataToCapacityRatio(Settings settings) {
-        return FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(settings);
+        return FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.get(settings);
     }
 
     @Override
     public String cacheName() {
-        return BlockCacheConstants.DISK_CACHE;
+        return BlockCacheConstants.FOYER;
     }
 
     /**
@@ -144,7 +157,9 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         final Settings settings = clusterService.getSettings();
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
         final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
-        // Use the exact capacity reserved by NodeCacheOrchestrator during budget phase.
+        final long sweepIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING.get(settings);
+        final double sweepThresholdRatio = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(settings);
+        // Use the exact capacity reserved by NodeCacheService during budget phase.
         final long diskCapacityBytes = reservedCapacityBytes;
 
         final String diskDir;
@@ -159,16 +174,33 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             return List.of();
         }
 
+        // block_size must be strictly less than the total disk capacity.
+        final long effectiveBlockSizeBytes;
+        if (blockSizeBytes >= diskCapacityBytes) {
+            throw new SettingsException(
+                "block_cache.foyer.block_size ("
+                    + blockSizeBytes
+                    + " bytes) must be smaller than the Foyer disk budget ("
+                    + diskCapacityBytes
+                    + " bytes). Reduce block_cache.foyer.block_size or increase node.search.cache.size."
+            );
+        } else {
+            effectiveBlockSizeBytes = blockSizeBytes;
+        }
+
         try {
-            cache = new FoyerBlockCache(diskCapacityBytes, diskDir, blockSizeBytes, ioEngine);
+            cache = new FoyerBlockCache(diskCapacityBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs, sweepThresholdRatio);
         } catch (final Throwable t) {
             throw new IllegalStateException("Failed to initialise Foyer block cache (diskDir=" + diskDir + ")", t);
         }
         logger.info(
-            "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={})",
+            "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={}, "
+                + "sweepIntervalSecs={}, sweepThresholdRatio={})",
             diskDir,
             blockSizeBytes,
-            ioEngine
+            ioEngine,
+            sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
+            sweepThresholdRatio == 0.0 ? "disabled" : sweepThresholdRatio
         );
         return List.of(cache);
     }

@@ -83,6 +83,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -188,6 +189,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final List<IndexCreationValidator> indexCreationValidators = new ArrayList<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
@@ -249,6 +251,13 @@ public class MetadataCreateIndexService {
             throw new IllegalArgumentException("provider already added");
         }
         this.indexSettingProviders.add(provider);
+    }
+
+    public void addIndexCreationValidator(IndexCreationValidator validator) {
+        if (validator == null) {
+            throw new IllegalArgumentException("validator must not be null");
+        }
+        indexCreationValidators.add(validator);
     }
 
     /**
@@ -532,7 +541,7 @@ public class MetadataCreateIndexService {
             Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
 
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata);
+                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata, indexCreationValidators);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
@@ -1682,7 +1691,8 @@ public class MetadataCreateIndexService {
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
-        @Nullable IndexMetadata sourceMetadata
+        @Nullable IndexMetadata sourceMetadata,
+        List<IndexCreationValidator> indexCreationValidators
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Object> mapping : mappings) {
@@ -1693,6 +1703,10 @@ public class MetadataCreateIndexService {
 
         if (mapperService.isCompositeIndexPresent()) {
             CompositeIndexValidator.validate(mapperService, indexService.getCompositeIndexSettings(), indexService.getIndexSettings());
+        }
+
+        for (IndexCreationValidator validator : indexCreationValidators) {
+            validator.validate(mapperService, indexService.getIndexSettings());
         }
 
         if (sourceMetadata == null) {

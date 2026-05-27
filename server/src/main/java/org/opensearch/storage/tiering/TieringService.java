@@ -18,6 +18,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -145,10 +146,26 @@ public abstract class TieringService implements ClusterStateListener {
     }
 
     /** Returns the settings to add when tiering starts. @return the tiering start settings */
-    protected abstract Settings getTieringStartSettingsToAdd();
+    protected abstract Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata);
 
     /** Returns the index tier settings to restore after cancellation. @return the settings to restore */
-    protected abstract Settings getIndexTierSettingsToRestoreAfterCancellation();
+    protected abstract Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata);
+
+    /** Returns the ClusterBlocks.Builder with tier-specific block changes for tier start. Only called for DFA indices. */
+    protected abstract ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    );
+
+    /** Returns the ClusterBlocks.Builder with tier-specific block changes for a cancel. Default is a no-op. */
+    protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        return blocksBuilder;
+    }
 
     /** Returns the key for tiering start time. @return the tiering start time key */
     protected abstract String getTieringStartTimeKey();
@@ -381,10 +398,18 @@ public abstract class TieringService implements ClusterStateListener {
 
                     updateIndexMetadataForTieringCancel(metadataBuilder, indexMetadata);
 
-                    ClusterState updatedState = ClusterState.builder(currentState)
+                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState)
                         .metadata(metadataBuilder)
                         .routingTable(routingTableBuilder.build())
-                        .build();
+                        .blocks(
+                            getIndexTierClusterBlocksToRestoreAfterCancellation(
+                                ClusterBlocks.builder().blocks(currentState.blocks()),
+                                index.getName(),
+                                indexMetadata
+                            )
+                        );
+
+                    ClusterState updatedState = stateBuilder.build();
 
                     // Trigger reroute to move shards back to original state
                     return allocationService.reroute(updatedState, source);
@@ -471,11 +496,18 @@ public abstract class TieringService implements ClusterStateListener {
                     final IndexMetadata indexMetadata = currentState.metadata().index(index);
 
                     updateIndexMetadataForTieringStart(metadataBuilder, routingTableBuilder, indexMetadata, index);
-
-                    ClusterState updatedState = ClusterState.builder(currentState)
+                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState)
                         .metadata(metadataBuilder)
                         .routingTable(routingTableBuilder.build())
-                        .build();
+                        .blocks(
+                            getTieringStartClusterBlocksToAdd(
+                                ClusterBlocks.builder().blocks(currentState.blocks()),
+                                index.getName(),
+                                indexMetadata
+                            )
+                        );
+
+                    ClusterState updatedState = stateBuilder.build();
 
                     // now, reroute to trigger shard relocation
                     return allocationService.reroute(updatedState, source);
@@ -528,8 +560,9 @@ public abstract class TieringService implements ClusterStateListener {
         final Index index
     ) {
         try {
-            // 1. Build settings
-            Settings.Builder indexSettingsBuilder = Settings.builder().put(indexMetadata.getSettings()).put(getTieringStartSettingsToAdd());
+            Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put(indexMetadata.getSettings())
+                .put(getTieringStartSettingsToAdd(indexMetadata));
 
             // 2. Handle replica updates if needed
             int currentReplicas = Integer.parseInt(indexMetadata.getSettings().get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
@@ -595,28 +628,48 @@ public abstract class TieringService implements ClusterStateListener {
      */
     void updateIndexMetadataForTieringCancel(final Metadata.Builder metadataBuilder, final IndexMetadata indexMetadata) {
         try {
-            // 1. Build settings - remove tiering-specific settings
+            // 1. Build settings - remove tiering-specific settings and disable auto-expand.
+            // write-block settings only for DFA indices.
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(indexMetadata.getSettings())
-                .put(getIndexTierSettingsToRestoreAfterCancellation());
+                .put(getIndexTierSettingsToRestoreAfterCancellation(indexMetadata));
 
-            // 2. Restore original replica count if it was modified
-            // During tiering start, if replicas > 1, they were set to 1
-            // We need to restore the original count, but we don't have it stored
-            // For safety, we'll leave replicas as they are since we can't reliably determine the original count
-            // This is a limitation that could be improved by storing original settings in custom metadata
-
-            // 3. Build and update metadata
+            // 2. Build and update metadata
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
                 .settings(indexSettingsBuilder)
                 .settingsVersion(1 + indexMetadata.getSettingsVersion());
 
-            // 4. Remove tiering custom metadata
+            // 3. Remove tiering custom metadata
             indexMetadataBuilder.removeCustom(TIERING_CUSTOM_KEY);
             metadataBuilder.put(indexMetadataBuilder);
         } catch (Exception e) {
             throw new OpenSearchException("Failed to update index metadata for tiering cancellation", e);
         }
+    }
+
+    /**
+     * Runs tiering validation synchronously before any cluster state mutation.
+     *
+     * <p>Used by the DFA (pluggable dataformat) tiering path to validate BEFORE adding the
+     * read-only block or running pre-tiering sync. This prevents expensive and side-effecting
+     * operations (flush, remote store sync) from running when validation would reject the request.
+     *
+     * <p>Note: validation also runs inside the cluster state task (in {@link #tier}) for
+     * double-safety against TOCTOU races. This preflight call is an additional early gate.
+     *
+     * @param state current cluster state at the time of the request
+     * @param index index to be tiered
+     * @throws RuntimeException if validation fails — same exceptions as thrown by {@link #validateTieringRequest}
+     */
+    public void preflightValidate(final ClusterState state, final Index index) {
+        validateTieringRequest(
+            state,
+            clusterInfoService,
+            tieringIndices,
+            maxConcurrentTieringRequests,
+            jvmActiveUsageThresholdPercent,
+            index
+        );
     }
 
     /**

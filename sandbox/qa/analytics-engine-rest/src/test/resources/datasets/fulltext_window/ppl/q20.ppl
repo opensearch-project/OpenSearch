@@ -1,0 +1,1 @@
+source=transactions | where match(product, "keyboard") OR match(product, "mouse") | sort userid, timestamp | streamstats count() as rn, sum(amount) as cumamt by userid | fields userid, product, amount, rn, cumamt | head 10

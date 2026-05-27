@@ -163,8 +163,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
         // documented space-separator timestamp output is preserved on the AE path.
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
+        FunctionMappings.s(IpBinaryCastFunctionAdapter.IP_TO_STRING_OP, "ip_to_string"),
+        FunctionMappings.s(IpBinaryCastFunctionAdapter.BINARY_TO_BASE64_OP, "binary_to_base64"),
         FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
+        // PPL span(field, N<us|ms>) with N > 1 → DataFusion `date_bin`. See SpanAdapter.
+        FunctionMappings.s(SpanAdapter.LOCAL_DATE_BIN_OP, "date_bin"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
+        FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
+        FunctionMappings.s(SqlStdOperatorTable.ITEM, "item"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
         FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
@@ -548,6 +554,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             return Filter.builder().from(filter).input(newInput).build();
         }
         if (wrapper instanceof Project project) {
+            // Lifted-window shape: OpenSearchProject.liftNestedRexOver emits Project(Project(input))
+            // where the lower Project computes a window column the outer references. A flat swap
+            // here would drop the lower Project and break the outer's input refs.
+            if (project.getInput() instanceof Project lower && containsWindowFunction(lower)) {
+                Rel rewiredLower = replaceInput(lower, newInput);
+                return Project.builder().from(project).input(rewiredLower).build();
+            }
             return Project.builder().from(project).input(newInput).build();
         }
         if (wrapper instanceof Fetch fetch) {
@@ -559,6 +572,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         throw new UnsupportedOperationException(
             "Cannot attach-on-top a Substrait Rel of type " + wrapper.getClass().getSimpleName() + " — no single-input rewire defined"
         );
+    }
+
+    private static boolean containsWindowFunction(Project project) {
+        for (Expression expr : project.getExpressions()) {
+            if (expr instanceof Expression.WindowFunctionInvocation) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

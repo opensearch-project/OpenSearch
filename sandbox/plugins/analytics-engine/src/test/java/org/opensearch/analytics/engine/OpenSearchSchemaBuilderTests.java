@@ -21,6 +21,8 @@ import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
+import org.opensearch.analytics.schema.BinaryType;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -349,6 +351,46 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
      */
     public void testMapFieldTypeReturnsNullOnNullInput() {
         assertNull(OpenSearchSchemaBuilder.mapFieldType(null));
+    }
+
+    /**
+     * IP and binary fields are wrapped in dedicated {@link IpType} / {@link BinaryType} markers
+     * so the SQL plugin can disambiguate them at the response boundary. Operator dispatch is
+     * unaffected because both extend {@link org.apache.calcite.sql.type.AbstractSqlType} with
+     * {@link SqlTypeName#VARBINARY} underneath.
+     */
+    public void testIpAndBinaryFieldsCarryLogicalTypeUdt() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("udt_index", Map.of("address", "ip", "blob", "binary")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("udt_index");
+        assertNotNull(table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        RelDataType ipType = rowType.getField("address", true, false).getType();
+        assertTrue("ip column must be IpType, got " + ipType.getClass(), ipType instanceof IpType);
+        assertEquals("IpType must still report VARBINARY for operator dispatch", SqlTypeName.VARBINARY, ipType.getSqlTypeName());
+
+        RelDataType binType = rowType.getField("blob", true, false).getType();
+        assertTrue("binary column must be BinaryType, got " + binType.getClass(), binType instanceof BinaryType);
+        assertEquals(SqlTypeName.VARBINARY, binType.getSqlTypeName());
+    }
+
+    /**
+     * Two separately constructed {@link IpType} instances must be digest-equal so plan equality
+     * / planner caching works without requiring Calcite type-factory canonicalization (we don't
+     * go through {@code typeFactory.canonize}).
+     */
+    public void testLogicalTypeEqualityIsDigestBased() {
+        RelDataType a = IpType.nullable();
+        RelDataType b = IpType.nullable();
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+
+        RelDataType c = BinaryType.nullable();
+        assertNotSame(a, c);
+        assertNotEquals(a, c);
     }
 
     // --- helpers ---

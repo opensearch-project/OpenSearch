@@ -114,6 +114,9 @@ pub async fn execute_indexed_query(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
@@ -177,9 +180,18 @@ pub async fn execute_indexed_query(
         query_config: Arc::unwrap_or_clone(query_config),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
+        phantom_reservation: None,
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
-    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor).await }
+
+    // NOTE: gate acquired on CPU here — acceptable for this deprecated benchmark-only path.
+    // Production uses df_execute_with_context which acquires the gate on IO for backpressure.
+    let partition_weight = num_partitions.max(1) as u32;
+    let gate = cpu_executor.concurrency_gate().clone();
+    let max_p = gate.max_permits();
+    let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
+    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor, permit).await }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -420,8 +432,14 @@ pub async unsafe fn execute_indexed_with_context(
     session_ctx_ptr: i64,
     substrait_bytes: Vec<u8>,
     cpu_executor: DedicatedExecutor,
+    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
     let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
+
+    // Permit was acquired by the caller (ffm.rs) on the IO runtime before
+    // spawning on the CPU runtime, so the Java search thread blocks at the
+    // gate when it is full — creating backpressure at the Java threadpool level.
+
     let classification_override = handle.indexed_config.map(|config| {
         // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {
@@ -445,12 +463,23 @@ pub async unsafe fn execute_indexed_with_context(
     // with IndexedTableProvider after plan decoding.
     ctx.deregister_table(&table_name)?;
 
-    let state = ctx.state();
-    let store = state.runtime_env().object_store(&table_path)?;
+    let store = ctx
+        .state()
+        .runtime_env()
+        .object_store(&table_path)?;
 
-    let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref(), writer_generations.as_ref())
-        .await
-        .map_err(DataFusionError::Execution)?;
+    let state = ctx.state();
+    let metadata_cache = state.runtime_env().cache_manager.get_file_metadata_cache();
+
+    let (segments, schema) = build_segments(
+        &state,
+        Arc::clone(&store),
+        object_metas.as_ref(),
+        writer_generations.as_ref(),
+        metadata_cache,
+    )
+    .await
+    .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
     for (i, seg) in segments.iter().enumerate() {
     }
@@ -736,6 +765,12 @@ pub async unsafe fn execute_indexed_with_context(
     log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    // Retag bit-compatible Int↔UInt output mismatches to match the substrait-declared
+    // types. The target is schema_coerce::coerce_inferred_schema(physical_schema) — same
+    // narrowing the partition-stream registration uses, so consumer-side StreamingTable
+    // and producer-side batches agree by construction (see crate::relabel_exec).
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
     let df_stream = execute_stream(physical_plan, ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
@@ -750,6 +785,6 @@ pub async unsafe fn execute_indexed_with_context(
 
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

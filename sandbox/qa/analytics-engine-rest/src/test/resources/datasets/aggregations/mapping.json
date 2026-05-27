@@ -1,0 +1,31 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "user": {
+        "type": "keyword"
+      },
+      "department": {
+        "type": "keyword"
+      },
+      "response_time": {
+        "type": "integer"
+      },
+      "score": {
+        "type": "float"
+      },
+      "status_code": {
+        "type": "integer"
+      },
+      "region": {
+        "type": "keyword"
+      }
+    }
+  }
+}

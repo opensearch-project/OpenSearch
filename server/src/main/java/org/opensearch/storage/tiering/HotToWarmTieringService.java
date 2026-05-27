@@ -10,6 +10,8 @@ package org.opensearch.storage.tiering;
 
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdEvaluator;
@@ -23,6 +25,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.Set;
 
@@ -114,7 +117,7 @@ public class HotToWarmTieringService extends TieringService {
     }
 
     @Override
-    protected Settings getTieringStartSettingsToAdd() {
+    protected Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata) {
         return Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), true)
             .put(INDEX_TIERING_STATE.getKey(), HOT_TO_WARM)
@@ -123,12 +126,40 @@ public class HotToWarmTieringService extends TieringService {
     }
 
     @Override
-    protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
-        return Settings.builder()
+    protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
+        Settings.Builder builder = Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), false)
             .put(INDEX_TIERING_STATE.getKey(), HOT)
-            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default")
-            .build();
+            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default");
+        if (TieringUtils.isDfaIndex(indexMetadata)) {
+            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
+        }
+        return builder.build();
+    }
+
+    @Override
+    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        // For DFA: H2W write block is set by TransportHotToWarmTierAction.addWriteBlockAndPrepare()
+        // before tier() is called
+        // Non-DFA - Write block is not required
+        return blocksBuilder;
+    }
+
+    @Override
+    protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
+        // Cancel H2W: only DFA indices had a write block set — remove it so the index is writable again.
+        return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
     @Override
@@ -159,4 +190,5 @@ public class HotToWarmTieringService extends TieringService {
     private void setFileCacheActiveUsageThreshold(Integer fileCacheActiveUsageThreshold) {
         this.fileCacheActiveUsageThresholdPercent = fileCacheActiveUsageThreshold;
     }
+
 }

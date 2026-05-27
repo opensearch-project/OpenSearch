@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "query_count",
+      "type": "bigint"
+    },
+    {
+      "name": "avg_rows",
+      "type": "double"
+    },
+    {
+      "name": "table_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      23,
+      3970.913043478261,
+      "transactions"
+    ],
+    [
+      17,
+      3871.764705882353,
+      "users"
+    ],
+    [
+      16,
+      5793.9375,
+      "orders"
+    ],
+    [
+      14,
+      3994.9285714285716,
+      "products"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}
