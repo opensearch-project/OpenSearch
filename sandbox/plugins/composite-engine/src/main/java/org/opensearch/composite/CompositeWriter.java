@@ -105,7 +105,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
         touched.add(primaryWriter);
         WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
         if (primaryResult instanceof WriteResult.Failure pf) {
-            logger.warn("Failed to add document in primary format [{}], rolling back", primaryFormat.name());
+            logger.warn("Failed to add document in primary format [{}], rolling back: [{}]", primaryFormat.name(), pf.cause());
             failureHandler.rollback(touched, acceptedRows);
             return new WriteResult.Failure(pf.cause(), -1, -1, -1);
         }
@@ -117,7 +117,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             touched.add(writer);
             WriteResult result = writer.addDoc(inputEntry.getValue());
             if (result instanceof WriteResult.Failure sf) {
-                logger.warn("Failed to add document in secondary format [{}], rolling back", format.name());
+                logger.warn("Failed to add document in secondary format [{}], rolling back: [{}]", format.name(), sf.cause());
                 failureHandler.rollback(touched, acceptedRows);
                 return new WriteResult.Failure(sf.cause(), -1, -1, -1);
             }
