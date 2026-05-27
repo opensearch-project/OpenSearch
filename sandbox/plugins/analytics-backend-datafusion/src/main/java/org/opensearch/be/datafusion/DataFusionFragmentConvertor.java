@@ -167,6 +167,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(IpBinaryCastFunctionAdapter.IP_TO_STRING_OP, "ip_to_string"),
         FunctionMappings.s(IpBinaryCastFunctionAdapter.BINARY_TO_BASE64_OP, "binary_to_base64"),
         FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
+        // PPL span(field, N<us|ms>) with N > 1 → DataFusion `date_bin`. See SpanAdapter.
+        FunctionMappings.s(SpanAdapter.LOCAL_DATE_BIN_OP, "date_bin"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
         FunctionMappings.s(SqlStdOperatorTable.ITEM, "item"),
