@@ -97,13 +97,4 @@ public interface Committer extends CommitFileManager, Closeable {
      * @throws IOException if reading commits fails
      */
     List<CatalogSnapshot> listCommittedSnapshots() throws IOException;
-
-    /**
-     * Marks the underlying store as corrupted. Called by the engine on a corruption-class
-     * failure so that the next shard recovery sees the store as unhealthy. Implementations
-     * that do not back a recoverable store may no-op.
-     *
-     * @param cause the corruption cause to record
-     */
-    default void markStoreCorrupted(IOException cause) {}
 }

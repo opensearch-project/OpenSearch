@@ -11,7 +11,6 @@ package org.opensearch.composite;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriterConfig;
-import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -36,30 +35,52 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         writer.close();
     }
 
-    public void testStateDefaultsToActive() throws IOException {
+    public void testAbortedDefaultsToFalse() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
-        assertEquals(WriterState.ACTIVE, writer.state());
+        assertFalse(writer.isAborted());
+        assertEquals(CompositeWriter.WriterState.ACTIVE, writer.getState());
         writer.close();
     }
 
-    public void testStateAggregatesWorstChild() throws IOException {
+    public void testAbortSetsAbortedFlag() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
-        // No child has retired → composite is ACTIVE
-        assertEquals(WriterState.ACTIVE, writer.state());
-
-        // Force a child into RETIRED_FLUSHABLE — composite should reflect it (worst state wins)
-        CompositeTestHelper.StubIndexingExecutionEngine primaryEngine = (CompositeTestHelper.StubIndexingExecutionEngine) engine
-            .getPrimaryDelegate();
-        primaryEngine.lastCreatedWriter.setState(WriterState.RETIRED_FLUSHABLE);
-        assertEquals(WriterState.RETIRED_FLUSHABLE, writer.state());
-
+        writer.abort();
+        assertTrue(writer.isAborted());
+        assertEquals(CompositeWriter.WriterState.ABORTED, writer.getState());
         writer.close();
     }
 
-    public void testCloseTransitionsToClosed() throws IOException {
+    public void testFlushPendingDefaultsToFalse() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        assertFalse(writer.isFlushPending());
+        assertEquals(CompositeWriter.WriterState.ACTIVE, writer.getState());
         writer.close();
-        assertEquals(WriterState.CLOSED, writer.state());
+    }
+
+    public void testSetFlushPendingSetsFlag() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        writer.setFlushPending();
+        assertTrue(writer.isFlushPending());
+        assertEquals(CompositeWriter.WriterState.FLUSH_PENDING, writer.getState());
+        writer.close();
+    }
+
+    public void testAbortDoesNotTransitionFromFlushPending() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        writer.setFlushPending();
+        expectThrows(IllegalStateException.class, writer::abort);
+        assertTrue(writer.isFlushPending());
+        assertEquals(CompositeWriter.WriterState.FLUSH_PENDING, writer.getState());
+        writer.close();
+    }
+
+    public void testFlushPendingDoesNotTransitionFromAborted() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        writer.abort();
+        expectThrows(IllegalStateException.class, writer::setFlushPending);
+        assertTrue(writer.isAborted());
+        assertEquals(CompositeWriter.WriterState.ABORTED, writer.getState());
+        writer.close();
     }
 
     public void testFlushReturnsFileInfos() throws IOException {
