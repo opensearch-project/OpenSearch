@@ -15,26 +15,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Self-contained integration test for PPL {@code patterns} on the analytics-engine route.
- *
- * <p>Pins the two pieces of pattern wiring that are unique to this PR:
- * <ul>
- *   <li><b>SIMPLE patterns label mode</b> — regex-based tokenization runs in the DataFusion
- *       backend's {@code regexp_replace}. Requires the {@code RegexpReplaceAdapter} to append
- *       the {@code "g"} flag for 3-arg calls (DataFusion defaults to first-match-only).</li>
- *   <li><b>SIMPLE patterns aggregation mode with group-by on a multi-shard index</b> —
- *       exercises {@link org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule}'s
- *       SINGLE-on-SINGLETON fallback. The rule skips the PARTIAL/FINAL split when STATE_EXPANDING
- *       aggregates (e.g. {@code take()}) are present and gathers to the coordinator instead. The
- *       multi-shard variant is what actually drives that fallback path; the single-shard variant
- *       would never split anyway.</li>
- * </ul>
- *
- * <p>BRAIN method coverage stays on the SQL-side {@code CalcitePPLDashboardPatternsIT} for now —
- * BRAIN aggregation has open planner work (LogicalCorrelate post-aggregate) that's tracked
- * separately.
- */
+/** Integration tests for PPL {@code patterns} on the analytics-engine route. */
 public class PatternsCommandIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("app_logs", "app_logs");
@@ -50,15 +31,11 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    /** Provision a 3-shard {@code app_logs} index so the patterns aggregation tests exercise
-     *  the {@code OpenSearchAggregateSplitRule} SINGLE-on-SINGLETON fallback. */
+    /** Provision a 3-shard {@code app_logs} index to drive the SINGLE-on-SINGLETON fallback. */
     private void ensureMultiShardProvisioned() throws IOException {
         if (multiProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET_MULTI, 3);
             multiProvisioned = true;
-            // Self-check: the QA integTest cluster runs with 2 nodes (per build.gradle), so a
-            // 3-shard index distributes shards across nodes and gathering is genuinely
-            // cross-node. Verify the shard count came through DatasetProvisioner override.
             Request settingsRequest = new Request("GET", "/" + DATASET_MULTI.indexName + "/_settings");
             Response settingsResponse = client().performRequest(settingsRequest);
             Map<String, Object> settings = assertOkAndParse(settingsResponse, "settings: " + DATASET_MULTI.indexName);
@@ -76,13 +53,6 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         return String.valueOf(indexSettings.get("number_of_shards"));
     }
 
-    // ── SIMPLE patterns label mode (single-shard) ──────────────────────────────
-
-    /**
-     * {@code patterns <field> mode=label} appends a {@code patterns_field} column with the
-     * tokenized form. Asserts every row got tokenized (no plain-letter messages survived) and
-     * the document count is preserved — label mode doesn't aggregate.
-     */
     public void testSimplePatternLabelMode() throws IOException {
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
@@ -93,8 +63,6 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         List<List<Object>> rows = (List<List<Object>>) response.get("rows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("label mode preserves row count", 200, rows.size());
-        // Every value should be a string containing the wildcard token "<*>" — proving the
-        // global regexp_replace ran on every match (no first-match-only artifacts).
         for (int i = 0; i < rows.size(); i++) {
             Object v = rows.get(i).get(0);
             assertNotNull("patterns_field at row " + i + " should not be null", v);
@@ -103,17 +71,6 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    // ── SIMPLE patterns aggregation mode on a 3-shard index ────────────────────
-
-    /**
-     * {@code patterns ... mode=aggregation | stats count() as c by patterns_field} on a 3-shard
-     * index. The {@code stats} contains {@code take()} (a STATE_EXPANDING aggregate registered
-     * by the patterns lowering) so {@link
-     * org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule#shouldSkipPartialFinalSplit}
-     * skips the PARTIAL/FINAL split and falls back to SINGLE-on-SINGLETON — coordinator-side
-     * aggregation after a gather. Asserts row counts sum to 200 (matches dataset total) and
-     * every group has a non-empty {@code sample_logs} array.
-     */
     public void testSimplePatternAggregationModeMultiShard() throws IOException {
         ensureMultiShardProvisioned();
         Map<String, Object> response = executePpl(
@@ -129,13 +86,10 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         for (int i = 0; i < rows.size(); i++) {
             List<Object> r = rows.get(i);
             assertEquals("Row " + i + " has 3 columns", 3, r.size());
-            // patterns_field is a string with at least one <*> token.
             assertNotNull("patterns_field at row " + i, r.get(0));
             assertTrue("patterns_field at row " + i + " contains <*>", r.get(0).toString().contains("<*>"));
-            // pattern_count is a positive number.
             assertTrue("pattern_count > 0 at row " + i, ((Number) r.get(1)).longValue() > 0);
             total += ((Number) r.get(1)).longValue();
-            // sample_logs is a non-empty list (take(message, 10) returns up to 10 representatives).
             assertTrue("sample_logs is a List at row " + i, r.get(2) instanceof List);
             @SuppressWarnings("unchecked")
             List<Object> samples = (List<Object>) r.get(2);
@@ -149,11 +103,6 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /**
-     * Same multi-shard pattern aggregation, but with an explicit user group key
-     * ({@code by patterns_field, service_name}) — exercises the SINGLE-on-SINGLETON fallback
-     * when group-set cardinality > 1.
-     */
     public void testSimplePatternAggregationGroupByServiceMultiShard() throws IOException {
         ensureMultiShardProvisioned();
         Map<String, Object> response = executePpl(
@@ -171,9 +120,7 @@ public class PatternsCommandIT extends AnalyticsRestTestCase {
         for (int i = 0; i < rows.size(); i++) {
             List<Object> r = rows.get(i);
             assertEquals("Row " + i + " has 4 columns", 4, r.size());
-            // patterns_field has the wildcard token.
             assertTrue("patterns_field at row " + i + " contains <*>", r.get(0).toString().contains("<*>"));
-            // service_name is one of the four expected services.
             String svc = (String) r.get(1);
             assertTrue("Unexpected service at row " + i + ": " + svc,
                 svc.equals("api-service") || svc.equals("auth-service")

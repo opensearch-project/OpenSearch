@@ -166,9 +166,6 @@ public class RegexpReplaceAdapterTests extends OpenSearchTestCase {
     }
 
     public void testAdaptAppendsGlobalFlagFor3Arg() {
-        // 3-arg REGEXP_REPLACE_3 with no \Q / $N rewrites still gets rewritten to 4-arg
-        // REGEXP_REPLACE_PG_4 with "g" so DataFusion's regexp_replace (first-match-only by
-        // default) matches Calcite's already-replace-all 3-arg semantics.
         RexNode field = rexBuilder.makeInputRef(varcharType, 0);
         RexNode pattern = rexBuilder.makeLiteral("^OFFICE.*$");
         RexNode replacement = rexBuilder.makeLiteral("OFC");
@@ -183,8 +180,6 @@ public class RegexpReplaceAdapterTests extends OpenSearchTestCase {
     }
 
     public void testAdaptAppendsGlobalFlagForNonLiteralPattern() {
-        // Pattern is a column reference (not a literal) — \Q / $N rewrites can't fire, but the
-        // 3-arg → 4-arg-with-"g" rewrite still applies so DataFusion replaces every match.
         RexNode field = rexBuilder.makeInputRef(varcharType, 0);
         RexNode patternRef = rexBuilder.makeInputRef(varcharType, 1);
         RexNode replacement = rexBuilder.makeLiteral("X");

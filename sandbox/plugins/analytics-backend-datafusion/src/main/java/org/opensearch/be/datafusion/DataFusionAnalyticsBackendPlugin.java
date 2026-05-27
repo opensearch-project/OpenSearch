@@ -360,21 +360,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.ARRAY,
         ScalarFunction.ARRAY_SLICE,
         ScalarFunction.ARRAY_DISTINCT,
-        // ITEM also appears with an ARRAY return type when accessing a MAP value whose value-type
-        // is an array — e.g. PPL `patterns` lowers the flatten of its result struct via
-        // `INTERNAL_ITEM(struct, "sample_logs")` and `INTERNAL_ITEM(struct, "tokens")`, where
-        // `sample_logs` is `ARRAY<VARCHAR>` and `tokens` is a MAP whose values themselves are
-        // arrays. The scalar form of ITEM is already in STANDARD_PROJECT_OPS for VARCHAR/numeric
-        // returns; this entry covers the array-returning shape.
         ScalarFunction.ITEM,
-        // SAFE_CAST also wraps the ITEM result for `sample_logs` (ARRAY<VARCHAR>) in PPL's
-        // `flattenParsedPattern` step — see CalciteRelNodeVisitor.flattenParsedPattern.
         ScalarFunction.SAFE_CAST,
-        // PPL `mvzip` returns ARRAY<VARCHAR>; backed by a custom Rust UDF on the DataFusion
-        // session context (`udf::mvzip`), routed via {@link MvzipAdapter}.
         ScalarFunction.MVZIP,
-        // PPL `mvappend` returns ARRAY<commonType>; backed by a custom Rust UDF
-        // (`udf::mvappend`), routed via {@link MvappendAdapter}.
         ScalarFunction.MVAPPEND
     );
 
@@ -395,21 +383,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
         ScalarFunction.JSON_EXTRACT_ALL,
         ScalarFunction.PARSE,
-        // ITEM also appears with a MAP return type when accessing a struct-of-maps — e.g. PPL
-        // `patterns mode=label show_numbered_token=true` flattens its result struct via
-        // `INTERNAL_ITEM(struct, "tokens")` where `tokens` itself is
-        // `MAP<VARCHAR, ARRAY<VARCHAR>>`. The scalar / array forms of ITEM are already in
-        // STANDARD_PROJECT_OPS / ARRAY_RETURNING_PROJECT_OPS; this entry covers the MAP-returning
-        // shape that the patterns flatten path triggers.
         ScalarFunction.ITEM,
-        // SAFE_CAST also wraps the ITEM result for `tokens` (MAP<VARCHAR,ARRAY<VARCHAR>>) in
-        // PPL's `flattenParsedPattern` step — same flatten path as the ITEM cases above.
         ScalarFunction.SAFE_CAST,
-        // PATTERN_PARSER returns a MAP<VARCHAR, ANY> ("pattern_struct" from
-        // UserDefinedFunctionUtils). The downstream `flattenParsedPattern` step
-        // extracts named fields via `ITEM(parsedNode, "pattern" | "tokens")`,
-        // which reads back through the ITEM entries above. See
-        // `PatternParserAdapter`.
         ScalarFunction.PATTERN_PARSER
     );
 
@@ -418,9 +393,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      */
     private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS = Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
 
-    // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
-    // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
-    // opensearch_aggregate_functions.yaml.
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -434,9 +406,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.LAST,
         AggregateFunction.LIST,
         AggregateFunction.VALUES,
-        // BRAIN aggregate for PPL's `patterns ... method=BRAIN`. Routes through
-        // PplAggregateCallRewriter's LOCAL_INTERNAL_PATTERN_OP to the custom Rust
-        // UDAF in rust/src/udaf/internal_pattern.rs.
         AggregateFunction.PATTERN
     );
 
@@ -495,11 +464,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.MIN,
                             WindowFunction.MAX,
                             WindowFunction.ROW_NUMBER,
-                            // PPL `patterns ... method=brain mode=label` — emits a
-                            // per-row best-matching wildcard pattern from the BRAIN
-                            // partition corpus. Routed to the Rust window UDF in
-                            // rust/src/udwf/internal_pattern.rs via
-                            // PplWindowCallRewriter / LOCAL_INTERNAL_PATTERN_WINDOW_OP.
                             WindowFunction.PATTERN
                         ),
                         Set.copyOf(plugin.getSupportedFormats())

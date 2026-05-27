@@ -269,14 +269,6 @@ public enum ScalarFunction {
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
-    /**
-     * PPL {@code patterns} command's per-row token extractor. Resolves through
-     * the SQL plugin's {@code PatternParserFunctionImpl} UDF named
-     * {@code "pattern_parser"} (via {@code BuiltinFunctionName.INTERNAL_PATTERN_PARSER}).
-     * The DataFusion adapter rewrites the Calcite call to a locally-declared
-     * {@code pattern_parser} operator that maps to the Rust UDF; see
-     * {@code PatternParserAdapter}.
-     */
     PATTERN_PARSER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── Array ────────────────────────────────────────────────────────
