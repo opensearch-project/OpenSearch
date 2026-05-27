@@ -12,8 +12,6 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,8 +22,6 @@ import java.util.List;
  * @opensearch.internal
  */
 public final class VectorUtils {
-
-    private static final Logger LOGGER = LogManager.getLogger(VectorUtils.class);
 
     private VectorUtils() {}
 

@@ -300,9 +300,7 @@ public final class OpenSearchLateMaterializationRewriter {
      * its FSIs walk up from the below-chain via inheritance.
      */
     private static LinkedHashSet<String> computeAboveAnchorPhysicalFields(List<RelNode> aboveAnchorOperators, OpenSearchSort anchor) {
-        OpenSearchRelNode topmost = aboveAnchorOperators.isEmpty()
-            ? (OpenSearchRelNode) anchor
-            : (OpenSearchRelNode) aboveAnchorOperators.get(0);
+        OpenSearchRelNode topmost = aboveAnchorOperators.isEmpty() ? anchor : (OpenSearchRelNode) aboveAnchorOperators.getFirst();
         LinkedHashSet<String> fields = new LinkedHashSet<>();
         for (FieldStorageInfo fsi : topmost.getOutputFieldStorage()) {
             if (!fsi.isDerived()) {
