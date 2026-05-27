@@ -29,7 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Set secure permissions (750) for engine sockets directory [(#1330)](https://github.com/wazuh/wazuh-indexer/pull/1330)
 - Resolve dependency mismatch between Alerting and Notifications plugins [(#1379)](https://github.com/wazuh/wazuh-indexer/pull/1379)
-- Fix /etc/default/wazuh-indexer ownership and permissions in deb [(#1533)](https://github.com/wazuh/wazuh-indexer/pull/1533)
+- Fix `/etc/default/wazuh-indexer` ownership and permissions in deb [(#1533)](https://github.com/wazuh/wazuh-indexer/pull/1533)
+- Fix Java warnings by updating JVM options for native access [(#1574)](https://github.com/wazuh/wazuh-indexer/pull/1574)
 
 ### Dependencies
 -
@@ -41,7 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replace and remove deprecated settings [(#894)](https://github.com/wazuh/wazuh-indexer/pull/894)
 - Backport packaging improvements [(#906)](https://github.com/wazuh/wazuh-indexer/pull/906)
 - Apply Lintian overrides [(#908)](https://github.com/wazuh/wazuh-indexer/pull/908)
-- Add noninteractive option for DEB packages testing [(#914)](https://github.com/wazuh/wazuh-indexer/pull/914)
+- Add non-interactive option for DEB packages testing [(#914)](https://github.com/wazuh/wazuh-indexer/pull/914)
 - Migrate smoke tests from Allocator to docker [(#931)](https://github.com/wazuh/wazuh-indexer/pull/931)
 - Migrate builder workflows from [(#930)](https://github.com/wazuh/wazuh-indexer/pull/930)
 - Rename bumper workflow file [(#986)](https://github.com/wazuh/wazuh-indexer/pull/986)
@@ -51,7 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update GitHub Actions versions in main branch [(#1131)](https://github.com/wazuh/wazuh-indexer/pull/1131)
 - Refactor GH workflow to build packages to use a single branch input [(#1145)](https://github.com/wazuh/wazuh-indexer/pull/1145) [(#1169)](https://github.com/wazuh/wazuh-indexer/pull/1169)
 - Enhance maintenance workflows [(#1192)](https://github.com/wazuh/wazuh-indexer/pull/1192)
-- Change transport.port to http.port in indexer-security-init [(#1233)](https://github.com/wazuh/wazuh-indexer/pull/1233)
+- Change `transport.port` to `http.port` in indexer-security-init [(#1233)](https://github.com/wazuh/wazuh-indexer/pull/1233)
 - Update builder script to detect SAP branch [(#1271)](https://github.com/wazuh/wazuh-indexer/pull/1271)
 - Build SAP in CM workflow [(#1272)](https://github.com/wazuh/wazuh-indexer/pull/1272)
 - Use docker commands directly instead of addnab/docker-run-action [(#1326)](https://github.com/wazuh/wazuh-indexer/pull/1326)
@@ -76,14 +77,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix service status preservation during upgrade in RPM packages [(#1031)](https://github.com/wazuh/wazuh-indexer/pull/1031)
 - Fix Deprecation warning due to set-output command [(#1112)](https://github.com/wazuh/wazuh-indexer/pull/1112)
 - Fix SysV service script permissions [(#1139)](https://github.com/wazuh/wazuh-indexer/pull/1139)
-- Fix unscaped commands in indexer-security-init.sh [(#1196)](https://github.com/wazuh/wazuh-indexer/pull/1196)
+- Fix unescaped commands in indexer-security-init.sh [(#1196)](https://github.com/wazuh/wazuh-indexer/pull/1196)
 - Fix broken link generation from the repository bumper script [(#1206)](https://github.com/wazuh/wazuh-indexer/pull/1206)
 - Fix demo certificates generation triggered by default [(#1235)](https://github.com/wazuh/wazuh-indexer/pull/1235)
 - Fix link-checker workflow [(#1344)](https://github.com/wazuh/wazuh-indexer/pull/1344)
 
 ### Security
-- Reduce risk of GITHUB_TOKEN exposure [(#960)](https://github.com/wazuh/wazuh-indexer/pull/960)
-- Use latest Amazon Linux 2023 Docker image [(#1182)](https://github.com/wazuh/wazuh-indexer/pull/1182)
+- Reduce risk of `GITHUB_TOKEN` exposure [(#960)](https://github.com/wazuh/wazuh-indexer/pull/960)
+- Use the latest Amazon Linux 2023 Docker image [(#1182)](https://github.com/wazuh/wazuh-indexer/pull/1182)
 - Update CodeQL configuration [(#1220)](https://github.com/wazuh/wazuh-indexer/pull/1220)
 - Potential fix for code scanning alerts: Workflow does not contain permissions [(#1234)](https://github.com/wazuh/wazuh-indexer/pull/1234)
 
