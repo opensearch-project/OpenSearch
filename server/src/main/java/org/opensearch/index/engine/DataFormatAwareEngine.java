@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -1810,6 +1811,7 @@ public class DataFormatAwareEngine implements Indexer {
                 }
                 IOUtils.close(indexingExecutionEngine, committer, translogManager);
                 closeReaders();
+
             } catch (Exception e) {
                 logger.warn("failed to close engine resources", e);
             } finally {
@@ -1850,7 +1852,7 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private long currentMappingVersion() {
-        return engineConfig.getMapperService().getIndexSettings().getIndexMetadata().getMappingVersion();
+        return engineConfig.getMapperService().documentMapper().getVersion();
     }
 
     /**
