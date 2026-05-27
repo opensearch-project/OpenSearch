@@ -11,9 +11,22 @@
 
 pluginManagement {
   repositories {
-    maven { url = uri("https://ci.opensearch.org/maven2/") }
-    gradlePluginPortal()
-    mavenCentral()
+    maven {
+      url = uri("https://ci.opensearch.org/maven2/")
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    gradlePluginPortal {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    mavenCentral {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
   }
 }
 
