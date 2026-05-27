@@ -27,9 +27,12 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 
+import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Builds a Calcite {@link SchemaPlus} from OpenSearch {@link ClusterState} index mappings.
@@ -48,12 +51,13 @@ public class OpenSearchSchemaBuilder {
     /**
      * Builds a Calcite SchemaPlus from the given ClusterState.
      *
-     * <p>Tables are resolved lazily on first lookup, mirroring the sql-plugin {@code OpenSearchSchema}.
-     * A requested name may be a concrete index, an alias, a comma list, a wildcard, an exclusion, or
-     * date-math; it is resolved through {@code resolver} — the same canonical resolution the
-     * execution-side {@code IndexResolution} uses — and the matching indices' supported fields are
-     * unioned into one row type. Concrete indices and aliases are also registered eagerly so
-     * {@code getTableNames()} is populated for case-insensitive identifier resolution.
+     * <p>Tables are resolved lazily on first lookup, mirroring the sql-plugin
+     * {@code OpenSearchSchema}. A requested name may be a concrete index, an alias, a comma list,
+     * a wildcard, an exclusion, or date-math; it is resolved through {@code resolver} — the same
+     * canonical resolution the execution-side {@code IndexResolution} uses — and the matching
+     * indices' supported fields are unioned into one row type. No upfront enumeration of cluster
+     * indices: construction is O(1) regardless of cluster size, and each referenced name costs
+     * one {@code IndexNameExpressionResolver} call plus a single mapping union.
      *
      * <p>The lazy schema is wrapped in a NON-caching root: a caching root enumerates
      * {@code getTableNames()} and would never perform the implicit {@code getTable(name)} lookup
@@ -61,36 +65,47 @@ public class OpenSearchSchemaBuilder {
      */
     public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver) {
         Schema lazySchema = new AbstractSchema() {
-            private final Map<String, Table> tableMap = new HashMap<>() {
-                {
-                    // Eagerly register concrete indices and aliases so getTableNames() lists them —
-                    // case-insensitive resolution (Calcite uppercases unquoted identifiers) matches
-                    // against that set. Wildcard/comma/exclusion expressions aren't enumerable and
-                    // resolve lazily in get().
-                    for (String name : clusterState.metadata().getIndicesLookup().keySet()) {
-                        Table table = resolveTable(clusterState, resolver, name);
-                        if (table != null) {
-                            super.put(name, table);
-                        }
-                    }
+            // Caches resolved Tables keyed by lower-cased name. PPL hands user-typed case directly
+            // to RelBuilder.scan; SQL identifier folding can deliver upper-cased names — both must
+            // resolve to the same cached entry to avoid re-running the mapping union per query.
+            private final Map<String, Table> resolved = new HashMap<>();
+
+            // Schema-facing view: keySet() exposes the cluster's index + alias names so that
+            // AbstractSchema.getTableNames() (final, reads getTableMap().keySet()) enumerates
+            // them for Calcite's case-insensitive validator path — without forcing eager mapping
+            // walks at construction. get() resolves and caches lazily on first reference per name.
+            private final Map<String, Table> view = new AbstractMap<>() {
+                @Override
+                public Set<Map.Entry<String, Table>> entrySet() {
+                    // AbstractSchema.getTableMap() consumers only call keySet() and get(name);
+                    // entrySet enumeration would force resolution of every index. Return a view
+                    // built from the names (with null values) — Calcite never touches the values
+                    // through entrySet because it goes through get(name) for each matched name.
+                    return clusterState.metadata().getIndicesLookup().keySet().stream()
+                        .map(n -> (Map.Entry<String, Table>) new java.util.AbstractMap.SimpleEntry<String, Table>(n, null))
+                        .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+                }
+
+                @Override
+                public Set<String> keySet() {
+                    return clusterState.metadata().getIndicesLookup().keySet();
                 }
 
                 @Override
                 public Table get(Object key) {
-                    String name = (String) key;
-                    if (!super.containsKey(name)) {
-                        Table resolved = resolveTable(clusterState, resolver, name);
-                        if (resolved != null) {
-                            super.put(name, resolved);
-                        }
-                    }
-                    return super.get(name);
+                    String name = ((String) key).toLowerCase(java.util.Locale.ROOT);
+                    return resolved.computeIfAbsent(name, n -> resolveTable(clusterState, resolver, n));
+                }
+
+                @Override
+                public boolean containsKey(Object key) {
+                    return get(key) != null;
                 }
             };
 
             @Override
             protected Map<String, Table> getTableMap() {
-                return tableMap;
+                return view;
             }
         };
 

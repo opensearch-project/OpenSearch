@@ -99,7 +99,7 @@ public final class IndexResolution {
         IndexAbstraction abstraction = lookup == null ? null : lookup.get(name);
         if (abstraction != null) {
             return switch (abstraction.getType()) {
-                case CONCRETE_INDEX -> new IndexResolution(name, abstraction.getIndices());
+                case CONCRETE_INDEX -> resolveConcrete(name, abstraction.getIndices());
                 case ALIAS -> resolveAlias(name, abstraction.getIndices());
                 case DATA_STREAM -> throw new IllegalStateException("Data stream [" + name + "] is not supported by analytics queries");
             };
@@ -141,6 +141,19 @@ public final class IndexResolution {
             return new IndexResolution(name, List.of(direct));
         }
         throw new IllegalArgumentException("Index or alias [" + name + "] not found in cluster state");
+    }
+
+    private static IndexResolution resolveConcrete(String name, List<IndexMetadata> backing) {
+        // Reject closed indices on the literal-name path to match the alias path's behavior
+        // (which uses lenientExpandOpen). The wildcard / expression path resolves through the
+        // canonical OpenSearch resolver, which also excludes closed indices — so all three paths
+        // converge on "closed indices are not searchable through analytics-engine".
+        for (IndexMetadata index : backing) {
+            if (index.getState() != IndexMetadata.State.OPEN) {
+                throw new IllegalArgumentException("Index [" + name + "] is closed");
+            }
+        }
+        return new IndexResolution(name, backing);
     }
 
     private static IndexResolution resolveAlias(String aliasName, List<IndexMetadata> backing) {

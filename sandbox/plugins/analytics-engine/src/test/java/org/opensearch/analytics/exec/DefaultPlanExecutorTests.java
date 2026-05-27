@@ -162,7 +162,13 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         assertArrayEquals("columns must be reordered to [name, age]", new Object[] { "hello", 20L }, rows.get(0));
     }
 
-    /** Missing target column name throws rather than silently misording. */
+    /**
+     * Contract: an unknown target column name is a planner/executor invariant violation —
+     * {@code orderedColumns} throws rather than dropping the column or substituting null.
+     * Silent fallback would let a misaligned plan return wrong-but-shape-valid rows, which
+     * is harder to diagnose than a fast failure. If the upstream caller wants tolerance,
+     * it must filter target names before invoking {@code batchesToRows}.
+     */
     public void testBatchesToRowsThrowsWhenTargetNameMissing() {
         VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // [age, name]
         expectThrows(IllegalStateException.class, () -> DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent")));

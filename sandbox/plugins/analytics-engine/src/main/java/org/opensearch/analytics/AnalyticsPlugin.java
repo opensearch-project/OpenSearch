@@ -132,7 +132,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             backEndsByName.put(be.name(), be);
         }
         searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry);
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, indexNameExpressionResolver, operatorTable, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
@@ -199,15 +199,21 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     /**
-     * Default implementation of {@link EngineContext}.
+     * Default implementation of {@link EngineContext}. The {@link IndexNameExpressionResolver}
+     * is the cluster's resolver — built by the OpenSearch server with security-plugin extensions,
+     * system-index access checks, and ThreadContext threading. Building schemas with a fresh
+     * resolver would silently bypass those checks.
      */
-    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable, Map<
-        String,
-        AnalyticsSearchBackendPlugin> backends) implements EngineContext {
+    record DefaultEngineContext(
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SqlOperatorTable operatorTable,
+        Map<String, AnalyticsSearchBackendPlugin> backends
+    ) implements EngineContext {
 
         @Override
         public SchemaPlus getSchema() {
-            return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
+            return OpenSearchSchemaBuilder.buildSchema(clusterService.state(), indexNameExpressionResolver);
         }
 
         @Override

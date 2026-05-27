@@ -32,7 +32,7 @@ import org.opensearch.gradle.VersionProperties
 
 apply plugin: 'opensearch.testclusters'
 
-def numNodes = findProperty('numNodes') as Integer ?: 1
+def numNodes = findProperty('numNodes') as Integer ?: 2
 def numZones = findProperty('numZones') as Integer ?: 1
 
 testClusters {

@@ -350,16 +350,28 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
      * Case-insensitive table resolution: Calcite uppercases unquoted identifiers. The schema
      * must still resolve them. Verifying a SELECT against an uppercased table works.
      */
+    /**
+     * The schema's lazy {@code get()} lower-cases incoming lookup names before consulting
+     * {@code IndexNameExpressionResolver} (OpenSearch index names must be lowercase). This lets
+     * Calcite's uppercased identifier resolution find a lower-cased index without needing eager
+     * enumeration of the cluster's index list at schema construction.
+     */
     public void testCaseInsensitiveTableResolution() throws Exception {
         ClusterState clusterState = buildClusterState(Map.of("my_table", Map.of("name", "keyword", "age", "long")));
         SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
 
-        // Calcite uppercases unquoted identifiers — MY_TABLE must resolve to my_table
-        RelNode rel = parseValidateConvert(schema, "SELECT name FROM my_table");
-        assertNotNull("Query with exact case must succeed", rel);
+        // Exact-case lookup must work — this is the storage truth.
+        assertNotNull("Exact-case schema lookup must work", schema.getTable("my_table"));
 
-        // The SchemaPlus should find the table regardless of case used at lookup
-        assertNotNull("Lower-case lookup must work", schema.getTable("my_table"));
+        // Upper-cased lookup must work — exercises the lowercase-on-lookup behavior directly
+        // (bypasses the SQL parser, which would case-fold first). Pins the regression Calcite
+        // would trigger if the schema regressed to case-sensitive resolver invocation.
+        assertNotNull("Upper-case schema lookup must work", schema.getTable("MY_TABLE"));
+        assertNotNull("Mixed-case schema lookup must work", schema.getTable("My_Table"));
+
+        // End-to-end via the SQL path: validate+convert succeeds against the lower-cased index.
+        RelNode rel = parseValidateConvert(schema, "SELECT name FROM my_table");
+        assertNotNull("Query via SQL path must succeed", rel);
     }
 
     /**
@@ -419,10 +431,10 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     }
 
     /**
-     * Aliases over indices with the same mapping show up in the schema as their own table so
-     * the Calcite validator can resolve {@code SELECT * FROM alias}. The row type is derived
-     * from one of the backing indices (the planner's {@code OpenSearchTableScanRule} validates
-     * that all backing indices' mappings agree at query time).
+     * Aliases over indices show up in the schema as their own table so the Calcite validator
+     * can resolve {@code SELECT * FROM alias}. The exposed row type is the field-union of every
+     * backing index — fields absent from some indices appear as nullable columns in the alias
+     * row type, and {@code OpenSearchTableScanRule} null-fills those columns at scan time.
      */
     public void testBuildSchemaExposesAliasAsTable() throws Exception {
         IndexMetadata a = IndexMetadata.builder("bank_a")

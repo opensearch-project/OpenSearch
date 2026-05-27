@@ -424,16 +424,37 @@ mod tests {
         assert_eq!(result.field(0).name(), "a");
     }
 
+    /// Cheap-gate branch: with a non-empty plan whose `base_schema` names are all already in
+    /// `inferred`, `widen_schema_from_plan` must short-circuit (return `Arc::clone(inferred)`)
+    /// before invoking the substrait NamedStruct→Arrow converter. Verifies the column-name
+    /// subset check at the top of the function, not the empty-plan early-return.
     #[tokio::test]
     async fn test_widen_schema_noop_when_all_columns_present() {
         let ctx = SessionContext::new();
-        let schema = Arc::new(Schema::new(vec![
+        // Register a table whose schema is a subset of `inferred` below.
+        let registered_schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&registered_schema),
+            vec![Arc::new(Int64Array::from(vec![1i64]))],
+        )
+        .expect("batch");
+        let table = MemTable::try_new(Arc::clone(&registered_schema), vec![vec![batch]]).expect("memtable");
+        ctx.register_table("t", Arc::new(table)).expect("register");
+
+        // Build a substrait plan with a Read rel pointing at "t" — base_schema.names = ["a"].
+        let logical = ctx.sql("SELECT a FROM t").await.expect("sql").into_unoptimized_plan();
+        let plan = to_substrait_plan(&logical, &ctx.state()).expect("substrait plan");
+        let mut plan_bytes = Vec::new();
+        plan.encode(&mut plan_bytes).expect("encode");
+
+        // inferred has every base_schema column (a) plus an extra one (b) — cheap gate fires.
+        let inferred = Arc::new(Schema::new(vec![
             Field::new("a", DataType::Int64, true),
             Field::new("b", DataType::Utf8, true),
         ]));
-        // Empty plan bytes → no widening
-        let result = widen_schema_from_plan(&ctx, &[], "t", &schema);
-        assert_eq!(result.fields().len(), 2);
+        let result = widen_schema_from_plan(&ctx, &plan_bytes, "t", &inferred);
+        // Must return inferred unchanged (Arc::clone, so pointer-equal).
+        assert!(Arc::ptr_eq(&result, &inferred), "subset gate must short-circuit to inferred");
     }
 
     async fn make_test_handle() -> (SessionContextHandle, Vec<u8>) {

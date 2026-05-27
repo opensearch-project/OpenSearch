@@ -143,6 +143,10 @@ public class IndexResolutionTests extends OpenSearchTestCase {
         assertTrue("error must mention the conflicting field: " + ex.getMessage(), ex.getMessage().contains("age"));
     }
 
+    // TODO honor IndicesOptions.allowNoIndices() — vanilla OpenSearch lets `ignore_unavailable=true`
+    // / `allow_no_indices=true` callers see an empty result for wildcards matching nothing. This
+    // path always throws, which diverges. Decide the analytics-engine contract (always-strict vs.
+    // pass-through), then either flip this test or add a permissive overload.
     public void testWildcardMatchingNothingThrows() {
         ClusterState state = clusterStateOf(indexBuilder("bank", longField("age")));
 
@@ -162,6 +166,50 @@ public class IndexResolutionTests extends OpenSearchTestCase {
         assertTrue("error must mention the missing name: " + ex.getMessage(), ex.getMessage().contains("does_not_exist"));
     }
 
+    /**
+     * Closed indices named directly are rejected with the same error style as alias-only-backed
+     * closed indices, so all three resolution paths (literal-name, alias, wildcard) converge on
+     * "closed indices are not searchable through analytics-engine."
+     */
+    public void testConcreteClosedIndexIsRejected() {
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(closedIndexBuilder("frozen", longField("age"))).build())
+            .build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexResolution.resolve("frozen", state, RESOLVER)
+        );
+        assertTrue("error must name the closed index: " + ex.getMessage(), ex.getMessage().contains("frozen"));
+        assertTrue("error must say closed: " + ex.getMessage(), ex.getMessage().toLowerCase(Locale.ROOT).contains("closed"));
+    }
+
+    /**
+     * Pins the documented gap in {@link IndexResolution} schema-compatibility validation: the
+     * top-level "properties" walk does NOT recurse into nested object types, so two indices that
+     * declare {@code a} as a different leaf type under an object disagree at the data-node bind
+     * step instead of at resolution time.
+     *
+     * <p>TODO: extend {@code validateSchemaCompatibility} to descend into object {@code properties}
+     * trees, OR document this as deferred-to-bind-time and add a regression test for the bind-time
+     * error path. Today the conflict is silently accepted at resolution.
+     */
+    public void testNestedFieldTypeMismatchIsNotCaughtAtResolution() {
+        // a.b is long in index "left", keyword in index "right" — but a itself is "object" in both,
+        // and validateSchemaCompatibility only compares the object/object pair at top level.
+        IndexMetadata.Builder left = indexBuilder("left", "{\"properties\":{\"a\":{\"type\":\"object\",\"properties\":{\"b\":{\"type\":\"long\"}}}}}")
+            .putAlias(AliasMetadata.builder("both").build());
+        IndexMetadata.Builder right = indexBuilder(
+            "right",
+            "{\"properties\":{\"a\":{\"type\":\"object\",\"properties\":{\"b\":{\"type\":\"keyword\"}}}}}"
+        ).putAlias(AliasMetadata.builder("both").build());
+        ClusterState state = clusterStateOf(left, right);
+
+        IndexResolution result = IndexResolution.resolve("both", state);
+
+        assertThat(result.concreteIndexNames(), org.hamcrest.Matchers.containsInAnyOrder("left", "right"));
+    }
+
     public void testExclusionPatternResolvesCorrectly() {
         ClusterState state = clusterStateOf(
             indexBuilder("test", longField("age")),
@@ -176,6 +224,10 @@ public class IndexResolutionTests extends OpenSearchTestCase {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
+
+    private static IndexMetadata.Builder closedIndexBuilder(String name, String mappingJson) {
+        return indexBuilder(name, mappingJson).state(IndexMetadata.State.CLOSE);
+    }
 
     private static IndexMetadata.Builder indexBuilder(String name, String mappingJson) {
         try {
