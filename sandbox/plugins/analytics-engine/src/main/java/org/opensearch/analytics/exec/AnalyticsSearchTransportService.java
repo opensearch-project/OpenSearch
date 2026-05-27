@@ -34,8 +34,6 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.stream.StreamErrorCode;
-import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
@@ -156,12 +154,11 @@ public class AnalyticsSearchTransportService {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof StreamException se && se.getErrorCode() == StreamErrorCode.CANCELLED) {
-                    return;
-                }
                 try {
                     channel.sendResponse(e);
-                } catch (Exception ignored) {}
+                } catch (Exception sendException) {
+                    throw new RuntimeException(sendException);
+                }
             }
         };
     }

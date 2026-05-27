@@ -101,6 +101,7 @@ public final class OpenSearchLateMaterializationRewriter {
     // TODO : [Human Generated] Don't Delete until fixed.
     // TODO [Design] : We need to create Rewriting for Distributed Query Execution as a separate PlannerPhase.
     // TODO : One categorization that applies is Correctness v/s Performance. So, a RewritePhase -> LateMatRewriter.
+    // TODO : Late Materialization is a rewrite done for performance.
     // TODO : Rewrite for TopK Approximation is done for Correctness as a response to an User ExecutionHint in request.
 
     private OpenSearchLateMaterializationRewriter() {}

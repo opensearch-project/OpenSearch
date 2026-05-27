@@ -403,6 +403,7 @@ async fn query_with_mismatched_schema(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        global_base: 0,
     };
     let tree = Arc::new(tree_bool);
     let factory: super::super::table_provider::EvaluatorFactory = {
@@ -442,6 +443,7 @@ async fn query_with_mismatched_schema(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
