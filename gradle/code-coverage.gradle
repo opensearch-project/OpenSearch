@@ -9,8 +9,22 @@
 apply plugin: 'jacoco'
 
 repositories {
-  mavenCentral()
-  gradlePluginPortal()
+  maven {
+    url = uri("https://ci.opensearch.org/maven2/")
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  mavenCentral {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  gradlePluginPortal {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
   // TODO: Find the way to use the repositories from RepositoriesSetupPlugin
   maven {
     url = "https://ci.opensearch.org/ci/dbc/snapshots/lucene/"
