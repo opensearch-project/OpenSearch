@@ -10,6 +10,7 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -105,7 +106,10 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
         touched.add(primaryWriter);
         WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
         if (primaryResult instanceof WriteResult.Failure pf) {
-            logger.warn("Failed to add document in primary format [{}], rolling back: [{}]", primaryFormat.name(), pf.cause());
+            logger.warn(
+                () -> new ParameterizedMessage("Failed to add document in primary format [{}], rolling back", primaryFormat.name()),
+                pf.cause()
+            );
             failureHandler.rollback(touched, acceptedRows);
             return new WriteResult.Failure(pf.cause(), -1, -1, -1);
         }
@@ -117,7 +121,10 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             touched.add(writer);
             WriteResult result = writer.addDoc(inputEntry.getValue());
             if (result instanceof WriteResult.Failure sf) {
-                logger.warn("Failed to add document in secondary format [{}], rolling back: [{}]", format.name(), sf.cause());
+                logger.warn(
+                    () -> new ParameterizedMessage("Failed to add document in secondary format [{}], rolling back", format.name()),
+                    sf.cause()
+                );
                 failureHandler.rollback(touched, acceptedRows);
                 return new WriteResult.Failure(sf.cause(), -1, -1, -1);
             }
