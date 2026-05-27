@@ -73,6 +73,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private long sequenceNumber;
     private boolean resumed;
     private boolean seekInclusive;
+    private int consecutiveFailures;
 
     /**
      * Creates a new HiveShardConsumer.
@@ -258,20 +259,36 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     private List<ReadResult<HivePointer, HiveMessage>> executeWithRetry(ReadAction action) {
         try {
-            return action.execute();
+            List<ReadResult<HivePointer, HiveMessage>> results = action.execute();
+            consecutiveFailures = 0;
+            return results;
         } catch (IOException e) {
             logger.warn("IO error for shard {}, attempting recovery: {}", shardId, e.getMessage());
             try {
                 closeCurrentReader();
                 reconnectMetastore();
-                return action.execute();
+                List<ReadResult<HivePointer, HiveMessage>> results = action.execute();
+                consecutiveFailures = 0;
+                return results;
             } catch (Exception retryEx) {
                 logger.error("Recovery failed for shard {}: {}", shardId, retryEx.getMessage());
+                backoffOnFailure();
                 return Collections.emptyList();
             }
         } catch (Throwable e) {
             logger.error("Error reading from Hive table for shard {}: {}", shardId, e.getMessage());
+            backoffOnFailure();
             return Collections.emptyList();
+        }
+    }
+
+    private void backoffOnFailure() {
+        consecutiveFailures++;
+        long delayMs = Math.min(1000L * (1L << consecutiveFailures), 30_000L);
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 
