@@ -483,8 +483,8 @@ struct IndexedStream {
     mask_offset: usize,
     batch_offset: usize,
     finished: bool,
-    /// Wall-clock start time for per-segment timing. Set on first poll.
     stream_start: Option<std::time::Instant>,
+    last_poll_end: Option<Instant>,
     metadata: Arc<ParquetMetaData>,
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     initialized: bool,
@@ -579,6 +579,7 @@ impl IndexedStream {
             batch_offset: 0,
             finished: false,
             stream_start: None,
+            last_poll_end: None,
             metadata,
             predicate,
             initialized: false,
@@ -780,17 +781,33 @@ impl Stream for IndexedStream {
         // time downstream work.
         let poll_start = Instant::now();
 
+        if let Some(prev_end) = self.last_poll_end {
+            let gap = poll_start.saturating_duration_since(prev_end);
+            if let Some(ref t) = self.metrics.inter_poll_gap {
+                t.add_duration(gap);
+            }
+        }
+        if let Some(ref c) = self.metrics.poll_count {
+            c.add(1);
+        }
+
         if !self.initialized {
             self.stream_start = Some(Instant::now());
+            let t0 = Instant::now();
             self.index_reader.init_prefetch();
+            if let Some(ref t) = self.metrics.init_prefetch_time {
+                t.add_duration(t0.elapsed());
+            }
             self.initialized = true;
         }
 
         let result = self.as_mut().poll_inner(cx);
 
+        let now = Instant::now();
         if let Some(ref t) = self.metrics.elapsed_compute {
-            t.add_duration(poll_start.elapsed());
+            t.add_duration(now.saturating_duration_since(poll_start));
         }
+        self.last_poll_end = Some(now);
         result
     }
 }

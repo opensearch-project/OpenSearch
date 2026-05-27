@@ -54,6 +54,12 @@ use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::StatsPruneTree;
 use std::collections::HashSet;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::physical_plan::RecordBatchStream;
+use futures::Stream;
 
 /// Info about a segment and its corresponding parquet file.
 #[derive(Debug, Clone)]
@@ -467,8 +473,10 @@ impl ExecutionPlan for QueryShardExec {
         })?;
 
         let pmetrics = PartitionMetrics::new(&self.metrics, partition);
+        let partition_inner_parquet_metrics = Arc::new(std::sync::Mutex::new(Vec::new()));
         let stream_metrics =
-            pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
+            pmetrics.into_stream_metrics(Some(Arc::clone(&partition_inner_parquet_metrics)));
+        let stream_metrics_for_drop = stream_metrics.clone();
 
         // Conjoin any accepted runtime dynamic filters into one predicate,
         // shared (by Arc) across every chunk's IndexedExec. The inner
@@ -556,18 +564,58 @@ impl ExecutionPlan for QueryShardExec {
             streams.push(exec.execute(0, Arc::clone(&context))?);
         }
 
-        match streams.len() {
+        // Chain the per-chunk streams into one stream for this partition,
+        // then wrap so the Drop impl flushes search_stats for this query.
+        let inner: SendableRecordBatchStream = match streams.len() {
             0 => {
                 let empty = datafusion::physical_plan::empty::EmptyExec::new(
                     self.projected_schema.clone(),
                 );
-                empty.execute(0, context)
+                empty.execute(0, context)?
             }
-            1 => Ok(streams.into_iter().next().unwrap()),
+            1 => streams.into_iter().next().unwrap(),
             _ => {
                 let schema = self.projected_schema.clone();
                 let chained = futures::stream::iter(streams).flatten();
-                Ok(Box::pin(RecordBatchStreamAdapter::new(schema, chained)))
+                Box::pin(RecordBatchStreamAdapter::new(schema, chained))
+            }
+        };
+        Ok(Box::pin(AccumulatingStream {
+            inner,
+            stream_metrics: stream_metrics_for_drop,
+            shared_inner_parquet_metrics: Arc::clone(&self.inner_parquet_metrics),
+        }))
+    }
+}
+
+struct AccumulatingStream {
+    inner: SendableRecordBatchStream,
+    stream_metrics: StreamMetrics,
+    shared_inner_parquet_metrics: Arc<std::sync::Mutex<Vec<MetricsSet>>>,
+}
+
+impl Stream for AccumulatingStream {
+    type Item = Result<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.inner).poll_next(cx)
+    }
+}
+
+impl RecordBatchStream for AccumulatingStream {
+    fn schema(&self) -> SchemaRef {
+        self.inner.schema()
+    }
+}
+
+impl Drop for AccumulatingStream {
+    fn drop(&mut self) {
+        crate::search_stats::accumulate(&self.stream_metrics);
+        if let Some(ref per) = self.stream_metrics.inner_parquet_metrics {
+            if let (Ok(mut src), Ok(mut dst)) =
+                (per.lock(), self.shared_inner_parquet_metrics.lock())
+            {
+                dst.append(&mut src);
             }
         }
     }
