@@ -181,18 +181,31 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         RelNode gathered = convert(partial, finalTraits);
         Map<Integer, List<RexLiteral>> finalExtraLiterals = captureLiteralArgsForFinal(aggregate.getAggCallList(), child);
 
+        // Remap groupSet from CHILD column indices to PARTIAL output column indices.
+        // PARTIAL hoists group keys to a sorted prefix of its output, so FINAL's groupSet
+        // is always `{0..groupCount)` against `gathered`. For prefix-shaped original
+        // groupSets this is a no-op; for non-prefix (e.g. PPL timechart's
+        // {1}-with-SPAN-at-col-1) it's load-bearing — without the remap FINAL would group
+        // by PARTIAL's agg-result column instead of the original group key, silently
+        // miscomputing for same-family pairs and tripping a Calcite row-type check for
+        // cross-family ones. The post-Volcano DistributedAggregateRewriter relies on
+        // FINAL's groupCount matching PARTIAL's prefix layout (its
+        // {@code stateColIdx = groupCount + i} math), so this remap is its precondition.
+        ImmutableBitSet finalGroupSet = ImmutableBitSet.range(aggregate.getGroupSet().cardinality());
+        List<ImmutableBitSet> finalGroupSets = remapGroupSets(aggregate.getGroupSet(), aggregate.getGroupSets());
+
         // Align FINAL aggCall types with what Calcite infers from the gathered input. Upstream
         // parsers can hand us aggCalls with loose nullability (e.g. COUNT() declared BIGINT
         // when Calcite infers BIGINT NOT NULL); Aggregate.<init>'s typeMatchesInferred would
         // otherwise throw on the mismatch.
-        List<AggregateCall> finalAggCalls = alignToInferredReturnTypes(aggregate.getAggCallList(), gathered, aggregate.getGroupSets());
+        List<AggregateCall> finalAggCalls = alignToInferredReturnTypes(aggregate.getAggCallList(), gathered, finalGroupSets);
 
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             finalTraits,
             gathered,
-            aggregate.getGroupSet(),
-            aggregate.getGroupSets(),
+            finalGroupSet,
+            finalGroupSets,
             finalAggCalls,
             AggregateMode.FINAL,
             aggregate.getViableBackends(),
@@ -210,6 +223,31 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
 
         call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
         call.transformTo(result);
+    }
+
+    /**
+     * Each input {@link ImmutableBitSet} contains CHILD column indices that are a subset of
+     * {@code originalGroupSet}. Return their equivalents against PARTIAL's output layout,
+     * where each bit becomes its sorted-position index within {@code originalGroupSet}.
+     */
+    private static List<ImmutableBitSet> remapGroupSets(
+        ImmutableBitSet originalGroupSet,
+        List<ImmutableBitSet> originalGroupSets
+    ) {
+        int[] origKeys = originalGroupSet.toArray();
+        Map<Integer, Integer> childIdxToPartialIdx = new LinkedHashMap<>();
+        for (int i = 0; i < origKeys.length; i++) {
+            childIdxToPartialIdx.put(origKeys[i], i);
+        }
+        List<ImmutableBitSet> remapped = new ArrayList<>(originalGroupSets.size());
+        for (ImmutableBitSet gs : originalGroupSets) {
+            ImmutableBitSet.Builder b = ImmutableBitSet.builder();
+            for (int k : gs) {
+                b.set(childIdxToPartialIdx.get(k));
+            }
+            remapped.add(b.build());
+        }
+        return remapped;
     }
 
     /**

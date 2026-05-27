@@ -311,6 +311,14 @@ public class PlanShapeTests extends PlanShapeTestBase {
      * Two aggregates with different group keys, joined on some key. Both FINALs deliver SINGLETON;
      * JoinSplit's convert() is a no-op per side; no extra ER above either FINAL. Total ERs: 2
      * (one per branch's PARTIAL→FINAL).
+     *
+     * <p>Note the right branch: PARTIAL keeps the original (non-prefix) groupSet
+     * <code>&#123;1&#125;</code> because that's what's available against the raw CHILD input.
+     * FINAL is constructed against PARTIAL's output, where group keys are hoisted to a sorted
+     * prefix — so FINAL's groupSet is always a prefix
+     * <code>&#123;0..groupCount)</code>, regardless of where the keys lived in the original
+     * input. Without this remap, FINAL would re-group by PARTIAL's agg-result column instead
+     * of the original group key, silently miscomputing for non-prefix shapes.
      */
     public void testJoinWithDifferentGroupKeys_multiShard() {
         RelNode plan = buildJoinWithDifferentGroupKeys();
@@ -322,7 +330,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], s=[SUM($0)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
