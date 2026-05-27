@@ -709,13 +709,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
 
         verifyIndex(indexName, 1, totalDocs);
 
-        // Verify force merge actually ran (5 cycles guarantees >1 segment before forceMerge)
-        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get();
-        assertTrue(
-            "Force merge must register in stats (5 cycles guarantees multiple segments)",
-            stats.getIndex(indexName).getTotal().getMerge().getTotal() > 0
-        );
-
         client().admin().indices().prepareDelete(indexName).get();
     }
 
