@@ -9,6 +9,7 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
 
 /**
  * Window functions a backend may support. Covers aggregate-as-window
@@ -49,12 +50,26 @@ public enum WindowFunction {
         return sqlKind;
     }
 
+    /**
+     * Returns the {@link WindowFunction} for a {@link SqlOperator}, trying
+     * {@link SqlKind}-based lookup first and falling back to a case-insensitive
+     * name lookup for {@link SqlKind#OTHER} / {@link SqlKind#OTHER_FUNCTION}
+     * (used by PPL builtins such as {@code INTERNAL_PATTERN}). Returns
+     * {@code null} if neither resolves.
+     */
+    public static WindowFunction resolveFunction(SqlOperator operator) {
+        WindowFunction fn = fromSqlKind(operator.getKind());
+        if (fn != null) {
+            return fn;
+        }
+        return fromName(operator.getName());
+    }
+
     /** Returns the {@link WindowFunction} for {@code sqlKind}, or {@code null} if unsupported. */
     public static WindowFunction fromSqlKind(SqlKind sqlKind) {
         if (sqlKind == SqlKind.OTHER || sqlKind == SqlKind.OTHER_FUNCTION) {
-            // Name-based lookup is required for OTHER kinds; the caller (e.g.
-            // {@code OpenSearchProjectRule.collectWindowFunctions}) should fall
-            // through to {@link #fromName} on null here.
+            // OTHER kinds require name-based disambiguation; {@link #resolveFunction}
+            // handles the fall-through.
             return null;
         }
         for (WindowFunction fn : values()) {
@@ -66,8 +81,8 @@ public enum WindowFunction {
     /**
      * Returns the {@link WindowFunction} for a case-insensitive operator name
      * (e.g. {@code "pattern"} → {@link #PATTERN}), or {@code null} if unsupported.
-     * PPL emits some window operators with {@link SqlKind#OTHER}, so callers
-     * fall back here when {@link #fromSqlKind} returns null.
+     * PPL emits some window operators with {@link SqlKind#OTHER} — prefer
+     * {@link #resolveFunction} which handles both lookups.
      */
     public static WindowFunction fromName(String name) {
         try {
