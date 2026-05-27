@@ -104,11 +104,12 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             // The operator's return-type inference applied to the shifted args no
             // longer agrees with the declared output type — the rule throws before
             // DistributedAggregateRewriter (which DOES remap correctly) can run.
-            // Skip the split for these; the SINGLE-on-SINGLETON alternative still
-            // executes correctly and is the only viable choice on a single shard
-            // anyway. Distributed parallelism for state-expanding aggs is a
-            // follow-up (requires per-phase operator overloads or constructing the
-            // FINAL with remapped argList + explicit type here).
+            // Skip the split for these; the SINGLE-on-SINGLETON alternative runs
+            // correctly on multi-shard too (gather to the coordinator, then aggregate
+            // — exercised by PatternsCommandIT on a 3-shard index) but trades away
+            // distributed parallelism. Distributed parallelism for state-expanding
+            // aggs is a follow-up (requires per-phase operator overloads or
+            // constructing the FINAL with remapped argList + explicit type here).
             AggregateFunction fn = AggregateFunction.fromSqlAggFunction(aggCall.getAggregation());
             if (fn != null && fn.getType() == AggregateFunction.Type.STATE_EXPANDING) {
                 return true;
