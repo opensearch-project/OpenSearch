@@ -29,6 +29,8 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneReader;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
+import org.opensearch.be.lucene.stats.LuceneStatsProvider;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -43,6 +45,7 @@ import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -52,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -143,20 +147,34 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public synchronized CommitResult commit(CommitInput commitData) throws IOException {
         ensureOpen();
-        indexWriter.setLiveCommitData(commitData.userData());
-        // Write-ahead fsync: data files durable before the commit point that references them.
-        // getFiles(false) excludes segments_N — IndexWriter.commit() handles that via rename + syncMetaData.
-        if (commitData.catalogSnapshot() != null) {
-            store.directory().sync(commitData.catalogSnapshot().getFiles(false));
-            store.directory().syncMetaData();
-        }
-        indexWriter.commit();
-        SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
-        this.lastCommittedSegmentInfos = committed;
+        long start = System.nanoTime();
+        try {
+            indexWriter.setLiveCommitData(commitData.userData());
+            // Write-ahead fsync: data files durable before the commit point that references them.
+            // getFiles(false) excludes segments_N — IndexWriter.commit() handles that via rename + syncMetaData.
+            if (commitData.catalogSnapshot() != null) {
+                store.directory().sync(commitData.catalogSnapshot().getFiles(false));
+                store.directory().syncMetaData();
+            }
+            indexWriter.commit();
+            SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+            this.lastCommittedSegmentInfos = committed;
 
-        // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
-        long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
-        return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
+            // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
+            long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
+            return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
+        } finally {
+            LuceneStatsProvider provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
+                LuceneStatsProvider.FORMAT_NAME
+            );
+            if (provider != null) {
+                LuceneShardStatsTracker tracker = provider.getTracker(store.shardId());
+                if (tracker != null) {
+                    tracker.incCommitTotal();
+                    tracker.addCommitTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                }
+            }
+        }
     }
 
     /**
@@ -298,6 +316,11 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     Sort getUserProvidedSort() {
         ensureOpen();
         return userProvidedSort;
+    }
+
+    /** Returns the store reference. Package-private for sibling classes (e.g., LuceneDeleteExecutionEngine). */
+    Store getStore() {
+        return store;
     }
 
     /** Returns the version-keyed reader map used by {@link #serializeToCommitFormat}. */

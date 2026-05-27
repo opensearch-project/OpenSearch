@@ -31,8 +31,11 @@ import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
+import org.opensearch.parquet.stats.ParquetStatsProvider;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -84,6 +87,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
+    private final ParquetShardStatsTracker statsTracker = new ParquetShardStatsTracker();
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -160,9 +164,24 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             throw new RuntimeException(e);
         }
         this.parquetMerger = new ParquetMergeExecutor(
-            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
+            new NativeParquetMergeStrategy(
+                dataFormat,
+                indexSettings.getIndex().getName(),
+                shardPath,
+                checksumStrategy::registerChecksum,
+                statsTracker
+            )
         );
         pushSettingsToRust();
+        // Register this shard's tracker with the format-wide stats provider so the
+        // /_plugins/parquet/{index}/_stats and /_plugins/parquet/_nodes/{nodeId}/_stats
+        // REST endpoints can read live counters. Unregistered in close().
+        ParquetStatsProvider provider = (ParquetStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
+            ParquetStatsProvider.FORMAT_NAME
+        );
+        if (provider != null) {
+            provider.register(shardPath.getShardId(), statsTracker);
+        }
     }
 
     /**
@@ -224,7 +243,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             bufferPool,
             indexSettings,
             threadPool,
-            checksumStrategy
+            checksumStrategy,
+            statsTracker
         );
     }
 
@@ -300,6 +320,13 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public void close() throws IOException {
+        // Unregister this shard's tracker from the stats provider before tearing down.
+        ParquetStatsProvider provider = (ParquetStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
+            ParquetStatsProvider.FORMAT_NAME
+        );
+        if (provider != null) {
+            provider.unregister(shardPath.getShardId());
+        }
         try {
             RustBridge.removeSettings(indexSettings.getIndex().getName());
         } catch (Exception e) {
