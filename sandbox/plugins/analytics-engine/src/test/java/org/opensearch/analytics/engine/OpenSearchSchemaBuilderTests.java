@@ -509,9 +509,10 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         // 'age' exists — could be BIGINT or VARCHAR depending on resolver order
         RelDataTypeField ageField = rowType.getField("age", true, false);
         assertNotNull("Conflicting field 'age' must still appear in union", ageField);
-        assertTrue("age must be one of the two types",
-            ageField.getType().getSqlTypeName() == SqlTypeName.BIGINT
-                || ageField.getType().getSqlTypeName() == SqlTypeName.VARCHAR);
+        assertTrue(
+            "age must be one of the two types",
+            ageField.getType().getSqlTypeName() == SqlTypeName.BIGINT || ageField.getType().getSqlTypeName() == SqlTypeName.VARCHAR
+        );
         // unique fields from each index must appear
         assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
         assertFieldType(rowType, "score", SqlTypeName.DOUBLE);
