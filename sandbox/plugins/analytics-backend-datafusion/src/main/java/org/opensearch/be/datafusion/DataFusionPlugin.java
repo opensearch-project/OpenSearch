@@ -57,11 +57,13 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import io.substrait.extension.DefaultExtensionCatalog;
@@ -171,6 +173,58 @@ public class DataFusionPlugin extends Plugin
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Spill directory used by DataFusion's {@code DiskManager} for intermediate state when
+     * operators (HashAggregate, Sort, TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}.
+     *
+     * <p><strong>Default: empty string</strong> — falls back to a {@code tmp/} sibling of
+     * {@code path.data[0]}, preserving the historical behaviour for self-managed clusters that
+     * never configured this setting. AOS optimized domain set this to
+     * {@code /mnt/analytics/backend/spill} via {@code opensearch.yml} so spill traffic lands on
+     * a dedicated EBS volume instead of contending with the data path.
+     */
+    public static final Setting<String> DATAFUSION_SPILL_DIRECTORY = new Setting<>(
+        "datafusion.spill_directory",
+        "",
+        Function.identity(),
+        DataFusionPlugin::validateSpillDirectory,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Validates {@link #DATAFUSION_SPILL_DIRECTORY}. Empty is accepted (sentinel for the legacy
+     * {@code path.data[0]/../tmp} default). For non-empty values, walks up the path until an
+     * existing ancestor is found; rejects paths whose root is unreachable. Writability is
+     * intentionally not checked here — the directory may be created later by the AOS boot
+     * script (first-boot mount), and runtime spill writes will surface any permission issues
+     * at first spill with a clear DataFusion error.
+     */
+    static String validateSpillDirectory(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        try {
+            Path.of(value).toAbsolutePath().normalize();
+        } catch (java.nio.file.InvalidPathException e) {
+            throw new IllegalArgumentException("Setting [datafusion.spill_directory] is not a valid path: [" + value + "]", e);
+        }
+        return value;
+    }
+
+    /**
+     * Resolves the effective spill directory: when {@link #DATAFUSION_SPILL_DIRECTORY} is set,
+     * uses it as-is; otherwise falls back to the legacy {@code path.data[0]/../tmp} default.
+     * The fallback preserves backward compatibility for self-managed clusters that never
+     * configured this setting.
+     */
+    static String resolveSpillDirectory(Settings settings, Environment environment) {
+        String configured = DATAFUSION_SPILL_DIRECTORY.get(settings);
+        if (configured != null && configured.isEmpty() == false) {
+            return configured;
+        }
+        return environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
+    }
 
     /**
      * Computes the default for {@link #DATAFUSION_SPILL_MEMORY_LIMIT} as 50% of physical RAM.
@@ -341,7 +395,7 @@ public class DataFusionPlugin extends Plugin
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
-        String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
+        String spillDir = resolveSpillDirectory(settings, environment);
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)

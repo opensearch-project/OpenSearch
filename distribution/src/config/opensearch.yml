@@ -121,3 +121,10 @@ ${path.logs}
 # Once there is no observed impact on performance, this feature flag can be removed.
 #
 #opensearch.experimental.optimization.datetime_formatter_caching.enabled: false
+#
+# Path to the spill directory. Empty string (default) falls back to a tmp/ sibling of
+# path.data[0]. AOS optimized domain set this to /mnt/analytics/backend/spill so
+# spill traffic lands on a dedicated EBS volume rather than contending with the data path.
+# NodeScope, Final — Rust DiskManager directories are built once at runtime startup.
+#
+#datafusion.spill_directory:

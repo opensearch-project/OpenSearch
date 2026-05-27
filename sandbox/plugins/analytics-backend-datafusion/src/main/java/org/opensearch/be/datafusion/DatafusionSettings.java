@@ -243,6 +243,7 @@ public final class DatafusionSettings {
         // Runtime settings — memory pool, spill, reduce input mode, and budget tuning
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
+        DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
         DataFusionPlugin.DATAFUSION_REDUCE_TARGET_PARTITIONS,
         DataFusionPlugin.DATAFUSION_MIN_TARGET_PARTITIONS,
