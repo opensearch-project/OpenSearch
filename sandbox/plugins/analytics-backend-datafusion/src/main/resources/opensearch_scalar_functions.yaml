@@ -64,6 +64,21 @@ scalar_functions:
           - { value: string, name: "unit" }
           - { value: "date", name: "value" }
         return: date
+  - name: "date_bin"
+    description: >-
+      Bucket a timestamp into fixed-width windows of size `stride` (a string-form
+      interval like `"40 milliseconds"`) starting from the Unix epoch. Lowering
+      target for PPL's sub-second multi-unit time span — `span(field, N us)` and
+      `span(field, N ms)` with `N > 1` — rewritten by `SpanAdapter`. Larger
+      fixed-length units (`s`, `m`, `h`, `d`, `w`) take the cheaper integer-seconds
+      arithmetic path in the same adapter and don't reach this signature. The
+      arg shape mirrors `date_trunc`: string stride then precision_timestamp,
+      so isthmus matchKeys binds it the same way.
+    impls:
+      - args:
+          - { value: string, name: "stride" }
+          - { value: "precision_timestamp<P>", name: "source" }
+        return: precision_timestamp<P>
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
@@ -606,6 +621,31 @@ scalar_functions:
       - args:
           - { name: value, value: "precision_timestamp<P>" }
           - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # ip_to_string(bytes) — render a 16-byte ipv6-mapped buffer as a canonical IP string.
+  # Bound so IpBinaryOutputCastRewriter can rewrite engine-output `CAST(<IpType> AS VARCHAR)`
+  # to `ip_to_string(<col>)` and have it serialize through this extension. The Rust impl
+  # (rust/src/udf/ip_to_string.rs) detects ipv4-mapped (::ffff:a.b.c.d) and emits dotted-quad,
+  # otherwise emits Ipv6Addr::to_string()'s RFC 5952 compressed form.
+  - name: "ip_to_string"
+    description: "Render a 16-byte ipv6-mapped buffer as a canonical IP string (engine-output cast target for ip fields)."
+    impls:
+      - args:
+          - { name: bytes, value: binary }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # binary_to_base64(bytes) — base64-encode a binary buffer per the OpenSearch `binary`
+  # field wire contract. Bound so IpBinaryOutputCastRewriter can rewrite engine-output
+  # `CAST(<BinaryType> AS VARCHAR)` to `binary_to_base64(<col>)`. The Rust impl
+  # (rust/src/udf/binary_to_base64.rs) uses the standard base64 alphabet.
+  - name: "binary_to_base64"
+    description: "Base64-encode a binary buffer per the OpenSearch binary-field wire contract (engine-output cast target for binary fields)."
+    impls:
+      - args:
+          - { name: bytes, value: binary }
         nullability: DECLARED_OUTPUT
         return: string
 

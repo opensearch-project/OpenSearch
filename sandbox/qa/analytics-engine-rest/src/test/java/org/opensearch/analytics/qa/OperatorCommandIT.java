@@ -220,22 +220,19 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** MOD on zero divisor returns NULL — {@link org.opensearch.be.datafusion.ModAdapter} wraps
-     *  in CASE because isthmus can't thread substrait's {@code on_domain_error: NULL} option. */
+    /** MOD on zero divisor follows IEEE 754 for fp: {@code num0 % 0} → NaN (serialized as string). */
     public void testArithmeticModByZero() throws IOException {
         assertSingleRowField(
             "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 0 | fields r",
-            null
+            "NaN"
         );
     }
 
-    /** DIVIDE by zero returns NULL — {@link org.opensearch.be.datafusion.DivideAdapter} wraps in
-     *  CASE for the same isthmus-option-emission gap. Literal-zero divisor exercises the CASE
-     *  path (the non-zero literal short-circuit does not fire). */
+    /** DIVIDE by zero follows IEEE 754 for fp: positive numerator over 0 → +Infinity (serialized as string). */
     public void testArithmeticDivideByZero() throws IOException {
         assertSingleRowField(
             "source=" + DATASET.indexName + " | where key = 'key00' | eval q = num0 / 0 | fields q",
-            null
+            "Infinity"
         );
     }
 

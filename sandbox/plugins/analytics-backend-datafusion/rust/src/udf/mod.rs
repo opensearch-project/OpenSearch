@@ -120,6 +120,7 @@ pub(crate) fn coerce_args(
         .collect()
 }
 
+pub mod binary_to_base64;
 pub mod conv;
 pub mod convert_tz;
 pub mod conversion;
@@ -127,6 +128,7 @@ pub mod crc32;
 pub mod date_format;
 pub mod extract;
 pub mod from_unixtime;
+pub mod ip_to_string;
 pub mod item;
 pub mod json_append;
 pub mod json_array_length;
@@ -164,6 +166,7 @@ pub mod width_bucket;
 // `./gradlew :sandbox:libs:dataformat-native:buildRustLibrary --rerun-tasks`
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
+    binary_to_base64::register_all(ctx);
     conv::register_all(ctx);
     convert_tz::register_all(ctx);
     conversion::register_all(ctx);
@@ -171,6 +174,7 @@ pub fn register_all(ctx: &SessionContext) {
     date_format::register_all(ctx);
     extract::register_all(ctx);
     from_unixtime::register_all(ctx);
+    ip_to_string::register_all(ctx);
     item::register_all(ctx);
     json_append::register_all(ctx);
     json_array_length::register_all(ctx);
