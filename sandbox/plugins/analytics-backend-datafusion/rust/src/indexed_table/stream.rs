@@ -633,7 +633,9 @@ impl IndexedStream {
             }
         };
 
-        // Strip extra predicate columns and inject computed __row_id__.
+        // Inject computed __row_id__, or reorder/strip columns to match output schema.
+        // The parquet reader delivers columns in the file's physical order which may
+        // differ from the table schema order (e.g. when infer_schema sorted alphabetically).
         let t_proj = Instant::now();
         let output = if let Some(row_id_idx) = self.row_id_output_index {
             let ctx = row_id_ctx.unwrap();
@@ -647,7 +649,9 @@ impl IndexedStream {
                 row_id_idx,
                 &self.schema,
             )?
-        } else if output.num_columns() > self.schema.fields().len() {
+        } else if output.schema().as_ref() == self.schema.as_ref() {
+            output
+        } else {
             let n = self.schema.fields().len();
             if n == 0 {
                 RecordBatch::try_new_with_options(
@@ -665,8 +669,6 @@ impl IndexedStream {
                     .collect();
                 output.project(&indices)?
             }
-        } else {
-            output
         };
         if let Some(ref t) = self.metrics.projection_fixup_time {
             t.add_duration(t_proj.elapsed());

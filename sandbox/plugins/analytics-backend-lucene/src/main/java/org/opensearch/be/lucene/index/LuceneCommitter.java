@@ -11,6 +11,7 @@ package org.opensearch.be.lucene.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
@@ -239,12 +240,16 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getId());
             sis = new SegmentInfos(Version.LATEST.major);
         } else {
-            if (reader instanceof StandardDirectoryReader == false) {
+            DirectoryReader unwrapped = reader;
+            while (unwrapped instanceof FilterDirectoryReader fdr) {
+                unwrapped = fdr.getDelegate();
+            }
+            if (unwrapped instanceof StandardDirectoryReader == false) {
                 throw new IllegalStateException(
                     "Reader for catalog snapshot version=" + catalogSnapshot.getId() + " is not a StandardDirectoryReader: " + reader
                 );
             }
-            sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();
+            sis = ((StandardDirectoryReader) unwrapped).getSegmentInfos().clone();
         }
         Map<String, String> sisUserData = new HashMap<>(catalogSnapshot.getUserData());
         sisUserData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(catalogSnapshot.getId()));
