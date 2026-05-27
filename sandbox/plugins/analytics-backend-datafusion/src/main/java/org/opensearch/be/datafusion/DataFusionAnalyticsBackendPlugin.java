@@ -805,11 +805,20 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         };
     }
 
+    /**
+     * Context-aware override: registers the handle and tracker under {@code contextId}
+     * so that concurrent queries each have their own isolated FFM callback binding.
+     * Returns a cleanup action that removes the binding when execution finishes.
+     */
     @Override
-    public void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
-        // Install the handle as the FFM upcall target. All Rust callbacks
-        // (createProvider, createCollector, collectDocs, release*) route to it.
-        FilterTreeCallbacks.setHandle(handle);
+    public Runnable configureFilterDelegation(
+        long contextId,
+        FilterDelegationHandle handle,
+        DelegationThreadTracker tracker,
+        BackendExecutionContext backendContext
+    ) {
+        FilterTreeCallbacks.register(contextId, handle, tracker);
+        return () -> FilterTreeCallbacks.unregister(contextId);
     }
 
     @Override
@@ -856,11 +865,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         }
         StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
         return new DatafusionResultStream(streamHandle, allocator);
-    }
-
-    @Override
-    public void setDelegationThreadTracker(DelegationThreadTracker tracker) {
-        FilterTreeCallbacks.setThreadTracker(tracker);
     }
 
     public Exception convertException(Exception original) {

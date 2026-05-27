@@ -530,25 +530,29 @@ public final class NativeBridge {
             Class<?> cb = org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks.class;
             var lookup = java.lang.invoke.MethodHandles.lookup();
 
+            // All five callbacks now receive contextId (long) as their first parameter.
+            // Rust passes it through every FFM upcall; Java uses it to look up the
+            // correct per-query FilterDelegationHandle in FilterTreeCallbacks.BINDINGS.
             MethodHandle createProvider = lookup.findStatic(
                 cb,
                 "createProvider",
-                java.lang.invoke.MethodType.methodType(int.class, int.class)
+                java.lang.invoke.MethodType.methodType(int.class, long.class, int.class)
             );
             MethodHandle releaseProvider = lookup.findStatic(
                 cb,
                 "releaseProvider",
-                java.lang.invoke.MethodType.methodType(void.class, int.class)
+                java.lang.invoke.MethodType.methodType(void.class, long.class, int.class)
             );
             MethodHandle createCollector = lookup.findStatic(
                 cb,
                 "createCollector",
-                java.lang.invoke.MethodType.methodType(int.class, int.class, long.class, int.class, int.class)
+                java.lang.invoke.MethodType.methodType(int.class, long.class, int.class, long.class, int.class, int.class)
             );
             MethodHandle collectDocs = lookup.findStatic(
                 cb,
                 "collectDocs",
                 java.lang.invoke.MethodType.methodType(
+                    long.class,
                     long.class,
                     int.class,
                     int.class,
@@ -560,23 +564,24 @@ public final class NativeBridge {
             MethodHandle releaseCollector = lookup.findStatic(
                 cb,
                 "releaseCollector",
-                java.lang.invoke.MethodType.methodType(void.class, int.class)
+                java.lang.invoke.MethodType.methodType(void.class, long.class, int.class)
             );
 
             java.lang.foreign.MemorySegment createProviderStub = linker.upcallStub(
                 createProvider,
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
                 arena
             );
             java.lang.foreign.MemorySegment releaseProviderStub = linker.upcallStub(
                 releaseProvider,
-                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT),
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
                 arena
             );
             java.lang.foreign.MemorySegment createCollectorStub = linker.upcallStub(
                 createCollector,
                 FunctionDescriptor.of(
                     ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
@@ -588,6 +593,7 @@ public final class NativeBridge {
                 collectDocs,
                 FunctionDescriptor.of(
                     ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
@@ -598,7 +604,7 @@ public final class NativeBridge {
             );
             java.lang.foreign.MemorySegment releaseCollectorStub = linker.upcallStub(
                 releaseCollector,
-                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT),
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
                 arena
             );
             NativeCall.invokeVoid(

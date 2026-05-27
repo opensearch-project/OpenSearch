@@ -159,6 +159,7 @@ async fn run_two_segment_query(
                     std::sync::Arc::new(std::collections::HashMap::new()),
                     segment.writer_generation,
                     std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                    0,
                 ),
             );
                 Ok(eval)
@@ -362,6 +363,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                     std::sync::Arc::new(std::collections::HashMap::new()),
                     segment.writer_generation,
                     std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                    0,
                 ),
             );
                 Ok(eval)

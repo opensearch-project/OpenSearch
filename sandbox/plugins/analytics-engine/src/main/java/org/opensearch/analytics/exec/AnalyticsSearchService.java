@@ -327,15 +327,20 @@ public class AnalyticsSearchService implements AutoCloseable {
                 String acceptingBackendId = delegation.delegatedExpressions().getFirst().getAcceptingBackendId();
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
-                backend.configureFilterDelegation(handle, backendContext);
 
+                // Build a thread tracker when task resource tracking is available.
+                DelegationThreadTracker tracker = null;
                 if (task != null && taskResourceTrackingService != null) {
                     long taskId = task.getId();
                     TaskResourceTrackingService service = taskResourceTrackingService;
-                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
+                    Task trackedTask = task;
+                    tracker = new DelegationThreadTracker() {
                         @Override
                         public long trackStart() {
                             long threadId = Thread.currentThread().threadId();
+                            if (service.isThreadTrackedForTask(trackedTask, threadId)) {
+                                return -1;
+                            }
                             service.taskExecutionStartedOnThread(taskId, threadId);
                             return threadId;
                         }
@@ -344,9 +349,17 @@ public class AnalyticsSearchService implements AutoCloseable {
                         public void trackEnd(long threadId) {
                             service.taskExecutionFinishedOnThread(taskId, threadId);
                         }
-                    });
-                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
+                    };
                 }
+
+                // Register handle and tracker together under the query's contextId so concurrent
+                // queries have isolated FFM callback bindings. The returned cleanup removes the
+                // binding after query execution completes.
+                if (task == null) {
+                    throw new IllegalStateException("Filter delegation requires a tracked task for per-query isolation");
+                }
+                long contextId = task.getId();
+                trackerCleanup = backend.configureFilterDelegation(contextId, handle, tracker, backendContext);
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);

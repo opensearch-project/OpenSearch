@@ -460,6 +460,10 @@ pub async unsafe fn execute_indexed_with_context(
     let object_metas = handle.object_metas;
     let writer_generations = handle.writer_generations;
     let query_context = handle.query_context;
+    // Extract context_id early so it can be captured by the per-segment closures
+    // below. The closures pass it through every FFM upcall so Java can route each
+    // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
+    let context_id = query_context.context_id();
 
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
     // Deregister the default ListingTable (registered by create_session_context) — will be replaced
@@ -597,7 +601,7 @@ pub async unsafe fn execute_indexed_with_context(
             let correctness_provider: Option<Arc<ProviderHandle>> =
                 match single_collector_id(&extraction.tree) {
                     Some(annotation_id) => Some(Arc::new(
-                        create_provider(annotation_id)
+                        create_provider(context_id, annotation_id)
                             .map_err(|e| DataFusionError::External(e.into()))?,
                     )),
                     None => None,
@@ -645,6 +649,7 @@ pub async unsafe fn execute_indexed_with_context(
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
                             let collector = FfmSegmentCollector::create(
+                                context_id,
                                 provider.key(),
                                 segment.writer_generation,
                                 chunk.doc_min,
@@ -652,7 +657,8 @@ pub async unsafe fn execute_indexed_with_context(
                             )
                             .map_err(|e| {
                                 format!(
-                                    "FfmSegmentCollector::create(provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                                    "FfmSegmentCollector::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                                    context_id,
                                     provider.key(),
                                     segment.writer_generation,
                                     chunk.doc_min,
@@ -680,6 +686,7 @@ pub async unsafe fn execute_indexed_with_context(
                             Arc::clone(&performance_provider_locks),
                             segment.writer_generation,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                            context_id,
                         ));
                     Ok(eval)
                 },
@@ -701,7 +708,8 @@ pub async unsafe fn execute_indexed_with_context(
             let mut providers: Vec<Arc<ProviderHandle>> = Vec::with_capacity(leaf_ids.len());
             for annotation_id in &leaf_ids {
                 providers.push(Arc::new(
-                    create_provider(*annotation_id).map_err(|e| DataFusionError::External(e.into()))?,
+                    create_provider(context_id, *annotation_id)
+                        .map_err(|e| DataFusionError::External(e.into()))?,
                 ));
             }
             let tree = Arc::new(tree);
@@ -737,6 +745,7 @@ pub async unsafe fn execute_indexed_with_context(
                         Vec::with_capacity(providers.len());
                     for (idx, provider) in providers.iter().enumerate() {
                         let collector = FfmSegmentCollector::create(
+                            context_id,
                             provider.key(),
                             segment.writer_generation,
                             chunk.doc_min,
@@ -821,7 +830,6 @@ pub async unsafe fn execute_indexed_with_context(
     let (cross_rt_stream, abort_handle) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
-    let context_id = query_context.context_id();
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
     }
