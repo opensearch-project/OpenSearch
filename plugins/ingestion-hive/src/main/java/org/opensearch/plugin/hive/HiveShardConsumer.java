@@ -20,12 +20,14 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -565,32 +567,15 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return result;
     }
 
-    byte[] rowToJson(Map<String, Object> row, HivePointer pointer) {
-        StringBuilder sb = new StringBuilder("{\"_id\":\"");
-        sb.append(escapeJson(pointer.asString()));
-        sb.append("\",\"_source\":{");
-        boolean first = true;
-        for (Map.Entry<String, Object> entry : row.entrySet()) {
-            if (!first) sb.append(",");
-            first = false;
-            sb.append("\"").append(entry.getKey()).append("\":");
-            Object value = entry.getValue();
-            if (value == null) {
-                sb.append("null");
-            } else if (value instanceof String) {
-                sb.append("\"").append(escapeJson((String) value)).append("\"");
-            } else if (value instanceof Boolean || value instanceof Number) {
-                sb.append(value);
-            } else {
-                sb.append("\"").append(escapeJson(value.toString())).append("\"");
-            }
-        }
-        sb.append("}}");
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static String escapeJson(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    byte[] rowToJson(Map<String, Object> row, HivePointer pointer) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("_id", pointer.asString());
+        builder.startObject("_source");
+        builder.mapContents(row);
+        builder.endObject();
+        builder.endObject();
+        return BytesReference.toBytes(BytesReference.bytes(builder));
     }
 
     @Override

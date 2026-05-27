@@ -121,7 +121,7 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertEquals(PrimitiveType.PrimitiveTypeName.BINARY, schema.getType("custom").asPrimitiveType().getPrimitiveTypeName());
     }
 
-    public void testRowToJsonBasicTypes() {
+    public void testRowToJsonBasicTypes() throws Exception {
         HiveShardConsumer consumer = createConsumer();
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("name", "alice");
@@ -138,7 +138,7 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
     }
 
 
-    public void testRowToJsonNullValue() {
+    public void testRowToJsonNullValue() throws Exception {
         HiveShardConsumer consumer = createConsumer();
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("name", "bob");
@@ -152,7 +152,7 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
     }
 
 
-    public void testRowToJsonSpecialCharacters() {
+    public void testRowToJsonSpecialCharacters() throws Exception {
         HiveShardConsumer consumer = createConsumer();
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("msg", "line1\nline2");
