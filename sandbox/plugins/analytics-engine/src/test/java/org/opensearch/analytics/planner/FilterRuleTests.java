@@ -153,6 +153,37 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertTrue(matchPred.getOriginal().toString().contains("MATCH"));
     }
 
+    /**
+     * Multi-index alias MATCH delegation: when a scan resolves to two backing indices, the
+     * unioned {@link org.opensearch.analytics.spi.FieldStorageInfo} must still expose the field's
+     * Lucene index format so a {@code MATCH} predicate on it delegates to the Lucene backend.
+     *
+     * <p>This pins the contract called out in the multi-index PR description: MATCH on an alias
+     * spanning multiple concrete indices must behave the same as MATCH on a single index.
+     *
+     * <p>Implementation note: with the current per-index storage helpers, both backings declare
+     * the field with identical (keyword, indexed) settings, and
+     * {@link org.opensearch.analytics.planner.FieldStorageResolver#merged} preserves Lucene index
+     * formats via {@code putIfAbsent}. A future regression that drops index formats during the
+     * union would surface as the assertion below failing.
+     */
+    public void testMatchDelegationOverMultiIndexAlias() {
+        OpenSearchFilter result = runMultiIndexFilter(
+            new String[] { "idx_a", "idx_b" },
+            "parquet",
+            Map.of("message", Map.of("type", "keyword", "index", true)),
+            new String[] { "message" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 0, "hello world")
+        );
+
+        assertTrue("DataFusion stays viable at the operator level", result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse("Lucene is delegation-only here", result.getViableBackends().contains(MockLuceneBackend.NAME));
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+        assertTrue(predicate.getOriginal().toString().contains("MATCH_PHRASE"));
+    }
+
     /** OR of two full-text predicates — DF viable at operator, both predicates delegated to Lucene. */
     public void testMultipleFullTextOrWithDelegation() {
         OpenSearchFilter result = runFilterWithDelegation(
@@ -282,6 +313,40 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexNode condition
     ) {
         return runFilter(format, fields, fieldNames, fieldTypes, condition, delegationBackends(), Set.of(MockDataFusionBackend.NAME));
+    }
+
+    /**
+     * Variant of {@code runFilter} that resolves to {@code multipleIndexNames} concrete indices
+     * sharing identical mapping/settings, simulating an alias scan. Uses
+     * {@link BasePlannerRulesTests#buildContextPerIndex} to register all indices under the same
+     * table name. The fragment's table name is the first index in the list — that's what the
+     * scan rule looks up; since all backings have the same mapping, the unioned field storage
+     * matches single-index behavior.
+     */
+    private OpenSearchFilter runMultiIndexFilter(
+        String[] indexNames,
+        String format,
+        Map<String, Map<String, Object>> fields,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        RexNode condition
+    ) {
+        java.util.Map<String, Integer> shardCounts = new java.util.LinkedHashMap<>();
+        for (String name : indexNames) {
+            shardCounts.put(name, 1);
+        }
+        PlannerContext context = buildContextPerIndex(format, shardCounts, fields, delegationBackends());
+        RelOptTable table = mockTable(indexNames[0], fieldNames, fieldTypes);
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+        logger.info("Multi-index plan:\n{}", RelOptUtil.toString(result));
+        assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchFilter.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        return (OpenSearchFilter) result;
     }
 
     private OpenSearchFilter runFilter(
