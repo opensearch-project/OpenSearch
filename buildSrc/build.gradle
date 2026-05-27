@@ -94,8 +94,17 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
-  maven { url = uri("https://ci.opensearch.org/maven2/") }
-  mavenCentral()
+  maven {
+    url = uri("https://ci.opensearch.org/maven2/")
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  mavenCentral {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
   gradlePluginPortal()
 }
 

@@ -9,8 +9,17 @@
 apply plugin: 'jacoco'
 
 repositories {
-  maven { url = uri("https://ci.opensearch.org/maven2/") }
-  mavenCentral()
+  maven {
+    url = uri("https://ci.opensearch.org/maven2/")
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  mavenCentral {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
   gradlePluginPortal()
   // TODO: Find the way to use the repositories from RepositoriesSetupPlugin
   maven {
