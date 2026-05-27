@@ -28,6 +28,18 @@ import org.opensearch.composite.action.DataFormatStatsAction;
 import org.opensearch.composite.action.DataFormatStatsActionType;
 import org.opensearch.composite.action.TransportCatalogSnapshotAction;
 import org.opensearch.composite.action.TransportDataFormatStatsAction;
+import org.opensearch.composite.action.format.lucene.LuceneNodeStatsAction;
+import org.opensearch.composite.action.format.lucene.LuceneNodeStatsActionType;
+import org.opensearch.composite.action.format.lucene.LuceneStatsAction;
+import org.opensearch.composite.action.format.lucene.LuceneStatsActionType;
+import org.opensearch.composite.action.format.lucene.TransportLuceneNodeStatsAction;
+import org.opensearch.composite.action.format.lucene.TransportLuceneStatsAction;
+import org.opensearch.composite.action.format.parquet.ParquetNodeStatsAction;
+import org.opensearch.composite.action.format.parquet.ParquetNodeStatsActionType;
+import org.opensearch.composite.action.format.parquet.ParquetStatsAction;
+import org.opensearch.composite.action.format.parquet.ParquetStatsActionType;
+import org.opensearch.composite.action.format.parquet.TransportParquetNodeStatsAction;
+import org.opensearch.composite.action.format.parquet.TransportParquetStatsAction;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -338,11 +350,20 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         return Map.copyOf(strategies);
     }
 
+    /**
+     * SECURITY TODO: The REST actions registered below currently have no authorization checks.
+     * Before promoting to GA, add cluster/index permission requirements via
+     * {@link ActionPlugin#getRestHandlerWrapper}.
+     */
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(DataFormatStatsActionType.INSTANCE, TransportDataFormatStatsAction.class),
-            new ActionHandler<>(CatalogSnapshotActionType.INSTANCE, TransportCatalogSnapshotAction.class)
+            new ActionHandler<>(CatalogSnapshotActionType.INSTANCE, TransportCatalogSnapshotAction.class),
+            new ActionHandler<>(ParquetStatsActionType.INSTANCE, TransportParquetStatsAction.class),
+            new ActionHandler<>(ParquetNodeStatsActionType.INSTANCE, TransportParquetNodeStatsAction.class),
+            new ActionHandler<>(LuceneStatsActionType.INSTANCE, TransportLuceneStatsAction.class),
+            new ActionHandler<>(LuceneNodeStatsActionType.INSTANCE, TransportLuceneNodeStatsAction.class)
         );
     }
 
@@ -356,7 +377,14 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new DataFormatStatsAction(), new CatalogSnapshotAction());
+        return List.of(
+            new DataFormatStatsAction(),
+            new CatalogSnapshotAction(),
+            new ParquetStatsAction(),
+            new ParquetNodeStatsAction(),
+            new LuceneStatsAction(),
+            new LuceneNodeStatsAction()
+        );
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
@@ -32,7 +31,6 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -205,7 +203,9 @@ public class TransportCatalogSnapshotAction extends TransportBroadcastByNodeActi
             for (String index : concreteIndices) {
                 int numShards = clusterState.routingTable().index(index).getShards().size();
                 if (shardFilter < 0 || shardFilter >= numShards) {
-                    throw new ShardNotFoundException(new ShardId(clusterState.metadata().index(index).getIndex(), shardFilter));
+                    throw new IllegalArgumentException(
+                        "shard " + shardFilter + " is out of range; index [" + index + "] has only " + numShards + " shards"
+                    );
                 }
             }
         }

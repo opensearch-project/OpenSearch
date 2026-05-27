@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.composite.action;
+package org.opensearch.composite.action.format.parquet;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -21,11 +21,13 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.composite.action.format.StatsReflectionUtil;
 import org.opensearch.composite.stats.CompositeStatsRegistry;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.IndicesService;
+import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -34,100 +36,99 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Transport action that collects dataformat stats using broadcast-by-node routing.
+ * Transport action that collects parquet stats across all nodes using broadcast-by-node routing.
+ * Groups results by node ID in the response. Targets all indices ({@code _all}).
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class TransportDataFormatStatsAction extends TransportBroadcastByNodeAction<
-    DataFormatStatsRequest,
-    DataFormatStatsResponse,
-    DataFormatStatsShardResult> {
+public class TransportParquetNodeStatsAction extends TransportBroadcastByNodeAction<
+    ParquetNodeStatsRequest,
+    ParquetNodeStatsResponse,
+    ParquetStatsShardResult> {
 
-    private final IndicesService indicesService;
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportDataFormatStatsAction(
+    public TransportParquetNodeStatsAction(
         ClusterService clusterService,
         TransportService transportService,
-        IndicesService indicesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DataFormatStatsActionType.NAME,
+            ParquetNodeStatsActionType.NAME,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
-            DataFormatStatsRequest::new,
+            ParquetNodeStatsRequest::new,
             ThreadPool.Names.MANAGEMENT
         );
-        this.indicesService = indicesService;
+        this.clusterService = clusterService;
     }
 
     @Override
-    protected DataFormatStatsShardResult readShardResult(StreamInput in) throws IOException {
-        return new DataFormatStatsShardResult(in);
+    protected ParquetStatsShardResult readShardResult(StreamInput in) throws IOException {
+        return new ParquetStatsShardResult(in);
     }
 
     @Override
-    protected DataFormatStatsResponse newResponse(
-        DataFormatStatsRequest request,
+    protected ParquetNodeStatsResponse newResponse(
+        ParquetNodeStatsRequest request,
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DataFormatStatsShardResult> results,
+        List<ParquetStatsShardResult> results,
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new DataFormatStatsResponse(results, request.isShardLevel(), totalShards, successfulShards, failedShards, shardFailures);
+        return new ParquetNodeStatsResponse(
+            results,
+            request.isShardLevel(),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures,
+            clusterState
+        );
     }
 
     @Override
-    protected DataFormatStatsRequest readRequestFrom(StreamInput in) throws IOException {
-        return new DataFormatStatsRequest(in);
+    protected ParquetNodeStatsRequest readRequestFrom(StreamInput in) throws IOException {
+        return new ParquetNodeStatsRequest(in);
     }
 
     @Override
-    protected DataFormatStatsShardResult shardOperation(DataFormatStatsRequest request, ShardRouting shardRouting) throws IOException {
+    protected ParquetStatsShardResult shardOperation(ParquetNodeStatsRequest request, ShardRouting shardRouting) throws IOException {
         ShardId shardId = shardRouting.shardId();
         CompositeIndexingExecutionEngine engine = CompositeStatsRegistry.getInstance().getEngines().get(shardId);
         if (engine == null) {
-            return new DataFormatStatsShardResult(shardRouting, new org.opensearch.composite.stats.CompositeShardStats());
+            return new ParquetStatsShardResult(shardRouting, StatsReflectionUtil.EMPTY_STATS);
         }
-        return new DataFormatStatsShardResult(shardRouting, engine.getStats());
+        IndexingExecutionEngine<?, ?> primaryDelegate = engine.getPrimaryDelegate();
+        if (primaryDelegate != null
+            && primaryDelegate.getDataFormat() != null
+            && ParquetDataFormat.PARQUET_DATA_FORMAT_NAME.equals(primaryDelegate.getDataFormat().name())) {
+            org.opensearch.core.xcontent.ToXContentFragment stats = StatsReflectionUtil.invokeGetStats(primaryDelegate);
+            if (stats != null) {
+                return new ParquetStatsShardResult(shardRouting, stats);
+            }
+        }
+        return new ParquetStatsShardResult(shardRouting, StatsReflectionUtil.EMPTY_STATS);
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, DataFormatStatsRequest request, String[] concreteIndices) {
+    protected ShardsIterator shards(ClusterState clusterState, ParquetNodeStatsRequest request, String[] concreteIndices) {
+        // Collect ALL shards across ALL indices
         List<ShardRouting> shards = clusterState.routingTable().allShards(concreteIndices).getShardRoutings();
         String nodeFilter = request.getNodeFilter();
-        Integer shardFilter = request.getShardFilter();
-
-        // Validate shard filter against actual shard count
-        if (shardFilter != null) {
-            for (String index : concreteIndices) {
-                int numShards = clusterState.routingTable().index(index).getShards().size();
-                if (shardFilter < 0 || shardFilter >= numShards) {
-                    throw new IllegalArgumentException(
-                        "shard ["
-                            + shardFilter
-                            + "] is out of range for index ["
-                            + index
-                            + "] which has ["
-                            + numShards
-                            + "] shard(s)"
-                    );
-                }
-            }
-        }
 
         // Resolve _local to actual node ID and validate node existence
         String resolvedNodeFilter = null;
         if (nodeFilter != null) {
             if ("_local".equals(nodeFilter)) {
-                resolvedNodeFilter = clusterState.getNodes().getLocalNodeId();
+                resolvedNodeFilter = clusterService.localNode().getId();
             } else {
                 if (clusterState.getNodes().get(nodeFilter) == null) {
                     throw new IllegalArgumentException("node [" + nodeFilter + "] not found in cluster");
@@ -138,16 +139,11 @@ public class TransportDataFormatStatsAction extends TransportBroadcastByNodeActi
 
         final String finalNodeFilter = resolvedNodeFilter;
         List<ShardRouting> filtered = shards.stream().filter(sr -> {
-            // Shard filter
-            if (shardFilter != null && sr.shardId().id() != shardFilter) {
-                return false;
-            }
-            // Node filter
             if (finalNodeFilter != null && !finalNodeFilter.equals(sr.currentNodeId())) {
                 return false;
             }
-            // Default: primary only; shard-level or shard filter: all copies
-            if (shardFilter != null || request.isShardLevel()) {
+            // Default: primary only; if shardLevel: all copies (primary + replicas)
+            if (request.isShardLevel()) {
                 return true;
             }
             return sr.primary();
@@ -157,12 +153,12 @@ public class TransportDataFormatStatsAction extends TransportBroadcastByNodeActi
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, DataFormatStatsRequest request) {
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, ParquetNodeStatsRequest request) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, DataFormatStatsRequest request, String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, ParquetNodeStatsRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

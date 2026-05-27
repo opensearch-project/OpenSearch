@@ -142,7 +142,7 @@ public class CompositeShardStats implements ToXContentFragment, Writeable {
 
         // Merge
         builder.startObject("merge");
-        builder.field("merge_total", mergeTotal.sum());
+        builder.field("merges_total", mergeTotal.sum());
         builder.field("merge_time_millis", mergeTimeMillis.sum());
         builder.field("merge_segments_input_total", mergeSegmentsInputTotal.sum());
         builder.endObject();
@@ -177,11 +177,27 @@ public class CompositeShardStats implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns this instance as a snapshot. Since LongAdder.sum() provides a point-in-time
-     * view and the class implements Writeable, it can serialize its own current state.
+     * Returns an immutable snapshot of the current counters. All fields are read once,
+     * so the resulting object reflects a consistent point-in-time view (no torn reads).
      */
     public CompositeShardStats snapshot() {
-        return this;
+        CompositeShardStats snap = new CompositeShardStats();
+        snap.docsIndexedTotal.add(this.docsIndexedTotal.sum());
+        snap.indexTimeMillis.add(this.indexTimeMillis.sum());
+        snap.refreshTotal.add(this.refreshTotal.sum());
+        snap.refreshTimeMillis.add(this.refreshTimeMillis.sum());
+        snap.mergeTotal.add(this.mergeTotal.sum());
+        snap.mergeTimeMillis.add(this.mergeTimeMillis.sum());
+        snap.mergeSegmentsInputTotal.add(this.mergeSegmentsInputTotal.sum());
+        snap.flushTotal.add(this.flushTotal.sum());
+        snap.flushTimeMillis.add(this.flushTimeMillis.sum());
+        snap.syncTotal.add(this.syncTotal.sum());
+        snap.syncTimeMillis.add(this.syncTimeMillis.sum());
+        snap.nativeBytesUsed.set(this.nativeBytesUsed.get());
+        for (Map.Entry<String, FormatStats> e : this.perFormatStats.entrySet()) {
+            snap.perFormatStats.put(e.getKey(), e.getValue().snapshot());
+        }
+        return snap;
     }
 
     /**
@@ -208,6 +224,28 @@ public class CompositeShardStats implements ToXContentFragment, Writeable {
             }
         }
         return agg;
+    }
+
+    /**
+     * Adds all counters from another CompositeShardStats instance into this one.
+     * Used by OldShardsStats accumulation when shards are closed/relocated.
+     */
+    public void addFrom(CompositeShardStats other) {
+        docsIndexedTotal.add(other.docsIndexedTotal.sum());
+        indexTimeMillis.add(other.indexTimeMillis.sum());
+        refreshTotal.add(other.refreshTotal.sum());
+        refreshTimeMillis.add(other.refreshTimeMillis.sum());
+        mergeTotal.add(other.mergeTotal.sum());
+        mergeTimeMillis.add(other.mergeTimeMillis.sum());
+        mergeSegmentsInputTotal.add(other.mergeSegmentsInputTotal.sum());
+        flushTotal.add(other.flushTotal.sum());
+        flushTimeMillis.add(other.flushTimeMillis.sum());
+        syncTotal.add(other.syncTotal.sum());
+        syncTimeMillis.add(other.syncTimeMillis.sum());
+        nativeBytesUsed.addAndGet(other.nativeBytesUsed.get());
+        for (Map.Entry<String, FormatStats> entry : other.perFormatStats.entrySet()) {
+            getOrCreateFormatStats(entry.getKey()).addFrom(entry.getValue());
+        }
     }
 
     /**
@@ -320,14 +358,29 @@ public class CompositeShardStats implements ToXContentFragment, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("indexing");
             builder.field("docs_indexed_total", docsIndexedTotal.sum());
-            builder.field("index_time_millis", indexTimeMillis.sum());
             builder.field("index_failures", indexFailures.sum());
+            builder.field("index_time_millis", indexTimeMillis.sum());
+            builder.endObject();
+
+            builder.startObject("flush");
+            builder.field("flush_time_millis", flushTimeMillis.sum());
+            builder.endObject();
+
+            builder.startObject("refresh");
             builder.field("refresh_time_millis", refreshTimeMillis.sum());
+            builder.endObject();
+
+            builder.startObject("merge");
             builder.field("merge_time_millis", mergeTimeMillis.sum());
             builder.field("merge_failures", mergeFailures.sum());
-            builder.field("flush_time_millis", flushTimeMillis.sum());
+            builder.endObject();
+
+            builder.startObject("sort");
             builder.field("sort_time_millis", sortTimeMillis.sum());
+            builder.endObject();
+
             return builder;
         }
 
@@ -377,6 +430,22 @@ public class CompositeShardStats implements ToXContentFragment, Writeable {
             mergeFailures.add(other.mergeFailures.sum());
             flushTimeMillis.add(other.flushTimeMillis.sum());
             sortTimeMillis.add(other.sortTimeMillis.sum());
+        }
+
+        /**
+         * Returns an immutable snapshot of the current counters for this format.
+         */
+        public FormatStats snapshot() {
+            FormatStats snap = new FormatStats();
+            snap.docsIndexedTotal.add(this.docsIndexedTotal.sum());
+            snap.indexTimeMillis.add(this.indexTimeMillis.sum());
+            snap.indexFailures.add(this.indexFailures.sum());
+            snap.refreshTimeMillis.add(this.refreshTimeMillis.sum());
+            snap.mergeTimeMillis.add(this.mergeTimeMillis.sum());
+            snap.mergeFailures.add(this.mergeFailures.sum());
+            snap.flushTimeMillis.add(this.flushTimeMillis.sum());
+            snap.sortTimeMillis.add(this.sortTimeMillis.sum());
+            return snap;
         }
     }
 }

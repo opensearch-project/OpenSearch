@@ -6,12 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.composite.action;
+package org.opensearch.composite.action.format.lucene;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.composite.stats.CompositeShardStats;
+import org.opensearch.composite.action.format.StatsResponseUtil;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -22,20 +23,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
- * Response for dataformat stats containing per-shard results.
+ * Response for Lucene index-level stats containing per-shard results.
+ * Aggregates across all primary shards for index-level stats by summing numeric leaves.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatStatsResponse extends BroadcastResponse {
+public class LuceneStatsResponse extends BroadcastResponse {
 
-    private final List<DataFormatStatsShardResult> shardResults;
+    private final List<LuceneStatsShardResult> shardResults;
     private final boolean shardLevel;
 
-    public DataFormatStatsResponse(
-        List<DataFormatStatsShardResult> shardResults,
+    public LuceneStatsResponse(
+        List<LuceneStatsShardResult> shardResults,
         boolean shardLevel,
         int totalShards,
         int successfulShards,
@@ -47,13 +50,13 @@ public class DataFormatStatsResponse extends BroadcastResponse {
         this.shardLevel = shardLevel;
     }
 
-    public DataFormatStatsResponse(StreamInput in) throws IOException {
+    public LuceneStatsResponse(StreamInput in) throws IOException {
         super(in);
         this.shardLevel = in.readBoolean();
         int size = in.readVInt();
         this.shardResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            shardResults.add(new DataFormatStatsShardResult(in));
+            shardResults.add(new LuceneStatsShardResult(in));
         }
     }
 
@@ -62,46 +65,46 @@ public class DataFormatStatsResponse extends BroadcastResponse {
         super.writeTo(out);
         out.writeBoolean(shardLevel);
         out.writeVInt(shardResults.size());
-        for (DataFormatStatsShardResult result : shardResults) {
+        for (LuceneStatsShardResult result : shardResults) {
             result.writeTo(out);
         }
     }
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        // Group results by index
-        Map<String, List<DataFormatStatsShardResult>> byIndex = new HashMap<>();
-        for (DataFormatStatsShardResult result : shardResults) {
+        Map<String, List<LuceneStatsShardResult>> byIndex = new HashMap<>();
+        for (LuceneStatsShardResult result : shardResults) {
             byIndex.computeIfAbsent(result.getShardRouting().getIndexName(), k -> new ArrayList<>()).add(result);
         }
 
         builder.startObject("indices");
-        for (Map.Entry<String, List<DataFormatStatsShardResult>> indexEntry : byIndex.entrySet()) {
+        for (Map.Entry<String, List<LuceneStatsShardResult>> indexEntry : byIndex.entrySet()) {
             builder.startObject(indexEntry.getKey());
 
-            // Aggregate stats for index level
-            builder.startObject("composite");
-            List<CompositeShardStats> allStats = new ArrayList<>();
-            for (DataFormatStatsShardResult r : indexEntry.getValue()) {
-                allStats.add(r.getStats());
-            }
-            CompositeShardStats.aggregate(allStats).toXContent(builder, params);
+            // Aggregate across all primary shards in this index
+            List<BytesReference> primaryStatsBytes = indexEntry.getValue()
+                .stream()
+                .filter(r -> r.getShardRouting().primary())
+                .map(LuceneStatsShardResult::getStatsJsonBytes)
+                .collect(Collectors.toList());
+            BytesReference aggregated = StatsResponseUtil.mergeStatsBytes(primaryStatsBytes);
+            builder.startObject("lucene");
+            StatsResponseUtil.inlineJsonBytes(builder, aggregated);
             builder.endObject();
 
             if (shardLevel) {
                 builder.startObject("shards");
-                // Group results by shard ID. TreeMap keeps shard IDs in deterministic order.
-                Map<Integer, List<DataFormatStatsShardResult>> byShard = new TreeMap<>();
-                for (DataFormatStatsShardResult r : indexEntry.getValue()) {
+                Map<Integer, List<LuceneStatsShardResult>> byShard = new TreeMap<>();
+                for (LuceneStatsShardResult r : indexEntry.getValue()) {
                     byShard.computeIfAbsent(r.getShardRouting().shardId().id(), k -> new ArrayList<>()).add(r);
                 }
-                for (Map.Entry<Integer, List<DataFormatStatsShardResult>> shardEntry : byShard.entrySet()) {
+                for (Map.Entry<Integer, List<LuceneStatsShardResult>> shardEntry : byShard.entrySet()) {
                     builder.startArray(String.valueOf(shardEntry.getKey()));
-                    for (DataFormatStatsShardResult r : shardEntry.getValue()) {
+                    for (LuceneStatsShardResult r : shardEntry.getValue()) {
                         builder.startObject();
                         builder.field("primary", r.getShardRouting().primary());
-                        builder.startObject("composite");
-                        r.getStats().toXContent(builder, params);
+                        builder.startObject("lucene");
+                        StatsResponseUtil.inlineJsonBytes(builder, r.getStatsJsonBytes());
                         builder.endObject();
                         builder.endObject();
                     }

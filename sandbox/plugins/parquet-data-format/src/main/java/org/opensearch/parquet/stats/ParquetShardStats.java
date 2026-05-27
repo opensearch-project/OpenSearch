@@ -77,6 +77,14 @@ public class ParquetShardStats implements DataFormatShardStats, ToXContentFragme
     private final long backgroundWriteTimeouts;
 
     /**
+     * Returns an empty ParquetShardStats snapshot with all zero counters.
+     * Used by transport actions when a shard does not have a Parquet primary delegate.
+     */
+    public static ParquetShardStats empty() {
+        return new ParquetShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
+    /**
      * Constructs a snapshot with all values.
      */
     public ParquetShardStats(

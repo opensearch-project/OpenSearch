@@ -34,6 +34,12 @@ import static org.hamcrest.Matchers.notNullValue;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class CrossFormatEndToEndIT extends AbstractCompositeEngineIT {
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        // Real HTTP transport is required because tests use getRestClient() to hit /_plugins/* REST endpoints.
+        return false;
+    }
+
     private static final String INDEX_PREFIX = "cross-format-";
 
     @SuppressWarnings("unchecked")
@@ -60,8 +66,11 @@ public class CrossFormatEndToEndIT extends AbstractCompositeEngineIT {
     public void testStatsReflectFlush() throws Exception {
         String idx = INDEX_PREFIX + "reflect-flush";
         createCompositeIndex(idx, true);
+        // Two indexing batches with a flush in between guarantee the second flush has work to do
+        // (a subsequent flush with no new docs is a no-op at the engine layer and won't increment).
         indexDocs(idx, 5, 0);
         flushIndex(idx);
+        indexDocs(idx, 5, 5);
         flushIndex(idx);
 
         Map<String, Object> composite = getCompositeStats(idx);
@@ -73,9 +82,13 @@ public class CrossFormatEndToEndIT extends AbstractCompositeEngineIT {
     public void testStatsReflectRefresh() throws Exception {
         String idx = INDEX_PREFIX + "reflect-refresh";
         createCompositeIndex(idx, true);
-        indexDocs(idx, 5, 0);
+        // Each refresh needs new docs to actually trigger a refresh at the engine layer;
+        // back-to-back refreshes without new docs are no-ops and won't increment the counter.
+        indexDocs(idx, 2, 0);
         refreshIndex(idx);
+        indexDocs(idx, 2, 2);
         refreshIndex(idx);
+        indexDocs(idx, 2, 4);
         refreshIndex(idx);
 
         Map<String, Object> composite = getCompositeStats(idx);
@@ -98,7 +111,11 @@ public class CrossFormatEndToEndIT extends AbstractCompositeEngineIT {
             indexDocs(idx, 10, 20);
             flushIndex(idx);
 
-            // Wait for merge to occur
+            // Force a merge deterministically (background merges may not fire on small segments).
+            client().admin().indices().prepareForceMerge(idx).setMaxNumSegments(1).get();
+
+            // assertBusy because force-merge triggers async merge tasks; the stats counter
+            // increments asynchronously as the merge completes.
             assertBusy(() -> {
                 Map<String, Object> composite = getCompositeStats(idx);
                 Map<String, Object> merge = (Map<String, Object>) composite.get("merge");
@@ -132,18 +149,21 @@ public class CrossFormatEndToEndIT extends AbstractCompositeEngineIT {
         // Both formats should show consistent indexing counts
         Map<String, Object> parquetStats = (Map<String, Object>) perFormat.get("parquet");
         Map<String, Object> parquetIndexing = (Map<String, Object>) parquetStats.get("indexing");
-        assertThat(((Number) parquetIndexing.get("docs_indexed_total")).longValue(), greaterThan(0L));
+        long parquetCount = ((Number) parquetIndexing.get("docs_indexed_total")).longValue();
+        assertThat(parquetCount, greaterThan(0L));
 
         Map<String, Object> luceneStats = (Map<String, Object>) perFormat.get("lucene");
         Map<String, Object> luceneIndexing = (Map<String, Object>) luceneStats.get("indexing");
-        assertThat(((Number) luceneIndexing.get("docs_indexed_total")).longValue(), greaterThan(0L));
+        long luceneCount = ((Number) luceneIndexing.get("docs_indexed_total")).longValue();
+        assertThat(luceneCount, greaterThan(0L));
 
-        // Total should equal sum of per-format
+        // Composite total counts each LOGICAL doc once, not once per format. Each format also
+        // sees every logical doc, so per-format counts should EACH equal the composite total.
         Map<String, Object> totalIndexing = (Map<String, Object>) composite.get("indexing");
         long total = ((Number) totalIndexing.get("docs_indexed_total")).longValue();
-        long parquetCount = ((Number) parquetIndexing.get("docs_indexed_total")).longValue();
-        long luceneCount = ((Number) luceneIndexing.get("docs_indexed_total")).longValue();
-        assertThat("Total should equal sum of per-format counts", total, equalTo(parquetCount + luceneCount));
+        assertThat("Composite total should equal parquet count", total, equalTo(parquetCount));
+        assertThat("Composite total should equal lucene count", total, equalTo(luceneCount));
+        assertThat("All 20 logical docs should be counted", total, equalTo(20L));
     }
 
     // --- Helper ---

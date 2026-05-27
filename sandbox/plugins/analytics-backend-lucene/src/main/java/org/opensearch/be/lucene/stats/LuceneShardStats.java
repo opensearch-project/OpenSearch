@@ -66,6 +66,14 @@ public class LuceneShardStats implements DataFormatShardStats, ToXContentFragmen
     private final long activeReaders;
 
     /**
+     * Returns an empty LuceneShardStats snapshot with all zero counters.
+     * Used by transport actions when a shard does not have a Lucene secondary delegate.
+     */
+    public static LuceneShardStats empty() {
+        return new LuceneShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
+    /**
      * Constructs a snapshot with all values.
      */
     public LuceneShardStats(

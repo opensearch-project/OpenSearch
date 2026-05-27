@@ -41,7 +41,7 @@ import java.util.function.Supplier;
  * Plugin providing Lucene as a data format, search back-end, and committer
  * for the composite engine.
  * <p>
- * Implements three plugin interfaces:
+ * Implements four plugin interfaces:
  * <ul>
  *   <li>{@link DataFormatPlugin} — registers Lucene as a data format that can write
  *       inverted indices for text fields via {@link LuceneIndexingExecutionEngine}</li>

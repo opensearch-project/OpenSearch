@@ -51,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -358,7 +359,14 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         if (snapshots.isEmpty()) {
             return;
         }
-        String translogUUID = snapshots.getLast().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        // Read translog UUID from the top-level IndexCommit user data, which is authoritative.
+        // During peer recovery, store.associateIndexWithNewTranslog() updates the top-level
+        // TRANSLOG_UUID_KEY but does NOT update the serialized CatalogSnapshot embedded in
+        // CATALOG_SNAPSHOT_KEY. Reading from the CatalogSnapshot's internal userData would
+        // return the stale primary UUID, causing TranslogCorruptedException during peer recovery.
+        Map.Entry<IndexCommit, CatalogSnapshot> lastEntry = ((SequencedMap<IndexCommit, CatalogSnapshot>) committed).sequencedEntrySet()
+            .getLast();
+        String translogUUID = lastEntry.getKey().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
         CatalogSnapshot safeCommit = CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(snapshots, globalCheckpoint);
         IndexCommit targetCommit = null;
