@@ -27,6 +27,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.stats.AnalyticsStats;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.analytics.stats.RestAnalyticsStatsAction;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
@@ -47,10 +48,12 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginComponentRegistry;
+import org.opensearch.plugins.SearchStatsContributor;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -74,7 +77,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
+public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin, SearchStatsContributor {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
 
@@ -211,6 +214,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     static int schedulerPoolSize() {
         return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+    }
+
+    @Override
+    public SearchStats contributeSearchStats() {
+        AnalyticsStats.LatencyStats elapsed = statsCollector.snapshot().queries().elapsedMs();
+        if (elapsed.count() == 0) {
+            return null;
+        }
+        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(elapsed.count()).queryTimeInMillis(elapsed.sumMs()).build();
+        return new SearchStats(stats, 0, null);
     }
 
     @Override
