@@ -49,8 +49,17 @@ public final class DatasetProvisioner {
         provision(client, dataset, numberOfShards, -1);
     }
 
+    /**
+     * Default provisioning: randomize shards in [1, 2] and replicas in [0, 1] so every
+     * test class exercises both single-shard (no exchange) and multi-shard (PARTIAL/FINAL
+     * split, distributed aggregation) planner paths over time. Tests that need a specific
+     * shard count should call the explicit overload below.
+     */
     public static void provision(RestClient client, Dataset dataset) throws IOException {
-        provision(client, dataset, 0, -1);
+        int shards = org.opensearch.test.OpenSearchTestCase.randomIntBetween(1, 2);
+        int replicas = org.opensearch.test.OpenSearchTestCase.randomIntBetween(0, 1);
+        logger.info("Provisioning dataset [{}] with random shards={} replicas={}", dataset.name, shards, replicas);
+        provision(client, dataset, shards, replicas);
     }
 
     /**

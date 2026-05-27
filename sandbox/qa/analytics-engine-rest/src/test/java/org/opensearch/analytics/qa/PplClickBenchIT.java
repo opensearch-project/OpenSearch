@@ -17,7 +17,7 @@ import java.util.Set;
 /**
  * ClickBench PPL integration test. Runs PPL queries against a parquet-backed ClickBench index.
  * <p>
- * Query path: {@code POST /_analytics/ppl} → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion
+ * Query path: {@code POST /_plugins/_ppl} → opensearch-sql plugin → analytics-engine → Calcite → Substrait → DataFusion
  * <p>
  * Currently restricted to Q1 to keep CI green. Auto-discovery of all 43 ClickBench queries is
  * temporarily disabled because several queries exercise unsupported translators/planner rules
@@ -46,14 +46,7 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
 
     private void ensureDataProvisioned() throws Exception {
         if (dataProvisioned == false) {
-            // Randomize shard/replica configuration per test class run so we exercise both
-            // single-shard (no exchange) and multi-shard (PARTIAL/FINAL split, distributed agg)
-            // planner paths over time. dc() baselines tolerate ±1 to absorb HLL register-merge
-            // variance across shard counts.
-            int shards = randomIntBetween(1, 2);
-            int replicas = randomIntBetween(0, 1);
-            logger.info("Provisioning ClickBench with shards={} replicas={}", shards, replicas);
-            DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET, shards, replicas);
+            DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET);
             dataProvisioned = true;
         }
     }
@@ -76,7 +69,7 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
             queryNumbers,
             (client, dataset, queryBody) -> {
                 String ppl = queryBody.trim().replace("clickbench", dataset.indexName);
-                Request request = new Request("POST", "/_analytics/ppl");
+                Request request = new Request("POST", "/_plugins/_ppl");
                 request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
                 Response response = client.performRequest(request);
                 return assertOkAndParse(response, "PPL query");
