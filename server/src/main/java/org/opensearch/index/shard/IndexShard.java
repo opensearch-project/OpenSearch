@@ -144,6 +144,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
@@ -2600,7 +2601,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final SeqNoStats capturedSeqNoStats = seqNoStats();
                 final TranslogStats capturedTranslogStats = translogStats();
                 synchronized (engineMutex) {
-                    Engine oldEngine = currentEngineReference.get();
+                    Indexer oldIndexer = currentEngineReference.get();
                     ReadOnlyEngine roEngine = new ReadOnlyEngine(
                         newEngineConfig(replicationTracker), // uses stale codec — fine, ROE only reads
                         capturedSeqNoStats,
@@ -2609,8 +2610,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         Function.identity(), // no reader wrapping needed
                         false  // requireCompleteHistory=false
                     );
-                    currentEngineReference.set(roEngine);
-                    IOUtils.close(oldEngine);
+                    currentEngineReference.set(new EngineBackedIndexer(roEngine));
+                    IOUtils.close(oldIndexer);
                     // Set codecServiceOverride AFTER old engine is closed to prevent race conditions.
                     codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
                 }
@@ -2637,30 +2638,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 // --- Swap 2: ReadOnlyEngine → InternalEngine (with recovery) ---
-                Engine newEngine;
+                Indexer newIndexer;
                 try {
                     synchronized (engineMutex) {
-                        Engine roEngine = currentEngineReference.get();
-                        newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
-                        onNewEngine(newEngine);
-                        currentEngineReference.set(newEngine);
-                        IOUtils.close(roEngine);
+                        Indexer roIndexer = currentEngineReference.get();
+                        newIndexer = indexerFactory.createIndexer(newEngineConfig(replicationTracker));
+                        onNewEngine(newIndexer);
+                        currentEngineReference.set(newIndexer);
+                        IOUtils.close(roIndexer);
                     }
                     // Skip translog recovery — we flushed all data before the engine swap.
-                    newEngine.translogManager().skipTranslogRecovery();
+                    newIndexer.translogManager().skipTranslogRecovery();
                 } catch (Exception e) {
                     logger.error("Failed to open new InternalEngine after upgrade, attempting recovery", e);
                     try {
                         // Recovery: try with original codec (clear override)
                         codecServiceOverride = null;
                         synchronized (engineMutex) {
-                            Engine roEngine = currentEngineReference.get();
-                            newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
-                            onNewEngine(newEngine);
-                            currentEngineReference.set(newEngine);
-                            IOUtils.close(roEngine);
+                            Indexer roIndexer = currentEngineReference.get();
+                            newIndexer = indexerFactory.createIndexer(newEngineConfig(replicationTracker));
+                            onNewEngine(newIndexer);
+                            currentEngineReference.set(newIndexer);
+                            IOUtils.close(roIndexer);
                         }
-                        newEngine.translogManager().skipTranslogRecovery();
+                        newIndexer.translogManager().skipTranslogRecovery();
                     } catch (Exception fatal) {
                         logger.error("Recovery engine also failed — shard is unusable", fatal);
                         failShard("star tree upgrade engine recovery failed", fatal);
@@ -2669,7 +2670,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 // Refresh outside engineMutex — non-fatal if it fails.
                 try {
-                    newEngine.refresh("star-tree-upgrade");
+                    newIndexer.refresh("star-tree-upgrade");
                 } catch (Exception e) {
                     logger.warn("Post-upgrade refresh failed, will retry on next cycle", e);
                 }
@@ -2679,9 +2680,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 populateStarTreeDirectReaderCache();
 
                 // Wire merge cleanup callback to evict stale direct reader cache entries
-                Engine currentEngine = currentEngineReference.get();
-                if (currentEngine instanceof InternalEngine) {
-                    ((InternalEngine) currentEngine).setDirectReaderMergeCleanupCallback(
+                Indexer currentIndexer = currentEngineReference.get();
+                if (currentIndexer instanceof EngineBackedIndexer engineBackedIndexer
+                    && engineBackedIndexer.getEngine() instanceof InternalEngine internalEngine) {
+                    internalEngine.setDirectReaderMergeCleanupCallback(
                         this::performDirectReaderCleanup
                     );
                 }
