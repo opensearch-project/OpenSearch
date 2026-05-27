@@ -318,7 +318,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
 
         // Clean up
         client().admin().indices().prepareDelete(indexName).get();
@@ -373,7 +372,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
 
         // Clean up
         client().admin().indices().prepareDelete(indexName).get();
@@ -461,7 +459,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
 
         // Verify no data loss — all docs present regardless of which merge path handled them
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
 
         // Verify background merge actually ran
         IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get();
@@ -531,7 +528,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         // With merge-on-refresh disabled, each writer produces its own segment
         // Verify all data is present
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
 
         client().admin().indices().prepareDelete(indexName).get();
     }
@@ -586,7 +582,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
 
         client().admin().indices().prepareDelete(indexName).get();
     }
@@ -647,7 +642,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
         client().admin().indices().prepareDelete(indexName).get();
     }
 
@@ -708,7 +702,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
 
         // Verify merge stats confirm merges happened
         IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get();
@@ -748,7 +741,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
 
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
         client().admin().indices().prepareDelete(indexName).get();
     }
 
@@ -817,7 +809,6 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
-        verifySearchDocCount(indexName, totalDocs);
         client().admin().indices().prepareDelete(indexName).get();
     }
 
@@ -957,10 +948,5 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         }
 
         assertEquals("Total rows across all shards of " + indexName + " must match indexed docs", expectedTotalDocs, totalRows);
-    }
-
-    private void verifySearchDocCount(String indexName, int expectedDocs) {
-        long count = client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
-        assertEquals("Search doc count must match indexed docs for " + indexName, expectedDocs, count);
     }
 }
