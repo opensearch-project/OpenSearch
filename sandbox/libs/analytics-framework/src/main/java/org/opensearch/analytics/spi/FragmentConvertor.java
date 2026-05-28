@@ -9,6 +9,7 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.type.RelDataType;
 
 /**
  * Fragment conversion API for backend plugins.
@@ -80,5 +81,20 @@ public interface FragmentConvertor {
      */
     default byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
         throw new UnsupportedOperationException("attachFragmentOnTop not implemented for this backend");
+    }
+
+    /**
+     * Builds a schema-only stub plan describing a stage's output partition: a single
+     * {@code Read { named_table: "input-<childStageId>"; base_schema: rowType }}, no
+     * operators above. Used for stages whose runtime is non-Substrait (e.g. QTF
+     * scatter-gather) but whose parent reduce sink still needs a partition schema for
+     * {@code registerPartitionStream}.
+     *
+     * @param childStageId stage id whose output schema this stub describes
+     * @param rowType      the partition's row type
+     * @return serialized plan bytes
+     */
+    default byte[] convertSchemaOnlyRead(int childStageId, RelDataType rowType) {
+        throw new UnsupportedOperationException("convertSchemaOnlyRead not implemented for this backend");
     }
 }

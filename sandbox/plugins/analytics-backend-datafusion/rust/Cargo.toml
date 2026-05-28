@@ -107,3 +107,7 @@ harness = false
 [[bench]]
 name = "cross_rt_throughput_bench"
 harness = false
+
+[[bench]]
+name = "row_id_bench"
+harness = false

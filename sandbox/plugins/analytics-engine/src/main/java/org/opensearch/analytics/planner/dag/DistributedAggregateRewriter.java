@@ -89,7 +89,8 @@ final class DistributedAggregateRewriter {
                 stageInput.getTraitSet(),
                 stageInput.getChildStageId(),
                 overriddenExchangeType,
-                stageInput.getViableBackends()
+                stageInput.getViableBackends(),
+                stageInput.getOutputFieldStorage()
             );
             newFinalInput = exchange.copy(exchange.getTraitSet(), List.of(newStageInput));
         }

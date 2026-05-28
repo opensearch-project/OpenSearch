@@ -101,7 +101,7 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
     private static ShardStageTask shardTask(int partitionId, String nodeId) {
         DiscoveryNode node = mock(DiscoveryNode.class);
         when(node.getId()).thenReturn(nodeId);
-        ShardExecutionTarget target = new ShardExecutionTarget(node, new ShardId("idx", "_na_", partitionId));
+        ShardExecutionTarget target = new ShardExecutionTarget(node, new ShardId("idx", "_na_", partitionId), partitionId);
         return new ShardStageTask(new StageTaskId(0, partitionId), target);
     }
 
