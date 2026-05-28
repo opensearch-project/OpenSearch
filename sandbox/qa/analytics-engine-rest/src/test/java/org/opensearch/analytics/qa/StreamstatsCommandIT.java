@@ -1297,6 +1297,28 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /** Multi-shard variant for streamstats dc by partition. Streamstats running aggregates
+     *  depend on input row-order; under multi-shard parallelism rows arrive at the
+     *  coordinator out of key order, so per-row running values are not deterministic.
+     *  Collapse the running stream to per-partition finals via {@code stats max(dc_str3) by str0}
+     *  — same shape as {@link #testStreamstatsBy_3shard}. The final dc per partition is 1
+     *  (each {@code str0} group has only the value "e" or null in {@code str3}; null is
+     *  skipped). HLL is exact at calcs's scale so {@code max(dc_str3)} matches single-shard. */
+    public void testStreamstatsDistinctCountByCountry_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName
+                + " | sort key | streamstats dc(str3) as dc_str3 by str0"
+                + " | stats max(dc_str3) as final_dc by str0 | sort str0"
+        );
+        assertRowsEqual(
+            response,
+            row(1L, "FURNITURE"),
+            row(1L, "OFFICE SUPPLIES"),
+            row(1L, "TECHNOLOGY")
+        );
+    }
+
     /** sql IT: testStreamstatsEarliestAndLatest. earliest/latest exercise the PPL frontend's
      *  default-{@code @timestamp} check — calcs has no @timestamp column. Either way the
      *  path is not yet reachable on analytics-engine — assert the failure. */

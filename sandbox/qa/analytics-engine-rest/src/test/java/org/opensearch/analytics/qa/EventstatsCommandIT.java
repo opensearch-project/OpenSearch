@@ -1024,6 +1024,57 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /** Multi-shard variant of {@link #testEventstatsDistinctCount} — exercises the
+     *  PARTIAL/FINAL split + SINGLETON-gather path for distinct-count. dc is set-based:
+     *  every shard contributes a partial HLL sketch, the coordinator merges them into a
+     *  single global sketch, then broadcasts {@code dc(str3)=1} to every row. The same
+     *  exact rows as single-shard are expected because HLL is exact at calcs's scale. */
+    public void testEventstatsDistinctCount_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
+        );
+        assertRowsEqual(response,
+            row("key00", 1L), row("key01", 1L), row("key02", 1L), row("key03", 1L),
+            row("key04", 1L), row("key05", 1L), row("key06", 1L), row("key07", 1L),
+            row("key08", 1L), row("key09", 1L), row("key10", 1L), row("key11", 1L),
+            row("key12", 1L), row("key13", 1L), row("key14", 1L), row("key15", 1L),
+            row("key16", 1L)
+        );
+    }
+
+    /** Multi-shard variant of {@link #testEventstatsDistinctCountByCountry} — partitioned
+     *  dc with {@code by str0}. Per-partition HLL state is built per shard, merged at the
+     *  coordinator, then broadcast. Each {@code str0} group sees the same {@code dc(str3)=1}
+     *  as single-shard. */
+    public void testEventstatsDistinctCountByCountry_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName
+                + " | sort key | eventstats dc(str3) as dc_str3 by str0 | fields key, str0, dc_str3"
+        );
+        assertRowsEqual(
+            response,
+            row("key00", "FURNITURE", 1L),
+            row("key01", "FURNITURE", 1L),
+            row("key02", "OFFICE SUPPLIES", 1L),
+            row("key03", "OFFICE SUPPLIES", 1L),
+            row("key04", "OFFICE SUPPLIES", 1L),
+            row("key05", "OFFICE SUPPLIES", 1L),
+            row("key06", "OFFICE SUPPLIES", 1L),
+            row("key07", "OFFICE SUPPLIES", 1L),
+            row("key08", "TECHNOLOGY", 1L),
+            row("key09", "TECHNOLOGY", 1L),
+            row("key10", "TECHNOLOGY", 1L),
+            row("key11", "TECHNOLOGY", 1L),
+            row("key12", "TECHNOLOGY", 1L),
+            row("key13", "TECHNOLOGY", 1L),
+            row("key14", "TECHNOLOGY", 1L),
+            row("key15", "TECHNOLOGY", 1L),
+            row("key16", "TECHNOLOGY", 1L)
+        );
+    }
+
     // ── earliest / latest — not wired through analytics-engine yet ────────────
 
     /** sql IT: testEventstatsEarliestAndLatest. {@code earliest/latest} on calcs trip the PPL
