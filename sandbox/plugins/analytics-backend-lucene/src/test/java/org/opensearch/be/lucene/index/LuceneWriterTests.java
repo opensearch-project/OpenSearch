@@ -39,6 +39,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -74,7 +75,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testAddDocAndFlushProducesSingleSegment() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             int numDocs = randomIntBetween(5, 20);
             MappedFieldType textField = mockTextField("content");
             for (int i = 0; i < numDocs; i++) {
@@ -105,7 +117,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         int numDocs = randomIntBetween(10, 50);
         MappedFieldType textField = mockTextField("content");
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc " + i);
@@ -132,7 +155,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDocsReturnsEmpty() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             assertTrue(fileInfos.writerFilesMap().isEmpty());
         }
@@ -142,7 +176,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         long gen = randomLongBetween(1, 100);
         MappedFieldType textField = mockTextField("content");
-        try (LuceneWriter writer = new LuceneWriter(gen, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                gen,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             assertThat(writer.generation(), equalTo(gen));
 
             LuceneDocumentInput input = new LuceneDocumentInput();
@@ -159,7 +204,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testKeywordFieldsAreIndexed() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType keywordField = mockKeywordField("status");
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             LuceneDocumentInput input = new LuceneDocumentInput();
             input.addField(keywordField, "active");
             input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
@@ -181,7 +237,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         when(numericField.typeName()).thenReturn("integer");
         when(numericField.name()).thenReturn("count");
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             LuceneDocumentInput input = new LuceneDocumentInput();
             // Should not throw — unsupported types are silently skipped (handled by other formats)
             input.addField(numericField, 42);
@@ -195,7 +262,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         MappedFieldType textField = mockTextField("title");
         MappedFieldType keywordField = mockKeywordField("category");
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -222,7 +300,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         MappedFieldType keywordField = mockKeywordField("status");
         int numDocs = randomIntBetween(5, 20);
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "hello world " + i);
@@ -273,8 +362,26 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
         // Create both writers without closing them until after verification,
         // because close() deletes the temp directory.
-        LuceneWriter writer1 = new LuceneWriter(gen1, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer2 = new LuceneWriter(gen2, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer1 = new LuceneWriter(
+            gen1,
+            0L,
+            dataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer2 = new LuceneWriter(
+            gen2,
+            0L,
+            dataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
         try {
             for (int i = 0; i < numDocs1; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -325,7 +432,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testGetWriterForFormatReturnsItselfForLucene() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             Optional<Writer<?>> result = writer.getWriterForFormat("lucene");
 
             assertTrue("Should return present for 'lucene'", result.isPresent());
@@ -335,7 +453,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testGetWriterForFormatReturnsEmptyForOtherFormats() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             Optional<Writer<?>> parquetResult = writer.getWriterForFormat("parquet");
             Optional<Writer<?>> nullResult = writer.getWriterForFormat(null);
 
@@ -367,7 +496,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testRollbackInIndexSortBranchExpungesTombstone() throws IOException {
         Path baseDir = createTempDir();
         Sort indexSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                indexSort,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             MappedFieldType textField = mockTextField("content");
             for (int i = 0; i < 5; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -404,7 +544,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         Sort indexSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
         for (Sort sort : new Sort[] { null, indexSort }) {
-            try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, createTempDir(), null, Codec.getDefault(), sort)) {
+            try (
+                LuceneWriter writer = new LuceneWriter(
+                    1L,
+                    0L,
+                    dataFormat,
+                    createTempDir(),
+                    null,
+                    Codec.getDefault(),
+                    sort,
+                    ConcurrentHashMap.newKeySet()
+                )
+            ) {
                 MappedFieldType textField = mockTextField("content");
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "v");
@@ -420,5 +571,45 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 expectThrows(IllegalStateException.class, () -> writer.addDoc(nextDoc));
             }
         }
+    }
+
+    public void testGetHeapBytesUsedPositiveAfterIndexing() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
+            LuceneDocumentInput input = new LuceneDocumentInput();
+            input.addField(textField, "hello world");
+            input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+            // add document so that it consumes heap memory
+            writer.addDoc(input);
+            assertTrue("getHeapBytesUsed should be > 0 after indexing", writer.getHeapBytesUsed() > 0);
+            writer.flush(FlushInput.EMPTY);
+            assertEquals("getHeapBytesUsed should be 0 after flush", 0L, writer.getHeapBytesUsed());
+        }
+        // try-with-resources calls close(); getHeapBytesUsed verified as 0 after flush (which closes IndexWriter)
+    }
+
+    public void testGetHeapBytesUsedZeroAfterCloseWithoutFlush() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+        LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, ConcurrentHashMap.newKeySet());
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.addField(textField, "hello world");
+        input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+        writer.addDoc(input);
+        assertTrue("getHeapBytesUsed should be > 0 before close", writer.getHeapBytesUsed() > 0);
+        writer.close();
+        assertEquals("getHeapBytesUsed should be 0 after close", 0L, writer.getHeapBytesUsed());
     }
 }

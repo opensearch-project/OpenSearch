@@ -141,6 +141,11 @@ public class FailableParquetDataFormatPlugin extends ParquetDataFormatPlugin {
         }
 
         @Override
+        public long getHeapBytesUsed() {
+            return delegate.getHeapBytesUsed();
+        }
+
+        @Override
         public void close() throws IOException {
             delegate.close();
         }

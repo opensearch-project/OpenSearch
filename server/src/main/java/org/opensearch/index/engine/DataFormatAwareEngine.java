@@ -1203,9 +1203,14 @@ public class DataFormatAwareEngine implements Indexer {
         mergeScheduler.forceMerge(1);
     }
 
-    /** {@inheritDoc} Returns the RAM bytes used by the indexing execution engine. */
+    /** {@inheritDoc} Returns the heap RAM bytes used by the indexing execution engine. */
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
+        return indexingExecutionEngine.getHeapBytesUsed();
+    }
+
+    @Override
+    public long getNativeBytesUsed() {
         return indexingExecutionEngine.getNativeBytesUsed();
     }
 
@@ -1471,6 +1476,13 @@ public class DataFormatAwareEngine implements Indexer {
         return throttle.getThrottleTimeInMillis();
     }
 
+    /**
+     * Returns 0 because DataFormatAwareEngine has no in-flight write state visible to the IMC.
+     * Unlike InternalEngine where IndexWriter stays open after flushNextBuffer() (keeping bytes
+     * reported via ramBytesUsed while they're being written to disk), here refresh closes and
+     * destroys all writers — memory reporting drops to 0 immediately on close, so there are
+     * never bytes that are "reported as used but already being freed."
+     */
     @Override
     public long getWritingBytes() {
         return 0L;
@@ -1479,11 +1491,6 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public long unreferencedFileCleanUpsPerformed() {
         return catalogSnapshotManager.getUnreferencedFileCleanUpsPerformed();
-    }
-
-    @Override
-    public long getNativeBytesUsed() {
-        return indexingExecutionEngine.getNativeBytesUsed();
     }
 
     @Override

@@ -270,6 +270,12 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         );
     }
 
+    /** Parquet indexing uses only native (off-heap) memory via Arrow buffers and Rust writers, no JVM heap. */
+    @Override
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
     @Override
     public long getNativeBytesUsed() {
         return bufferPool.getTotalAllocatedBytes() + RustBridge.getFilteredNativeBytesUsed(shardPath.getDataPath().toString());
