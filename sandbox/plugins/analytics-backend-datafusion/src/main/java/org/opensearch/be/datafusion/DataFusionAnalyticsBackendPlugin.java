@@ -367,11 +367,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.ARRAY,
         ScalarFunction.ARRAY_SLICE,
         ScalarFunction.ARRAY_DISTINCT,
-        // PPL `mvzip` returns ARRAY<VARCHAR>; backed by a custom Rust UDF on the DataFusion
-        // session context (`udf::mvzip`), routed via {@link MvzipAdapter}.
+        ScalarFunction.ITEM,
+        ScalarFunction.SAFE_CAST,
         ScalarFunction.MVZIP,
-        // PPL `mvappend` returns ARRAY<commonType>; backed by a custom Rust UDF
-        // (`udf::mvappend`), routed via {@link MvappendAdapter}.
         ScalarFunction.MVAPPEND
     );
 
@@ -389,16 +387,19 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * auto-extract mode; routes to the {@code json_extract_all} Rust UDF via
      * {@link JsonFunctionAdapters.JsonExtractAllAdapter}.
      */
-    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL, ScalarFunction.PARSE);
+    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
+        ScalarFunction.JSON_EXTRACT_ALL,
+        ScalarFunction.PARSE,
+        ScalarFunction.ITEM,
+        ScalarFunction.SAFE_CAST,
+        ScalarFunction.PATTERN_PARSER
+    );
 
     /**
      * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
      */
     private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS = Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
 
-    // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
-    // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
-    // opensearch_aggregate_functions.yaml.
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -411,7 +412,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.FIRST,
         AggregateFunction.LAST,
         AggregateFunction.LIST,
-        AggregateFunction.VALUES
+        AggregateFunction.VALUES,
+        AggregateFunction.PATTERN
     );
 
     private final DataFusionPlugin plugin;
@@ -468,7 +470,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.COUNT,
                             WindowFunction.MIN,
                             WindowFunction.MAX,
-                            WindowFunction.ROW_NUMBER
+                            WindowFunction.ROW_NUMBER,
+                            WindowFunction.PATTERN
                         ),
                         Set.copyOf(plugin.getSupportedFormats())
                     )
@@ -636,6 +639,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
+                    Map.entry(ScalarFunction.PATTERN_PARSER, new PatternParserAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.LN, new NumericToDoubleAdapter(SqlStdOperatorTable.LN)),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),

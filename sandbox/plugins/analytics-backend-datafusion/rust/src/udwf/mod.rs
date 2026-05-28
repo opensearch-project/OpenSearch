@@ -6,18 +6,14 @@
  * compatible open source license.
  */
 
-//! OpenSearch aggregate UDFs not in DataFusion's builtins. Each registered UDAF
-//! must have a matching YAML entry in `opensearch_aggregate_functions.yaml` so
-//! that isthmus's substrait emitter can bind the operator to the extension URN.
+//! OpenSearch window UDFs. Each registered UDWF must have a matching YAML entry
+//! in `opensearch_window_functions.yaml` so isthmus's substrait emitter can
+//! bind the operator to the extension URN.
 
 use datafusion::execution::context::SessionContext;
 
 pub mod internal_pattern;
-pub mod list_merge;
-pub mod take;
 
 pub fn register_all(ctx: &SessionContext) {
-    take::register_all(ctx);
-    list_merge::register_all(ctx);
     internal_pattern::register_all(ctx);
 }

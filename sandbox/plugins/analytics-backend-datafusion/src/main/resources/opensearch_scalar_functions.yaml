@@ -711,6 +711,71 @@ scalar_functions:
       - args: [{ value: string, name: "value" }]
         return: any1
 
+  - name: "pattern_parser"
+    description: >-
+      Extract substrings from `field` using `pattern` as a wildcard template
+      (e.g. `"<*>@<*>.<*>"`) and return a struct with two members: `pattern`
+      (the numbered-token rewrite, e.g. `"<token1>@<token2>.<token3>"`) and
+      `tokens` (a Map<string, List<string>> of label → list of extracted
+      values). PPL's `patterns ... mode=label show_numbered_token=true` and
+      `mode=aggregation show_numbered_token=true` flatten paths both lower
+      to this UDF via `CalciteRelNodeVisitor.visitPatterns` →
+      `BuiltinFunctionName.INTERNAL_PATTERN_PARSER`.
+
+      Two operand shapes are supported via the same registered signature:
+      `pattern_parser(pattern: string, field: string)` (evalField — single
+      row) and `pattern_parser(pattern: string, sample_logs: List<string>)`
+      (evalSamples — aggregate sample list). The Rust UDF dispatches at
+      runtime on the second operand's Arrow type. The 3-arg evalAgg shape
+      used by BRAIN label mode is a separate signature with its own
+      AggCandidate list operand and is added when the INTERNAL_PATTERN
+      aggregate / window UDF lands (next milestone).
+
+      Return type is declared as `any1` for the same reason as
+      `json_extract_all`: substrait's extension parser doesn't have a
+      struct-with-fields grammar at this layer, but isthmus emits the
+      concrete Calcite RelDataType (a MAP<VARCHAR, ANY>) and the DataFusion-
+      side UDF binds it to the concrete Arrow struct.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: any1
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: any2
+  - name: "pattern_parser_get_pattern"
+    description: >-
+      Single-field accessor for {@code pattern_parser}. Returns just the
+      numbered-token pattern string (e.g. `"<token1>@<token2>.<token3>"`),
+      bypassing DataFusion's substrait consumer's "Direct reference StructField
+      with child is not supported" limitation on nested struct field access.
+      The Rust UDF re-runs the same parse internally and returns only the
+      pattern column.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: string?
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: string?
+  - name: "pattern_parser_get_tokens"
+    description: >-
+      Single-field accessor for {@code pattern_parser}. Returns just the
+      tokens Map<string, list<string>> of extracted variables. See
+      {@code pattern_parser_get_pattern}.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: any1
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: any2
   - name: "json_delete"
     description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
     impls:

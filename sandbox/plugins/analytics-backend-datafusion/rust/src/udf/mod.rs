@@ -147,6 +147,7 @@ pub mod mvfind;
 pub mod mvzip;
 pub(crate) mod mysql_format;
 pub mod parse;
+pub mod pattern_parser;
 pub mod range_bucket;
 pub mod rex_extract;
 pub mod rex_extract_multi;
@@ -191,6 +192,7 @@ pub fn register_all(ctx: &SessionContext) {
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
     parse::register_all(ctx);
+    pattern_parser::register_all(ctx);
     range_bucket::register_all(ctx);
     rex_extract::register_all(ctx);
     rex_extract_multi::register_all(ctx);

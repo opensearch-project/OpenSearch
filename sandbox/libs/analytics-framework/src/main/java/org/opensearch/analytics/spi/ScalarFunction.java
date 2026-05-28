@@ -269,6 +269,8 @@ public enum ScalarFunction {
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
+    PATTERN_PARSER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
     // ── Array ────────────────────────────────────────────────────────
     /**
      * PPL {@code array(a, b, …)} constructor — resolves through the SQL plugin's
