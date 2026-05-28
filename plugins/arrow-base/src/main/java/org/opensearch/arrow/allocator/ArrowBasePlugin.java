@@ -20,9 +20,10 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorStatsRegistry;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -252,7 +253,15 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
         ClusterSettings cs = clusterService.getClusterSettings();
         ArrowNativeAllocator built = buildAllocator(settings, cs);
         this.allocator = built;
-        return List.of(built);
+        // Publish a NativeAllocatorStatsRegistry alongside the allocator so the server-side
+        // NodeService can discover the supplier via pluginComponents (instanceof filter) without
+        // taking a compile-time dependency on this plugin. The lambda re-reads `this.allocator`
+        // each invocation, so after close() nulls the field, the supplier returns null cleanly.
+        Supplier<NativeAllocatorPoolStats> statsSupplier = () -> {
+            ArrowNativeAllocator a = this.allocator;
+            return a != null ? a.stats() : null;
+        };
+        return List.of(built, new NativeAllocatorStatsRegistry(statsSupplier));
     }
 
     /**
@@ -344,21 +353,6 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
             QUERY_MIN_SETTING,
             QUERY_MAX_SETTING,
             REBALANCE_INTERVAL_SETTING
-        );
-    }
-
-    @Override
-    public List<PluginNodeStats> nodeStats() {
-        if (allocator == null) {
-            return List.of();
-        }
-        return List.of(new NativeAllocatorPluginStats(allocator.stats()));
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(PluginNodeStats.class, NativeAllocatorPluginStats.NAME, NativeAllocatorPluginStats::new)
         );
     }
 

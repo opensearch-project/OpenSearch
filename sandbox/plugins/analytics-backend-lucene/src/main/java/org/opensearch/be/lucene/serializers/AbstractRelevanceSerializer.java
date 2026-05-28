@@ -24,7 +24,7 @@ import java.util.Map;
 public abstract class AbstractRelevanceSerializer extends AbstractQuerySerializer {
 
     @Override
-    protected final QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
+    public final QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
         ConversionUtils.RelevanceOperands operands = ConversionUtils.extractRelevanceOperands(call, fieldStorage);
         validate(operands);
         QueryBuilder qb = createQueryBuilder(operands);

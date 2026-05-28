@@ -226,7 +226,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         ADMISSION_CONTROL("admission_control"),
         CACHE_STATS("caches"),
         REMOTE_STORE("remote_store"),
-        PLUGIN_STATS("plugin_stats"),
+        NATIVE_ALLOCATOR("native_allocator"),
         NATIVE_MEMORY("native_memory");
 
         private String metricName;

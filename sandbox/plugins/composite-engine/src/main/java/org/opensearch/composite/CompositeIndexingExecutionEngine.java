@@ -21,6 +21,8 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -37,7 +39,6 @@ import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -71,6 +72,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final Set<IndexingExecutionEngine<?, ?>> secondaryEngines;
     private final CompositeDataFormat compositeDataFormat;
     private final Committer committer;
+    private final IndexSettings indexSettings;
 
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
@@ -140,6 +142,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
+        this.indexSettings = indexSettings;
     }
 
     /**
@@ -194,6 +197,22 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     /**
+     * Multiplexes tragic-exception detection across primary and secondary engines.
+     * Returns the first non-null tragic exception found (primary checked first), or
+     * {@code null} if every delegate is healthy.
+     */
+    @Override
+    public Exception getTragicException() {
+        Exception primaryTragic = primaryEngine.getTragicException();
+        if (primaryTragic != null) return primaryTragic;
+        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+            Exception tragic = engine.getTragicException();
+            if (tragic != null) return tragic;
+        }
+        return null;
+    }
+
+    /**
      * Refreshes all per-format engines and merges their results into a unified list of
      * {@link Segment} instances. Each segment groups its per-format {@link WriterFileSet}
      * entries by writer generation.
@@ -204,32 +223,139 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
-        RefreshResult primary = primaryEngine.refresh(refreshInput);
+        // All per-format engines refresh normally (primary passes through, secondary does addIndexes)
+        RefreshInput perFormatInput = new RefreshInput(refreshInput.existingSegments(), refreshInput.writerFiles());
+        RefreshResult primary = primaryEngine.refresh(perFormatInput);
         List<RefreshResult> secResults = new ArrayList<>();
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-            secResults.add(engine.refresh(refreshInput));
+            secResults.add(engine.refresh(perFormatInput));
         }
 
+        // Assemble per-gen segments from all formats
+        Map<DataFormat, RefreshResult> resultsByFormat = new LinkedHashMap<>();
+        resultsByFormat.put(primaryEngine.getDataFormat(), primary);
+        int i = 0;
+        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+            resultsByFormat.put(engine.getDataFormat(), secResults.get(i++));
+        }
         Map<Long, Segment.Builder> mergedByGen = new LinkedHashMap<>();
-        buildSegment(primary, mergedByGen);
-        for (RefreshResult secResult : secResults) {
-            buildSegment(secResult, mergedByGen);
+        for (Map.Entry<DataFormat, RefreshResult> entry : resultsByFormat.entrySet()) {
+            buildSegment(entry.getKey(), entry.getValue(), mergedByGen);
         }
 
-        List<Segment> merged = new ArrayList<>(mergedByGen.size());
+        List<Segment> newSegments = new ArrayList<>(mergedByGen.size());
         for (Segment.Builder builder : mergedByGen.values()) {
-            merged.add(builder.build());
+            newSegments.add(builder.build());
         }
 
-        return new RefreshResult(merged);
+        // Merge on refresh: when multiple writer segments exist and size is within threshold,
+        // merge all formats. On failure, fall back to normal per-writer segments (background
+        // merge will consolidate later). This ensures refresh never fails due to merge errors
+        // (e.g., merge pool rejection, resource contention).
+        if (refreshInput.hasNextGeneration() && shouldMergeOnRefresh(refreshInput.writerFiles())) {
+            Set<Long> existingGens = refreshInput.existingSegments().stream().map(Segment::generation).collect(Collectors.toSet());
+            List<Segment> onlyNew = newSegments.stream().filter(s -> existingGens.contains(s.generation()) == false).toList();
+
+            if (onlyNew.size() > 1) {
+                try {
+                    final long mergeStartNanos = System.nanoTime();
+
+                    Merger primaryMerger = primaryEngine.getMerger();
+                    MergeInput primaryMergeInput = MergeInput.builder()
+                        .segments(onlyNew)
+                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
+                        .build();
+                    MergeResult primaryResult = primaryMerger.merge(primaryMergeInput);
+                    WriterFileSet primaryMerged = primaryResult.getMergedWriterFileSetForDataformat(primaryEngine.getDataFormat());
+
+                    if (primaryMerged != null) {
+                        Segment.Builder consolidated = Segment.builder(refreshInput.nextAvailableGeneration());
+                        consolidated.addSearchableFiles(primaryEngine.getDataFormat(), primaryMerged);
+
+                        primaryResult.rowIdMapping().ifPresent(rowIdMapping -> {
+                            for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+                                try {
+                                    Merger secMerger = engine.getMerger();
+                                    MergeInput secMergeInput = MergeInput.builder()
+                                        .segments(onlyNew)
+                                        .rowIdMapping(rowIdMapping)
+                                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
+                                        .build();
+                                    MergeResult secResult = secMerger.merge(secMergeInput);
+                                    WriterFileSet secMerged = secResult.getMergedWriterFileSetForDataformat(engine.getDataFormat());
+                                    if (secMerged != null) {
+                                        consolidated.addSearchableFiles(engine.getDataFormat(), secMerged);
+                                    }
+                                } catch (IOException e) {
+                                    throw new java.io.UncheckedIOException(e);
+                                }
+                            }
+                        });
+
+                        List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
+                        Segment mergedSegment = consolidated.build();
+                        result.add(mergedSegment);
+
+                        if (logger.isDebugEnabled()) {
+                            final long totalElapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                                System.nanoTime() - mergeStartNanos
+                            );
+                            logger.debug(
+                                "merge-on-refresh: merged {} segments into gen={}, total={}ms, " + "resultSegments={}, existingSegments={}",
+                                onlyNew.size(),
+                                refreshInput.nextAvailableGeneration(),
+                                totalElapsedMs,
+                                result.size(),
+                                refreshInput.existingSegments().size()
+                            );
+                        }
+
+                        assert result.size() == refreshInput.existingSegments().size() + 1
+                            : "merge on refresh must produce exactly 1 new segment, got "
+                                + (result.size() - refreshInput.existingSegments().size())
+                                + " new segments";
+                        assert result.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
+                            : "refresh result segments must contain all configured formats";
+
+                        return new RefreshResult(List.copyOf(result));
+                    }
+                } catch (Exception e) {
+                    // Merge-on-refresh is best-effort. On failure, fall back to normal per-writer
+                    // segments. Background merge will consolidate them later.
+                    logger.warn("merge-on-refresh failed, falling back to per-writer segments", e);
+                }
+            }
+        }
+
+        // No merge on refresh — pass through all segments
+        assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
+            : "refresh result segments must contain all configured formats";
+        return new RefreshResult(List.copyOf(newSegments));
     }
 
-    private void buildSegment(RefreshResult primary, Map<Long, Segment.Builder> mergedByGen) {
-        for (Segment seg : primary.refreshedSegments()) {
+    private boolean shouldMergeOnRefresh(List<Segment> writerFiles) {
+        long maxBytes = CompositeDataFormatPlugin.MERGE_ON_REFRESH_MAX_SIZE.get(indexSettings.getSettings()).getBytes();
+        if (maxBytes <= 0) {
+            return false;
+        }
+        long totalBytes = writerFiles.stream()
+            .flatMap(seg -> seg.dfGroupedSearchableFiles().values().stream())
+            .mapToLong(WriterFileSet::getTotalSize)
+            .sum();
+        return totalBytes <= maxBytes;
+    }
+
+    /**
+     * Adds only the {@code ownFormat}'s {@link WriterFileSet} from each segment in
+     * {@code result.refreshedSegments()} into {@code mergedByGen}. Any other formats present
+     * in the per-engine result (e.g. echoed back from {@link RefreshInput#writerFiles()}) are
+     * intentionally ignored so each format's authoritative entry comes solely from its own engine.
+     */
+    private void buildSegment(DataFormat ownFormat, RefreshResult result, Map<Long, Segment.Builder> mergedByGen) {
+        for (Segment seg : result.refreshedSegments()) {
+            WriterFileSet ownFiles = seg.dfGroupedSearchableFiles().get(ownFormat.name());
             Segment.Builder builder = mergedByGen.computeIfAbsent(seg.generation(), Segment::builder);
-            for (Map.Entry<String, WriterFileSet> entry : seg.dfGroupedSearchableFiles().entrySet()) {
-                builder.addSearchableFiles(entry.getKey(), entry.getValue());
-            }
+            builder.addSearchableFiles(ownFormat, ownFiles);
         }
     }
 
@@ -351,17 +477,22 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             {
                 Map<DataFormat, IndexStoreProvider> tempProviders = new HashMap<>();
                 tempProviders.put(primaryEngine.getDataFormat(), primaryEngine.getProvider());
-                tempProviders.putAll(
-                    secondaryEngines.stream()
-                        .map(eng -> new AbstractMap.SimpleEntry<>(eng.getDataFormat(), eng.getProvider()))
-                        .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue))
-                );
+                if (primaryEngine.getProvider() == null) {
+                    logger.debug("IndexStoreProvider is null for primary engine [{}]", primaryEngine.getDataFormat().name());
+                }
+                for (IndexingExecutionEngine<?, ?> eng : secondaryEngines) {
+                    tempProviders.put(eng.getDataFormat(), eng.getProvider());
+                    if (eng.getProvider() == null) {
+                        logger.debug("IndexStoreProvider is null for secondary engine [{}]", eng.getDataFormat().name());
+                    }
+                }
                 providers = tempProviders;
             }
 
             @Override
             public FormatStore getStore(DataFormat dataFormat) {
-                return providers.get(dataFormat).getStore(dataFormat);
+                IndexStoreProvider provider = providers.get(dataFormat);
+                return provider != null ? provider.getStore(dataFormat) : null;
             }
         };
     }

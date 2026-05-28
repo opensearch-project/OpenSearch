@@ -174,12 +174,12 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
 
         SubstraitResult substrait = substraitResult(plan.convertedBytes());
         logger.info("Substrait plan (mixed E2E):\n{}", substrait.plan());
-        // Root: AND
+        // Root: AND — operand order: delegated first, native after (materializeCombined)
         Expression.ScalarFunction andFunc = substrait.filterRel().getCondition().getScalarFunction();
         assertEquals("and", resolveFunctionName(substrait.plan(), andFunc.getFunctionReference()));
         assertEquals("AND must have 2 arguments", 2, andFunc.getArgumentsCount());
-        // arg[1]: delegated_predicate(1) — annotation id=1 maps to MATCH 'hello world'
-        assertDelegatedPredicate(substrait.plan(), andFunc.getArguments(1).getValue(), 1);
+        // arg[0]: delegated_predicate(1) — annotation id=1 maps to MATCH 'hello world'
+        assertDelegatedPredicate(substrait.plan(), andFunc.getArguments(0).getValue(), 1);
         assertMatchQueryForAnnotation(plan.delegatedExpressions(), 1, "message", "hello world");
     }
 
@@ -200,33 +200,19 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         );
         StagePlan plan = runPipeline(condition);
 
-        assertEquals("should have 2 delegated queries", 2, plan.delegatedExpressions().size());
+        // OR(MATCH 'hello', NOT(MATCH 'goodbye')) is combined into a single BoolQuery
+        assertEquals("should have 1 combined delegated query", 1, plan.delegatedExpressions().size());
 
         SubstraitResult substrait = substraitResult(plan.convertedBytes());
         logger.info("Substrait plan (complex E2E):\n{}", substrait.plan());
 
-        // Root: AND
+        // Root: AND(native_equals, delegated_predicate)
         Expression.ScalarFunction andFunc = substrait.filterRel().getCondition().getScalarFunction();
         assertEquals("and", resolveFunctionName(substrait.plan(), andFunc.getFunctionReference()));
         assertEquals("AND must have 2 arguments", 2, andFunc.getArgumentsCount());
 
-        // arg[1]: OR
-        Expression orExpr = andFunc.getArguments(1).getValue();
-        assertTrue("second AND arg must be scalar function", orExpr.hasScalarFunction());
-        assertEquals("or", resolveFunctionName(substrait.plan(), orExpr.getScalarFunction().getFunctionReference()));
-        Expression.ScalarFunction orFunc = orExpr.getScalarFunction();
-        assertEquals("OR must have 2 arguments", 2, orFunc.getArgumentsCount());
-
-        // OR arg[0]: delegated_predicate(1) → MATCH 'hello'
-        assertDelegatedPredicate(substrait.plan(), orFunc.getArguments(0).getValue(), 1);
-        assertMatchQueryForAnnotation(plan.delegatedExpressions(), 1, "message", "hello");
-
-        // OR arg[1]: NOT(delegated_predicate(2)) → MATCH 'goodbye'
-        Expression notExpr = orFunc.getArguments(1).getValue();
-        assertTrue("OR second arg must be scalar function", notExpr.hasScalarFunction());
-        assertEquals("not", resolveFunctionName(substrait.plan(), notExpr.getScalarFunction().getFunctionReference()));
-        assertDelegatedPredicate(substrait.plan(), notExpr.getScalarFunction().getArguments(0).getValue(), 2);
-        assertMatchQueryForAnnotation(plan.delegatedExpressions(), 2, "message", "goodbye");
+        // arg[0]: delegated_predicate(1) — combined OR(MATCH 'hello', NOT(MATCH 'goodbye'))
+        assertDelegatedPredicate(substrait.plan(), andFunc.getArguments(0).getValue(), 1);
     }
 
     // ---- Pipeline ----
