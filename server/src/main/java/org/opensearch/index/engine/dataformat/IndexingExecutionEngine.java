@@ -74,18 +74,14 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      *
      * @return heap memory usage in bytes
      */
-    default long getHeapBytesUsed() {
-        return 0;
-    }
+    long getHeapBytesUsed();
 
     /**
      * Returns the amount of native (off-heap) memory used by this engine.
      *
      * @return native memory usage in bytes
      */
-    default long getNativeBytesUsed() {
-        return 0;
-    }
+    long getNativeBytesUsed();
 
     /**
      * Deletes the specified files grouped by directory.

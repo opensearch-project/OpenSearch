@@ -355,7 +355,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
     public void testConstantReturns() throws IOException {
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
             assertEquals(0L, engine.getWritingBytes());
-            assertEquals(0L, engine.getIndexBufferRAMBytesUsed());
+            assertEquals(0L, engine.getHeapBytesUsed());
             assertFalse(engine.shouldPeriodicallyFlush());
         }
     }

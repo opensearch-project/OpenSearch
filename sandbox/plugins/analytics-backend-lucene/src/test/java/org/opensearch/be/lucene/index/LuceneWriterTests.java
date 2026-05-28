@@ -496,7 +496,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testRollbackInIndexSortBranchExpungesTombstone() throws IOException {
         Path baseDir = createTempDir();
         Sort indexSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort, ConcurrentHashMap.newKeySet()
+            )
+        ) {
             MappedFieldType textField = mockTextField("content");
             for (int i = 0; i < 5; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -533,7 +537,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         Sort indexSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
         for (Sort sort : new Sort[] { null, indexSort }) {
-            try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, createTempDir(), null, Codec.getDefault(), sort)) {
+            try (
+                LuceneWriter writer = new LuceneWriter(
+                    1L, 0L, dataFormat, createTempDir(), null, Codec.getDefault(), sort, ConcurrentHashMap.newKeySet()
+                )
+            ) {
                 MappedFieldType textField = mockTextField("content");
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "v");
@@ -549,5 +557,45 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 expectThrows(IllegalStateException.class, () -> writer.addDoc(nextDoc));
             }
         }
+    }
+
+    public void testGetHeapBytesUsedPositiveAfterIndexing() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
+            LuceneDocumentInput input = new LuceneDocumentInput();
+            input.addField(textField, "hello world");
+            input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+            // add document so that it consumes heap memory
+            writer.addDoc(input);
+            assertTrue("getHeapBytesUsed should be > 0 after indexing", writer.getHeapBytesUsed() > 0);
+            writer.flush(FlushInput.EMPTY);
+            assertEquals("getHeapBytesUsed should be 0 after flush", 0L, writer.getHeapBytesUsed());
+        }
+        // try-with-resources calls close(); getHeapBytesUsed verified as 0 after flush (which closes IndexWriter)
+    }
+
+    public void testGetHeapBytesUsedZeroAfterCloseWithoutFlush() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+        LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, ConcurrentHashMap.newKeySet());
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.addField(textField, "hello world");
+        input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+        writer.addDoc(input);
+        assertTrue("getHeapBytesUsed should be > 0 before close", writer.getHeapBytesUsed() > 0);
+        writer.close();
+        assertEquals("getHeapBytesUsed should be 0 after close", 0L, writer.getHeapBytesUsed());
     }
 }

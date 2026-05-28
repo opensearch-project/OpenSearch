@@ -225,6 +225,12 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         return total;
     }
 
+    /** Lucene indexing uses only JVM heap for IndexWriter RAM buffers, no native memory. */
+    @Override
+    public long getNativeBytesUsed() {
+        return 0;
+    }
+
     /**
      * Creates a new empty {@link LuceneDocumentInput} using the default field factory registry.
      *

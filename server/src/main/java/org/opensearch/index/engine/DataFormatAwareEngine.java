@@ -1210,11 +1210,6 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     @Override
-    public long getIndexBufferRAMBytesUsed() {
-        return getHeapBytesUsed();
-    }
-
-    @Override
     public long getNativeBytesUsed() {
         return indexingExecutionEngine.getNativeBytesUsed();
     }

@@ -495,8 +495,15 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         return 0;
     }
 
+    /** Read-only engine does not have indexing buffers. */
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /** Read-only engine does not have indexing buffers. */
+    @Override
+    public long getNativeBytesUsed() {
         return 0;
     }
 

@@ -421,9 +421,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             totalFlushDurationMs
         );
 
-        // Since flush is once only, remove from registry
-        registry.remove(this);
-
         return FileInfos.builder().putWriterFileSet(dataFormat, wfsBuilder.build()).build();
     }
 
@@ -734,7 +731,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     @Override
     public void close() throws IOException {
-        registry.remove(this);
         // Close the IndexWriter and Directory if they haven't been closed by flush()
         try {
             if (indexWriter.isOpen()) {
@@ -747,8 +743,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             directory.close();
         } catch (Exception e) {
             logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
-        }
-        if (flushed == false) {
+        } finally {
+            registry.remove(this);
             IOUtils.rm(tempDirectory);
         }
         state = WriterState.CLOSED;
