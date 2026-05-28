@@ -31,21 +31,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Post-Volcano orchestrator: adapts a FINAL {@link OpenSearchAggregate}'s input chain (re-types
- * the StageInputScan when a typeResolver dictates a different shape, inserts a literal-Project
- * for STATE_EXPANDING aggregates) and rebinds its aggCalls via the nested
- * {@link FinalAggCallBuilder} when anything changed.
+ * Adapts a FINAL {@link OpenSearchAggregate}'s input chain after the DAG is fragmented:
+ * re-types the StageInputScan, inserts a literal-Project for STATE_EXPANDING aggregates, and
+ * rebinds aggCalls via {@link FinalAggCallBuilder} when anything changed. Called from
+ * {@code BackendPlanAdapter.adaptNode}.
  *
- * <p>Runs after Volcano CBO and DAG fragmentation, called from
- * {@code BackendPlanAdapter.adaptNode} once per FINAL aggregate per backend. At that point
- * FINAL's input chain ends at an {@link OpenSearchStageInputScan} placeholder — PARTIAL lives
- * in a sibling stage.
- *
- * <p>TODO: {@link FinalAggCallBuilder} also runs at split-rule time (called from
- * {@code OpenSearchAggregateSplitRule} in {@code planner.rules}), so its current home here
- * means {@code planner.rules} reaches into {@code planner.dag} — backwards from the usual
- * layered direction. Move it to a top-level class in {@code planner.rel} once a third
- * construction-time consumer appears.
+ * <p>TODO: {@link FinalAggCallBuilder} is also used by the split rule, so {@code planner.rules}
+ * reaches into {@code planner.dag} — backwards from the usual layering. Move it to
+ * {@code planner.rel} once a third construction-time consumer appears.
  *
  * @opensearch.internal
  */
@@ -56,8 +49,6 @@ public final class DistributedAggregateRewriter {
     static RelNode rewrite(OpenSearchAggregate finalAgg) {
         assert finalAgg.getMode() == AggregateMode.FINAL : "rewrite is only called on FINAL aggregates";
         RelNode exchange = finalAgg.getInput();
-        // Skip degenerate trees where the exchange has no child or the leaf below it isn't
-        // a StageInputScan — transformers target the StageInputScan layer.
         if (exchange.getInputs().isEmpty()) return finalAgg;
         if (!(exchange.getInputs().get(0) instanceof OpenSearchStageInputScan)) return finalAgg;
 
