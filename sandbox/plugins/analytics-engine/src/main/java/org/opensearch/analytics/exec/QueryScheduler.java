@@ -131,9 +131,7 @@ public class QueryScheduler implements Scheduler {
 
             @Override
             public void onFailure(Exception cause) {
-                Optional<StageTask> retry = stage.getState().isTerminal()
-                    ? Optional.empty()
-                    : stage.retargetForRetry(task, cause);
+                Optional<StageTask> retry = stage.getState().isTerminal() ? Optional.empty() : stage.retargetForRetry(task, cause);
                 if (retry.isPresent()) {
                     currentAttempt.transitionTo(StageTaskState.FAILED);  // previous attempt is now superseded
                     StageTask r = retry.get();
