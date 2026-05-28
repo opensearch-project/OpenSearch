@@ -209,7 +209,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         when(nodes.get("node-primary")).thenReturn(primaryNode);
         when(nodes.get("node-replica")).thenReturn(replicaNode);
 
-        ShardExecutionTarget primaryTarget = new ShardExecutionTarget(primaryNode, shardId, shardIt, clusterState);
+        ShardExecutionTarget primaryTarget = new ShardExecutionTarget(primaryNode, shardId, 0, shardIt, clusterState);
         ShardStageTask failed = new ShardStageTask(new StageTaskId(0, 0), primaryTarget);
         ShardFragmentStageExecution exec = buildExecutionWithTargets(new CapturingSink(), 1);
 
@@ -242,7 +242,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
 
-        ShardExecutionTarget singletonTarget = new ShardExecutionTarget(primaryNode, shardId, shardIt, clusterState);
+        ShardExecutionTarget singletonTarget = new ShardExecutionTarget(primaryNode, shardId, 0, shardIt, clusterState);
         ShardStageTask failed = new ShardStageTask(new StageTaskId(0, 0), singletonTarget);
         ShardFragmentStageExecution exec = buildExecutionWithTargets(new CapturingSink(), 1);
 
@@ -261,7 +261,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         DiscoveryNode node = mock(DiscoveryNode.class);
         when(node.getId()).thenReturn("node-only");
 
-        ShardExecutionTarget legacyTarget = new ShardExecutionTarget(node, shardId);  // no iterator wired
+        ShardExecutionTarget legacyTarget = new ShardExecutionTarget(node, shardId, 0);  // no iterator wired
         ShardStageTask failed = new ShardStageTask(new StageTaskId(0, 0), legacyTarget);
         ShardFragmentStageExecution exec = buildExecutionWithTargets(new CapturingSink(), 1);
 
@@ -309,7 +309,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(nodes.get("node-gone")).thenReturn(null);  // node left the cluster
 
-        ShardExecutionTarget target = new ShardExecutionTarget(primaryNode, shardId, shardIt, clusterState);
+        ShardExecutionTarget target = new ShardExecutionTarget(primaryNode, shardId, 0, shardIt, clusterState);
         ShardStageTask failed = new ShardStageTask(new StageTaskId(0, 0), target);
         ShardFragmentStageExecution exec = buildExecutionWithTargets(new CapturingSink(), 1);
 
@@ -352,7 +352,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         when(nodes.get("node-replica-1")).thenReturn(replica1);
         when(nodes.get("node-replica-2")).thenReturn(replica2);
 
-        ShardExecutionTarget primaryTarget = new ShardExecutionTarget(primaryNode, shardId, shardIt, clusterState);
+        ShardExecutionTarget primaryTarget = new ShardExecutionTarget(primaryNode, shardId, 0, shardIt, clusterState);
         ShardStageTask initial = new ShardStageTask(new StageTaskId(0, 0), primaryTarget);
         ShardFragmentStageExecution exec = buildExecutionWithTargets(new CapturingSink(), 1);
 
