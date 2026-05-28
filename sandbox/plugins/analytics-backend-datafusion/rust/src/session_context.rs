@@ -64,6 +64,66 @@ pub struct IndexedExecutionConfig {
     pub requests_row_ids: bool,
 }
 
+/// Widens `inferred` to the plan's `base_schema` (for index-pattern / alias scans) so the
+/// table is registered with every column the Substrait consumer expects. Returns `inferred`
+/// unchanged when no plan is supplied, no matching base_schema exists, or this shard already
+/// covers every column.
+///
+/// Uses the `datafusion-substrait` consumer's `from_substrait_named_struct` for type conversion
+/// (which already marks all fields nullable). The consumer is built from the session's existing
+/// state — no throwaway SessionState needed.
+fn widen_schema_from_plan(
+    ctx: &SessionContext,
+    plan_bytes: &[u8],
+    table_name: &str,
+    inferred: &arrow::datatypes::SchemaRef,
+) -> arrow::datatypes::SchemaRef {
+    use datafusion_substrait::extensions::Extensions;
+    use datafusion_substrait::logical_plan::consumer::{from_substrait_named_struct, DefaultSubstraitConsumer};
+
+    if plan_bytes.is_empty() {
+        return Arc::clone(inferred);
+    }
+    let plan: substrait::proto::Plan = match prost::Message::decode(plan_bytes) {
+        Ok(p) => p,
+        Err(_) => return Arc::clone(inferred),
+    };
+    let Some(base_schema) = crate::api::base_schema_for_table(&plan, table_name) else {
+        log::warn!("widen_schema_from_plan: no base_schema found for table '{}' in plan — skipping widening", table_name);
+        return Arc::clone(inferred);
+    };
+
+    // Cheap gate: if inferred already has every base_schema column, skip.
+    let have: std::collections::HashSet<&str> =
+        inferred.fields().iter().map(|f| f.name().as_str()).collect();
+    if base_schema.names.iter().all(|n| have.contains(n.as_str())) {
+        return Arc::clone(inferred);
+    }
+
+    // Use the substrait consumer to convert NamedStruct → Arrow Schema (handles all type
+    // variants including decimals, nested structs, user-defined types). All fields are
+    // already marked nullable by the consumer.
+    let extensions = Extensions::default();
+    let state = ctx.state();
+    let consumer = DefaultSubstraitConsumer::new(&extensions, &state);
+    let df_schema = match from_substrait_named_struct(&consumer, &base_schema) {
+        Ok(s) => s,
+        Err(_) => return Arc::clone(inferred),
+    };
+    let expected = df_schema.as_arrow().clone();
+
+    let force_view = ctx.copied_config().options().execution.parquet.schema_force_view_types;
+    let expected = if force_view {
+        datafusion::datasource::file_format::parquet::transform_schema_to_view(&expected)
+    } else {
+        expected
+    };
+    let expected = crate::schema_coerce::coerce_inferred_schema(Arc::new(expected));
+    crate::schema_coerce::append_missing_nullable(inferred, &expected)
+        .unwrap_or_else(|| Arc::clone(inferred))
+}
+
+
 /// Creates a SessionContext with per-query RuntimeEnv and registers the default
 /// ListingTable provider for parquet scans.
 pub async unsafe fn create_session_context(
@@ -72,6 +132,7 @@ pub async unsafe fn create_session_context(
     table_name: &str,
     context_id: i64,
     query_config: DatafusionQueryConfig,
+    plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
     let shard_view = &*(shard_view_ptr as *const ShardView);
@@ -187,6 +248,22 @@ pub async unsafe fn create_session_context(
     // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
     let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
 
+    // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
+    // which differs from table_name (the concrete shard index). Extract it from the plan and
+    // register under that name so the Substrait consumer binds correctly. For single-index
+    // queries (empty plan_bytes), table_name is already the correct concrete name.
+    let register_name = if !plan_bytes.is_empty() {
+        crate::api::first_named_table_name(plan_bytes).unwrap_or_else(|| {
+            error!("create_session_context: failed to extract table name from plan, falling back to concrete name: {}", table_name);
+            table_name.to_string()
+        })
+    } else {
+        table_name.to_string()
+    };
+
+    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
+    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &resolved_schema);
+
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);
@@ -205,10 +282,10 @@ pub async unsafe fn create_session_context(
             .with_cache(stats_cache),
     );
 
-    ctx.register_table(table_name, provider).map_err(|e| {
+    ctx.register_table(register_name.as_str(), provider).map_err(|e| {
         error!(
             "create_session_context: failed to register table '{}': {}",
-            table_name, e
+            register_name, e
         );
         e
     })?;
@@ -257,9 +334,9 @@ pub async unsafe fn create_session_context_indexed(
     delegated_predicate_count: i32,
     requests_row_ids: bool,
     query_config: DatafusionQueryConfig,
+    plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
-    // Create base session context (same as non-indexed path)
-    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config).await?;
+    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config, plan_bytes).await?;
 
     // Augment with indexed config and UDF registration
     let handle = &mut *(ptr as *mut SessionContextHandle);
@@ -353,6 +430,50 @@ mod tests {
 
     use crate::agg_mode::Mode;
     use crate::query_tracker::QueryTrackingContext;
+
+    #[tokio::test]
+    async fn test_widen_schema_noop_when_plan_empty() {
+        let ctx = SessionContext::new();
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+        ]));
+        let result = widen_schema_from_plan(&ctx, &[], "t", &schema);
+        assert_eq!(result.fields().len(), 1);
+        assert_eq!(result.field(0).name(), "a");
+    }
+
+    /// Cheap-gate branch: with a non-empty plan whose `base_schema` names are all already in
+    /// `inferred`, `widen_schema_from_plan` must short-circuit (return `Arc::clone(inferred)`)
+    /// before invoking the substrait NamedStruct→Arrow converter. Verifies the column-name
+    /// subset check at the top of the function, not the empty-plan early-return.
+    #[tokio::test]
+    async fn test_widen_schema_noop_when_all_columns_present() {
+        let ctx = SessionContext::new();
+        // Register a table whose schema is a subset of `inferred` below.
+        let registered_schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&registered_schema),
+            vec![Arc::new(Int64Array::from(vec![1i64]))],
+        )
+        .expect("batch");
+        let table = MemTable::try_new(Arc::clone(&registered_schema), vec![vec![batch]]).expect("memtable");
+        ctx.register_table("t", Arc::new(table)).expect("register");
+
+        // Build a substrait plan with a Read rel pointing at "t" — base_schema.names = ["a"].
+        let logical = ctx.sql("SELECT a FROM t").await.expect("sql").into_unoptimized_plan();
+        let plan = to_substrait_plan(&logical, &ctx.state()).expect("substrait plan");
+        let mut plan_bytes = Vec::new();
+        plan.encode(&mut plan_bytes).expect("encode");
+
+        // inferred has every base_schema column (a) plus an extra one (b) — cheap gate fires.
+        let inferred = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        let result = widen_schema_from_plan(&ctx, &plan_bytes, "t", &inferred);
+        // Must return inferred unchanged (Arc::clone, so pointer-equal).
+        assert!(Arc::ptr_eq(&result, &inferred), "subset gate must short-circuit to inferred");
+    }
 
     async fn make_test_handle() -> (SessionContextHandle, Vec<u8>) {
         let runtime_env = RuntimeEnvBuilder::new().build().expect("runtime env");

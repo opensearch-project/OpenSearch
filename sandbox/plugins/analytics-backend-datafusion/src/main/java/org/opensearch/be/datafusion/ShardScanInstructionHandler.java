@@ -55,6 +55,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         long readerPtr = dfReader.getReaderHandle().getPointer();
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
+        String tableName = context.getTableName();
 
         WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
         try (Arena arena = Arena.ofConfined()) {
@@ -69,20 +70,23 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                 sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
                     readerPtr,
                     runtimePtr,
-                    context.getTableName(),
+                    tableName,
                     contextId,
                     FilterTreeShape.NO_DELEGATION.ordinal(),
                     0,
                     true,
-                    segment.address()
+                    segment.address(),
+                    context.getFragmentBytes()
                 );
             } else {
+                // Plan bytes let Rust widen the schema for multi-index queries (null-fill missing columns).
                 sessionCtxHandle = NativeBridge.createSessionContext(
                     readerPtr,
                     runtimePtr,
-                    context.getTableName(),
+                    tableName,
                     contextId,
-                    segment.address()
+                    segment.address(),
+                    context.getFragmentBytes()
                 );
             }
             return new DataFusionSessionState(sessionCtxHandle);

@@ -65,33 +65,44 @@ public class UnifiedQueryService {
     }
 
     private PPLResponse execute(String pplText, boolean profile) {
-        // Extract tables from the SchemaPlus into a plain AbstractSchema.
-        // SchemaPlus wraps CalciteSchema — passing it to catalog() causes double-nesting
-        // where tables become inaccessible. A plain Schema avoids this.
+        // Wrap the SchemaPlus in a delegating AbstractSchema that preserves lazy table resolution.
+        // The underlying OpenSearchSchemaBuilder resolves wildcard/comma/exclusion expressions
+        // lazily via getTable(name) — a static copy would lose that.
         SchemaPlus schemaPlus = engineContext.getSchema();
-        Map<String, Table> tableMap = new HashMap<>();
-        for (String tableName : schemaPlus.getTableNames()) {
-            tableMap.put(tableName, schemaPlus.getTable(tableName));
-        }
-        AbstractSchema flatSchema = new AbstractSchema() {
+        AbstractSchema delegatingSchema = new AbstractSchema() {
             @Override
             protected Map<String, Table> getTableMap() {
-                return tableMap;
+                return new HashMap<>() {
+                    {
+                        for (String tableName : schemaPlus.getTableNames()) {
+                            super.put(tableName, schemaPlus.getTable(tableName));
+                        }
+                    }
+
+                    @Override
+                    public Table get(Object key) {
+                        Table t = super.get(key);
+                        if (t == null && key instanceof String name) {
+                            t = schemaPlus.getTable(name);
+                            if (t != null) super.put(name, t);
+                        }
+                        return t;
+                    }
+                };
             }
         };
 
         logger.info(
-            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, tableMap: {}, engineContext class: {}",
+            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, engineContext class: {}",
             schemaPlus.getClass().getName(),
             schemaPlus.getTableNames(),
-            tableMap.keySet(),
             engineContext.getClass().getName()
         );
 
         try (
             UnifiedQueryContext context = UnifiedQueryContext.builder()
                 .language(QueryType.PPL)
-                .catalog(DEFAULT_CATALOG, flatSchema)
+                .catalog(DEFAULT_CATALOG, delegatingSchema)
                 .defaultNamespace(DEFAULT_CATALOG)
                 // The unified PPL parser reuses the v2 AstBuilder, which gates Calcite-only
                 // commands (table, regex, rex, convert) on plugins.calcite.enabled. The unified
