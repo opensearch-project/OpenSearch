@@ -282,7 +282,11 @@ public class DataFormatAwareEngine implements Indexer {
             // Lucene merges that skip because the shared writer has no matching segments —
             // applyMergeChanges acquires refreshLock itself. Either way, applyMergeChanges
             // releases the lock before returning.
-            this.committer = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig, refreshLock::lock));
+            this.committer = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig, () -> {
+                if (refreshLock.isHeldByCurrentThread() == false) {
+                    refreshLock.lock();
+                }
+            }));
 
             // 2. Read translogUUID and history UUID from last committed data
             final Map<String, String> userData = committer.getLastCommittedData();
@@ -971,7 +975,8 @@ public class DataFormatAwareEngine implements Indexer {
                         notifyRefreshListenersBefore();
                         if (refreshed) {
                             final long engineRefreshStartNanos = System.nanoTime();
-                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
+                            long nextGen = newSegments.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
+                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments, nextGen);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                             final long engineRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - engineRefreshStartNanos);
                             logger.debug(
