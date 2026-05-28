@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.CommonExecutionContext;
+import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
@@ -60,15 +61,34 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
             snapshot.writeTo(segment);
-            // Plan bytes let Rust widen the schema for multi-index queries (null-fill missing columns).
-            SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
-                readerPtr,
-                runtimePtr,
-                tableName,
-                contextId,
-                segment.address(),
-                context.getFragmentBytes()
-            );
+            SessionContextHandle sessionCtxHandle;
+            if (node.requestsRowIds()) {
+                // QTF query phase — narrowed scan emits __row_id__. Use the indexed session
+                // context so the IndexedTableProvider injects shard-global row ids during scan.
+                // No delegated predicates here (delegation goes through ShardScanWithDelegationHandler),
+                // so treeShape=NO_DELEGATION and delegatedPredicateCount=0.
+                sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
+                    readerPtr,
+                    runtimePtr,
+                    tableName,
+                    contextId,
+                    FilterTreeShape.NO_DELEGATION.ordinal(),
+                    0,
+                    true,
+                    segment.address(),
+                    context.getFragmentBytes()
+                );
+            } else {
+                // Plan bytes let Rust widen the schema for multi-index queries (null-fill missing columns).
+                sessionCtxHandle = NativeBridge.createSessionContext(
+                    readerPtr,
+                    runtimePtr,
+                    tableName,
+                    contextId,
+                    segment.address(),
+                    context.getFragmentBytes()
+                );
+            }
             return new DataFusionSessionState(sessionCtxHandle);
         }
     }

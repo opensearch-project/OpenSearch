@@ -60,6 +60,8 @@ pub struct SessionContextHandle {
 pub struct IndexedExecutionConfig {
     pub tree_shape: i32,
     pub delegated_predicate_count: i32,
+    /// QTF query phase: scan must emit shard-global `__row_id__`.
+    pub requests_row_ids: bool,
 }
 
 /// Widens `inferred` to the plan's `base_schema` (for index-pattern / alias scans) so the
@@ -200,12 +202,26 @@ pub async unsafe fn create_session_context(
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
 
-    let state = SessionStateBuilder::new()
+    let mut state_builder = SessionStateBuilder::new()
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
-        .build();
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine());
+
+    // For ListingTable query strategy:
+    // 1. Add ProjectRowIdAnalyzer (logical) — ensures __row_id__ survives pruning.
+    // 2. Add ProjectRowIdOptimizer (physical) — computes __row_id__ + row_base.
+    if query_config.query_strategy == crate::datafusion_query_config::QueryStrategy::ListingTable {
+        state_builder = state_builder
+            .with_analyzer_rule(
+                Arc::new(crate::project_row_id_analyzer::ProjectRowIdAnalyzer::new())
+            )
+            .with_physical_optimizer_rule(
+                Arc::new(crate::project_row_id_optimizer::ProjectRowIdOptimizer)
+            );
+    }
+
+    let state = state_builder.build();
 
     let ctx = SessionContext::new_with_state(state);
     // Register OpenSearch UDFs (parse, item, mvappend, mvfind, mvzip, convert_tz, …)
@@ -316,6 +332,7 @@ pub async unsafe fn create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    requests_row_ids: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
 ) -> Result<i64, DataFusionError> {
@@ -328,6 +345,7 @@ pub async unsafe fn create_session_context_indexed(
     handle.indexed_config = Some(IndexedExecutionConfig {
         tree_shape,
         delegated_predicate_count,
+        requests_row_ids,
     });
 
     Ok(ptr)

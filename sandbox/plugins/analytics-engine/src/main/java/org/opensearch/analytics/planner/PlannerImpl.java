@@ -36,6 +36,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
@@ -45,6 +46,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Central planner for the Analytics Plugin.
@@ -62,10 +64,6 @@ import java.util.List;
  * {@link RuleProfilingListener} (when profiling is enabled on
  * {@link PlannerContext}) can be threaded through every planner created here.
  *
- * <p>TODO: eliminate copyToCluster — have frontends create RelNodes with Volcano cluster.
- * <p>TODO: DAG construction (cut at exchange boundaries, build stage tree)
- * <p>TODO: Per-stage plan forking (multiple plan generation)
- * <p>TODO: Fragment conversion (backend.getFragmentConvertor())
  * <p>TODO: Join strategy selection, sort removal via CBO
  *
  * @opensearch.internal
@@ -105,11 +103,16 @@ public class PlannerImpl {
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
+        if (lateMat.isPresent()) {
+            modifiedRelNode = lateMat.get();
+            LOGGER.info("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+        }
 
         if (listener != null) {
             RuleProfilingListener.PlannerProfile profile = listener.snapshot();
             context.recordProfilingResults(profile);
-            LOGGER.info("Planner profile:\n{}", profile.format());
+            LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
     }
@@ -189,9 +192,24 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();
         builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        // Push Filters below Project/Aggregate/Join.
+        // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE assist QTF (late-materialization) detection.
+        // SqlToRelConverter shapes `SELECT ... ORDER BY UPPER(URL) LIMIT N` as
+        // Sort($1) ← Project(URL, UPPER(URL)) ← Scan
+        // (the order-by expression is materialized into the Project so the Sort can reference
+        // it as a slot). SORT_PROJECT_TRANSPOSE flips this to
+        // Project(URL, UPPER(URL)) ← Sort($1) ← Scan
+        // putting the Project above the Sort, which is the shape the QTF rewriter recognizes
+        // as "topmost above-anchor operator." Calcite's RelRoot.project() then trims the
+        // helper sort-key column from the user-visible output. PROJECT_MERGE collapses any
+        // adjacent Projects so the rewriter sees at most one Project layer above the anchor.
         builder.addRuleCollection(
-            List.of(CoreRules.FILTER_PROJECT_TRANSPOSE, CoreRules.FILTER_AGGREGATE_TRANSPOSE, CoreRules.FILTER_INTO_JOIN)
+            List.of(
+                CoreRules.FILTER_PROJECT_TRANSPOSE,
+                CoreRules.FILTER_AGGREGATE_TRANSPOSE,
+                CoreRules.FILTER_INTO_JOIN,
+                CoreRules.SORT_PROJECT_TRANSPOSE,
+                CoreRules.PROJECT_MERGE
+            )
         );
         // Merge adjacent Filters into one — must run after transposes so any
         // auto-injected NOT NULL collapses with the user's WHERE.
