@@ -18,6 +18,7 @@ group = "org.custom.group"
 version = '1.0.0'
 
 repositories {
+  maven { url = uri("https://ci.opensearch.org/maven2/") }
   mavenCentral()
 }
 

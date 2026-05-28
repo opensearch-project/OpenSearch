@@ -54,6 +54,22 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         assertTrue("expected 'no storage' error, got: " + ex.getMessage(), ex.getMessage().contains("has no storage in any format"));
     }
 
+    public void testMergedResolverUnionsFieldsAcrossIndices() {
+        // Mirrors an index pattern (test*) whose backing indices declare different field sets:
+        // index A = {name, age}, index B = {name, alias}. The union scan row type references all
+        // three; a single-index resolver would throw on the field its index lacks.
+        FieldStorageResolver a = newResolver("parquet", Map.of("name", Map.of("type", "text"), "age", Map.of("type", "long")));
+        FieldStorageResolver b = newResolver("parquet", Map.of("name", Map.of("type", "text"), "alias", Map.of("type", "keyword")));
+
+        FieldStorageResolver merged = FieldStorageResolver.merged(List.of(a, b));
+        List<FieldStorageInfo> infos = merged.resolve(List.of("name", "age", "alias"));
+
+        assertEquals(3, infos.size());
+        assertEquals("name", infos.get(0).getFieldName());
+        assertEquals("age", infos.get(1).getFieldName());
+        assertEquals("alias", infos.get(2).getFieldName());
+    }
+
     private static FieldStorageResolver newResolver(String primaryFormat, Map<String, Map<String, Object>> fieldMappings) {
         Map<String, Object> mappingSource = Map.of("properties", fieldMappings);
 
