@@ -225,4 +225,36 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         assertTrue(monitors.containsKey("stream_next"));
         assertTrue(monitors.containsKey("plan_setup"));
     }
+
+    // ---- Test: search_stats integrates into composition ----
+
+    public void testSearchStatsAbsentWhenNull() throws IOException {
+        DataFusionStats stats = sequentialStats();
+        assertNull(stats.getSearchStats());
+        String json = toJsonString(stats);
+        assertFalse("search_stats should not appear when null", json.contains("\"search_stats\""));
+    }
+
+    public void testSearchStatsPresentWhenNonNull() throws IOException {
+        SearchStats search = new SearchStats(
+            7,
+            100, 80, 0, 5, 10, 0, 0, 0, 5,
+            5, 5, 0, 5, 0, 5, 0, 0, 5,
+            500, 50, 250, 0, 10, 5, 5, 5, 5,
+            5, 200
+        );
+        DataFusionStats stats = new DataFusionStats(
+            sequentialStats().getNativeExecutorsStats(),
+            sequentialStats().getDatanodeGateStats(),
+            sequentialStats().getCoordinatorGateStats(),
+            search
+        );
+        assertSame(search, stats.getSearchStats());
+
+        String json = toJsonString(stats);
+        assertTrue(json.contains("\"search_stats\""));
+        assertTrue(json.contains("\"queries_completed\":7"));
+        assertTrue(json.contains("\"output_rows\":100"));
+        assertTrue(json.contains("\"parquet_time_ms\":250"));
+    }
 }

@@ -34,6 +34,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
     private final NativeExecutorsStats nativeExecutorsStats; // nullable
     private final PartitionGateStats datanodeGateStats; // nullable
     private final PartitionGateStats coordinatorGateStats; // nullable
+    private final SearchStats searchStats; // nullable
 
     /**
      * Construct from components.
@@ -47,9 +48,27 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         PartitionGateStats datanodeGateStats,
         PartitionGateStats coordinatorGateStats
     ) {
+        this(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats, null);
+    }
+
+    /**
+     * Construct from components, including search stats.
+     *
+     * @param nativeExecutorsStats  the native executor metrics (nullable)
+     * @param datanodeGateStats     the datanode partition gate metrics (nullable)
+     * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
+     * @param searchStats           cumulative indexed-search metrics (nullable)
+     */
+    public DataFusionStats(
+        NativeExecutorsStats nativeExecutorsStats,
+        PartitionGateStats datanodeGateStats,
+        PartitionGateStats coordinatorGateStats,
+        SearchStats searchStats
+    ) {
         this.nativeExecutorsStats = nativeExecutorsStats;
         this.datanodeGateStats = datanodeGateStats;
         this.coordinatorGateStats = coordinatorGateStats;
+        this.searchStats = searchStats;
     }
 
     /**
@@ -62,6 +81,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         this.nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
         this.datanodeGateStats = in.readOptionalWriteable(PartitionGateStats::new);
         this.coordinatorGateStats = in.readOptionalWriteable(PartitionGateStats::new);
+        this.searchStats = in.readOptionalWriteable(SearchStats::new);
     }
 
     @Override
@@ -69,6 +89,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(nativeExecutorsStats);
         out.writeOptionalWriteable(datanodeGateStats);
         out.writeOptionalWriteable(coordinatorGateStats);
+        out.writeOptionalWriteable(searchStats);
     }
 
     @Override
@@ -81,6 +102,9 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         }
         if (coordinatorGateStats != null) {
             coordinatorGateStats.toXContent(builder, params);
+        }
+        if (searchStats != null) {
+            searchStats.toXContent(builder, params);
         }
         return builder;
     }
@@ -106,6 +130,13 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         return coordinatorGateStats;
     }
 
+    /**
+     * Returns the cumulative indexed-search metrics, or {@code null} if absent.
+     */
+    public SearchStats getSearchStats() {
+        return searchStats;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -113,11 +144,12 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         DataFusionStats that = (DataFusionStats) o;
         return Objects.equals(nativeExecutorsStats, that.nativeExecutorsStats)
             && Objects.equals(datanodeGateStats, that.datanodeGateStats)
-            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats);
+            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats)
+            && Objects.equals(searchStats, that.searchStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats);
+        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats, searchStats);
     }
 }

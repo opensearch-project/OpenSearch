@@ -134,6 +134,31 @@ public class DataFusionStatsPropertyTests {
         return Arbitraries.just(new DataFusionStats(null, null, null));
     }
 
+    @Provide
+    Arbitrary<SearchStats> searchStatsArbitrary() {
+        Arbitrary<Long> nonNeg = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
+        return nonNeg.array(Long[].class).ofSize(30).map(arr -> new SearchStats(
+            arr[0],
+            arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7], arr[8], arr[9],
+            arr[10], arr[11], arr[12], arr[13], arr[14], arr[15], arr[16], arr[17], arr[18],
+            arr[19], arr[20], arr[21], arr[22], arr[23], arr[24], arr[25], arr[26], arr[27],
+            arr[28], arr[29]
+        ));
+    }
+
+    /** DataFusionStats including search stats. */
+    @Provide
+    Arbitrary<DataFusionStats> dataFusionStatsWithSearchStats() {
+        return Combinators.combine(dataFusionStatsCpuPresent(), searchStatsArbitrary()).as((stats, search) ->
+            new DataFusionStats(
+                stats.getNativeExecutorsStats(),
+                stats.getDatanodeGateStats(),
+                stats.getCoordinatorGateStats(),
+                search
+            )
+        );
+    }
+
     // ---- Property 1: Writeable round-trip preserves all field values ----
 
     /**
@@ -268,6 +293,25 @@ public class DataFusionStatsPropertyTests {
         byte[] first = renderJsonBytes(stats);
         byte[] second = renderJsonBytes(stats);
         assertTrue(Arrays.equals(first, second), "toXContent must produce byte-for-byte identical JSON on repeated calls (null executors)");
+    }
+
+    /**
+     * Feature: stats-spi-refactor, Property: DataFusionStats Writeable round-trip with search stats.
+     */
+    @Property(tries = 100)
+    void writeableRoundTripWithSearchStats(@ForAll("dataFusionStatsWithSearchStats") DataFusionStats original) throws IOException {
+        DataFusionStats deserialized = writeableRoundTrip(original);
+        assertNotNull(deserialized.getSearchStats());
+        assertEquals(original, deserialized, "Writeable round-trip must preserve search stats");
+    }
+
+    /**
+     * Feature: stats-spi-refactor, Property: DataFusionStats JSON contains search_stats key.
+     */
+    @Property(tries = 50)
+    void jsonContainsSearchStatsKey(@ForAll("dataFusionStatsWithSearchStats") DataFusionStats stats) throws IOException {
+        String json = renderJson(stats);
+        assertTrue(json.contains("\"search_stats\""), "JSON must contain search_stats key when present");
     }
 
     /** Renders a {@link DataFusionStats} to JSON bytes via {@code toXContent}. */

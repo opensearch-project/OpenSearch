@@ -875,8 +875,14 @@ public final class NativeBridge {
             // Partition gates
             var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
             var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
+            var searchStats = StatsLayout.readSearchStats(seg);
 
-            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
+            return new DataFusionStats(
+                new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors),
+                datanodeGate,
+                coordinatorGate,
+                searchStats
+            );
         }
     }
 

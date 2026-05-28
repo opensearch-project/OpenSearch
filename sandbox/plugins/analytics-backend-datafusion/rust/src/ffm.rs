@@ -1013,11 +1013,12 @@ pub unsafe extern "C" fn df_execute_with_context(
 
 /// Collects all native executor metrics into a caller-provided byte buffer.
 ///
-/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (344).
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (544).
 /// Returns 0 on success.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
+    use crate::search_stats::pack_search_stats;
     use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, pack_partition_gate, DfStatsBuffer, RuntimeMetricsRepr};
     use crate::task_monitors::{
         coordinator_reduce_monitor, query_execution_monitor,
@@ -1056,6 +1057,7 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         plan_setup: pack_task_monitor(plan_setup_monitor()),
         datanode_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
         coordinator_gate: pack_partition_gate(mgr.coordinator_gate()),
+        search_stats: pack_search_stats(),
     };
 
     // Copy struct bytes to caller buffer

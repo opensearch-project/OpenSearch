@@ -4,9 +4,9 @@
 
 //! Stats packing helpers for the FFM `df_stats()` function.
 //!
-//! Packs Tokio runtime metrics and per-operation task monitor metrics
-//! into a `#[repr(C)]` `DfStatsBuffer` struct (304 bytes) for efficient
-//! transfer across the FFM boundary.
+//! Packs Tokio runtime metrics, per-operation task monitor metrics, and
+//! cumulative indexed-search metrics into a `#[repr(C)]` `DfStatsBuffer`
+//! struct (544 bytes) for efficient transfer across the FFM boundary.
 //!
 //! ## Struct layout
 //!
@@ -20,6 +20,7 @@
 //! | `plan_setup`         | `TaskMonitorRepr`    | 3 × i64 |
 //! | `datanode_gate`      | `PartitionGateRepr`  | 4 × i64 |
 //! | `coordinator_gate`   | `PartitionGateRepr`  | 4 × i64 |
+//! | `search_stats`       | `SearchStatsRepr`    | 30 × i64 (1 lifecycle + 18 counts + 11 times) |
 
 use tokio::runtime::Handle;
 use tokio_metrics::{RuntimeMonitor, TaskMonitor};
@@ -71,6 +72,77 @@ pub struct PartitionGateRepr {
 }
 
 #[repr(C)]
+pub struct SearchStatsRepr {
+    pub queries_completed: i64,
+    pub output_rows: i64,
+    pub rows_matched: i64,
+    pub rows_pruned_by_page_index: i64,
+    pub row_groups_processed: i64,
+    pub row_groups_skipped: i64,
+    pub pages_pruned: i64,
+    pub pages_total: i64,
+    pub page_pruning_unavailable: i64,
+    pub ffm_collector_calls: i64,
+    pub batches_produced: i64,
+    pub parquet_batches_received: i64,
+    pub position_map_identity: i64,
+    pub position_map_bitmap: i64,
+    pub position_map_runs: i64,
+    pub min_skip_run_row_granular: i64,
+    pub min_skip_run_block_granular: i64,
+    pub prefetch_wait_count: i64,
+    pub batches_pre_coalesce: i64,
+    pub elapsed_compute_ms: i64,
+    pub index_time_ms: i64,
+    pub parquet_time_ms: i64,
+    pub prefetch_wait_time_ms: i64,
+    pub coalesce_time_ms: i64,
+    pub build_mask_time_ms: i64,
+    pub filter_record_batch_time_ms: i64,
+    pub on_batch_mask_time_ms: i64,
+    pub mask_slice_time_ms: i64,
+    pub projection_fixup_time_ms: i64,
+    pub parquet_poll_time_ms: i64,
+}
+
+impl SearchStatsRepr {
+    pub fn zeroed() -> Self {
+        Self {
+            queries_completed: 0,
+            output_rows: 0,
+            rows_matched: 0,
+            rows_pruned_by_page_index: 0,
+            row_groups_processed: 0,
+            row_groups_skipped: 0,
+            pages_pruned: 0,
+            pages_total: 0,
+            page_pruning_unavailable: 0,
+            ffm_collector_calls: 0,
+            batches_produced: 0,
+            parquet_batches_received: 0,
+            position_map_identity: 0,
+            position_map_bitmap: 0,
+            position_map_runs: 0,
+            min_skip_run_row_granular: 0,
+            min_skip_run_block_granular: 0,
+            prefetch_wait_count: 0,
+            batches_pre_coalesce: 0,
+            elapsed_compute_ms: 0,
+            index_time_ms: 0,
+            parquet_time_ms: 0,
+            prefetch_wait_time_ms: 0,
+            coalesce_time_ms: 0,
+            build_mask_time_ms: 0,
+            filter_record_batch_time_ms: 0,
+            on_batch_mask_time_ms: 0,
+            mask_slice_time_ms: 0,
+            projection_fixup_time_ms: 0,
+            parquet_poll_time_ms: 0,
+        }
+    }
+}
+
+#[repr(C)]
 pub struct DfStatsBuffer {
     pub io_runtime: RuntimeMetricsRepr,
     pub cpu_runtime: RuntimeMetricsRepr,
@@ -80,17 +152,19 @@ pub struct DfStatsBuffer {
     pub plan_setup: TaskMonitorRepr,
     pub datanode_gate: PartitionGateRepr,
     pub coordinator_gate: PartitionGateRepr,
+    pub search_stats: SearchStatsRepr,
 }
 
 const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 9 * 8);
 const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 3 * 8);
 const _: () = assert!(std::mem::size_of::<PartitionGateRepr>() == 4 * 8);
-const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 38 * 8);
+const _: () = assert!(std::mem::size_of::<SearchStatsRepr>() == 30 * 8);
+const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 68 * 8);
 
 pub mod layout {
     use super::*;
     pub const BUFFER_BYTE_SIZE: usize = std::mem::size_of::<DfStatsBuffer>();
-    const _: () = assert!(BUFFER_BYTE_SIZE == 304);
+    const _: () = assert!(BUFFER_BYTE_SIZE == 544);
 }
 
 /// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.
@@ -255,9 +329,10 @@ mod tests {
             plan_setup: pack_task_monitor(plan_setup_monitor()),
             datanode_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
             coordinator_gate: pack_partition_gate(mgr.coordinator_gate()),
+            search_stats: SearchStatsRepr::zeroed(),
         };
 
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 304);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 544);
         assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
         assert!(buf.datanode_gate.max_permits > 0, "datanode_gate max_permits should be > 0, got {}", buf.datanode_gate.max_permits);
         assert!(buf.coordinator_gate.max_permits > 0, "coordinator_gate max_permits should be > 0, got {}", buf.coordinator_gate.max_permits);
@@ -273,11 +348,39 @@ mod tests {
     #[test]
     fn test_df_stats_buffer_too_small() {
         // Verify that the buffer size assertion holds
-        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 304);
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 304);
-        // A buffer smaller than 304 bytes should be rejected by df_stats.
+        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 544);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 544);
+        // A buffer smaller than 544 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.
         assert!(layout::BUFFER_BYTE_SIZE > 0);
+    }
+
+    #[test]
+    fn test_search_stats_repr_zeroed() {
+        let r = SearchStatsRepr::zeroed();
+        assert_eq!(r.queries_completed, 0);
+        assert_eq!(r.output_rows, 0);
+        assert_eq!(r.parquet_time_ms, 0);
+        assert_eq!(r.parquet_poll_time_ms, 0);
+    }
+
+    #[test]
+    fn test_pack_search_stats_reflects_global_accumulator() {
+        use crate::search_stats::{pack_search_stats, SEARCH_STATS};
+        use std::sync::atomic::Ordering;
+
+        // Static fixture: snapshot before, mutate, snapshot after, compare deltas.
+        // Reset is not exposed (cumulative-only by design); we rely on deltas so
+        // we don't depend on whether other tests ran first.
+        let before = pack_search_stats();
+        SEARCH_STATS.queries_completed.fetch_add(3, Ordering::Relaxed);
+        SEARCH_STATS.output_rows.fetch_add(42, Ordering::Relaxed);
+        SEARCH_STATS.parquet_time_ms.fetch_add(7, Ordering::Relaxed);
+        let after = pack_search_stats();
+
+        assert_eq!(after.queries_completed - before.queries_completed, 3);
+        assert_eq!(after.output_rows - before.output_rows, 42);
+        assert_eq!(after.parquet_time_ms - before.parquet_time_ms, 7);
     }
 }

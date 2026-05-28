@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 public class StatsLayoutPropertyTests {
 
-    private static final int FIELD_COUNT = 38;
+    private static final int FIELD_COUNT = 68;
     private static final int BUFFER_SIZE = FIELD_COUNT * Long.BYTES;
 
     // ---- Generators ----
@@ -236,6 +236,9 @@ public class StatsLayoutPropertyTests {
             var qe = StatsLayout.readTaskMonitor(original, "query_execution");
             var sn = StatsLayout.readTaskMonitor(original, "stream_next");
             var ps = StatsLayout.readTaskMonitor(original, "plan_setup");
+            var dg = StatsLayout.readPartitionGate(original, "datanode_gate");
+            var cg = StatsLayout.readPartitionGate(original, "coordinator_gate");
+            var ss = StatsLayout.readSearchStats(original);
 
             // Re-encode into new buffer
             var reencoded = arena.allocate(StatsLayout.LAYOUT);
@@ -269,7 +272,45 @@ public class StatsLayoutPropertyTests {
                 sn.totalIdleDurationMs,
                 ps.totalPollDurationMs,
                 ps.totalScheduledDurationMs,
-                ps.totalIdleDurationMs };
+                ps.totalIdleDurationMs,
+                dg.maxPermits,
+                dg.activePermits,
+                dg.totalWaitDurationMs,
+                dg.totalBatchesStarted,
+                cg.maxPermits,
+                cg.activePermits,
+                cg.totalWaitDurationMs,
+                cg.totalBatchesStarted,
+                ss.queriesCompleted,
+                ss.outputRows,
+                ss.rowsMatched,
+                ss.rowsPrunedByPageIndex,
+                ss.rowGroupsProcessed,
+                ss.rowGroupsSkipped,
+                ss.pagesPruned,
+                ss.pagesTotal,
+                ss.pagePruningUnavailable,
+                ss.ffmCollectorCalls,
+                ss.batchesProduced,
+                ss.parquetBatchesReceived,
+                ss.positionMapIdentity,
+                ss.positionMapBitmap,
+                ss.positionMapRuns,
+                ss.minSkipRunRowGranular,
+                ss.minSkipRunBlockGranular,
+                ss.prefetchWaitCount,
+                ss.batchesPreCoalesce,
+                ss.elapsedComputeMs,
+                ss.indexTimeMs,
+                ss.parquetTimeMs,
+                ss.prefetchWaitTimeMs,
+                ss.coalesceTimeMs,
+                ss.buildMaskTimeMs,
+                ss.filterRecordBatchTimeMs,
+                ss.onBatchMaskTimeMs,
+                ss.maskSliceTimeMs,
+                ss.projectionFixupTimeMs,
+                ss.parquetPollTimeMs };
             for (int i = 0; i < FIELD_COUNT; i++) {
                 reencoded.setAtIndex(ValueLayout.JAVA_LONG, i, decoded[i]);
             }

@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.SearchStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 
 import java.lang.foreign.MemoryLayout;
@@ -23,7 +24,8 @@ import java.lang.invoke.VarHandle;
  * Defines the {@code MemoryLayout.structLayout} mirroring the Rust {@code DfStatsBuffer}
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
- * <p>The layout contains 8 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields + 2 partition gate × 4 fields = 38 longs = 304 bytes).
+ * <p>The layout contains 9 named groups
+ * (2 runtime × 9 + 4 task monitor × 3 + 2 partition gate × 4 + 1 search_stats × 30 = 68 longs = 544 bytes).
  */
 public final class StatsLayout {
 
@@ -49,6 +51,38 @@ public final class StatsLayout {
         "total_wait_duration_ms",
         "total_batches_started" };
 
+    private static final String[] SEARCH_STATS_FIELDS = {
+        "queries_completed",
+        "output_rows",
+        "rows_matched",
+        "rows_pruned_by_page_index",
+        "row_groups_processed",
+        "row_groups_skipped",
+        "pages_pruned",
+        "pages_total",
+        "page_pruning_unavailable",
+        "ffm_collector_calls",
+        "batches_produced",
+        "parquet_batches_received",
+        "position_map_identity",
+        "position_map_bitmap",
+        "position_map_runs",
+        "min_skip_run_row_granular",
+        "min_skip_run_block_granular",
+        "prefetch_wait_count",
+        "batches_pre_coalesce",
+        "elapsed_compute_ms",
+        "index_time_ms",
+        "parquet_time_ms",
+        "prefetch_wait_time_ms",
+        "coalesce_time_ms",
+        "build_mask_time_ms",
+        "filter_record_batch_time_ms",
+        "on_batch_mask_time_ms",
+        "mask_slice_time_ms",
+        "projection_fixup_time_ms",
+        "parquet_poll_time_ms" };
+
     /** The struct layout mirroring Rust's {@code DfStatsBuffer}. */
     public static final StructLayout LAYOUT = MemoryLayout.structLayout(
         runtimeGroup("io_runtime"),
@@ -58,12 +92,13 @@ public final class StatsLayout {
         taskMonitorGroup("stream_next"),
         taskMonitorGroup("plan_setup"),
         partitionGateGroup("datanode_gate"),
-        partitionGateGroup("coordinator_gate")
+        partitionGateGroup("coordinator_gate"),
+        searchStatsGroup("search_stats")
     );
 
     static {
-        if (LAYOUT.byteSize() != 38 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (38 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 68 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (68 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -120,6 +155,17 @@ public final class StatsLayout {
     private static final VarHandle CG_ACTIVE_PERMITS = handle("coordinator_gate", "active_permits");
     private static final VarHandle CG_TOTAL_WAIT_DURATION_MS = handle("coordinator_gate", "total_wait_duration_ms");
     private static final VarHandle CG_TOTAL_BATCHES_STARTED = handle("coordinator_gate", "total_batches_started");
+
+    // ---- VarHandles for search_stats fields ----
+    private static final VarHandle[] SEARCH_STATS_HANDLES = buildSearchStatsHandles();
+
+    private static VarHandle[] buildSearchStatsHandles() {
+        VarHandle[] hs = new VarHandle[SEARCH_STATS_FIELDS.length];
+        for (int i = 0; i < SEARCH_STATS_FIELDS.length; i++) {
+            hs[i] = handle("search_stats", SEARCH_STATS_FIELDS[i]);
+        }
+        return hs;
+    }
 
     private StatsLayout() {}
 
@@ -187,6 +233,27 @@ public final class StatsLayout {
         );
     }
 
+    /**
+     * Read the {@code search_stats} group (30 fields) from the segment.
+     *
+     * @param seg the memory segment containing the DfStatsBuffer
+     * @return a populated {@link SearchStats} instance
+     */
+    public static SearchStats readSearchStats(MemorySegment seg) {
+        long[] v = new long[SEARCH_STATS_HANDLES.length];
+        for (int i = 0; i < SEARCH_STATS_HANDLES.length; i++) {
+            v[i] = (long) SEARCH_STATS_HANDLES[i].get(seg, 0L);
+        }
+        int i = 0;
+        return new SearchStats(
+            v[i++],
+            v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++],
+            v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++],
+            v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++], v[i++],
+            v[i++], v[i++]
+        );
+    }
+
     // ---- Private helpers ----
 
     private static StructLayout runtimeGroup(String name) {
@@ -218,6 +285,14 @@ public final class StatsLayout {
             ValueLayout.JAVA_LONG.withName("total_wait_duration_ms"),
             ValueLayout.JAVA_LONG.withName("total_batches_started")
         ).withName(name);
+    }
+
+    private static StructLayout searchStatsGroup(String name) {
+        MemoryLayout[] fields = new MemoryLayout[SEARCH_STATS_FIELDS.length];
+        for (int i = 0; i < SEARCH_STATS_FIELDS.length; i++) {
+            fields[i] = ValueLayout.JAVA_LONG.withName(SEARCH_STATS_FIELDS[i]);
+        }
+        return MemoryLayout.structLayout(fields).withName(name);
     }
 
     private static VarHandle handle(String group, String field) {
