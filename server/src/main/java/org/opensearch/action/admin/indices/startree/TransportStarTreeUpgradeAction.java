@@ -132,8 +132,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         }
 
         if (allIndicesHaveStarTree) {
-            // Star tree already in mapping for all indices - skip mapping update, go straight to broadcast
-            // for engine restart + force merge (handles partial retry case per Requirement 8.2)
+            // Star tree already in mapping for all indices — skip mapping update, proceed to per-shard upgrade
             super.doExecute(task, request, listener);
             return;
         }
@@ -152,7 +151,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         // Phase 1: Submit mapping update to cluster state
         submitMappingUpdate(request, concreteIndices, ActionListener.wrap(ack -> {
             if (ack) {
-                // Phase 2 + 3: Engine restart + force merge (per shard, via broadcast)
+                // Per-shard star tree building via broadcast
                 super.doExecute(task, request, listener);
             } else {
                 listener.onFailure(new IOException("mapping update was not acknowledged by all nodes"));
@@ -261,7 +260,7 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         return indices;
     }
 
-    // ---- Mapping Update Logic (Task 6.3) ----
+    // ---- Mapping Update Logic ----
 
     /**
      * Submits a cluster state update that adds the star tree field to the index mapping.
