@@ -62,8 +62,8 @@ public final class PackedRowIdMapping implements RowIdMapping {
     /**
      * Creates a PackedRowIdMapping from pre-built forward and reverse mappings.
      *
-     * @param forwardMapping pre-built packed values where {@code get(oldRowId) = newRowId}
-     * @param reverseMapping pre-built packed values where {@code get(newRowId) = oldRowId}, or null
+     * @param forwardMapping pre-built packed values where get(oldRowId) returns newRowId
+     * @param reverseMapping pre-built packed values where get(newRowId) returns oldRowId, or null
      */
     public PackedRowIdMapping(PackedLongValues forwardMapping, PackedLongValues reverseMapping) {
         Objects.requireNonNull(forwardMapping, "forwardMapping cannot be null");
