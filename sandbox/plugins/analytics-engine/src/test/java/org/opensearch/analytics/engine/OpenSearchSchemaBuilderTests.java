@@ -114,9 +114,11 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that nested/object fields are skipped.
+     * Object / nested fields without a {@code properties} sub-map contribute no leaves —
+     * the recursion enters but finds nothing to add. The sibling supported field still
+     * surfaces. Pins the no-op behavior for malformed object/nested entries.
      */
-    public void testNestedAndObjectFieldsSkipped() throws Exception {
+    public void testNestedAndObjectFieldsWithoutPropertiesProduceNoLeaves() throws Exception {
         ClusterState clusterState = buildClusterState(
             Map.of("nested_index", Map.of("name", "keyword", "address", "object", "tags", "nested"))
         );
@@ -127,8 +129,37 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertNotNull(table);
 
         RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
-        assertEquals("Should only have 'name' field, skipping object/nested", 1, rowType.getFieldCount());
+        assertEquals("Only 'name' surfaces; object/nested with no properties add nothing", 1, rowType.getFieldCount());
         assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+    }
+
+    /**
+     * Nested fields with a {@code properties} sub-map (the array-of-sub-docs shape used by
+     * {@code mvexpand}-style tests) must surface their leaves as flat dotted columns —
+     * matching the parquet storage shape produced by {@code ArrowSchemaBuilder}, which
+     * iterates leaf mappers and writes {@code skills.name}/{@code skills.level} as flat
+     * top-level VARCHAR columns. Without this, every PPL query referencing a nested leaf
+     * fails Calcite validation with "column not found".
+     */
+    public void testNestedFieldWithPropertiesExposesLeavesAsDottedColumns() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"username\":{\"type\":\"keyword\"},"
+            + "\"skills\":{\"type\":\"nested\",\"properties\":{"
+            + "\"name\":{\"type\":\"keyword\"},"
+            + "\"level\":{\"type\":\"keyword\"}"
+            + "}}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("nested_skills", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("nested_skills");
+        assertNotNull(table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertEquals("username + skills.name + skills.level", 3, rowType.getFieldCount());
+        assertFieldType(rowType, "username", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "skills.name", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "skills.level", SqlTypeName.VARCHAR);
     }
 
     /**

@@ -278,17 +278,19 @@ public class OpenSearchSchemaBuilder {
             String fieldName = pathPrefix.isEmpty() ? fieldEntry.getKey() : pathPrefix + "." + fieldEntry.getKey();
             Map<String, Object> fieldProps = (Map<String, Object>) fieldEntry.getValue();
             String fieldType = (String) fieldProps.get("type");
-            // Object types: implicit when "properties" is present without "type", or explicit "type: object".
-            // Recurse into sub-properties so dotted leaf paths ("city.location.latitude") appear as flat columns.
-            if (fieldType == null || "object".equals(fieldType)) {
+            // Object / nested types: implicit when "properties" is present without "type",
+            // explicit "type: object", or "type: nested". Recurse into sub-properties so
+            // dotted leaf paths ("city.location.latitude", "skills.name") appear as flat
+            // columns. Nested fields' leaves are written by ArrowSchemaBuilder as flat
+            // dotted columns at parquet time (the parent "nested" mapper itself has no
+            // ArrowFieldRegistry entry and is dropped); exposing the leaves in the Calcite
+            // row type matches that storage shape and matches sql-plugin OpenSearchDataType
+            // which also recurses Object and Nested through the same branch.
+            if (fieldType == null || "object".equals(fieldType) || "nested".equals(fieldType)) {
                 Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
                 if (nested != null) {
                     addLeafFields(builder, typeFactory, nested, fieldName);
                 }
-                continue;
-            }
-            // Nested type (array-of-sub-docs) is a different beast — deferred.
-            if ("nested".equals(fieldType)) {
                 continue;
             }
             RelDataType columnType = buildLeafType(fieldType, typeFactory);
