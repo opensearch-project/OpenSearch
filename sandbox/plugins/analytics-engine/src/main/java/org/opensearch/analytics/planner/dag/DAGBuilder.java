@@ -101,7 +101,9 @@ public class DAGBuilder {
             if (input instanceof OpenSearchExchangeReducer reducer) {
                 newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver));
             } else if (input instanceof OpenSearchShuffleExchange shuffle) {
-                newInputs.add(cutShuffle(shuffle, counter, childStages, registry, clusterService, node, inputIndex, indexNameExpressionResolver));
+                newInputs.add(
+                    cutShuffle(shuffle, counter, childStages, registry, clusterService, node, inputIndex, indexNameExpressionResolver)
+                );
             } else if (input instanceof OpenSearchBroadcastExchange broadcast) {
                 newInputs.add(cutBroadcast(broadcast, counter, childStages, registry, clusterService, indexNameExpressionResolver));
             } else {
