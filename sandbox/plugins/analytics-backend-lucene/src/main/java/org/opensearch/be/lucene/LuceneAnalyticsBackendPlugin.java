@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
+import org.opensearch.analytics.spi.DelegatedSubtreeConvertor;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
@@ -200,4 +201,13 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
 
     // ---- Serializers ----
 
+    @Override
+    public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return QuerySerializerRegistry.getSerializers();
+    }
+
+    @Override
+    public DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
+        return new LuceneSubtreeConvertor(QuerySerializerRegistry.getSerializers());
+    }
 }

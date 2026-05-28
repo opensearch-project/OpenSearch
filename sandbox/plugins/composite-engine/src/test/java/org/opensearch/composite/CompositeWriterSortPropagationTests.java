@@ -174,6 +174,11 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
         }
 
         @Override
+        public org.opensearch.index.engine.dataformat.WriterState state() {
+            return org.opensearch.index.engine.dataformat.WriterState.ACTIVE;
+        }
+
+        @Override
         public void sync() {}
 
         @Override

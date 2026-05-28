@@ -99,6 +99,9 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
+
+    /** Cached latest committed {@link SegmentInfos}; refreshed inside {@link #commit}, read by {@link #getCommitStats}. */
+    private volatile SegmentInfos lastCommittedSegmentInfos;
     // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
     private final Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
 
@@ -118,6 +121,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             this.deletionPolicy = new LuceneCommitDeletionPolicy();
             IndexWriterConfig iwc = createIndexWriterConfig(committerConfig);
             this.indexWriter = new MergeIndexWriter(store.directory(), iwc);
+            this.lastCommittedSegmentInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
         } catch (Exception e) {
             store.decRef();
             throw e;
@@ -140,6 +144,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         indexWriter.setLiveCommitData(commitData.userData());
         indexWriter.commit();
         SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        this.lastCommittedSegmentInfos = committed;
 
         // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
         long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
@@ -189,20 +194,13 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     }
 
     /**
-     * Returns commit statistics derived from the latest committed segment infos.
-     *
-     * @return the commit stats, or {@code null} if segment infos cannot be read
+     * Returns commit stats from the cached {@link SegmentInfos} to avoid a per-call disk read
+     * (which validates referenced files and races with concurrent merges).
      */
     @Override
     public CommitStats getCommitStats() {
         ensureOpen();
-        try {
-            SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
-            return new CommitStats(segmentInfos);
-        } catch (IOException e) {
-            logger.warn("Failed to read segment infos for commit stats", e);
-            return null;
-        }
+        return new CommitStats(lastCommittedSegmentInfos);
     }
 
     @Override
@@ -215,6 +213,20 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public boolean isCommitManagedFile(String fileName) {
         return fileName.startsWith(IndexFileNames.SEGMENTS) || fileName.equals(IndexWriter.WRITE_LOCK_NAME);
+    }
+
+    @Override
+    public void markStoreCorrupted(IOException cause) {
+        if (store.tryIncRef() == false) {
+            return;
+        }
+        try {
+            store.markStoreCorrupted(cause);
+        } catch (IOException e) {
+            logger.warn("Couldn't mark store corrupted", e);
+        } finally {
+            store.decRef();
+        }
     }
 
     /**

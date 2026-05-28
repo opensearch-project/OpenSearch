@@ -10,7 +10,7 @@ package org.opensearch.arrow.allocator;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
@@ -86,7 +86,8 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         assertEquals("stats-pool", poolStats.getName());
         assertEquals(64 * 1024 * 1024, poolStats.getLimitBytes());
         assertEquals(0, poolStats.getAllocatedBytes());
-        assertEquals(0, poolStats.getChildCount());
+        // child_count is no longer rendered in stats; getPoolAllocator(...).getChildAllocators()
+        // is the runtime accessor for that detail if needed.
     }
 
     public void testStatsMultiplePools() {
