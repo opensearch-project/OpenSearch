@@ -170,10 +170,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        // TODO revert to debug before main merge — temporary error-level for CI diagnostics
-        logger.error("[DefaultPlanExecutor] QueryDAG (pre-convert):\n{}", dag);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
+        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
             "transport",

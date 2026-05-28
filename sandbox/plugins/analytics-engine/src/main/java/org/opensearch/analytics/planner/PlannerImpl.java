@@ -81,8 +81,7 @@ public class PlannerImpl {
      * Package-private so planner rule tests can inspect the marked+optimized tree.
      */
     public static RelNode runAllOptimizations(RelNode rawRelNode, PlannerContext context) {
-        // TODO revert to info before main merge — temporary error-level for CI diagnostics
-        LOGGER.error("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
+        LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
@@ -92,8 +91,7 @@ public class PlannerImpl {
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        // TODO revert to info before main merge — temporary error-level for CI diagnostics
-        LOGGER.error("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        LOGGER.info("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:
@@ -104,13 +102,11 @@ public class PlannerImpl {
         // Revisit once those are designed. The rule would also strip performance peers from
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
-        // TODO revert to info before main merge — temporary error-level for CI diagnostics
-        LOGGER.error("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
         Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
-            // TODO revert to info before main merge — temporary error-level for CI diagnostics
-            LOGGER.error("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+            LOGGER.info("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
         }
 
         if (listener != null) {

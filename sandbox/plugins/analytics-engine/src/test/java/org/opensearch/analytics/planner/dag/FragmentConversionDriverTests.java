@@ -817,44 +817,4 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertTrue(exception.getMessage().contains("MATCH_PHRASE"));
     }
 
-    // ---- RecordingConvertor ----
-
-    /** Records which convertor method was called and what was passed. */
-    private static class RecordingConvertor implements FragmentConvertor {
-        boolean shardScanCalled;
-        boolean finalAggCalled;
-        String shardScanTableName;
-        RelNode shardScanFragment;
-        RelNode reduceFragment;
-
-        @Override
-        public byte[] convertFragment(RelNode fragment) {
-            // Distinguish shard-scan vs reduce/final by walking down the leftmost spine
-            // to find a TableScan-shaped leaf (annotations are stripped before this is
-            // called, so OpenSearchTableScan has been rewritten to LogicalTableScan).
-            org.apache.calcite.rel.core.TableScan scan = org.opensearch.analytics.planner.RelNodeUtils.findNode(
-                fragment,
-                org.apache.calcite.rel.core.TableScan.class
-            );
-            if (scan != null) {
-                this.shardScanCalled = true;
-                this.shardScanTableName = scan.getTable().getQualifiedName().getLast();
-                this.shardScanFragment = fragment;
-                return ("shard:" + this.shardScanTableName).getBytes(StandardCharsets.UTF_8);
-            }
-            this.finalAggCalled = true;
-            this.reduceFragment = fragment;
-            return "reduce".getBytes(StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
-            return ("attach:" + new String(innerBytes, StandardCharsets.UTF_8)).getBytes(StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public byte[] attachPartialAggOnTop(RelNode partialAggFragment, byte[] innerBytes) {
-            return ("partialAgg:" + new String(innerBytes, StandardCharsets.UTF_8)).getBytes(StandardCharsets.UTF_8);
-        }
-    }
 }

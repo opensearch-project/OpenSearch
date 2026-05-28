@@ -66,9 +66,12 @@ public class DAGBuilder {
             // ExchangeReducer → StageInputScan.
             rootFragment = cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver);
         } else if (cboOutput instanceof OpenSearchLateMaterialization lm) {
-            // Root IS the LM wrapper — outer Project absent (e.g. SELECT * style query
-            // post-rewrite). Cut directly so the wrapper-stage is the root.
-            rootFragment = cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            // LM at root, no above-ops (e.g. `source = t | where ... | sort col | head N`):
+            // promote the LM stage to rootStage and skip the synthetic post-LM stage that would
+            // wrap a bare StageInputScan placeholder.
+            cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            assert childStages.size() == 1 : "cutAtLateMaterialization must add exactly one child (the LM stage)";
+            return new QueryDAG(newQueryId(), childStages.getFirst());
         } else {
             rootFragment = sever(cboOutput, counter, childStages, registry, clusterService, indexNameExpressionResolver);
         }
@@ -97,7 +100,16 @@ public class DAGBuilder {
             : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
-        return new QueryDAG(UUID.randomUUID().toString(), rootStage);
+        return new QueryDAG(newQueryId(), rootStage);
+    }
+
+    /**
+     * Mints a per-DAG queryId. TODO revisit if uniqueness is relied upon for correctness —
+     * random UUID v4 is statistically safe but doesn't coordinate with task / context-id
+     * allocation elsewhere in the engine.
+     */
+    private static String newQueryId() {
+        return UUID.randomUUID().toString();
     }
 
     private static RelNode sever(

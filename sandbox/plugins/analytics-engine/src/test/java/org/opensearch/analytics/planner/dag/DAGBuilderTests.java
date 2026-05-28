@@ -10,8 +10,12 @@ package org.opensearch.analytics.planner.dag;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexLiteral;
@@ -22,6 +26,7 @@ import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.ClickBench;
 import org.opensearch.analytics.planner.FieldStorageResolver;
+import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.RelNodeUtils;
@@ -31,6 +36,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
+import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.cluster.ClusterState;
 
 import java.util.List;
@@ -263,5 +269,150 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         QueryDAG dag = buildDAG(3, makeAggregate(sumCall()));
         assertEquals(StageExecutionType.COORDINATOR_REDUCE, dag.rootStage().getExecutionType());
         assertNull(dag.rootStage().getInputSinkDecorator());
+    }
+
+    /**
+     * QTF wrapper ends up at the post-CBO root with NO operators above it (e.g. PPL frontends
+     * that don't add an outer Project around Sort+Limit). DAGBuilder must NOT route the resulting
+     * post-LM root stage to COORDINATOR_REDUCE — the fragment is a bare {@link OpenSearchStageInputScan}
+     * with zero inputs, which {@code FragmentConversionDriver.convertReduceNode} cannot handle
+     * (falls through to {@code getInputs().getFirst()} → NoSuchElementException). Route to
+     * LOCAL_PASSTHROUGH instead so the stage just relays Stitcher output upward.
+     *
+     * <p>Repro: build {@code Sort(Filter(Scan))} directly (bypasses SQL parse which would add an outer
+     * Project), drive through the planner + DAGBuilder + FragmentConversionDriver, assert
+     * {@code convertAll} succeeds.
+     */
+    public void testQtfDag_lmAtRoot_noOuterProject_convertsCleanly() {
+        // Build LogicalSort(LogicalFilter(stubScan)) — no Project anywhere above the anchor.
+        // mockTable's columns mirror ClickBench's BASIC_FIELDS so QTF detects fetch-only fields.
+        RelNode scan = stubScan(
+            mockTable(
+                "test_index",
+                new String[] { "CounterID", "UserID", "URL", "Title", "EventDate", "AdvEngineID", "ParamPrice" },
+                new SqlTypeName[] {
+                    SqlTypeName.INTEGER,
+                    SqlTypeName.BIGINT,
+                    SqlTypeName.VARCHAR,
+                    SqlTypeName.VARCHAR,
+                    SqlTypeName.DATE,
+                    SqlTypeName.SMALLINT,
+                    SqlTypeName.BIGINT }
+            )
+        );
+        // ILIKE on URL ($2) — fetch-only column not in the anchor's sort key.
+        RelNode filter = makeFilter(scan, makeEquals(2, SqlTypeName.VARCHAR, "x"));
+        // Sort on EventDate ($4) with fetch=10 — anchor.
+        RelCollation collation = RelCollations.of(new RelFieldCollation(4, RelFieldCollation.Direction.ASCENDING));
+        LogicalSort sort = LogicalSort.create(
+            filter,
+            collation,
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+
+        // Drive through marking + CBO + LM rewrite. RecordingConvertor swapped onto the
+        // datafusion mock backend so FragmentConversionDriver.convertAll has something to call.
+        RecordingConvertor convertor = new RecordingConvertor();
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            public FragmentConvertor getFragmentConvertor() {
+                return convertor;
+            }
+        };
+        PlannerContext context = buildContext("parquet", 2, ClickBench.BASIC_FIELDS, List.of(df, LUCENE));
+        RelNode cbo = runPlanner(sort, context);
+        LOGGER.info("Post-CBO/LM RelNode:\n{}", RelOptUtil.toString(cbo));
+
+        // QTF must have fired (LM wrapper present) and there must be no Project above it.
+        OpenSearchLateMaterialization wrapper = RelNodeUtils.findNode(cbo, OpenSearchLateMaterialization.class);
+        assertNotNull("QTF rewriter should fire (URL fetch-only)", wrapper);
+        assertSame("LM wrapper should be at the root (no Project above)", wrapper, RelNodeUtils.unwrapHep(cbo));
+
+        // Build DAG + run conversion. The bug is that Stage 3 (root) gets a bare StageInputScan
+        // and convertReduceNode trips on getInputs().getFirst().
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        LOGGER.info("QueryDAG:\n{}", dag);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+
+        // LM at root with no above-ops: the LM stage IS the root — no synthetic post-LM stage.
+        assertEquals(
+            "LM at CBO root must be promoted to rootStage; no synthetic post-LM stage",
+            StageExecutionType.LATE_MATERIALIZATION,
+            dag.rootStage().getExecutionType()
+        );
+        assertNotNull(
+            "rootStage must contain the LM wrapper",
+            RelNodeUtils.findNode(dag.rootStage().getFragment(), OpenSearchLateMaterialization.class)
+        );
+    }
+
+    /**
+     * Contrast to {@link #testQtfDag_lmAtRoot_noOuterProject_convertsCleanly}: SAME query shape
+     * but WITH an outer Project above Sort+Limit. Post-LM, Stage 3's fragment is
+     * {@code Project(StageInputScan)} — real coordinator-side compute. Must be
+     * COORDINATOR_REDUCE so the convertor serializes the Project for execution.
+     */
+    public void testQtfDag_lmAtRoot_withOuterProject_isCoordReduce() {
+        RelNode scan = stubScan(
+            mockTable(
+                "test_index",
+                new String[] { "CounterID", "UserID", "URL", "Title", "EventDate", "AdvEngineID", "ParamPrice" },
+                new SqlTypeName[] {
+                    SqlTypeName.INTEGER,
+                    SqlTypeName.BIGINT,
+                    SqlTypeName.VARCHAR,
+                    SqlTypeName.VARCHAR,
+                    SqlTypeName.DATE,
+                    SqlTypeName.SMALLINT,
+                    SqlTypeName.BIGINT }
+            )
+        );
+        // Filter on CounterID ($0) so filter/sort cols don't subsume the project — keeps URL fetch-only.
+        RelNode filter = makeFilter(scan, makeEquals(0, SqlTypeName.INTEGER, 5));
+        RelCollation collation = RelCollations.of(new RelFieldCollation(4, RelFieldCollation.Direction.ASCENDING));
+        LogicalSort sort = LogicalSort.create(
+            filter,
+            collation,
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        // Outer Project: pick URL ($2) and EventDate ($4) — mirrors PPL `... | fields URL, EventDate`.
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType dateType = typeFactory.createSqlType(SqlTypeName.DATE);
+        org.apache.calcite.rel.logical.LogicalProject project = org.apache.calcite.rel.logical.LogicalProject.create(
+            sort,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(varcharType, 2), rexBuilder.makeInputRef(dateType, 4)),
+            List.of("URL", "EventDate")
+        );
+
+        RecordingConvertor convertor = new RecordingConvertor();
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            public FragmentConvertor getFragmentConvertor() {
+                return convertor;
+            }
+        };
+        PlannerContext context = buildContext("parquet", 2, ClickBench.BASIC_FIELDS, List.of(df, LUCENE));
+        RelNode cbo = runPlanner(project, context);
+        LOGGER.info("Post-CBO/LM RelNode:\n{}", RelOptUtil.toString(cbo));
+
+        OpenSearchLateMaterialization wrapper = RelNodeUtils.findNode(cbo, OpenSearchLateMaterialization.class);
+        assertNotNull("QTF should fire", wrapper);
+        assertNotSame("Outer Project should sit above the LM wrapper", wrapper, RelNodeUtils.unwrapHep(cbo));
+
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        LOGGER.info("QueryDAG:\n{}", dag);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+
+        // Stage 3 has real compute (the Project) on top of the StageInputScan → COORDINATOR_REDUCE.
+        assertEquals(
+            "post-LM root with above-ops must be COORDINATOR_REDUCE",
+            StageExecutionType.COORDINATOR_REDUCE,
+            dag.rootStage().getExecutionType()
+        );
     }
 }
