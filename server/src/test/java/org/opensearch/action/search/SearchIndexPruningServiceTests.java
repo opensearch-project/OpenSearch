@@ -126,7 +126,7 @@ public class SearchIndexPruningServiceTests extends OpenSearchTestCase {
         assertFalse(shardIterator.skip());
     }
 
-    public void testFallsBackAndClearsSkipWhenAllShardGroupsWouldBePruned() {
+    public void testFallsBackWhenAllShardGroupsWouldBePruned() {
         SearchShardIterator first = shardIterator("logs-000001", 0);
         SearchShardIterator second = shardIterator("logs-000002", 0);
         GroupShardsIterator<SearchShardIterator> shardIterators = new GroupShardsIterator<>(List.of(first, second));
@@ -140,6 +140,23 @@ public class SearchIndexPruningServiceTests extends OpenSearchTestCase {
         assertThat(result.prunedShardGroups(), equalTo(0));
         assertFalse(first.skip());
         assertFalse(second.skip());
+    }
+
+    public void testFallsBackWhenAllActiveShardGroupsWouldBePrunedAndPreservesExistingSkips() {
+        SearchShardIterator alreadySkipped = shardIterator("logs-000001", 0);
+        SearchShardIterator activeCandidate = shardIterator("logs-000002", 0);
+        alreadySkipped.resetAndSkip();
+        GroupShardsIterator<SearchShardIterator> shardIterators = new GroupShardsIterator<>(List.of(alreadySkipped, activeCandidate));
+        SearchIndexPruningService service = serviceWithDomains(
+            Map.of("logs-000001", Optional.empty(), "logs-000002", Optional.of(domain(false)))
+        );
+
+        SearchIndexPruningResult result = service.prune(searchRequest(), shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
+
+        assertFalse(result.pruned());
+        assertThat(result.prunedShardGroups(), equalTo(0));
+        assertTrue(alreadySkipped.skip());
+        assertFalse(activeCandidate.skip());
     }
 
     public void testDoesNotPrunePointInTimeSearches() {

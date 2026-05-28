@@ -137,10 +137,16 @@ public final class SearchIndexPruningService {
 
         Map<String, Map<String, Optional<FieldDomain>>> domainsByIndexAndField = new HashMap<>();
         BitSet prunedShardGroupIndexes = new BitSet(originalSize);
+        int activeShardGroups = 0;
         int pruned = 0;
 
         for (int shardGroupIndex = 0; shardGroupIndex < shardIterators.size(); shardGroupIndex++) {
             SearchShardIterator shardIterator = shardIterators.get(shardGroupIndex);
+            if (shardIterator.skip()) {
+                continue;
+            }
+
+            activeShardGroups++;
             if (shouldAlwaysKeep(shardIterator)) {
                 continue;
             }
@@ -178,11 +184,12 @@ public final class SearchIndexPruningService {
             return SearchIndexPruningResult.notPruned(shardIterators);
         }
 
-        if (pruned == originalSize) {
+        if (pruned == activeShardGroups) {
             /*
-             * Pruning is an optimization. If every shard group would be skipped, fall back to
-             * the original iterators until zero-shard response semantics are covered explicitly
-             * for this pre-can-match stage.
+             * Pruning is an optimization. If every currently active shard group would be skipped, fall back to
+             * the original iterators until zero-shard response semantics are covered explicitly for this
+             * pre-can-match stage. Existing skip flags are preserved because they may have been set by another
+             * search execution step.
              */
             return SearchIndexPruningResult.notPruned(shardIterators);
         }

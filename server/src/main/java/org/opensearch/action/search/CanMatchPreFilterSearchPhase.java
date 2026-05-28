@@ -346,9 +346,9 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                 throw new IllegalStateException(
                     "invalid can_match shard index ["
                         + activeShardIndex
-                        + "] for active shard count ["
+                        + "] for active shard index range [0, "
                         + activeShardIndexToOriginalShardIndex.length
-                        + "]"
+                        + ")"
                 );
             }
             return activeShardIndexToOriginalShardIndex[activeShardIndex];
