@@ -170,6 +170,102 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
         assertCounterAdvanced("MPP=true must dispatch BROADCAST for this eligible query", killSwitchOn.broadcastDelta);
     }
 
+    /**
+     * Aggregate UPSTREAM of the join: {@code source=fact | stats sum(amount) by id | join dim}.
+     * The probe-side fragment is now {@code Aggregate + Scan}, not just {@code Scan} — exercises
+     * the partial+final aggregate split inside a broadcast-probe fragment. Each {@code id} (1..6)
+     * collapses to one row; only ids 1..5 join through. Output cardinality drops from 25 (plain
+     * INNER) to 5 — five {@code (id, total, category)} rows.
+     *
+     * <p>The aggregate shrinks the probe to ~6 rows, which makes broadcast no longer the
+     * obvious winner — CBO may pick coord-centric for the join itself. The assertion is
+     * row-multiset parity (the framework handles the agg-then-join shape correctly under MPP),
+     * not a specific strategy.
+     */
+    public void testInnerJoin_aggOnFactBeforeJoin_mppMatchesBaseline() throws IOException {
+        ensureDataProvisioned();
+        String ppl = "source = "
+            + FACT_INDEX
+            + " | stats sum(amount) as total by id"
+            + " | inner join left=F right=D on F.id = D.id "
+            + DIM_INDEX
+            + " | sort F.id";
+
+        StrategyDelta baselineDelta = runWithMppAndStrategyDelta(ppl, false);
+        StrategyDelta mppOnDelta = runWithMppAndStrategyDelta(ppl, true);
+
+        assertRowMultisetEquals(
+            "INNER agg-then-join: MPP path must match coord-centric baseline",
+            baselineDelta.rows,
+            mppOnDelta.rows
+        );
+        // 5 fact ids match dim (id=6 has no dim row and is dropped).
+        assertEquals("5 grouped fact rows × 1 dim match each = 5 output rows", 5, baselineDelta.rows.size());
+    }
+
+    /**
+     * Sort + head UPSTREAM of the join: {@code source=fact | sort id, amount | head 10 | join dim}.
+     * The probe-side fragment is {@code Sort+Limit + Scan} — a sort-aware producer feeding the
+     * broadcast probe. Sort+head is a stable invariant here because the underlying fact data is
+     * deterministic (no joins under the sort, and the (id, amount) pair is unique across the
+     * 30-row dataset).
+     *
+     * <p>Sort+head=10 reduces the probe input to 10 rows, so CBO may pick coord-centric over
+     * broadcast — the assertion is row-multiset parity, not BROADCAST specifically.
+     */
+    public void testInnerJoin_sortHeadOnFactBeforeJoin_mppMatchesBaseline() throws IOException {
+        ensureDataProvisioned();
+        String ppl = "source = "
+            + FACT_INDEX
+            + " | sort id, amount | head 10"
+            + " | inner join left=F right=D on F.id = D.id "
+            + DIM_INDEX
+            + " | sort F.id, F.amount";
+
+        StrategyDelta baselineDelta = runWithMppAndStrategyDelta(ppl, false);
+        StrategyDelta mppOnDelta = runWithMppAndStrategyDelta(ppl, true);
+
+        assertRowMultisetEquals(
+            "INNER sortHead-then-join: MPP path must match coord-centric baseline",
+            baselineDelta.rows,
+            mppOnDelta.rows
+        );
+        // The first 10 fact rows by (id, amount) are: id=1×2, id=2×2, id=3×2, id=4×2, id=5×2.
+        // All 10 join through (none have id=6), producing 10 output rows.
+        assertEquals("first 10 sorted fact rows × matching dim = 10 output rows", 10, baselineDelta.rows.size());
+    }
+
+    /**
+     * Aggregate DOWNSTREAM of the join: {@code source=fact | join dim | stats sum(amount) by category}.
+     * Adds a final aggregate at the coordinator post-join. Validates that the broadcast-probe
+     * stage's output (joined rows) flows correctly into a downstream stats stage. Five categories
+     * remain (FURNITURE/OFFICE/TECH/GROCERY/BOOKS); each gets the sum of its fact rows.
+     *
+     * <p>Pre-join sizes are unchanged from the hero test (30-row probe, 5-row dim) so BROADCAST
+     * remains the cost-model winner — the post-join agg doesn't change CBO's input estimates.
+     */
+    public void testInnerJoin_statsAfterJoin_broadcastMatchesBaseline() throws IOException {
+        ensureDataProvisioned();
+        String ppl = "source = "
+            + FACT_INDEX
+            + " | inner join left=F right=D on F.id = D.id "
+            + DIM_INDEX
+            + " | stats sum(amount) as total by category"
+            + " | sort category";
+
+        StrategyDelta baselineDelta = runWithMppAndStrategyDelta(ppl, false);
+        StrategyDelta broadcastDelta = runWithMppAndStrategyDelta(ppl, true);
+
+        assertRowMultisetEquals(
+            "INNER join-then-stats: BROADCAST must match coord-centric baseline",
+            baselineDelta.rows,
+            broadcastDelta.rows
+        );
+        // 5 dim categories survive (id=6 fact rows drop because dim has no id=6 entry).
+        assertEquals("5 categories grouped from joined rows", 5, baselineDelta.rows.size());
+        assertCounterAdvanced("BROADCAST fires when MPP is enabled for join-then-stats", broadcastDelta.broadcastDelta);
+    }
+
     // ─── data provisioning ─────────────────────────────────────────────────────
 
     private void ensureDataProvisioned() throws IOException {

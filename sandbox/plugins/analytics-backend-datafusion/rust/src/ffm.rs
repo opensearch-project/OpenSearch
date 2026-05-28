@@ -462,9 +462,16 @@ pub unsafe extern "C" fn df_execute_local_plan(
     timed_block_on(&mgr.io_runtime, "execute_local_plan", crate::task_monitors::coordinator_reduce_monitor().instrument(async move {
             // Acquire coordinator gate on IO runtime BEFORE spawning on CPU.
             // This blocks the Java search thread when the gate is full.
+            //
+            // Use a single permit per stage rather than num_cpus permits: a hash-shuffle query
+            // builds two cascaded reduce sinks (root + consumer) synchronously inside
+            // ExecutionGraph.build, both of which call this entry point. With num_cpus=16 and
+            // max_permits=24 (1.5× cpu_threads), the second sink would block waiting for the
+            // first to release — but the first is held until its stream is drained, which can
+            // only happen after the second is built. Single-permit-per-stage admits all stages
+            // of one query while still serializing many concurrent queries on a busy node.
             let coord_gate = mgr_for_spawn.coordinator_gate().clone();
-            let partition_weight = (num_cpus::get() as u32).max(1);
-            let permit = coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits())).await;
+            let permit = coord_gate.acquire().await;
 
 
             let inner_fut = async move {

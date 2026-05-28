@@ -119,6 +119,169 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * LEFT OUTER large × large with shuffle enabled. Hash-shuffle's HashJoinExec runs LEFT OUTER
+     * natively — the build side hosts the hash table and unmatched probe rows are preserved with
+     * NULL on the build side. We assert row-multiset parity against the coord-centric baseline
+     * (the ground truth) and check the HASH_SHUFFLE counter advances. With matching ids on both
+     * sides the LEFT OUTER output is identical to INNER for this dataset; the test still catches
+     * "MPP path produces different result than baseline" because parity is multiset-strict.
+     */
+    public void testLeftOuterJoin_largeLeftWithLargeRight_picksHashShuffle() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        String ppl = "source = " + LEFT_INDEX + " | left join left=L right=R on L.id = R.id " + RIGHT_INDEX;
+
+        StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertEquals("HASH_SHUFFLE counter must NOT advance when mpp.enabled=false", 0L, baselineDelta.hashShuffleDelta);
+        assertCounterAdvanced("HASH_SHUFFLE fires for LEFT OUTER large×large", shuffleDelta.hashShuffleDelta);
+
+        assertEquals("LEFT OUTER preserves all left rows", LEFT_ROW_COUNT, baselineDelta.rows.size());
+        assertRowMultisetEquals(
+            "LEFT OUTER large×large: HASH_SHUFFLE must match coord-centric baseline",
+            baselineDelta.rows,
+            shuffleDelta.rows
+        );
+    }
+
+    /**
+     * RIGHT OUTER mirror of {@link #testLeftOuterJoin_largeLeftWithLargeRight_picksHashShuffle}.
+     * Catches build/probe role bugs from the opposite side (DataFusion's HashJoinExec swaps
+     * which side hosts the hash table for RIGHT vs LEFT). Same multiset-parity contract.
+     */
+    public void testRightOuterJoin_largeLeftWithLargeRight_picksHashShuffle() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        String ppl = "source = " + LEFT_INDEX + " | right join left=L right=R on L.id = R.id " + RIGHT_INDEX;
+
+        StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertEquals("HASH_SHUFFLE counter must NOT advance when mpp.enabled=false", 0L, baselineDelta.hashShuffleDelta);
+        assertCounterAdvanced("HASH_SHUFFLE fires for RIGHT OUTER large×large", shuffleDelta.hashShuffleDelta);
+
+        assertEquals("RIGHT OUTER preserves all right rows", RIGHT_ROW_COUNT, baselineDelta.rows.size());
+        assertRowMultisetEquals(
+            "RIGHT OUTER large×large: HASH_SHUFFLE must match coord-centric baseline",
+            baselineDelta.rows,
+            shuffleDelta.rows
+        );
+    }
+
+    /**
+     * FULL OUTER large × large. Broadcast deliberately rejects FULL (no eligible build side: full
+     * preserves both halves so neither side can be replicated without breaking row-preservation
+     * semantics — see {@code OpenSearchBroadcastJoinSplitRule}). Hash-shuffle is the **only** MPP
+     * strategy that handles FULL on the data-node engine; this test is the load-bearing guard
+     * for that locale. Parity against the coord-centric baseline + counter advancement.
+     */
+    public void testFullOuterJoin_largeLeftWithLargeRight_picksHashShuffle() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        String ppl = "source = " + LEFT_INDEX + " | full join left=L right=R on L.id = R.id " + RIGHT_INDEX;
+
+        StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertEquals(
+            "HASH_SHUFFLE counter must NOT advance when mpp.enabled=false",
+            0L,
+            baselineDelta.hashShuffleDelta
+        );
+        assertCounterAdvanced("HASH_SHUFFLE fires for FULL OUTER large×large", shuffleDelta.hashShuffleDelta);
+        // Broadcast must not fire for FULL OUTER under either run — split rule rejects FULL.
+        assertEquals("BROADCAST must not advance for FULL OUTER with MPP off", 0L, baselineDelta.broadcastDelta);
+        assertEquals("BROADCAST must not advance for FULL OUTER with MPP on (FULL is broadcast-ineligible)", 0L, shuffleDelta.broadcastDelta);
+
+        assertRowMultisetEquals(
+            "FULL OUTER large×large: HASH_SHUFFLE must match coord-centric baseline",
+            baselineDelta.rows,
+            shuffleDelta.rows
+        );
+    }
+
+    /**
+     * MPP kill-switch regression for the hash-shuffle locale: flipping
+     * {@code analytics.mpp.enabled} between two runs of an INNER large × large equi-join must
+     * yield identical row multisets. The mpp-on run takes the hash-shuffle path (counter
+     * advances); the mpp-off run takes coord-centric. Sibling of
+     * {@code BroadcastJoinIT.testMppKillSwitchProducesSameRowsAsBaseline} for the
+     * shuffle strategy.
+     */
+    public void testMppKillSwitchProducesSameRowsAsBaseline() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        String ppl = "source = " + LEFT_INDEX + " | inner join left=L right=R on L.id = R.id " + RIGHT_INDEX;
+
+        StrategyDelta mppOff = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta mppOn = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertEquals("HASH_SHUFFLE counter must NOT advance when mpp.enabled=false", 0L, mppOff.hashShuffleDelta);
+        assertCounterAdvanced("HASH_SHUFFLE fires when mpp.enabled=true for large×large", mppOn.hashShuffleDelta);
+
+        assertRowMultisetEquals(
+            "INNER large×large: kill-switch parity (mpp on vs off must produce identical rows)",
+            mppOff.rows,
+            mppOn.rows
+        );
+    }
+
+    /**
+     * Stats DOWNSTREAM of a hash-shuffle join: {@code source=L | join R | stats sum(amount) by category}.
+     * The join executes in parallel on the worker tier (HASH_SHUFFLE); its output flows up to a
+     * coordinator-side stats stage that re-aggregates per category. Validates that the worker →
+     * consumer-reduce → root-agg pipeline composes — agg can sit on top of a HASH_SHUFFLE join's
+     * output, not just a plain TableScan.
+     */
+    public void testInnerEquiJoin_statsAfterJoin_picksHashShuffle() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        String ppl = "source = "
+            + LEFT_INDEX
+            + " | inner join left=L right=R on L.id = R.id "
+            + RIGHT_INDEX
+            + " | stats sum(amount) as total by category"
+            + " | sort category";
+
+        StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertEquals("HASH_SHUFFLE counter must NOT advance when mpp.enabled=false", 0L, baselineDelta.hashShuffleDelta);
+        assertCounterAdvanced("HASH_SHUFFLE fires for join-then-stats large×large", shuffleDelta.hashShuffleDelta);
+
+        // 4 categories ('cat-0'..'cat-3') in the right side; each receives 1250 fact rows.
+        assertEquals("4 categories grouped from joined rows", 4, baselineDelta.rows.size());
+        assertRowMultisetEquals(
+            "join-then-stats large×large: HASH_SHUFFLE must match coord-centric baseline",
+            baselineDelta.rows,
+            shuffleDelta.rows
+        );
+    }
+
+    /**
+     * Sort + head DOWNSTREAM of a hash-shuffle join. PPL {@code sort | head N} is non-deterministic
+     * on its own (see {@code PPL-SORT-HEAD-NONDETERMINISM-BUG.md}) so we cannot pin specific rows;
+     * we only assert that the query runs end-to-end on the shuffle path, returns N rows, and the
+     * HASH_SHUFFLE counter advances. Catches "shuffle pipeline can't be followed by Sort+Limit at
+     * the coordinator" plan-shape regressions.
+     */
+    public void testInnerEquiJoin_sortHeadAfterJoin_picksHashShuffle() throws IOException {
+        ensureDataProvisioned();
+        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        String ppl = "source = "
+            + LEFT_INDEX
+            + " | inner join left=L right=R on L.id = R.id "
+            + RIGHT_INDEX
+            + " | sort L.id | head 100";
+
+        StrategyDelta shuffleDelta = runWithMppAndCounters(ppl, /* mpp */ true);
+
+        assertCounterAdvanced("HASH_SHUFFLE fires for join-then-sort-head large×large", shuffleDelta.hashShuffleDelta);
+        assertEquals("head 100 returns at most 100 rows", 100, shuffleDelta.rows.size());
+    }
+
+    /**
      * Negative: with mpp off, neither BROADCAST nor HASH_SHUFFLE fires; the master kill switch
      * gates every MPP split rule.
      */
