@@ -10,6 +10,7 @@ package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -22,10 +23,16 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.Uid;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.LongFunction;
 
 /**
  * Lucene-based implementation of {@link DeleteExecutionEngine} that tracks per-generation
@@ -40,12 +47,14 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     private final Map<Long, Deleter> generationToDeleterMap;
     private final DataFormat dataFormat;
-    private final LuceneCommitter committer;
+    private final IndexWriter parentWriter;
+    private final ConcurrentMap<String, Long> idToGen;
 
     public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer) {
         this.generationToDeleterMap = new ConcurrentHashMap<>();
+        this.idToGen = new ConcurrentHashMap<>();
         this.dataFormat = dataFormat;
-        this.committer = (LuceneCommitter) committer;
+        this.parentWriter = ((LuceneCommitter) committer).getIndexWriter();
     }
 
     @Override
@@ -66,15 +75,28 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     }
 
     @Override
-    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
-        Deleter deleter = generationToDeleterMap.get(deleteInput.generation());
-        if (deleter != null) {
-            return deleter.deleteDoc(deleteInput);
-        } else {
-            Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
-            this.committer.getIndexWriter().deleteDocuments(uid);
-            return new DeleteResult.Success(1L, 1L, 1L);
+    public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
+        Deleter currentDeleter = generationToDeleterMap.get(deleteInput.generation());
+        assert currentDeleter != null && currentDeleter.isActive()
+            : "current-gen deleter must exist and be active while caller holds the writer lock; gen=" + deleteInput.generation();
+
+        // TODO: If not present then record buffered deletes.
+        currentDeleter.recordBufferedDeletes(deleteInput.id());
+        Long previousGen = lookupGen(deleteInput.id());
+        if (previousGen != null) {
+            Closeable previousWriterLock = writerByGenSupplier.apply(previousGen);
+            if (previousWriterLock != null) {
+                // It means previous writer is active here.
+                try {
+                    Deleter deleter = generationToDeleterMap.get(previousGen);
+                    return deleter.deleteDoc(deleteInput);
+                } finally {
+                    previousWriterLock.close();
+                }
+            }
         }
+
+        return new DeleteResult.Success(1L, 1L, 1L);
     }
 
     @Override
@@ -84,9 +106,41 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     @Override
     public void close() throws IOException {
+        // TODO: Fix this.
+
         for (Deleter deleter : generationToDeleterMap.values()) {
             deleter.close();
         }
+
         generationToDeleterMap.clear();
+        idToGen.clear();
+    }
+
+    private Long lookupGen(String id) {
+        return idToGen.get(id);
+    }
+
+    @Override
+    public void recordWrite(String id, long generation) {
+        idToGen.put(id, generation);
+    }
+
+    @Override
+    public boolean onWriterCheckedOut(long generation) throws IOException {
+        idToGen.entrySet().removeIf(e -> e.getValue() == generation);
+
+        Deleter deleter = generationToDeleterMap.remove(generation);
+        if (deleter == null) {
+            return false;
+        }
+
+        int totalApplied = 0;
+        Queue<String> drained = deleter.deactivate();
+        for (String deletedId : drained) {
+            parentWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(deletedId)));
+            totalApplied++;
+        }
+
+        return totalApplied > 0;
     }
 }

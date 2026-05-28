@@ -67,11 +67,11 @@ import java.util.stream.Collectors;
  * Integration test validating dynamic mapping support with composite parquet index.
  * Documents with new fields (not in the original mapping) should be indexed successfully,
  * and the resulting Parquet files should contain all fields including dynamically added ones.
- *
+ * <p>
  * Requires JDK 25 and sandbox enabled. Run with:
  * ./gradlew :sandbox:plugins:composite-engine:internalClusterTest \
- *   --tests "*.CompositeDynamicMappingIT" \
- *   -Dsandbox.enabled=true
+ * --tests "*.CompositeDynamicMappingIT" \
+ * -Dsandbox.enabled=true
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
@@ -209,7 +209,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
     /**
      * Tests dynamic mapping with parquet primary + lucene secondary.
      * Verifies that dynamically added fields appear in both formats.
-     *
+     * <p>
      * Note: The Lucene secondary writer stores inverted indexes for text/keyword fields
      * (for search) and __row_id__ as doc values (for cross-format correlation).
      * Numeric fields and field values are only in Parquet.
@@ -428,9 +428,17 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             indexThreads[i] = new Thread(() -> {
                 try {
                     startLatch.await();
-                    client().prepareIndex(indexName).setId("a_" + threadId).setSource("fieldA_" + threadId, "valueA_" + threadId).get();
+                    IndexResponse respA = client().prepareIndex(indexName)
+                        .setId("a_" + threadId)
+                        .setSource("fieldA_" + threadId, "valueA_" + threadId)
+                        .get();
+                    assert respA.status() == RestStatus.CREATED : "index a_" + threadId + " failed: " + respA.status();
                     Thread.sleep(1000);
-                    client().prepareIndex(indexName).setId("b_" + threadId).setSource("fieldB_" + threadId, "valueB_" + threadId).get();
+                    IndexResponse respB = client().prepareIndex(indexName)
+                        .setId("b_" + threadId)
+                        .setSource("fieldB_" + threadId, "valueB_" + threadId)
+                        .get();
+                    assert respB.status() == RestStatus.CREATED : "index b_" + threadId + " failed: " + respB.status();
                     Thread.sleep(1000);
                     client().admin().indices().prepareRefresh(indexName).get();
                 } catch (Exception e) {

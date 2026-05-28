@@ -679,7 +679,7 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
             assertFalse("replica must never report needing a refresh", engine.refreshNeeded());
             assertFalse("replica must always report no-op for maybeRefresh", engine.maybeRefresh("noop"));
             assertFalse(engine.shouldPeriodicallyFlush());
-            assertEquals(0L, engine.getIndexBufferRAMBytesUsed());
+            assertEquals(0L, engine.getHeapBytesUsed());
             assertEquals(0L, engine.unreferencedFileCleanUpsPerformed());
 
             // Refresh / writeIndexingBuffer must be no-ops (don't throw)

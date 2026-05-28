@@ -43,6 +43,7 @@ public enum ScalarFunction {
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    CIDRMATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Logical connectives ─────────────────────────────────────────
     AND(Category.SCALAR, SqlKind.AND),
@@ -172,6 +173,8 @@ public enum ScalarFunction {
     SINH(Category.MATH, SqlKind.OTHER_FUNCTION),
     TAN(Category.MATH, SqlKind.OTHER_FUNCTION),
     TRUNCATE(Category.MATH, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code conv(n, fromBase, toBase)} — base conversion via Rust UDF. */
+    CONVERT(Category.MATH, SqlKind.OTHER_FUNCTION),
 
     // ── Cast / type ──────────────────────────────────────────────────
     CAST(Category.SCALAR, SqlKind.CAST),

@@ -20,6 +20,7 @@ import io.substrait.extension.SimpleExtension;
 import io.substrait.plan.Plan;
 import io.substrait.relation.Filter;
 import io.substrait.relation.NamedScan;
+import io.substrait.relation.Project;
 import io.substrait.type.NamedStruct;
 import io.substrait.type.TypeCreator;
 
@@ -136,6 +137,133 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
 
         Plan plan = buildFilterPlan(literal);
         expectThrows(IllegalArgumentException.class, () -> SubstraitPlanRewriter.rewrite(plan));
+    }
+
+    // --- VarCharLiteral → StrLiteral tests ---
+
+    public void testVarCharLiteralConvertedToStrLiteralInFilter() {
+        Expression varcharLiteral = ImmutableExpression.VarCharLiteral.builder().value("Sum").length(3).nullable(false).build();
+
+        Plan plan = buildFilterPlan(varcharLiteral);
+        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+
+        Expression condition = getFilterCondition(rewritten);
+        assertTrue("Expected StrLiteral, got " + condition.getClass(), condition instanceof Expression.StrLiteral);
+        Expression.StrLiteral strLit = (Expression.StrLiteral) condition;
+        assertEquals("Sum", strLit.value());
+        assertFalse(strLit.nullable());
+    }
+
+    public void testVarCharLiteralConvertedToStrLiteralInProject() {
+        // Simulates AddTotals label='Sum' scenario where VarCharLiteral appears in Project expressions
+        NamedScan scan = NamedScan.builder()
+            .names(List.of("test_table"))
+            .initialSchema(NamedStruct.of(List.of("col0"), R.struct(R.I64)))
+            .build();
+
+        Expression varcharLiteral = ImmutableExpression.VarCharLiteral.builder().value("Total").length(5).nullable(false).build();
+
+        Project project = Project.builder().input(scan).addExpressions(varcharLiteral).build();
+
+        Plan plan = buildPlan(project);
+        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+
+        Project rewrittenProject = (Project) rewritten.getRoots().get(0).getInput();
+        Expression expr = rewrittenProject.getExpressions().get(0);
+        assertTrue("Expected StrLiteral, got " + expr.getClass(), expr instanceof Expression.StrLiteral);
+        Expression.StrLiteral strLit = (Expression.StrLiteral) expr;
+        assertEquals("Total", strLit.value());
+        assertFalse(strLit.nullable());
+    }
+
+    public void testNullableVarCharLiteralPreservesNullability() {
+        Expression varcharLiteral = ImmutableExpression.VarCharLiteral.builder().value("nullable_value").length(14).nullable(true).build();
+
+        Plan plan = buildFilterPlan(varcharLiteral);
+        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+
+        Expression condition = getFilterCondition(rewritten);
+        assertTrue(condition instanceof Expression.StrLiteral);
+        Expression.StrLiteral strLit = (Expression.StrLiteral) condition;
+        assertEquals("nullable_value", strLit.value());
+        assertTrue("Nullability should be preserved", strLit.nullable());
+    }
+
+    public void testVarCharLiteralInsideScalarFunction() {
+        // Tests VarCharLiteral within a function call (e.g., CASE expressions with string constants)
+        Expression varcharLiteral = ImmutableExpression.VarCharLiteral.builder().value("label").length(5).nullable(false).build();
+
+        FieldReference fieldRef = FieldReference.newRootStructReference(0, R.STRING);
+
+        SimpleExtension.ExtensionCollection extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION;
+        SimpleExtension.ScalarFunctionVariant eqFunc = extensions.getScalarFunction(
+            SimpleExtension.FunctionAnchor.of(DefaultExtensionCatalog.FUNCTIONS_COMPARISON, "equal:any_any")
+        );
+
+        Expression eqCall = Expression.ScalarFunctionInvocation.builder()
+            .declaration(eqFunc)
+            .addArguments(fieldRef, varcharLiteral)
+            .outputType(R.BOOLEAN)
+            .build();
+
+        Plan plan = buildFilterPlan(eqCall);
+        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+
+        Expression condition = getFilterCondition(rewritten);
+        assertTrue(condition instanceof Expression.ScalarFunctionInvocation);
+        Expression.ScalarFunctionInvocation rewrittenEq = (Expression.ScalarFunctionInvocation) condition;
+        Expression arg1 = (Expression) rewrittenEq.arguments().get(1);
+        assertTrue("Expected StrLiteral in function args, got " + arg1.getClass(), arg1 instanceof Expression.StrLiteral);
+        Expression.StrLiteral strLit = (Expression.StrLiteral) arg1;
+        assertEquals("label", strLit.value());
+    }
+
+    public void testMultipleVarCharLiteralsInProject() {
+        // Tests multiple VarChar literals in a single Project (e.g., Chart/Trendline with multiple string options)
+        NamedScan scan = NamedScan.builder()
+            .names(List.of("test_table"))
+            .initialSchema(NamedStruct.of(List.of("col0"), R.struct(R.I64)))
+            .build();
+
+        Expression varchar1 = ImmutableExpression.VarCharLiteral.builder().value("option1").length(7).nullable(false).build();
+        Expression varchar2 = ImmutableExpression.VarCharLiteral.builder().value("option2").length(7).nullable(false).build();
+        Expression varchar3 = ImmutableExpression.VarCharLiteral.builder().value("option3").length(7).nullable(true).build();
+
+        Project project = Project.builder().input(scan).addExpressions(varchar1, varchar2, varchar3).build();
+
+        Plan plan = buildPlan(project);
+        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+
+        Project rewrittenProject = (Project) rewritten.getRoots().get(0).getInput();
+        List<Expression> expressions = rewrittenProject.getExpressions();
+
+        assertEquals(3, expressions.size());
+
+        Expression.StrLiteral str1 = (Expression.StrLiteral) expressions.get(0);
+        assertEquals("option1", str1.value());
+        assertFalse(str1.nullable());
+
+        Expression.StrLiteral str2 = (Expression.StrLiteral) expressions.get(1);
+        assertEquals("option2", str2.value());
+        assertFalse(str2.nullable());
+
+        Expression.StrLiteral str3 = (Expression.StrLiteral) expressions.get(2);
+        assertEquals("option3", str3.value());
+        assertTrue(str3.nullable());
+    }
+
+    public void testStrLiteralUnchanged() {
+        // Ensures existing StrLiterals are not modified
+        Expression strLiteral = ImmutableExpression.StrLiteral.builder().value("already_string").nullable(false).build();
+
+        Plan plan = buildFilterPlan(strLiteral);
+        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+
+        Expression condition = getFilterCondition(rewritten);
+        assertTrue(condition instanceof Expression.StrLiteral);
+        Expression.StrLiteral strLit = (Expression.StrLiteral) condition;
+        assertEquals("already_string", strLit.value());
+        assertFalse(strLit.nullable());
     }
 
     // --- helpers ---

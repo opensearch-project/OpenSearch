@@ -217,6 +217,7 @@ pub async fn execute_with_context(
             DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
         })?;
 
+        // Union schema widening was applied at table registration (session_context::widen_to_union_schema).
         let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;

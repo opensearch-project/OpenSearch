@@ -97,7 +97,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.DIVIDE,
         ScalarFunction.MOD,
         ScalarFunction.EARLIEST,
-        ScalarFunction.LATEST
+        ScalarFunction.LATEST,
+        ScalarFunction.CIDRMATCH
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -151,6 +152,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IN,
         ScalarFunction.LIKE,
         ScalarFunction.REGEXP_CONTAINS,
+        ScalarFunction.CIDRMATCH,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
         ScalarFunction.TRANSLATE,
@@ -332,6 +334,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.WIDTH_BUCKET,
         ScalarFunction.MINSPAN_BUCKET,
         ScalarFunction.RANGE_BUCKET,
+        ScalarFunction.CONVERT,
         // PPL `TIMESTAMPDIFF(unit, t1, t2)` / `TIMESTAMPADD(unit, n, t)` — lowering target for
         // timechart's `per_*` aggregations (per_second / per_minute / per_hour / per_day),
         // which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND', @timestamp,
@@ -560,6 +563,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
                 DayOfWeekAdapter dayOfWeek = new DayOfWeekAdapter();
                 SecondAdapter second = new SecondAdapter();
+                // Stateless cast adapter shared between CAST and SAFE_CAST registrations.
+                IpBinaryCastFunctionAdapter ipBinaryCast = new IpBinaryCastFunctionAdapter();
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
@@ -568,11 +573,26 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
+                    // Trigonometric functions: substrait `sin/cos/tan/...` declare fp32/fp64 impls only.
+                    // PPL emits e.g. SIN(integer_field) which Calcite types as SIN(i32?) — isthmus then
+                    // fails signature lookup. NumericToDoubleAdapter widens any numeric operand to fp64
+                    // before substrait conversion (no-op when the operand is already fp32/fp64).
+                    Map.entry(ScalarFunction.ACOS, new NumericToDoubleAdapter(SqlStdOperatorTable.ACOS)),
+                    Map.entry(ScalarFunction.ASIN, new NumericToDoubleAdapter(SqlStdOperatorTable.ASIN)),
+                    Map.entry(ScalarFunction.ATAN, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN)),
+                    Map.entry(ScalarFunction.ATAN2, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN2)),
+                    Map.entry(ScalarFunction.RADIANS, new NumericToDoubleAdapter(SqlStdOperatorTable.RADIANS)),
+                    Map.entry(ScalarFunction.DEGREES, new NumericToDoubleAdapter(SqlStdOperatorTable.DEGREES)),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
+                    Map.entry(ScalarFunction.CAST, ipBinaryCast),
+                    Map.entry(ScalarFunction.CIDRMATCH, new CidrMatchFunctionAdapter()),
                     Map.entry(ScalarFunction.COALESCE, new CoalesceAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
+                    Map.entry(ScalarFunction.CONVERT, new ConvAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
+                    Map.entry(ScalarFunction.COS, new NumericToDoubleAdapter(SqlStdOperatorTable.COS)),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
+                    Map.entry(ScalarFunction.COT, new NumericToDoubleAdapter(SqlStdOperatorTable.COT)),
                     Map.entry(ScalarFunction.CURDATE, currentDate),
                     Map.entry(ScalarFunction.CURRENT_DATE, currentDate),
                     Map.entry(ScalarFunction.CURRENT_TIME, currentTime),
@@ -635,6 +655,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),
                     Map.entry(ScalarFunction.REX_OFFSET, new RexOffsetAdapter()),
+                    Map.entry(ScalarFunction.SAFE_CAST, ipBinaryCast),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
@@ -642,6 +663,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SECOND_OF_MINUTE, second),
                     Map.entry(ScalarFunction.SHA2, new Sha2FunctionAdapter()),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
+                    Map.entry(ScalarFunction.SIN, new NumericToDoubleAdapter(SqlStdOperatorTable.SIN)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.SPAN, new SpanAdapter()),
                     Map.entry(ScalarFunction.SPAN_BUCKET, new SpanBucketAdapter()),
@@ -651,6 +673,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SUBSTR, nameMapping(SqlStdOperatorTable.SUBSTRING)),
                     Map.entry(ScalarFunction.SUBSTRING, nameMapping(SqlStdOperatorTable.SUBSTRING)),
                     Map.entry(ScalarFunction.SYSDATE, now),
+                    Map.entry(ScalarFunction.TAN, new NumericToDoubleAdapter(SqlStdOperatorTable.TAN)),
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),

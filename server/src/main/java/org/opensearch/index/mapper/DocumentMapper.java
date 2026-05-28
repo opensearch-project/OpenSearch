@@ -90,12 +90,15 @@ public class DocumentMapper implements ToXContentFragment {
 
         private final Mapper.BuilderContext builderContext;
 
+        private final long newVersion;
+
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
             final Settings indexSettings = mapperService.getIndexSettings().getSettings();
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
             final DocumentMapper existingMapper = mapperService.documentMapper();
+            this.newVersion = existingMapper == null ? 1L : existingMapper.getVersion() + 1L;
             final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
@@ -132,7 +135,7 @@ public class DocumentMapper implements ToXContentFragment {
                 metadataMappers.values().toArray(new MetadataFieldMapper[0]),
                 meta
             );
-            return new DocumentMapper(mapperService, mapping);
+            return new DocumentMapper(mapperService, mapping, newVersion);
         }
     }
 
@@ -152,7 +155,13 @@ public class DocumentMapper implements ToXContentFragment {
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
+    private final long version;
+
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
+        this(mapperService, mapping, 1L);
+    }
+
+    public DocumentMapper(MapperService mapperService, Mapping mapping, long version) {
         this.mapperService = mapperService;
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
@@ -192,6 +201,7 @@ public class DocumentMapper implements ToXContentFragment {
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name()))
             .toArray(MetadataFieldMapper[]::new);
+        this.version = version;
     }
 
     public Mapping mapping() {
@@ -212,6 +222,10 @@ public class DocumentMapper implements ToXContentFragment {
 
     public CompressedXContent mappingSource() {
         return this.mappingSource;
+    }
+
+    public long getVersion() {
+        return this.version;
     }
 
     public RootObjectMapper root() {
@@ -323,7 +337,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(mapperService, merged);
+        return new DocumentMapper(mapperService, merged, this.version + 1L);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

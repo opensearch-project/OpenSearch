@@ -155,4 +155,22 @@ public interface AnalyticsSearchBackendPlugin {
     default Exception convertException(Exception original) {
         return original;
     }
+
+    /**
+     * Returns the backend's subtree convertor for combining multiple delegated predicates
+     * into a single serialized expression, or {@code null} if the backend cannot combine.
+     * When {@code null}, the framework falls back to one {@link DelegatedExpression} per leaf.
+     */
+    default DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
+        return null;
+    }
+
+    /**
+     * Per-function serializers for delegated predicates this backend can accept.
+     * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
+     * serializer during fragment conversion when a predicate is delegated to this backend.
+     */
+    default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
+    }
 }

@@ -12,6 +12,7 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.TableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -150,6 +151,22 @@ public class RelNodeUtils {
         return null;
     }
 
+    /**
+     * Qualified name of the first {@link OpenSearchTableScan} reachable from {@code node},
+     * searching all inputs. Returns {@code null} if none is present.
+     */
+    public static String findTableName(RelNode node) {
+        if (node == null) return null;
+        if (node instanceof TableScan scan) {
+            return scan.getTable().getQualifiedName().getLast();
+        }
+        for (RelNode input : node.getInputs()) {
+            String name = findTableName(input);
+            if (name != null) return name;
+        }
+        return null;
+    }
+
     /** Maximum recursion depth when walking a RelNode tree to extract indices. */
     static final int MAX_EXTRACT_INDICES_DEPTH = 15;
 
@@ -174,7 +191,7 @@ public class RelNodeUtils {
         if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
             return false;
         }
-        if (node instanceof org.apache.calcite.rel.core.TableScan scan) {
+        if (node instanceof TableScan scan) {
             java.util.List<String> names = scan.getTable().getQualifiedName();
             indices.add(names.get(names.size() - 1));
         }
