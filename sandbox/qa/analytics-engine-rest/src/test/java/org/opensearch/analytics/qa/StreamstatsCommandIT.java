@@ -731,34 +731,72 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         row("key16", "TECHNOLOGY",      8,    6.0)
     );
 
-    /** sql IT: testStreamstatsReset. {@code reset_before} / {@code reset_after} use
-     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver. */
+    /**
+     * {@code streamstats reset_before=…} segments rows by seq position: each row where the
+     * predicate is true bumps a segment id, partitioning the running aggregate so windows do
+     * not span the boundary. Lowering: {@code buildStreamWindowJoinPlan} (Correlate +
+     * segment-id filter), which became reachable on the analytics-engine route after theta-join
+     * restoration — the correlate's join predicate is non-equi (range over the row-number seq
+     * column) and used to be rejected at the marker rule.
+     *
+     * <p>For {@code int0 > 5}: segId increments before rows {key04, key06, key09, key11, key14,
+     * key16}, producing 7 segments (id 0..6) over the 17-row dataset. Default {@code current=true}
+     * + {@code window=0} → running average over rows with the same {@code (str0, segId)} and
+     * {@code seq <= current_seq}. Nulls in {@code int0} are dropped by AVG.
+     */
     public void testStreamstatsReset() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
-            "source=" + DATASET.indexName
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
+        assertRowsEqualList(response, EXPECTED_RESET_ROWS);
     }
 
-    /** sql IT: testStreamstatsResetWithNull. */
+    /** Same data, same query — same lowering. {@code bucket_nullable} only matters when
+     *  {@code str0} has null values, and calcs has none, so the output is identical. */
     public void testStreamstatsResetWithNull() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
-            "source=" + DATASET.indexName
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
+        assertRowsEqualList(response, EXPECTED_RESET_ROWS);
     }
 
-    /** sql IT: testStreamstatsResetWithNullBucket. */
+    /** {@code bucket_nullable=false} excludes null group-keys from aggregation. Calcs has no
+     *  null in {@code str0} so the output matches the bucket-nullable variant exactly. */
     public void testStreamstatsResetWithNullBucket() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
-            "source=" + DATASET.indexName
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats bucket_nullable=false reset_before=(int0 > 5)"
                 + " avg(int0) as avg by str0"
+                + " | fields key, str0, int0, avg"
         );
+        assertRowsEqualList(response, EXPECTED_RESET_ROWS);
     }
+
+    /** Hand-computed running average for {@code reset_before=(int0 > 5)} over the calcs
+     *  dataset, sorted by key. See {@link #testStreamstatsReset} javadoc for the segId mapping. */
+    private static final List<List<Object>> EXPECTED_RESET_ROWS = List.of(
+        row("key00", "FURNITURE",       1,    1.0),
+        row("key01", "FURNITURE",       null, 1.0),
+        row("key02", "OFFICE SUPPLIES", null, null),
+        row("key03", "OFFICE SUPPLIES", null, null),
+        row("key04", "OFFICE SUPPLIES", 7,    7.0),
+        row("key05", "OFFICE SUPPLIES", 3,    5.0),
+        row("key06", "OFFICE SUPPLIES", 8,    8.0),
+        row("key07", "OFFICE SUPPLIES", null, 8.0),
+        row("key08", "TECHNOLOGY",      null, null),
+        row("key09", "TECHNOLOGY",      8,    8.0),
+        row("key10", "TECHNOLOGY",      4,    6.0),
+        row("key11", "TECHNOLOGY",      10,   10.0),
+        row("key12", "TECHNOLOGY",      null, 10.0),
+        row("key13", "TECHNOLOGY",      4,    7.0),
+        row("key14", "TECHNOLOGY",      11,   11.0),
+        row("key15", "TECHNOLOGY",      4,    7.5),
+        row("key16", "TECHNOLOGY",      8,    8.0)
+    );
 
     // ── Unsupported window functions ───────────────────────────────────────────
 
