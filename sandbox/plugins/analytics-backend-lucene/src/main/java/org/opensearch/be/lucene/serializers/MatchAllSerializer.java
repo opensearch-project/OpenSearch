@@ -23,7 +23,7 @@ import java.util.List;
 public class MatchAllSerializer extends AbstractQuerySerializer {
 
     @Override
-    protected QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
+    public QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
         return new MatchAllQueryBuilder();
     }
 }

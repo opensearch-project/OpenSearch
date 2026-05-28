@@ -37,7 +37,6 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
-import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.test.OpenSearchTestCase;
@@ -131,7 +130,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             doc.addField(idField, (int) gen);
             doc.addField(nameField, "user_" + gen);
             doc.addField(scoreField, gen * 100);
-            doc.setRowId("__row_id__", gen);
+            // Each writer is fresh — rowIds restart at 0 within a writer's lifetime.
+            doc.setRowId("__row_id__", 0L);
 
             writer.addDoc(doc);
             doc.close();
@@ -208,11 +208,14 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             IndexMetadata indexMetadata = IndexMetadata.builder("test_index").settings(indexSettingsBuilder).build();
             IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             MapperService mapperService = createMockMapperService(schema, indexSettings);
+            // Use the test's pre-built schema directly. The mock MapperService has no
+            // documentMapper, so going through ArrowSchemaBuilder would yield only metadata
+            // fields and addDocument would reject id/name/score with MismatchedInputException.
             return new ParquetIndexingEngine(
                 Settings.EMPTY,
                 new ParquetDataFormat(),
                 shardPath,
-                () -> ArrowSchemaBuilder.getSchema(mapperService),
+                () -> schema,
                 () -> mapperService.getIndexSettings().getIndexMetadata().getMappingVersion(),
                 indexSettings,
                 threadPool,

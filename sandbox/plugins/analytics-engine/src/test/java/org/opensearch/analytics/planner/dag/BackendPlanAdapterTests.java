@@ -108,7 +108,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         RelNode marked = runPlanner(filter, context);
         LOGGER.debug("Marked:\n{}", RelOptUtil.toString(marked));
 
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -178,7 +178,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         RelNode marked = runPlanner(project, context);
         LOGGER.info("Marked project:\n{}", RelOptUtil.toString(marked));
 
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -221,7 +221,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), condition);
 
         RelNode marked = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -248,7 +248,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), condition);
 
         RelNode marked = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -289,7 +289,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), condition);
 
         RelNode marked = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 

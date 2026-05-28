@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -31,6 +31,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
@@ -40,12 +41,15 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,6 +59,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -96,8 +101,11 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
+    private final Set<LuceneWriter> registry;
     private long mappingVersion;
     private volatile long docCount;
+    private volatile boolean flushed;
+    private volatile WriterState state = WriterState.ACTIVE;
 
     /**
      * Creates a new LuceneWriter for the given generation.
@@ -118,18 +126,20 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         Path baseDirectory,
         Analyzer analyzer,
         Codec codec,
-        Sort indexSort
+        Sort indexSort,
+        Set<LuceneWriter> registry
     ) throws IOException {
         this.writerGeneration = writerGeneration;
         this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
         this.docCount = 0;
+        this.registry = registry;
 
         // Create an isolated temp directory for this writer's segment
         this.tempDirectory = baseDirectory.resolve("lucene_gen_" + writerGeneration);
         logger.info("Creating directory for temp lucene writer: " + tempDirectory);
-        Files.createDirectory(tempDirectory);
-        this.directory = new MMapDirectory(tempDirectory);
+        Files.createDirectories(tempDirectory);
+        this.directory = createDirectory(tempDirectory);
 
         IndexWriterConfig iwc = analyzer != null ? new IndexWriterConfig(analyzer) : new IndexWriterConfig();
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
@@ -152,6 +162,16 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);
+        registry.add(this);
+    }
+
+    /**
+     * Hook for tests to wrap the underlying {@link Directory} (e.g., to inject I/O
+     * faults). Default is a plain {@link MMapDirectory}. Invoked once from the
+     * constructor with the writer's per-generation temp directory.
+     */
+    protected Directory createDirectory(Path tempDirectory) throws IOException {
+        return new MMapDirectory(tempDirectory);
     }
 
     /**
@@ -167,7 +187,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      * <p>This method is invoked from the constructor, so overrides must be
      * stateless (return a constant) — they cannot depend on any instance fields.
      */
-    double ramBufferSizeMB() {
+    protected double ramBufferSizeMB() {
         return RAM_BUFFER_SIZE_MB;
     }
 
@@ -184,33 +204,69 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      * <p>This method is invoked from the constructor, so overrides must be
      * stateless (return a constant) — they cannot depend on any instance fields.
      */
-    int maxBufferedDocs() {
+    protected int maxBufferedDocs() {
         return IndexWriterConfig.DISABLE_AUTO_FLUSH;
     }
 
     /**
-     * Adds a document to this writer's isolated IndexWriter.
-     * The document is obtained from the input's {@link LuceneDocumentInput#getFinalInput()}.
-     *
-     * @param input the document input containing the Lucene document to index
-     * @return a success result containing the current doc ID (0-based sequential)
-     * @throws IOException if the underlying IndexWriter fails to add the document
+     * Adds a document to the underlying {@link IndexWriter}. {@link IOException} (low-level
+     * I/O fault) and {@link IllegalArgumentException} (per-doc rejection from
+     * {@code IndexingChain}, e.g. oversized term, missing binary value, duplicate term) are
+     * translated to {@link WriteResult.Failure}, with {@code docCount} advanced to capture
+     * the partial slot and the writer moved to {@link WriterState#PENDING_ROLLBACK}; the caller must
+     * then invoke {@link #rollbackTo(long)}. Anything else (e.g.
+     * {@link org.apache.lucene.store.AlreadyClosedException} after a tragic event) propagates.
      */
     @Override
     public WriteResult addDoc(LuceneDocumentInput input) throws IOException {
-        Document doc = input.getFinalInput();
-        assert doc.getField(LuceneDocumentInput.ROW_ID_FIELD) != null : "Document missing required "
-            + LuceneDocumentInput.ROW_ID_FIELD
-            + " field at doc position "
-            + docCount;
-        assert doc.getField(LuceneDocumentInput.ROW_ID_FIELD).numericValue().longValue() == docCount : "Row ID mismatch: expected "
-            + docCount
-            + " but got "
-            + doc.getField(LuceneDocumentInput.ROW_ID_FIELD).numericValue().longValue();
-        indexWriter.addDocument(doc);
+        if (state != WriterState.ACTIVE) {
+            throw new IllegalStateException("addDoc requires ACTIVE state but was " + state);
+        }
+        // Defense-in-depth: CompositeWriter enforces rowId == docCount at the multiplexer
+        // layer, but we re-check here so a single-format Lucene path is also protected.
+        if (input.getRowId() != docCount) {
+            throw new IllegalStateException("rowId [" + input.getRowId() + "] does not match doc count [" + docCount + "]");
+        }
+        try {
+            indexWriter.addDocument(input.getFinalInput());
+        } catch (IOException | IllegalArgumentException e) {
+            // Lucene's IndexWriter may have consumed a docId before throwing; advance our
+            // counter to match so rollbackTo can tombstone the partial slot, and
+            // retire to preserve the docId == rowId invariant for subsequent writes.
+            docCount++;
+            state = WriterState.PENDING_ROLLBACK;
+            return new WriteResult.Failure(e, -1L, -1L, -1L);
+        }
         long currentDocId = docCount;
         docCount++;
         return new WriteResult.Success(1L, 1L, currentDocId);
+    }
+
+    @Override
+    public void rollbackTo(long rowCount) throws IOException {
+        if (state != WriterState.PENDING_ROLLBACK && state != WriterState.ACTIVE) {
+            throw new IllegalStateException("rollbackTo requires ACTIVE or PENDING_ROLLBACK state but was " + state);
+        }
+        if (rowCount > docCount) {
+            throw new IllegalStateException("Cannot rollback to " + rowCount + ": only " + docCount + " docs admitted");
+        }
+        if (rowCount == docCount) {
+            state = WriterState.RETIRED_FLUSHABLE;
+            return;
+        }
+        if (docCount - rowCount != 1) {
+            throw new IllegalStateException(
+                "rollbackTo supports rolling back exactly 1 doc, but asked to roll back " + (docCount - rowCount)
+            );
+        }
+        indexWriter.deleteDocuments(NumericDocValuesField.newSlowExactQuery(DocumentInput.ROW_ID_FIELD, rowCount));
+        docCount = rowCount;
+        state = WriterState.RETIRED_FLUSHABLE;
+    }
+
+    @Override
+    public WriterState state() {
+        return state;
     }
 
     /**
@@ -271,7 +327,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                         + "]"
                 );
             }
-            configureSortedMerge(mapping);
+            configureSortedMerge(mapping, state == WriterState.RETIRED_FLUSHABLE);
         } else if (indexWriter.getConfig().getIndexSort() != null) {
             // Lucene is primary with IndexSort: Lucene natively reorders docs during
             // forceMerge, but __row_id__ values were assigned at insertion time and will
@@ -310,6 +366,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         assert segmentInfos.size() == 1 : "Expected exactly 1 segment after force merge, got " + segmentInfos.size();
 
         SegmentCommitInfo segmentInfo = segmentInfos.info(0);
+        // After flush the segment must contain exactly docCount live docs. Any tombstones
+        // from rollbackTo are expunged by the reordering forceMerge (secondary path)
+        // or by LogByteSizeMergePolicy's forceMerge (primary-with-indexSort path).
+        // TODO: this assertion will trip if Lucene is configured as the primary format
+        // without an IndexSort and a rollbackTo has run — the no-sort/no-mapping
+        // branch uses NoMergePolicy, so forceMerge is a no-op and the tombstone remains.
+        // Production never wires Lucene as primary without IndexSort, but tests that do
+        // need to either configure index.sort.field or avoid the rollback path.
         assert segmentInfo.info.maxDoc() == docCount : "Expected " + docCount + " docs in segment, got " + segmentInfo.info.maxDoc();
 
         // Invariant: ___row_id__ doc values must be sequential 0..maxDoc-1 after forceMerge.
@@ -344,6 +408,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             }
         }
 
+        directory.close();
+        flushed = true;
+
         long totalFlushDurationMs = TimeValue.nsecToMSec(System.nanoTime() - flushStartNanos);
         logger.info(
             "flush: DONE generation={}, totalRows={}, forceMerge={}ms, commit={}ms, total={}ms",
@@ -362,8 +429,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      * that forces a merge of all segments (with optional doc reordering via the mapping).
      * Row ID rewrite is already enabled on the codec at construction time.
      */
-    private void configureSortedMerge(RowIdMapping mapping) {
-        indexWriter.getConfig().setMergePolicy(new ReorderingMergePolicy(mapping));
+    private void configureSortedMerge(RowIdMapping mapping, boolean hasRolledBack) {
+        indexWriter.getConfig().setMergePolicy(new ReorderingMergePolicy(mapping, hasRolledBack ? mapping.size() : -1));
         Codec currentCodec = indexWriter.getConfig().getCodec();
         if (currentCodec instanceof LuceneWriterCodec lwc) {
             lwc.enableRowIdRewrite();
@@ -507,16 +574,18 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     static class ReorderingMergePolicy extends MergePolicy {
         private final RowIdMapping mapping; // nullable
         private volatile boolean mergeDone = false;
+        private final int rowIdToPurge;
 
         /**
          * @param mapping the sort permutation to apply during merge, or null for a plain
          *                rewrite merge (used when Lucene's IndexSort already sorted the docs)
          */
-        ReorderingMergePolicy(RowIdMapping mapping) {
+        ReorderingMergePolicy(RowIdMapping mapping, int rowIdToPurge) {
             if (mapping != null && mapping.isNewToOldSupported() == false) {
                 throw new IllegalArgumentException("RowIdMapping must support reverse lookup (newToOld) for sorted flush reordering");
             }
             this.mapping = mapping;
+            this.rowIdToPurge = rowIdToPurge;
         }
 
         @Override
@@ -545,7 +614,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             }
             MergeSpecification spec = new MergeSpecification();
             if (mapping != null) {
-                spec.add(new ReorderingOneMerge(segments, mapping));
+                spec.add(new ReorderingOneMerge(segments, mapping, rowIdToPurge));
             } else {
                 spec.add(new MergePolicy.OneMerge(segments));
             }
@@ -565,10 +634,12 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     static class ReorderingOneMerge extends MergePolicy.OneMerge {
         private final RowIdMapping mapping;
+        private final int rowIdToPurge;
 
-        ReorderingOneMerge(List<SegmentCommitInfo> segments, RowIdMapping mapping) {
+        ReorderingOneMerge(List<SegmentCommitInfo> segments, RowIdMapping mapping, int rowIdToPurge) {
             super(segments);
             this.mapping = mapping;
+            this.rowIdToPurge = rowIdToPurge;
         }
 
         @Override
@@ -576,17 +647,23 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             return new Sorter.DocMap() {
                 @Override
                 public int oldToNew(int docID) {
+                    if (docID == rowIdToPurge) {
+                        return rowIdToPurge;
+                    }
                     return (int) mapping.getNewRowId(docID, RowIdMapping.SINGLE_GEN);
                 }
 
                 @Override
                 public int newToOld(int docID) {
+                    if (docID == rowIdToPurge) {
+                        return rowIdToPurge;
+                    }
                     return (int) mapping.getOldRowId(docID);
                 }
 
                 @Override
                 public int size() {
-                    return mapping.size();
+                    return mapping.size() + (rowIdToPurge != -1 ? 1 : 0);
                 }
             };
         }
@@ -634,6 +711,18 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
     }
 
+    /** Returns heap bytes used by this writer's IndexWriter RAM buffer. Returns 0 after flush. */
+    public long getHeapBytesUsed() {
+        if (indexWriter.isOpen()) {
+            try {
+                return indexWriter.ramBytesUsed();
+            } catch (AlreadyClosedException e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
     /**
      * Closes this writer, rolling back the IndexWriter if still open, closing the directory,
      * and deleting the temp directory. Safe to call multiple times.
@@ -654,8 +743,11 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             directory.close();
         } catch (Exception e) {
             logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
+        } finally {
+            registry.remove(this);
+            if (flushed == false) IOUtils.rm(tempDirectory);
+            state = WriterState.CLOSED;
         }
-        IOUtils.rm(tempDirectory);
     }
 
     /**
@@ -667,7 +759,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     @Override
     public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
-        Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
+        Term uid = new Term(deleteInput.fieldName(), Uid.encodeId(deleteInput.id()));
         indexWriter.deleteDocuments(uid);
         return new DeleteResult.Success(1L, 1L, 1L);
     }

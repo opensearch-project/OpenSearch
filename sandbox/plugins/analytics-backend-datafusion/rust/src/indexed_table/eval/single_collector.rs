@@ -460,11 +460,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         let Some(ref residual) = self.residual_expr else {
             return Ok(None);
         };
-        // Apply Collector bitmap AND residual predicate over the
-        // delivered batch. In row-granular mode (pushdown ON) this
-        // re-applies what parquet already did — redundant but correct.
-        // In block-granular mode (pushdown OFF) this is the only
-        // place the residual gets applied.
+
         let state = rg_state
             .downcast_ref::<SingleCollectorState>()
             .ok_or_else(|| {
@@ -519,27 +515,13 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             }
         };
 
-        // Evaluate residual against the batch. The residual may use
-        // full-schema column indices; remap to batch positions by name.
-        let remapped_residual = super::remap_expr_to_batch(residual, batch)
-            .map_err(|e| format!("SingleCollectorEvaluator: remap residual: {}", e))?;
-        let residual_value = remapped_residual
-            .evaluate(batch)
-            .map_err(|e| format!("SingleCollectorEvaluator: residual.evaluate: {}", e))?;
-        let residual_array = residual_value
-            .into_array(batch_len)
-            .map_err(|e| format!("SingleCollectorEvaluator: residual into_array: {}", e))?;
-        let residual_mask = residual_array
-            .as_any()
-            .downcast_ref::<BooleanArray>()
-            .ok_or_else(|| {
-                "SingleCollectorEvaluator: residual did not produce BooleanArray".to_string()
-            })?;
+        // Evaluate residual against the batch.
+        let residual_mask = super::eval_helpers::evaluate_residual(residual, batch, batch_len)?;
 
         // AND with kleene semantics (NULL → exclude).
         let combined = datafusion::arrow::compute::kernels::boolean::and_kleene(
             &collector_mask,
-            residual_mask,
+            &residual_mask,
         )
         .map_err(|e| format!("SingleCollectorEvaluator: and_kleene: {}", e))?;
         Ok(Some(combined))

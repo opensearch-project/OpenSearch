@@ -78,13 +78,14 @@ final class FilterTreeShapeDeriver {
             boolean isCorrectness = !predicate.getViableBackends().getFirst().equals(drivingBackendId);
             boolean isPerformance = !predicate.getPerformanceDelegationBackends().isEmpty();
             boolean isDelegated = isCorrectness || isPerformance;
-            return new Result(isDelegated, false, !isDelegated);
+            return new Result(isDelegated, false, !isDelegated, isPerformance);
         }
         if (node instanceof RexCall call) {
             boolean isOrNot = call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
 
             boolean hasDelegated = false;
             boolean hasDrivingBackend = false;
+            boolean hasPerformanceDelegation = false;
             boolean hasMixed = false;
 
             for (RexNode operand : call.getOperands()) {
@@ -92,22 +93,21 @@ final class FilterTreeShapeDeriver {
                 hasDelegated |= childResult.hasDelegated;
                 hasDrivingBackend |= childResult.hasDrivingBackend;
                 hasMixed |= childResult.hasMixed;
+                hasPerformanceDelegation |= childResult.hasPerformanceDelegation;
             }
 
-            // A delegated predicate under OR or NOT requires the tree evaluator —
-            // NOT(delegated) needs bitmap inversion which SingleCollector can't do,
-            // and OR(delegated, ...) needs multi-collector bitmap combination.
-            // Previously this also required hasDrivingBackend, which missed the
-            // bare NOT(delegated) case where no driving-backend predicate exists.
-            if (isOrNot && hasDelegated) {
+            // Under OR/NOT, interleaving occurs when:
+            // - delegated + native predicates coexist (won't all combine), OR
+            // - correctness + performance delegated coexist (perf won't combine under OR/NOT)
+            if (isOrNot && hasDelegated && (hasDrivingBackend || hasPerformanceDelegation)) {
                 hasMixed = true;
             }
 
-            return new Result(hasDelegated, hasMixed, hasDrivingBackend);
+            return new Result(hasDelegated, hasMixed, hasDrivingBackend, hasPerformanceDelegation);
         }
-        return new Result(false, false, false);
+        return new Result(false, false, false, false);
     }
 
-    private record Result(boolean hasDelegated, boolean hasMixed, boolean hasDrivingBackend) {
+    private record Result(boolean hasDelegated, boolean hasMixed, boolean hasDrivingBackend, boolean hasPerformanceDelegation) {
     }
 }

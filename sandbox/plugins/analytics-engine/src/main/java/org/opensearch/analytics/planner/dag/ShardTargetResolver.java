@@ -9,8 +9,10 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
-import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.IndexResolution;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -36,10 +38,12 @@ public class ShardTargetResolver extends TargetResolver {
 
     private final String indexName;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public ShardTargetResolver(RelNode fragment, ClusterService clusterService) {
-        this.indexName = findTableName(fragment);
+    public ShardTargetResolver(RelNode fragment, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.indexName = RelNodeUtils.findTableName(fragment);
         this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         if (this.indexName == null) {
             throw new IllegalArgumentException("ShardTargetResolver: no OpenSearchTableScan found in fragment");
         }
@@ -47,29 +51,25 @@ public class ShardTargetResolver extends TargetResolver {
 
     @Override
     public List<ExecutionTarget> resolve(ClusterState clusterState, @Nullable Object childManifest) {
+        // Expand the table name (alias or concrete) to its concrete indices against the freshest
+        // cluster state. operationRouting().searchShards requires concrete names — aliases are
+        // not accepted there — so the expansion has to happen here, not at construction time.
+        IndexResolution resolution = IndexResolution.resolve(indexName, clusterState, indexNameExpressionResolver);
+        String[] concreteNames = resolution.concreteIndexNames().toArray(new String[0]);
         GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState, new String[] { indexName }, null, null);
+            .searchShards(clusterState, concreteNames, null, null);
         List<ExecutionTarget> targets = new ArrayList<>();
+        int ordinal = 0;
         for (ShardIterator shardIt : shardIterators) {
             ShardRouting shard = shardIt.nextOrNull();
             if (shard != null) {
                 DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
                 if (node != null) {
-                    targets.add(new ShardExecutionTarget(node, shard.shardId()));
+                    targets.add(new ShardExecutionTarget(node, shard.shardId(), ordinal++));
                 }
             }
         }
         return targets;
     }
 
-    private static String findTableName(RelNode node) {
-        if (node instanceof OpenSearchTableScan scan) {
-            return scan.getTable().getQualifiedName().getLast();
-        }
-        for (RelNode input : node.getInputs()) {
-            String name = findTableName(input);
-            if (name != null) return name;
-        }
-        return null;
-    }
 }

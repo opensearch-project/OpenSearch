@@ -83,10 +83,8 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
     }
 
     public void testOrWithOnlyDelegated() {
-        // OR(delegated, delegated) — two collectors under OR. SingleCollector handles
-        // exactly one Collector + native residuals; combining two collector bitmaps
-        // requires the BitmapTree evaluator. So even without a native sibling under
-        // the OR, the shape is INTERLEAVED_BOOLEAN_EXPRESSION.
+        // OR(delegated, delegated) — all same-backend, combined into one expression.
+        // No tree evaluator needed post-combine.
         RexNode delegated1 = annotated(ACCEPTING);
         RexNode delegated2 = annotated(ACCEPTING);
         RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, delegated1, delegated2);
@@ -95,24 +93,18 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(andNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
-    /**
-     * Bare {@code NOT(delegated)} — no AND parent, no native sibling. Mirrors the
-     * production query {@code WHERE NOT match(message, 'hello')} that crashed when
-     * misclassified as CONJUNCTIVE: SingleCollector can't invert a Collector bitmap,
-     * so the result silently became "all rows" instead of "non-matching rows".
-     * (Regression coverage for the FilterDelegationIT#testNotMatch_RoutesToTreeEvaluator
-     * fix — the shape MUST route to the tree evaluator.)
-     */
     public void testBareNotOfDelegated() {
+        // NOT(delegated) — single correctness-delegated predicate, combined into one
+        // expression (BoolQuery with must_not). No tree evaluator needed post-combine.
         RexNode delegated = annotated(ACCEPTING);
         RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, delegated);
         OpenSearchFilter filter = buildFilter(notNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
     // ---- Helpers ----
@@ -121,6 +113,46 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RelDataType boolType = typeFactory.createJavaType(boolean.class);
         RexNode literal = rexBuilder.makeLiteral(true);
         return new AnnotatedPredicate(boolType, literal, List.of(backendId), 0);
+    }
+
+    /** Creates a dual-viable predicate narrowed to the driving backend with perf-delegation to accepting. */
+    private AnnotatedPredicate perfDelegated() {
+        RelDataType boolType = typeFactory.createJavaType(boolean.class);
+        RexNode literal = rexBuilder.makeLiteral(true);
+        AnnotatedPredicate dualViable = new AnnotatedPredicate(boolType, literal, List.of(DRIVING, ACCEPTING), 0);
+        return (AnnotatedPredicate) dualViable.narrowTo(DRIVING);
+    }
+
+    public void testOrWithCorrectnessAndPerfDelegated() {
+        // OR(correctness-delegated, perf-delegated) — perf won't combine under OR → INTERLEAVED
+        RexNode correctness = annotated(ACCEPTING);
+        RexNode perf = perfDelegated();
+        RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, correctness, perf);
+        OpenSearchFilter filter = buildFilter(orNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+    }
+
+    public void testAndWithCorrectnessAndPerfDelegated() {
+        // AND(correctness-delegated, perf-delegated) — perf combines under AND → CONJUNCTIVE
+        RexNode correctness = annotated(ACCEPTING);
+        RexNode perf = perfDelegated();
+        RexNode andNode = rexBuilder.makeCall(SqlStdOperatorTable.AND, correctness, perf);
+        OpenSearchFilter filter = buildFilter(andNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+    }
+
+    public void testNotOfPerfDelegated() {
+        // NOT(perf-delegated) — perf under NOT won't combine → INTERLEAVED
+        RexNode perf = perfDelegated();
+        RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, perf);
+        OpenSearchFilter filter = buildFilter(notNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
     private OpenSearchFilter buildFilter(RexNode condition) {

@@ -20,6 +20,7 @@ import org.opensearch.analytics.exec.CoordinatorAllocatorHandle;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
+import org.opensearch.analytics.exec.ReaderContextStore;
 import org.opensearch.analytics.exec.Scheduler;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -99,6 +100,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
+    private ReaderContextStore readerContextStore;
 
     @SuppressWarnings("rawtypes")
     @Override
@@ -131,8 +133,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry);
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
+        readerContextStore = new ReaderContextStore(threadPool);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE, readerContextStore::setKeepAlive);
+        searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry, readerContextStore);
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, indexNameExpressionResolver, operatorTable, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
@@ -167,7 +172,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(COORDINATOR_BUFFER_LIMIT);
+        return List.of(COORDINATOR_BUFFER_LIMIT, ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
     }
 
     @Override
@@ -199,15 +204,17 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     /**
-     * Default implementation of {@link EngineContext}.
+     * Default implementation of {@link EngineContext}. The {@link IndexNameExpressionResolver}
+     * is the cluster's resolver — built by the OpenSearch server with security-plugin extensions,
+     * system-index access checks, and ThreadContext threading. Building schemas with a fresh
+     * resolver would silently bypass those checks.
      */
-    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable, Map<
-        String,
-        AnalyticsSearchBackendPlugin> backends) implements EngineContext {
+    record DefaultEngineContext(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
+        SqlOperatorTable operatorTable, Map<String, AnalyticsSearchBackendPlugin> backends) implements EngineContext {
 
         @Override
         public SchemaPlus getSchema() {
-            return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
+            return OpenSearchSchemaBuilder.buildSchema(clusterService.state(), indexNameExpressionResolver);
         }
 
         @Override

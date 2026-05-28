@@ -55,6 +55,7 @@ import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -62,6 +63,7 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -88,6 +90,9 @@ import static org.mockito.Mockito.when;
  * {@link LuceneAnalyticsBackendPlugin} serializer, producing valid MatchQueryBuilder bytes.
  */
 public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
+
+    /** Default resolver for DAGBuilder in tests; production injects core's resolver. */
+    private static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     private static final SqlFunction MATCH_FUNCTION = new SqlFunction(
         "MATCH",
@@ -137,7 +142,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         }, condition);
 
         RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
@@ -296,8 +301,8 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
             return new FragmentInstructionHandlerFactory() {
                 @Override
-                public Optional<InstructionNode> createShardScanNode() {
-                    return Optional.of(new ShardScanInstructionNode());
+                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
+                    return Optional.of(new ShardScanInstructionNode(requestsRowIds));
                 }
 
                 @Override
@@ -310,8 +315,12 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+                public Optional<InstructionNode> createShardScanWithDelegationNode(
+                    FilterTreeShape treeShape,
+                    int delegatedPredicateCount,
+                    boolean requestsRowIds
+                ) {
+                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
                 }
 
                 @Override
