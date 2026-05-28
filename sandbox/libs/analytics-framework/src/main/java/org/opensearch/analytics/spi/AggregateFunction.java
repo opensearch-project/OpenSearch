@@ -39,6 +39,14 @@ public enum AggregateFunction {
     // a Project wrapper before the resolver sees the plan.
     AVG(Type.SIMPLE, SqlKind.AVG),
 
+    // STATS bundle aggregate. Decomposition (STATS(x) → struct of COUNT/MIN/MAX/SUM/AVG) is
+    // handled by OpenSearchStatsReduceRule during HEP, before the resolver and Volcano split
+    // run, so this enum entry exists only to satisfy backend-capability and SqlAggFunction
+    // mapping plumbing — no intermediateFields are needed because the rule rewrites STATS
+    // into primitives before the partial/final split. SqlKind is OTHER (custom function),
+    // so resolution goes via name lookup in fromNameOrError.
+    STATS(Type.STATE_EXPANDING, SqlKind.OTHER),
+
     // Statistical — fixed-size state, multi-pass or running stats. Handled by
     // OpenSearchAggregateReduceRule (once FUNCTIONS_TO_REDUCE is extended to include them)
     // — no intermediateFields here either.
@@ -202,6 +210,7 @@ public enum AggregateFunction {
             case COUNT -> SqlStdOperatorTable.COUNT;
             case AVG -> SqlStdOperatorTable.AVG;
             case APPROX_COUNT_DISTINCT -> SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
+            case STATS -> OpenSearchAggregateOperators.STATS;
             default -> throw new IllegalStateException("No SqlAggFunction mapping for: " + this);
         };
     }
