@@ -49,6 +49,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private final long correlationId;
 
     private volatile FlightStream flightStream;
+    private volatile org.apache.arrow.flight.DemandDrivenFlightStream demandStream;
     private volatile long currentBatchSize;
     private volatile boolean firstBatchConsumed;
     private volatile boolean closed;
@@ -91,14 +92,60 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             Thread.ofVirtual().start(() -> {
                 try {
                     long start = System.nanoTime();
-                    flightStream = flightClient.getStream(ticket, new HeaderCallOption(callHeaders));
+                    // Use demand-driven FlightStream with disableAutoInboundFlowControl().
+                    // This prevents gRPC from eagerly deserializing messages into the
+                    // bounded Arrow allocator. At most 1 message is deserialized at a time.
+                    if (flightClient instanceof org.apache.arrow.flight.FlightClientWithChannel clientWithChannel) {
+                        io.grpc.Metadata headers = new io.grpc.Metadata();
+                        for (String key : callHeaders.keys()) {
+                            headers.put(
+                                io.grpc.Metadata.Key.of(key, io.grpc.Metadata.ASCII_STRING_MARSHALLER),
+                                callHeaders.get(key)
+                            );
+                        }
+                        io.grpc.ClientInterceptor responseHeaderInterceptor = new io.grpc.ClientInterceptor() {
+                            @Override
+                            public <ReqT, RespT> io.grpc.ClientCall<ReqT, RespT> interceptCall(
+                                io.grpc.MethodDescriptor<ReqT, RespT> method,
+                                io.grpc.CallOptions callOptions,
+                                io.grpc.Channel next
+                            ) {
+                                return new io.grpc.ForwardingClientCall.SimpleForwardingClientCall<>(next.newCall(method, callOptions)) {
+                                    @Override
+                                    public void start(io.grpc.ClientCall.Listener<RespT> responseListener, io.grpc.Metadata requestHeaders) {
+                                        super.start(new io.grpc.ForwardingClientCallListener.SimpleForwardingClientCallListener<>(responseListener) {
+                                            @Override
+                                            public void onHeaders(io.grpc.Metadata responseHeaders) {
+                                                processResponseHeaders(responseHeaders);
+                                                super.onHeaders(responseHeaders);
+                                            }
+                                        }, requestHeaders);
+                                    }
+                                };
+                            }
+                        };
+                        demandStream = org.apache.arrow.flight.DemandDrivenFlightStream.openFromChannel(
+                            clientWithChannel.getChannel(),
+                            clientWithChannel.getAllocator(),
+                            ticket, headers, responseHeaderInterceptor
+                        );
+                    } else {
+                        // Fallback: use standard FlightStream (no demand control)
+                        flightStream = flightClient.getStream(ticket, new HeaderCallOption(callHeaders));
+                        flightStream.next();
+                        initialHeader = headerContext.getHeader(correlationId);
+                        future.complete(initialHeader);
+                        return;
+                    }
                     long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-                    logger.debug("FlightClient.getStream() for correlationId: {} took {}ms", correlationId, elapsedMs);
+                    logger.debug("DemandDrivenFlightStream opened for correlationId: {} took {}ms", correlationId, elapsedMs);
                     start = System.nanoTime();
-                    flightStream.next();
+                    demandStream.next();
                     elapsedMs = (System.nanoTime() - start) / 1_000_000;
-                    logger.debug("First FlightClient.next() for correlationId: {} took {}ms", correlationId, elapsedMs);
+                    logger.debug("First DemandDrivenFlightStream.next() for correlationId: {} took {}ms", correlationId, elapsedMs);
                     initialHeader = headerContext.getHeader(correlationId);
+                    // Also set flightStream for compatibility with existing close/cancel logic
+                    flightStream = null;
                     future.complete(initialHeader);
                 } catch (FlightRuntimeException e) {
                     future.completeExceptionally(FlightErrorMapper.fromFlightException(e));
@@ -113,17 +160,20 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         return handler;
     }
 
+
     @Override
     public T nextResponse() {
         if (closed) throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed");
-        if (flightStream == null) throw new IllegalStateException("openAndPrefetch() must be called first");
+        if (demandStream == null) throw new IllegalStateException("openAndPrefetch() must be called first");
 
         long startTime = System.currentTimeMillis();
         try {
-            boolean hasNext = firstBatchConsumed ? flightStream.next() : (firstBatchConsumed = true);
+            // Demand-driven: next() calls request(1) internally AFTER processing.
+            // At most 1 message deserialized in the Arrow allocator at any time.
+            boolean hasNext = firstBatchConsumed ? demandStream.next() : (firstBatchConsumed = true);
             if (!hasNext) return null;
 
-            VectorSchemaRoot streamRoot = flightStream.getRoot();
+            VectorSchemaRoot streamRoot = demandStream.getRoot();
             currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(streamRoot);
             try (VectorStreamInput input = newStreamInput(streamRoot)) {
                 input.setVersion(initialHeader.getVersion());
@@ -152,10 +202,34 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             : VectorStreamInput.forByteSerialized(streamRoot, namedWriteableRegistry);
     }
 
+
+    private void processResponseHeaders(io.grpc.Metadata responseHeaders) {
+        try {
+            String encodedHeader = responseHeaders.get(
+                io.grpc.Metadata.Key.of(ClientHeaderMiddleware.RAW_HEADER_KEY, io.grpc.Metadata.ASCII_STRING_MARSHALLER)
+            );
+            String corrId = responseHeaders.get(
+                io.grpc.Metadata.Key.of(CORRELATION_ID_KEY, io.grpc.Metadata.ASCII_STRING_MARSHALLER)
+            );
+            if (encodedHeader == null || corrId == null) return;
+
+            byte[] headerBuffer = java.util.Base64.getDecoder().decode(encodedHeader);
+            org.opensearch.core.common.bytes.BytesReference headerRef =
+                new org.opensearch.core.common.bytes.BytesArray(headerBuffer);
+            Header header = org.opensearch.transport.InboundDecoder.readHeader(
+                org.opensearch.Version.CURRENT, headerRef.length(), headerRef
+            );
+            headerContext.setHeader(Long.parseLong(corrId), header);
+        } catch (Exception e) {
+            logger.warn("Failed to process response headers for demand-driven stream", e);
+        }
+    }
+
     @Override
     public void cancel(String reason, Throwable cause) {
         if (closed) return;
         try {
+            if (demandStream != null) demandStream.cancel(reason, cause);
             if (flightStream != null) flightStream.cancel(reason, cause);
         } catch (Exception e) {
             logger.warn("Error cancelling flight stream", e);
@@ -169,6 +243,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         if (closed) return;
         closed = true;
 
+        if (demandStream != null) {
+            try {
+                demandStream.close();
+            } catch (Exception e) {
+                logger.debug("Error closing demand-driven stream", e);
+            }
+        }
         if (flightStream != null) {
             try {
                 flightStream.close();

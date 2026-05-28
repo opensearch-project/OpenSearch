@@ -110,16 +110,19 @@ public class DatafusionResultStream implements EngineResultStream {
             }
         }
 
+        private static final long ALLOCATOR_PRESSURE_PERCENT = 85;
+        private static final long PRESSURE_BACKOFF_MS = 50;
+        private static final int MAX_PRESSURE_WAITS = 200;
+
         private boolean loadNextBatch() {
             ensureSchema();
             if (nativeStreamExhausted) return false;
+            waitForAllocatorHeadroom();
             long arrayAddr = callNativeFn(
                 listener -> NativeBridge.streamNext(streamHandle.getRuntimeHandle().get(), streamHandle.getPointer(), listener)
             );
             if (arrayAddr == 0) {
                 nativeStreamExhausted = true;
-                // Streaming Flight requires ≥1 schema-bearing frame before completeStream;
-                // synthesise a zero-row batch carrying the schema for empty native streams.
                 if (!batchEmitted) {
                     nextBatch = VectorSchemaRoot.create(schema, allocator);
                     nextBatch.setRowCount(0);
@@ -135,6 +138,26 @@ public class DatafusionResultStream implements EngineResultStream {
             nextBatch = freshRoot;
             batchEmitted = true;
             return true;
+        }
+
+        private void waitForAllocatorHeadroom() {
+            org.apache.arrow.memory.BufferAllocator parent = allocator;
+            while (parent.getParentAllocator() != null) {
+                parent = parent.getParentAllocator();
+            }
+            long limit = parent.getLimit();
+            if (limit == Long.MAX_VALUE) return;
+            for (int i = 0; i < MAX_PRESSURE_WAITS; i++) {
+                if (parent.getAllocatedMemory() < limit * ALLOCATOR_PRESSURE_PERCENT / 100) {
+                    return;
+                }
+                try {
+                    Thread.sleep(PRESSURE_BACKOFF_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
         }
 
         @Override

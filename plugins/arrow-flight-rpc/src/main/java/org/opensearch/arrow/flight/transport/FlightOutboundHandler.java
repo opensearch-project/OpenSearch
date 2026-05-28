@@ -131,13 +131,14 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             return;
         }
 
-        flightChannel.getExecutor().execute(threadPool.getThreadContext().preserveContext(() -> {
-            try (BatchTask ignored = task) {
-                processBatchTask(task);
-            } catch (Exception e) {
-                messageListener.onResponseSent(requestId, action, e);
-            }
-        }));
+        // Execute synchronously on the caller's thread to apply backpressure:
+        // the producer blocks here until gRPC is ready for the next batch,
+        // preventing unbounded batch accumulation in the Arrow allocator.
+        try (BatchTask ignored = task) {
+            processBatchTask(task);
+        } catch (Exception e) {
+            messageListener.onResponseSent(requestId, action, e);
+        }
     }
 
     private void processBatchTask(BatchTask task) {

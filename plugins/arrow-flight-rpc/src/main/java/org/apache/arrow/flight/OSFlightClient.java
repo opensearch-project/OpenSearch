@@ -109,6 +109,7 @@ public class OSFlightClient {
             return this;
         }
 
+
         /** Create the client from this builder. */
         public FlightClient build() {
             final NettyChannelBuilder builder;
@@ -220,7 +221,8 @@ public class OSFlightClient {
                 builder.eventLoopGroup(workerELG);
             }
  
-            return new FlightClient(allocator, builder.build(), middleware);
+            io.grpc.ManagedChannel channel = builder.build();
+            return new FlightClientWithChannel(allocator, channel, middleware);
         }
 
         public Builder executor(ExecutorService executorService) {
