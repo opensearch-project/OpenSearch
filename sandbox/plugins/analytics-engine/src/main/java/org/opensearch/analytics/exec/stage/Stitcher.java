@@ -15,12 +15,11 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSink;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -73,8 +72,9 @@ public final class Stitcher {
     private final int aboveColCount;
     private final ExchangeSink parentSink;
     private final AtomicInteger pendingShards;
-    private final List<Exception> failures = new ArrayList<>();
+    private final ConcurrentLinkedQueue<Exception> failures = new ConcurrentLinkedQueue<>();
     private final Runnable onComplete;
+    private final Object outputLock = new Object();
 
     public Stitcher(
         BufferAllocator allocator,
@@ -105,68 +105,41 @@ public final class Stitcher {
      * fetch cols ordered as the request's {@code columns[]} (excluding the helper). The
      * helper column is identified by name and skipped during copy.
      */
-    public synchronized void acceptBatch(VectorSchemaRoot batch, int[] positions, int rowsCopiedSoFar) {
-        int rowIdIdx = batch.getSchema().getFields().indexOf(batch.getSchema().findField(OpenSearchLateMaterialization.ROW_ID_FIELD));
-        if (rowIdIdx < 0) {
-            throw new IllegalStateException(
-                "Fetch response missing " + OpenSearchLateMaterialization.ROW_ID_FIELD + " column; got " + batch.getSchema()
-            );
-        }
-        int batchRows = batch.getRowCount();
-        if (rowsCopiedSoFar + batchRows > positions.length) {
-            throw new IllegalStateException(
-                "Shard returned more rows than requested: positions.length="
-                    + positions.length
-                    + " rowsCopiedSoFar="
-                    + rowsCopiedSoFar
-                    + " batchRows="
-                    + batchRows
-            );
-        }
-        int responseColCount = batch.getSchema().getFields().size();
-        for (int srcRow = 0; srcRow < batchRows; srcRow++) {
-            int dstRow = positions[rowsCopiedSoFar + srcRow];
-            int outCol = 0;
-            for (int srcCol = 0; srcCol < responseColCount; srcCol++) {
-                if (srcCol == rowIdIdx) continue;
-                if (outCol >= aboveColCount) {
-                    throw new IllegalStateException(
-                        "Response column count exceeds output schema: outCol=" + outCol + " aboveColCount=" + aboveColCount
-                    );
-                }
-                FieldVector srcVec = (FieldVector) batch.getVector(srcCol);
-                FieldVector dstVec = output.getVector(outCol);
-                // FIXME [RemoveBeforeMainMerge] diagnostics for Stitcher copyFromSafe — log every
-                // column on the first row of the first batch so we see all type pairings.
-                if (srcRow == 0 && rowsCopiedSoFar == 0) {
-                    logger.info(
-                        "FIXME [RemoveBeforeMainMerge] Stitcher col {}: src(name={}, minorType={}, type={}) → dst(name={}, minorType={}, type={})",
-                        outCol,
-                        srcVec.getName(),
-                        srcVec.getMinorType(),
-                        srcVec.getField().getType(),
-                        dstVec.getName(),
-                        dstVec.getMinorType(),
-                        dstVec.getField().getType()
-                    );
-                }
-                try {
+    public void acceptBatch(VectorSchemaRoot batch, int[] positions, int rowsCopiedSoFar) {
+        synchronized (outputLock) {
+            int rowIdIdx = batch.getSchema().getFields().indexOf(batch.getSchema().findField(OpenSearchLateMaterialization.ROW_ID_FIELD));
+            if (rowIdIdx < 0) {
+                throw new IllegalStateException(
+                    "Fetch response missing " + OpenSearchLateMaterialization.ROW_ID_FIELD + " column; got " + batch.getSchema()
+                );
+            }
+            int batchRows = batch.getRowCount();
+            if (rowsCopiedSoFar + batchRows > positions.length) {
+                throw new IllegalStateException(
+                    "Shard returned more rows than requested: positions.length="
+                        + positions.length
+                        + " rowsCopiedSoFar="
+                        + rowsCopiedSoFar
+                        + " batchRows="
+                        + batchRows
+                );
+            }
+            int responseColCount = batch.getSchema().getFields().size();
+            for (int srcRow = 0; srcRow < batchRows; srcRow++) {
+                int dstRow = positions[rowsCopiedSoFar + srcRow];
+                int outCol = 0;
+                for (int srcCol = 0; srcCol < responseColCount; srcCol++) {
+                    if (srcCol == rowIdIdx) continue;
+                    if (outCol >= aboveColCount) {
+                        throw new IllegalStateException(
+                            "Response column count exceeds output schema: outCol=" + outCol + " aboveColCount=" + aboveColCount
+                        );
+                    }
+                    FieldVector srcVec = batch.getVector(srcCol);
+                    FieldVector dstVec = output.getVector(outCol);
                     dstVec.copyFromSafe(srcRow, dstRow, srcVec);
-                } catch (RuntimeException e) {
-                    logger.error(
-                        new ParameterizedMessage(
-                            "FIXME [RemoveBeforeMainMerge] copyFromSafe FAILED at col {}: src(minorType={}, type={}) → dst(minorType={}, type={})",
-                            outCol,
-                            srcVec.getMinorType(),
-                            srcVec.getField().getType(),
-                            dstVec.getMinorType(),
-                            dstVec.getField().getType()
-                        ),
-                        e
-                    );
-                    throw e;
+                    outCol++;
                 }
-                outCol++;
             }
         }
     }
@@ -187,8 +160,8 @@ public final class Stitcher {
      * — we don't fast-cancel. When the LM stage gains a {@code cancel(reason)} path that
      * propagates to in-flight transports, hook it here.
      */
-    public synchronized void shardFailed(Exception e) {
-        failures.add(e);
+    public void shardFailed(Exception e) {
+        failures.offer(e);
         if (pendingShards.decrementAndGet() == 0) {
             finish();
         }
@@ -216,11 +189,11 @@ public final class Stitcher {
      * Returns the surfaceable failure: the first one collected, with subsequent failures
      * attached as {@code addSuppressed}. {@code null} if no shard failed.
      */
-    public synchronized Exception surfaceableFailure() {
-        if (failures.isEmpty()) return null;
-        Exception primary = failures.get(0);
-        for (int i = 1; i < failures.size(); i++) {
-            primary.addSuppressed(failures.get(i));
+    public Exception surfaceableFailure() {
+        Exception primary = failures.poll();
+        if (primary == null) return null;
+        for (Exception next; (next = failures.poll()) != null;) {
+            primary.addSuppressed(next);
         }
         return primary;
     }
