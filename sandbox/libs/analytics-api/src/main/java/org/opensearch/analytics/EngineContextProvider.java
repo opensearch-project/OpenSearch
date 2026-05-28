@@ -38,11 +38,11 @@ public interface EngineContextProvider {
      * {@link OpenSearchSchemaBuilder#buildSchema(ClusterState)}. Engine implementations that
      * already carry an {@code IndexNameExpressionResolver} should override this to reuse it.
      */
-    default EngineContext getContext(ClusterState clusterState) {
-        return new EngineContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState));
+    default QueryRequestContext getContext(ClusterState clusterState) {
+        return new QueryRequestContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState));
     }
 
-    EngineContext getContext();
+    QueryRequestContext getContext();
 
     /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.
@@ -52,6 +52,8 @@ public interface EngineContextProvider {
      * @param e the exception from query execution
      * @return converted exception with correct HTTP status semantics, or {@code e} unchanged
      */
+    // TODO: not called by front-ends — only DefaultPlanExecutor invokes this on its own
+    //  EngineContextProvider. Move off the front-end-facing API surface or drop entirely.
     default Exception convertException(Exception e) {
         return e;
     }

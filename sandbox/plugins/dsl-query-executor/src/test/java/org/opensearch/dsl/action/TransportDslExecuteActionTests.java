@@ -18,7 +18,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.analytics.EngineContextProvider;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -126,7 +126,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
     }
 
     private EngineContextProvider buildEngineContext() {
-        EngineContext ctx = new EngineContext(null, buildSchema());
+        QueryRequestContext ctx = new QueryRequestContext(null, buildSchema());
         return () -> ctx;
     }
 

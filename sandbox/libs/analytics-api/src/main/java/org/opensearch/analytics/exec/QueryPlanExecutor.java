@@ -8,7 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.core.action.ActionListener;
 
@@ -27,7 +27,7 @@ public interface QueryPlanExecutor<LogicalPlan, Stream> {
      * @param queryCtx per-query snapshot ({@code null} → executor reads a fresh cluster state)
      * @param listener receives the produced stream on success, or the failure cause on error
      */
-    void execute(LogicalPlan plan, EngineContext queryCtx, ActionListener<Stream> listener);
+    void execute(LogicalPlan plan, QueryRequestContext queryCtx, ActionListener<Stream> listener);
 
     /**
      * Executes the given logical fragment with profiling enabled. Captures per-stage
@@ -38,7 +38,7 @@ public interface QueryPlanExecutor<LogicalPlan, Stream> {
      * @param queryCtx per-query snapshot ({@code null} → executor reads a fresh cluster state)
      * @param listener receives the profiled result on success, or the failure cause on error
      */
-    default void executeWithProfile(LogicalPlan plan, EngineContext queryCtx, ActionListener<ProfiledResult> listener) {
+    default void executeWithProfile(LogicalPlan plan, QueryRequestContext queryCtx, ActionListener<ProfiledResult> listener) {
         listener.onFailure(new UnsupportedOperationException(getClass().getSimpleName() + " does not support executeWithProfile"));
     }
 }

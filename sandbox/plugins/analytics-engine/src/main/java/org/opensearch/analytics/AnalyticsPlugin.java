@@ -208,13 +208,13 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         AnalyticsSearchBackendPlugin> backends) implements EngineContextProvider {
 
         @Override
-        public EngineContext getContext(ClusterState clusterState) {
+        public QueryRequestContext getContext(ClusterState clusterState) {
             SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver);
-            return new EngineContext(clusterState, schema);
+            return new QueryRequestContext(clusterState, schema);
         }
 
         @Override
-        public EngineContext getContext() {
+        public QueryRequestContext getContext() {
             return getContext(clusterService.state());
         }
 
