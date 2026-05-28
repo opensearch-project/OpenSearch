@@ -39,7 +39,6 @@ import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -198,6 +197,22 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     /**
+     * Multiplexes tragic-exception detection across primary and secondary engines.
+     * Returns the first non-null tragic exception found (primary checked first), or
+     * {@code null} if every delegate is healthy.
+     */
+    @Override
+    public Exception getTragicException() {
+        Exception primaryTragic = primaryEngine.getTragicException();
+        if (primaryTragic != null) return primaryTragic;
+        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+            Exception tragic = engine.getTragicException();
+            if (tragic != null) return tragic;
+        }
+        return null;
+    }
+
+    /**
      * Refreshes all per-format engines and merges their results into a unified list of
      * {@link Segment} instances. Each segment groups its per-format {@link WriterFileSet}
      * entries by writer generation.
@@ -217,10 +232,15 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
 
         // Assemble per-gen segments from all formats
+        Map<DataFormat, RefreshResult> resultsByFormat = new LinkedHashMap<>();
+        resultsByFormat.put(primaryEngine.getDataFormat(), primary);
+        int i = 0;
+        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+            resultsByFormat.put(engine.getDataFormat(), secResults.get(i++));
+        }
         Map<Long, Segment.Builder> mergedByGen = new LinkedHashMap<>();
-        buildSegment(primary, mergedByGen);
-        for (RefreshResult secResult : secResults) {
-            buildSegment(secResult, mergedByGen);
+        for (Map.Entry<DataFormat, RefreshResult> entry : resultsByFormat.entrySet()) {
+            buildSegment(entry.getKey(), entry.getValue(), mergedByGen);
         }
 
         List<Segment> newSegments = new ArrayList<>(mergedByGen.size());
@@ -325,12 +345,17 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return totalBytes <= maxBytes;
     }
 
-    private void buildSegment(RefreshResult primary, Map<Long, Segment.Builder> mergedByGen) {
-        for (Segment seg : primary.refreshedSegments()) {
+    /**
+     * Adds only the {@code ownFormat}'s {@link WriterFileSet} from each segment in
+     * {@code result.refreshedSegments()} into {@code mergedByGen}. Any other formats present
+     * in the per-engine result (e.g. echoed back from {@link RefreshInput#writerFiles()}) are
+     * intentionally ignored so each format's authoritative entry comes solely from its own engine.
+     */
+    private void buildSegment(DataFormat ownFormat, RefreshResult result, Map<Long, Segment.Builder> mergedByGen) {
+        for (Segment seg : result.refreshedSegments()) {
+            WriterFileSet ownFiles = seg.dfGroupedSearchableFiles().get(ownFormat.name());
             Segment.Builder builder = mergedByGen.computeIfAbsent(seg.generation(), Segment::builder);
-            for (Map.Entry<String, WriterFileSet> entry : seg.dfGroupedSearchableFiles().entrySet()) {
-                builder.addSearchableFiles(entry.getKey(), entry.getValue());
-            }
+            builder.addSearchableFiles(ownFormat, ownFiles);
         }
     }
 
@@ -452,17 +477,22 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             {
                 Map<DataFormat, IndexStoreProvider> tempProviders = new HashMap<>();
                 tempProviders.put(primaryEngine.getDataFormat(), primaryEngine.getProvider());
-                tempProviders.putAll(
-                    secondaryEngines.stream()
-                        .map(eng -> new AbstractMap.SimpleEntry<>(eng.getDataFormat(), eng.getProvider()))
-                        .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue))
-                );
+                if (primaryEngine.getProvider() == null) {
+                    logger.debug("IndexStoreProvider is null for primary engine [{}]", primaryEngine.getDataFormat().name());
+                }
+                for (IndexingExecutionEngine<?, ?> eng : secondaryEngines) {
+                    tempProviders.put(eng.getDataFormat(), eng.getProvider());
+                    if (eng.getProvider() == null) {
+                        logger.debug("IndexStoreProvider is null for secondary engine [{}]", eng.getDataFormat().name());
+                    }
+                }
                 providers = tempProviders;
             }
 
             @Override
             public FormatStore getStore(DataFormat dataFormat) {
-                return providers.get(dataFormat).getStore(dataFormat);
+                IndexStoreProvider provider = providers.get(dataFormat);
+                return provider != null ? provider.getStore(dataFormat) : null;
             }
         };
     }

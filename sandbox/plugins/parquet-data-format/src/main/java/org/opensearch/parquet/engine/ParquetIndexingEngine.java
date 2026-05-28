@@ -254,14 +254,15 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public Writer<ParquetDocumentInput> createWriter(WriterConfig config) {
         long mappingVersion = mappingVersionSupplier.get();
-        Schema schema = getOrBuildSchema(mappingVersion);
+        Schema schema = getOrBuildSchema();
         Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
         return new ParquetWriter(
             filePath.toString(),
             config.writerGeneration(),
-            mappingVersion,
+            0L,
             dataFormat,
             schema,
+            this::getOrBuildSchema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -329,13 +330,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return null;
     }
 
-    private Schema getOrBuildSchema(long mappingVersion) {
-        if (cachedSchemaVersion == mappingVersion && cachedSchema != null) {
-            return cachedSchema;
-        }
-        cachedSchema = schemaSupplier.get();
-        cachedSchemaVersion = mappingVersion;
-        return cachedSchema;
+    private Schema getOrBuildSchema() {
+        return schemaSupplier.get();
     }
 
     @Override

@@ -215,6 +215,20 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         return fileName.startsWith(IndexFileNames.SEGMENTS) || fileName.equals(IndexWriter.WRITE_LOCK_NAME);
     }
 
+    @Override
+    public void markStoreCorrupted(IOException cause) {
+        if (store.tryIncRef() == false) {
+            return;
+        }
+        try {
+            store.markStoreCorrupted(cause);
+        } catch (IOException e) {
+            logger.warn("Couldn't mark store corrupted", e);
+        } finally {
+            store.decRef();
+        }
+    }
+
     /**
      * Builds upload-time Lucene {@code SegmentInfos} bytes from the {@link DirectoryReader}
      * registered for this {@code catalogSnapshot} (opened at that snapshot's refresh point).
