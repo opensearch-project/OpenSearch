@@ -136,7 +136,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE, readerContextStore::setKeepAlive);
         searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry, readerContextStore);
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, indexNameExpressionResolver, backEndsByName);
+        DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
