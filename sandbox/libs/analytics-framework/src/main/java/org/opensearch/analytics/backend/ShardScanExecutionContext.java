@@ -14,6 +14,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.ShuffleBufferRegistry;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.mapper.MapperService;
@@ -38,6 +39,7 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private ShuffleBufferRegistry shuffleBufferRegistry;
     private QueryCache queryCache;
     private QueryCachingPolicy queryCachingPolicy;
+    private ShardId shardId;
 
     /**
      * Constructs an execution context.
@@ -151,5 +153,13 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     /** Sets the query caching policy. */
     public void setQueryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
         this.queryCachingPolicy = queryCachingPolicy;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public void setShardId(ShardId shardId) {
+        this.shardId = shardId;
     }
 }

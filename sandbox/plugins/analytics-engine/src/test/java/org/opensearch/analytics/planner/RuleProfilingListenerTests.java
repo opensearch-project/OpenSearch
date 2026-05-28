@@ -34,6 +34,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     private static final Logger LOGGER = LogManager.getLogger(RuleProfilingListenerTests.class);
 
     private static final List<String> EXPECTED_PHASES = List.of(
+        "subquery-remove",
         "reduce-expressions",
         "pushdown-rules",
         "aggregate-decompose",

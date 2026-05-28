@@ -68,7 +68,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     public void testNonJoinQueryReturnsCoordinatorCentric() {
         PlannerContext context = buildMppContext(Map.of("idx", 1), Map.of("idx", SMALL), /* mppEnabled */ true);
         RelNode marked = PlannerImpl.createPlan(stubScan(mockTable("idx", "status", "size")), context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
 
         assertFalse("scan-only DAG must not be counted as a join", JoinStrategyAdvisor.containsJoin(dag));
         assertEquals(JoinStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
@@ -136,7 +136,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
 
     private QueryDAG buildDag(RelNode logicalJoin, PlannerContext context) {
         RelNode optimized = PlannerImpl.createPlan(logicalJoin, context);
-        return DAGBuilder.build(optimized, context.getCapabilityRegistry(), mockClusterService());
+        return DAGBuilder.build(optimized, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
     }
 
     private RelNode makeInnerEquiJoin(String leftIdx, String rightIdx) {

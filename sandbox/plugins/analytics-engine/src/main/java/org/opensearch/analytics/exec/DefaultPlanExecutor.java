@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
@@ -97,6 +98,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
+    private final org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public DefaultPlanExecutor(
@@ -110,7 +112,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         Scheduler scheduler,
         JoinStrategyMetrics joinStrategyMetrics,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle,
-        org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager
+        org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager,
+        org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
@@ -133,6 +136,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -198,10 +202,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ToLongFunction<String> tableRowCounts = IndexRowCountFetcher.fetchFor(logicalFragment, client);
         RelNode plan = PlannerImpl.createPlan(
             logicalFragment,
-            new PlannerContext(capabilityRegistry, clusterService.state(), perQuerySettings, tableRowCounts, profile)
+            new PlannerContext(
+                capabilityRegistry,
+                clusterService.state(),
+                perQuerySettings,
+                tableRowCounts,
+                indexNameExpressionResolver,
+                profile
+            )
         );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
+        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
 
         // Join strategy resolution under the CBO-driven model:
         // - The Volcano CBO already chose between coord-centric, broadcast, and hash-shuffle
@@ -316,8 +327,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // the owning allocator — this runAfter is the only path that does. Without it, every
         // broadcast query leaks its per-query Arrow allocator (and any failed/cancelled query
         // that bails before QueryExecution is even constructed leaks unconditionally).
+        final List<String> outputColumnOrder = logicalFragment.getRowType().getFieldNames();
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
-            ActionListener.wrap(batches -> rowsListener.onResponse(batchesToRows(batches)), rowsListener::onFailure),
+            ActionListener.wrap(batches -> rowsListener.onResponse(batchesToRows(batches, outputColumnOrder)), rowsListener::onFailure),
             () -> {
                 try {
                     context.close();
@@ -537,24 +549,44 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
      * <p>Package-private for unit testing.
      */
     static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
+        return batchesToRows(batches, null);
+    }
+
+    static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches, List<String> targetColumnOrder) {
         List<Object[]> rows = new ArrayList<>();
         for (VectorSchemaRoot batch : batches) {
             try {
-                int colCount = batch.getFieldVectors().size();
+                List<FieldVector> ordered = orderedColumns(batch, targetColumnOrder);
+                int colCount = ordered.size();
                 int rowCount = batch.getRowCount();
                 for (int r = 0; r < rowCount; r++) {
                     Object[] row = new Object[colCount];
                     for (int c = 0; c < colCount; c++) {
-                        row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+                        row[c] = ArrowValues.toJavaValue(ordered.get(c), r);
                     }
                     rows.add(row);
                 }
             } finally {
-                // Release the Arrow buffers back to the query allocator. Without this the
-                // query teardown's allocator.close() detects a leak and fails the query.
                 batch.close();
             }
         }
         return rows;
+    }
+
+    private static List<FieldVector> orderedColumns(VectorSchemaRoot batch, List<String> targetColumnOrder) {
+        if (targetColumnOrder == null || targetColumnOrder.isEmpty()) {
+            return batch.getFieldVectors();
+        }
+        List<FieldVector> ordered = new ArrayList<>(targetColumnOrder.size());
+        for (String name : targetColumnOrder) {
+            FieldVector vector = batch.getVector(name);
+            if (vector == null) {
+                throw new IllegalStateException(
+                    "Column [" + name + "] expected by plan row type not found in batch schema: " + batch.getSchema().getFields()
+                );
+            }
+            ordered.add(vector);
+        }
+        return ordered;
     }
 }

@@ -88,6 +88,7 @@ integTest {
     systemProperty 'tests.security.manager', 'false'
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
+    exclude '**/QueryCacheIT.class'
 }
 
 // ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────
@@ -106,6 +107,24 @@ testClusters.integTestMemtable {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
     setting 'datafusion.reduce.input_mode', 'memtable'
+}
+
+// ── Query cache variant: all_segments=true for cache testing ─────────────────
+task integTestQueryCache(type: RestIntegTestTask) {
+    description = 'Runs query cache tests with all_segments=true to bypass segment size threshold'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.QueryCacheIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestQueryCache)
+
+testClusters.integTestQueryCache {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'indices.queries.cache.all_segments', 'true'
 }
 
 // ── Streaming variant: 2 nodes, Arrow Flight stream transport enabled ────────

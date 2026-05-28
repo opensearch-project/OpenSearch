@@ -999,6 +999,40 @@ fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::Re
     }
 }
 
+/// All `ReadRel`s reachable from the plan's roots.
+fn collect_plan_reads(plan: &substrait::proto::Plan) -> Vec<substrait::proto::ReadRel> {
+    let mut reads = Vec::new();
+    for plan_rel in &plan.relations {
+        if let Some(rel) = root_rel(plan_rel) {
+            collect_reads(&rel, &mut reads);
+        }
+    }
+    reads
+}
+
+/// Extracts the table name from the first NamedTable read in the plan bytes.
+pub(crate) fn first_named_table_name(plan_bytes: &[u8]) -> Option<String> {
+    use substrait::proto::read_rel::ReadType;
+    let plan: substrait::proto::Plan = prost::Message::decode(plan_bytes).ok()?;
+    for read in collect_plan_reads(&plan) {
+        if let Some(ReadType::NamedTable(nt)) = read.read_type {
+            return nt.names.last().cloned();
+        }
+    }
+    None
+}
+
+/// Extracts the `base_schema` NamedStruct from the plan's first ReadRel matching `table_name`.
+pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &str) -> Option<substrait::proto::NamedStruct> {
+    use substrait::proto::read_rel::ReadType;
+    for read in collect_plan_reads(plan) {
+        let Some(ReadType::NamedTable(nt)) = read.read_type.as_ref() else { continue };
+        if nt.names.last().map(String::as_str) != Some(table_name) { continue }
+        return read.base_schema.clone();
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // Coordinator-reduce local execution API
 //
@@ -1383,6 +1417,16 @@ mod tests {
             Arc::ptr_eq(&string_view_array, compacted.column(0)),
             "Non-sliced batch must return the original column Arc (no copy)"
         );
+    }
+
+    #[test]
+    fn test_first_named_table_name_returns_none_on_empty() {
+        assert_eq!(super::first_named_table_name(&[]), None);
+    }
+
+    #[test]
+    fn test_first_named_table_name_returns_none_on_garbage() {
+        assert_eq!(super::first_named_table_name(&[0xFF, 0x00, 0x01]), None);
     }
 
     #[test]

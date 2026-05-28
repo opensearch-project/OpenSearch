@@ -24,6 +24,7 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,6 +90,7 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
+        modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
@@ -112,6 +114,42 @@ public class PlannerImpl {
             LOGGER.info("Planner profile:\n{}", profile.format());
         }
         return modifiedRelNode;
+    }
+
+    /**
+     * Phase 0: lower {@link org.apache.calcite.rex.RexSubQuery}s (EXISTS / IN / SOME / ANY,
+     * including the PPL {@code subsearch} shapes that the frontend lowers to them) into
+     * {@code LogicalCorrelate} via the three {@code *_SUB_QUERY_TO_CORRELATE} rules, then
+     * decorrelate back to a standard join shape. Without this phase, downstream rules see
+     * a {@code RexSubQuery} inside a filter / project predicate and either reject the
+     * operator outright (e.g. {@link org.opensearch.analytics.planner.rules.OpenSearchFilterRule}
+     * resolves leaf predicates through a {@code ScalarFunction} table that doesn't and
+     * shouldn't cover {@code EXISTS}) or carry the un-removed subquery into substrait
+     * emission. Runs first so every later phase observes a subquery-free tree.
+     */
+    private static RelNode removeSubQueries(RelNode input, RuleProfilingListener listener) {
+        HepProgramBuilder builder = new HepProgramBuilder();
+        builder.addRuleCollection(
+            List.of(
+                CoreRules.FILTER_SUB_QUERY_TO_CORRELATE,
+                CoreRules.PROJECT_SUB_QUERY_TO_CORRELATE,
+                CoreRules.JOIN_SUB_QUERY_TO_CORRELATE
+            )
+        );
+        HepPlanner planner = new HepPlanner(builder.build());
+        if (listener != null) {
+            planner.addListener(listener);
+            listener.beginPhase("subquery-remove");
+        }
+        try {
+            planner.setRoot(input);
+            RelNode withCorrelates = planner.findBestExp();
+            // RexSubQuery removal introduces LogicalCorrelate; decorrelate back to a
+            // straight join shape that the marking + capability rules already handle.
+            return RelDecorrelator.decorrelateQuery(withCorrelates, RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null));
+        } finally {
+            if (listener != null) listener.endPhase("subquery-remove");
+        }
     }
 
     /**

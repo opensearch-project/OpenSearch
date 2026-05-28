@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -52,8 +53,12 @@ import java.util.Map;
  *       before substrait emission. The {@code bySpan} cases assert exact per-bucket rows.</li>
  *   <li>{@code streamstats dc / distinct_count / earliest / latest / percentile / median / mode}
  *       — not in {@link org.opensearch.analytics.spi.WindowFunction} enum.</li>
- *   <li>{@code testLeftJoinWithStreamstats} / {@code testWhereInWithStreamstatsSubquery} — test
- *       streamstats embedded in joins/subqueries, not exercised on the analytics-engine route.</li>
+ *   <li>{@code testLeftJoinWithStreamstats} — streamstats inside a left-join, not exercised on
+ *       the analytics-engine route yet.</li>
+ *   <li>{@code testWhereInWithStreamstatsSubquery} — reachable on the analytics-engine route via
+ *       PlannerImpl's subquery-remove phase, but the streamstats-inside-decorrelated-correlate
+ *       shape has a nondeterministic multi-node execution race today. Marked {@code @AwaitsFix}
+ *       until the downstream race is closed.</li>
  * </ul>
  *
  * <h2>Note on row order determinism</h2>
@@ -958,7 +963,18 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
     }
 
     /** sql IT: testWhereInWithStreamstatsSubquery. WHERE-IN with streamstats subquery — uses
-     *  semi-join lowering inside the subquery. */
+     *  semi-join lowering inside the subquery. After PlannerImpl's subquery-remove phase the
+     *  RexSubQuery becomes a decorrelated correlate, but the streamstats-inside-correlate
+     *  shape is nondeterministic on multi-node execution: sometimes errors with
+     *  {@code Stage 0 sink feed failed: partition stream receiver dropped before send},
+     *  sometimes returns one row successfully. Neither a positive nor a broad-failure
+     *  assertion is stable across runs. Skipped until the downstream multi-node race is
+     *  fixed — re-enable by removing {@code @AwaitsFix}. */
+    @AwaitsFix(
+        bugUrl = "streamstats-inside-decorrelated-correlate has a nondeterministic multi-node"
+            + " execution race; needs a downstream analytics-engine fix before this test can"
+            + " assert a deterministic outcome"
+    )
     public void testWhereInWithStreamstatsSubquery() throws IOException {
         ensureDataProvisioned();
         assertErrorAny(

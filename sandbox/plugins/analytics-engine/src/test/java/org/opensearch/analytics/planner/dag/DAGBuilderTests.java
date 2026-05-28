@@ -43,7 +43,7 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(logicalPlan));
         RelNode cboOutput = runPlanner(logicalPlan, context);
         LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         LOGGER.info("QueryDAG:\n{}", dag);
         return dag;
     }
@@ -122,7 +122,7 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
             customInfo
         );
 
-        QueryDAG dag = DAGBuilder.build(customReducer, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(customReducer, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         Stage child = dag.rootStage().getChildStages().get(0);
         assertEquals(customInfo, child.getExchangeInfo());
     }
