@@ -498,7 +498,14 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Sort indexSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
         try (
             LuceneWriter writer = new LuceneWriter(
-                1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort, ConcurrentHashMap.newKeySet()
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                indexSort,
+                ConcurrentHashMap.newKeySet()
             )
         ) {
             MappedFieldType textField = mockTextField("content");
@@ -539,7 +546,14 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         for (Sort sort : new Sort[] { null, indexSort }) {
             try (
                 LuceneWriter writer = new LuceneWriter(
-                    1L, 0L, dataFormat, createTempDir(), null, Codec.getDefault(), sort, ConcurrentHashMap.newKeySet()
+                    1L,
+                    0L,
+                    dataFormat,
+                    createTempDir(),
+                    null,
+                    Codec.getDefault(),
+                    sort,
+                    ConcurrentHashMap.newKeySet()
                 )
             ) {
                 MappedFieldType textField = mockTextField("content");

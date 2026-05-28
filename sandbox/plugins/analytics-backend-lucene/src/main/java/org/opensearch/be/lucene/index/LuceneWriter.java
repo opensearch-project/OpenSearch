@@ -745,9 +745,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
         } finally {
             registry.remove(this);
-            IOUtils.rm(tempDirectory);
+            if (flushed == false) IOUtils.rm(tempDirectory);
+            state = WriterState.CLOSED;
         }
-        state = WriterState.CLOSED;
     }
 
     /**
