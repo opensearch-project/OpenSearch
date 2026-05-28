@@ -17,8 +17,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Map;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
@@ -28,14 +26,14 @@ import static org.mockito.Mockito.when;
 
 /**
  * Pins the security-wiring contract for {@link AnalyticsPlugin.DefaultEngineContext}:
- * {@code getSchema()} must thread the cluster's {@link IndexNameExpressionResolver} (which carries
- * security-plugin extensions and system-index access rules) into
+ * {@code getContext()} must thread the cluster's {@link IndexNameExpressionResolver} (which
+ * carries security-plugin extensions and system-index access rules) into
  * {@code OpenSearchSchemaBuilder.buildSchema}, not silently construct a fresh resolver. A
  * regression to the single-arg buildSchema(state) overload would bypass those checks.
  */
 public class DefaultEngineContextTests extends OpenSearchTestCase {
 
-    public void testGetSchemaUsesInjectedResolver() {
+    public void testGetContextUsesInjectedResolver() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().build()).build();
         when(clusterService.state()).thenReturn(clusterState);
@@ -50,14 +48,9 @@ public class DefaultEngineContextTests extends OpenSearchTestCase {
             )
         ).thenReturn(new String[0]);
 
-        AnalyticsPlugin.DefaultEngineContext ctx = new AnalyticsPlugin.DefaultEngineContext(
-            clusterService,
-            injectedResolver,
-            null,
-            Map.of()
-        );
+        AnalyticsPlugin.DefaultEngineContext ctx = new AnalyticsPlugin.DefaultEngineContext(clusterService, injectedResolver, null);
 
-        SchemaPlus schema = ctx.getSchema();
+        SchemaPlus schema = ctx.getContext().schema();
         // Trigger a lazy resolve so the resolver is actually invoked. Cluster state has no
         // indices, so the lookup returns null — but the resolver gets called along the way
         // (in IndexResolution.resolve's fallback path), which is what we're pinning.

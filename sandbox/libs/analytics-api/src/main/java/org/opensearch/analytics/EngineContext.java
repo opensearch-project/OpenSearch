@@ -9,7 +9,6 @@
 package org.opensearch.analytics;
 
 import org.apache.calcite.schema.SchemaPlus;
-import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterState;
 
@@ -18,8 +17,7 @@ import org.opensearch.cluster.ClusterState;
  *
  * <p>Provides everything a front-end needs for query validation and planning:
  * <ul>
- *   <li>{@link #getSchema()} — Calcite schema with tables/fields/types derived from cluster state</li>
- *   <li>{@link #operatorTable()} — supported functions/operators aggregated from all back-end engines</li>
+ *   <li>{@link #getContext()} — Calcite schema with tables/fields/types derived from cluster state</li>
  * </ul>
  *
  * <p>Front-ends do not need to know about cluster state or individual back-end
@@ -28,18 +26,6 @@ import org.opensearch.cluster.ClusterState;
  * @opensearch.internal
  */
 public interface EngineContext {
-
-    /**
-     * Returns a Calcite schema reflecting the current cluster state.
-     * Tables and field types are resolved from index mappings.
-     */
-    SchemaPlus getSchema();
-
-    /**
-     * Returns the operator table containing all functions supported
-     * by at least one registered back-end engine.
-     */
-    SqlOperatorTable operatorTable();
 
     /**
      * Capture a per-query immutable view bound to the given cluster-state snapshot. The
@@ -52,9 +38,11 @@ public interface EngineContext {
      * {@link OpenSearchSchemaBuilder#buildSchema(ClusterState)}. Engine implementations that
      * already carry an {@code IndexNameExpressionResolver} should override this to reuse it.
      */
-    default QueryEngineContext snapshot(ClusterState clusterState) {
+    default QueryEngineContext getContext(ClusterState clusterState) {
         return new QueryEngineContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState));
     }
+
+    QueryEngineContext getContext();
 
     /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.

@@ -68,7 +68,7 @@ public class UnifiedQueryService {
         // Wrap the SchemaPlus in a delegating AbstractSchema that preserves lazy table resolution.
         // The underlying OpenSearchSchemaBuilder resolves wildcard/comma/exclusion expressions
         // lazily via getTable(name) — a static copy would lose that.
-        SchemaPlus schemaPlus = engineContext.getSchema();
+        SchemaPlus schemaPlus = engineContext.getContext().schema();
         AbstractSchema delegatingSchema = new AbstractSchema() {
             @Override
             protected Map<String, Table> getTableMap() {

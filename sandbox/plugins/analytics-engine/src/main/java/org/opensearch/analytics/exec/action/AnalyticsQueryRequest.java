@@ -13,6 +13,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.analytics.QueryEngineContext;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -30,12 +31,12 @@ import java.io.IOException;
 public class AnalyticsQueryRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private final transient RelNode plan;
-    private final transient Object context;
+    private final transient QueryEngineContext queryCtx;
     private String[] indices;
 
-    public AnalyticsQueryRequest(RelNode plan, Object context, String[] indices) {
+    public AnalyticsQueryRequest(RelNode plan, QueryEngineContext queryCtx, String[] indices) {
         this.plan = plan;
-        this.context = context;
+        this.queryCtx = queryCtx;
         this.indices = indices;
     }
 
@@ -53,8 +54,8 @@ public class AnalyticsQueryRequest extends ActionRequest implements IndicesReque
         return plan;
     }
 
-    public Object getContext() {
-        return context;
+    public QueryEngineContext getQueryCtx() {
+        return queryCtx;
     }
 
     @Override

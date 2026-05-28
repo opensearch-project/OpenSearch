@@ -83,7 +83,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             try {
                 String indexName = resolveToSingleIndex(request);
                 long convertStart = System.nanoTime();
-                SearchSourceConverter converter = new SearchSourceConverter(engineContext.getSchema());
+                SearchSourceConverter converter = new SearchSourceConverter(engineContext.getContext().schema());
                 plans = converter.convert(request.source(), indexName);
                 convertTime = System.nanoTime() - convertStart;
             } catch (Exception e) {

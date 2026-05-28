@@ -28,6 +28,7 @@ import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
@@ -96,7 +97,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public AnalyticsPlugin() {}
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
-    private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
 
@@ -124,7 +124,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         ArrowNativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
             .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
-        operatorTable = aggregateOperatorTables();
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
@@ -132,7 +131,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             backEndsByName.put(be.name(), be);
         }
         searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry);
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, indexNameExpressionResolver, operatorTable, backEndsByName);
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
@@ -204,18 +203,19 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
      * system-index access checks, and ThreadContext threading. Building schemas with a fresh
      * resolver would silently bypass those checks.
      */
-    record DefaultEngineContext(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-        SqlOperatorTable operatorTable, Map<String, AnalyticsSearchBackendPlugin> backends) implements EngineContext {
+    record DefaultEngineContext(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver, Map<
+        String,
+        AnalyticsSearchBackendPlugin> backends) implements EngineContext {
 
         @Override
-        public SchemaPlus getSchema() {
-            return OpenSearchSchemaBuilder.buildSchema(clusterService.state(), indexNameExpressionResolver);
+        public QueryEngineContext getContext(ClusterState clusterState) {
+            SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver);
+            return new QueryEngineContext(clusterState, schema);
         }
 
         @Override
-        public org.opensearch.analytics.QueryEngineContext snapshot(org.opensearch.cluster.ClusterState clusterState) {
-            SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver);
-            return new org.opensearch.analytics.QueryEngineContext(clusterState, schema);
+        public QueryEngineContext getContext() {
+            return getContext(clusterService.state());
         }
 
         @Override

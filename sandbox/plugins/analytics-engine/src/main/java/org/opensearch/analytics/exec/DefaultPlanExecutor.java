@@ -21,6 +21,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.QueryEngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
@@ -39,6 +40,8 @@ import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.arrow.allocator.AllocationRejection;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
@@ -63,7 +66,7 @@ import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_A
  * {@link ClusterService}, {@link ThreadPool}, etc.) automatically.
  *
  * <p>Front-end plugins resolve this class from the Node's Guice injector and invoke
- * {@link #execute(RelNode, Object, ActionListener)} directly. Execution is asynchronous —
+ * {@link #execute(RelNode, QueryEngineContext, ActionListener)} directly. Execution is asynchronous —
  * the listener is fired by the scheduler once the query completes (or fails). The transport
  * path ({@code doExecute}) is reserved for future remote query invocation.
  *
@@ -87,7 +90,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
-    private final org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public DefaultPlanExecutor(
@@ -100,7 +103,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         NodeClient client,
         Scheduler scheduler,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle,
-        org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
@@ -125,13 +128,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     @Override
-    public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
+    public void execute(RelNode logicalFragment, QueryEngineContext queryCtx, ActionListener<Iterable<Object[]>> listener) {
         // Dispatch through ActionModule so the SecurityFilter evaluates index-level
         // permissions before any planning work begins. The AnalyticsQueryRequest
         // implements IndicesRequest.Replaceable, exposing target indices extracted
         // from the RelNode's TableScan nodes.
         String[] indices = RelNodeUtils.extractIndices(logicalFragment);
-        AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, context, indices);
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices);
         client.execute(
             AnalyticsQueryAction.INSTANCE,
             request,
@@ -140,10 +143,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     @Override
-    public void executeWithProfile(RelNode logicalFragment, Object context, ActionListener<ProfiledResult> listener) {
+    public void executeWithProfile(RelNode logicalFragment, QueryEngineContext queryCtx, ActionListener<ProfiledResult> listener) {
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, asQueryEngineContext(context), true, listener);
+                executeInternal(logicalFragment, queryCtx, true, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             } catch (AssertionError e) {
@@ -153,27 +156,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     /**
-     * Casts the opaque {@code Object context} carried through {@link QueryPlanExecutor#execute}
-     * to a {@link org.opensearch.analytics.QueryEngineContext}. Returns {@code null} if the front-end
-     * passed something else (or nothing), in which case callers fall back to a fresh
-     * {@code clusterService.state()} read.
-     */
-    private static org.opensearch.analytics.QueryEngineContext asQueryEngineContext(Object context) {
-        return context instanceof org.opensearch.analytics.QueryEngineContext qec ? qec : null;
-    }
-
-    /**
      * Unified planning + execution path. When {@code profile} is true, captures the CBO
      * plan text and snapshots per-stage timing into the {@link ProfiledResult}; when false,
      * wraps rows into a ProfiledResult with null profile for uniform listener handling.
      *
-     * <p>If {@code queryCtx} is non-null, its {@link org.opensearch.analytics.QueryEngineContext#clusterState()
-     * clusterState()} is used for Calcite planning so the planner sees the same snapshot the
-     * front-end built the schema from. Otherwise a fresh {@code clusterService.state()} is read.
+     * <p>If {@code queryCtx} is non-null, its {@link QueryEngineContext#clusterState()} is
+     * used for Calcite planning so the planner sees the same snapshot the front-end built
+     * the schema from. Otherwise a fresh {@code clusterService.state()} is read.
      */
     private void executeInternal(
         RelNode logicalFragment,
-        org.opensearch.analytics.QueryEngineContext queryCtx,
+        QueryEngineContext queryCtx,
         boolean profile,
         ActionListener<ProfiledResult> listener
     ) {
@@ -183,7 +176,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         final long planStartNanos = profile ? System.nanoTime() : 0;
         // Reuse the snapshot captured at REST entry when present; this is the same ClusterState
         // OpenSearchSchemaBuilder used to build the SchemaPlus, so planner and schema agree.
-        org.opensearch.cluster.ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
+        ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
         RelNode plan = PlannerImpl.createPlan(
             logicalFragment,
             new PlannerContext(capabilityRegistry, planningState, indexNameExpressionResolver, false)
@@ -294,7 +287,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             try {
                 executeInternal(
                     request.getPlan(),
-                    asQueryEngineContext(request.getContext()),
+                    request.getQueryCtx(),
                     false,
                     ActionListener.wrap(
                         result -> convertingListener.onResponse(new AnalyticsQueryResponse(result.rows())),

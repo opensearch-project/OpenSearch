@@ -14,7 +14,7 @@ import org.opensearch.cluster.ClusterState;
 /**
  * Immutable per-query view of analytics-engine state, captured once at query entry.
  *
- * <p>Front-ends call {@link EngineContext#snapshot(ClusterState)} to obtain a
+ * <p>Front-ends call {@link EngineContext#getContext(ClusterState)} to obtain a
  * {@code QueryEngineContext} bound to a specific {@link ClusterState} snapshot, then thread
  * it through both schema construction <em>and</em> plan execution. This guarantees the
  * same cluster-state view is used for type resolution and runtime shard routing — without
@@ -24,4 +24,5 @@ import org.opensearch.cluster.ClusterState;
  *
  * @opensearch.internal
  */
-public record QueryEngineContext(ClusterState clusterState, SchemaPlus schema) {}
+public record QueryEngineContext(ClusterState clusterState, SchemaPlus schema) {
+}
