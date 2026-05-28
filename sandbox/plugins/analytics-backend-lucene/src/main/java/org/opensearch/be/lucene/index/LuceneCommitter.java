@@ -143,6 +143,9 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         ensureOpen();
         indexWriter.setLiveCommitData(commitData.userData());
         indexWriter.commit();
+        store.directory().sync(commitData.catalogSnapshot().getFiles(true));
+        // ensure this covers all the sub directories.
+        store.directory().syncMetaData();
         SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
         this.lastCommittedSegmentInfos = committed;
 
