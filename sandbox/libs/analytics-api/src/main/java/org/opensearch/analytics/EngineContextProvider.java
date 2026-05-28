@@ -53,7 +53,7 @@ public interface EngineContextProvider {
      * @return converted exception with correct HTTP status semantics, or {@code e} unchanged
      */
     // TODO: not called by front-ends — only DefaultPlanExecutor invokes this on its own
-    //  EngineContextProvider. Move off the front-end-facing API surface or drop entirely.
+    // EngineContextProvider. Move off the front-end-facing API surface or drop entirely.
     default Exception convertException(Exception e) {
         return e;
     }

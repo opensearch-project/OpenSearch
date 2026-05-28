@@ -48,7 +48,11 @@ public class DefaultEngineContextProviderTests extends OpenSearchTestCase {
             )
         ).thenReturn(new String[0]);
 
-        AnalyticsPlugin.DefaultEngineContextProvider ctx = new AnalyticsPlugin.DefaultEngineContextProvider(clusterService, injectedResolver, null);
+        AnalyticsPlugin.DefaultEngineContextProvider ctx = new AnalyticsPlugin.DefaultEngineContextProvider(
+            clusterService,
+            injectedResolver,
+            null
+        );
 
         SchemaPlus schema = ctx.getContext().schema();
         // Trigger a lazy resolve so the resolver is actually invoked. Cluster state has no
