@@ -42,9 +42,11 @@ use datafusion::execution::{RecordBatchStream, TaskContext};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{stream, Stream};
+use futures::{stream, Stream, StreamExt};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
+
+use crate::schema_coerce::coerce_record_batch;
 
 /// Bounded channel capacity. Small by design — producers back-pressure when the
 /// DataFusion execute side falls behind.
@@ -192,6 +194,67 @@ impl PartitionStream for SingleReceiverPartition {
                     stream::empty(),
                 ))
             }
+        }
+    }
+}
+
+/// Like [`SingleReceiverPartition`], but coerces every batch to `target` before
+/// handing it to DataFusion.
+///
+/// Registered by [`crate::local_executor::LocalSession::register_partition`] when
+/// the producer fragment's physical schema carries types the consumer fragment's
+/// Substrait plan does not (e.g. `row_number()` emits `UInt64` while the plan
+/// declares `Int64`). The channel still carries the producer's raw batches — the
+/// Java tripwire validates them against the un-coerced schema — and the coercion
+/// happens here, on the consumer side of the channel, so the `StreamingTable`'s
+/// declared schema (`target`) matches what flows out of it.
+pub(crate) struct CoercingReceiverPartition {
+    target: SchemaRef,
+    receiver: Mutex<Option<PartitionStreamReceiver>>,
+}
+
+impl CoercingReceiverPartition {
+    pub(crate) fn new(receiver: PartitionStreamReceiver, target: SchemaRef) -> Self {
+        Self {
+            target,
+            receiver: Mutex::new(Some(receiver)),
+        }
+    }
+}
+
+impl fmt::Debug for CoercingReceiverPartition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CoercingReceiverPartition")
+            .field("target", &self.target)
+            .finish()
+    }
+}
+
+impl PartitionStream for CoercingReceiverPartition {
+    fn schema(&self) -> &SchemaRef {
+        &self.target
+    }
+
+    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        let taken = self
+            .receiver
+            .lock()
+            .expect("partition mutex poisoned")
+            .take();
+        match taken {
+            Some(receiver) => {
+                let target = Arc::clone(&self.target);
+                let coerced = receiver
+                    .map(move |item| item.and_then(|batch| coerce_record_batch(batch, &target)));
+                Box::pin(RecordBatchStreamAdapter::new(
+                    Arc::clone(&self.target),
+                    coerced,
+                ))
+            }
+            None => Box::pin(RecordBatchStreamAdapter::new(
+                Arc::clone(&self.target),
+                stream::empty(),
+            )),
         }
     }
 }

@@ -43,7 +43,9 @@ use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use prost::Message;
 use substrait::proto::Plan;
 
-use crate::partition_stream::{channel, PartitionStreamSender, SingleReceiverPartition};
+use crate::partition_stream::{
+    channel, CoercingReceiverPartition, PartitionStreamSender, SingleReceiverPartition,
+};
 
 /// Coordinator-reduce DataFusion session.
 ///
@@ -133,8 +135,21 @@ impl LocalSession {
         schema: SchemaRef,
     ) -> Result<PartitionStreamSender, DataFusionError> {
         let (sender, receiver) = channel(Arc::clone(&schema));
-        let partition: Arc<dyn PartitionStream> = Arc::new(SingleReceiverPartition::new(receiver));
-        let table = StreamingTable::try_new(schema, vec![partition])?;
+        // The producer fragment feeds batches in DataFusion's raw physical types, but the
+        // consumer fragment's Substrait plan declares the coerced forms (UInt64→Int64,
+        // BinaryView→Binary, Float16→Float32 — see crate::schema_coerce). Register the
+        // StreamingTable under the coerced schema so the consumer plan binds against it, and
+        // coerce each batch on the way out. The channel + returned sender keep the un-coerced
+        // schema so the Java-side tripwire still validates producer batches against what the
+        // producer actually emits. coerce_inferred_schema returns the same Arc when nothing
+        // needs rewriting, so the common case keeps the cheaper passthrough partition.
+        let coerced = crate::schema_coerce::coerce_inferred_schema(Arc::clone(&schema));
+        let partition: Arc<dyn PartitionStream> = if Arc::ptr_eq(&coerced, &schema) {
+            Arc::new(SingleReceiverPartition::new(receiver))
+        } else {
+            Arc::new(CoercingReceiverPartition::new(receiver, Arc::clone(&coerced)))
+        };
+        let table = StreamingTable::try_new(coerced, vec![partition])?;
         self.ctx
             .register_table(name, Arc::new(table))
             .map_err(|e| {

@@ -87,7 +87,10 @@
 
 use std::sync::Arc;
 
+use datafusion::arrow::compute::cast;
 use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::DataFusionError;
 
 /// Rewrite the schema to forms Substrait can bind against:
 ///   - `BinaryView` → `Binary`
@@ -111,6 +114,50 @@ pub fn coerce_inferred_schema(schema: SchemaRef) -> SchemaRef {
         rewritten_fields,
         schema.metadata().clone(),
     ))
+}
+
+/// Casts every column of `batch` to the corresponding field type in `target`,
+/// returning a batch whose schema is exactly `target`.
+///
+/// Used at the streaming-partition boundary: a producer fragment emits batches
+/// in DataFusion's raw physical types (`UInt64` for `row_number()`, `BinaryView`
+/// for view-typed columns, `Float16`), but the consumer fragment's Substrait
+/// plan declares the coerced forms (`Int64` / `Binary` / `Float32`) — the same
+/// rewrite [`coerce_inferred_schema`] applies to scan schemas. Without this the
+/// registered `StreamingTable` schema diverges from the consumer plan and
+/// DataFusion rejects the wire with "Substrait schema has a different type than
+/// the corresponding field in the table schema".
+///
+/// Columns already matching their target type are reused without a copy; only
+/// divergent columns go through [`arrow::compute::cast`] (e.g. the cheap
+/// `UInt64 → Int64` reinterpret). Returns the input unchanged when its schema
+/// already equals `target`.
+pub fn coerce_record_batch(
+    batch: RecordBatch,
+    target: &SchemaRef,
+) -> Result<RecordBatch, DataFusionError> {
+    if &batch.schema() == target {
+        return Ok(batch);
+    }
+    let mut columns = Vec::with_capacity(batch.num_columns());
+    for (i, column) in batch.columns().iter().enumerate() {
+        let want = target.field(i).data_type();
+        if column.data_type() == want {
+            columns.push(Arc::clone(column));
+        } else {
+            columns.push(cast(column, want).map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "coerce_record_batch: cast of column '{}' from {:?} to {:?} failed: {}",
+                    target.field(i).name(),
+                    column.data_type(),
+                    want,
+                    e
+                ))
+            })?);
+        }
+    }
+    RecordBatch::try_new(Arc::clone(target), columns)
+        .map_err(|e| DataFusionError::Execution(format!("coerce_record_batch: {}", e)))
 }
 
 fn schema_needs_coerce(schema: &Schema) -> bool {
@@ -184,6 +231,48 @@ pub fn append_missing_nullable(registered: &Schema, expected: &Schema) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow_array::{Int64Array, UInt64Array};
+
+    #[test]
+    fn coerce_record_batch_rewrites_uint64_column() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("rn", DataType::UInt64, false),
+            Field::new("v", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![
+                Arc::new(UInt64Array::from(vec![1u64, 2, 3])),
+                Arc::new(Int64Array::from(vec![10i64, 20, 30])),
+            ],
+        )
+        .unwrap();
+        let target = coerce_inferred_schema(Arc::clone(&schema));
+        assert_eq!(target.field(0).data_type(), &DataType::Int64);
+
+        let out = coerce_record_batch(batch, &target).unwrap();
+        assert_eq!(out.schema(), target);
+        assert_eq!(out.column(0).data_type(), &DataType::Int64);
+        let rn = out
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .expect("coerced to Int64");
+        assert_eq!(rn.values(), &[1i64, 2, 3]);
+    }
+
+    #[test]
+    fn coerce_record_batch_passthrough_when_already_matching() {
+        let schema = Arc::new(Schema::new(vec![Field::new("v", DataType::Int64, false)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int64Array::from(vec![7i64, 8]))],
+        )
+        .unwrap();
+        let out = coerce_record_batch(batch, &schema).unwrap();
+        assert_eq!(out.schema(), schema);
+        assert_eq!(out.num_rows(), 2);
+    }
 
     #[test]
     fn append_missing_adds_absent_columns_as_nullable() {
