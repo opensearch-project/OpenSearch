@@ -20,6 +20,8 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
@@ -158,8 +160,25 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
         // Pause ingestion
         client().admin().indices().pauseIngestion(Requests.pauseIngestionRequest(indexName)).get();
 
+        // Verify pause has taken effect
+        assertBusy(() -> {
+            GetIngestionStateResponse state = client().admin()
+                .indices()
+                .getIngestionState(Requests.getIngestionStateRequest(indexName))
+                .get();
+            for (ShardIngestionState shardState : state.getShardStates()) {
+                assertTrue("Poller should be paused", shardState.isPollerPaused());
+            }
+        });
+
         // Add a new partition while paused
         addPartition("2026-04-16", 100);
+
+        // Verify documents have not increased while paused
+        client().admin().indices().prepareRefresh(indexName).get();
+        SearchResponse pausedResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNotNull(pausedResponse.getHits().getTotalHits());
+        assertEquals(450, pausedResponse.getHits().getTotalHits().value());
 
         // Resume ingestion
         client().admin().indices().resumeIngestion(Requests.resumeIngestionRequest(indexName)).get();
