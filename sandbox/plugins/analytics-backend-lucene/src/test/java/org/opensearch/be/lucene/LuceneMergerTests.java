@@ -135,8 +135,10 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         long[] gen1Mapping = new long[] { 0, 2, 4 };
         long[] gen2Mapping = new long[] { 1, 3 };
         Map<Long, RowIdMapping> rowIdMappings = Map.of(
-            1L, new PackedRowIdMapping(gen1Mapping, false),
-            2L, new PackedRowIdMapping(gen2Mapping, false)
+            1L,
+            new PackedRowIdMapping(gen1Mapping, false),
+            2L,
+            new PackedRowIdMapping(gen2Mapping, false)
         );
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
@@ -204,8 +206,10 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         long[] gen1Identity = new long[] { 0, 1, 2 };
         long[] gen2Identity = new long[] { 3, 4 };
         Map<Long, RowIdMapping> identityMappings = Map.of(
-            1L, new PackedRowIdMapping(gen1Identity, false),
-            2L, new PackedRowIdMapping(gen2Identity, false)
+            1L,
+            new PackedRowIdMapping(gen1Identity, false),
+            2L,
+            new PackedRowIdMapping(gen2Identity, false)
         );
 
         MergeInput input = MergeInput.builder().segments(segments).rowIdMappings(identityMappings).newWriterGeneration(10L).build();

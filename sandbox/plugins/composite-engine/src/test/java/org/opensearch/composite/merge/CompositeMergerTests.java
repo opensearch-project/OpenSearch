@@ -58,9 +58,7 @@ import static org.mockito.Mockito.when;
 public class CompositeMergerTests extends OpenSearchTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("test-index", "uuid"), 0);
-    private static final Map<Long, RowIdMapping> STUB_ROW_ID_MAPPINGS = Map.of(
-        0L, new PackedRowIdMapping(new long[] { 0 }, false)
-    );
+    private static final Map<Long, RowIdMapping> STUB_ROW_ID_MAPPINGS = Map.of(0L, new PackedRowIdMapping(new long[] { 0 }, false));
 
     private DataFormat primaryFormat;
     private DataFormat secondaryFormat;
@@ -662,7 +660,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         RowIdMapping mapping = mock(RowIdMapping.class);
         when(mapping.size()).thenReturn(100);
 
-        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), Map.of(10L, mapping)));
         when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of()));
 
         CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));
@@ -689,7 +687,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         RowIdMapping mapping = mock(RowIdMapping.class);
         when(mapping.size()).thenReturn(100);
 
-        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), Map.of(10L, mapping)));
         when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(secondary, secondaryFiles)));
 
         CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));
