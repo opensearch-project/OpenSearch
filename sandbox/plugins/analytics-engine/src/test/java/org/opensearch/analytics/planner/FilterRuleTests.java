@@ -312,6 +312,148 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertTrue(exception.getMessage().contains("has no storage"));
     }
 
+    // ---- Text-relevance function on non-text field type-check ----
+
+    /**
+     * {@code query_string(['severityNumber'], '...')} on a {@code long} field is rejected
+     * at planning with a precise, actionable error message — text-relevance functions
+     * cannot be applied to numeric fields.
+     */
+    public void testQueryStringOnNumericFieldIsRejected() {
+        RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
+        RexNode condition = makeMultiFieldFullTextCall(
+            fullTextSqlFunction("QUERY_STRING"),
+            List.of("severityNumber"),
+            "severityNumber:>15"
+        );
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Error must name the function: " + exception.getMessage(),
+            exception.getMessage().contains("QUERY_STRING")
+        );
+        assertTrue(
+            "Error must name the offending field: " + exception.getMessage(),
+            exception.getMessage().contains("severityNumber")
+        );
+        assertTrue(
+            "Error must name the field type: " + exception.getMessage(),
+            exception.getMessage().contains("long")
+        );
+        assertTrue(
+            "Error must hint at typed comparison: " + exception.getMessage(),
+            exception.getMessage().contains("typed comparison")
+        );
+    }
+
+    /**
+     * {@code query_string(['eventTime'], '...')} on a {@code date} field is rejected — text-relevance
+     * functions only apply to text/keyword.
+     */
+    public void testQueryStringOnDateFieldIsRejected() {
+        RelOptTable table = mockTable("test_index", new String[] { "eventTime" }, new SqlTypeName[] { SqlTypeName.DATE });
+        RexNode condition = makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("eventTime"), "2026-01-01");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("eventTime", Map.of("type", "date")));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue(exception.getMessage().contains("QUERY_STRING"));
+        assertTrue(exception.getMessage().contains("eventTime"));
+        assertTrue(exception.getMessage().contains("date"));
+    }
+
+    /**
+     * {@code query_string(['message'], 'hello')} on a {@code text} field is accepted —
+     * text fields are valid for text-relevance functions.
+     */
+    public void testQueryStringOnTextFieldIsAccepted() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("message", Map.of("type", "text", "index", true)),
+            new String[] { "message" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("message"), "hello")
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * {@code query_string(['status'], '...')} on a {@code keyword} field is accepted —
+     * keyword fields are valid for text-relevance functions.
+     */
+    public void testQueryStringOnKeywordFieldIsAccepted() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("status", Map.of("type", "keyword", "index", true)),
+            new String[] { "status" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("status"), "active")
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * {@code query_string(['message', 'severityNumber'], '...')} with a mixed field list
+     * (text + long) is rejected — every named field must be text/keyword.
+     */
+    public void testQueryStringOnMixedFieldsRejectsBecauseOfNonTextField() {
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "message", "severityNumber" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.BIGINT }
+        );
+        RexNode condition = makeMultiFieldFullTextCall(
+            fullTextSqlFunction("QUERY_STRING"),
+            List.of("message", "severityNumber"),
+            "error"
+        );
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("message", Map.of("type", "text", "index", true), "severityNumber", Map.of("type", "long"))
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
+        assertTrue(exception.getMessage().contains("severityNumber"));
+        assertTrue(exception.getMessage().contains("long"));
+    }
+
+    /**
+     * Builds a multi-field full-text {@code RexCall} matching the shape that the SQL plugin
+     * lowers {@code query_string(['fieldName'], 'queryText')} into:
+     * <pre>
+     *   QUERY_STRING(
+     *     MAP('fields', MAP('fieldName':VARCHAR, 1.0:DOUBLE)),
+     *     MAP('query', 'queryText':VARCHAR)
+     *   )
+     * </pre>
+     */
+    private RexNode makeMultiFieldFullTextCall(SqlFunction function, List<String> fieldNames, String query) {
+        java.util.List<RexNode> innerMapOperands = new java.util.ArrayList<>();
+        for (String fieldName : fieldNames) {
+            innerMapOperands.add(rexBuilder.makeLiteral(fieldName));
+            innerMapOperands.add(rexBuilder.makeApproxLiteral(java.math.BigDecimal.valueOf(1.0)));
+        }
+        RexNode innerMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, innerMapOperands);
+        RexNode fieldsMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("fields"),
+            innerMap
+        );
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral(query)
+        );
+        return rexBuilder.makeCall(function, fieldsMap, queryMap);
+    }
+
     // ---- Derived columns ----
 
     /**

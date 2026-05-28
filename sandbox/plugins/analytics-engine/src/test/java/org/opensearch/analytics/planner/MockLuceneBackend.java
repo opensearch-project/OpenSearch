@@ -52,7 +52,8 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
         ScalarFunction.MATCH_PHRASE,
         ScalarFunction.FUZZY,
         ScalarFunction.WILDCARD,
-        ScalarFunction.REGEXP
+        ScalarFunction.REGEXP,
+        ScalarFunction.QUERY_STRING
     );
 
     private static final Set<FieldType> STANDARD_TYPES = new HashSet<>();
