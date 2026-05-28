@@ -73,7 +73,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private String currentFile;
     private long currentRowIndex;
     private long sequenceNumber;
-    private boolean resumed;
     private boolean seekInclusive;
     private int consecutiveFailures;
 
@@ -246,9 +245,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     ) {
         return executeWithRetry(() -> {
             ensureInitialized();
-            if (!resumed && pointer != null && !pointer.getPartitionName().isEmpty()) {
+            if (pointer != null && !pointer.getPartitionName().isEmpty()) {
                 seekToPointer(pointer, includeStart);
-                resumed = true;
             }
             return doReadNext(maxMessages);
         });
