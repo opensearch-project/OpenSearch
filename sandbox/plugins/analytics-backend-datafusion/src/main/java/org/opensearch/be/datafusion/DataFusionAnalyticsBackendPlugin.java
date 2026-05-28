@@ -413,7 +413,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.LAST,
         AggregateFunction.LIST,
         AggregateFunction.VALUES,
-        AggregateFunction.PATTERN
+        AggregateFunction.PATTERN,
+        AggregateFunction.ARRAY_AGG
     );
 
     private final DataFusionPlugin plugin;

@@ -44,7 +44,10 @@ public enum AggregateFunction {
     LAST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("last_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LIST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("list_state", IntermediateTypeResolver.passThroughArg0(), null))),
     VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null))),
-    PATTERN(Type.STATE_EXPANDING, SqlKind.OTHER);
+    PATTERN(Type.STATE_EXPANDING, SqlKind.OTHER),
+    // PPL `mvcombine` lowers to Calcite SqlLibraryOperators.ARRAY_AGG (name "ARRAY_AGG"). Same
+    // PARTIAL/FINAL state shape as LIST: per-shard array_agg → cross-shard list_merge.
+    ARRAY_AGG(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("array_agg_state", IntermediateTypeResolver.passThroughArg0(), null)));
 
     /** Category of aggregate function; affects execution strategy (shuffle vs map-reduce). */
     public enum Type {

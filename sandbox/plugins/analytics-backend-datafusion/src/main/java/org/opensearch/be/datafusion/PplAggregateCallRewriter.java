@@ -76,8 +76,11 @@ final class PplAggregateCallRewriter {
             case "TAKE" -> targetOp = DataFusionFragmentConvertor.LOCAL_TAKE_OP;
             case "FIRST" -> targetOp = DataFusionFragmentConvertor.LOCAL_FIRST_OP;
             case "LAST" -> targetOp = DataFusionFragmentConvertor.LOCAL_LAST_OP;
-            case "LIST", "VALUES" -> {
-                // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
+            case "LIST", "VALUES", "ARRAY_AGG" -> {
+                // arg0 type tells us PARTIAL (raw element) vs FINAL (already array):
+                // PARTIAL → array_agg (with INVOCATION_DISTINCT for VALUES); rebuild
+                // return type as ARRAY<arg0> to repair PPL's lossy STRING_ARRAY.
+                // FINAL → list_merge / list_merge_distinct un-nests per-shard arrays.
                 if (call.getArgList().isEmpty()) {
                     return call;
                 }
