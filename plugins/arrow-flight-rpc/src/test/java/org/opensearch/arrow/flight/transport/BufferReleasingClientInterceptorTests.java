@@ -12,6 +12,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -194,7 +195,7 @@ public class BufferReleasingClientInterceptorTests extends OpenSearchTestCase {
         Marshaller<String> responseMarshaller = new Marshaller<>() {
             @Override
             public InputStream stream(String value) {
-                return new ByteArrayInputStream(value.getBytes());
+                return new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8));
             }
 
             @Override
