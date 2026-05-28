@@ -47,7 +47,7 @@ use datafusion::physical_plan::{
 };
 use datafusion_common::DataFusionError;
 use futures::{Future, Stream};
-use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 
 use super::eval::{PrefetchedRg, RowGroupBitsetSource};
 use super::metrics::StreamMetrics;
@@ -85,7 +85,7 @@ struct PrefetchedRowGroup {
 }
 
 type PrefetchResult = std::result::Result<Option<PrefetchedRowGroup>, String>;
-type PrefetchHandle = oneshot::Receiver<PrefetchResult>;
+type PrefetchHandle = JoinHandle<PrefetchResult>;
 
 // ── IndexReader (drives the evaluator RG-by-RG with prefetch overlap) ──
 
@@ -166,16 +166,10 @@ impl IndexReader {
         let evaluator = Arc::clone(&self.evaluator);
         let row_groups = self.row_groups.clone();
         let doc_range = self.doc_range;
-        let (tx, rx) = oneshot::channel();
-        tokio::task::spawn_blocking(move || {
-            let _ = tx.send(Self::fetch_row_group(
-                &evaluator,
-                &row_groups,
-                rg_idx,
-                doc_range,
-            ));
+        let handle = tokio::task::spawn_blocking(move || {
+            Self::fetch_row_group(&evaluator, &row_groups, rg_idx, doc_range)
         });
-        self.pending_prefetch = Some(rx);
+        self.pending_prefetch = Some(handle);
     }
 
     fn poll_next_row_group(
@@ -216,9 +210,29 @@ impl IndexReader {
                         self.cached_result = Some(result);
                         continue;
                     }
-                    Poll::Ready(Err(_)) => {
+                    Poll::Ready(Err(join_error)) => {
+                        // The spawn_blocking task failed to complete.
+                        // JoinError distinguishes panic from cancellation.
                         self.pending_prefetch = None;
                         self.pending_since = None;
+                        if join_error.is_panic() {
+                            // Deterministic failure (e.g. subtree_cost invariant
+                            // violation). Propagate immediately — retrying would
+                            // loop forever and hang the calling Java thread.
+                            let payload = join_error.into_panic();
+                            let panic_msg = payload
+                                .downcast_ref::<String>()
+                                .cloned()
+                                .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+                                .unwrap_or_else(|| "unknown panic".into());
+                            return Poll::Ready(Err(DataFusionError::Execution(
+                                format!(
+                                    "prefetch for row group {} panicked: {}",
+                                    self.current_rg_idx, panic_msg
+                                ),
+                            )));
+                        }
+                        // Task was cancelled (runtime shutting down) — retry once
                         self.start_prefetch(self.current_rg_idx);
                         return Poll::Pending;
                     }
@@ -969,5 +983,115 @@ impl IndexedStream {
 impl RecordBatchStream for IndexedStream {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    /// A mock evaluator that panics on prefetch_rg, simulating the
+    /// `subtree_cost` panic when DelegationPossible reaches the Tree evaluator.
+    struct PanickingEvaluator {
+        call_count: AtomicUsize,
+    }
+
+    impl RowGroupBitsetSource for PanickingEvaluator {
+        fn prefetch_rg(
+            &self,
+            _rg: &RowGroupInfo,
+            _min_doc: i32,
+            _max_doc: i32,
+        ) -> Result<Option<PrefetchedRg>, String> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            panic!(
+                "invariant violation: DelegationPossible reached subtree_cost. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            );
+        }
+
+        fn on_batch_mask(
+            &self,
+            _rg_state: &dyn std::any::Any,
+            _rg_first_row: i64,
+            _position_map: &PositionMap,
+            _batch_offset: usize,
+            _batch_len: usize,
+            _batch: &RecordBatch,
+        ) -> Result<Option<BooleanArray>, String> {
+            unreachable!()
+        }
+    }
+
+    /// Verifies that when `prefetch_rg` panics (simulating the subtree_cost
+    /// panic), the IndexReader propagates an error instead of hanging forever.
+    ///
+    /// Before the fix, `Poll::Ready(Err(_))` on the oneshot receiver would
+    /// retry the same row group, causing an infinite loop. Now it returns
+    /// a DataFusionError so the Java search thread unblocks.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_panic_in_prefetch_returns_error_not_hang() {
+        let evaluator = Arc::new(PanickingEvaluator {
+            call_count: AtomicUsize::new(0),
+        });
+
+        let rg_info = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 100,
+        };
+
+        let mut reader = IndexReader::new(
+            evaluator.clone(),
+            vec![rg_info],
+            None,
+            None,
+            None,
+            None,
+        );
+
+        // Poll the reader — should complete with an error within the timeout.
+        // We need to yield between polls because start_prefetch returns Pending
+        // without waking (the oneshot receiver isn't polled until next call).
+        let handle = tokio::spawn(async move {
+            loop {
+                let poll_result = futures::future::poll_fn(|cx| {
+                    let r = reader.poll_next_row_group(cx);
+                    match &r {
+                        std::task::Poll::Pending => std::task::Poll::Ready(None),
+                        std::task::Poll::Ready(v) => std::task::Poll::Ready(Some(
+                            v.as_ref().map(|_| ()).map_err(|e| e.to_string())
+                        )),
+                    }
+                }).await;
+                if let Some(result) = poll_result {
+                    return result;
+                }
+                // Yield to let spawn_blocking complete
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        });
+
+        let result = tokio::time::timeout(Duration::from_millis(500), handle).await;
+
+        // With the fix: should complete (not timeout) with an error
+        assert!(
+            result.is_ok(),
+            "Stream should complete with error, not hang (timeout)"
+        );
+        match result.unwrap() {
+            Ok(Err(msg)) => {
+                assert!(
+                    msg.contains("panicked"),
+                    "Error should mention panic, got: {}",
+                    msg
+                );
+            }
+            Ok(Ok(_)) => panic!("Stream should return Err when prefetch panics, got Ok"),
+            Err(e) => panic!("Tokio JoinError: {}", e),
+        };
     }
 }
