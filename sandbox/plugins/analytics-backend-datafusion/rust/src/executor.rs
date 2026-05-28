@@ -92,7 +92,7 @@ impl ConcurrencyGate {
     }
 
     pub fn active_permits(&self) -> u32 {
-        self.max_permits.load(Ordering::Acquire) - self.semaphore.available_permits() as u32
+        self.max_permits.load(Ordering::Acquire).saturating_sub(self.semaphore.available_permits() as u32)
     }
 
     pub fn total_wait_ms(&self) -> u64 {
