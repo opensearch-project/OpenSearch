@@ -55,7 +55,7 @@ public class ShardTargetResolver extends TargetResolver {
             if (shard != null) {
                 DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
                 if (node != null) {
-                    targets.add(new ShardExecutionTarget(node, shard.shardId()));
+                    targets.add(new ShardExecutionTarget(node, shard.shardId(), shardIt, clusterState));
                 }
             }
         }

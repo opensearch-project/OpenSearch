@@ -106,6 +106,14 @@ public class QueryScheduler implements Scheduler {
      * back an alternate; otherwise propagates via {@code onTaskTerminal} (fast-fails the stage).
      * Protected for retry/admission-aware subclasses.
      *
+     * <p>Terminal-stage short-circuit lives here, not in each stage's {@code retargetForRetry}:
+     * if the stage has already entered any terminal state ({@link StageExecution.State#SUCCEEDED SUCCEEDED},
+     * {@link StageExecution.State#FAILED FAILED}, or {@link StageExecution.State#CANCELLED CANCELLED}),
+     * retry is skipped uniformly across stage types. Spawning new dispatch work for a stage
+     * that's done — whether it succeeded, already gave up on a different task, or was
+     * cancelled — is always wrong. Catches the race where an in-flight task's onFailure
+     * fires after the stage has transitioned terminally for some other reason.
+     *
      * <p>Tracks the current attempt so each attempt's terminal state is recorded truthfully:
      * superseded attempts get FAILED, the final (succeeding or last-failed) attempt gets the
      * matching terminal. The {@code task} reference passed to {@code stage.onTaskTerminal}
@@ -123,7 +131,9 @@ public class QueryScheduler implements Scheduler {
 
             @Override
             public void onFailure(Exception cause) {
-                Optional<StageTask> retry = stage.retargetForRetry(task, cause);
+                Optional<StageTask> retry = stage.getState().isTerminal()
+                    ? Optional.empty()
+                    : stage.retargetForRetry(task, cause);
                 if (retry.isPresent()) {
                     currentAttempt.transitionTo(StageTaskState.FAILED);  // previous attempt is now superseded
                     StageTask r = retry.get();
