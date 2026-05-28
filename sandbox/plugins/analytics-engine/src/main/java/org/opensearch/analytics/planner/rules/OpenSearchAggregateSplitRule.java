@@ -15,6 +15,8 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
@@ -22,10 +24,13 @@ import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.spi.AggregateFunction;
+import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -128,21 +133,68 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         RelNode gathered = convert(partial, finalTraits);
         Map<Integer, List<RexLiteral>> finalExtraLiterals = captureLiteralArgsForFinal(aggregate.getAggCallList(), child);
 
+        // Classify ORIGINAL aggCalls once and stash on FINAL for post-Volcano transformers.
+        List<IntermediateField> intermediateFields = FinalAggCallBuilder.classify(aggregate.getAggCallList());
+
+        // Build FINAL's aggCalls against gathered's row type so typeMatchesInferred passes.
+        List<AggregateCall> finalAggCalls = FinalAggCallBuilder.buildFinalCalls(
+            aggregate.getAggCallList(),
+            intermediateFields,
+            aggregate.getGroupSet().cardinality(),
+            gathered,
+            aggregate.getGroupSet().isEmpty()
+        );
+
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             finalTraits,
             gathered,
             aggregate.getGroupSet(),
             aggregate.getGroupSets(),
-            aggregate.getAggCallList(),
+            finalAggCalls,
             AggregateMode.FINAL,
             aggregate.getViableBackends(),
             aggregate.getCallAnnotations(),
-            finalExtraLiterals
+            finalExtraLiterals,
+            intermediateFields
         );
 
+        // Empty-group nullability gap (COUNT→SUM swap): wrap FINAL so its row type matches SINGLE's.
+        RelNode finalAlternative = wrapWithCastIfNeeded(finalAggregate, aggregate);
+
         call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
-        call.transformTo(finalAggregate);
+        call.transformTo(finalAlternative);
+    }
+
+    /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */
+    private static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
+        RelDataType actualType = finalAggregate.getRowType();
+        RelDataType expectedType = expected.getRowType();
+        RexBuilder rexBuilder = finalAggregate.getCluster().getRexBuilder();
+
+        List<RexNode> projects = new ArrayList<>(actualType.getFieldCount());
+        boolean anyTypeDiffers = false;
+        for (int idx = 0; idx < actualType.getFieldCount(); idx++) {
+            RelDataType columnType = actualType.getFieldList().get(idx).getType();
+            RelDataType targetType = expectedType.getFieldList().get(idx).getType();
+            RexNode ref = new RexInputRef(idx, columnType);
+            if (columnType.equals(targetType)) {
+                projects.add(ref);
+            } else {
+                projects.add(rexBuilder.makeCast(targetType, ref));
+                anyTypeDiffers = true;
+            }
+        }
+        if (!anyTypeDiffers) return finalAggregate;
+
+        return new OpenSearchProject(
+            finalAggregate.getCluster(),
+            finalAggregate.getTraitSet(),
+            finalAggregate,
+            projects,
+            expectedType,
+            finalAggregate.getViableBackends()
+        );
     }
 
     /** Re-declare LIST/VALUES return type as {@code ARRAY<arg0>} (PPL lowers it to {@code ARRAY<VARCHAR>}). */

@@ -24,9 +24,11 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -61,6 +63,12 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      * constant columns below FINAL, since the StageInputScan only carries the state.
      */
     private final Map<Integer, List<RexLiteral>> finalExtraLiteralArgs;
+    /**
+     * Per-call {@link IntermediateField} classification, parallel to {@link #getAggCallList()};
+     * stored on FINAL so post-Volcano transformers don't re-classify post-swap calls. A
+     * {@code null} entry means no SPI decomposition for that slot. Empty for SINGLE / PARTIAL.
+     */
+    private final List<IntermediateField> perCallIntermediateField;
 
     public OpenSearchAggregate(
         RelOptCluster cluster,
@@ -73,7 +81,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         List<String> viableBackends,
         Map<Integer, AggregateCallAnnotation> callAnnotations
     ) {
-        this(cluster, traitSet, input, groupSet, groupSets, aggCalls, mode, viableBackends, callAnnotations, Map.of());
+        this(cluster, traitSet, input, groupSet, groupSets, aggCalls, mode, viableBackends, callAnnotations, Map.of(), List.of());
     }
 
     public OpenSearchAggregate(
@@ -88,11 +96,63 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         Map<Integer, AggregateCallAnnotation> callAnnotations,
         Map<Integer, List<RexLiteral>> finalExtraLiteralArgs
     ) {
+        this(
+            cluster,
+            traitSet,
+            input,
+            groupSet,
+            groupSets,
+            aggCalls,
+            mode,
+            viableBackends,
+            callAnnotations,
+            finalExtraLiteralArgs,
+            List.of()
+        );
+    }
+
+    public OpenSearchAggregate(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelNode input,
+        ImmutableBitSet groupSet,
+        List<ImmutableBitSet> groupSets,
+        List<AggregateCall> aggCalls,
+        AggregateMode mode,
+        List<String> viableBackends,
+        Map<Integer, AggregateCallAnnotation> callAnnotations,
+        Map<Integer, List<RexLiteral>> finalExtraLiteralArgs,
+        List<IntermediateField> perCallIntermediateField
+    ) {
         super(cluster, traitSet, List.of(), input, groupSet, groupSets, aggCalls);
         this.mode = mode;
         this.viableBackends = viableBackends;
         this.callAnnotations = Map.copyOf(callAnnotations);
         this.finalExtraLiteralArgs = Map.copyOf(finalExtraLiteralArgs);
+        // Collections.unmodifiableList — List.copyOf would NPE on the null pass-through entries.
+        this.perCallIntermediateField = Collections.unmodifiableList(new ArrayList<>(perCallIntermediateField));
+    }
+
+    /**
+     * Builds a FINAL aggregate after {@code DistributedAggregateRewriter} has consumed the
+     * post-Volcano scratch state — the captured literals are now real columns in
+     * {@code newInput}, and the per-call classification is no longer needed downstream. Both
+     * stashes are cleared so a later {@code copy()} can't replay them.
+     */
+    public static OpenSearchAggregate finalAfterRewrite(OpenSearchAggregate prior, RelNode newInput, List<AggregateCall> rebuiltCalls) {
+        return new OpenSearchAggregate(
+            prior.getCluster(),
+            prior.getTraitSet(),
+            newInput,
+            prior.getGroupSet(),
+            prior.getGroupSets(),
+            rebuiltCalls,
+            AggregateMode.FINAL,
+            prior.viableBackends,
+            prior.callAnnotations,
+            Map.of(),
+            List.of()
+        );
     }
 
     public AggregateMode getMode() {
@@ -106,6 +166,11 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     public Map<Integer, List<RexLiteral>> getFinalExtraLiteralArgs() {
         return finalExtraLiteralArgs;
+    }
+
+    /** See {@link #perCallIntermediateField}. */
+    public List<IntermediateField> getIntermediateFields() {
+        return perCallIntermediateField;
     }
 
     @Override
@@ -182,7 +247,8 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             mode,
             viableBackends,
             callAnnotations,
-            finalExtraLiteralArgs
+            finalExtraLiteralArgs,
+            perCallIntermediateField
         );
     }
 
@@ -250,7 +316,8 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             mode,
             List.of(backend),
             rebuilt,
-            finalExtraLiteralArgs
+            finalExtraLiteralArgs,
+            perCallIntermediateField
         );
     }
 
