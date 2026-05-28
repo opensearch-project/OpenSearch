@@ -24,16 +24,22 @@ source "${SCRIPT_DIR}/lib/retry.sh"
 
 VERSION="$1"
 MAJOR_VERSION=$(printf '%s' "$VERSION" | sed -E 's/^v?([0-9]+).*/\1/')
+MINOR_VERSION=$(printf '%s' "$VERSION" | sed -E 's/^[0-9]+\.([0-9]+)\.[0-9]+/\1/')
 
 if ! [[ "$MAJOR_VERSION" =~ ^[0-9]+$ ]]; then
   echo "Error: Unable to extract major version from '$VERSION'."
   exit 1
 fi
 
+if ! [[ "$MINOR_VERSION" =~ ^[0-9]+$ ]]; then
+  echo "Error: Unable to extract minor version from '$VERSION'."
+  exit 1
+fi
+
 VERSION_SERIES="${MAJOR_VERSION}.x"
 
-retry 3 5 curl -sO --connect-timeout 10 --max-time 120 https://packages.wazuh.com/$VERSION_SERIES/wazuh-certs-tool.sh
-retry 3 5 curl -sO --connect-timeout 10 --max-time 120 https://packages.wazuh.com/$VERSION_SERIES/config.yml
+retry 3 5 curl -sO --connect-timeout 10 --max-time 120 https://packages.wazuh.com/$MAJOR_VERSION.$MINOR_VERSION/wazuh-certs-tool.sh
+retry 3 5 curl -sO --connect-timeout 10 --max-time 120 https://packages.wazuh.com/$MAJOR_VERSION.$MINOR_VERSION/config.yml
 
 # =====
 # Write to config.yml
@@ -64,7 +70,9 @@ if command -v apt-get &> /dev/null; then
     retry 3 10 apt-get update
     retry 3 10 apt-get -y install wazuh-indexer=$1-1
 else
-  retry 3 10 yum install coreutils -y
+  if ! rpm -qa | grep coreutils; then
+    retry 3 10 yum install coreutils -y
+  fi
 
   retry 3 5 rpm --import https://packages.wazuh.com/key/GPG-KEY-WAZUH
   echo -e '[wazuh]\ngpgcheck=1\ngpgkey=https://packages.wazuh.com/key/GPG-KEY-WAZUH\nenabled=1\nname=EL-$releasever - Wazuh\nbaseurl=https://packages.wazuh.com/'"$VERSION_SERIES"'/yum/\nprotect=1' | tee /etc/yum.repos.d/wazuh.repo
@@ -128,7 +136,7 @@ chown -R wazuh-indexer:wazuh-indexer /etc/wazuh-indexer/certs
 # =====
 # Reload systemd daemon and start the service
 # =====
-if command -v apt-get &> /dev/null; then
+if command -v systemctl &> /dev/null; then
     systemctl daemon-reload
     systemctl enable wazuh-indexer
     systemctl start wazuh-indexer

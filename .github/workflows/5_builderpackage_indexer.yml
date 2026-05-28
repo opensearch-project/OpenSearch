@@ -373,6 +373,7 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       previous_version: ${{ steps.previous_release.outputs.previous_version }}
+      previous_4x_version: ${{ steps.previous_4x.outputs.previous_4x_version }}
     steps:
       - id: matrix
         run: |
@@ -398,6 +399,19 @@ jobs:
           echo "Current version: $CURRENT"
           echo "Latest release detected: $PREVIOUS"
           echo "previous_version=$PREVIOUS" >> $GITHUB_OUTPUT
+      - id: previous_4x
+        name: Get latest Wazuh 4.x release from GitHub
+        run: |
+          set -o pipefail
+          PREVIOUS_4X=$(curl -sfSL --retry 3 --retry-all-errors --retry-delay 5 --connect-timeout 10 --max-time 30 \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/wazuh/wazuh-indexer/releases | jq -r '.[].tag_name' | grep -vE 'alpha|beta|rc' | sed 's/^v//' | \
+            grep -E '^4\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+
+          echo "Latest 4.x release detected: $PREVIOUS_4X"
+          echo "previous_4x_version=$PREVIOUS_4X" >> $GITHUB_OUTPUT
 
   publish-common-utils:
     timeout-minutes: 10
@@ -897,6 +911,44 @@ jobs:
                      yum localinstall '/artifacts/dist/${{ steps.package.outputs.name }}' -y && \
                      if systemctl is-active --quiet wazuh-indexer; then echo 'Indexer running (expected)'; else echo 'Indexer not running (unexpected)'; exit 1; fi"
 
+      - name: Test RPM package refuses upgrade from 4.x
+        if: ${{ matrix.distribution == 'rpm' && needs.setup.outputs.previous_4x_version != '' }}
+        run: |
+          cid=$(docker run -d --rm \
+            --privileged \
+            --cgroupns=host \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            -v "${{ github.workspace }}/artifacts/dist:/artifacts/dist" \
+            -v "${{ github.workspace }}/build-scripts/:/build-scripts/" \
+            redhat/ubi9-init:latest /sbin/init)
+          trap 'docker stop "$cid" >/dev/null 2>&1 || true' EXIT
+
+          docker exec "$cid" bash -c '
+            set -e
+            bash /build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_4x_version }}
+            installed_before=$(rpm -q wazuh-indexer)
+            echo "Installed before upgrade: $installed_before"
+
+            set +e
+            out=$(yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y 2>&1)
+            rc=$?
+            set -e
+            echo "$out"
+
+            if [ "$rc" -eq 0 ]; then
+              echo "ERROR: upgrade unexpectedly succeeded"; exit 1
+            fi
+            if ! echo "$out" | grep -qF "Direct upgrade from Wazuh Indexer 4.X to 5.X is not supported"; then
+              echo "ERROR: expected block banner not found in output"; exit 1
+            fi
+
+            installed_after=$(rpm -q wazuh-indexer)
+            if [ "$installed_before" != "$installed_after" ]; then
+              echo "ERROR: package state changed (before=$installed_before after=$installed_after)"; exit 1
+            fi
+            echo "OK: 5.x package correctly refused upgrade from $installed_after"
+          '
+
       - name: Test DEB package installation
         if: ${{ matrix.distribution == 'deb' }}
         run: |
@@ -918,6 +970,34 @@ jobs:
 
           sudo bash build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo DEBIAN_FRONTEND=noninteractive dpkg -i --force-confnew "artifacts/dist/${{ steps.package.outputs.name }}"
+
+      - name: Test DEB package refuses upgrade from 4.x
+        if: ${{ matrix.distribution == 'deb' && needs.setup.outputs.previous_4x_version != '' }}
+        run: |
+          set -e
+          sudo bash build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_4x_version }}
+          installed_before=$(dpkg-query -W -f='${Version}' wazuh-indexer)
+          echo "Installed before upgrade: wazuh-indexer=$installed_before"
+
+          set +e
+          out=$(sudo DEBIAN_FRONTEND=noninteractive dpkg -i --force-confnew \
+            "artifacts/dist/${{ steps.package.outputs.name }}" 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+
+          if [ "$rc" -eq 0 ]; then
+            echo "ERROR: upgrade unexpectedly succeeded"; exit 1
+          fi
+          if ! echo "$out" | grep -qF "Direct upgrade from Wazuh Indexer 4.X to 5.X is not supported"; then
+            echo "ERROR: expected block banner not found in output"; exit 1
+          fi
+
+          installed_after=$(dpkg-query -W -f='${Version}' wazuh-indexer)
+          if [ "$installed_before" != "$installed_after" ]; then
+            echo "ERROR: package state changed (before=$installed_before after=$installed_after)"; exit 1
+          fi
+          echo "OK: 5.x package correctly refused upgrade from wazuh-indexer=$installed_after"
 
       - name: Clean up DEB test environment
         if: ${{ always() && matrix.distribution == 'deb' }}

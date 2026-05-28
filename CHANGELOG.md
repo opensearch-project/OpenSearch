@@ -60,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Merge CodeQL configurations into codeql-analysis.yml [(#1345)](https://github.com/wazuh/wazuh-indexer/pull/1345)
 - Improve build workflow and scripts reliability [(#1378)](https://github.com/wazuh/wazuh-indexer/pull/1378)
 - Update ruleset feed for 5.0.0 beta2 [(#1463)](https://github.com/wazuh/wazuh-indexer/pull/1463)
+- Block 5.x updates from 4.x [(#1545)](https://github.com/wazuh/wazuh-indexer/pull/1545)
 
 ### Deprecated
 -

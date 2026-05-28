@@ -157,6 +157,18 @@ set -e
 if [ $1 = 2 ]; then
     echo "Running upgrade pre-script"
 
+    # Hard block: refuse 4.X -> 5.X upgrades
+    if grep -Pq '4\.\d+\.\d+' /usr/share/wazuh-indexer/VERSION*; then
+        cat >&2 <<'EOF'
+==============================================================
+ERROR: Direct upgrade from Wazuh Indexer 4.X to 5.X is not supported.
+
+A clean installation of Wazuh Indexer 5.x is required.
+==============================================================
+EOF
+        exit 1
+    fi
+
     # Stop wazuh-indexer service and mark if service is running
     if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1 && systemctl is-active %{name}.service > /dev/null 2>&1; then
         echo "Stop existing %{name}.service"
