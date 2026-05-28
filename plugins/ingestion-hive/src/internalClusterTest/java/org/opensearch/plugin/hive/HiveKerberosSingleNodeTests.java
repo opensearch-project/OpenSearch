@@ -84,11 +84,13 @@ public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     @After
     public void cleanup() throws Exception {
-        // Delete index first to stop the poller before shutting down KDC/Metastore
-        try {
-            client().admin().indices().prepareDelete("hive-kerberos-test-index").get();
-        } catch (Exception e) {
-            // index may not exist if test failed early
+        // Delete indices first to stop the pollers before shutting down KDC/Metastore
+        for (String idx : new String[] { "hive-kerberos-test-index", "hive-kerberos-test-index-2" }) {
+            try {
+                client().admin().indices().prepareDelete(idx).get();
+            } catch (Exception e) {
+                // index may not exist if test failed early
+            }
         }
         // Wait for poller thread to terminate
         assertBusy(() -> {
@@ -122,7 +124,7 @@ public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.table", TABLE_NAME)
                 .put("ingestion_source.param.monitor_interval", "2s")
                 .put("ingestion_source.param.authentication", "kerberos")
-                .put("ingestion_source.param.kerberos_principal", "client@" + kdc.getRealm())
+                .put("ingestion_source.param.kerberos_principal", "client1@" + kdc.getRealm())
                 .put("ingestion_source.param.kerberos_keytab", keytabFile.getAbsolutePath())
                 .put("ingestion_source.param.metastore_service_principal", "hive/localhost@" + kdc.getRealm())
                 .put("index.replication.type", "SEGMENT")
@@ -136,6 +138,68 @@ public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
         });
     }
 
+    /**
+     * Test that two indices with different Kerberos principals can ingest simultaneously
+     * without interfering with each other. Verifies instance-local UGI isolation.
+     */
+    public void testMultiplePrincipalsCoexist() throws Exception {
+        String metastoreUri = "thrift://" + kerberizedMetastore.getHost() + ":" + kerberizedMetastore.getMappedPort(9083);
+        registerTableWithKerberos(metastoreUri);
+
+        String index1 = indexName;
+        String index2 = "hive-kerberos-test-index-2";
+
+        // Create first index with client1 principal
+        createIndex(
+            index1,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "HIVE")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.metastore_uri", metastoreUri)
+                .put("ingestion_source.param.database", DATABASE)
+                .put("ingestion_source.param.table", TABLE_NAME)
+                .put("ingestion_source.param.monitor_interval", "2s")
+                .put("ingestion_source.param.authentication", "kerberos")
+                .put("ingestion_source.param.kerberos_principal", "client1@" + kdc.getRealm())
+                .put("ingestion_source.param.kerberos_keytab", keytabFile.getAbsolutePath())
+                .put("ingestion_source.param.metastore_service_principal", "hive/localhost@" + kdc.getRealm())
+                .put("index.replication.type", "SEGMENT")
+                .build()
+        );
+
+        // Create second index with client2 principal
+        createIndex(
+            index2,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "HIVE")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.metastore_uri", metastoreUri)
+                .put("ingestion_source.param.database", DATABASE)
+                .put("ingestion_source.param.table", TABLE_NAME)
+                .put("ingestion_source.param.monitor_interval", "2s")
+                .put("ingestion_source.param.authentication", "kerberos")
+                .put("ingestion_source.param.kerberos_principal", "client2@" + kdc.getRealm())
+                .put("ingestion_source.param.kerberos_keytab", keytabFile.getAbsolutePath())
+                .put("ingestion_source.param.metastore_service_principal", "hive/localhost@" + kdc.getRealm())
+                .put("index.replication.type", "SEGMENT")
+                .build()
+        );
+
+        ensureGreen(index1);
+        ensureGreen(index2);
+
+        // Both indices should ingest all 450 documents independently
+        waitForState(() -> {
+            SearchResponse r1 = client().prepareSearch(index1).setQuery(QueryBuilders.matchAllQuery()).get();
+            SearchResponse r2 = client().prepareSearch(index2).setQuery(QueryBuilders.matchAllQuery()).get();
+            return r1.getHits().getTotalHits().value() == 450 && r2.getHits().getTotalHits().value() == 450;
+        });
+    }
+
     private void startMiniKdc() throws Exception {
         Properties conf = MiniKdc.createConf();
         File kdcDir = createTempDir().toFile();
@@ -144,7 +208,7 @@ public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         // Create principals and keytab
         keytabFile = new File(warehouseDir, "test.keytab");
-        kdc.createPrincipal(keytabFile, "client", "hive/localhost");
+        kdc.createPrincipal(keytabFile, "client1", "client2", "hive/localhost");
 
         logger.info("MiniKdc started on port {}, realm={}", kdc.getPort(), kdc.getRealm());
     }
@@ -201,7 +265,7 @@ public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
         conf.set("hadoop.security.authentication", "kerberos");
         org.apache.hadoop.security.UserGroupInformation.setConfiguration(conf);
         org.apache.hadoop.security.UserGroupInformation ugi = org.apache.hadoop.security.UserGroupInformation
-            .loginUserFromKeytabAndReturnUGI("client@" + kdc.getRealm(), keytabFile.getAbsolutePath());
+            .loginUserFromKeytabAndReturnUGI("client1@" + kdc.getRealm(), keytabFile.getAbsolutePath());
 
         ugi.doAs((java.security.PrivilegedExceptionAction<Void>) () -> {
             String host = kerberizedMetastore.getHost();

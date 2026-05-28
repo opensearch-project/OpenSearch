@@ -49,6 +49,7 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
     private final HiveSourceConfig config;
     private ThriftHiveMetastore.Client client;
     private TTransport transport;
+    private UserGroupInformation ugi;
 
     public ThriftMetastoreCatalog(HiveSourceConfig config) {
         this.config = config;
@@ -160,7 +161,7 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
                     t = createSaslTransport(t, host);
                     final TTransport saslTransport = t;
                     try {
-                        UserGroupInformation.getLoginUser().doAs((PrivilegedExceptionAction<Void>) () -> {
+                        ugi.doAs((PrivilegedExceptionAction<Void>) () -> {
                             saslTransport.open();
                             return null;
                         });
@@ -198,7 +199,7 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
                 Configuration conf = new Configuration();
                 conf.set("hadoop.security.authentication", "kerberos");
                 UserGroupInformation.setConfiguration(conf);
-                UserGroupInformation.loginUserFromKeytab(config.getKerberosPrincipal(), config.getKerberosKeytabPath());
+                ugi = UserGroupInformation.loginUserFromKeytabAndReturnUGI(config.getKerberosPrincipal(), config.getKerberosKeytabPath());
                 logger.info("Kerberos login successful for principal {}", config.getKerberosPrincipal());
             });
         } catch (Exception e) {

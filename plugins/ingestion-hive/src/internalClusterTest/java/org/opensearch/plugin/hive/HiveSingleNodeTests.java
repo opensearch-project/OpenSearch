@@ -532,7 +532,7 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
             .withEnv("DB_DRIVER", "derby")
             .withExposedPorts(9083)
             .withFileSystemBind(warehouseDir.getAbsolutePath(), warehouseDir.getAbsolutePath(), BindMode.READ_WRITE)
-            .waitingFor(Wait.forListeningPort());
+            .waitingFor(Wait.forListeningPort().withStartupTimeout(java.time.Duration.ofSeconds(120)));
         hiveMetastore.start();
     }
 
