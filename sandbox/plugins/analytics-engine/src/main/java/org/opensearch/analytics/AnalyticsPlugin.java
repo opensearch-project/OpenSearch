@@ -213,6 +213,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         }
 
         @Override
+        public org.opensearch.analytics.QueryEngineContext snapshot(org.opensearch.cluster.ClusterState clusterState) {
+            SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver);
+            return new org.opensearch.analytics.QueryEngineContext(clusterState, schema);
+        }
+
+        @Override
         public Exception convertException(Exception e) {
             for (AnalyticsSearchBackendPlugin backend : backends.values()) {
                 Exception converted = backend.convertException(e);

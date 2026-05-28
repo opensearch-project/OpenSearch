@@ -10,6 +10,8 @@ package org.opensearch.analytics;
 
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.SqlOperatorTable;
+import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.cluster.ClusterState;
 
 /**
  * Context provided by the analytics engine to front-end plugins.
@@ -38,6 +40,21 @@ public interface EngineContext {
      * by at least one registered back-end engine.
      */
     SqlOperatorTable operatorTable();
+
+    /**
+     * Capture a per-query immutable view bound to the given cluster-state snapshot. The
+     * returned context carries both the state and the schema built from it, guaranteeing
+     * planner and executor see the same view of the cluster. Front-ends should call this
+     * once at query entry (typically with {@code clusterService.state()}) and thread the
+     * result through both schema-driven planning and {@code planExecutor.execute}.
+     *
+     * <p>Default implementation builds a fresh {@link SchemaPlus} from the supplied state via
+     * {@link OpenSearchSchemaBuilder#buildSchema(ClusterState)}. Engine implementations that
+     * already carry an {@code IndexNameExpressionResolver} should override this to reuse it.
+     */
+    default QueryEngineContext snapshot(ClusterState clusterState) {
+        return new QueryEngineContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState));
+    }
 
     /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.

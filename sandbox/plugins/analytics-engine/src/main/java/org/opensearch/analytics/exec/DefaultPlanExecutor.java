@@ -143,7 +143,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     public void executeWithProfile(RelNode logicalFragment, Object context, ActionListener<ProfiledResult> listener) {
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, true, listener);
+                executeInternal(logicalFragment, asQueryEngineContext(context), true, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             } catch (AssertionError e) {
@@ -153,18 +153,40 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     /**
+     * Casts the opaque {@code Object context} carried through {@link QueryPlanExecutor#execute}
+     * to a {@link org.opensearch.analytics.QueryEngineContext}. Returns {@code null} if the front-end
+     * passed something else (or nothing), in which case callers fall back to a fresh
+     * {@code clusterService.state()} read.
+     */
+    private static org.opensearch.analytics.QueryEngineContext asQueryEngineContext(Object context) {
+        return context instanceof org.opensearch.analytics.QueryEngineContext qec ? qec : null;
+    }
+
+    /**
      * Unified planning + execution path. When {@code profile} is true, captures the CBO
      * plan text and snapshots per-stage timing into the {@link ProfiledResult}; when false,
      * wraps rows into a ProfiledResult with null profile for uniform listener handling.
+     *
+     * <p>If {@code queryCtx} is non-null, its {@link org.opensearch.analytics.QueryEngineContext#clusterState()
+     * clusterState()} is used for Calcite planning so the planner sees the same snapshot the
+     * front-end built the schema from. Otherwise a fresh {@code clusterService.state()} is read.
      */
-    private void executeInternal(RelNode logicalFragment, boolean profile, ActionListener<ProfiledResult> listener) {
+    private void executeInternal(
+        RelNode logicalFragment,
+        org.opensearch.analytics.QueryEngineContext queryCtx,
+        boolean profile,
+        ActionListener<ProfiledResult> listener
+    ) {
         RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
         logicalFragment.getCluster().invalidateMetadataQuery();
 
         final long planStartNanos = profile ? System.nanoTime() : 0;
+        // Reuse the snapshot captured at REST entry when present; this is the same ClusterState
+        // OpenSearchSchemaBuilder used to build the SchemaPlus, so planner and schema agree.
+        org.opensearch.cluster.ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
         RelNode plan = PlannerImpl.createPlan(
             logicalFragment,
-            new PlannerContext(capabilityRegistry, clusterService.state(), indexNameExpressionResolver, false)
+            new PlannerContext(capabilityRegistry, planningState, indexNameExpressionResolver, false)
         );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
@@ -272,6 +294,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             try {
                 executeInternal(
                     request.getPlan(),
+                    asQueryEngineContext(request.getContext()),
                     false,
                     ActionListener.wrap(
                         result -> convertingListener.onResponse(new AnalyticsQueryResponse(result.rows())),
