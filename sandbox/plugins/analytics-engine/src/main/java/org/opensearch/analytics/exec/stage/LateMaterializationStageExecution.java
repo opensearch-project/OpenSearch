@@ -331,9 +331,8 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
      */
     private void scatterFetchAndStitch(ActionListener<Void> outerListener) throws Exception {
         if (drainedRowCount == 0) {
-            // Empty K: no shards to dispatch, nothing to emit. Match "K=0 short-circuit"
-            // from the master doc's deferred-questions list.
-            parentSink.close();
+            // K=0: nothing to dispatch. Parent stage owns parentSink.close() via
+            // onTerminalTransition; closing here races its reduce() task ("sink closed before reduce").
             outerListener.onResponse(null);
             return;
         }

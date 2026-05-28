@@ -12,8 +12,6 @@ import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.sql.type.SqlTypeName;
 
 /**
  * Bidirectional Arrow ↔ Calcite type converter for single types.
@@ -34,23 +32,6 @@ import org.apache.calcite.sql.type.SqlTypeName;
 public final class ArrowCalciteTypes {
 
     private ArrowCalciteTypes() {}
-
-    /**
-     * Convert an Arrow type to the corresponding Calcite {@link RelDataType}.
-     */
-    public static RelDataType toCalcite(ArrowType t, RelDataTypeFactory f) {
-        return switch (t) {
-            case ArrowType.Int i when i.getBitWidth() == 64 -> f.createSqlType(SqlTypeName.BIGINT);
-            case ArrowType.Int i when i.getBitWidth() == 32 -> f.createSqlType(SqlTypeName.INTEGER);
-            case ArrowType.FloatingPoint fp when fp.getPrecision() == FloatingPointPrecision.DOUBLE -> f.createSqlType(SqlTypeName.DOUBLE);
-            case ArrowType.FloatingPoint fp when fp.getPrecision() == FloatingPointPrecision.SINGLE -> f.createSqlType(SqlTypeName.REAL);
-            case ArrowType.Utf8 u -> f.createSqlType(SqlTypeName.VARCHAR, Integer.MAX_VALUE);
-            case ArrowType.Utf8View v -> f.createSqlType(SqlTypeName.VARCHAR, Integer.MAX_VALUE);
-            case ArrowType.Binary b -> f.createSqlType(SqlTypeName.VARBINARY, Integer.MAX_VALUE);
-            case ArrowType.Bool b -> f.createSqlType(SqlTypeName.BOOLEAN);
-            default -> throw new IllegalArgumentException("Unsupported Arrow type: " + t);
-        };
-    }
 
     /**
      * Convert a Calcite {@link RelDataType} to the corresponding Arrow type.
