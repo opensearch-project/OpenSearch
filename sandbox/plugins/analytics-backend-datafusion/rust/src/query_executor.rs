@@ -31,7 +31,7 @@ use substrait::proto::Plan;
 
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
-use crate::api::DataFusionRuntime;
+use crate::api::{DataFusionRuntime, ShardFileInfo};
 use crate::session_context::SessionContextHandle;
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
@@ -54,43 +54,24 @@ pub async fn execute_query(
     shard_store: Arc<dyn ObjectStore>,
     phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
 ) -> Result<i64, DataFusionError> {
-    // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
-    let list_file_cache = Arc::new(DefaultListFilesCache::default());
-    let table_scoped_path = datafusion::execution::cache::TableScopedPath {
-        table: None,
-        path: table_path.prefix().clone(),
-    };
-    list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.as_ref().clone()));
+    // Build per-query RuntimeEnv with list-files cache pre-populated.
+    let runtime_env = build_query_runtime_env(runtime, &table_path, object_metas.as_ref())?;
 
-    // Build a per-query RuntimeEnv sharing the global memory pool + caches,
-    // but with a fresh list-files cache for this query's shard files.
-    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(
-                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
-                ))
-                .with_metadata_cache_limit(
-                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
-                )
-                .with_files_statistics_cache(
-                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
-                ),
-        );
-
-    // If a per-query memory pool is provided, set it on the same builder.
+    // If a per-query memory pool is provided, rebuild with it overlaid.
     // The per-query pool wraps the global pool, so global limits are still enforced.
-    if let Some(pool) = query_memory_pool {
-        runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
-    }
-
-    let runtime_env = runtime_env_builder
-        .build()
-        .map_err(|e| {
-            error!("Failed to build runtime env: {}", e);
-            e
-        })?;
+    let runtime_env = if let Some(pool) = query_memory_pool {
+        Arc::from(
+            RuntimeEnvBuilder::from_runtime_env(&runtime_env)
+                .with_memory_pool(pool)
+                .build()
+                .map_err(|e| {
+                    error!("Failed to build runtime env with query pool: {}", e);
+                    e
+                })?,
+        )
+    } else {
+        runtime_env
+    };
 
     // Register shard-specific object store on file:// scheme for this query.
     // Routes reads through TieredObjectStore (local + remote) or default LocalFileSystem.
@@ -107,7 +88,7 @@ pub async fn execute_query(
 
     let state = SessionStateBuilder::new()
         .with_config(config)
-        .with_runtime_env(Arc::from(runtime_env))
+        .with_runtime_env(runtime_env)
         .with_default_features()
         .build();
 
@@ -115,40 +96,62 @@ pub async fn execute_query(
     crate::udf::register_all(&ctx);
     crate::udaf::register_all(&ctx);
 
-    // Register table via ListingTable — all IO goes through object store
-    let file_format = ParquetFormat::new();
-    let listing_options = ListingOptions::new(Arc::new(file_format))
-        .with_file_extension(".parquet")
-        .with_collect_stat(true);
+    // Register table provider based on strategy.
+    //
+    // Note: api::execute_query only routes to this function when the plan does NOT
+    // request row IDs (otherwise it dispatches to the indexed executor). The strategy
+    // therefore matters only for distinguishing the ShardTableProvider rewrite
+    // (ListingTable) from the plain ListingTable scan (None / IndexedPredicateOnly).
+    use crate::datafusion_query_config::QueryStrategy;
+    match query_config.query_strategy {
+        QueryStrategy::ListingTable => {
+            use crate::shard_table_provider::{ShardTableConfig, ShardTableProvider};
 
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &table_path)
-        .await
-        .map_err(|e| {
-            error!("Failed to infer schema: {}", e);
-            e
-        })?;
-    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
+            // Infer schema from the first file
+            let file_format = ParquetFormat::new();
+            let listing_options = ListingOptions::new(Arc::new(file_format))
+                .with_file_extension(".parquet")
+                .with_collect_stat(true);
+            let resolved_schema = listing_options
+                .infer_schema(&ctx.state(), &table_path)
+                .await
+                .map_err(|e| { error!("Failed to infer schema: {}", e); e })?;
+            let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
 
-    let table_config = ListingTableConfig::new(table_path)
-        .with_listing_options(listing_options)
-        .with_schema(resolved_schema);
+            // Build ShardFileInfo with row_base from cumulative row counts
+            let store = ctx.state().runtime_env().object_store(&table_path)?;
+            let files = build_shard_file_infos(&store, object_metas.as_ref()).await?;
 
-    // Wire the global statistics cache into the ListingTable.
-    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
-    let provider = Arc::new(
-        ListingTable::try_new(table_config)
-            .map_err(|e| {
-                error!("Failed to create listing table: {}", e);
-                e
-            })?
-            .with_cache(stats_cache),
-    );
+            let store_url = store_url_from_table_path(&table_path)?;
 
-    ctx.register_table(&table_name, provider).map_err(|e| {
-        error!("Failed to register table: {}", e);
-        e
-    })?;
+            let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
+                file_schema: resolved_schema,
+                files,
+                store_url,
+            }));
+            ctx.register_table(&table_name, provider)
+                .map_err(|e| { error!("Failed to register table: {}", e); e })?;
+        }
+        _ => {
+            // Baseline: use standard ListingTable
+            let file_format = ParquetFormat::new();
+            let listing_options = ListingOptions::new(Arc::new(file_format))
+                .with_file_extension(".parquet")
+                .with_collect_stat(true);
+            let resolved_schema = listing_options
+                .infer_schema(&ctx.state(), &table_path)
+                .await
+                .map_err(|e| { error!("Failed to infer schema: {}", e); e })?;
+            let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
+            let table_config = ListingTableConfig::new(table_path)
+                .with_listing_options(listing_options)
+                .with_schema(resolved_schema);
+            let provider = Arc::new(ListingTable::try_new(table_config)
+                .map_err(|e| { error!("Failed to create listing table: {}", e); e })?);
+            ctx.register_table(&table_name, provider)
+                .map_err(|e| { error!("Failed to register table: {}", e); e })?;
+        }
+    }
 
     // Decode substrait → logical plan → physical plan → stream
     let substrait_plan = Plan::decode(plan_bytes.as_slice()).map_err(|e| {
@@ -165,6 +168,19 @@ pub async fn execute_query(
     // batches arriving from this producer agree by construction.
     let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
     let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+
+    // Apply row ID optimizer when ShardTableProvider injected `row_base`.
+    // For other strategies the vanilla scan output is already what the plan expects.
+    use datafusion::physical_optimizer::PhysicalOptimizerRule;
+    let physical_plan = match query_config.query_strategy {
+        QueryStrategy::ListingTable => {
+            // Rewrites ___row_id to ___row_id + row_base.
+            let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
+            let config = datafusion::common::config::ConfigOptions::default();
+            optimizer.optimize(physical_plan, &config)?
+        }
+        _ => physical_plan,
+    };
 
     let df_stream = execute_stream(physical_plan, ctx.task_ctx()).map_err(|e| {
         error!("Failed to create execution stream: {}", e);
@@ -199,6 +215,11 @@ pub async fn execute_query(
 /// raw Java pointer) happens at the FFM entry in `df_execute_with_context`, so
 /// by the time this function is reached the pointer is already invalidated from
 /// Java's perspective and cleanup is pure RAII.
+///
+/// When the plan requests row IDs and a `QueryStrategy` is configured, this
+/// function routes to the appropriate execution path:
+/// - `ListingTable`: applies `ProjectRowIdOptimizer` to the physical plan
+/// - `IndexedPredicateOnly`: delegates to the indexed executor with `emit_row_ids=true`
 pub async fn execute_with_context(
     handle: SessionContextHandle,
     plan_bytes: &[u8],
@@ -208,9 +229,44 @@ pub async fn execute_with_context(
     // Permit was acquired by the caller (ffm.rs) on the IO runtime before
     // spawning on the CPU runtime, so the Java search thread blocks at the
     // gate when it is full — creating backpressure at the Java threadpool level.
+    use crate::datafusion_query_config::QueryStrategy;
 
     let context_id = handle.query_context.context_id();
     let token = crate::query_tracker::get_cancellation_token(context_id);
+
+    let query_strategy = handle.query_config.query_strategy;
+
+    // If ListingTable strategy: replace the default ListingTable with ShardTableProvider
+    // that adds row_base partition column for ProjectRowIdOptimizer.
+    // Also register the ProjectRowIdAnalyzer to ensure __row_id__ survives logical optimization.
+    if query_strategy == QueryStrategy::ListingTable {
+        use crate::shard_table_provider::{ShardTableConfig, ShardTableProvider};
+
+        handle.ctx.deregister_table(&handle.table_name)?;
+
+        let store = handle.ctx.state().runtime_env().object_store(&handle.table_path)?;
+
+        // Infer schema from existing files
+        let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
+            .with_file_extension(".parquet")
+            .with_collect_stat(true);
+        let resolved_schema = listing_options
+            .infer_schema(&handle.ctx.state(), &handle.table_path)
+            .await?;
+        let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
+
+        // Build ShardFileInfo with cumulative row_base from parquet metadata.
+        let files = build_shard_file_infos(&store, handle.object_metas.as_ref()).await?;
+
+        let store_url = store_url_from_table_path(&handle.table_path)?;
+
+        let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
+            file_schema: resolved_schema,
+            files,
+            store_url,
+        }));
+        handle.ctx.register_table(&handle.table_name, provider)?;
+    }
 
     let query_future = async {
         let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
@@ -221,6 +277,8 @@ pub async fn execute_with_context(
         let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
+        // create_physical_plan runs all registered physical optimizer rules including
+        // ProjectRowIdOptimizer (registered in session_context when strategy=ListingTable).
         let physical_plan = dataframe.create_physical_plan().await?;
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
@@ -256,4 +314,98 @@ pub async fn execute_with_context(
     // If cancellation fires → stream drops → handle drops → permit drops → gate releases.
     let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
+}
+
+// ── Shared helpers ──────────────────────────────────────────────────────────
+
+/// Build a per-query RuntimeEnv sharing global caches, with a fresh list-files
+/// cache pre-populated for the given table path and object metas.
+pub fn build_query_runtime_env(
+    runtime: &DataFusionRuntime,
+    table_path: &ListingTableUrl,
+    object_metas: &[ObjectMeta],
+) -> Result<Arc<datafusion::execution::runtime_env::RuntimeEnv>, DataFusionError> {
+    let list_file_cache = Arc::new(DefaultListFilesCache::default());
+    let table_scoped_path = datafusion::execution::cache::TableScopedPath {
+        table: None,
+        path: table_path.prefix().clone(),
+    };
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.to_vec()));
+
+    let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
+        .with_cache_manager(
+            CacheManagerConfig::default()
+                .with_list_files_cache(Some(list_file_cache))
+                .with_file_metadata_cache(Some(
+                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+                ))
+                .with_files_statistics_cache(
+                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
+                ),
+        )
+        .build()?;
+    Ok(Arc::from(runtime_env))
+}
+
+/// Build ShardFileInfo list from object metas by reading parquet footers.
+/// Each file gets a cumulative `row_base` and per-RG row counts.
+pub async fn build_shard_file_infos(
+    store: &Arc<dyn object_store::ObjectStore>,
+    object_metas: &[ObjectMeta],
+) -> Result<Vec<ShardFileInfo>, DataFusionError> {
+    let mut files: Vec<ShardFileInfo> = Vec::new();
+    let mut cumulative_rows: i64 = 0;
+    for meta in object_metas {
+        let reader = datafusion::parquet::arrow::async_reader::ParquetObjectReader::new(
+            Arc::clone(store), meta.location.clone(),
+        ).with_file_size(meta.size);
+        let builder = datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder::new(reader)
+            .await
+            .map_err(|e| DataFusionError::Execution(format!("parquet metadata: {}", e)))?;
+        let pq_meta = builder.metadata().clone();
+        let num_rows: i64 = (0..pq_meta.num_row_groups())
+            .map(|i| pq_meta.row_group(i).num_rows())
+            .sum();
+
+        files.push(ShardFileInfo {
+            object_meta: meta.clone(),
+            row_base: cumulative_rows,
+            num_rows: num_rows as u64,
+            row_group_row_counts: (0..pq_meta.num_row_groups())
+                .map(|i| pq_meta.row_group(i).num_rows() as u64)
+                .collect(),
+            access_plan: None,
+        });
+        cumulative_rows += num_rows;
+    }
+    Ok(files)
+}
+
+/// Parse a ListingTableUrl into an ObjectStoreUrl (scheme + authority).
+pub fn store_url_from_table_path(table_path: &ListingTableUrl) -> Result<datafusion::execution::object_store::ObjectStoreUrl, DataFusionError> {
+    let url_str = table_path.as_str();
+    let parsed = url::Url::parse(url_str)
+        .map_err(|e| DataFusionError::Execution(format!("parse URL: {}", e)))?;
+    datafusion::execution::object_store::ObjectStoreUrl::parse(
+        format!("{}://{}", parsed.scheme(), parsed.authority()),
+    )
+}
+
+/// Wrap a DataFusion stream in CrossRtStream and package as a QueryStreamHandle pointer.
+pub fn wrap_stream_as_handle(
+    df_stream: datafusion::execution::SendableRecordBatchStream,
+    cpu_executor: DedicatedExecutor,
+    runtime: &DataFusionRuntime,
+) -> i64 {
+    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
+    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+        cross_rt_stream.schema(),
+        cross_rt_stream,
+    );
+    let query_context = crate::query_tracker::QueryTrackingContext::new(
+        0,
+        runtime.runtime_env.memory_pool.clone(),
+    );
+    let handle = crate::api::QueryStreamHandle::new(wrapped, query_context, None);
+    Box::into_raw(Box::new(handle)) as i64
 }

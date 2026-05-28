@@ -43,6 +43,13 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Cleanup ownership lives in {@link #reduce}'s {@code finally} (via {@link SinkState}),
  * not {@link #close}, so a close call from another thread never races a parked drain.
+ *
+ * <p>TODO abstraction leak: this class implements {@link MultiInputExchangeSink} unconditionally
+ * even when only one child stage feeds it. The marker is meant for genuine multi-input shapes
+ * (Union/Join), and callers like {@code ReduceStageExecution.inputSink} have to dispatch on
+ * the logical child-stage count instead of the marker. Either split into a single-input
+ * subclass and a multi-input subclass, or drop the marker and let the caller always go through
+ * {@code feed()} when there's one child. Current behaviour is correct but the typing lies.
  */
 public class DatafusionReduceSink extends AbstractDatafusionReduceSink implements MultiInputExchangeSink {
 

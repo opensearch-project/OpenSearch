@@ -230,6 +230,69 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         assertEquals(50L, ((Number) rows.get(0).get(0)).longValue());
     }
 
+    // ---- Combining delegation tests ----
+
+    /**
+     * match(message,'hello') AND tag='hello' AND value=5
+     * correctness (match) + performance (tag=) + native (value=) under AND.
+     * Both delegations combined separately; result = 50.
+     */
+    public void testAndCorrectnessAndPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * tag='hello' AND value=5 (no correctness delegation, only performance + native under AND).
+     * Performance-delegated tag= combined; value= stays native. Result = 10.
+     */
+    public void testAndOnlyPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * match(message,'hello') OR tag='hello' AND value=5
+     * Precedence: match OR (tag= AND value=). Correctness under OR, perf under AND.
+     * Performance-delegated under OR stays native (not combined with correctness).
+     * Result: 10 (match 'hello') + 0 extra (tag='hello' AND value=5 is subset) = 10.
+     */
+    public void testOrCorrectnessWithPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * (match(message,'hello') AND tag='hello') OR (tag='goodbye' AND value=3)
+     * OR of two AND arms: left has correctness+perf, right has perf+native.
+     * Result: 10 (left arm) + 10 (right arm) = 20 (but overlap → 10 + 10 = 20 distinct docs).
+     */
+    public void testOrOfTwoAndArms() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME
+            + " | where (match(message, 'hello') and tag = 'hello') or (tag = 'goodbye' and value = 3) | stats count() as cnt";
+        Map<String, Object> result = executePPL(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(20L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
     private void createIndex() throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX_NAME));

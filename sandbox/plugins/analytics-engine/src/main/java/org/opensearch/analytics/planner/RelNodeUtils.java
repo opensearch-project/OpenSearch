@@ -13,6 +13,12 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -25,8 +31,12 @@ import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Copies an OpenSearch RelNode tree to a new cluster so all nodes register
@@ -203,4 +213,95 @@ public class RelNodeUtils {
         return true;
     }
 
+    /** Collects every {@link RexInputRef} index appearing inside a {@link RexNode} tree. */
+    public static Set<Integer> collectInputRefs(RexNode node) {
+        Set<Integer> out = new HashSet<>();
+        node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitInputRef(RexInputRef ref) {
+                out.add(ref.getIndex());
+                return ref;
+            }
+        });
+        return out;
+    }
+
+    /**
+     * Resolves a derived expression to the ordered list of physical-field names it depends on,
+     * deduped by first-appearance. Used by {@link OpenSearchProject#getOutputFieldStorage} and
+     * {@link OpenSearchAggregate#getOutputFieldStorage} to populate
+     * {@link FieldStorageInfo#getDependsOnPhysicalCols} per Invariant 1 of the QTF v2 algorithm.
+     *
+     * <p>For each {@code RexInputRef} encountered (depth-first order):
+     * <ul>
+     *   <li>If the input FSI at that index is non-derived, add its field name.</li>
+     *   <li>If the input FSI at that index is derived, recurse into its
+     *       {@code dependsOnPhysicalCols} (already resolved by the upstream operator).</li>
+     * </ul>
+     */
+    public static LinkedHashSet<String> resolvePhysicalDeps(RexNode node, List<FieldStorageInfo> inputStorage) {
+        LinkedHashSet<String> deps = new LinkedHashSet<>();
+        node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitInputRef(RexInputRef ref) {
+                int idx = ref.getIndex();
+                if (idx >= inputStorage.size()) {
+                    throw new IllegalStateException(
+                        "RexInputRef["
+                            + idx
+                            + "] has no matching FieldStorageInfo entry "
+                            + "(input only declares "
+                            + inputStorage.size()
+                            + " columns) — "
+                            + "the upstream operator did not record storage for every output column"
+                    );
+                }
+                FieldStorageInfo src = inputStorage.get(idx);
+                if (src.isDerived()) {
+                    deps.addAll(src.getDependsOnPhysicalCols());
+                } else {
+                    deps.add(src.getFieldName());
+                }
+                return ref;
+            }
+        });
+        return deps;
+    }
+
+    /**
+     * Returns a copy of {@code base} with one extra field {@code (name, type)} appended.
+     * Used by rewrites that augment a rowType with synthetic helper columns.
+     */
+    public static RelDataType appendField(RelDataTypeFactory typeFactory, RelDataType base, String name, RelDataType type) {
+        RelDataTypeFactory.Builder builder = typeFactory.builder();
+        for (RelDataTypeField f : base.getFieldList()) {
+            builder.add(f.getName(), f.getType());
+        }
+        builder.add(name, type);
+        return builder.build();
+    }
+
+    /**
+     * {@link RexShuttle} that rewrites every {@link RexInputRef} via {@code remap[oldIdx]}.
+     * Throws when {@code remap[oldIdx] < 0} (referenced column was dropped). Output ref's
+     * type is sourced from {@code newRowType}.
+     */
+    public static final class IndexRemapShuttle extends RexShuttle {
+        private final int[] remap;
+        private final RelDataType newRowType;
+
+        public IndexRemapShuttle(int[] remap, RelDataType newRowType) {
+            this.remap = remap;
+            this.newRowType = newRowType;
+        }
+
+        @Override
+        public RexNode visitInputRef(RexInputRef ref) {
+            int newIdx = remap[ref.getIndex()];
+            if (newIdx < 0) {
+                throw new IllegalStateException("RexInputRef references dropped column at original idx " + ref.getIndex());
+            }
+            return new RexInputRef(newIdx, newRowType.getFieldList().get(newIdx).getType());
+        }
+    }
 }

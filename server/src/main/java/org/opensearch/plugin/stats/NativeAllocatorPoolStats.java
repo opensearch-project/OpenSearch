@@ -6,12 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.spi;
+package org.opensearch.plugin.stats;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -21,11 +20,20 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Point-in-time snapshot of native memory pool statistics for a node.
+ * Point-in-time snapshot of native allocator pool statistics for a node.
  *
- * <p>Arrow-agnostic — describes pool utilization without referencing
- * Arrow classes. The concrete implementation (backed by Arrow's
- * {@code BufferAllocator}) lives in the plugin that owns the pools.
+ * <p>Arrow-agnostic POJO. The plugin that owns the allocator (e.g. {@code arrow-base})
+ * constructs instances of this class and exposes them through a
+ * {@link NativeAllocatorStatsRegistry} component returned from its
+ * {@code createComponents()}. Server is the type's home so that the cross-module
+ * dependency from {@code :server} to {@code :libs:opensearch-arrow-spi} is unnecessary,
+ * mirroring the placement of {@link AnalyticsBackendNativeMemoryStats}.
+ *
+ * <p>Renders as the inner body of the {@code native_allocator} object inside
+ * {@code _nodes/stats[/native_allocator]} — the caller ({@code NodeStats.toXContent})
+ * is responsible for opening the {@code native_allocator} wrapper. Each pool exposes
+ * {@code allocated_bytes}, {@code peak_bytes}, and {@code limit_bytes}; root exposes
+ * the same.
  *
  * @opensearch.api
  */
@@ -40,7 +48,7 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
      * Creates a new stats snapshot from the given values.
      *
      * @param rootAllocatedBytes current bytes allocated by the root
-     * @param rootPeakBytes peak bytes allocated by the root
+     * @param rootPeakBytes peak bytes ever allocated by the root since process start
      * @param rootLimitBytes configured root limit
      * @param pools per-pool stats
      */
@@ -81,20 +89,16 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("native_allocator");
-
         builder.startObject("root");
-        builder.humanReadableField("allocated_bytes", "allocated", new ByteSizeValue(rootAllocatedBytes));
-        builder.humanReadableField("peak_bytes", "peak", new ByteSizeValue(rootPeakBytes));
-        builder.humanReadableField("limit_bytes", "limit", new ByteSizeValue(rootLimitBytes));
+        builder.field("allocated_bytes", rootAllocatedBytes);
+        builder.field("peak_bytes", rootPeakBytes);
+        builder.field("limit_bytes", rootLimitBytes);
         builder.endObject();
 
         builder.startObject("pools");
         for (PoolStats pool : pools) {
             pool.toXContent(builder, params);
         }
-        builder.endObject();
-
         builder.endObject();
         return builder;
     }
@@ -104,7 +108,7 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
         return rootAllocatedBytes;
     }
 
-    /** Returns the root allocator's peak allocated bytes. */
+    /** Returns the root allocator's peak allocated bytes since process start. */
     public long getRootPeakBytes() {
         return rootPeakBytes;
     }
@@ -128,23 +132,20 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
         private final long allocatedBytes;
         private final long peakBytes;
         private final long limitBytes;
-        private final int childCount;
 
         /**
          * Creates a new pool stats snapshot.
          *
          * @param name pool name
          * @param allocatedBytes current allocated bytes
-         * @param peakBytes peak allocated bytes
+         * @param peakBytes peak bytes ever allocated since process start
          * @param limitBytes configured limit
-         * @param childCount number of child allocators
          */
-        public PoolStats(String name, long allocatedBytes, long peakBytes, long limitBytes, int childCount) {
+        public PoolStats(String name, long allocatedBytes, long peakBytes, long limitBytes) {
             this.name = name;
             this.allocatedBytes = allocatedBytes;
             this.peakBytes = peakBytes;
             this.limitBytes = limitBytes;
-            this.childCount = childCount;
         }
 
         /**
@@ -157,7 +158,6 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
             this.allocatedBytes = in.readVLong();
             this.peakBytes = in.readVLong();
             this.limitBytes = in.readVLong();
-            this.childCount = in.readVInt();
         }
 
         @Override
@@ -166,16 +166,14 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
             out.writeVLong(allocatedBytes);
             out.writeVLong(peakBytes);
             out.writeVLong(limitBytes);
-            out.writeVInt(childCount);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
-            builder.humanReadableField("allocated_bytes", "allocated", new ByteSizeValue(allocatedBytes));
-            builder.humanReadableField("peak_bytes", "peak", new ByteSizeValue(peakBytes));
-            builder.humanReadableField("limit_bytes", "limit", new ByteSizeValue(limitBytes));
-            builder.field("child_count", childCount);
+            builder.field("allocated_bytes", allocatedBytes);
+            builder.field("peak_bytes", peakBytes);
+            builder.field("limit_bytes", limitBytes);
             builder.endObject();
             return builder;
         }
@@ -190,7 +188,7 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
             return allocatedBytes;
         }
 
-        /** Returns the peak allocated bytes. */
+        /** Returns the peak allocated bytes since process start. */
         public long getPeakBytes() {
             return peakBytes;
         }
@@ -198,11 +196,6 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
         /** Returns the configured limit in bytes. */
         public long getLimitBytes() {
             return limitBytes;
-        }
-
-        /** Returns the number of child allocators. */
-        public int getChildCount() {
-            return childCount;
         }
     }
 }

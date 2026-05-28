@@ -224,7 +224,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         for (int i = 0; i < n; i++) {
             DiscoveryNode node = mock(DiscoveryNode.class);
             when(node.getId()).thenReturn("test-node-" + i);
-            targets.add(new ShardExecutionTarget(node, new ShardId("idx", "_na_", i)));
+            targets.add(new ShardExecutionTarget(node, new ShardId("idx", "_na_", i), i));
         }
         when(resolver.resolve(any(ClusterState.class), any())).thenReturn(targets);
         when(stage.getTargetResolver()).thenReturn(resolver);

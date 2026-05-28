@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
@@ -89,6 +90,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final Codec codec;
     private final LuceneMerger luceneMerger;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
+    private final Set<LuceneWriter> activeWriters = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
@@ -168,18 +170,38 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
             long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
-            return new LuceneWriter(
+            return buildLuceneWriter(
                 config.writerGeneration(),
                 mappingVersion,
                 dataFormat,
                 baseDirectory,
                 analyzer,
                 codec,
-                getChildWriterSortConfiguration()
+                getChildWriterSortConfiguration(),
+                activeWriters
             );
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
+    }
+
+    /**
+     * Factory hook for tests: builds the per-generation {@link LuceneWriter}. Subclasses
+     * (notably test-only fault-injecting variants) override this to return a custom
+     * {@link LuceneWriter} subclass — e.g., one that wraps the {@code Directory} with a
+     * fault injector to exercise {@code IndexWriter.addDocument} failure paths.
+     */
+    protected LuceneWriter buildLuceneWriter(
+        long writerGeneration,
+        long mappingVersion,
+        LuceneDataFormat dataFormat,
+        Path baseDirectory,
+        Analyzer analyzer,
+        Codec codec,
+        Sort indexSort,
+        Set<LuceneWriter> registry
+    ) throws IOException {
+        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry);
     }
 
     private Sort getChildWriterSortConfiguration() {
@@ -193,6 +215,21 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             sortConfig = null;
         }
         return sortConfig;
+    }
+
+    @Override
+    public long getHeapBytesUsed() {
+        long total = 0;
+        for (LuceneWriter activeWriter : activeWriters) {
+            total += activeWriter.getHeapBytesUsed();
+        }
+        return total;
+    }
+
+    /** Lucene indexing uses only JVM heap for IndexWriter RAM buffers, no native memory. */
+    @Override
+    public long getNativeBytesUsed() {
+        return 0;
     }
 
     /**
@@ -290,7 +327,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                         if (!writerGenerations.contains(writerGen)) {
                             continue;
                         }
-                        long numDocs = segInfo.info.maxDoc();
+                        long numDocs = segReader.maxDoc();
 
                         WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
                             .directory(sharedDir)
@@ -312,10 +349,22 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         return new RefreshResult(List.copyOf(resultSegments));
     }
 
-    /** Returns {@code null} — merge scheduling is not yet implemented for the Lucene format. */
     @Override
     public Merger getMerger() {
         return this.luceneMerger;
+    }
+
+    /**
+     * Surfaces the shared {@link org.apache.lucene.index.IndexWriter}'s tragic exception
+     * so DFAE can fail the engine. Wraps non-Exception throwables (e.g., Errors from
+     * background merges) in {@link RuntimeException} since the contract returns Exception.
+     */
+    @Override
+    public Exception getTragicException() {
+        if (sharedWriter == null) return null;
+        Throwable tragic = sharedWriter.getTragicException();
+        if (tragic == null) return null;
+        return tragic instanceof Exception ? (Exception) tragic : new RuntimeException(tragic);
     }
 
     /**

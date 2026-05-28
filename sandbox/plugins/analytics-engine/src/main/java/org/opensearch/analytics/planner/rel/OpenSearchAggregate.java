@@ -21,12 +21,14 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -131,9 +133,32 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             }
         }
 
-        // Agg results: derived columns with no physical storage
+        // Agg results: derived columns whose physical-deps are the union of arg refs' deps
+        // (preserving first-seen order across argList, then rexList).
         for (AggregateCall aggCall : getAggCallList()) {
-            outputStorage.add(FieldStorageInfo.derivedColumn(aggCall.getName(), aggCall.getType().getSqlTypeName()));
+            LinkedHashSet<String> deps = new LinkedHashSet<>();
+            for (int argIdx : aggCall.getArgList()) {
+                if (argIdx >= inputStorage.size()) {
+                    throw new IllegalStateException(
+                        "AggregateCall arg["
+                            + argIdx
+                            + "] has no matching FieldStorageInfo entry "
+                            + "(input only declares "
+                            + inputStorage.size()
+                            + " columns)"
+                    );
+                }
+                FieldStorageInfo src = inputStorage.get(argIdx);
+                if (src.isDerived()) {
+                    deps.addAll(src.getDependsOnPhysicalCols());
+                } else {
+                    deps.add(src.getFieldName());
+                }
+            }
+            for (RexNode rex : aggCall.rexList) {
+                deps.addAll(RelNodeUtils.resolvePhysicalDeps(rex, inputStorage));
+            }
+            outputStorage.add(FieldStorageInfo.derivedColumn(aggCall.getName(), aggCall.getType().getSqlTypeName(), deps));
         }
 
         return outputStorage;
