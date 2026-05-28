@@ -25,13 +25,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Pins the security-wiring contract for {@link AnalyticsPlugin.DefaultEngineContext}:
+ * Pins the security-wiring contract for {@link AnalyticsPlugin.DefaultEngineContextProvider}:
  * {@code getContext()} must thread the cluster's {@link IndexNameExpressionResolver} (which
  * carries security-plugin extensions and system-index access rules) into
  * {@code OpenSearchSchemaBuilder.buildSchema}, not silently construct a fresh resolver. A
  * regression to the single-arg buildSchema(state) overload would bypass those checks.
  */
-public class DefaultEngineContextTests extends OpenSearchTestCase {
+public class DefaultEngineContextProviderTests extends OpenSearchTestCase {
 
     public void testGetContextUsesInjectedResolver() {
         ClusterService clusterService = mock(ClusterService.class);
@@ -48,7 +48,7 @@ public class DefaultEngineContextTests extends OpenSearchTestCase {
             )
         ).thenReturn(new String[0]);
 
-        AnalyticsPlugin.DefaultEngineContext ctx = new AnalyticsPlugin.DefaultEngineContext(clusterService, injectedResolver, null);
+        AnalyticsPlugin.DefaultEngineContextProvider ctx = new AnalyticsPlugin.DefaultEngineContextProvider(clusterService, injectedResolver, null);
 
         SchemaPlus schema = ctx.getContext().schema();
         // Trigger a lazy resolve so the resolver is actually invoked. Cluster state has no

@@ -20,8 +20,8 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
+import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.EngineContext;
-import org.opensearch.analytics.QueryEngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
@@ -66,7 +66,7 @@ import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_A
  * {@link ClusterService}, {@link ThreadPool}, etc.) automatically.
  *
  * <p>Front-end plugins resolve this class from the Node's Guice injector and invoke
- * {@link #execute(RelNode, QueryEngineContext, ActionListener)} directly. Execution is asynchronous —
+ * {@link #execute(RelNode, EngineContext, ActionListener)} directly. Execution is asynchronous —
  * the listener is fired by the scheduler once the query completes (or fails). The transport
  * path ({@code doExecute}) is reserved for future remote query invocation.
  *
@@ -85,7 +85,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final ThreadPool threadPool;
     private final TaskManager taskManager;
     private final NodeClient client;
-    private final EngineContext engineContext;
+    private final EngineContextProvider contextProvider;
     // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
@@ -99,7 +99,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ClusterService clusterService,
         ThreadPool threadPool,
         CapabilityRegistry capabilityRegistry,
-        EngineContext engineContext,
+        EngineContextProvider contextProvider,
         NodeClient client,
         Scheduler scheduler,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle,
@@ -113,7 +113,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
-        this.engineContext = engineContext;
+        this.contextProvider = contextProvider;
         // Use the plugin-owned coordinator allocator (a child of POOL_QUERY). The plugin
         // closes the underlying allocator on Plugin.close() via the handle, so coordinator-
         // side allocations are released deterministically before arrow-base tears down the
@@ -128,7 +128,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     @Override
-    public void execute(RelNode logicalFragment, QueryEngineContext queryCtx, ActionListener<Iterable<Object[]>> listener) {
+    public void execute(RelNode logicalFragment, EngineContext queryCtx, ActionListener<Iterable<Object[]>> listener) {
         // Dispatch through ActionModule so the SecurityFilter evaluates index-level
         // permissions before any planning work begins. The AnalyticsQueryRequest
         // implements IndicesRequest.Replaceable, exposing target indices extracted
@@ -143,7 +143,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     @Override
-    public void executeWithProfile(RelNode logicalFragment, QueryEngineContext queryCtx, ActionListener<ProfiledResult> listener) {
+    public void executeWithProfile(RelNode logicalFragment, EngineContext queryCtx, ActionListener<ProfiledResult> listener) {
         searchExecutor.execute(() -> {
             try {
                 executeInternal(logicalFragment, queryCtx, true, listener);
@@ -160,13 +160,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
      * plan text and snapshots per-stage timing into the {@link ProfiledResult}; when false,
      * wraps rows into a ProfiledResult with null profile for uniform listener handling.
      *
-     * <p>If {@code queryCtx} is non-null, its {@link QueryEngineContext#clusterState()} is
+     * <p>If {@code queryCtx} is non-null, its {@link EngineContext#clusterState()} is
      * used for Calcite planning so the planner sees the same snapshot the front-end built
      * the schema from. Otherwise a fresh {@code clusterService.state()} is read.
      */
     private void executeInternal(
         RelNode logicalFragment,
-        QueryEngineContext queryCtx,
+        EngineContext queryCtx,
         boolean profile,
         ActionListener<ProfiledResult> listener
     ) {
@@ -281,7 +281,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // immediately. The listener is wrapped to convert backend-specific exceptions.
         ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(
             listener::onResponse,
-            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+            e -> listener.onFailure(e instanceof Exception ex ? contextProvider.convertException(ex) : e)
         );
         searchExecutor.execute(() -> {
             try {

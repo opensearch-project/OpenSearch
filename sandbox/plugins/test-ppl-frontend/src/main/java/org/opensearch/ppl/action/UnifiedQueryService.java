@@ -16,7 +16,7 @@ import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.sql.api.UnifiedQueryContext;
@@ -41,11 +41,11 @@ public class UnifiedQueryService {
     private static final String DEFAULT_CATALOG = "opensearch";
 
     private final QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor;
-    private final EngineContext engineContext;
+    private final EngineContextProvider contextProvider;
 
-    public UnifiedQueryService(QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor, EngineContext engineContext) {
+    public UnifiedQueryService(QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor, EngineContextProvider contextProvider) {
         this.planExecutor = planExecutor;
-        this.engineContext = engineContext;
+        this.contextProvider = contextProvider;
     }
 
     /**
@@ -68,7 +68,7 @@ public class UnifiedQueryService {
         // Wrap the SchemaPlus in a delegating AbstractSchema that preserves lazy table resolution.
         // The underlying OpenSearchSchemaBuilder resolves wildcard/comma/exclusion expressions
         // lazily via getTable(name) — a static copy would lose that.
-        SchemaPlus schemaPlus = engineContext.getContext().schema();
+        SchemaPlus schemaPlus = contextProvider.getContext().schema();
         AbstractSchema delegatingSchema = new AbstractSchema() {
             @Override
             protected Map<String, Table> getTableMap() {
@@ -93,10 +93,10 @@ public class UnifiedQueryService {
         };
 
         logger.info(
-            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, engineContext class: {}",
+            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, contextProvider class: {}",
             schemaPlus.getClass().getName(),
             schemaPlus.getTableNames(),
-            engineContext.getClass().getName()
+            contextProvider.getClass().getName()
         );
 
         try (

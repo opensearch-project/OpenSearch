@@ -7,8 +7,8 @@
  */
 
 /**
- * Analytics engine API surface: front-end contract types ({@link org.opensearch.analytics.EngineContext},
- * {@link org.opensearch.analytics.QueryEngineContext}) that external plugins consume to plan and
+ * Analytics engine API surface: front-end contract types ({@link org.opensearch.analytics.EngineContextProvider},
+ * {@link org.opensearch.analytics.EngineContext}) that external plugins consume to plan and
  * execute queries against the analytics engine.
  */
 package org.opensearch.analytics;
