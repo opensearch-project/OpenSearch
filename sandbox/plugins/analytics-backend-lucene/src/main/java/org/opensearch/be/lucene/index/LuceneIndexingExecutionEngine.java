@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
@@ -89,6 +90,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final Codec codec;
     private final LuceneMerger luceneMerger;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
+    private final Set<LuceneWriter> activeWriters = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
@@ -175,7 +177,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 baseDirectory,
                 analyzer,
                 codec,
-                getChildWriterSortConfiguration()
+                getChildWriterSortConfiguration(),
+                activeWriters
             );
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
@@ -195,9 +198,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         Path baseDirectory,
         Analyzer analyzer,
         Codec codec,
-        Sort indexSort
+        Sort indexSort,
+        Set<LuceneWriter> registry
     ) throws IOException {
-        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort);
+        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry);
     }
 
     private Sort getChildWriterSortConfiguration() {
@@ -211,6 +215,21 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             sortConfig = null;
         }
         return sortConfig;
+    }
+
+    @Override
+    public long getHeapBytesUsed() {
+        long total = 0;
+        for (LuceneWriter activeWriter : activeWriters) {
+            total += activeWriter.getHeapBytesUsed();
+        }
+        return total;
+    }
+
+    /** Lucene indexing uses only JVM heap for IndexWriter RAM buffers, no native memory. */
+    @Override
+    public long getNativeBytesUsed() {
+        return 0;
     }
 
     /**

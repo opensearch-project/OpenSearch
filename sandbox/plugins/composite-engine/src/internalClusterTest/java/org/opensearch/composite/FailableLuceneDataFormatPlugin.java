@@ -27,6 +27,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -110,9 +111,19 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
             Path baseDirectory,
             Analyzer analyzer,
             Codec codec,
-            Sort indexSort
+            Sort indexSort,
+            Set<LuceneWriter> registry
         ) throws IOException {
-            return new FaultInjectingLuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort);
+            return new FaultInjectingLuceneWriter(
+                writerGeneration,
+                mappingVersion,
+                dataFormat,
+                baseDirectory,
+                analyzer,
+                codec,
+                indexSort,
+                registry
+            );
         }
     }
 
@@ -130,9 +141,10 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
             Path baseDirectory,
             Analyzer analyzer,
             Codec codec,
-            Sort indexSort
+            Sort indexSort,
+            Set<LuceneWriter> registry
         ) throws IOException {
-            super(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort);
+            super(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry);
         }
 
         @Override

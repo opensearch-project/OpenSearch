@@ -1381,8 +1381,26 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngineWithParentWriter(parentWriter);
 
-        LuceneWriter writer1 = new LuceneWriter(1L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer2 = new LuceneWriter(2L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer1 = new LuceneWriter(
+            1L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer2 = new LuceneWriter(
+            2L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
 
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2);
 
@@ -1430,7 +1448,16 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngineWithParentWriter(parentWriter);
 
-        LuceneWriter writer1 = new LuceneWriter(1L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer1 = new LuceneWriter(
+            1L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1);
 
         // Index doc1 in gen 1
@@ -1484,8 +1511,26 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngineWithParentWriter(parentWriter);
 
-        LuceneWriter writer1 = new LuceneWriter(1L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer2 = new LuceneWriter(2L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer1 = new LuceneWriter(
+            1L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer2 = new LuceneWriter(
+            2L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2);
 
         // Index doc in gen 1
@@ -1562,9 +1607,36 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngineWithParentWriter(parentWriter);
 
-        LuceneWriter writer1 = new LuceneWriter(1L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer2 = new LuceneWriter(2L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer3 = new LuceneWriter(3L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer1 = new LuceneWriter(
+            1L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer2 = new LuceneWriter(
+            2L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer3 = new LuceneWriter(
+            3L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2, writer3);
 
         // doc_a in gen 1, doc_b in gen 2
@@ -1667,9 +1739,36 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngineWithParentWriter(parentWriter);
 
-        LuceneWriter writer1 = new LuceneWriter(1L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer2 = new LuceneWriter(2L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer3 = new LuceneWriter(3L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer1 = new LuceneWriter(
+            1L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer2 = new LuceneWriter(
+            2L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer3 = new LuceneWriter(
+            3L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2, writer3);
 
         // Initial write in gen 1
@@ -1735,9 +1834,36 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         LuceneDeleteExecutionEngine deleteEngine = createDeleteEngineWithParentWriter(parentWriter);
 
-        LuceneWriter writer1 = new LuceneWriter(1L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer2 = new LuceneWriter(2L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
-        LuceneWriter writer3 = new LuceneWriter(3L, 0L, luceneDataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer1 = new LuceneWriter(
+            1L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer2 = new LuceneWriter(
+            2L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
+        LuceneWriter writer3 = new LuceneWriter(
+            3L,
+            0L,
+            luceneDataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet()
+        );
         LockablePool<WriterHolder> writerPool = buildWriterPool(deleteEngine, writer1, writer2, writer3);
 
         // Index doc in gen 1
