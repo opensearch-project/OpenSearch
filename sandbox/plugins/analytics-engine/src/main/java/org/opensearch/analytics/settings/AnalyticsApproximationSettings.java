@@ -17,7 +17,7 @@ public final class AnalyticsApproximationSettings {
 
     public static final Setting<Double> INDEX_ANALYTICS_SHARD_BUCKET_OVERSAMPLING_FACTOR = Setting.doubleSetting(
         "index.analytics.shard_bucket_oversampling_factor",
-        1.5,
+        0.0,
         0.0,
         Setting.Property.IndexScope,
         Setting.Property.Dynamic
