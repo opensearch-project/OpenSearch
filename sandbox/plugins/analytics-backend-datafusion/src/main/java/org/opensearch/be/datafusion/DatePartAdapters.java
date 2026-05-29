@@ -76,14 +76,10 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         List<RexNode> coerced = new ArrayList<>(original.getOperands().size());
         for (RexNode operand : original.getOperands()) {
-            if (isTimeOperand(operand)) {
-                coerced.add(coerceTimeOperandToTimestamp(operand, cluster));
-            } else if (isCharacterOperand(operand)) {
-                validateDatetimeLiteral(operand);
-                coerced.add(castToTimestamp(operand, cluster));
-            } else {
-                coerced.add(operand);
-            }
+            // Single coercion entry point shared with sibling adapters (DayOfWeekAdapter,
+            // SecondAdapter): TIME → 1970-pinned TIMESTAMP literal, VARCHAR-time-literal
+            // → 1970-pinned TIMESTAMP literal, other VARCHAR → CAST(_ AS TIMESTAMP).
+            coerced.add(coerceCharacterOperandToTimestamp(operand, cluster));
         }
         RelDataType unitType = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
         List<RexNode> args = new ArrayList<>(coerced.size() + 1);
@@ -147,6 +143,14 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
             return operand;
         }
         validateDatetimeLiteral(operand);
+        // Bare TIME-string literals like '17:30:00' would otherwise reach DataFusion as
+        // CAST('17:30:00' AS TIMESTAMP); Arrow's CAST kernel rejects sub-10-char strings.
+        // Reuse DatetimeLiteralHelper to synthesize a 1970-01-01-pinned TIMESTAMP literal,
+        // matching reference PPL semantics for bare TIME values.
+        RexNode timeOnly = DatetimeLiteralHelper.tryMakeTimeOnlyTimestampLiteral(operand, cluster.getRexBuilder());
+        if (timeOnly != null) {
+            return timeOnly;
+        }
         return castToTimestamp(operand, cluster);
     }
 

@@ -52,10 +52,28 @@ final class DatetimeLiteralHelper {
         if (operand.getType().getSqlTypeName() != SqlTypeName.TIME) {
             return null;
         }
-        String timeString = extractVarcharLiteral(operand);
-        if (timeString == null) {
-            return null;
-        }
+        return synthesizeTimestampFromTimeString(extractVarcharLiteral(operand), rexBuilder);
+    }
+
+    /**
+     * If {@code operand} is a VARCHAR/CHAR {@link RexLiteral} whose value parses as a bare
+     * TIME (e.g. {@code '17:30:00'}), returns a TIMESTAMP literal pinned to 1970-01-01;
+     * otherwise returns null. Shared with {@link DatePartAdapters#coerceCharacterOperandToTimestamp}
+     * so the bare-TIME-string-literal path produces the same TIMESTAMP as the TIME-typed path
+     * — both routes need to bypass {@code CAST('HH:MM:SS' AS TIMESTAMP)} which Arrow rejects
+     * on sub-10-char strings.
+     */
+    static RexNode tryMakeTimeOnlyTimestampLiteral(RexNode operand, RexBuilder rexBuilder) {
+        if (!(operand instanceof RexLiteral literal)) return null;
+        SqlTypeName typeName = literal.getType().getSqlTypeName();
+        if (typeName != SqlTypeName.VARCHAR && typeName != SqlTypeName.CHAR) return null;
+        String value = literal.getValueAs(String.class);
+        if (value == null || value.length() >= 10) return null;
+        return synthesizeTimestampFromTimeString(value, rexBuilder);
+    }
+
+    private static RexNode synthesizeTimestampFromTimeString(String timeString, RexBuilder rexBuilder) {
+        if (timeString == null) return null;
         LocalTime time;
         try {
             time = LocalTime.parse(timeString);
