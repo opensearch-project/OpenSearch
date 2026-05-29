@@ -229,7 +229,7 @@ public class DocumentMapper implements ToXContentFragment {
         final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
         if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
             final FieldCapabilityAssigner assigner = new FieldCapabilityAssigner(registry.getConfiguredFormats(indexSettings));
-            assignCapabilitiesRecursive(mapping.root(), assigner);
+            assignCapabilitiesRecursive(mapping.root(), assigner, indexSettings);
             for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
                 assigner.assign(metadataMapper.fieldType());
             }
@@ -372,20 +372,22 @@ public class DocumentMapper implements ToXContentFragment {
     /**
      * Recursively walks the mapper tree and assigns capability maps to all field types.
      */
-    private void assignCapabilitiesRecursive(Mapper mapper, FieldCapabilityAssigner assigner) {
+    private void assignCapabilitiesRecursive(Mapper mapper, FieldCapabilityAssigner assigner, IndexSettings indexSettings) {
         if (mapper instanceof FieldMapper) {
             assigner.assign(((FieldMapper) mapper).fieldType());
             // For derived source: keyword fields with ignore_above/normalizer use a separate
             // sourceKeywordFieldType to store the raw value for source reconstruction.
-            if (mapper instanceof KeywordFieldMapper) {
-                KeywordFieldMapper.KeywordFieldType rawValueFieldType = ((KeywordFieldMapper) mapper).getRawValueFieldType();
-                if (rawValueFieldType != null && !mappers().isMultiField(((KeywordFieldMapper) mapper).fieldType().name())) {
+            if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+                KeywordFieldMapper.KeywordFieldType rawValueFieldType = keywordFieldMapper.getRawValueFieldType();
+                if (rawValueFieldType != null
+                    && !mappers().isMultiField(keywordFieldMapper.fieldType().name())
+                    && indexSettings.isPluggableDataFormatEnabled()) {
                     assigner.assign(rawValueFieldType);
                 }
             }
         }
         for (Mapper child : mapper) {
-            assignCapabilitiesRecursive(child, assigner);
+            assignCapabilitiesRecursive(child, assigner, indexSettings);
         }
     }
 

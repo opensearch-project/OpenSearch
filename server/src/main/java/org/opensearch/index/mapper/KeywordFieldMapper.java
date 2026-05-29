@@ -59,6 +59,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
@@ -175,14 +176,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Float> boost = Parameter.boostParam();
 
         private final IndexAnalyzers indexAnalyzers;
+        private final boolean canConsumeRawValueForSource;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers, boolean canConsumeRawValueForSource) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
+            this.canConsumeRawValueForSource = canConsumeRawValueForSource;
         }
 
         public Builder(String name) {
-            this(name, null);
+            this(name, null, false);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -268,11 +271,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.getIndexAnalyzers(), Optional.ofNullable(c.mapperService())
+            .map(MapperService::getIndexSettings).map(IndexSettings::isPluggableDataFormatEnabled).orElse(false))
+    );
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (!isDirectlyUsableForSource() && rawKeywordValueFieldType == null) {
+        if (isIneligibleForGeneratingSource() && rawKeywordValueFieldType == null) {
             throw new UnsupportedOperationException(
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
@@ -280,8 +286,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         checkStoredAndDocValuesForDerivedSource();
     }
 
-    private boolean isDirectlyUsableForSource() {
-        return this.ignoreAbove == Integer.MAX_VALUE && Objects.equals(this.normalizerName, "default");
+    private boolean isIneligibleForGeneratingSource() {
+        return this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default");
     }
 
     /**
@@ -821,6 +827,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final KeywordFieldType rawKeywordValueFieldType;
 
     private final IndexAnalyzers indexAnalyzers;
+    private volatile boolean canConsumeRawValueForSource;
 
     protected KeywordFieldMapper(
         String simpleName,
@@ -843,8 +850,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
-        this.rawKeywordValueFieldType = buildRawKeywordValueFieldType();
         this.indexAnalyzers = builder.indexAnalyzers;
+        this.canConsumeRawValueForSource = builder.canConsumeRawValueForSource;
+        this.rawKeywordValueFieldType = buildRawKeywordValueFieldType();
+
     }
 
     /**
@@ -870,7 +879,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      * @return sourceKeywordFieldType
      */
     private KeywordFieldType buildRawKeywordValueFieldType() {
-        if (!isDirectlyUsableForSource()) {
+        if (isIneligibleForGeneratingSource() && canConsumeRawValueForSource) {
             return new KeywordFieldType("_ignored_source." + fieldType().name(), false, true, false, false, fieldType().meta());
         }
         return null;
@@ -1003,6 +1012,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexAnalyzers, canConsumeRawValueForSource).init(this);
     }
 }
