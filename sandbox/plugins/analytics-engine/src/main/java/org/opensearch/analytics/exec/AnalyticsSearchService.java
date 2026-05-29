@@ -304,54 +304,27 @@ public class AnalyticsSearchService implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
-        Runnable trackerCleanup = null;
+        DelegationSetup delegationSetup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, readerContext.getReader(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
-            // Apply instruction handlers in order — each builds upon the previous handler's backend context
-            List<InstructionNode> instructions = resolved.plan.getInstructions();
-            if (!instructions.isEmpty()) {
-                FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
-                for (InstructionNode node : instructions) {
-                    FragmentInstructionHandler handler = factory.createHandler(node);
-                    backendContext = handler.apply(node, ctx, backendContext);
-                }
-            }
+            backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);
 
-            // Handle exchange — if plan has delegation, ask accepting backend for handle and pass to driving
-            // TODO: currently assumes single accepting backend. When multiple accepting backends exist
-            // (e.g., Lucene + Tantivy), group expressions by acceptingBackendId and create one handle per group.
-            DelegationDescriptor delegation = resolved.plan.getDelegationDescriptor();
-            if (delegation != null) {
-                String acceptingBackendId = delegation.delegatedExpressions().getFirst().getAcceptingBackendId();
-                AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
-                FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
-                backend.configureFilterDelegation(handle, backendContext);
-
-                if (task != null && taskResourceTrackingService != null) {
-                    long taskId = task.getId();
-                    TaskResourceTrackingService service = taskResourceTrackingService;
-                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
-                        @Override
-                        public long trackStart() {
-                            long threadId = Thread.currentThread().threadId();
-                            service.taskExecutionStartedOnThread(taskId, threadId);
-                            return threadId;
-                        }
-
-                        @Override
-                        public void trackEnd(long threadId) {
-                            service.taskExecutionFinishedOnThread(taskId, threadId);
-                        }
-                    });
-                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
-                }
+            delegationSetup = acquireDelegationSetup(resolved.plan.getDelegationDescriptor(), ctx);
+            if (delegationSetup != null) {
+                delegationSetup.configureOn(backend, backendContext, task);
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup);
+            return new FragmentResources(
+                readerContextStore,
+                readerContext,
+                engine,
+                stream,
+                delegationSetup == null ? null : delegationSetup.trackerCleanup()
+            );
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -362,10 +335,20 @@ public class AnalyticsSearchService implements AutoCloseable {
                 ),
                 e
             );
+            Runnable trackerCleanupOnFailure = delegationSetup == null ? null : delegationSetup.trackerCleanup();
             try {
-                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup).close();
+                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanupOnFailure).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
+            }
+            // Close the delegation handle if it was acquired but not yet wired into the backend context
+            // (configureOn transfers ownership; close() before that frees the handle, after is a no-op).
+            if (delegationSetup != null) {
+                try {
+                    delegationSetup.close();
+                } catch (Exception suppressed) {
+                    e.addSuppressed(suppressed);
+                }
             }
             // Close the backend execution context as a safety net for failure paths that
             // never reached / never finished the engine construction — if the handle was
@@ -379,6 +362,114 @@ public class AnalyticsSearchService implements AutoCloseable {
             }
             throw e;
         }
+    }
+
+    /**
+     * Applies each instruction handler in order. Each handler reads the previous handler's
+     * {@link BackendExecutionContext} and returns the next one. Returns {@code null} when the
+     * instruction list is empty.
+     */
+    private static BackendExecutionContext applyInstructionHandlers(
+        AnalyticsSearchBackendPlugin backend,
+        List<InstructionNode> instructions,
+        ShardScanExecutionContext ctx
+    ) {
+        if (instructions.isEmpty()) return null;
+        FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
+        BackendExecutionContext backendContext = null;
+        for (InstructionNode node : instructions) {
+            FragmentInstructionHandler handler = factory.createHandler(node);
+            backendContext = handler.apply(node, ctx, backendContext);
+        }
+        return backendContext;
+    }
+
+    /**
+     * Owns the delegation handle for the duration of fragment execution. Built by
+     * {@link #acquireDelegationSetup}; transitions to "ownership transferred" once
+     * {@link #configureOn} wires the handle into the driving backend's context.
+     *
+     * <p>{@link #close} is the failure-path safety net — closes the handle when ownership
+     * was never transferred; idempotent otherwise.
+     *
+     * <p>TODO: currently assumes single accepting backend. When multiple accepting backends exist
+     * (e.g., Lucene + Tantivy), group expressions by {@code acceptingBackendId} and create one
+     * handle per group.
+     */
+    private final class DelegationSetup {
+        private final FilterDelegationHandle handle;
+        private Runnable trackerCleanup;
+        private boolean ownershipTransferred;
+
+        private DelegationSetup(FilterDelegationHandle handle) {
+            this.handle = handle;
+        }
+
+        FilterDelegationHandle handle() {
+            return handle;
+        }
+
+        Runnable trackerCleanup() {
+            return trackerCleanup;
+        }
+
+        /**
+         * Wires the handle into the driving backend and installs the thread tracker. After this
+         * call ownership is transferred to {@code backendContext} and {@link #close} is a no-op.
+         */
+        void configureOn(AnalyticsSearchBackendPlugin driving, BackendExecutionContext backendContext, Task task) {
+            driving.configureFilterDelegation(handle, backendContext);
+            if (task != null && taskResourceTrackingService != null) {
+                this.trackerCleanup = installThreadTracker(driving, task);
+            }
+            this.ownershipTransferred = true;
+        }
+
+        /**
+         * Closes the handle if it was not yet wired into a backend context. Idempotent —
+         * subsequent calls are no-ops.
+         */
+        void close() throws IOException {
+            if (ownershipTransferred) return;
+            ownershipTransferred = true;
+            handle.close();
+        }
+    }
+
+    /**
+     * Resolves the accepting backend from the descriptor and acquires a {@link FilterDelegationHandle}.
+     * Returns {@code null} when no delegation is requested.
+     */
+    private DelegationSetup acquireDelegationSetup(DelegationDescriptor delegation, ShardScanExecutionContext ctx) {
+        if (delegation == null) return null;
+        String acceptingBackendId = delegation.delegatedExpressions().getFirst().getAcceptingBackendId();
+        AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
+        FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
+        return new DelegationSetup(handle);
+    }
+
+    /**
+     * Installs a {@link DelegationThreadTracker} that routes thread-execution events from the
+     * driving backend into {@link #taskResourceTrackingService}. Returns a runnable that detaches
+     * the tracker — call from {@code FragmentResources#onClose}.
+     */
+    private Runnable installThreadTracker(AnalyticsSearchBackendPlugin driving, Task task) {
+        long taskId = task.getId();
+        TaskResourceTrackingService service = taskResourceTrackingService;
+        driving.setDelegationThreadTracker(new DelegationThreadTracker() {
+            @Override
+            public long trackStart() {
+                long threadId = Thread.currentThread().threadId();
+                service.taskExecutionStartedOnThread(taskId, threadId);
+                return threadId;
+            }
+
+            @Override
+            public void trackEnd(long threadId) {
+                service.taskExecutionFinishedOnThread(taskId, threadId);
+            }
+        });
+        return () -> driving.setDelegationThreadTracker(null);
     }
 
     private record ResolvedFragment(IndexReaderProvider readerProvider, FragmentExecutionRequest.PlanAlternative plan, String queryId,
