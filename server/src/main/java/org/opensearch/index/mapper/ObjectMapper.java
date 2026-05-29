@@ -46,6 +46,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder.LazyXContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
@@ -1095,10 +1096,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
-        builder.startObject(simpleName());
-        for (final Mapper mapper : this.mappers.values()) {
-            mapper.deriveSource(builder, leafReader, docId);
+        if (this.mappers.isEmpty()) {
+            return;
         }
-        builder.endObject();
+
+        LazyXContentBuilder newBuilder = new LazyXContentBuilder(simpleName(), builder);
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.deriveSource(newBuilder, leafReader, docId);
+        }
+        newBuilder.endObjectIfInitialised();
     }
 }
