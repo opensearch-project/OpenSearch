@@ -149,12 +149,25 @@ public class AnalyticsSearchService implements AutoCloseable {
         try {
             executor.execute(() -> {
                 LOGGER.debug("[FragmentExecution] shard={} task={}", shard.shardId(), task.getId());
+                final long startNanos = System.nanoTime();
+                long rowsProduced = 0;
                 try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
                     Iterator<EngineResultBatch> it = ctx.stream().iterator();
                     while (it.hasNext()) {
-                        responseHandler.onBatch(it.next());
+                        EngineResultBatch batch = it.next();
+                        rowsProduced += batch.getRowCount();
+                        responseHandler.onBatch(batch);
                     }
+                    long fragmentTookNanos = System.nanoTime() - startNanos;
                     responseHandler.onComplete();
+                    listener.onFragmentSuccess(
+                        request.getQueryId(),
+                        request.getStageId(),
+                        shard.shardId().toString(),
+                        fragmentTookNanos,
+                        rowsProduced,
+                        shard.indexSettings()
+                    );
                 } catch (Exception e) {
                     responseHandler.onFailure(e);
                 }
