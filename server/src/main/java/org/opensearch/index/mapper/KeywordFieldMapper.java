@@ -272,8 +272,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexAnalyzers(), Optional.ofNullable(c.mapperService())
-            .map(MapperService::getIndexSettings).map(IndexSettings::isPluggableDataFormatEnabled).orElse(false))
+        (n, c) -> new Builder(
+            n,
+            c.getIndexAnalyzers(),
+            Optional.ofNullable(c.mapperService())
+                .map(MapperService::getIndexSettings)
+                .map(IndexSettings::isPluggableDataFormatEnabled)
+                .orElse(false)
+        )
     );
 
     @Override

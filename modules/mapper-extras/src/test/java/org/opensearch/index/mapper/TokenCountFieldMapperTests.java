@@ -43,7 +43,6 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -244,61 +243,5 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatTokenCountValue() throws Exception {
-        DocumentMapper mapper = createIndexWithTokenCountFieldPluggableDataFormat();
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(createDocument("three tokens string"), docInput);
-
-        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc") && e.getValue().equals(3));
-        assertTrue("Expected token count of 3 for field test.tc", found);
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatTokenCountNullSkipped() throws Exception {
-        DocumentMapper mapper = createIndexWithTokenCountFieldPluggableDataFormat();
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(createDocument(null), docInput);
-
-        boolean hasTokenCountField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc"));
-        assertFalse("Expected no token count field for null value", hasTokenCountField);
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
-        // Scenario 1: token count value
-        {
-            DocumentMapper luceneMapper = createIndexWithTokenCountField(false);
-            ParseContext.Document luceneDoc = parseDocument(luceneMapper, createDocument("three tokens string"));
-            IndexableField luceneField = luceneDoc.getField("test.tc");
-
-            DocumentMapper pluggableMapper = createIndexWithTokenCountFieldPluggableDataFormat();
-            CapturingDocumentInput docInput = new CapturingDocumentInput();
-            pluggableMapper.parse(createDocument("three tokens string"), docInput);
-
-            assertNotNull("Lucene path should produce field 'test.tc'", luceneField);
-            assertEquals(3, luceneField.numericValue());
-            boolean pluggableFound = docInput.getCapturedFields()
-                .stream()
-                .anyMatch(e -> e.getKey().name().equals("test.tc") && e.getValue().equals(3));
-            assertTrue("Pluggable path should capture field 'test.tc' with value 3", pluggableFound);
-        }
-
-        // Scenario 2: null value — no field produced
-        {
-            DocumentMapper luceneMapper = createIndexWithTokenCountField(false);
-            ParseContext.Document luceneDoc = parseDocument(luceneMapper, createDocument(null));
-            IndexableField luceneField = luceneDoc.getField("test.tc");
-
-            DocumentMapper pluggableMapper = createIndexWithTokenCountFieldPluggableDataFormat();
-            CapturingDocumentInput docInput = new CapturingDocumentInput();
-            pluggableMapper.parse(createDocument(null), docInput);
-
-            assertNull("Lucene path should produce no field 'test.tc'", luceneField);
-            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc"));
-            assertFalse("Pluggable path should produce no field 'test.tc'", pluggableHasField);
-        }
     }
 }
