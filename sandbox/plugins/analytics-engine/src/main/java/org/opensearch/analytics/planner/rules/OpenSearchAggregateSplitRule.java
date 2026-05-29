@@ -20,7 +20,7 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.apache.calcite.sql.type.SqlTypeFamily;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
@@ -75,9 +75,18 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             if (aggIdx >= aggCalls.size() || k >= inputFields.size()) {
                 return true;
             }
-            SqlTypeFamily inputFamily = inputFields.get(k).getSqlTypeName().getFamily();
-            SqlTypeFamily aggFamily = aggCalls.get(aggIdx).getType().getSqlTypeName().getFamily();
-            if (inputFamily != aggFamily) {
+            // Compare the exact SqlTypeName, not just the type family. The FINAL reuses this
+            // group-key ordinal over the PARTIAL output, where ordinal k (>= groupCount) now
+            // holds an agg output, so the FINAL's group-key column takes the agg-output type
+            // (aggCalls.get(aggIdx)). That must equal the original input field type
+            // (inputFields.get(k)) for the FINAL row type to stay equivalent to the original
+            // aggregate's — otherwise Volcano's typeMatchesInferred / rowtype-equivalence check
+            // throws. A family match is too coarse: BIGINT and INTEGER share the NUMERIC family
+            // yet fail that check (PPL chart / stats `... by <field> span=...` over an INTEGER
+            // measure declares the agg as BIGINT while the span key is INTEGER).
+            SqlTypeName inputType = inputFields.get(k).getSqlTypeName();
+            SqlTypeName aggType = aggCalls.get(aggIdx).getType().getSqlTypeName();
+            if (inputType != aggType) {
                 return true;
             }
         }
