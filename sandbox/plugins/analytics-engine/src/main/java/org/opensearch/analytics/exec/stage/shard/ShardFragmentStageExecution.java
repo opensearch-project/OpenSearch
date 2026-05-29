@@ -28,6 +28,7 @@ import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -75,9 +76,32 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         return tasks;
     }
 
-    // TODO: override retargetForRetry for replica failover — needs TargetResolver.alternateReplica
-    // and per-task attempt tracking. Scheduler-side wiring is already in place.
-    //
+    /**
+     * Replica failover: on dispatch failure, advance to the next copy of the same shard via
+     * {@link ShardExecutionTarget#nextCopy(Exception)}, which delegates to
+     * {@link org.opensearch.cluster.routing.FailAwareWeightedRouting#findNext} — same iterator
+     * walk + weighted-routing skip + fail-open semantics the search API uses in
+     * {@code AbstractSearchAsyncAction.onShardFailure}.
+     *
+     * <p>Returns empty when the iterator is exhausted; the scheduler then propagates the cause
+     * via {@code onTaskTerminal} and the stage fails. Cancellation short-circuit lives one
+     * layer up in {@code QueryScheduler.handleFor} — it applies uniformly to every stage type.
+     */
+    @Override
+    public Optional<StageTask> retargetForRetry(StageTask failed, Exception cause) {
+        if (!(failed instanceof ShardStageTask shardTask)) {
+            return Optional.empty();
+        }
+        if (!(shardTask.target() instanceof ShardExecutionTarget shardTarget)) {
+            return Optional.empty();
+        }
+        ShardExecutionTarget nextCopy = shardTarget.nextCopy(cause);
+        if (nextCopy == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new ShardStageTask(shardTask.id(), nextCopy));
+    }
+
     // FOLLOW-UP: per-stage cancel granularity. Today AbstractStageExecution.cancel cancels
     // the whole parent task (via ct.cancel) to terminate in-flight data-node Flight streams.
     // That's coarse — fine for current query shapes (one failure means the query fails) but

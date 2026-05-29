@@ -65,7 +65,9 @@ public class ShardTargetResolver extends TargetResolver {
             if (shard != null) {
                 DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
                 if (node != null) {
-                    targets.add(new ShardExecutionTarget(node, shard.shardId(), ordinal++));
+                    // Pass the remaining iterator + cluster state to the target so dispatch
+                    // failure can fall over to a replica copy via ShardExecutionTarget.nextCopy.
+                    targets.add(new ShardExecutionTarget(node, shard.shardId(), ordinal++, shardIt, clusterState));
                 }
             }
         }
