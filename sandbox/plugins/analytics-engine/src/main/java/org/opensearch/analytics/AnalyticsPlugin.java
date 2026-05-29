@@ -29,6 +29,7 @@ import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
@@ -97,7 +98,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public AnalyticsPlugin() {}
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
-    private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
     private ReaderContextStore readerContextStore;
@@ -126,7 +126,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         ArrowNativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
             .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
-        operatorTable = aggregateOperatorTables();
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
@@ -137,7 +136,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE, readerContextStore::setKeepAlive);
         searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry, readerContextStore);
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, indexNameExpressionResolver, operatorTable, backEndsByName);
+        DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
@@ -155,7 +154,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         return List.of(b -> {
             b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
             }).to(DefaultPlanExecutor.class);
-            b.bind(EngineContext.class).to(DefaultEngineContext.class);
+            b.bind(EngineContextProvider.class).to(DefaultEngineContextProvider.class);
             // Singleton bind on the concrete class so node-injector lookups for
             // QueryScheduler.class don't fall back to a JIT binding (which would
             // re-instantiate AnalyticsSearchTransportService, whose ctor registers
@@ -204,17 +203,24 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     /**
-     * Default implementation of {@link EngineContext}. The {@link IndexNameExpressionResolver}
+     * Default implementation of {@link EngineContextProvider}. The {@link IndexNameExpressionResolver}
      * is the cluster's resolver — built by the OpenSearch server with security-plugin extensions,
      * system-index access checks, and ThreadContext threading. Building schemas with a fresh
      * resolver would silently bypass those checks.
      */
-    record DefaultEngineContext(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-        SqlOperatorTable operatorTable, Map<String, AnalyticsSearchBackendPlugin> backends) implements EngineContext {
+    record DefaultEngineContextProvider(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver, Map<
+        String,
+        AnalyticsSearchBackendPlugin> backends) implements EngineContextProvider {
 
         @Override
-        public SchemaPlus getSchema() {
-            return OpenSearchSchemaBuilder.buildSchema(clusterService.state(), indexNameExpressionResolver);
+        public QueryRequestContext getContext(ClusterState clusterState) {
+            SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver);
+            return new QueryRequestContext(clusterState, schema);
+        }
+
+        @Override
+        public QueryRequestContext getContext() {
+            return getContext(clusterService.state());
         }
 
         @Override

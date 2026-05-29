@@ -30,7 +30,7 @@ import java.util.List;
  *
  * <p>The end-to-end {@code execute(RelNode, Object)} path involves Guice-wired
  * dependencies (TransportService, Scheduler, TaskManager, CapabilityRegistry,
- * EngineContext, NodeClient) and is exercised by internal cluster tests.
+ * EngineContextProvider, NodeClient) and is exercised by internal cluster tests.
  * These unit tests cover the one deterministic piece of behavior that lives
  * in this class: batches-to-rows conversion at the external API edge.
  */
