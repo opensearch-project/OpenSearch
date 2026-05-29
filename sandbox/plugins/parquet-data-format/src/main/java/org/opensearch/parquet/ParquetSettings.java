@@ -114,25 +114,6 @@ public final class ParquetSettings {
         Setting.Property.NodeScope
     );
 
-    /**
-     * Per-VSR allocation as a divisor of the ingest pool's limit. Each child allocator
-     * created by {@link org.opensearch.parquet.memory.ArrowBufferPool#createChildAllocator(String)}
-     * is capped at {@code poolLimit / divisor}. Default 10 preserves the historical
-     * sizing. Dynamic — updates take effect on the next child-allocator creation.
-     *
-     * <p>The setting is named {@code *_divisor} (not {@code *_ratio}) because larger
-     * values yield smaller per-VSR caps. A divisor of 10 means "each VSR may use up
-     * to 1/10 of the pool"; a divisor of 2 means "each VSR may use up to 1/2".
-     */
-    public static final Setting<Integer> MAX_PER_VSR_ALLOCATION_DIVISOR = Setting.intSetting(
-        "parquet.max_per_vsr_allocation_divisor",
-        10,
-        1,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /** File size threshold for in-memory sort vs streaming merge sort (default 32MB). */
     public static final Setting<ByteSizeValue> SORT_IN_MEMORY_THRESHOLD = Setting.byteSizeSetting(
         "index.parquet.sort_in_memory_threshold",
@@ -678,7 +659,6 @@ public final class ParquetSettings {
             BLOOM_FILTER_NDV,
             MAX_NATIVE_ALLOCATION,
             MAX_ROWS_PER_VSR,
-            MAX_PER_VSR_ALLOCATION_DIVISOR,
             SORT_IN_MEMORY_THRESHOLD,
             SORT_BATCH_SIZE,
             ROW_GROUP_MAX_ROWS,
