@@ -11,13 +11,13 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, AsArray, BinaryArray, StringArray, UInt64Array};
+use datafusion::arrow::array::{Array, ArrayRef, BinaryArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
 use datafusion::logical_expr::function::AccumulatorArgs;
-use datafusion::logical_expr::{ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility};
+use datafusion::logical_expr::{ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility};
 use datafusion::physical_expr::expressions::Column;
 
 pub fn register_all(ctx: &SessionContext) {
@@ -32,7 +32,6 @@ impl ScalarUDFImpl for ReduceEvalUdf {
     fn name(&self) -> &str { "reduce_eval" }
 
     fn signature(&self) -> &Signature {
-        // (Utf8 literal, Binary state) but accept Any for flexibility
         static SIG: std::sync::LazyLock<Signature> = std::sync::LazyLock::new(|| {
             Signature::any(2, Volatility::Immutable)
         });
@@ -94,4 +93,45 @@ fn eval_approx_distinct(state_col: &ArrayRef) -> Result<ColumnarValue> {
         }
     }
     Ok(ColumnarValue::Array(Arc::new(UInt64Array::from(results))))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::arrow::array::BinaryArray;
+    use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
+    use datafusion::logical_expr::Accumulator;
+
+    #[test]
+    fn test_reduce_eval_approx_distinct() {
+        // Build an HLL state by updating an accumulator
+        let field: Arc<Field> = Arc::new(Field::new("x", DataType::Int64, true));
+        let schema = Arc::new(datafusion::arrow::datatypes::Schema::new(vec![field.as_ref().clone()]));
+        let expr: Arc<dyn datafusion::physical_plan::PhysicalExpr> = Arc::new(Column::new("x", 0));
+        let ret_field: Arc<Field> = Arc::new(Field::new("r", DataType::UInt64, true));
+        let mut acc = approx_distinct_udaf().accumulator(AccumulatorArgs {
+            return_field: ret_field.clone(), schema: &schema, ignore_nulls: false,
+            order_bys: &[], name: "x", is_distinct: false,
+            exprs: &[expr.clone()], expr_fields: &[field.clone()], is_reversed: false,
+        }).unwrap();
+
+        // Feed some values
+        let values: ArrayRef = Arc::new(datafusion::arrow::array::Int64Array::from(vec![1, 2, 3, 4, 5]));
+        acc.update_batch(&[values]).unwrap();
+        let state = acc.state().unwrap();
+
+        // Extract the Binary state
+        let state_array = state[0].to_array_of_size(1).unwrap();
+        let binary = state_array.as_any().downcast_ref::<BinaryArray>().unwrap();
+
+        // Run reduce_eval
+        let result = eval_approx_distinct(&(Arc::new(binary.clone()) as ArrayRef)).unwrap();
+        match result {
+            ColumnarValue::Array(arr) => {
+                let uint_arr = arr.as_any().downcast_ref::<UInt64Array>().unwrap();
+                assert_eq!(uint_arr.value(0), 5); // 5 distinct values
+            }
+            _ => panic!("expected Array"),
+        }
+    }
 }

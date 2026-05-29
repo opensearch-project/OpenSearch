@@ -12,19 +12,19 @@ import org.opensearch.common.settings.Setting;
 
 import java.util.List;
 
-/** Index-level settings for analytics approximation behavior. */
+/** Cluster-level settings for analytics approximation behavior. */
 public final class AnalyticsApproximationSettings {
 
-    public static final Setting<Double> INDEX_ANALYTICS_SHARD_BUCKET_OVERSAMPLING_FACTOR = Setting.doubleSetting(
-        "index.analytics.shard_bucket_oversampling_factor",
+    public static final Setting<Double> SHARD_BUCKET_OVERSAMPLING_FACTOR = Setting.doubleSetting(
+        "analytics.shard_bucket_oversampling_factor",
         0.0,
         0.0,
-        Setting.Property.IndexScope,
+        Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     public static List<Setting<?>> all() {
-        return List.of(INDEX_ANALYTICS_SHARD_BUCKET_OVERSAMPLING_FACTOR);
+        return List.of(SHARD_BUCKET_OVERSAMPLING_FACTOR);
     }
 
     private AnalyticsApproximationSettings() {}

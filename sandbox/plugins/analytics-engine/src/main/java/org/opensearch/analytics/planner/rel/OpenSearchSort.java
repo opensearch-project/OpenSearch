@@ -118,9 +118,6 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         if (getCollation().getFieldCollations().isEmpty()) {
             return planner.getCostFactory().makeTinyCost();
         }
-        if (perPartition) {
-            return planner.getCostFactory().makeTinyCost();
-        }
         for (RelNode input : getInputs()) {
             for (int i = 0; i < input.getTraitSet().size(); i++) {
                 RelTrait trait = input.getTraitSet().getTrait(i);
