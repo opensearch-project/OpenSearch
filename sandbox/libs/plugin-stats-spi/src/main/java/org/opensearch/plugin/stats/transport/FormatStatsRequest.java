@@ -25,10 +25,10 @@ public class FormatStatsRequest extends BroadcastRequest<FormatStatsRequest> {
 
     private final String formatName;
     private final boolean shardLevel;
-    private final Integer shardFilter;
-    private final String nodeFilter;
+    private final int[] shardFilter;
+    private final String[] nodeFilter;
 
-    public FormatStatsRequest(String formatName, String[] indices, boolean shardLevel, Integer shardFilter, String nodeFilter) {
+    public FormatStatsRequest(String formatName, String[] indices, boolean shardLevel, int[] shardFilter, String[] nodeFilter) {
         super(indices);
         this.formatName = formatName;
         this.shardLevel = shardLevel;
@@ -40,8 +40,8 @@ public class FormatStatsRequest extends BroadcastRequest<FormatStatsRequest> {
         super(in);
         this.formatName = in.readString();
         this.shardLevel = in.readBoolean();
-        this.shardFilter = in.readOptionalVInt();
-        this.nodeFilter = in.readOptionalString();
+        this.shardFilter = in.readBoolean() ? in.readVIntArray() : null;
+        this.nodeFilter = in.readBoolean() ? in.readStringArray() : null;
     }
 
     @Override
@@ -49,8 +49,18 @@ public class FormatStatsRequest extends BroadcastRequest<FormatStatsRequest> {
         super.writeTo(out);
         out.writeString(formatName);
         out.writeBoolean(shardLevel);
-        out.writeOptionalVInt(shardFilter);
-        out.writeOptionalString(nodeFilter);
+        if (shardFilter == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVIntArray(shardFilter);
+        }
+        if (nodeFilter == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeStringArray(nodeFilter);
+        }
     }
 
     public String formatName() {
@@ -61,11 +71,11 @@ public class FormatStatsRequest extends BroadcastRequest<FormatStatsRequest> {
         return shardLevel;
     }
 
-    public Integer getShardFilter() {
+    public int[] getShardFilter() {
         return shardFilter;
     }
 
-    public String getNodeFilter() {
+    public String[] getNodeFilter() {
         return nodeFilter;
     }
 }

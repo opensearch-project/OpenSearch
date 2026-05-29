@@ -105,7 +105,12 @@ public class FormatStatsResponse<T extends DataFormatShardStats<T>> extends Broa
                     b.startArray(String.valueOf(s.getKey()));
                     for (var r : s.getValue()) {
                         b.startObject();
+                        b.startObject("routing");
+                        b.field("state", r.shardRouting().state().toString());
                         b.field("primary", r.shardRouting().primary());
+                        b.field("node", r.shardRouting().currentNodeId());
+                        b.field("relocating_node", r.shardRouting().relocatingNodeId());
+                        b.endObject();
                         if (r.stats() != null) r.stats().toXContent(b, p);
                         b.endObject();
                     }

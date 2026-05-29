@@ -29,7 +29,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -113,33 +115,45 @@ public abstract class BaseTransportFormatStatsAction<T extends DataFormatShardSt
     @Override
     protected ShardsIterator shards(ClusterState clusterState, FormatStatsRequest request, String[] concreteIndices) {
         List<ShardRouting> shards = clusterState.routingTable().allShards(concreteIndices).getShardRoutings();
-        String nodeFilter = request.getNodeFilter();
-        Integer shardFilter = request.getShardFilter();
+        int[] shardFilter = request.getShardFilter();
+        String[] nodeFilter = request.getNodeFilter();
 
-        if (shardFilter != null) {
+        if (shardFilter != null && shardFilter.length > 0) {
             for (String index : concreteIndices) {
                 int numShards = clusterState.routingTable().index(index).getShards().size();
-                if (shardFilter < 0 || shardFilter >= numShards) {
-                    throw new IllegalArgumentException(
-                        "shard [" + shardFilter + "] is out of range for index [" + index + "] which has [" + numShards + "] shard(s)"
-                    );
+                for (int sid : shardFilter) {
+                    if (sid < 0 || sid >= numShards) {
+                        throw new IllegalArgumentException(
+                            "shard [" + sid + "] is out of range for index [" + index + "] which has [" + numShards + "] shard(s)"
+                        );
+                    }
                 }
             }
         }
 
-        String resolvedNodeFilter = null;
+        final Set<String> resolvedNodeFilter = new HashSet<>();
         if (nodeFilter != null) {
-            if ("_local".equals(nodeFilter)) {
-                resolvedNodeFilter = clusterState.getNodes().getLocalNodeId();
-            } else {
-                if (clusterState.getNodes().get(nodeFilter) == null) {
-                    throw new IllegalArgumentException("node [" + nodeFilter + "] not found in cluster");
+            for (String nf : nodeFilter) {
+                if ("_local".equals(nf)) {
+                    resolvedNodeFilter.add(clusterState.getNodes().getLocalNodeId());
+                } else {
+                    if (clusterState.getNodes().get(nf) == null) {
+                        throw new IllegalArgumentException("node [" + nf + "] not found in cluster");
+                    }
+                    resolvedNodeFilter.add(nf);
                 }
-                resolvedNodeFilter = nodeFilter;
             }
         }
+        final boolean nodeFilterActive = nodeFilter != null && nodeFilter.length > 0;
 
-        final String finalNodeFilter = resolvedNodeFilter;
+        final Set<Integer> shardFilterSet = new HashSet<>();
+        if (shardFilter != null) {
+            for (int sid : shardFilter) {
+                shardFilterSet.add(sid);
+            }
+        }
+        final boolean shardFilterActive = shardFilter != null && shardFilter.length > 0;
+
         List<ShardRouting> filtered = shards.stream().filter(sr -> {
             // DFA replicas use segment replication from remote store and don't run an indexing
             // engine, so they have no per-format tracker registered. Always restrict to primaries
@@ -149,10 +163,10 @@ public abstract class BaseTransportFormatStatsAction<T extends DataFormatShardSt
             if (sr.primary() == false) {
                 return false;
             }
-            if (shardFilter != null && sr.shardId().id() != shardFilter) {
+            if (shardFilterActive && !shardFilterSet.contains(sr.shardId().id())) {
                 return false;
             }
-            if (finalNodeFilter != null && !finalNodeFilter.equals(sr.currentNodeId())) {
+            if (nodeFilterActive && !resolvedNodeFilter.contains(sr.currentNodeId())) {
                 return false;
             }
             return true;
