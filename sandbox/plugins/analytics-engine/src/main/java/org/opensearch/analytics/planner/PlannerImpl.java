@@ -288,6 +288,7 @@ public class PlannerImpl {
     }
 
     /** Phase 2: VolcanoPlanner for trait propagation + exchange insertion. */
+
     private static RelNode cbo(RelNode marked, RelNode rawRelNode, PlannerContext context, RuleProfilingListener listener) {
         VolcanoPlanner volcanoPlanner = new VolcanoPlanner();
         volcanoPlanner.addRelTraitDef(ConventionTraitDef.INSTANCE);
