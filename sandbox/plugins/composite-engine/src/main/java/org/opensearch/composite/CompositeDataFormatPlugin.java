@@ -178,7 +178,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      */
     public static final Setting<ByteSizeValue> MERGE_ON_REFRESH_MAX_SIZE = Setting.byteSizeSetting(
         "index.composite.merge_on_refresh_max_size",
-        new ByteSizeValue(10, ByteSizeUnit.MB),
+        new ByteSizeValue(0, ByteSizeUnit.MB),
         Setting.Property.IndexScope,
         Setting.Property.Dynamic
     );

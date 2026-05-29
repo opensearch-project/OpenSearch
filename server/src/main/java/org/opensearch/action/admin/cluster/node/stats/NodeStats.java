@@ -189,9 +189,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
      */
     private long totalEstimatedNativeBytes;
 
-    @Nullable
-    private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
-
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -291,9 +288,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             nativeAllocatorStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-            nativeMemoryStats = in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
-        } else {
-            nativeMemoryStats = null;
+            // BWC: V_3_7_0 wrote AnalyticsBackendNativeMemoryStats here; read and discard.
+            in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
         }
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
             totalEstimatedNativeBytes = in.readLong();
@@ -336,7 +332,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable NodeCacheStats nodeCacheStats,
         @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
         @Nullable NativeAllocatorPoolStats nativeAllocatorStats,
-        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats,
         long totalEstimatedNativeBytes
     ) {
         super(node);
@@ -372,7 +367,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
         this.nativeAllocatorStats = nativeAllocatorStats;
-        this.nativeMemoryStats = nativeMemoryStats;
         this.totalEstimatedNativeBytes = totalEstimatedNativeBytes;
     }
 
@@ -568,14 +562,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return totalEstimatedNativeBytes;
     }
 
-    /**
-     * Returns the analytics backend native memory stats, or {@code null} if not available.
-     */
-    @Nullable
-    public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
-        return nativeMemoryStats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -645,7 +631,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             out.writeOptionalWriteable(nativeAllocatorStats);
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
-            out.writeOptionalWriteable(nativeMemoryStats);
+            // BWC: V_3_7_0 expects AnalyticsBackendNativeMemoryStats here; write null.
+            out.writeOptionalWriteable(null);
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             out.writeLong(totalEstimatedNativeBytes);
@@ -771,17 +758,20 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             getRemoteStoreNodeStats().toXContent(builder, params);
         }
         // total_estimated_bytes ≈ RssAnon - JVM heap committed - JVM non-heap committed.
-        // Always emit so operators see the per-node value even when no plugin contributes
-        // an inner stats block. The value is captured on the data node in NodeService.stats()
-        // and serialized; the coordinator never re-reads its own OsProbe here.
+        // native_memory: unified view of all native memory pools and jemalloc stats.
+        // NativeAllocatorPoolStats now includes jemalloc allocated/resident + all pools.
         builder.startObject("native_memory");
         builder.field("total_estimated_bytes", totalEstimatedNativeBytes);
-        if (getAnalyticsBackendNativeMemoryStats() != null) {
-            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
-        }
         if (getNativeAllocatorStats() != null) {
-            builder.startObject("native_allocator");
-            getNativeAllocatorStats().toXContent(builder, params);
+            NativeAllocatorPoolStats stats = getNativeAllocatorStats();
+            builder.startObject("runtime");
+            builder.field("allocated_bytes", stats.getNativeAllocatedBytes());
+            builder.field("resident_bytes", stats.getNativeResidentBytes());
+            builder.endObject();
+            builder.startObject("memory_pools");
+            for (var entry : stats.getGroupedStats().entrySet()) {
+                entry.getValue().toXContent(builder, params);
+            }
             builder.endObject();
         }
         builder.endObject();
