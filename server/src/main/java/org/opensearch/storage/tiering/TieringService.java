@@ -238,7 +238,7 @@ public abstract class TieringService implements ClusterStateListener {
                 );
                 processTieringInProgress(event.state(), source);
             }
-            if (event.routingTableChanged() || event.metadataChanged()) {
+            if (event.routingTableChanged()) {
                 removeWriteBlockForCancelledDfaIndices(event.state());
             }
         }
