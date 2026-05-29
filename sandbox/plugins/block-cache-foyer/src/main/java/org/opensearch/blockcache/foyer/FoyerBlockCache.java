@@ -175,6 +175,24 @@ public final class FoyerBlockCache implements BlockCache {
         return false;
     }
 
+    public void updateSweepThreshold(double newRatio) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepThreshold(cachePtr, newRatio);
+        }
+    }
+
+    public void updateSweepInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepInterval(cachePtr, newSecs);
+        }
+    }
+
+    public void updatePersistInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updatePersistInterval(cachePtr, newSecs);
+        }
+    }
+
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {

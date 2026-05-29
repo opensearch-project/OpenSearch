@@ -44,17 +44,17 @@ public final class FoyerBlockCacheSettings {
      * byte allocation scales automatically with the instance's SSD capacity.
      *
      * <p>Example: 1&nbsp;TB SSD, {@code node.search.cache.size=80%} (800&nbsp;GB budget),
-     * {@code block_cache.foyer.size=25%} → Foyer gets 200&nbsp;GB, FileCache gets 600&nbsp;GB.
+      * {@code block_cache.foyer.size=50%} → Foyer gets 400&nbsp;GB, FileCache gets 400&nbsp;GB.
      *
-     * <p>Default: {@code 25%}. Set to {@code 0%} to disable the block cache.
-     * Accepts a percentage (e.g. {@code 25%}) or a ratio (e.g. {@code 0.25}).
+     * <p>Default: {@code 50%}. Set to {@code 0%} to disable the block cache.
+     * Accepts a percentage (e.g. {@code 50%}) or a ratio (e.g. {@code 0.50}).
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.foyer.size: 25%
+     * block_cache.foyer.size: 50%
      * }</pre>
      */
-    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "25%", value -> {
+    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "50%", value -> {
         try {
             RatioValue ratio = RatioValue.parseRatioValue(value);
             if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 1.0) {
@@ -127,7 +127,8 @@ public final class FoyerBlockCacheSettings {
         0L,    // 0 = disabled (no sweep task spawned)
         0L,    // min: 0
         3600L, // max: 1 hour
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -154,7 +155,8 @@ public final class FoyerBlockCacheSettings {
         0.70, // default: skip sweep when cache < 70% full
         0.0,  // min: 0.0 (explicit 0 = always sweep)
         1.0,  // max: 1.0
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -184,7 +186,8 @@ public final class FoyerBlockCacheSettings {
         60L,   // default: 60 seconds
         0L,    // min: 0 (0 = disabled, persist only on graceful shutdown)
         3600L, // max: 1 hour
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private FoyerBlockCacheSettings() {}

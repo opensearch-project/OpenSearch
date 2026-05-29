@@ -167,6 +167,68 @@ pub unsafe extern "C" fn foyer_clear_cache(ptr: i64) -> i64 {
     Ok(0)
 }
 
+/// Update the sweep threshold ratio on the running cache without a restart.
+///
+/// Called by Java's `addSettingsUpdateConsumer` when
+/// `block_cache.foyer.key_index_sweep_threshold` is changed via the cluster settings API.
+/// The sweep task picks up the new value on its next tick.
+///
+/// # Parameters
+/// - `ptr` — the cache handle returned by [`foyer_create_cache`].
+/// - `new_ratio` — new threshold ratio in `[0.0, 1.0]`. `0.0` = always sweep.
+///
+/// # Returns
+/// `0` on success; `< 0` if `ptr` is invalid or the cache type is wrong.
+///
+/// # Safety
+/// `ptr` must be a valid handle from [`foyer_create_cache`], not yet destroyed.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_update_sweep_threshold(ptr: i64, new_ratio: f64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_update_sweep_threshold: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
+        Some(f) => f,
+        None => return Err("foyer_update_sweep_threshold: downcast to FoyerCache failed".to_string()),
+    };
+    foyer.update_sweep_threshold(new_ratio);
+    Ok(0)
+}
+
+/// Update the sweep interval on the running cache without a restart. `0` = disable.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_update_sweep_interval(ptr: i64, new_secs: u64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_update_sweep_interval: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
+        Some(f) => f,
+        None => return Err("foyer_update_sweep_interval: downcast failed".to_string()),
+    };
+    foyer.update_sweep_interval(new_secs);
+    Ok(0)
+}
+
+/// Update the persist interval on the running cache without a restart. `0` = disable.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_update_persist_interval(ptr: i64, new_secs: u64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_update_persist_interval: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
+        Some(f) => f,
+        None => return Err("foyer_update_persist_interval: downcast failed".to_string()),
+    };
+    foyer.update_persist_interval(new_secs);
+    Ok(0)
+}
+
 /// Evict all cache entries whose key starts with `prefix`.
 ///
 /// Called by Java's `NodeCacheServiceCleaner` on shard/index deletion.

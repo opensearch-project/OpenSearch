@@ -1788,3 +1788,646 @@ fn sweep_once_ignores_threshold_guard() {
     assert_eq!(removed, 1, "sweep_once() must sweep regardless of threshold");
     assert!(cache.key_index.is_empty(), "stale key must be removed by sweep_once() even when threshold would skip");
 }
+
+// ── Recovery / persistence integration tests ─────────────────────────────────
+//
+// These tests exercise the full put → Drop (persist) → new (recover) cycle.
+// They use real FoyerCache instances and TempDir.
+//
+// Design note: recovery uses bulk-load (no per-key inner.contains() validation).
+// Stale entries from the snapshot are corrected lazily by the sweep task.
+
+use crate::key_index_store;
+
+/// Graceful restart: key_index is persisted on Drop and bulk-loaded on the next
+/// startup. All prefix buckets and keys are present immediately after new().
+#[test]
+fn recovery_key_index_bulk_loaded_after_graceful_shutdown() {
+    let dir = TempDir::new().unwrap();
+
+    // Write entries into the first cache instance.
+    {
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        put_range(&cache, "/data/a.parquet", 0,   512, &vec![0u8; 512]);
+        put_range(&cache, "/data/a.parquet", 512, 1024, &vec![0u8; 512]);
+        put_range(&cache, "/data/b.parquet", 0,   256, &vec![0u8; 256]);
+        // Drop calls save() — writes key_index.json
+    }
+
+    // key_index.json must exist after graceful shutdown.
+    assert!(dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+        "key_index.json must be written on Drop");
+
+    // Second instance: recover from the snapshot.
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+
+    // Both prefix buckets must be present immediately after new().
+    assert!(cache2.key_index.contains_key("data/a.parquet"),
+        "data/a.parquet must be in key_index after recovery");
+    assert!(cache2.key_index.contains_key("data/b.parquet"),
+        "data/b.parquet must be in key_index after recovery");
+
+    // 2 keys for a.parquet + 1 key for b.parquet = 3 total.
+    let a_count = cache2.key_index.get("data/a.parquet").map(|v| v.len()).unwrap_or(0);
+    let b_count = cache2.key_index.get("data/b.parquet").map(|v| v.len()).unwrap_or(0);
+    assert_eq!(a_count, 2, "data/a.parquet must have 2 keys");
+    assert_eq!(b_count, 1, "data/b.parquet must have 1 key");
+}
+
+/// used_bytes is initialized from the snapshot on recovery.
+/// The sum of key_byte_size for all recovered keys must equal used_bytes
+/// immediately after new() — before any put() is called.
+#[test]
+fn recovery_used_bytes_initialized_from_snapshot() {
+    let dir = TempDir::new().unwrap();
+
+    {
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        // 3 ranges: 100 + 200 + 300 = 600 bytes total.
+        put_range(&cache, "/data/f.parquet", 0,   100, &vec![0u8; 100]);
+        put_range(&cache, "/data/f.parquet", 100, 300, &vec![0u8; 200]);
+        put_range(&cache, "/data/f.parquet", 300, 600, &vec![0u8; 300]);
+        // Drop persists.
+    }
+
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let used = cache2.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(used, 600,
+        "used_bytes must be 600 (sum of all recovered key ranges) after recovery");
+}
+
+/// After recovery, evict_prefix() correctly removes entries that were loaded
+/// from the snapshot — not just entries added in the current session.
+#[test]
+fn recovery_evict_prefix_works_on_recovered_keys() {
+    let dir = TempDir::new().unwrap();
+
+    {
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        put_range(&cache, "/data/shard1/file.parquet", 0, 512, &vec![0u8; 512]);
+        put_range(&cache, "/data/shard2/file.parquet", 0, 512, &vec![0u8; 512]);
+        // Drop persists.
+    }
+
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    assert!(cache2.key_index.contains_key("data/shard1/file.parquet"));
+    assert!(cache2.key_index.contains_key("data/shard2/file.parquet"));
+
+    // Evict one shard — only that shard's entry must be removed.
+    cache2.evict_prefix("/data/shard1");
+    assert!(!cache2.key_index.contains_key("data/shard1/file.parquet"),
+        "evict_prefix must remove recovered shard1 entries");
+    assert!(cache2.key_index.contains_key("data/shard2/file.parquet"),
+        "shard2 must be untouched");
+}
+
+/// Clean startup (no key_index.json) is a no-op: key_index starts empty,
+/// used_bytes is 0, cache is fully functional.
+#[test]
+fn recovery_with_no_snapshot_is_clean_startup() {
+    let dir = TempDir::new().unwrap();
+    // No prior cache instance — key_index.json does not exist.
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists());
+
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    assert!(cache.key_index.is_empty(), "key_index must be empty on clean startup");
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0);
+
+    // Cache must still be fully functional.
+    put_range(&cache, "/data/file.parquet", 0, 100, b"data");
+    assert!(cache.key_index.contains_key("data/file.parquet"));
+}
+
+/// A corrupt key_index.json (invalid JSON) is treated as a clean startup.
+/// The cache starts with an empty key_index and is fully functional.
+#[test]
+fn recovery_with_corrupt_snapshot_starts_empty() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join(key_index_store::KEY_INDEX_FILENAME), b"{{corrupt}}")
+        .unwrap();
+
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    assert!(cache.key_index.is_empty(), "corrupt snapshot must produce empty key_index");
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0);
+
+    // Cache must still be fully functional.
+    put_range(&cache, "/data/file.parquet", 0, 100, b"data");
+    assert!(cache.key_index.contains_key("data/file.parquet"));
+}
+
+/// evict_prefix() followed by Drop: the evicted prefix must NOT appear in the
+/// persisted snapshot and therefore must NOT be loaded on the next startup.
+#[test]
+fn recovery_evicted_prefix_not_persisted() {
+    let dir = TempDir::new().unwrap();
+
+    {
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        put_range(&cache, "/data/evicted.parquet", 0, 512, &vec![0u8; 512]);
+        put_range(&cache, "/data/kept.parquet",   0, 512, &vec![0u8; 512]);
+
+        // Evict one prefix before shutdown.
+        cache.evict_prefix("/data/evicted.parquet");
+        assert!(!cache.key_index.contains_key("data/evicted.parquet"));
+        // Drop persists the remaining key_index (only kept.parquet).
+    }
+
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    assert!(!cache2.key_index.contains_key("data/evicted.parquet"),
+        "evicted prefix must not appear in recovered key_index");
+    assert!(cache2.key_index.contains_key("data/kept.parquet"),
+        "non-evicted prefix must still appear after recovery");
+}
+
+/// clear() deletes key_index.json so the next startup does not load stale keys.
+#[test]
+fn recovery_clear_deletes_snapshot_file() {
+    let dir = TempDir::new().unwrap();
+
+    // Create and drop a cache to write key_index.json.
+    {
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        put_range(&cache, "/data/file.parquet", 0, 100, b"data");
+        // Drop writes key_index.json.
+    }
+    assert!(dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+        "key_index.json must exist after first Drop");
+
+    // Create a second cache and call clear().
+    {
+        let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        block_on(cache2.clear());
+        // Drop of cache2 writes an empty key_index.json (empty key_index after clear).
+    }
+
+    // Third instance: must start with an empty key_index (clear deleted the stale snapshot).
+    let cache3 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    assert!(cache3.key_index.is_empty(),
+        "key_index must be empty after clear() deleted the snapshot");
+}
+
+// ── Periodic persist task tests ──────────────────────────────────────────────
+//
+// These tests exercise the independent persist task that flushes the key_index
+// to disk every `persist_interval_secs` seconds when `used_bytes` has changed.
+// They use short intervals (1–2 seconds) and poll for the file's existence.
+
+/// PP-01 / PP-06: persist task starts when interval > 0 and is absent when interval = 0.
+/// Verifies that key_index.json is written by the periodic task (not just by Drop)
+/// by checking file existence before Drop is called.
+#[test]
+fn persist_task_writes_snapshot_within_interval() {
+    let dir = TempDir::new().unwrap();
+    {
+        // persist_interval=1s: task should fire within ~2s of a put().
+        let cache = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            0,    // sweep disabled
+            0.0,  // threshold disabled
+            1,    // persist every 1 second
+        );
+        put_range(&cache, "/data/periodic.parquet", 0, 512, &vec![0u8; 512]);
+
+        // Poll for key_index.json to appear (written by the persist task, not Drop).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let appeared = loop {
+            if dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists() {
+                break true;
+            }
+            if std::time::Instant::now() >= deadline {
+                break false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        };
+        assert!(appeared, "key_index.json must be written by persist task within 5s");
+
+        // Verify the content is valid (not just an empty file).
+        let contents = std::fs::read_to_string(dir.path().join(key_index_store::KEY_INDEX_FILENAME)).unwrap();
+        let snap: serde_json::Value = serde_json::from_str(&contents).unwrap();
+        assert_eq!(snap["version"], 1, "snapshot must have version=1");
+        let index = snap["index"].as_object().unwrap();
+        assert!(!index.is_empty(), "snapshot must contain the put() entries");
+        // cache is dropped here — Drop also writes a final snapshot
+    }
+}
+
+/// PP-04: persist task does NOT write key_index.json when used_bytes has not changed
+/// (idle cache). The sentinel `i64::MIN` forces the first tick to always persist,
+/// so we verify that a second interval tick with no puts does not change the mtime.
+///
+/// Note: this test uses a 2-second interval and checks mtime doesn't advance
+/// between the 2nd and 3rd ticks when no puts happen.
+#[test]
+fn persist_task_does_not_fire_when_cache_idle() {
+    let dir = TempDir::new().unwrap();
+    {
+        // persist_interval=1s
+        let cache = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            0, 0.0, 1,
+        );
+        // Single put to trigger the first persist.
+        put_range(&cache, "/data/idle.parquet", 0, 100, &vec![0u8; 100]);
+
+        // Wait for the first persist (sentinel → current triggers it).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists() {
+            if std::time::Instant::now() >= deadline { break; }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+            "first persist must have fired");
+
+        // Record mtime after first persist.
+        let mtime_after_first = std::fs::metadata(dir.path().join(key_index_store::KEY_INDEX_FILENAME))
+            .unwrap().modified().unwrap();
+
+        // Wait 2.5 intervals with NO new puts — used_bytes is unchanged so persist must NOT fire.
+        std::thread::sleep(std::time::Duration::from_millis(2500));
+
+        let mtime_after_idle = std::fs::metadata(dir.path().join(key_index_store::KEY_INDEX_FILENAME))
+            .unwrap().modified().unwrap();
+
+        assert_eq!(mtime_after_first, mtime_after_idle,
+            "persist task must NOT rewrite key_index.json when cache is idle (used_bytes unchanged)");
+    }
+}
+
+/// PP-05: persist fires after evict_prefix() because used_bytes changes.
+#[test]
+fn persist_task_fires_after_evict_prefix_changes_used_bytes() {
+    let dir = TempDir::new().unwrap();
+    {
+        let cache = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            0, 0.0, 1,
+        );
+        put_range(&cache, "/data/evict_me.parquet", 0, 512, &vec![0u8; 512]);
+        put_range(&cache, "/data/keep_me.parquet",   0, 512, &vec![0u8; 512]);
+
+        // Wait for first persist (sentinel fires on first tick).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists() {
+            if std::time::Instant::now() >= deadline { break; }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        // Evict one prefix — changes used_bytes so next tick must persist.
+        cache.evict_prefix("/data/evict_me.parquet");
+        let used_after_evict = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(used_after_evict < 1024, "used_bytes must decrease after evict");
+
+        let mtime_before = std::fs::metadata(dir.path().join(key_index_store::KEY_INDEX_FILENAME))
+            .unwrap().modified().unwrap();
+
+        // Wait up to 3 intervals for the next persist.
+        std::thread::sleep(std::time::Duration::from_millis(3000));
+        let mtime_after = std::fs::metadata(dir.path().join(key_index_store::KEY_INDEX_FILENAME))
+            .unwrap().modified().unwrap();
+        assert!(mtime_after > mtime_before,
+            "persist task must rewrite key_index.json after evict_prefix() changed used_bytes");
+    }
+}
+
+/// PP-06: persist disabled when interval=0 — no persist task spawned.
+/// The file should NOT exist until Drop is called.
+#[test]
+fn persist_task_not_spawned_when_interval_is_zero() {
+    let dir = TempDir::new().unwrap();
+    {
+        // persist_interval=0: only Drop persists.
+        let cache = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            0, 0.0,
+            0,  // disabled
+        );
+        put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
+
+        // Wait 2 seconds — file must NOT appear (no persist task).
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+        assert!(!dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+            "key_index.json must NOT exist while cache is alive with persist_interval=0");
+
+        // Drop is called here — final persist happens.
+    }
+    // After Drop, key_index.json must exist.
+    assert!(dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+        "key_index.json must be written by Drop even when persist task is disabled");
+}
+
+/// CR-05 simulation: simulate a crash by using `std::mem::forget` to prevent Drop.
+/// The key_index.json must NOT be written (or must be old) since Drop is skipped.
+/// On the next startup, the cache recovers from whatever was last periodically persisted
+/// (or starts empty if periodic persist was also disabled).
+#[test]
+fn simulated_crash_skip_drop_no_final_persist() {
+    let dir = TempDir::new().unwrap();
+
+    // Build a cache with persist_interval=0 (no periodic persist either).
+    // This simulates a node with only Drop-based persistence.
+    let cache = FoyerCache::new(
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        0, 0.0, 0,
+    );
+    put_range(&cache, "/data/crash.parquet", 0, 512, &vec![0u8; 512]);
+
+    // key_index.json does NOT exist yet (no periodic persist, Drop not called).
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+        "key_index.json must not exist before Drop");
+
+    // Simulate crash: forget the cache — Drop is NOT called.
+    std::mem::forget(cache);
+
+    // key_index.json must still NOT exist (Drop was skipped).
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+        "key_index.json must not exist after simulated crash (Drop skipped)");
+
+    // Next startup: key_index starts empty (clean startup path).
+    let cache2 = FoyerCache::new(
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        0, 0.0, 0,
+    );
+    assert!(cache2.key_index.is_empty(),
+        "key_index must be empty after simulated crash with no prior snapshot");
+    assert_eq!(cache2.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0);
+}
+
+/// GS-03 / GS-04: verify key_index.json content is valid JSON with correct version and index.
+#[test]
+fn graceful_shutdown_snapshot_is_valid_json_with_correct_content() {
+    let dir = TempDir::new().unwrap();
+    {
+        let cache = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            0, 0.0, 0,
+        );
+        put_range(&cache, "/data/nodes/0/shard1.parquet", 0,   256, &vec![0u8; 256]);
+        put_range(&cache, "/data/nodes/0/shard1.parquet", 256, 512, &vec![0u8; 256]);
+        put_range(&cache, "/data/nodes/0/shard2.parquet", 0,   128, &vec![0u8; 128]);
+        // Drop writes key_index.json.
+    }
+
+    let path = dir.path().join(key_index_store::KEY_INDEX_FILENAME);
+    assert!(path.exists(), "key_index.json must exist after graceful shutdown");
+
+    let contents = std::fs::read_to_string(&path).unwrap();
+    assert!(!contents.is_empty(), "key_index.json must not be empty");
+
+    // Parse and validate structure.
+    let parsed: serde_json::Value = serde_json::from_str(&contents)
+        .expect("key_index.json must be valid JSON");
+    assert_eq!(parsed["version"], 1, "version must be 1");
+
+    let index = parsed["index"].as_object().expect("index must be a JSON object");
+    assert_eq!(index.len(), 2, "must have 2 prefix buckets");
+
+    // shard1 should have 2 keys, shard2 should have 1.
+    let shard1_keys = index["data/nodes/0/shard1.parquet"].as_array().unwrap();
+    let shard2_keys = index["data/nodes/0/shard2.parquet"].as_array().unwrap();
+    assert_eq!(shard1_keys.len(), 2, "shard1 must have 2 keys");
+    assert_eq!(shard2_keys.len(), 1, "shard2 must have 1 key");
+}
+
+/// No .tmp file should exist after either graceful shutdown or periodic persist.
+#[test]
+fn no_tmp_file_left_after_graceful_shutdown() {
+    let dir = TempDir::new().unwrap();
+    {
+        let cache = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            0, 0.0, 0,
+        );
+        put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
+        // Drop writes and renames.
+    }
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_TMP_FILENAME).exists(),
+        ".key_index.json.tmp must not exist after graceful shutdown (rename completed)");
+    assert!(dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(),
+        "key_index.json must exist after graceful shutdown");
+}
+
+/// VM-03: zero-byte key_index.json → treated as corrupt → clean startup.
+#[test]
+fn zero_byte_snapshot_file_treated_as_corrupt() {
+    let dir = TempDir::new().unwrap();
+    // Write an empty file.
+    std::fs::write(dir.path().join(key_index_store::KEY_INDEX_FILENAME), b"").unwrap();
+
+    let cache = FoyerCache::new(
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        0, 0.0, 0,
+    );
+    assert!(cache.key_index.is_empty(),
+        "zero-byte snapshot must produce empty key_index (clean startup)");
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0);
+    // Cache must be fully functional.
+    put_range(&cache, "/data/file.parquet", 0, 100, b"data");
+    assert!(cache.key_index.contains_key("data/file.parquet"));
+}
+
+/// ST-04: no .tmp file exists on clean startup (fresh dir).
+#[test]
+fn no_tmp_file_on_clean_startup() {
+    let dir = TempDir::new().unwrap();
+    // Verify neither file exists before creating the cache.
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists());
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_TMP_FILENAME).exists());
+
+    let cache = FoyerCache::new(
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        0, 0.0, 0,
+    );
+    // On startup, no .tmp should be created or left behind.
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_TMP_FILENAME).exists(),
+        ".key_index.json.tmp must not exist after clean startup");
+    drop(cache);
+    assert!(!dir.path().join(key_index_store::KEY_INDEX_TMP_FILENAME).exists(),
+        ".key_index.json.tmp must not exist after graceful shutdown");
+}
+
+/// Stale entries in the recovered snapshot (keys that Foyer did not recover due
+/// to LRU eviction before the last persist) are cleaned up by sweep_once().
+/// The cache is usable throughout — stale keys don't cause panics or incorrect
+/// behavior; they just occupy key_index until swept.
+// ─── 10k-scale key_index tests ────────────────────────────────────────────────
+// These tests build a 10k-entry key_index in-process (no OS cluster, no fd pressure).
+
+/// Serialise a 10k-entry key_index to disk and verify the JSON file is non-empty,
+/// parses cleanly, and contains every prefix that was inserted.
+#[test]
+fn key_index_serialization_with_10k_entries() {
+    use std::collections::HashSet;
+    use dashmap::DashMap;
+
+    let dir = TempDir::new().unwrap();
+    const NUM_PREFIXES: usize = 100;
+    const KEYS_PER_PREFIX: usize = 100;
+
+    // Build a DashMap with 100 prefixes × 100 keys = 10k entries.
+    let dash: DashMap<String, HashSet<String>> = DashMap::new();
+    for p in 0..NUM_PREFIXES {
+        let prefix = format!("data/nodes/0/shard_{p:04}/segment.parquet");
+        let keys: HashSet<String> = (0..KEYS_PER_PREFIX)
+            .map(|k| format!("{prefix}\x1F{}-{}", k * 4096, (k + 1) * 4096))
+            .collect();
+        dash.insert(prefix, keys);
+    }
+    let expected_total = NUM_PREFIXES * KEYS_PER_PREFIX;
+
+    // Save.
+    key_index_store::save(dir.path(), &dash).unwrap();
+
+    // Load back and verify.
+    let loaded = key_index_store::load_or_empty(dir.path());
+    assert_eq!(loaded.index.len(), NUM_PREFIXES, "must have {NUM_PREFIXES} prefix buckets");
+    let total_keys: usize = loaded.index.values().map(|v| v.len()).sum();
+    assert_eq!(total_keys, expected_total, "must have {expected_total} total keys");
+
+    // The file itself must be readable JSON above a minimum size.
+    let path = dir.path().join(key_index_store::KEY_INDEX_FILENAME);
+    let bytes = std::fs::metadata(&path).unwrap().len();
+    assert!(bytes > 100_000, "key_index.json must be > 100KB for 10k entries, got {bytes}");
+}
+
+/// Build a 10k-entry snapshot, write it to disk, then create a new FoyerCache
+/// over the same dir — verify the key_index is bulk-loaded correctly.
+#[test]
+fn key_index_recovery_with_10k_entries() {
+    use std::collections::HashSet;
+    use dashmap::DashMap;
+
+    let dir = TempDir::new().unwrap();
+    const NUM_PREFIXES: usize = 100;
+    const KEYS_PER_PREFIX: usize = 100;
+
+    // Write a 10k-entry snapshot.
+    let dash: DashMap<String, HashSet<String>> = DashMap::new();
+    for p in 0..NUM_PREFIXES {
+        let prefix = format!("data/nodes/0/shard_{p:04}/segment.parquet");
+        let keys: HashSet<String> = (0..KEYS_PER_PREFIX)
+            .map(|k| format!("{prefix}\x1F{}-{}", k * 4096, (k + 1) * 4096))
+            .collect();
+        dash.insert(prefix, keys);
+    }
+    key_index_store::save(dir.path(), &dash).unwrap();
+
+    // Create a new cache from the same dir — should bulk-load the snapshot.
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+
+    assert_eq!(cache.key_index.len(), NUM_PREFIXES,
+        "key_index must have {NUM_PREFIXES} buckets after recovery");
+    let total_keys: usize = cache.key_index.iter().map(|e| e.value().len()).sum();
+    assert_eq!(total_keys, NUM_PREFIXES * KEYS_PER_PREFIX,
+        "must have {} total keys after recovery", NUM_PREFIXES * KEYS_PER_PREFIX);
+}
+
+/// Populate 10k entries directly into the key_index (simulating cache puts),
+/// evict half the prefixes, and verify used_bytes decrements correctly.
+#[test]
+fn key_index_evict_prefix_bulk_with_10k_entries() {
+    let dir = TempDir::new().unwrap();
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+
+    const NUM_PREFIXES: usize = 100;
+    const KEYS_PER_PREFIX: usize = 100;
+
+    // Directly populate the key_index (bypasses actual Foyer disk, tests key_index logic only).
+    use std::collections::HashSet;
+    for p in 0..NUM_PREFIXES {
+        let prefix = format!("data/nodes/0/shard_{p:04}/segment.parquet");
+        let keys: HashSet<String> = (0..KEYS_PER_PREFIX)
+            .map(|k| format!("{prefix}\x1F{}-{}", k * 4096, (k + 1) * 4096))
+            .collect();
+        let byte_size: i64 = keys.iter().map(|k| crate::range_cache::key_byte_size(k)).sum();
+        cache.key_index.insert(prefix, keys);
+        cache.stats.used_bytes.fetch_add(byte_size, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    let used_before = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(used_before > 0, "used_bytes must be > 0 after populating {NUM_PREFIXES} prefixes");
+
+    // Evict first 50 prefixes.
+    for p in 0..NUM_PREFIXES / 2 {
+        let prefix = format!("data/nodes/0/shard_{p:04}/segment.parquet");
+        cache.evict_prefix(&prefix);
+    }
+
+    let used_after = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(used_after < used_before, "used_bytes must decrease after bulk evict_prefix");
+    assert_eq!(cache.key_index.len(), NUM_PREFIXES / 2,
+        "key_index must have {} buckets after evicting half", NUM_PREFIXES / 2);
+}
+
+/// Populate 10k entries, call clear(), verify the key_index is empty and
+/// key_index.json is deleted.
+#[test]
+fn key_index_clear_with_10k_entries() {
+    use std::collections::HashSet;
+
+    let dir = TempDir::new().unwrap();
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+
+    const NUM_PREFIXES: usize = 100;
+    const KEYS_PER_PREFIX: usize = 100;
+
+    for p in 0..NUM_PREFIXES {
+        let prefix = format!("data/nodes/0/shard_{p:04}/segment.parquet");
+        let keys: HashSet<String> = (0..KEYS_PER_PREFIX)
+            .map(|k| format!("{prefix}\x1F{}-{}", k * 4096, (k + 1) * 4096))
+            .collect();
+        let byte_size: i64 = keys.iter().map(|k| crate::range_cache::key_byte_size(k)).sum();
+        cache.key_index.insert(prefix, keys);
+        cache.stats.used_bytes.fetch_add(byte_size, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    // Persist first so there's a file to delete.
+    key_index_store::save(&dir.path(), &cache.key_index).unwrap();
+    assert!(dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists(), "file must exist before clear");
+
+    // Clear via the public async API.
+    block_on(cache.clear());
+
+    assert_eq!(cache.key_index.len(), 0, "key_index must be empty after clear");
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0,
+        "used_bytes must be 0 after clear");
+    // After clear() the key_index.json is deleted; Drop will write an empty one.
+    // Assert it is absent while the cache is still alive (before Drop).
+    let snap_exists = dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists();
+    // clear() calls key_index_store::delete() which removes the file.
+    assert!(!snap_exists, "key_index.json must be deleted by clear()");
+}
+
+#[test]
+fn recovery_stale_snapshot_keys_cleaned_by_sweep() {
+    let dir = TempDir::new().unwrap();
+
+    // Manually write a snapshot with a mix of valid and fake stale keys.
+    // We don't spin up an actual cache for the "first session" here because
+    // we need to inject keys that Foyer will not have recovered.
+    {
+        use std::collections::{HashMap, HashSet};
+        let mut index: HashMap<String, HashSet<String>> = HashMap::new();
+        // Real-looking key — Foyer won't have it either, but it's valid format.
+        index.insert(
+            "data/stale.parquet".to_string(),
+            ["data/stale.parquet\x1F0-512".to_string()].into(),
+        );
+        let snap = key_index_store::KeyIndexSnapshot { version: 1, index };
+        let json = serde_json::to_string(&snap).unwrap();
+        std::fs::write(dir.path().join(key_index_store::KEY_INDEX_FILENAME), json.as_bytes()).unwrap();
+    }
+
+    // Create a fresh Foyer cache over the same dir. Foyer has no data for "data/stale.parquet".
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+
+    // Bulk-loaded snapshot has the stale key — used_bytes is temporarily over-counted.
+    assert!(cache.key_index.contains_key("data/stale.parquet"),
+        "stale key must be present immediately after bulk-load recovery");
+
+    // After sweeping all shards, the stale key is removed (inner.contains() returns false).
+    let shard_count = cache.key_index.shards().len();
+    let removed: usize = (0..shard_count).map(|_| cache.sweep_once()).sum();
+    assert_eq!(removed, 1, "sweep must remove the 1 stale key");
+    assert!(!cache.key_index.contains_key("data/stale.parquet"),
+        "stale key must be gone after sweep");
+}

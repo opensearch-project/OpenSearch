@@ -21,7 +21,9 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
+import org.opensearch.node.Node;
 import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
@@ -61,6 +63,17 @@ public class PruneBlockCacheIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
         return false;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            // Enable Foyer via node settings (FeatureFlags.initFromSettings bypasses
+            // the security manager that blocks System.getProperty in internalClusterTests).
+            .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), "2gb")
+            .build();
     }
 
     @Override

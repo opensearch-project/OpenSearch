@@ -43,6 +43,7 @@ import org.opensearch.storage.action.tiering.CancelTieringRequest;
 import org.opensearch.storage.action.tiering.IndexTieringRequest;
 import org.opensearch.storage.action.tiering.status.model.TieringStatus;
 import org.opensearch.storage.common.tiering.TieringRejectionException;
+import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_BLOCKS_WRITE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
@@ -235,6 +237,9 @@ public abstract class TieringService implements ClusterStateListener {
                     )
                 );
                 processTieringInProgress(event.state(), source);
+            }
+            if (event.routingTableChanged() || event.metadataChanged()) {
+                removeWriteBlockForCancelledDfaIndices(event.state());
             }
         }
     }
@@ -735,6 +740,93 @@ public abstract class TieringService implements ClusterStateListener {
             }
         }
         return tieringStatusList;
+    }
+
+    /**
+     * Lifts the write block from DFA indices whose H2W cancel completed but the block was intentionally
+     * kept to prevent writes reaching warm-node shards that still run a read-only engine.
+     *
+     * <p>Called on every routing-table or metadata change. It removes the block only when:
+     * <ol>
+     *   <li>The index is NOT in {@code tieringIndices} (cancel completed, no active tiering)</li>
+     *   <li>The index is a DFA index</li>
+     *   <li>{@code INDEX_TIERING_STATE=HOT} (cancel reverted the tier state)</li>
+     *   <li>{@code INDEX_BLOCKS_WRITE=true} (block still set from H2W preparation)</li>
+     *   <li>All shards are {@code started} on HOT nodes (writable engine is live)</li>
+     * </ol>
+     */
+    private void removeWriteBlockForCancelledDfaIndices(final ClusterState clusterState) {
+        Set<Index> indicesToUnblock = new HashSet<>();
+        for (IndexMetadata indexMetadata : clusterState.metadata()) {
+            // Only act on indices that are NOT currently tiering
+            if (tieringIndices.contains(indexMetadata.getIndex())) {
+                continue;
+            }
+            if (!TieringUtils.isDfaIndex(indexMetadata)) {
+                continue;
+            }
+            // Must be in HOT state (cancel succeeded) with write block still present
+            String tieringState = indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), "");
+            boolean hasWriteBlock = INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings());
+            if (!IndexModule.TieringState.HOT.toString().equals(tieringState) || !hasWriteBlock) {
+                continue;
+            }
+            // All shards must be started on hot nodes before we re-enable writes
+            if (!clusterState.routingTable().hasIndex(indexMetadata.getIndex())) {
+                continue;
+            }
+            List<ShardRouting> shards = clusterState.routingTable().allShards(indexMetadata.getIndex().getName());
+            boolean allOnHot = shards.stream()
+                .allMatch(
+                    s -> (s.unassigned() && !s.primary())
+                        || (s.started() && isShardStateValidForTier(s, clusterState, IndexModule.TieringState.HOT))
+                );
+            if (allOnHot) {
+                indicesToUnblock.add(indexMetadata.getIndex());
+            }
+        }
+        if (indicesToUnblock.isEmpty()) {
+            return;
+        }
+        clusterService.submitStateUpdateTask(
+            "remove-write-block-after-h2w-cancel for " + indicesToUnblock,
+            new ClusterStateUpdateTask(Priority.NORMAL) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+                    ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+                    for (Index index : indicesToUnblock) {
+                        IndexMetadata indexMetadata = currentState.metadata().index(index);
+                        if (indexMetadata == null) continue;
+                        // Re-check conditions inside the task to guard against TOCTOU
+                        String tieringState = indexMetadata.getSettings().get(INDEX_TIERING_STATE.getKey(), "");
+                        boolean hasWriteBlock = INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings());
+                        if (!IndexModule.TieringState.HOT.toString().equals(tieringState) || !hasWriteBlock) {
+                            continue;
+                        }
+                        Settings.Builder settingsBuilder = Settings.builder()
+                            .put(indexMetadata.getSettings())
+                            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
+                        metadataBuilder.put(
+                            IndexMetadata.builder(indexMetadata)
+                                .settings(settingsBuilder)
+                                .settingsVersion(1 + indexMetadata.getSettingsVersion())
+                        );
+                        blocksBuilder.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
+                        logger.info("Removed write block for DFA index [{}] after H2W cancel — all shards on hot", index.getName());
+                    }
+                    return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocksBuilder).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage("Failed to remove write block after H2W cancel for indices {}", indicesToUnblock),
+                        e
+                    );
+                }
+            }
+        );
     }
 
     private TieringStatus constructTieringStatus(Index index, boolean shardLevelStatus, boolean isDetailedFlagEnabled) {

@@ -11,7 +11,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use bytes::Bytes;
 use dashmap::DashMap;
@@ -213,7 +213,12 @@ pub struct FoyerCache {
     /// Only accessed inside the async task closure (captured by value) and in test builds
     /// via `should_skip_sweep()`.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) sweep_threshold_ratio: f64,
+    pub(crate) sweep_threshold_ratio: Arc<AtomicU64>,
+    /// Live-updatable sweep interval in seconds. `0` = disabled (task uses this only to sleep;
+    /// if changed to 0 while running, the task sleeps 0 s and immediately checks cancellation).
+    pub(crate) sweep_interval_secs: Arc<AtomicU64>,
+    /// Live-updatable persist interval in seconds. `0` = disabled.
+    pub(crate) persist_interval_secs: Arc<AtomicU64>,
     /// Absolute path to the Foyer cache directory.
     /// Used to write/read `key_index.json` for persistence and recovery.
     pub(crate) cache_dir: PathBuf,
@@ -342,6 +347,10 @@ impl FoyerCache {
         let sweep_cursor = Arc::new(AtomicUsize::new(0));
 
         // ── Construct instance ────────────────────────────────────────────────
+        let sweep_threshold_atomic = Arc::new(AtomicU64::new(sweep_threshold_ratio.to_bits()));
+        let sweep_interval_atomic   = Arc::new(AtomicU64::new(sweep_interval_secs));
+        let persist_interval_atomic = Arc::new(AtomicU64::new(persist_interval_secs));
+
         let mut instance = Self {
             inner,
             key_index,
@@ -350,7 +359,9 @@ impl FoyerCache {
             shutdown,
             sweep_cursor,
             disk_bytes,
-            sweep_threshold_ratio,
+            sweep_threshold_ratio: sweep_threshold_atomic,
+            sweep_interval_secs:   sweep_interval_atomic,
+            persist_interval_secs: persist_interval_atomic,
             cache_dir: disk_dir,  // move: dir_clone was consumed by block_on, disk_dir is still owned
         };
 
@@ -368,32 +379,33 @@ impl FoyerCache {
             let sweep_key_index = Arc::clone(&instance.key_index);
             let sweep_stats = Arc::clone(&instance.stats);
             let sweep_cursor_clone = Arc::clone(&instance.sweep_cursor);
-            let sweep_interval = Duration::from_secs(sweep_interval_secs);
-            // disk_bytes and sweep_threshold_ratio are Copy — captured by value into the closure.
+            let sweep_interval_atomic_clone = Arc::clone(&instance.sweep_interval_secs);
+            let sweep_threshold_atomic_clone = Arc::clone(&instance.sweep_threshold_ratio);
             let sweep_disk_bytes = disk_bytes;
-            let sweep_threshold = sweep_threshold_ratio;
 
             instance._runtime.spawn(async move {
                 native_bridge_common::log_info!(
-                    "[block-cache] sweep task started: interval={}s, threshold={:.0}%",
-                    sweep_interval_secs,
-                    sweep_threshold * 100.0
+                    "[block-cache] sweep task started: interval={}s", sweep_interval_secs
                 );
                 loop {
-                    // Race sleep vs cancellation: wakes immediately on drop, not after interval.
+                    // Read interval on each tick — allows live update without restart.
+                    let current_secs = sweep_interval_atomic_clone.load(Ordering::Relaxed);
+                    let interval = if current_secs == 0 {
+                        Duration::from_secs(3600) // effectively disabled: sleep 1 hour
+                    } else {
+                        Duration::from_secs(current_secs)
+                    };
                     tokio::select! {
-                        _ = tokio::time::sleep(sweep_interval) => {
-                            // Usage-ratio guard: skip the sweep entirely when the cache is
-                            // below the threshold, avoiding unnecessary DashMap iteration.
-                            // sweep_threshold == 0.0 disables the guard (always sweep).
-                            if sweep_threshold > 0.0 {
+                        _ = tokio::time::sleep(interval) => {
+                            if current_secs == 0 { continue; } // disabled
+                            let threshold = f64::from_bits(sweep_threshold_atomic_clone.load(Ordering::Relaxed));
+                            if threshold > 0.0 {
                                 let used = sweep_stats.used_bytes.load(Ordering::Relaxed).max(0) as usize;
-                                let usage_ratio = used as f64 / sweep_disk_bytes as f64;
-                                if usage_ratio < sweep_threshold {
+                                let ratio = used as f64 / sweep_disk_bytes as f64;
+                                if ratio < threshold {
                                     native_bridge_common::log_debug!(
                                         "[block-cache] sweep skipped: usage={:.1}% < threshold={:.1}%",
-                                        usage_ratio * 100.0,
-                                        sweep_threshold * 100.0
+                                        ratio * 100.0, threshold * 100.0
                                     );
                                     continue;
                                 }
@@ -439,11 +451,6 @@ impl FoyerCache {
                                 match key_index_store::save(&persist_dir, &persist_key_index) {
                                     Ok(()) => {
                                         last_persisted = current;
-                                        native_bridge_common::log_debug!(
-                                            "[block-cache] persist task: saved \
-                                             used_bytes={} buckets={}",
-                                            current, persist_key_index.len()
-                                        );
                                     }
                                     Err(e) => {
                                         // Do not update last_persisted — retry on the next tick.
@@ -611,11 +618,32 @@ impl FoyerCache {
     /// - `false` when `sweep_threshold_ratio > 0.0` AND `used_bytes / disk_bytes >= threshold`.
     #[cfg(test)]
     pub(crate) fn should_skip_sweep(&self) -> bool {
-        if self.sweep_threshold_ratio <= 0.0 {
+        let threshold = f64::from_bits(self.sweep_threshold_ratio.load(Ordering::Relaxed));
+        if threshold <= 0.0 {
             return false; // disabled: always sweep
         }
         let used = self.stats.used_bytes.load(Ordering::Relaxed).max(0) as usize;
-        (used as f64 / self.disk_bytes as f64) < self.sweep_threshold_ratio
+        (used as f64 / self.disk_bytes as f64) < threshold
+    }
+
+    /// Update the sweep threshold ratio atomically. Takes effect on next tick.
+    pub(crate) fn update_sweep_threshold(&self, new_ratio: f64) {
+        self.sweep_threshold_ratio.store(new_ratio.to_bits(), Ordering::Relaxed);
+        native_bridge_common::log_info!(
+            "[block-cache] sweep threshold updated live: {:.0}%", new_ratio * 100.0
+        );
+    }
+
+    /// Update the sweep interval live. `0` = disable sweep. Takes effect on next sleep.
+    pub(crate) fn update_sweep_interval(&self, new_secs: u64) {
+        self.sweep_interval_secs.store(new_secs, Ordering::Relaxed);
+        native_bridge_common::log_info!("[block-cache] sweep interval updated live: {}s", new_secs);
+    }
+
+    /// Update the persist interval live. `0` = disable periodic persist. Takes effect on next sleep.
+    pub(crate) fn update_persist_interval(&self, new_secs: u64) {
+        self.persist_interval_secs.store(new_secs, Ordering::Relaxed);
+        native_bridge_common::log_info!("[block-cache] persist interval updated live: {}s", new_secs);
     }
 
     /// Clear all entries synchronously. Called from the FFM layer.

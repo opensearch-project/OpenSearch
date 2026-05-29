@@ -221,6 +221,7 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
 
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.iterator()).thenReturn(Collections.emptyIterator());
 
         service.tieringIndices.add(testIndex);
         service.clusterChanged(event);
@@ -256,6 +257,7 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.index(testIndex)).thenReturn(indexMetadata);
+        when(metadata.iterator()).thenReturn(Collections.emptyIterator());
 
         service.tieringIndices.add(testIndex);
         service.clusterChanged(event);
@@ -337,6 +339,7 @@ public class WarmToHotTieringServiceTests extends OpenSearchTestCase {
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.index(testIndex)).thenReturn(indexMetadata);
+        when(metadata.iterator()).thenReturn(Collections.emptyIterator());
 
         service.tieringIndices.add(testIndex);
         service.clusterChanged(event);

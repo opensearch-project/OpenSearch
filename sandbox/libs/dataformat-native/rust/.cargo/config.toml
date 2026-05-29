@@ -6,5 +6,3 @@ rustflags = ["--cfg", "tokio_unstable", "-C", "force-frame-pointers=yes", "-C", 
 # cannot be enabled post-start, so it must be compiled in. prof_active:false ensures zero
 # runtime overhead until explicitly activated via cluster settings at runtime.
 JEMALLOC_SYS_WITH_MALLOC_CONF = "prof:true,prof_active:false,lg_prof_sample:17"
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-unknown-linux-gnu-gcc"
