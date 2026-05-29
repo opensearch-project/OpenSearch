@@ -157,6 +157,15 @@ pub extern "C" fn df_set_min_target_partitions(value: i64) {
     api::set_min_target_partitions(value);
 }
 
+/// Sets the max CUMULATIVE per-query export size (bytes) for the C-Data boundary.
+/// A query is rejected once its running total of exported bytes would exceed this,
+/// to avoid the Arrow import-failure native leak (foreign buffers accumulating past
+/// the query pool cap).
+#[no_mangle]
+pub extern "C" fn df_set_max_query_export_bytes(value: i64) {
+    api::set_max_query_export_bytes(value);
+}
+
 /// Sets memory guard thresholds. Values are thresholds multiplied by 1000
 /// (e.g., 700 = 0.70, 850 = 0.85, 950 = 0.95).
 #[no_mangle]

@@ -83,6 +83,11 @@ pub struct QueryStreamHandle {
     /// Concurrency gate permit — held for the query's entire lifetime.
     /// Released on drop, which frees partition budget for other queries.
     _concurrency_permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    /// Cumulative bytes this stream has exported across the Arrow C-Data boundary.
+    /// Used by [`stream_next`] to reject a query before its exported batches
+    /// accumulate past the Java import pool cap (which would leak — see
+    /// MAX_EXPORT_BYTES). Reset never; one handle == one query.
+    exported_bytes: usize,
 }
 
 impl QueryStreamHandle {
@@ -104,6 +109,7 @@ impl QueryStreamHandle {
             _session_ctx: None,
             has_views,
             _concurrency_permit: permit,
+            exported_bytes: 0,
         }
     }
 
@@ -120,6 +126,7 @@ impl QueryStreamHandle {
             _session_ctx: Some(ctx),
             has_views,
             _concurrency_permit: permit,
+            exported_bytes: 0,
         }
     }
 }
@@ -404,6 +411,31 @@ pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), Stri
 /// effectively disables adaptive reduction.
 pub fn set_min_target_partitions(value: i64) {
     crate::query_budget::set_min_target_partitions(value.max(1) as usize);
+}
+
+/// Maximum CUMULATIVE bytes a single query may export across the Arrow C-Data
+/// boundary to Java. Once a stream's running total would exceed this, [`stream_next`]
+/// rejects the query *before* creating the next `FFI_ArrowArray`.
+///
+/// The Java-side import (`Data.importIntoVectorSchemaRoot` →
+/// `BaseAllocator.wrapForeignAllocation`) accounts each imported foreign buffer
+/// against the bounded Arrow query pool. A high-cardinality query emits its result as MANY modest
+/// batches whose imports **accumulate** in that pool. When the running total nears
+/// the cap, the next (small) batch's import throws `OutOfMemoryException` — but
+/// `ReferenceCountedArrowArray.unsafeAssociateAllocation` already called `retain()`,
+/// and `wrapForeignAllocation` throws *before* its `release0()` cleanup. That orphans a reference, so the
+/// C `release_array` callback never fires and the Rust-side batches leak in jemalloc
+/// (one leak per failed query, stacking until admission control rejects everything).
+///
+/// This value is **derived and pushed from Java**, not configured here in bytes: the
+/// plugin computes `native.allocator.pool.query.max × datafusion.max_query_export_fraction`
+/// at startup (before any query can reach [`stream_next`]) and whenever either input
+/// changes, so the guard always tracks the actual import pool on any node size.
+static MAX_EXPORT_BYTES: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0); // disabled until Java pushes pool.query.max × fraction
+
+pub fn set_max_query_export_bytes(value: i64) {
+    MAX_EXPORT_BYTES.store(value.max(0) as usize, std::sync::atomic::Ordering::Release);
 }
 
 /// Creates a native reader (ShardView) for the given path and files.
@@ -908,6 +940,27 @@ pub async unsafe fn stream_next(
             } else {
                 batch
             };
+
+            // Reject BEFORE creating the FFI array once this query's CUMULATIVE export
+            // would cross the threshold. The Java import accumulates exported batches in
+            // the bounded Arrow query pool; if it overflows, the importer leaks the
+            // whole Rust-side batch via an orphaned retain() (see MAX_EXPORT_BYTES).
+            // Dropping `batch` here frees its buffers cleanly — no FFI Box, no leak.
+            let max_export = MAX_EXPORT_BYTES.load(std::sync::atomic::Ordering::Acquire);
+            if max_export > 0 {
+                let batch_bytes = batch.get_array_memory_size();
+                let projected = handle.exported_bytes.saturating_add(batch_bytes);
+                if projected > max_export {
+                    // `batch` drops at end of scope → buffers freed in Rust.
+                    return Err(DataFusionError::ResourcesExhausted(format!(
+                        "Query result export would reach {} bytes, exceeding the cap of {} bytes \
+                         (datafusion.max_query_export_fraction × native.allocator.pool.query.max).",
+                        projected, max_export
+                    )));
+                }
+                handle.exported_bytes = projected;
+            }
+
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);

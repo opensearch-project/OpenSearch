@@ -77,6 +77,7 @@ public final class NativeBridge {
      */
     private static final MethodHandle SET_SPILL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
+    private static final MethodHandle SET_MAX_QUERY_EXPORT_BYTES;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
@@ -184,6 +185,10 @@ public final class NativeBridge {
             lib.find("df_set_min_target_partitions").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
+
+        SET_MAX_QUERY_EXPORT_BYTES = lib.find("df_set_max_query_export_bytes")
+            .map(sym -> linker.downcallHandle(sym, FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)))
+            .orElse(null);
 
         SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
             lib.find("df_set_memory_guard_thresholds").orElseThrow(),
@@ -716,6 +721,24 @@ public final class NativeBridge {
             SET_MIN_TARGET_PARTITIONS.invokeExact((long) value);
         } catch (Throwable t) {
             logger.debug("Failed to set min target partitions", t);
+        }
+    }
+
+    /**
+     * Sets the max cumulative per-query export size (bytes) for the C-Data boundary
+     * leak guard. The value is a resolved byte cap (the caller derives it from the query
+     * pool max × fraction). No-op if the loaded native library predates the guard (the
+     * lib's compiled-in default still applies).
+     */
+    public static void setMaxQueryExportBytes(long value) {
+        if (SET_MAX_QUERY_EXPORT_BYTES == null) {
+            logger.debug("df_set_max_query_export_bytes not available; using native compiled-in default");
+            return;
+        }
+        try {
+            SET_MAX_QUERY_EXPORT_BYTES.invokeExact(value);
+        } catch (Throwable t) {
+            logger.debug("Failed to set max query export bytes", t);
         }
     }
 

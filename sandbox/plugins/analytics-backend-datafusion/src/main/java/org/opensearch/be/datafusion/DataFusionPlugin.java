@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -201,6 +202,31 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Fraction of the Arrow query pool ({@code native.allocator.pool.query.max}) that a
+     * single query may export across the C-Data boundary before it is rejected. The
+     * effective byte cap pushed to the native layer is
+     * {@code pool.query.max × this fraction}, so it scales with the pool on any node size
+     * rather than being a frozen byte value.
+     * <p>
+     * Guards against the native memory leak where a high-cardinality result's batches
+     * accumulate past the import pool cap and the failing Arrow import orphans a buffer
+     * reference (the C release callback never fires; the whole Rust batch leaks in
+     * jemalloc). Rejecting before export keeps the node healthy. The cap is a per-query
+     * cumulative total, not a per-batch size.
+     * <p>
+     * Default 0.9 (reject at 90% of the query pool, leaving headroom below the cap where
+     * the import would otherwise overflow-and-leak)
+     */
+    public static final Setting<Double> DATAFUSION_MAX_QUERY_EXPORT_FRACTION = Setting.doubleSetting(
+        "datafusion.max_query_export_fraction",
+        0.9,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Admission threshold for the jemalloc memory guard (0.0–1.0).
      * When pool accounting rejects a phantom reservation but jemalloc reports
      * actual RSS below this fraction of the pool limit, the reservation proceeds
@@ -345,6 +371,11 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
+        // The export cap = pool.query.max × fraction. Recompute on a change to EITHER input.
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_MAX_QUERY_EXPORT_FRACTION, v -> updateMaxQueryExportBytes());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ArrowBasePlugin.QUERY_MAX_SETTING, v -> updateMaxQueryExportBytes());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
@@ -356,6 +387,7 @@ public class DataFusionPlugin extends Plugin
 
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
+        updateMaxQueryExportBytes();
         NativeBridge.setMemoryGuardThresholds(
             DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),
@@ -535,6 +567,33 @@ public class DataFusionPlugin extends Plugin
     void updateMinTargetPartitions(int value) {
         NativeBridge.setMinTargetPartitions(value);
         logger.info("Updated DataFusion min_target_partitions to {}", value);
+    }
+
+    /**
+     * Recomputes the per-query export byte cap from
+     * {@code native.allocator.pool.query.max × datafusion.max_query_export_fraction} and
+     * pushes it to the native layer. Called at init and whenever either input changes.
+     * <p>
+     * When the query pool is effectively unbounded ({@code Long.MAX_VALUE}, i.e. admission
+     * control unconfigured) or the fraction is 0, the guard is disabled (cap = 0): there is
+     * no finite pool to overflow, so the leak path cannot trigger.
+     */
+    void updateMaxQueryExportBytes() {
+        double fraction = clusterService.getClusterSettings().get(DATAFUSION_MAX_QUERY_EXPORT_FRACTION);
+        long queryPoolMax = clusterService.getClusterSettings().get(ArrowBasePlugin.QUERY_MAX_SETTING);
+        long capBytes;
+        if (fraction <= 0.0 || queryPoolMax <= 0 || queryPoolMax == Long.MAX_VALUE) {
+            capBytes = 0; // disabled — no finite pool to overflow
+        } else {
+            capBytes = (long) (queryPoolMax * fraction);
+        }
+        NativeBridge.setMaxQueryExportBytes(capBytes);
+        logger.info(
+            "Updated DataFusion max query export cap to {} bytes ({} × pool.query.max={})",
+            capBytes,
+            fraction,
+            queryPoolMax
+        );
     }
 
     private void updateMemoryGuardThresholds() {
