@@ -469,8 +469,18 @@ pub(crate) fn parse_mysql_format(input: &str, format: &str) -> Option<Parsed> {
                 f.minute = Some(m);
                 f.second = Some(s);
             }
-            // Name tokens: opportunistically consume letters (PPL doesn't validate).
-            Token::A | Token::B | Token::W | Token::MUpper => {
+            // Month-name tokens back-solve to f.month (Java's `LLL`/`LLLL` formatter pattern in
+            // PPL's reference DateTimeFormatterUtil decodes month names). Accept both full and
+            // abbreviated forms regardless of which token was specified — MySQL is lenient here
+            // and PPL inherits that. Case-insensitive.
+            Token::B | Token::MUpper => {
+                let (m, np) = match_month_name(input_bytes, pos)?;
+                f.month = Some(m);
+                pos = np;
+            }
+            // Weekday-name tokens: consume letters without back-solving — PPL's parser doesn't
+            // derive month/day from a weekday alone (it would need a calendar context).
+            Token::A | Token::W => {
                 pos = consume_while(input_bytes, pos, |b| b.is_ascii_alphabetic());
             }
             // Week-based tokens: consume digits, ignore value (PPL doesn't back-solve either).
@@ -481,6 +491,40 @@ pub(crate) fn parse_mysql_format(input: &str, format: &str) -> Option<Parsed> {
         }
     }
     Some(f)
+}
+
+/// Decode a month name (full or abbreviated, case-insensitive) starting at `pos`.
+/// Returns `(month, next_pos)` on a match. Tries the longer (full) name first so
+/// `September` doesn't get truncated to `Sep` with `tember` left as dangling input.
+fn match_month_name(bytes: &[u8], pos: usize) -> Option<(u32, usize)> {
+    const FULL: [&str; 12] = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ];
+    const SHORT: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let tail = bytes.get(pos..)?;
+    for (i, name) in FULL.iter().enumerate() {
+        if matches_ci(tail, name.as_bytes()) {
+            return Some((i as u32 + 1, pos + name.len()));
+        }
+    }
+    for (i, name) in SHORT.iter().enumerate() {
+        if matches_ci(tail, name.as_bytes()) {
+            return Some((i as u32 + 1, pos + name.len()));
+        }
+    }
+    None
+}
+
+fn matches_ci(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack.len() >= needle.len()
+        && haystack[..needle.len()]
+            .iter()
+            .zip(needle.iter())
+            .all(|(a, b)| a.eq_ignore_ascii_case(b))
 }
 
 fn read_am_pm(bytes: &[u8], pos: usize, f: &mut Parsed) -> Option<usize> {
@@ -612,6 +656,23 @@ mod tests {
         assert_eq!(p.to_naive().unwrap().time().to_string(), "13:30:45");
         let p = parse_mysql_format("12:00:00 AM", "%h:%i:%s %p").unwrap();
         assert_eq!(p.to_naive().unwrap().time().to_string(), "00:00:00");
+    }
+
+    #[test]
+    fn parse_month_name_tokens() {
+        // %b (abbreviated) and %M (full) must back-solve to f.month — covers PPL
+        // testStrToDate's `'1-May-13'` / `%d-%b-%y` assertion. Without this, %b just
+        // consumed letters and month silently defaulted to 1.
+        let p = parse_mysql_format("1-May-13", "%d-%b-%y").unwrap();
+        let ndt = p.to_naive().unwrap();
+        assert_eq!(ndt.to_string(), "2013-05-01 00:00:00");
+
+        let p = parse_mysql_format("September 9, 2024", "%M %d, %Y").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2024-09-09 00:00:00");
+
+        // Case-insensitive: PPL's Java `LLLL` parser tolerates lower/mixed case.
+        let p = parse_mysql_format("march 1 2020", "%M %d %Y").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2020-03-01 00:00:00");
     }
 
     #[test]
