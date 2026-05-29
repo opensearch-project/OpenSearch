@@ -8,7 +8,7 @@
 
 //! FFM upcall surface for index-filter providers and collectors.
 //!
-//! Four callback slots, populated once at startup by
+//! Five callback slots, populated once at startup by
 //! `df_register_filter_tree_callbacks` (see `ffm.rs`):
 //!
 //! - `createProvider(contextId, annotationId) -> providerKey|-1`
