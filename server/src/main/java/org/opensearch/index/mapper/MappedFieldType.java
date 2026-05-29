@@ -103,7 +103,7 @@ public abstract class MappedFieldType {
      * Set once during mapping build via {@link Mapper.BuilderContext#assignCapabilities}, then immutable.
      * Safe without volatile: publication through MapperService's volatile mapper reference provides happens-before.
      */
-    private volatile Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
+    private Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
 
     public MappedFieldType(
         String name,
@@ -484,16 +484,15 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Sets the capability map. Can only be called once per instance (set-once semantics).
+     * Sets the capability map.
      * Called by {@link org.opensearch.index.engine.dataformat.FieldCapabilityAssigner} during mapping build.
      *
      * @throws IllegalStateException if already set
      * @opensearch.experimental
      */
     @ExperimentalApi
-    public void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
+    public synchronized void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
         this.capabilityMap = Map.copyOf(capabilityMap);
-        ;
     }
 
     /**

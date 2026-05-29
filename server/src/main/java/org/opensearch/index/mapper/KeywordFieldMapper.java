@@ -272,12 +272,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default")) {
+        if (!isDirectlyUsableAsSource() && mappedFieldType.getCapabilityMap().isEmpty()) {
             throw new UnsupportedOperationException(
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
         }
         checkStoredAndDocValuesForDerivedSource();
+    }
+
+    private boolean isDirectlyUsableAsSource() {
+        return this.ignoreAbove == Integer.MAX_VALUE && Objects.equals(this.normalizerName, "default");
     }
 
     /**
@@ -814,6 +818,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
+    private final KeywordFieldType sourceKeywordFieldType;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -838,7 +843,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
-
+        this.sourceKeywordFieldType = buildSourceKeywordFieldType();
         this.indexAnalyzers = builder.indexAnalyzers;
     }
 
@@ -848,6 +853,31 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      */
     public int ignoreAbove() {
         return ignoreAbove;
+    }
+
+    /**
+     * Returns the normalizer used for this keyword field.
+     * @return normalizerName
+     */
+    public String normalizerName() {
+        return normalizerName;
+    }
+
+    /**
+     * The field type to be used for derived source use cases.
+     * Keyword fields get ignored above a certain length and/or may get normalized.
+     * In such cases, storage layer would need to add another field which can be used for source generation
+     * @return sourceKeywordFieldType
+     */
+    private KeywordFieldType buildSourceKeywordFieldType() {
+        if (isDirectlyUsableAsSource()) {
+            return new KeywordFieldType("_ignored" + fieldType().name(), false, true, false, false, fieldType().meta());
+        }
+        return null;
+    }
+
+    public KeywordFieldType getSourceKeywordFieldType() {
+        return sourceKeywordFieldType;
     }
 
     boolean useSimilarity() {
@@ -889,14 +919,21 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        String value = parseKeywordValue(context);
-        if (value == null) {
+        String textValue = textValue(context);
+        if (textValue == null) {
             return;
         }
+        String value = parseKeywordValue(context);
         context.documentInput().addField(fieldType(), value);
+        context.documentInput().addField(sourceKeywordFieldType, textValue);
     }
 
     private String parseKeywordValue(ParseContext context) throws IOException {
+        String value = textValue(context);
+        return parseKeyword(value);
+    }
+
+    private String textValue(ParseContext context) throws IOException {
         String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -908,7 +945,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 value = parser.textOrNull();
             }
         }
+        return value;
+    }
 
+    private String parseKeyword(String value) throws IOException {
         if (value == null || value.length() > ignoreAbove) {
             return null;
         }

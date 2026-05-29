@@ -6,6 +6,10 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
+/**
+ * Parquet field for index name.
+ * This is a placeholder for declaring support for the field.
+ */
 public class IndexParquetField extends ParquetField {
 
     @Override

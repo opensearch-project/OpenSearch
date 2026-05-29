@@ -119,6 +119,11 @@ public class DocumentMapperParser {
         this.dataFormatRegistry = dataFormatRegistry;
     }
 
+    @Nullable
+    DataFormatRegistry getDataFormatRegistry() {
+        return dataFormatRegistry;
+    }
+
     public Mapper.TypeParser.ParserContext parserContext() {
         return new Mapper.TypeParser.ParserContext(
             similarityService::getSimilarity,

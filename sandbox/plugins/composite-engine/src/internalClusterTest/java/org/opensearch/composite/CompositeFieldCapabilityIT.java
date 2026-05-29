@@ -127,6 +127,11 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertIndexCreationSucceeds("test-keyword", "field", "type=keyword");
     }
 
+    public void testKeywordFieldSupported() {
+        startCluster();
+        assertIndexCreationSucceeds("test-keyword", "field", "type=keyword,ignore_above=256,normalizer");
+    }
+
     public void testTextFieldSupported() {
         startCluster();
         assertIndexCreationSucceeds("test-text", "field", "type=text");
@@ -139,7 +144,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
 
     public void testBinaryFieldSupported() {
         startCluster();
-        assertIndexCreationSucceeds("test-binary", "field", "type=binary,doc_values=true");
+        assertIndexCreationSucceeds("test-binary", "field", "type=binary");
     }
 
     public void testMatchOnlyTextFieldSupported() {
@@ -226,7 +231,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
 
     public void testFieldWithAllDisabled() {
         startCluster();
-        assertIndexCreationSucceeds("test-all-disabled", "field", "type=keyword,index=false,doc_values=false,store=false");
+        assertIndexCreationFails("test-all-disabled", "field", "type=keyword,index=false,doc_values=false,store=false");
     }
 
     public void testMultipleFieldsAllSupported() {

@@ -13,8 +13,10 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
@@ -44,8 +46,9 @@ public final class ArrowSchemaBuilder {
 
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
         List<Field> fields = new ArrayList<>();
-        if (mapperService.documentMapper() != null) {
-            for (Mapper mapper : mapperService.documentMapperWithAutoCreate().getDocumentMapper().mappers()) {
+        DocumentMapper documentMapper = mapperService.documentMapperWithAutoCreate().getDocumentMapper();
+        if (documentMapper != null) {
+            for (Mapper mapper : documentMapper.mappers()) {
                 if (isUnsupportedMetadataField(mapper)) {
                     logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                     continue;
@@ -53,6 +56,12 @@ public final class ArrowSchemaBuilder {
                 ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
                 if (parquetField != null) {
                     fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
+                    if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+                        if (!documentMapper.mappers().isMultiField(mapper.name())
+                            && keywordFieldMapper.getSourceKeywordFieldType() != null) {
+                            fields.add(new Field(keywordFieldMapper.getSourceKeywordFieldType().name(), parquetField.getFieldType(), null));
+                        }
+                    }
                 } else {
                     logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                 }

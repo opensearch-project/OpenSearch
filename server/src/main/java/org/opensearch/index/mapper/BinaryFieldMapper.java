@@ -38,11 +38,13 @@ import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -101,13 +103,17 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(
-                name,
-                new BinaryFieldType(buildFullName(context), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                this
+            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                && context.indexCreatedVersion().onOrAfter(Version.V_3_7_0)) { // version check to avoid mismatch with lucene field infos
+                stored.setValue(true); // Put in stored fields
+            }
+            final BinaryFieldType bft = new BinaryFieldType(
+                buildFullName(context),
+                stored.getValue(),
+                hasDocValues.getValue(),
+                meta.getValue()
             );
+            return new BinaryFieldMapper(name, bft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -247,6 +253,21 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredForDerivedSource();
+    }
+
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, null, new StoredFieldFetcher(mappedFieldType, simpleName())) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.STORED;
+            }
+        };
     }
 
     /**

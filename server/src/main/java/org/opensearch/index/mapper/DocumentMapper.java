@@ -125,15 +125,6 @@ public class DocumentMapper implements ToXContentFragment {
                 }
                 metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             }
-
-            // Assign capability maps to all field types during mapper building.
-            // Each field type (including metadata) participates in capability-based routing.
-            if (mapperService.getIndexSettings().isPluggableDataFormatEnabled() && dataFormatRegistry != null) {
-                assignCapabilitiesRecursive(rootObjectMapper, builderContext);
-                for (MetadataFieldMapper metadataMapper : metadataMappers.values()) {
-                    builderContext.assignCapabilities(metadataMapper.fieldType());
-                }
-            }
         }
 
         /**
@@ -207,6 +198,16 @@ public class DocumentMapper implements ToXContentFragment {
             indexAnalyzers.getDefaultIndexAnalyzer(),
             mapperService.documentMapperParser()
         );
+
+        // Assign capabilities for dynamically merged mappers that bypass the Builder path.
+        final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
+        if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
+            final FieldCapabilityAssigner assigner = new FieldCapabilityAssigner(registry.getConfiguredFormats(indexSettings));
+            assignCapabilitiesRecursive(mapping.root(), assigner);
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                assigner.assign(metadataMapper.fieldType());
+            }
+        }
 
         try {
             mappingSource = new CompressedXContent(this, ToXContent.EMPTY_PARAMS);
@@ -364,6 +365,18 @@ public class DocumentMapper implements ToXContentFragment {
             return true;
         } else {
             return false;
+        }
+    }
+
+    /**
+     * Recursively walks the mapper tree and assigns capability maps to all field types.
+     */
+    private static void assignCapabilitiesRecursive(Mapper mapper, FieldCapabilityAssigner assigner) {
+        if (mapper instanceof FieldMapper) {
+            assigner.assign(((FieldMapper) mapper).fieldType());
+        }
+        for (Mapper child : mapper) {
+            assignCapabilitiesRecursive(child, assigner);
         }
     }
 
