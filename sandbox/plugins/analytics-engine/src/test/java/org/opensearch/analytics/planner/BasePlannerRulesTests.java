@@ -461,27 +461,58 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     // TODO: AggregateRuleTests has private copies of these — replace with these shared versions.
 
     protected AggregateCall sumCall() {
+        return sumCall(stubScan(mockTable("test_index", "status", "size")));
+    }
+
+    protected AggregateCall sumCall(RelNode input) {
         return AggregateCall.create(
             SqlStdOperatorTable.SUM,
             false,
             List.of(1),
             -1,
-            stubScan(mockTable("test_index", "status", "size")),
+            input,
             typeFactory.createSqlType(SqlTypeName.INTEGER),
             "total_size"
         );
     }
 
     protected AggregateCall countStarCall() {
+        return countStarCall(stubScan(mockTable("test_index", "status", "size")));
+    }
+
+    protected AggregateCall countStarCall(RelNode input) {
         // COUNT(*) — no field arguments, always gets annotated with aggregateCapableBackends
         return AggregateCall.create(
             SqlStdOperatorTable.COUNT,
             false,
             List.of(),
             -1,
-            stubScan(mockTable("test_index", "status", "size")),
+            input,
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "cnt"
+        );
+    }
+
+    /**
+     * AVG over the second column. Uses the long-form {@link AggregateCall#create} with a
+     * {@code null} return type so Calcite infers AVG's canonical type; the short-form
+     * overload passes an explicit type and would trip {@code Aggregate.typeMatchesInferred}.
+     */
+    protected AggregateCall avgCall(RelNode input) {
+        return AggregateCall.create(
+            SqlStdOperatorTable.AVG,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(1),
+            -1,
+            null,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            1,
+            input,
+            null,
+            "avg_size"
         );
     }
 
@@ -515,7 +546,11 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     }
 
     protected LogicalAggregate makeAggregate(RelNode input, AggregateCall... aggCalls) {
-        return LogicalAggregate.create(input, List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls));
+        return makeAggregate(input, ImmutableBitSet.of(0), aggCalls);
+    }
+
+    protected LogicalAggregate makeAggregate(RelNode input, ImmutableBitSet groupSet, AggregateCall... aggCalls) {
+        return LogicalAggregate.create(input, List.of(), groupSet, null, List.of(aggCalls));
     }
 
     protected LogicalAggregate makeMultiCallAggregate(RelNode input, AggregateCall... aggCalls) {
