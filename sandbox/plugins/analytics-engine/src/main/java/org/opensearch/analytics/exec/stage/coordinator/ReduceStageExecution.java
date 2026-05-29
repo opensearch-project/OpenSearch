@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec.stage.coordinator;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ExchangeSource;
@@ -16,6 +17,7 @@ import org.opensearch.analytics.exec.stage.AbstractStageExecution;
 import org.opensearch.analytics.exec.stage.SinkProvidingStageExecution;
 import org.opensearch.analytics.exec.stage.StageTask;
 import org.opensearch.analytics.exec.stage.StageTaskId;
+import org.opensearch.analytics.planner.dag.InputSinkDecorator;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -44,12 +46,14 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
     private final ReducingExchangeSink backendSink;
     private final ExchangeSink downstream;
     private final Executor reduceExecutor;
+    private final BufferAllocator allocator;
 
     public ReduceStageExecution(Stage stage, QueryContext config, ReducingExchangeSink backendSink, ExchangeSink downstream) {
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         this.backendSink = backendSink;
         this.downstream = downstream;
         this.reduceExecutor = config.reduceExecutor();
+        this.allocator = config.bufferAllocator();
         this.runner = new LocalTaskRunner(config.schedulerExecutor());
     }
 
@@ -67,10 +71,17 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
 
     @Override
     public ExchangeSink inputSink(int childStageId) {
-        if (backendSink instanceof MultiInputExchangeSink multi) {
-            return multi.sinkForChild(childStageId);
+        InputSinkDecorator decorator = stage.getInputSinkDecorator();
+        // sinkForChild routing only applies for Union/Join shapes with multiple child stages.
+        if (stage.getChildStages().size() > 1) {
+            if (decorator != null) {
+                throw new IllegalStateException(
+                    "InputSinkDecorator on a multi-input reducer (stageId=" + getStageId() + ") is not supported"
+                );
+            }
+            return ((MultiInputExchangeSink) backendSink).sinkForChild(childStageId);
         }
-        return backendSink;
+        return decorator != null ? decorator.decorate(backendSink, allocator) : backendSink;
     }
 
     @Override

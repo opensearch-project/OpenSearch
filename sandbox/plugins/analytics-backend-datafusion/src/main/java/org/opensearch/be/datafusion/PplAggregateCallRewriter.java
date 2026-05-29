@@ -13,47 +13,25 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Pre-isthmus pass that rewrites every {@link Aggregate} whose {@link AggregateCall}
- * targets one of PPL's state-expanding aggregate operators (TAKE, FIRST, LAST,
- * LIST, VALUES — all custom {@link SqlAggFunction}s defined in {@code PPLBuiltinOperators},
- * not on this plugin's classpath, so we identify them by case-insensitive name).
- * The original operator is swapped onto the matching {@code LOCAL_*_OP} stub so
- * isthmus's {@link io.substrait.isthmus.expression.AggregateFunctionConverter} resolves
- * by operator identity through {@link DataFusionFragmentConvertor#ADDITIONAL_AGGREGATE_SIGS}.
- *
- * <p>The rewrite preserves group set/group sets and per-call argList,
- * isApproximate, ignoreNulls, filterArg, distinctKeys, collation, type, and name.
- * The {@code isDistinct} flag is preserved <i>except</i> for VALUES (PARTIAL form),
- * which forces {@code isDistinct=true} so isthmus emits {@code INVOCATION_DISTINCT} and
- * DataFusion routes to {@code array_agg(DISTINCT)} server-side.
- *
- * <p>Mirrors the pattern of {@link UntypedNullPreprocessor#rewrite(RelNode)} and
- * {@link DatetimeOutputCastRewriter#rewrite(RelNode)}; called from
- * {@code DataFusionFragmentConvertor} just before the isthmus visitor runs.
- *
- * @opensearch.internal
- */
+/** Rewrites PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES/PATTERN) onto local stubs. */
 final class PplAggregateCallRewriter {
 
-    /**
-     * Local-stub operators recognised on the second pass — once an aggregate is in
-     * its final {@code LOCAL_*_OP} shape it must not be rewritten again. Used as a
-     * fast identity-set check before the name dispatch.
-     */
     private static final Set<SqlAggFunction> LOCAL_OPS = Set.of(
         DataFusionFragmentConvertor.LOCAL_TAKE_OP,
         DataFusionFragmentConvertor.LOCAL_FIRST_OP,
         DataFusionFragmentConvertor.LOCAL_LAST_OP,
         DataFusionFragmentConvertor.LOCAL_ARRAY_AGG_OP,
         DataFusionFragmentConvertor.LOCAL_LIST_MERGE_OP,
-        DataFusionFragmentConvertor.LOCAL_LIST_MERGE_DISTINCT_OP
+        DataFusionFragmentConvertor.LOCAL_LIST_MERGE_DISTINCT_OP,
+        DataFusionFragmentConvertor.LOCAL_INTERNAL_PATTERN_OP
     );
 
     private PplAggregateCallRewriter() {}
@@ -86,7 +64,6 @@ final class PplAggregateCallRewriter {
         });
     }
 
-    /** Returns the rewritten call, or the same {@code call} reference when no rewrite applies. */
     private static AggregateCall rewriteCall(Aggregate agg, AggregateCall call) {
         SqlAggFunction aggregation = call.getAggregation();
         if (LOCAL_OPS.contains(aggregation)) {
@@ -100,10 +77,7 @@ final class PplAggregateCallRewriter {
             case "FIRST" -> targetOp = DataFusionFragmentConvertor.LOCAL_FIRST_OP;
             case "LAST" -> targetOp = DataFusionFragmentConvertor.LOCAL_LAST_OP;
             case "LIST", "VALUES" -> {
-                // arg0 type tells us PARTIAL (raw element) vs FINAL (already array):
-                // PARTIAL → array_agg (with INVOCATION_DISTINCT for VALUES); rebuild
-                // return type as ARRAY<arg0> to repair PPL's lossy STRING_ARRAY.
-                // FINAL → list_merge / list_merge_distinct un-nests per-shard arrays.
+                // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
                 if (call.getArgList().isEmpty()) {
                     return call;
                 }
@@ -121,6 +95,11 @@ final class PplAggregateCallRewriter {
                     targetDistinct = isValues;
                     explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
                 }
+            }
+            case "PATTERN" -> {
+                // PPL declares ARRAY<MAP<VARCHAR, ANY>>; substrait can't carry ANY.
+                targetOp = DataFusionFragmentConvertor.LOCAL_INTERNAL_PATTERN_OP;
+                explicitReturnType = internalPatternReturnType(agg.getCluster().getTypeFactory());
             }
             default -> {
                 return call;
@@ -141,5 +120,17 @@ final class PplAggregateCallRewriter {
             explicitReturnType,
             call.getName()
         );
+    }
+
+    private static RelDataType internalPatternReturnType(RelDataTypeFactory typeFactory) {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType bigint = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        RelDataType varcharArray = typeFactory.createArrayType(varchar, -1);
+        RelDataType tokensMap = typeFactory.createMapType(varchar, varcharArray);
+        RelDataType structType = typeFactory.createStructType(
+            List.of(varchar, bigint, tokensMap, varcharArray),
+            List.of("pattern", "pattern_count", "tokens", "sample_logs")
+        );
+        return typeFactory.createArrayType(structType, -1);
     }
 }

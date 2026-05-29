@@ -24,6 +24,7 @@ import org.opensearch.plugins.NativeStoreHandle;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -113,6 +114,7 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
+    private static final MethodHandle FETCH_BY_ROW_IDS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -368,6 +370,8 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -383,7 +387,10 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_BYTE,   // requestsRowIds (0/1) — QTF query phase signal
+                ValueLayout.JAVA_LONG,   // queryConfigPtr
+                ValueLayout.ADDRESS,     // planBytes (multi-index schema widening)
+                ValueLayout.JAVA_LONG    // planLen
             )
         );
 
@@ -496,6 +503,22 @@ public final class NativeBridge {
         EXECUTE_LOCAL_PREPARED_PLAN = linker.downcallHandle(
             lib.find("df_execute_local_prepared_plan").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_fetch_by_row_ids(shard_view_ptr, row_ids_buf_ptr, row_ids_count,
+        // col_names_ptr, col_names_len_ptr, col_names_count, runtime_ptr)
+        FETCH_BY_ROW_IDS = linker.downcallHandle(
+            lib.find("df_fetch_by_row_ids").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
         );
     }
 
@@ -1098,20 +1121,37 @@ public final class NativeBridge {
      * Creates a SessionContext with the default ListingTable registered.
      * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
      *
+     * @param tableName the logical table name (alias/pattern) to register the table under
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
+     * @param planBytes Substrait plan bytes — used to widen the registered schema for multi-index
+     *                  queries (null-filling columns this shard omits). Empty = skip widening.
      */
     public static SessionContextHandle createSessionContext(
         long readerPtr,
         long runtimePtr,
         String tableName,
         long contextId,
-        long queryConfigPtr
+        long queryConfigPtr,
+        byte[] planBytes
     ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
-            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId, queryConfigPtr);
+            boolean hasPlan = planBytes != null && planBytes.length > 0;
+            MemorySegment planSegment = hasPlan ? call.bytes(planBytes) : MemorySegment.NULL;
+            long planLen = hasPlan ? planBytes.length : 0L;
+            long ptr = call.invoke(
+                CREATE_SESSION_CONTEXT,
+                readerPtr,
+                runtimePtr,
+                table.segment(),
+                table.len(),
+                contextId,
+                queryConfigPtr,
+                planSegment,
+                planLen
+            );
             return new SessionContextHandle(ptr);
         }
     }
@@ -1121,7 +1161,9 @@ public final class NativeBridge {
      * Registers the delegated_predicate UDF and stores treeShape + delegatedPredicateCount
      * on the Rust handle for use during execution.
      *
+     * @param tableName the logical table name (alias/pattern) to register the table under
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
+     * @param planBytes Substrait plan bytes for multi-index schema widening (empty = skip)
      */
     public static SessionContextHandle createSessionContextForIndexedExecution(
         long readerPtr,
@@ -1130,12 +1172,17 @@ public final class NativeBridge {
         long contextId,
         int treeShapeOrdinal,
         int delegatedPredicateCount,
-        long queryConfigPtr
+        boolean requestsRowIds,
+        long queryConfigPtr,
+        byte[] planBytes
     ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         try (NativeCall call = new NativeCall()) {
             NativeCall.Str table = call.str(tableName);
+            boolean hasPlan = planBytes != null && planBytes.length > 0;
+            MemorySegment planSegment = hasPlan ? call.bytes(planBytes) : MemorySegment.NULL;
+            long planLen = hasPlan ? planBytes.length : 0L;
             long ptr = call.invoke(
                 CREATE_SESSION_CONTEXT_INDEXED,
                 readerPtr,
@@ -1145,7 +1192,10 @@ public final class NativeBridge {
                 contextId,
                 treeShapeOrdinal,
                 delegatedPredicateCount,
-                queryConfigPtr
+                (byte) (requestsRowIds ? 1 : 0),
+                queryConfigPtr,
+                planSegment,
+                planLen
             );
             return new SessionContextHandle(ptr);
         }
@@ -1246,6 +1296,38 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr, contextId);
+        }
+    }
+
+    /**
+     * QTF fetch phase: reads specific rows by global row ID from parquet.
+     * Row IDs are passed as a direct buffer pointer (zero-copy from BigIntVector's ArrowBuf).
+     *
+     * @param readerPtr pointer to the shard view (DatafusionReader)
+     * @param rowIdsBufAddr memory address of the BigIntVector's data buffer (i64 values)
+     * @param rowIdsCount number of row IDs
+     * @param columns column names to read
+     * @param runtimePtr pointer to the DataFusion runtime
+     * @return opaque stream pointer
+     */
+    public static long fetchByRowIds(long readerPtr, long rowIdsBufAddr, int rowIdsCount, String[] columns, long runtimePtr) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        if (rowIdsBufAddr == 0) {
+            throw new IllegalArgumentException("rowIdsBufAddr must be non-zero");
+        }
+        try (var call = new NativeCall()) {
+            var colNames = call.strArray(columns);
+            return call.invoke(
+                FETCH_BY_ROW_IDS,
+                readerPtr,
+                rowIdsBufAddr,
+                (long) rowIdsCount,
+                colNames.ptrs(),
+                colNames.lens(),
+                colNames.count(),
+                runtimePtr
+            );
         }
     }
 

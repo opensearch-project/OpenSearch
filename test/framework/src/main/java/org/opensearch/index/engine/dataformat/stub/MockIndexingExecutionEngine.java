@@ -26,7 +26,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 
@@ -38,6 +40,9 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     private final Path directory;
     private final AtomicLong seqNo = new AtomicLong(0);
     private final AtomicLong writerGeneration = new AtomicLong(0);
+    private volatile Supplier<Exception> refreshFailure;
+    private volatile Exception tragicException;
+    private final AtomicInteger refreshCallCount = new AtomicInteger(0);
 
     public MockIndexingExecutionEngine(MockDataFormat dataFormat) {
         this.dataFormat = dataFormat;
@@ -54,8 +59,32 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
         return new MockMerger(dataFormat, directory);
     }
 
+    public void setRefreshFailure(Supplier<Exception> supplier) {
+        refreshFailure = supplier;
+    }
+
+    public int getRefreshCallCount() {
+        return refreshCallCount.get();
+    }
+
+    public void setTragicException(Exception e) {
+        this.tragicException = e;
+    }
+
     @Override
-    public RefreshResult refresh(RefreshInput refreshInput) {
+    public Exception getTragicException() {
+        return tragicException;
+    }
+
+    @Override
+    public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
+        refreshCallCount.incrementAndGet();
+        if (refreshFailure != null) {
+            Exception e = refreshFailure.get();
+            if (e instanceof IOException) throw (IOException) e;
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new IOException(e);
+        }
         List<Segment> segments = new ArrayList<>(refreshInput.existingSegments());
         segments.addAll(refreshInput.writerFiles());
         return new RefreshResult(segments);
@@ -83,7 +112,7 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
 
     @Override
     public IndexStoreProvider getProvider() {
-        return null;
+        return df -> null;
     }
 
     @Override
@@ -94,5 +123,15 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     @Override
     public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
         return Map.of(getDataFormat(), new MockReaderManager(getDataFormat().name()));
+    }
+
+    @Override
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    @Override
+    public long getNativeBytesUsed() {
+        return 0;
     }
 }

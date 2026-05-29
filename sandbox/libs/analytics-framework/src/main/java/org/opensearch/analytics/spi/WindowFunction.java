@@ -9,27 +9,17 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
 
-/**
- * Window functions a backend may support. Covers aggregate-as-window
- * (SUM/AVG/COUNT/MIN/MAX over a frame, what PPL {@code eventstats} lowers to)
- * plus ROW_NUMBER, used by PPL {@code dedup} (ROW_NUMBER OVER PARTITION BY … &lt;= N)
- * and emitted by PPL {@code streamstats … by …} as the helper sequence column
- * {@code __row_number_for_streamstats__}.
- *
- * <p>PARTITION BY is allowed: {@code OpenSearchProject}'s cost gate forces SINGLETON
- * input on any RexOver-bearing project, so the coordinator's {@code WindowAggExec}
- * sees the full partition regardless of how partition keys span shards.
- *
- * @opensearch.internal
- */
+/** Window functions a backend may support. */
 public enum WindowFunction {
     SUM(SqlKind.SUM),
     AVG(SqlKind.AVG),
     COUNT(SqlKind.COUNT),
     MIN(SqlKind.MIN),
     MAX(SqlKind.MAX),
-    ROW_NUMBER(SqlKind.ROW_NUMBER);
+    ROW_NUMBER(SqlKind.ROW_NUMBER),
+    PATTERN(SqlKind.OTHER);
 
     private final SqlKind sqlKind;
 
@@ -41,11 +31,29 @@ public enum WindowFunction {
         return sqlKind;
     }
 
-    /** Returns the {@link WindowFunction} for {@code sqlKind}, or {@code null} if unsupported. */
+    public static WindowFunction resolveFunction(SqlOperator operator) {
+        WindowFunction fn = fromSqlKind(operator.getKind());
+        if (fn != null) {
+            return fn;
+        }
+        return fromName(operator.getName());
+    }
+
     public static WindowFunction fromSqlKind(SqlKind sqlKind) {
+        if (sqlKind == SqlKind.OTHER || sqlKind == SqlKind.OTHER_FUNCTION) {
+            return null;
+        }
         for (WindowFunction fn : values()) {
             if (fn.sqlKind == sqlKind) return fn;
         }
         return null;
+    }
+
+    public static WindowFunction fromName(String name) {
+        try {
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

@@ -10,6 +10,8 @@ package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.common.Nullable;
 
 /**
  * Shared context available to all planner rules.
@@ -22,21 +24,44 @@ public class PlannerContext {
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterState clusterState;
+    @Nullable
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OpenSearchDistributionTraitDef distributionTraitDef;
     private final boolean profilingEnabled;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
-        this(capabilityRegistry, clusterState, false);
+        this(capabilityRegistry, clusterState, null, false);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, boolean profilingEnabled) {
+        this(capabilityRegistry, clusterState, null, profilingEnabled);
+    }
+
+    public PlannerContext(
+        CapabilityRegistry capabilityRegistry,
+        ClusterState clusterState,
+        @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean profilingEnabled
+    ) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
         this.profilingEnabled = profilingEnabled;
         this.annotationIdCounter = 0;
+    }
+
+    /**
+     * The cluster-level index name expression resolver, when available. Null in unit tests
+     * that don't exercise alias/wildcard expansion; callers that need it for production
+     * paths should fail fast on null. The resolver belongs to the OpenSearch server lifecycle
+     * and is provided to {@code DefaultPlanExecutor} via Guice.
+     */
+    @Nullable
+    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return indexNameExpressionResolver;
     }
 
     /** True when {@link PlannerImpl#runAllOptimizations} should attach a {@link RuleProfilingListener}. */
