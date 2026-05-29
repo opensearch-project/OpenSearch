@@ -9,6 +9,7 @@
 package org.opensearch.composite;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.BackgroundIndexer;
@@ -32,6 +33,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
  *   <li>For the in-flight-upload test: catalog generation monotonic across the promotion.</li>
  * </ul>
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DataFormatAwareReplicationPromotionIT extends DataFormatAwareReplicationBaseIT {
 

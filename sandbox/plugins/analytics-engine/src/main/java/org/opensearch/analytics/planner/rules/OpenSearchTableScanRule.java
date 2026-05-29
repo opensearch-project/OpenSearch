@@ -16,11 +16,11 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
+import org.opensearch.analytics.planner.IndexResolution;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
-import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,16 +48,24 @@ public class OpenSearchTableScanRule extends RelOptRule {
             return;
         }
 
-        // TODO: table name can be an index pattern — needs IndexNameExpressionResolver
         String tableName = scan.getTable().getQualifiedName().getLast();
 
-        IndexMetadata indexMetadata = context.getClusterState().metadata().index(tableName);
-        if (indexMetadata == null) {
-            throw new IllegalArgumentException("Index [" + tableName + "] not found in cluster state");
-        }
-
+        // Resolve the table name to one or more concrete indices. {@link IndexResolution}
+        // validates that all backing indices have compatible mappings (so a query plan over an
+        // alias is sound) and rejects filter aliases. Concrete-index names pass through as a
+        // singleton list.
+        IndexResolution resolution = IndexResolution.resolve(
+            tableName,
+            context.getClusterState(),
+            context.getIndexNameExpressionResolver()
+        );
+        // Field storage is the union across all backing concrete indices. An index pattern or
+        // alias can resolve to indices with differing field sets (e.g. test* where one index has
+        // `age` and another has `alias`); the scan's row type is the union of all of them, so a
+        // single index would spuriously fail to resolve fields it happens to omit. IndexResolution
+        // has already verified fields shared by multiple indices agree on type.
         CapabilityRegistry registry = context.getCapabilityRegistry();
-        FieldStorageResolver fieldStorageResolver = registry.resolveFieldStorage(indexMetadata);
+        FieldStorageResolver fieldStorageResolver = registry.resolveFieldStorage(resolution.concreteIndices());
 
         // TODO : This expects the FrontEnds to attach the row type with all fields.
         // TODO : How will they attach if we perform the index resolution
@@ -87,9 +95,7 @@ public class OpenSearchTableScanRule extends RelOptRule {
         }
 
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException(
-                "No backend can scan all requested fields on index [" + indexMetadata.getIndex().getName() + "]"
-            );
+            throw new IllegalStateException("No backend can scan all requested fields on table [" + tableName + "]");
         }
 
         RelOptTable indexNameTable = new IndexNameTable(scan.getTable(), tableName);
@@ -100,7 +106,7 @@ public class OpenSearchTableScanRule extends RelOptRule {
                 indexNameTable,
                 viableBackends,
                 fieldStorage,
-                indexMetadata.getNumberOfShards(),
+                resolution.totalShardCount(),
                 context.getDistributionTraitDef()
             )
         );

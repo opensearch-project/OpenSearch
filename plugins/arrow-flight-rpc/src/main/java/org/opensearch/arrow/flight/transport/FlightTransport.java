@@ -330,6 +330,7 @@ class FlightTransport extends TcpTransport {
             .sslContext(sslContextProvider != null ? sslContextProvider.getClientSslContext() : null)
             .executor(clientExecutor)
             .intercept(factory)
+            .grpcIntercept(new BufferReleasingClientInterceptor())
             .build();
 
         try {

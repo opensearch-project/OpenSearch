@@ -262,6 +262,67 @@ pub unsafe extern "C" fn df_execute_query(
         .map_err(|e| e.to_string())
 }
 
+/// Fetch specific rows by global row ID — QTF fetch phase.
+///
+/// Row IDs are passed as a direct pointer to i64 values (from BigIntVector's
+/// off-heap ArrowBuf). Zero-copy at FFM boundary: Rust reads directly from
+/// Java's off-heap buffer without any intermediate allocation.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_fetch_by_row_ids(
+    shard_view_ptr: i64,
+    row_ids_ptr: i64,
+    row_ids_count: i64,
+    col_names_ptr: *const *const u8,
+    col_names_len_ptr: *const i64,
+    col_names_count: i64,
+    runtime_ptr: i64,
+) -> i64 {
+    // Hard FFM-boundary checks (UB risk if violated): pointers must be non-zero before any deref.
+    // Always-on `assert!` (not debug_assert!) — these protect against use-after-close from Java.
+    assert!(shard_view_ptr != 0, "df_fetch_by_row_ids: shard_view_ptr is null");
+    assert!(runtime_ptr != 0, "df_fetch_by_row_ids: runtime_ptr is null");
+    assert!(row_ids_count >= 0, "df_fetch_by_row_ids: negative row_ids_count {}", row_ids_count);
+    assert!(col_names_count >= 0, "df_fetch_by_row_ids: negative col_names_count {}", col_names_count);
+    if row_ids_count > 0 {
+        assert!(row_ids_ptr != 0, "df_fetch_by_row_ids: row_ids_ptr is null but count={}", row_ids_count);
+    }
+    if col_names_count > 0 {
+        assert!(!col_names_ptr.is_null(), "df_fetch_by_row_ids: col_names_ptr is null but count={}", col_names_count);
+        assert!(!col_names_len_ptr.is_null(), "df_fetch_by_row_ids: col_names_len_ptr is null but count={}", col_names_count);
+    }
+
+    let mgr = get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const crate::api::ShardView);
+    let runtime = &*(runtime_ptr as *const crate::api::DataFusionRuntime);
+
+    // Zero-copy read from BigIntVector's direct buffer
+    let row_ids: Vec<i64> = slice::from_raw_parts(
+        row_ids_ptr as *const i64,
+        row_ids_count as usize,
+    ).to_vec();
+
+    // Parse column names
+    let mut columns: Vec<String> = Vec::with_capacity(col_names_count as usize);
+    for i in 0..col_names_count as usize {
+        let ptr = *col_names_ptr.add(i);
+        let len = *col_names_len_ptr.add(i);
+        let name = str_from_raw(ptr, len)
+            .map_err(|e| format!("df_fetch_by_row_ids: column name: {}", e))?;
+        columns.push(name.to_string());
+    }
+
+    mgr.io_runtime
+        .block_on(crate::api::fetch_by_row_ids(
+            shard_view,
+            runtime,
+            &mgr,
+            row_ids,
+            columns,
+        ))
+        .map_err(|e| e.to_string())
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
@@ -467,16 +528,14 @@ pub unsafe extern "C" fn df_execute_local_plan(
     // The IO runtime still drives the outer block_on (bridging the synchronous FFI
     // call to the async spawn handle).
     timed_block_on(&mgr.io_runtime, "execute_local_plan", crate::task_monitors::coordinator_reduce_monitor().instrument(async move {
-            // Acquire coordinator gate on IO runtime BEFORE spawning on CPU.
-            // This blocks the Java search thread when the gate is full.
-            let coord_gate = mgr_for_spawn.coordinator_gate().clone();
-            let partition_weight = (num_cpus::get() as u32).max(1);
-            let permit = coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits())).await;
-
-
+            // No coordinator-gate acquire here. The QTF coordinator-reduce code path runs
+            // synchronously inside the SEARCH-thread FFM call (DatafusionReduceSink.<init>);
+            // gating it would deadlock when the gate is contended because the SEARCH thread
+            // is blocked waiting for permits its own work would release. Keep the gate
+            // exclusively on the data-node FFM entry points.
             let inner_fut = async move {
                 unsafe {
-                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id, Some(permit))
+                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id, None)
                         .await
                 }
             };
@@ -656,11 +715,18 @@ pub unsafe extern "C" fn df_create_session_context(
     table_name_len: i64,
     context_id: i64,
     query_config_ptr: i64,
+    plan_ptr: *const u8,
+    plan_len: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context: {}", e))?;
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let plan_bytes: &[u8] = if plan_len > 0 {
+        slice::from_raw_parts(plan_ptr, plan_len as usize)
+    } else {
+        &[]
+    };
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::task_monitors::plan_setup_monitor().instrument(
@@ -670,6 +736,7 @@ pub unsafe extern "C" fn df_create_session_context(
                 table_name,
                 context_id,
                 query_config,
+                plan_bytes,
             )
         ))
         .map_err(|e| e.to_string())
@@ -685,17 +752,33 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    requests_row_ids: u8,
     query_config_ptr: i64,
+    plan_ptr: *const u8,
+    plan_len: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let plan_bytes: &[u8] = if plan_len > 0 {
+        slice::from_raw_parts(plan_ptr, plan_len as usize)
+    } else {
+        &[]
+    };
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::task_monitors::plan_setup_monitor().instrument(
             crate::session_context::create_session_context_indexed(
-                runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config,
+                runtime_ptr,
+                shard_view_ptr,
+                table_name,
+                context_id,
+                tree_shape,
+                delegated_predicate_count,
+                requests_row_ids != 0,
+                query_config,
+                plan_bytes,
             )
         ))
         .map_err(|e| e.to_string())
@@ -861,8 +944,16 @@ pub unsafe extern "C" fn df_execute_with_context(
     let cpu_for_cross = cpu_executor.clone();
     let mgr_for_spawn = Arc::clone(&mgr);
 
-    // Route based on whether the session was configured for indexed execution
-    if session_handle.indexed_config.is_some() {
+    // Route based on whether the session was configured for indexed execution,
+    // or if the plan projects __row_id__ (QTF query phase) under a non-ListingTable
+    // fetch strategy.
+    let has_row_id = plan_bytes
+        .windows(crate::ROW_ID_COLUMN_NAME.len())
+        .any(|w| w == crate::ROW_ID_COLUMN_NAME.as_bytes());
+    let query_strategy = session_handle.query_config.query_strategy;
+    let use_indexed = session_handle.indexed_config.is_some()
+        || (has_row_id && query_strategy != crate::datafusion_query_config::QueryStrategy::ListingTable);
+    if use_indexed {
         // Extract target_partitions BEFORE boxing into raw pointer (session_handle is consumed).
         let partition_weight = session_handle.query_config.target_partitions.max(1) as u32;
         // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly
@@ -1060,14 +1151,8 @@ pub unsafe extern "C" fn df_execute_local_prepared_plan(
     context_id: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
-    // Acquire coordinator concurrency gate before executing the prepared plan.
-    // Gate is acquired on the IO runtime (block_on) so the Java search thread
-    // blocks here when the gate is full — creating backpressure at the threadpool level.
-    let partition_weight = (num_cpus::get() as u32).max(1);
-    let coord_gate = mgr.coordinator_gate().clone();
-    let permit = mgr.io_runtime.block_on(
-        coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits()))
-    );
-
-    api::execute_local_prepared_plan(session_ptr, &mgr, context_id, Some(permit)).map_err(|e| e.to_string())
+    // No coordinator-gate acquire here — see df_execute_local_plan for the rationale
+    // (the QTF coordinator-reduce path runs synchronously inside the SEARCH-thread FFM
+    // call and gating it can deadlock).
+    api::execute_local_prepared_plan(session_ptr, &mgr, context_id, None).map_err(|e| e.to_string())
 }

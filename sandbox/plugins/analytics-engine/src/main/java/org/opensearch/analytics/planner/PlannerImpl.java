@@ -24,6 +24,7 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,6 +36,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
@@ -44,6 +46,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Central planner for the Analytics Plugin.
@@ -61,10 +64,6 @@ import java.util.List;
  * {@link RuleProfilingListener} (when profiling is enabled on
  * {@link PlannerContext}) can be threaded through every planner created here.
  *
- * <p>TODO: eliminate copyToCluster — have frontends create RelNodes with Volcano cluster.
- * <p>TODO: DAG construction (cut at exchange boundaries, build stage tree)
- * <p>TODO: Per-stage plan forking (multiple plan generation)
- * <p>TODO: Fragment conversion (backend.getFragmentConvertor())
  * <p>TODO: Join strategy selection, sort removal via CBO
  *
  * @opensearch.internal
@@ -87,6 +86,7 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
+        modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
@@ -103,13 +103,54 @@ public class PlannerImpl {
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
+        if (lateMat.isPresent()) {
+            modifiedRelNode = lateMat.get();
+            LOGGER.info("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+        }
 
         if (listener != null) {
             RuleProfilingListener.PlannerProfile profile = listener.snapshot();
             context.recordProfilingResults(profile);
-            LOGGER.info("Planner profile:\n{}", profile.format());
+            LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
+    }
+
+    /**
+     * Phase 0: lower {@link org.apache.calcite.rex.RexSubQuery}s (EXISTS / IN / SOME / ANY,
+     * including the PPL {@code subsearch} shapes that the frontend lowers to them) into
+     * {@code LogicalCorrelate} via the three {@code *_SUB_QUERY_TO_CORRELATE} rules, then
+     * decorrelate back to a standard join shape. Without this phase, downstream rules see
+     * a {@code RexSubQuery} inside a filter / project predicate and either reject the
+     * operator outright (e.g. {@link org.opensearch.analytics.planner.rules.OpenSearchFilterRule}
+     * resolves leaf predicates through a {@code ScalarFunction} table that doesn't and
+     * shouldn't cover {@code EXISTS}) or carry the un-removed subquery into substrait
+     * emission. Runs first so every later phase observes a subquery-free tree.
+     */
+    private static RelNode removeSubQueries(RelNode input, RuleProfilingListener listener) {
+        HepProgramBuilder builder = new HepProgramBuilder();
+        builder.addRuleCollection(
+            List.of(
+                CoreRules.FILTER_SUB_QUERY_TO_CORRELATE,
+                CoreRules.PROJECT_SUB_QUERY_TO_CORRELATE,
+                CoreRules.JOIN_SUB_QUERY_TO_CORRELATE
+            )
+        );
+        HepPlanner planner = new HepPlanner(builder.build());
+        if (listener != null) {
+            planner.addListener(listener);
+            listener.beginPhase("subquery-remove");
+        }
+        try {
+            planner.setRoot(input);
+            RelNode withCorrelates = planner.findBestExp();
+            // RexSubQuery removal introduces LogicalCorrelate; decorrelate back to a
+            // straight join shape that the marking + capability rules already handle.
+            return RelDecorrelator.decorrelateQuery(withCorrelates, RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null));
+        } finally {
+            if (listener != null) listener.endPhase("subquery-remove");
+        }
     }
 
     /**
@@ -151,9 +192,24 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();
         builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        // Push Filters below Project/Aggregate/Join.
+        // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE assist QTF (late-materialization) detection.
+        // SqlToRelConverter shapes `SELECT ... ORDER BY UPPER(URL) LIMIT N` as
+        // Sort($1) ← Project(URL, UPPER(URL)) ← Scan
+        // (the order-by expression is materialized into the Project so the Sort can reference
+        // it as a slot). SORT_PROJECT_TRANSPOSE flips this to
+        // Project(URL, UPPER(URL)) ← Sort($1) ← Scan
+        // putting the Project above the Sort, which is the shape the QTF rewriter recognizes
+        // as "topmost above-anchor operator." Calcite's RelRoot.project() then trims the
+        // helper sort-key column from the user-visible output. PROJECT_MERGE collapses any
+        // adjacent Projects so the rewriter sees at most one Project layer above the anchor.
         builder.addRuleCollection(
-            List.of(CoreRules.FILTER_PROJECT_TRANSPOSE, CoreRules.FILTER_AGGREGATE_TRANSPOSE, CoreRules.FILTER_INTO_JOIN)
+            List.of(
+                CoreRules.FILTER_PROJECT_TRANSPOSE,
+                CoreRules.FILTER_AGGREGATE_TRANSPOSE,
+                CoreRules.FILTER_INTO_JOIN,
+                CoreRules.SORT_PROJECT_TRANSPOSE,
+                CoreRules.PROJECT_MERGE
+            )
         );
         // Merge adjacent Filters into one — must run after transposes so any
         // auto-injected NOT NULL collapses with the user's WHERE.

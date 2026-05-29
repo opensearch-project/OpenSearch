@@ -11,6 +11,8 @@ package org.opensearch.be.lucene;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -150,7 +152,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
         LeafReaderContext leaf = null;
         for (LeafReaderContext lrc : leaves) {
-            if (((SegmentReader) lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
+            if (unwrapSegmentReader(lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
                 leaf = lrc;
                 break;
             }
@@ -272,6 +274,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     public void close() {
         weightsByProviderKey.clear();
         scorersByCollectorKey.clear();
+    }
+
+    private SegmentReader unwrapSegmentReader(LeafReader reader) {
+        LeafReader current = reader;
+        while (current instanceof FilterLeafReader flr) {
+            current = flr.getDelegate();
+        }
+        return (SegmentReader) current;
     }
 
     private static final class ScorerHandle {

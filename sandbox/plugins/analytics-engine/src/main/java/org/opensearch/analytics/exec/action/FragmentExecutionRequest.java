@@ -34,7 +34,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class FragmentExecutionRequest extends ActionRequest {
+public class FragmentExecutionRequest extends ActionRequest implements ShardInvocationRequest {
 
     private final String queryId;
     private final int stageId;
