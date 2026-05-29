@@ -30,9 +30,10 @@ import org.opensearch.test.OpenSearchTestCase;
 public class DatetimeOperandCoerceShuttleTests extends OpenSearchTestCase {
 
     public void testNoSingletonInstanceField() {
-        // The shuttle must not expose a static INSTANCE — that's the bug pattern this
-        // class guards against.
-        for (var field : DatetimeOperandCoerceShuttle.class.getDeclaredFields()) {
+        // The shuttle must not expose a public static INSTANCE — that's the bug pattern this
+        // class guards against. getFields() walks the public surface, which is what callers
+        // would reach for; getDeclaredFields() is forbidden by sandbox forbidden-apis.
+        for (var field : DatetimeOperandCoerceShuttle.class.getFields()) {
             assertNotEquals("DatetimeOperandCoerceShuttle must not expose a static singleton instance", "INSTANCE", field.getName());
         }
     }
