@@ -272,7 +272,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (!isDirectlyUsableAsSource() && mappedFieldType.getCapabilityMap().isEmpty()) {
+        if (!isDirectlyUsableForSource() && rawKeywordValueFieldType == null) {
             throw new UnsupportedOperationException(
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
@@ -280,7 +280,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         checkStoredAndDocValuesForDerivedSource();
     }
 
-    private boolean isDirectlyUsableAsSource() {
+    private boolean isDirectlyUsableForSource() {
         return this.ignoreAbove == Integer.MAX_VALUE && Objects.equals(this.normalizerName, "default");
     }
 
@@ -818,7 +818,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
-    private final KeywordFieldType sourceKeywordFieldType;
+    private final KeywordFieldType rawKeywordValueFieldType;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -843,7 +843,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
-        this.sourceKeywordFieldType = buildSourceKeywordFieldType();
+        this.rawKeywordValueFieldType = buildRawKeywordValueFieldType();
         this.indexAnalyzers = builder.indexAnalyzers;
     }
 
@@ -869,15 +869,15 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      * In such cases, storage layer would need to add another field which can be used for source generation
      * @return sourceKeywordFieldType
      */
-    private KeywordFieldType buildSourceKeywordFieldType() {
-        if (isDirectlyUsableAsSource()) {
-            return new KeywordFieldType("_ignored" + fieldType().name(), false, true, false, false, fieldType().meta());
+    private KeywordFieldType buildRawKeywordValueFieldType() {
+        if (!isDirectlyUsableForSource()) {
+            return new KeywordFieldType("_ignored_source." + fieldType().name(), false, true, false, false, fieldType().meta());
         }
         return null;
     }
 
-    public KeywordFieldType getSourceKeywordFieldType() {
-        return sourceKeywordFieldType;
+    public KeywordFieldType getRawValueFieldType() {
+        return rawKeywordValueFieldType;
     }
 
     boolean useSimilarity() {
@@ -923,9 +923,15 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         if (textValue == null) {
             return;
         }
-        String value = parseKeywordValue(context);
-        context.documentInput().addField(fieldType(), value);
-        context.documentInput().addField(sourceKeywordFieldType, textValue);
+        String value = parseKeyword(textValue);
+        if (value != null) {
+            context.documentInput().addField(fieldType(), value);
+        }
+        // For derived source: store raw value separately when normalizer/ignore_above alters it.
+        // Skip for multi-field sub-fields (name contains dot) — parent field stores the raw source.
+        if (rawKeywordValueFieldType != null && (textValue.length() > ignoreAbove || !Objects.equals(normalizerName, "default"))) {
+            context.documentInput().addField(rawKeywordValueFieldType, textValue);
+        }
     }
 
     private String parseKeywordValue(ParseContext context) throws IOException {

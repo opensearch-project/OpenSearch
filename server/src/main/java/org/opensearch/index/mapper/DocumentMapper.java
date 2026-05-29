@@ -199,16 +199,6 @@ public class DocumentMapper implements ToXContentFragment {
             mapperService.documentMapperParser()
         );
 
-        // Assign capabilities for dynamically merged mappers that bypass the Builder path.
-        final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
-        if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
-            final FieldCapabilityAssigner assigner = new FieldCapabilityAssigner(registry.getConfiguredFormats(indexSettings));
-            assignCapabilitiesRecursive(mapping.root(), assigner);
-            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                assigner.assign(metadataMapper.fieldType());
-            }
-        }
-
         try {
             mappingSource = new CompressedXContent(this, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
@@ -234,6 +224,17 @@ public class DocumentMapper implements ToXContentFragment {
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name()))
             .toArray(MetadataFieldMapper[]::new);
+
+        // Assign capabilities for dynamically merged mappers that bypass the Builder path.
+        final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
+        if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
+            final FieldCapabilityAssigner assigner = new FieldCapabilityAssigner(registry.getConfiguredFormats(indexSettings));
+            assignCapabilitiesRecursive(mapping.root(), assigner);
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                assigner.assign(metadataMapper.fieldType());
+            }
+        }
+
         this.version = version;
     }
 
@@ -371,9 +372,17 @@ public class DocumentMapper implements ToXContentFragment {
     /**
      * Recursively walks the mapper tree and assigns capability maps to all field types.
      */
-    private static void assignCapabilitiesRecursive(Mapper mapper, FieldCapabilityAssigner assigner) {
+    private void assignCapabilitiesRecursive(Mapper mapper, FieldCapabilityAssigner assigner) {
         if (mapper instanceof FieldMapper) {
             assigner.assign(((FieldMapper) mapper).fieldType());
+            // For derived source: keyword fields with ignore_above/normalizer use a separate
+            // sourceKeywordFieldType to store the raw value for source reconstruction.
+            if (mapper instanceof KeywordFieldMapper) {
+                KeywordFieldMapper.KeywordFieldType rawValueFieldType = ((KeywordFieldMapper) mapper).getRawValueFieldType();
+                if (rawValueFieldType != null && !mappers().isMultiField(((KeywordFieldMapper) mapper).fieldType().name())) {
+                    assigner.assign(rawValueFieldType);
+                }
+            }
         }
         for (Mapper child : mapper) {
             assignCapabilitiesRecursive(child, assigner);

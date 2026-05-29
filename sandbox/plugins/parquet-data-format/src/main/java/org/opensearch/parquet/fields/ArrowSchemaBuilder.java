@@ -43,7 +43,6 @@ public final class ArrowSchemaBuilder {
      * TODO - Get the mapping version while creating the schema
      */
     public static Schema getSchema(MapperService mapperService) {
-
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
         List<Field> fields = new ArrayList<>();
         DocumentMapper documentMapper = mapperService.documentMapperWithAutoCreate().getDocumentMapper();
@@ -53,15 +52,11 @@ public final class ArrowSchemaBuilder {
                     logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                     continue;
                 }
+
                 ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
                 if (parquetField != null) {
                     fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
-                    if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
-                        if (!documentMapper.mappers().isMultiField(mapper.name())
-                            && keywordFieldMapper.getSourceKeywordFieldType() != null) {
-                            fields.add(new Field(keywordFieldMapper.getSourceKeywordFieldType().name(), parquetField.getFieldType(), null));
-                        }
-                    }
+                    handleNormalizedField(mapper, documentMapper, fields, parquetField);
                 } else {
                     logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                 }
@@ -72,6 +67,15 @@ public final class ArrowSchemaBuilder {
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, longField.getFieldType(), null));
         fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField(false).getFieldType(), null));
         return new Schema(fields);
+    }
+
+    private static void handleNormalizedField(Mapper mapper, DocumentMapper documentMapper, List<Field> fields, ParquetField parquetField) {
+        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+            if (!documentMapper.mappers().isMultiField(mapper.name()) && keywordFieldMapper.getRawValueFieldType() != null) {
+                KeywordFieldMapper.KeywordFieldType rawValueField = keywordFieldMapper.getRawValueFieldType();
+                fields.add(new Field(rawValueField.name(), parquetField.getFieldType(), null));
+            }
+        }
     }
 
     private static boolean isUnsupportedMetadataField(Mapper mapper) {

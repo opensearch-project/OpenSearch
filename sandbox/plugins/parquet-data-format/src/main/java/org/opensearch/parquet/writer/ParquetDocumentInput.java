@@ -22,7 +22,6 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Document input for the Parquet data format.
@@ -48,9 +47,6 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             .getOrDefault(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of());
         if (capabilities.isEmpty() && fieldType != PrimaryTermFieldType.INSTANCE) {
             // nothing to support on this format for this field.
-            if (Stream.of(Thread.currentThread().getStackTrace()).noneMatch(s -> s.getMethodName().contains("parseDynamicValue"))) {
-                logger.info("get none caps in non dynamic path: {} {}", fieldType.name(), fieldType.getCapabilityMap());
-            }
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
             return;
         }

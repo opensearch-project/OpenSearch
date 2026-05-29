@@ -83,9 +83,6 @@ public class FieldCapabilityAssigner {
             );
         }
         logger.info("{} assigned to :  {}", fieldType.name(), assigned);
-        if (fieldType.name().equals("fieldA_10")) {
-            logger.info("{} assigned to :  {} for debug", fieldType.name(), assigned);
-        }
         fieldType.setCapabilityMap(Map.copyOf(assigned));
     }
 
