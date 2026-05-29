@@ -23,6 +23,8 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -132,6 +134,16 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
             return original;
         }
 
+        RexBuilder rexBuilderEarly = cluster.getRexBuilder();
+
+        // Standalone shape: TIMESTAMPDIFF(out_unit, t1, t2) with neither operand being a
+        // TIMESTAMPADD call. Rewrite to (to_unixtime(t2) - to_unixtime(t1)) * out_factor for
+        // fixed-length out units. Variable-length out units (MONTH/QUARTER/YEAR) need
+        // calendar-aware math and are left unchanged for isthmus to surface.
+        if (!(endArg instanceof RexCall endCallProbe) || !endCallProbe.getOperator().getName().equalsIgnoreCase("TIMESTAMPADD")) {
+            return rewriteStandalone(rexBuilderEarly, startArg, endArg, outUnit, original);
+        }
+
         // The peephole only fires when end is TIMESTAMPADD(in_unit_literal, n_int_literal, start).
         // `start` here must be the *same* RexNode reference as the outer TIMESTAMPDIFF's start
         // (typically a RexInputRef into @timestamp). RexInputRef.equals compares by ordinal,
@@ -140,19 +152,21 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
         // peeled at each operand before structural comparison so the wrapped TIMESTAMPADD
         // call remains recognizable as a TIMESTAMPADD instead of looking like an annotation
         // RexCall whose operator is ANNOTATED_PROJECT_EXPR.
-        if (!(endArg instanceof RexCall endCall)
-            || !endCall.getOperator().getName().equalsIgnoreCase("TIMESTAMPADD")
-            || endCall.getOperands().size() != 3) {
-            return original;
+        RexCall endCall = endCallProbe;
+        if (endCall.getOperands().size() != 3) {
+            return rewriteStandalone(rexBuilderEarly, startArg, endArg, outUnit, original);
         }
         String inUnit = stringLiteralValue(unwrapAnnotation(endCall.getOperands().get(0)));
         Long inValue = integerLiteralValue(unwrapAnnotation(endCall.getOperands().get(1)));
         RexNode addedBase = unwrapAnnotation(endCall.getOperands().get(2));
         if (inUnit == null || inValue == null || !addedBase.equals(startArg)) {
-            return original;
+            // Inner TIMESTAMPADD doesn't match the peephole shape; treat as standalone so
+            // both operands flow through the to_unixtime rewrite and the inner TIMESTAMPADD
+            // call is handled by TimestampAddAdapter on its own pass.
+            return rewriteStandalone(rexBuilderEarly, startArg, endArg, outUnit, original);
         }
 
-        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RexBuilder rexBuilder = rexBuilderEarly;
 
         Long foldedDiff = constantFold(outUnit, inUnit, inValue);
         if (foldedDiff != null) {
@@ -176,6 +190,56 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
         }
 
         return original;
+    }
+
+    /**
+     * Standalone {@code TIMESTAMPDIFF(out_unit, t1, t2)} — neither side is a TIMESTAMPADD
+     * peephole. Two paths:
+     * <ol>
+     *   <li>Both operands VARCHAR / TIMESTAMP literals → constant-fold via JDK calendar math
+     *       (handles every out-unit including variable YEAR/QUARTER/MONTH using the legacy
+     *       {@code TIMESTAMPDIFF} algorithm). Covers DateTimeFunctionIT#testTimestampDiff
+     *       which uses {@code timestampdiff(YEAR, '<lit>', '<lit>')}.</li>
+     *   <li>Otherwise (one or both operands non-literal) and out-unit is fixed-length
+     *       (MICROSECOND through WEEK) → rewrite to {@code (to_unixtime(t2) - to_unixtime(t1)) * factor}.
+     *       Variable-length out-units in this branch fall through unchanged — calendar-aware
+     *       column-driven math is a follow-up.</li>
+     * </ol>
+     */
+    private static RexNode rewriteStandalone(RexBuilder rexBuilder, RexNode startArg, RexNode endArg, String outUnit, RexCall original) {
+        String upperOut = outUnit.toUpperCase(Locale.ROOT);
+
+        LocalDateTime startLiteral = parseTimestampLiteral(startArg);
+        LocalDateTime endLiteral = parseTimestampLiteral(endArg);
+        if (startLiteral != null && endLiteral != null) {
+            Long folded = literalDiff(upperOut, startLiteral, endLiteral);
+            if (folded != null) {
+                RexNode literal = rexBuilder.makeBigintLiteral(BigDecimal.valueOf(folded));
+                return rexBuilder.makeCast(original.getType(), literal, true);
+            }
+        }
+
+        Long outMultiplier = OUT_UNIT_MULTIPLIER_FROM_SECONDS.get(upperOut);
+        Long outDivisor = outMultiplier == null ? OUT_UNIT_DIVISOR_FROM_SECONDS.get(upperOut) : null;
+        if (outMultiplier == null && outDivisor == null) {
+            return original;
+        }
+
+        RexNode endSeconds = rexBuilder.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, endArg);
+        RexNode startSeconds = rexBuilder.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, startArg);
+        RexNode diffSeconds = rexBuilder.makeCall(SqlStdOperatorTable.MINUS, endSeconds, startSeconds);
+
+        RexNode scaled;
+        if (outMultiplier != null && outMultiplier > 1L) {
+            RexNode multLit = rexBuilder.makeBigintLiteral(BigDecimal.valueOf(outMultiplier));
+            scaled = rexBuilder.makeCall(SqlStdOperatorTable.MULTIPLY, diffSeconds, multLit);
+        } else if (outDivisor != null && outDivisor > 1L) {
+            RexNode divLit = rexBuilder.makeBigintLiteral(BigDecimal.valueOf(outDivisor));
+            scaled = rexBuilder.makeCall(SqlStdOperatorTable.DIVIDE, diffSeconds, divLit);
+        } else {
+            scaled = diffSeconds;
+        }
+        return rexBuilder.makeCast(original.getType(), scaled, true);
     }
 
     private static RexNode rewriteVariableInner(
@@ -249,6 +313,44 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
             return null;
         }
         return totalMs / outMs;
+    }
+
+    /**
+     * Parse a literal datetime operand to {@link LocalDateTime} via
+     * {@link TimestampFunctionAdapter#extractLocalDateTimeLiteral} which recognizes both
+     * raw VARCHAR literals and shapes coerced by {@code DatetimeOperandCoerceShuttle}
+     * (TIMESTAMP-typed literals or CAST RexCalls). Returns null when the operand isn't a
+     * recognizable literal — caller falls through to the non-literal rewrite.
+     */
+    private static LocalDateTime parseTimestampLiteral(RexNode node) {
+        return TimestampFunctionAdapter.extractLocalDateTimeLiteral(node);
+    }
+
+    /**
+     * Legacy {@code TIMESTAMPDIFF} semantics for two literal timestamps. For variable-length
+     * units (YEAR / QUARTER / MONTH), uses {@link LocalDateTime#until(java.time.temporal.Temporal,
+     * java.time.temporal.TemporalUnit)} which floors toward zero — matching the SQL plugin's
+     * {@code DateTimeFunctions.exprTimestampDiff} reference. For fixed-length units, uses
+     * the unix-epoch difference scaled to the requested unit.
+     */
+    private static Long literalDiff(String upperOut, LocalDateTime t1, LocalDateTime t2) {
+        try {
+            return switch (upperOut) {
+                case "YEAR" -> t1.until(t2, ChronoUnit.YEARS);
+                case "QUARTER" -> t1.until(t2, ChronoUnit.MONTHS) / 3L;
+                case "MONTH" -> t1.until(t2, ChronoUnit.MONTHS);
+                case "WEEK" -> t1.until(t2, ChronoUnit.WEEKS);
+                case "DAY" -> t1.until(t2, ChronoUnit.DAYS);
+                case "HOUR" -> t1.until(t2, ChronoUnit.HOURS);
+                case "MINUTE" -> t1.until(t2, ChronoUnit.MINUTES);
+                case "SECOND" -> t1.until(t2, ChronoUnit.SECONDS);
+                case "MILLISECOND" -> t1.until(t2, ChronoUnit.MILLIS);
+                case "MICROSECOND" -> t1.until(t2, ChronoUnit.MICROS);
+                default -> null;
+            };
+        } catch (ArithmeticException unused) {
+            return null;
+        }
     }
 
     /** Peel a single OperatorAnnotation wrapper if present. */

@@ -739,13 +739,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
-                    // PPL `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))` — peephole
-                    // constant-folds to a numeric literal when both unit strings are fixed-length
-                    // (MICROSECOND through WEEK). This is the exact shape PPL timechart's per_*
-                    // aggregations produce; folding eliminates both PPL UDF references in one
-                    // step, sidestepping isthmus's lack of substrait bindings for either UDF.
-                    // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
-                    // fall through unchanged — fully-general interval-aware support is a follow-up.
+                    // Standalone `TIMESTAMPADD(unit, n, t)` rewrites to `DATETIME_PLUS(t, INTERVAL n*<m> <unit>)`,
+                    // which has Substrait wiring proof via EarliestLatestAdapter#applyOffset.
+                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
+                    // PPL `TIMESTAMPDIFF`: peephole-folds the `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))`
+                    // shape to a numeric literal when both unit strings are fixed-length; standalone
+                    // `TIMESTAMPDIFF(out_unit, t1, t2)` rewrites to `(to_unixtime(t2) - to_unixtime(t1)) * out_factor`
+                    // for fixed out-units. Variable-length out-units (MONTH/QUARTER/YEAR for two-timestamp
+                    // diff) still fall through — needs calendar-aware math, follow-up.
                     Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),

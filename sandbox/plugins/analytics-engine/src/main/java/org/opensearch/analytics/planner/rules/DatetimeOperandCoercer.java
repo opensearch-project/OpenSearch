@@ -39,13 +39,19 @@ import java.util.Map;
 public final class DatetimeOperandCoercer {
 
     // Function-name (lowercase) → operand slots to coerce when VARCHAR.
+    // TIMESTAMPADD(unit, count, ts) → slot 2 is the timestamp.
+    // TIMESTAMPDIFF(unit, ts1, ts2) → slots 1 and 2 are timestamps.
     private static final Map<String, int[]> TIMESTAMP_OPERAND_SLOTS = Map.of(
         "convert_tz",
         new int[] { 0 },
         "to_timestamp",
         new int[] { 0 },
         "date_part",
-        new int[] { 1 }
+        new int[] { 1 },
+        "timestampadd",
+        new int[] { 2 },
+        "timestampdiff",
+        new int[] { 1, 2 }
     );
 
     private DatetimeOperandCoercer() {}

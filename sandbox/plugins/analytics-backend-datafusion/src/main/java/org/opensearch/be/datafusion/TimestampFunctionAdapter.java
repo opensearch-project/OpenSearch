@@ -13,6 +13,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.TimestampString;
@@ -152,6 +153,12 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
             if (value == null) {
                 return null;
             }
+            // Folding at the resolved precision is correct here. Sub-millisecond fidelity is
+            // a separate, lower-level concern: SubstraitPlanRewriter#visit(PrecisionTimestampLiteral)
+            // renormalizes everything to precision 3 because the parquet write path stores
+            // {@code Timestamp(MILLISECOND)}, so bumping the fold precision would not survive
+            // the wire. testMicrosecond's {@code .123456 → 123000} is owned by that path, not
+            // by this adapter — see SubstraitPlanRewriter.toMillis.
             return rexBuilder.makeTimestampLiteral(parseTimestamp(value), precision);
         }
 
@@ -285,42 +292,116 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
     }
 
     /**
+     * Recover a literal {@link LocalDateTime} from an adapter operand that may have been
+     * coerced by {@link org.opensearch.analytics.planner.rules.DatetimeOperandCoercer}
+     * (run as a pre-planning shuttle, so adapters see post-coercion shapes). Recognized
+     * shapes:
+     * <ul>
+     *   <li>VARCHAR/CHAR {@link RexLiteral} — original PPL string literal, parse via the
+     *       legacy accept-set.</li>
+     *   <li>TIMESTAMP-typed {@link RexLiteral} — Calcite's {@code RexBuilder.makeCast} on
+     *       a varchar literal folds inline to a typed literal, so the wrapper RexCall is
+     *       gone by the time the adapter sees it. Convert the literal's
+     *       {@link TimestampString} value back to {@link LocalDateTime}.</li>
+     *   <li>{@code CAST(<varchar lit> AS TIMESTAMP)} {@link RexCall} — Calcite preserves
+     *       the CAST shape when the wrapper has nullability differences; peel it.</li>
+     * </ul>
+     * Returns {@code null} for non-literal shapes (column refs, expressions) or when
+     * parsing fails — caller falls through to the non-literal rewrite path.
+     *
+     * <p>Sibling adapters (TIMESTAMPADD, TIMESTAMPDIFF) call this to recover the original
+     * literal for plan-time folds. Without it, the coercer hides the literal behind a
+     * TIMESTAMP-typed shape and the fold never fires.
+     */
+    static LocalDateTime extractLocalDateTimeLiteral(RexNode node) {
+        RexNode unwrapped = node;
+        if (unwrapped instanceof RexCall call
+            && call.getKind() == SqlKind.CAST
+            && call.getOperands().size() == 1
+            && (call.getType().getSqlTypeName() == SqlTypeName.TIMESTAMP
+                || call.getType().getSqlTypeName() == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE)) {
+            unwrapped = call.getOperands().get(0);
+        }
+        if (!(unwrapped instanceof RexLiteral lit)) {
+            return null;
+        }
+        SqlTypeName typeName = lit.getType().getSqlTypeName();
+        if (typeName == SqlTypeName.CHAR || typeName == SqlTypeName.VARCHAR) {
+            String value = lit.getValueAs(String.class);
+            if (value == null) return null;
+            try {
+                return parseLocalDateTime(value);
+            } catch (RuntimeException unused) {
+                return null;
+            }
+        }
+        if (typeName == SqlTypeName.TIMESTAMP || typeName == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+            // Calcite's TimestampString stringifies as `yyyy-MM-dd HH:mm:ss[.fff...]`. Reuse
+            // the shared accept-set so future renderer changes (precision tweaks, sub-second
+            // padding) don't drift two parsers.
+            TimestampString ts = lit.getValueAs(TimestampString.class);
+            if (ts == null) return null;
+            try {
+                return parseLocalDateTime(ts.toString());
+            } catch (RuntimeException unused) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Parse a varchar timestamp literal in the formats accepted by legacy
      * {@code ExprTimestampValue}: {@code yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]} and
      * ISO-8601. Mirrors the previous adapter's fall-through chain so cherry-picked
      * cases that used to work still work.
      */
     static TimestampString parseTimestamp(String input) {
+        return toTimestampString(parseLocalDateTime(input));
+    }
+
+    /**
+     * Same accept-set as {@link #parseTimestamp(String)} but returns the parsed value as a
+     * {@link LocalDateTime} so callers doing calendar math (TIMESTAMPADD, TIMESTAMPDIFF,
+     * etc.) avoid the {@code TimestampString → String → LocalDateTime} round-trip and the
+     * brittle space-vs-T separator handling that goes with it.
+     */
+    static LocalDateTime parseLocalDateTime(String input) {
         try {
-            LocalDate date = LocalDate.parse(input);
-            return toTimestampString(date.atStartOfDay());
+            return LocalDate.parse(input).atStartOfDay();
         } catch (DateTimeParseException ignored) {}
 
         try {
-            OffsetDateTime odt = OffsetDateTime.parse(input);
-            return toTimestampString(LocalDateTime.ofInstant(odt.toInstant(), ZoneOffset.UTC));
+            return LocalDateTime.ofInstant(OffsetDateTime.parse(input).toInstant(), ZoneOffset.UTC);
         } catch (DateTimeParseException ignored) {}
 
         try {
-            Instant instant = Instant.parse(input);
-            return toTimestampString(LocalDateTime.ofInstant(instant, ZoneOffset.UTC));
+            return LocalDateTime.ofInstant(Instant.parse(input), ZoneOffset.UTC);
         } catch (DateTimeParseException ignored) {}
 
         try {
-            LocalDateTime ldt = LocalDateTime.parse(input);
-            return toTimestampString(ldt);
+            return LocalDateTime.parse(input);
         } catch (DateTimeParseException ignored) {}
 
+        // PPL/MySQL-style {@code yyyy-MM-dd HH:mm:ss[.fff]} uses a space separator; ISO needs T.
+        // The dual-format toleration matches legacy {@code ExprTimestampValue} parsing — the
+        // SQL plugin's renderer emits space-separated, but user literals frequently arrive as
+        // ISO with T from JSON tools. Both shapes round-trip through this method.
         if (input.contains(" ") && !input.contains("T")) {
             try {
-                LocalDateTime ldt = LocalDateTime.parse(input.replace(' ', 'T'));
-                return toTimestampString(ldt);
+                return LocalDateTime.parse(input.replace(' ', 'T'));
             } catch (DateTimeParseException ignored) {}
         }
         throw new IllegalArgumentException(input);
     }
 
-    private static TimestampString toTimestampString(LocalDateTime ldt) {
+    /**
+     * Render a {@link LocalDateTime} as a Calcite {@link TimestampString}, preserving
+     * sub-second nanos. Package-private so sibling adapters that compute calendar shifts
+     * (TIMESTAMPADD literal fold) share one rendering site — the i64-ns range check
+     * stays here so it isn't bypassed.
+     */
+    static TimestampString toTimestampString(LocalDateTime ldt) {
         rejectIfOutsideI64NsRange(ldt);
         TimestampString ts = new TimestampString(
             ldt.getYear(),
