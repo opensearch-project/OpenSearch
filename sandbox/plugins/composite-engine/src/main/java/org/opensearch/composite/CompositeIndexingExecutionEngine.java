@@ -10,7 +10,6 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jspecify.annotations.NonNull;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
@@ -53,6 +52,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import org.jspecify.annotations.NonNull;
 
 /**
  * A composite {@link IndexingExecutionEngine} that orchestrates indexing across
@@ -149,7 +150,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
         this.indexSettings = indexSettings;
-        this.merger =  new CompositeMerger(this, compositeDataFormat);
+        this.merger = new CompositeMerger(this, compositeDataFormat);
     }
 
     /**
@@ -268,18 +269,19 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             if (onlyNew.size() > 1) {
                 try {
                     final long mergeStartNanos = System.nanoTime();
-                    MergeResult mergeResult = merger.merge(MergeInput.builder()
-                        .segments(onlyNew)
-                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
-                        .build());
+                    MergeResult mergeResult = merger.merge(
+                        MergeInput.builder().segments(onlyNew).newWriterGeneration(refreshInput.nextAvailableGeneration()).build()
+                    );
 
                     if (mergeResult != null) {
                         List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
-                        Segment mergedSegment = new Segment(refreshInput.nextAvailableGeneration(),
-                            mergeResult.getMergedWriterFileSet().entrySet().stream().collect(Collectors.toMap(
-                                    e -> e.getKey().name(),
-                                    Map.Entry::getValue
-                            )));
+                        Segment mergedSegment = new Segment(
+                            refreshInput.nextAvailableGeneration(),
+                            mergeResult.getMergedWriterFileSet()
+                                .entrySet()
+                                .stream()
+                                .collect(Collectors.toMap(e -> e.getKey().name(), Map.Entry::getValue))
+                        );
                         result.add(mergedSegment);
 
                         if (logger.isDebugEnabled()) {
@@ -303,12 +305,10 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                         assert result.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
                             : "refresh result segments must contain all configured formats";
 
-                        for (Map.Entry<String, Collection<String>> pendingDeletionPerFormat: deleteFiles(getFilesToDelete(onlyNew)).entrySet()) {
-                            pendingDeletes.merge(pendingDeletionPerFormat.getKey(), pendingDeletionPerFormat.getValue(), (l, r) -> {
-                                List<String> all = new ArrayList<>(l);
-                                all.addAll(r);
-                                return all;
-                            });
+                        for (Map.Entry<String, Collection<String>> pendingDeletionPerFormat : deleteFiles(getFilesToDelete(onlyNew))
+                            .entrySet()) {
+                            pendingDeletes.computeIfAbsent(pendingDeletionPerFormat.getKey(), k -> new ArrayList<>())
+                                .addAll(pendingDeletionPerFormat.getValue());
                         }
 
                         return new RefreshResult(List.copyOf(result));
@@ -329,8 +329,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     private static @NonNull Map<String, Collection<String>> getFilesToDelete(List<Segment> segmentsToPurge) {
         Map<String, Set<String>> filesToDelete = new HashMap<>();
-        for (Segment segment: segmentsToPurge) {
-            for (Map.Entry<String, WriterFileSet> entry: segment.dfGroupedSearchableFiles().entrySet()) {
+        for (Segment segment : segmentsToPurge) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
                 filesToDelete.compute(entry.getKey(), (k, v) -> {
                     Set<String> files = v;
                     if (v == null) {
