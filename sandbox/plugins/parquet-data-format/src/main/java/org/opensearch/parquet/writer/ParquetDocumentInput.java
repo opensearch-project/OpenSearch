@@ -8,18 +8,19 @@
 
 package org.opensearch.parquet.writer;
 
-import org.opensearch.index.engine.dataformat.DataFormat;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -34,16 +35,20 @@ import java.util.Set;
  */
 public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>> {
 
+    private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
-    private final DataFormat owningFormat = ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
     private long rowId = -1;
     private boolean isClosed = false;
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         ensureOpen();
-        if (fieldType == null) {
-            throw new IllegalArgumentException("fieldType must not be null");
+        Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap()
+            .getOrDefault(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of());
+        if (capabilities.isEmpty() && fieldType != PrimaryTermFieldType.INSTANCE) {
+            // nothing to support on this format for this field.
+            logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
+            return;
         }
         collectedFields.add(new FieldValuePair(fieldType, value));
     }

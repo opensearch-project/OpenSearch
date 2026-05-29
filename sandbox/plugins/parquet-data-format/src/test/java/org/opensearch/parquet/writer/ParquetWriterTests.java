@@ -22,13 +22,13 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -37,11 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.assignTestCapabilities;
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
-
-public class ParquetWriterTests extends OpenSearchTestCase {
+public class ParquetWriterTests extends ParquetBaseTests {
 
     private final ParquetDataFormat parquetFormat = new ParquetDataFormat();
     private ArrowNativeAllocator nativeAllocator;

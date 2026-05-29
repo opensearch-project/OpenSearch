@@ -80,7 +80,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
-            return FieldTypeCapabilities.Capability.POINT_RANGE;
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
 
         @Override

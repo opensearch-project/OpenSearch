@@ -115,7 +115,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(INDEX_NAME)
             .setSettings(indexSettings)
-            .setMapping("field_keyword", "type=keyword", "field_number", "type=integer")
+            .setMapping("field_keyword", "type=keyword,index=false", "field_number", "type=integer")
             .get();
         assertTrue("Index creation should be acknowledged", createResponse.isAcknowledged());
         ensureGreen(INDEX_NAME);

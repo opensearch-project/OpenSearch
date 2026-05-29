@@ -10,8 +10,6 @@ package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -25,8 +23,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DataFormatTestUtils;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -36,10 +32,8 @@ import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
-import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
@@ -51,7 +45,6 @@ import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -59,7 +52,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -67,7 +59,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for {@link LuceneIndexingExecutionEngine}.
  */
-public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
+public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
 
     private LuceneCommitter committer;
     private Store store;
@@ -175,7 +167,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         // Use LuceneWriter to create segments (which sets the writer_generation attribute via LuceneWriterCodec)
         Path tempBase = createTempDir();
-        MappedFieldType textField = new TextFieldType("content");
+        MappedFieldType textField = mockTextField("content");
 
         long generation = 1L;
         try (
@@ -190,7 +182,6 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 ConcurrentHashMap.newKeySet()
             )
         ) {
-            assignTestCapabilities(textField, luceneDataFormat);
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -285,16 +276,8 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         int numDocs = randomIntBetween(3, 15);
         long generation = 1L;
 
-        MappedFieldType textField = new TextFieldType("content");
-        final FieldType keywordFieldType = new FieldType();
-        keywordFieldType.setTokenized(false);
-        keywordFieldType.setStored(false);
-        keywordFieldType.setOmitNorms(true);
-        keywordFieldType.setIndexOptions(IndexOptions.DOCS);
-        keywordFieldType.freeze();
-        MappedFieldType keywordField = new KeywordFieldType("tag", keywordFieldType);
-        assignTestCapabilities(textField, luceneDataFormat);
-        assignTestCapabilities(keywordField, luceneDataFormat);
+        MappedFieldType textField = mockTextField("content");
+        MappedFieldType keywordField = mockKeywordField("tag");
 
         // Create writer through the engine
         Writer<LuceneDocumentInput> writer = engine.createWriter(new WriterConfig(generation));
@@ -342,8 +325,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
         IndexWriter sharedWriter = committer.getIndexWriter();
 
-        MappedFieldType textField = new TextFieldType("content");
-        assignTestCapabilities(textField, luceneDataFormat);
+        MappedFieldType textField = mockTextField("content");
 
         long gen1 = 1L;
         long gen2 = 2L;
@@ -452,7 +434,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         // Create writers via engine.createWriter to use the engine's internal activeWriters set
         Path tempBase = createTempDir();
-        MappedFieldType textField = new TextFieldType("content");
+        MappedFieldType textField = mockTextField("content");
 
         WriterConfig config1 = new WriterConfig(1L);
         WriterConfig config2 = new WriterConfig(2L);
@@ -489,15 +471,5 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         writer2.close();
         assertEquals("All writers closed, heap should be 0", 0L, engine.getHeapBytesUsed());
-
-    /**
-     * Stamps the capability map on a {@link MappedFieldType} so that {@code format} owns
-     * the capabilities declared in {@link DataFormat#supportedFields()} for the field's type.
-     * Mirrors what {@code BuilderContext.assignCapabilities} does at mapping build time, so
-     * tests that bypass the mapper can still exercise per-format self-filtering in
-     * {@link LuceneDocumentInput#addField}.
-     */
-    public static void assignTestCapabilities(MappedFieldType fieldType, DataFormat format) {
-        DataFormatTestUtils.assignTestCapabilities(fieldType, format);
     }
 }

@@ -22,13 +22,13 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -36,11 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.assignTestCapabilities;
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
-
-public class VSRManagerTests extends OpenSearchTestCase {
+public class VSRManagerTests extends ParquetBaseTests {
 
     private static final DataFormat PARQUET_FORMAT = new ParquetDataFormat();
     private ArrowNativeAllocator nativeAllocator;
@@ -536,7 +532,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         int lowThreshold = randomIntBetween(2, 5);
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, lowThreshold, threadPool, 0L);
 
-        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
 
         // Run multiple rotation cycles — each cycle fills the VSR to threshold,
         // triggers background write, waits for completion, then verifies next addDocument works
@@ -584,7 +580,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         int totalDocs = lowThreshold * randomIntBetween(5, 12);
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, lowThreshold, threadPool, 0L);
 
-        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
 
         // Add all docs in a tight loop — no waiting between rotations
         for (int i = 0; i < totalDocs; i++) {

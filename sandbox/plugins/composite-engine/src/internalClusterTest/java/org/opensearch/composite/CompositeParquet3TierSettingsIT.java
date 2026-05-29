@@ -382,7 +382,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", "lucene")
             .put(extraIndexSettings);
 
         client().admin()
@@ -407,7 +407,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", "lucene")
             .put(extraIndexSettings);
 
         client().admin()
@@ -416,7 +416,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
             .setSettings(builder)
             .setMapping(
                 "col_utf8",
-                "type=keyword",
+                "type=keyword,index=false",
                 "col_int32",
                 "type=integer",
                 "col_int64",
@@ -426,7 +426,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
                 "col_float64",
                 "type=double",
                 "col_boolean",
-                "type=boolean",
+                "type=boolean,index=false",
                 "col_binary",
                 "type=binary",
                 "col_timestamp",

@@ -12,7 +12,6 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.apache.lucene.search.Query;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
@@ -27,10 +26,10 @@ import org.opensearch.index.mapper.BinaryFieldMapper.BinaryFieldType;
 import org.opensearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper.IpFieldType;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -38,9 +37,7 @@ import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
-import org.opensearch.index.mapper.ValueFetcher;
 import org.opensearch.index.mapper.VersionFieldMapper;
-import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.index.store.Store;
@@ -51,7 +48,6 @@ import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.fields.plugins.CoreDataFieldPlugin;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.plugins.SearchBackEndPlugin;
-import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.TestThreadPool;
@@ -63,9 +59,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.assignTestCapabilities;
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
+import static org.opensearch.index.engine.dataformat.DataFormatTestUtils.assignTestCapabilities;
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
+import static org.opensearch.parquet.ParquetBaseTests.ID_FIELD;
+import static org.opensearch.parquet.ParquetBaseTests.SEQ_NO_FIELD;
+import static org.opensearch.parquet.ParquetBaseTests.VERSION_FIELD;
+import static org.opensearch.parquet.ParquetBaseTests.metadataFields;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Runs the {@link AbstractDataFormatAwareEngineTestCase} suite with the real
@@ -83,37 +86,11 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
 
     private static final MappedFieldType NAME_FIELD = new KeywordFieldMapper.KeywordFieldType("name");
     private static final MappedFieldType AGE_FIELD = new NumberFieldMapper.NumberFieldType("age", NumberFieldMapper.NumberType.INTEGER);
-    public static final MappedFieldType SEQ_NO_FIELD = new NumberFieldMapper.NumberFieldType(
-        SeqNoFieldMapper.NAME,
-        NumberFieldMapper.NumberType.LONG
-    );
-    public static final MappedFieldType VERSION_FIELD = new NumberFieldMapper.NumberFieldType(
-        VersionFieldMapper.NAME,
-        NumberFieldMapper.NumberType.LONG
-    );
-    public static final MappedFieldType ID_FIELD = new MappedFieldType(
-        IdFieldMapper.CONTENT_TYPE,
-        true,
-        true,
-        true,
-        TextSearchInfo.SIMPLE_MATCH_ONLY,
-        Map.of()
-    ) {
-        @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
-            return null;
-        }
 
-        @Override
-        public String typeName() {
-            return IdFieldMapper.CONTENT_TYPE;
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            return null;
-        }
-    };
+    static {
+        NAME_FIELD.setCapabilityMap(Map.of(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of(COLUMNAR_STORAGE)));
+        AGE_FIELD.setCapabilityMap(Map.of(ParquetDataFormatPlugin.PARQUET_DATA_FORMAT, Set.of(COLUMNAR_STORAGE)));
+    }
 
     private Schema schema;
     private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
@@ -217,8 +194,6 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
     protected DocumentInput<?> createDocumentInput() {
         ParquetDataFormat format = new ParquetDataFormat();
         ParquetDocumentInput input = new ParquetDocumentInput();
-        assignTestCapabilities(ID_FIELD, format);
-        assignTestCapabilities(NAME_FIELD, format);
         input.addField(ID_FIELD, "doc-id".getBytes(StandardCharsets.UTF_8));
         input.addField(NAME_FIELD, "name");
         addFieldWithCapabilities(
@@ -331,5 +306,17 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
         fields.addAll(metadataFields());
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, FieldType.notNullable(new ArrowType.Int(64, true)), null));
         return new Schema(fields);
+    }
+
+    @Override
+    protected MapperService createMockMapperService(IndexSettings indexSettings) {
+        MapperService ms = mock(MapperService.class);
+        when(ms.fieldType(VersionFieldMapper.NAME)).thenReturn(VERSION_FIELD);
+        when(ms.fieldType(SeqNoFieldMapper.NAME)).thenReturn(SEQ_NO_FIELD);
+        when(ms.getIndexSettings()).thenReturn(indexSettings);
+        org.opensearch.index.mapper.DocumentMapper documentMapper = mock(org.opensearch.index.mapper.DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(ms.documentMapper()).thenReturn(documentMapper);
+        return ms;
     }
 }

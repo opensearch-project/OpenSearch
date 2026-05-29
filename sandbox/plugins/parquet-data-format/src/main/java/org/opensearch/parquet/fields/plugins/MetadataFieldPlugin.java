@@ -8,14 +8,17 @@
 
 package org.opensearch.parquet.fields.plugins;
 
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.BinaryParquetField;
 import org.opensearch.parquet.fields.core.data.number.IntegerParquetField;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 import org.opensearch.parquet.fields.core.metadata.IdParquetField;
@@ -25,6 +28,7 @@ import org.opensearch.parquet.fields.core.metadata.RoutingParquetField;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Metadata fields plugin providing Parquet field implementations for OpenSearch metadata fields.
@@ -46,6 +50,12 @@ public class MetadataFieldPlugin implements ParquetFieldPlugin {
         fieldMap.put(SeqNoFieldMapper.CONTENT_TYPE, new LongParquetField(false));
         fieldMap.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField(false));
         fieldMap.put(VersionFieldMapper.CONTENT_TYPE, new LongParquetField(false));
+        fieldMap.put(SourceFieldMapper.NAME, new BinaryParquetField() {
+            @Override
+            public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
+                return Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS);
+            }
+        });
         return fieldMap;
     }
 }

@@ -10,7 +10,6 @@ package org.opensearch.index.engine.exec;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TextSearchInfo;
@@ -49,11 +48,6 @@ public class PrimaryTermFieldType extends MappedFieldType {
     @Override
     public String typeName() {
         return SeqNoFieldMapper.PRIMARY_TERM_NAME;
-    }
-
-    @Override
-    protected FieldTypeCapabilities.Capability searchCapability() {
-        return FieldTypeCapabilities.Capability.POINT_RANGE;
     }
 
     @Override

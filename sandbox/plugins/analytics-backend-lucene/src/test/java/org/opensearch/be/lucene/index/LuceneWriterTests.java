@@ -9,9 +9,7 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,10 +30,7 @@ import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -50,7 +45,7 @@ import static org.mockito.Mockito.when;
  * Tests for {@link LuceneWriter} — the per-generation Lucene writer that creates
  * segments in isolated temp directories with force-merge to 1 segment on flush.
  */
-public class LuceneWriterTests extends OpenSearchTestCase {
+public class LuceneWriterTests extends LucenePluginBaseTests {
 
     private LuceneDataFormat dataFormat;
 
@@ -58,20 +53,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         dataFormat = new LuceneDataFormat();
-    }
-
-    private MappedFieldType mockTextField(String name) {
-        return new TextFieldMapper.TextFieldType(name);
-    }
-
-    private MappedFieldType mockKeywordField(String name) {
-        final FieldType keywordFieldType = new FieldType();
-        keywordFieldType.setTokenized(false);
-        keywordFieldType.setStored(false);
-        keywordFieldType.setOmitNorms(true);
-        keywordFieldType.setIndexOptions(IndexOptions.DOCS);
-        keywordFieldType.freeze();
-        return new KeywordFieldMapper.KeywordFieldType(name, keywordFieldType);
     }
 
     public void testAddDocAndFlushProducesSingleSegment() throws IOException {
@@ -90,7 +71,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         ) {
             int numDocs = randomIntBetween(5, 20);
             MappedFieldType textField = mockTextField("content");
-            LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "value " + i);
@@ -119,7 +99,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         int numDocs = randomIntBetween(10, 50);
         MappedFieldType textField = mockTextField("content");
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
         try (
             LuceneWriter writer = new LuceneWriter(
                 1L,
@@ -179,8 +158,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         long gen = randomLongBetween(1, 100);
         MappedFieldType textField = mockTextField("content");
-
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
         try (
             LuceneWriter writer = new LuceneWriter(
                 gen,
@@ -209,7 +186,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testKeywordFieldsAreIndexed() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType keywordField = mockKeywordField("status");
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(keywordField, dataFormat);
         try (
             LuceneWriter writer = new LuceneWriter(
                 1L,
@@ -280,7 +256,18 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             )
         );
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             LuceneDocumentInput input = new LuceneDocumentInput();
             input.addField(fieldOwnedByOther, 42);
             assertEquals(0, input.getFinalInput().getFields().size());
@@ -291,8 +278,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("title");
         MappedFieldType keywordField = mockKeywordField("category");
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(keywordField, dataFormat);
 
         try (
             LuceneWriter writer = new LuceneWriter(
@@ -330,8 +315,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("body");
         MappedFieldType keywordField = mockKeywordField("status");
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(keywordField, dataFormat);
         int numDocs = randomIntBetween(5, 20);
 
         try (
@@ -385,7 +368,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testMultipleWriterGenerationsProduceIsolatedSegments() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("content");
-        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
 
         long gen1 = 1L;
         long gen2 = 2L;

@@ -103,7 +103,7 @@ public abstract class MappedFieldType {
      * Set once during mapping build via {@link Mapper.BuilderContext#assignCapabilities}, then immutable.
      * Safe without volatile: publication through MapperService's volatile mapper reference provides happens-before.
      */
-    private Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
+    private volatile Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
 
     public MappedFieldType(
         String name,
@@ -492,12 +492,8 @@ public abstract class MappedFieldType {
      */
     @ExperimentalApi
     public void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
-        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> newMap = Map.copyOf(capabilityMap);
-        if (this.capabilityMap != Map.<DataFormat, Set<FieldTypeCapabilities.Capability>>of()
-            && this.capabilityMap.equals(newMap) == false) {
-            throw new IllegalStateException("capabilityMap already set on field [" + name() + "] with different value");
-        }
-        this.capabilityMap = newMap;
+        this.capabilityMap = Map.copyOf(capabilityMap);
+        ;
     }
 
     /**

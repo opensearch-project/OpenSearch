@@ -12,10 +12,23 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.IgnoredFieldMapper;
+import org.opensearch.index.mapper.IndexFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
+import org.opensearch.index.mapper.RoutingFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
+import org.opensearch.index.mapper.TextFieldMapper;
 
 import java.util.Set;
+
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE;
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS;
 
 /**
  * {@link DataFormat} descriptor for Lucene inverted indices.
@@ -35,54 +48,23 @@ public class LuceneDataFormat extends DataFormat {
     /** The format name used to register Lucene in the {@link org.opensearch.index.engine.dataformat.DataFormatRegistry}. */
     public static final String LUCENE_FORMAT_NAME = "lucene";
 
-    private static final Set<FieldTypeCapabilities.Capability> POINT_RANGE_AND_STORED = Set.of(
-        FieldTypeCapabilities.Capability.POINT_RANGE,
-        FieldTypeCapabilities.Capability.STORED_FIELDS
-    );
-
     private static final Set<FieldTypeCapabilities> SUPPORTED_FIELDS = Set.of(
+
         // Text types — full-text search + stored
-        new FieldTypeCapabilities(
-            "text",
-            Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.STORED_FIELDS)
-        ),
-        new FieldTypeCapabilities(
-            "keyword",
-            Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.STORED_FIELDS)
-        ),
-        new FieldTypeCapabilities("match_only_text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
-        // Numeric types — point range + stored
-        new FieldTypeCapabilities("long", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("integer", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("short", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("byte", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("double", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("float", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("half_float", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("unsigned_long", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("scaled_float", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("token_count", POINT_RANGE_AND_STORED),
-        // Date types — point range + stored
-        new FieldTypeCapabilities("date", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities("date_nanos", POINT_RANGE_AND_STORED),
-        // Other data types — point range + stored
-        new FieldTypeCapabilities("ip", POINT_RANGE_AND_STORED),
-        new FieldTypeCapabilities(
-            "boolean",
-            Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.STORED_FIELDS)
-        ),
-        // Binary — stored only
-        new FieldTypeCapabilities("binary", Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS)),
+        new FieldTypeCapabilities(TextFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
+        new FieldTypeCapabilities(KeywordFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH, STORED_FIELDS, COLUMNAR_STORAGE)),
+        new FieldTypeCapabilities(MatchOnlyTextFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
+
         // Metadata fields
-        new FieldTypeCapabilities(SourceFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS)),
-        new FieldTypeCapabilities(
-            NestedPathFieldMapper.NAME,
-            Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS, FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)
-        ),
-        new FieldTypeCapabilities(
-            FieldNamesFieldMapper.CONTENT_TYPE,
-            Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS, FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)
-        )
+        new FieldTypeCapabilities(SourceFieldMapper.CONTENT_TYPE, Set.of(STORED_FIELDS)),
+        new FieldTypeCapabilities(NestedPathFieldMapper.NAME, Set.of(FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(FieldNamesFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(IndexFieldMapper.CONTENT_TYPE, Set.of(COLUMNAR_STORAGE, FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(IdFieldMapper.CONTENT_TYPE, Set.of(STORED_FIELDS, FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(SeqNoFieldMapper.CONTENT_TYPE, Set.of(COLUMNAR_STORAGE, POINT_RANGE)),
+        new FieldTypeCapabilities(SeqNoFieldMapper.PRIMARY_TERM_NAME, Set.of(COLUMNAR_STORAGE)),
+        new FieldTypeCapabilities(RoutingFieldMapper.CONTENT_TYPE, Set.of(STORED_FIELDS, FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(IgnoredFieldMapper.CONTENT_TYPE, Set.of(STORED_FIELDS, FULL_TEXT_SEARCH))
     );
 
     /** {@inheritDoc} Returns {@code "lucene"}. */

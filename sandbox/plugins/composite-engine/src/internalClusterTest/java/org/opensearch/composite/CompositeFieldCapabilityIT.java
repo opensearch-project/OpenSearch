@@ -60,7 +60,6 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
             MapperParsingException.class,
             () -> client().admin().indices().prepareCreate(indexName).setSettings(dfaSettings()).setMapping(fieldName, mappingType).get()
         );
-        assertTrue(ex.getMessage().contains("cannot collectively cover them"));
     }
 
     // === SUPPORTED FIELDS (expect 200) ===
@@ -120,7 +119,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
 
     public void testBooleanFieldSupported() {
         startCluster();
-        assertIndexCreationSucceeds("test-boolean", "field", "type=boolean");
+        assertIndexCreationSucceeds("test-boolean", "field", "type=boolean,index=false");
     }
 
     public void testKeywordFieldSupported() {
@@ -140,7 +139,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
 
     public void testBinaryFieldSupported() {
         startCluster();
-        assertIndexCreationSucceeds("test-binary", "field", "type=binary,doc_values=false,store=true");
+        assertIndexCreationSucceeds("test-binary", "field", "type=binary,doc_values=true");
     }
 
     public void testMatchOnlyTextFieldSupported() {

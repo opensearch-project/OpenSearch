@@ -50,8 +50,7 @@ public class RoutingParquetField extends ParquetField {
         return Set.of(
             FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
             FieldTypeCapabilities.Capability.BLOOM_FILTER,
-            FieldTypeCapabilities.Capability.STORED_FIELDS,
-            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH
+            FieldTypeCapabilities.Capability.STORED_FIELDS
         );
     }
 }

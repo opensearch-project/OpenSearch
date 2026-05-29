@@ -11,6 +11,7 @@ package org.opensearch.parquet.fields.plugins;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
+import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
@@ -30,7 +31,7 @@ public class MetadataFieldPluginTests extends OpenSearchTestCase {
     }
 
     public void testFieldCount() {
-        assertEquals(8, fields.size());
+        assertEquals("expected 9 fields but got: " + fields.keySet(), 9, fields.size());
     }
 
     public void testAllMetadataTypesPresent() {
@@ -42,6 +43,7 @@ public class MetadataFieldPluginTests extends OpenSearchTestCase {
         assertNotNull(fields.get(SeqNoFieldMapper.CONTENT_TYPE));
         assertNotNull(fields.get(SeqNoFieldMapper.PRIMARY_TERM_NAME));
         assertNotNull(fields.get(VersionFieldMapper.CONTENT_TYPE));
+        assertNotNull(fields.get(IndexFieldMapper.CONTENT_TYPE));
     }
 
     public void testAllValuesNonNull() {
