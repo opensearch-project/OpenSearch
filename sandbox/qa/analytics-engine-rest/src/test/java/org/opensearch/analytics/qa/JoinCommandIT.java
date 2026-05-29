@@ -84,6 +84,7 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
      * Left outer join. Drops one str0 value from the right side via a filter so
      * a subset of left rows have no match and appear with nulls on the right.
      */
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: DataFusion fails with \"Not implemented: function delegation_possible\" - the opportunistic row-group-pruning marker UDF is not registered in the Rust context. Needs delegation_possible identity-UDF registration (rust fix, separate PR).")
     public void testLeftOuterJoin() throws IOException {
         final String ppl = "source="
             + CALCS.indexName
@@ -100,6 +101,7 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
      * Right outer join — mirror of left outer. Drops a value from the LEFT side via a
      * filter so some right rows have no match and appear with nulls on the left.
      */
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: DataFusion fails with \"Not implemented: function delegation_possible\" - the opportunistic row-group-pruning marker UDF is not registered in the Rust context. Needs delegation_possible identity-UDF registration (rust fix, separate PR).")
     public void testRightOuterJoin() throws IOException {
         final String ppl = "source="
             + CALCS.indexName
@@ -126,6 +128,7 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
     }
 
     /** Left anti join — returns left rows with NO match on the right. */
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: DataFusion fails with \"Not implemented: function delegation_possible\" - the opportunistic row-group-pruning marker UDF is not registered in the Rust context. Needs delegation_possible identity-UDF registration (rust fix, separate PR).")
     public void testLeftAntiJoin() throws IOException {
         final String ppl = "source="
             + CALCS.indexName

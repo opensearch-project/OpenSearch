@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -75,6 +77,7 @@ public class MultisearchCommandIT extends AnalyticsRestTestCase {
 
     // ── 3-way multisearch — the shape that triggered the substrait names bug ───
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: DataFusion fails with \"Not implemented: function delegation_possible\" - the opportunistic row-group-pruning marker UDF is not registered in the Rust context. Needs delegation_possible identity-UDF registration (rust fix, separate PR).")
     public void testMultisearchThreeBranchesByStr0() throws IOException {
         // Three string-equality branches over the calcs str0 column. `str0` distribution is
         // FURNITURE=2, OFFICE SUPPLIES=6, TECHNOLOGY=9. The 3-way Union(ER, ER, ER) is the

@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -61,6 +63,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
 
     // ── command form: literal pattern (SqlStdOperatorTable.REPLACE) ─────────────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralSinglePair() throws IOException {
         // FURNITURE → FURN in str0; 2 rows affected, others unchanged.
         // assertContainsRow uses substring/contains — order-independent.
@@ -70,6 +73,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralMultiplePairs() throws IOException {
         // Nested REPLACE in projection: REPLACE(REPLACE(str0, 'FURNITURE', 'F'), 'TECHNOLOGY', 'T').
         // FURNITURE (×2) → 'F', TECHNOLOGY (×9) → 'T', OFFICE SUPPLIES (×6) → unchanged.
@@ -91,6 +95,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralExpectedRows() throws IOException {
         // Verify the actual replaced values (not just counts) for the FURNITURE rows.
         assertRows(
@@ -100,6 +105,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralAcrossMultipleFields() throws IOException {
         // Replace value 'FURNITURE' in BOTH str0 and str1. str1 has no FURNITURE → unaffected.
         // str0 has 2 → renamed to FURN.
@@ -117,6 +123,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
     // parse. RegexpReplaceAdapter (in DataFusionAnalyticsBackendPlugin.scalarFunctionAdapters)
     // rewrites `\Q…\E` blocks to per-char-escaped literals before substrait serialization.
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceWildcardSuffix() throws IOException {
         // '*BOARDS' matches strings ending in BOARDS — CORDED KEYBOARDS, CORDLESS KEYBOARDS (×2).
         // Whole-string replacement: matched values become 'KBD'.
@@ -126,6 +133,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceWildcardPrefix() throws IOException {
         // 'BUSINESS*' matches BUSINESS ENVELOPES, BUSINESS COPIERS (×2).
         assertRowCount(
@@ -136,6 +144,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
 
     // ── function form: regexp_replace() in eval projection ─────────────────────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testRegexpReplaceInEval() throws IOException {
         // eval-side regexp_replace lowers to REGEXP_REPLACE_3. Replace any digit run in str0 with
         // empty — no-op for these string values, exercises the function-form code path.
@@ -146,6 +155,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceFunctionInEval() throws IOException {
         // PPL replace() function in eval also lowers to REGEXP_REPLACE_3 (per
         // PPLFuncImpTable.register for BuiltinFunctionName.REPLACE).

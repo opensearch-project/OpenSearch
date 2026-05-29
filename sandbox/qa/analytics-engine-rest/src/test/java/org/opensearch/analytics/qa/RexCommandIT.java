@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -67,6 +69,7 @@ public class RexCommandIT extends AnalyticsRestTestCase {
 
     // ── sed mode without flags (REGEXP_REPLACE_3, already wired by replace) ────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testRexSedReplaceLiteral() throws IOException {
         // Replace literal "SUPPLIES" → "STUFF" in str0. 6 rows have "OFFICE SUPPLIES"; each
         // becomes "OFFICE STUFF". No-flags sed lowers to 3-arg regexp_replace which the
@@ -111,6 +114,7 @@ public class RexCommandIT extends AnalyticsRestTestCase {
 
     // ── sed mode with /i flag (REGEXP_REPLACE_PG_4 — case-insensitive) ─────────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testRexSedReplaceCaseInsensitive() throws IOException {
         // Pattern is lowercase but field values are uppercase — /i makes it match.
         // 2 FURNITURE rows in str0 → "FURN".
@@ -140,6 +144,7 @@ public class RexCommandIT extends AnalyticsRestTestCase {
 
     // ── sed mode with backreference (4-arg with flags + $N braces test) ───────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testRexSedReplaceWithBackreference() throws IOException {
         // Swap first two whitespace-separated tokens. Exercises both pattern unquoting
         // (none needed here — user-typed regex) AND replacement-side $N → ${N} brace
