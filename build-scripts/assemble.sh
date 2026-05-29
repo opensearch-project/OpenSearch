@@ -15,6 +15,7 @@ if ($TEST); then
     plugins=(
         "opensearch-security"
     )
+    internal_plugins=()
     wazuh_plugins=()
 else
     plugins=(
@@ -30,6 +31,11 @@ else
         "opensearch-observability"
         "opensearch-security"
         "opensearch-sql-plugin" # "opensearch-sql"
+    )
+    # Plugins built from this repository, installed from the local Maven repo
+    # (published by ./gradlew publishToMavenLocal in build.sh)
+    internal_plugins=(
+        "workload-management"
     )
     wazuh_plugins=(
         "wazuh-indexer-setup"
@@ -234,6 +240,12 @@ function install_plugins() {
         local plugin_from_maven="org.opensearch.plugin:${plugin}:${UPSTREAM_VERSION}.0"
         retry 3 5 mvn -Dmaven.repo.local="${maven_repo_local}" org.apache.maven.plugins:maven-dependency-plugin:2.1:get -DrepoUrl=https://repo1.maven.org/maven2 -Dartifact="${plugin_from_maven}:zip"
         OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${maven_repo_local}/org/opensearch/plugin/${plugin}/${UPSTREAM_VERSION}.0/${plugin}-${UPSTREAM_VERSION}.0.zip"
+    done
+
+    echo "Installing internal-built plugins"
+    for plugin in "${internal_plugins[@]}"; do
+        local plugin_path="${REPO_PATH}/plugins/${plugin}/build/distributions/${plugin}-${UPSTREAM_VERSION}.zip"
+        OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${plugin_path}"
     done
 
     echo "Installing Wazuh plugins"

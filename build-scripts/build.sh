@@ -158,6 +158,10 @@ function build() {
     # Assemble distribution artifact
     # see https://github.com/opensearch-project/OpenSearch/blob/main/settings.gradle#L34 for other distribution targets
     ./gradlew ":distribution:$TYPE:$TARGET:assemble" -Dbuild.snapshot="$SNAPSHOT" -Dbuild.version_qualifier="$QUALIFIER" -Pcrypto.standard=FIPS-140-3
+
+    # Build plugin ZIPs for internally-built plugins (not available on Maven Central)
+    echo "Building internal plugin ZIPs"
+    ./gradlew :plugins:workload-management:bundlePlugin -Dbuild.snapshot="$SNAPSHOT" -Dbuild.version_qualifier="$QUALIFIER" -Pcrypto.standard=FIPS-140-3
 }
 
 # ====
