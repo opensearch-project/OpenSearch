@@ -1190,3 +1190,12 @@ scalar_functions:
           - { name: format, value: "varchar<L2>" }
         nullability: DECLARED_OUTPUT
         return: fp64
+  - name: "reduce_eval"
+    description: "Evaluates opaque aggregate partial state to a sortable scalar for TopK."
+    impls:
+      - args:
+          - name: agg_name
+            value: string
+          - name: state
+            value: any1
+        return: i64
