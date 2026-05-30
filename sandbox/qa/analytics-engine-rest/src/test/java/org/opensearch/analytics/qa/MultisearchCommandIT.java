@@ -77,7 +77,7 @@ public class MultisearchCommandIT extends AnalyticsRestTestCase {
 
     // ── 3-way multisearch — the shape that triggered the substrait names bug ───
 
-    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: DataFusion fails with \"Not implemented: function delegation_possible\" - the opportunistic row-group-pruning marker UDF is not registered in the Rust context. Needs delegation_possible identity-UDF registration (rust fix, separate PR).")
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: multisearch 3-branch union | stats count by bucket returns wrong counts (expected 6, got 2) - union branch results are under-aggregated. Separate correctness bug; delegation_possible (the prior failure) is fixed.")
     public void testMultisearchThreeBranchesByStr0() throws IOException {
         // Three string-equality branches over the calcs str0 column. `str0` distribution is
         // FURNITURE=2, OFFICE SUPPLIES=6, TECHNOLOGY=9. The 3-way Union(ER, ER, ER) is the
