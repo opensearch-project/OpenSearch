@@ -10,7 +10,6 @@ package org.opensearch.analytics.cancellation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -66,7 +65,6 @@ import java.util.concurrent.TimeoutException;
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope(com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope.TEST)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering(linger = 5000)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters(filters = org.opensearch.analytics.resilience.FlightTransportThreadLeakFilter.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21776")
 public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(SearchCancellationIT.class);
