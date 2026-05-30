@@ -1155,8 +1155,8 @@ fn derive_schema_from_partial_plan(
             arrow_schema
         };
         let arrow_schema = coerce_unsupported_timestamp_precision(&arrow_schema);
-
-        let table = MemTable::try_new(Arc::new(arrow_schema), vec![vec![]])?;
+        let arrow_schema = crate::schema_coerce::coerce_inferred_schema(Arc::new(arrow_schema));
+        let table = MemTable::try_new(arrow_schema, vec![vec![]])?;
         // Plan may scan the same table twice; the second register is a no-op.
         let _ = ctx.register_table(&table_name, Arc::new(table));
     }
