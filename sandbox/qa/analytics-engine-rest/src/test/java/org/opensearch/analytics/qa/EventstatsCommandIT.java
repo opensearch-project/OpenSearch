@@ -87,7 +87,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
     private static boolean dataProvisioned = false;
     private static boolean multiProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -173,7 +174,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  {@code str3} has 7 nulls (int0 non-null=[7,3,10,4,8] → cnt=7, avg=6.4, min=3, max=10)
      *  and 10 'e' rows (int0 non-null=[1,8,8,4,11,4] → cnt=10, avg=6.0, min=1, max=11). */
     public void testEventstatsByWithNull() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as mn, max(int0) as mx by str3"
@@ -206,7 +206,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  {@link #testEventstatsByWithNull} — null-key rows now show NULL aggregates instead of
      *  the (cnt=7, avg=6.4, min=3, max=10) the default mode would broadcast. */
     public void testEventstatsByWithNullBucket() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | eventstats bucket_nullable=false count() as cnt, avg(int0) as avg, min(int0) as mn, max(int0) as mx by str3"
@@ -545,7 +544,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  PPL frontend with {@code "Unexpected window function: <name>"} before reaching the
      *  analytics-engine planner. */
     public void testUnsupportedWindowFunctions() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats percentile_approx(int0)",
             "percentile_approx"
@@ -666,7 +664,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  </ul>
      */
     public void testMultipleEventstatsWithNullBucket() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | eventstats bucket_nullable=false avg(int0) as avg_int0 by str3, str0"
@@ -858,8 +855,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         double osSp = 2.160246899469287, osSs = 2.6457513110645907, osVp = 4.666666666666667, osVs = 7.0;
         double tSp  = 2.7774602993176543, tSs = 3.0, tVp = 7.714285714285714, tVs = 9.0;
         assertRowsEqual(response,
-            row("key00", "FURNITURE",       1,    0.0,  Double.NaN, 0.0,  Double.NaN),
-            row("key01", "FURNITURE",       null, 0.0,  Double.NaN, 0.0,  Double.NaN),
+            row("key00", "FURNITURE",       1,    0.0,  (Double) null, 0.0,  (Double) null),
+            row("key01", "FURNITURE",       null, 0.0,  (Double) null, 0.0,  (Double) null),
             row("key02", "OFFICE SUPPLIES", null, osSp, osSs,       osVp, osVs),
             row("key03", "OFFICE SUPPLIES", null, osSp, osSs,       osVp, osVs),
             row("key04", "OFFICE SUPPLIES", 7,    osSp, osSs,       osVp, osVs),
@@ -946,7 +943,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testEventstatsDistinctCount. */
     public void testEventstatsDistinctCount() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
         );
@@ -962,7 +958,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testEventstatsDistinctCountByCountry. */
     public void testEventstatsDistinctCountByCountry() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 by str0 | fields key, str0, dc_str3"
         );
@@ -992,7 +987,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testEventstatsDistinctCountFunction. {@code distinct_count()} alias for dc. */
     public void testEventstatsDistinctCountFunction() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key | eventstats distinct_count(str0) as dc_str0 | fields key, dc_str0"
         );
@@ -1011,7 +1005,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  module only ships the {@code calcs} dataset (whose {@code str3} already has 7 nulls). The
      *  aggregate semantics are identical. */
     public void testEventstatsDistinctCountWithNull() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
         );
@@ -1081,7 +1074,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  frontend's default-{@code @timestamp}-field check (calcs has no @timestamp column).
      *  Either way, the path is not reachable on analytics-engine today — assert the failure. */
     public void testEventstatsEarliestAndLatest() throws IOException {
-        ensureDataProvisioned();
         // The actual error is "Default @timestamp field not found" because calcs has no
         // timestamp column, but the contract here is just "this PPL form is not yet supported".
         assertErrorAny(
@@ -1098,7 +1090,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
     @SafeVarargs
     @SuppressWarnings({"unchecked", "varargs"})
     private final void assertRowsEqual(Map<String, Object> response, List<Object>... expected) {
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", actualRows);
         assertEquals("Row count mismatch", expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
@@ -1113,7 +1105,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static void assertScalarRow(Map<String, Object> response, Object... expected) {
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Expected exactly one row", 1, rows.size());
         List<Object> got = rows.get(0);
@@ -1125,7 +1117,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static void assertRowCount(Map<String, Object> response, int expected) {
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Row count mismatch", expected, rows.size());
     }
@@ -1137,8 +1129,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
             assertEquals(message, expected, actual);
             return;
         }
-        // Jackson serializes Double.NaN as the string "NaN" inside JSON arrays, so the
-        // response body delivers "NaN" not Double.NaN. Treat NaN expectation match-on-string.
+        // Jackson serializes (Double) null as the string "NaN" inside JSON arrays, so the
+        // response body delivers "NaN" not (Double) null. Treat NaN expectation match-on-string.
         if (expected instanceof Double && Double.isNaN((Double) expected)
             && (actual instanceof Double && Double.isNaN((Double) actual)
                 || "NaN".equals(actual))) {
@@ -1156,13 +1148,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         assertEquals(message, expected, actual);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     /**
      * Send a PPL query expecting an error response. Asserts the response body contains
@@ -1170,7 +1155,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      * through the analytics-engine route — the throw is the contract.
      */
     private void assertErrorContains(String ppl, String expectedSubstring) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);
@@ -1179,8 +1164,8 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(
@@ -1196,7 +1181,7 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      *  "this PPL form is not yet supported" — if the query unexpectedly succeeds the test
      *  fails loudly, signalling that the assertion should be upgraded to assert exact rows. */
     private void assertErrorAny(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);

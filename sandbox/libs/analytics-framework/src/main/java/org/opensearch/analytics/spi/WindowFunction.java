@@ -8,8 +8,8 @@
 
 package org.opensearch.analytics.spi;
 
-import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
 
 /**
  * Window functions a backend may support. Covers aggregate-as-window
@@ -41,43 +41,44 @@ import org.apache.calcite.sql.SqlKind;
  * @opensearch.internal
  */
 public enum WindowFunction {
-    SUM(SqlKind.SUM, "SUM"),
-    AVG(SqlKind.AVG, "AVG"),
-    COUNT(SqlKind.COUNT, "COUNT"),
-    MIN(SqlKind.MIN, "MIN"),
-    MAX(SqlKind.MAX, "MAX"),
-    ARG_MIN(SqlKind.ARG_MIN, "ARG_MIN"),
-    ARG_MAX(SqlKind.ARG_MAX, "ARG_MAX"),
-    DISTINCT_COUNT_APPROX(SqlKind.OTHER_FUNCTION, "DISTINCT_COUNT_APPROX"),
-    ROW_NUMBER(SqlKind.ROW_NUMBER, "ROW_NUMBER"),
-    NTH_VALUE(SqlKind.NTH_VALUE, "NTH_VALUE");
+    SUM(SqlKind.SUM),
+    AVG(SqlKind.AVG),
+    COUNT(SqlKind.COUNT),
+    MIN(SqlKind.MIN),
+    MAX(SqlKind.MAX),
+    ARG_MIN(SqlKind.ARG_MIN),
+    ARG_MAX(SqlKind.ARG_MAX),
+    DISTINCT_COUNT_APPROX(SqlKind.OTHER_FUNCTION),
+    ROW_NUMBER(SqlKind.ROW_NUMBER),
+    NTH_VALUE(SqlKind.NTH_VALUE),
+    PATTERN(SqlKind.OTHER);
 
     private final SqlKind sqlKind;
-    private final String operatorName;
 
-    WindowFunction(SqlKind sqlKind, String operatorName) {
+    WindowFunction(SqlKind sqlKind) {
         this.sqlKind = sqlKind;
-        this.operatorName = operatorName;
     }
 
     public SqlKind getSqlKind() {
         return sqlKind;
     }
 
-    public String getOperatorName() {
-        return operatorName;
+    /**
+     * Resolves a {@link WindowFunction} from a {@link SqlOperator}. Falls back to
+     * {@link #fromName(String)} when the operator's {@link SqlKind} is generic
+     * ({@link SqlKind#OTHER} / {@link SqlKind#OTHER_FUNCTION}) so PPL UDAFs like
+     * {@code DISTINCT_COUNT_APPROX} and {@code PATTERN} resolve by operator name.
+     */
+    public static WindowFunction resolveFunction(SqlOperator operator) {
+        WindowFunction fn = fromSqlKind(operator.getKind());
+        if (fn != null) {
+            return fn;
+        }
+        return fromName(operator.getName());
     }
 
-    /**
-     * Returns the {@link WindowFunction} for {@code sqlKind}, or {@code null} if unsupported.
-     *
-     * <p>Cannot tell {@link #DISTINCT_COUNT_APPROX} apart from any other UDAF (they all share
-     * {@link SqlKind#OTHER_FUNCTION}), so callers that may see a UDAF should use
-     * {@link #fromRexOver(RexOver)}.
-     */
     public static WindowFunction fromSqlKind(SqlKind sqlKind) {
-        if (sqlKind == SqlKind.OTHER_FUNCTION) {
-            // Ambiguous: many UDAFs share OTHER_FUNCTION. Caller must use fromRexOver.
+        if (sqlKind == SqlKind.OTHER || sqlKind == SqlKind.OTHER_FUNCTION) {
             return null;
         }
         for (WindowFunction fn : values()) {
@@ -86,22 +87,11 @@ public enum WindowFunction {
         return null;
     }
 
-    /**
-     * Returns the {@link WindowFunction} for a {@link RexOver}. Resolves
-     * {@link SqlKind#OTHER_FUNCTION} (UDAFs) by operator name so e.g. PPL's
-     * {@code DISTINCT_COUNT_APPROX} UDAF maps to its enum entry.
-     */
-    public static WindowFunction fromRexOver(RexOver over) {
-        SqlKind kind = over.getAggOperator().getKind();
-        if (kind == SqlKind.OTHER_FUNCTION) {
-            String name = over.getAggOperator().getName();
-            for (WindowFunction fn : values()) {
-                if (fn.sqlKind == SqlKind.OTHER_FUNCTION && fn.operatorName.equals(name)) {
-                    return fn;
-                }
-            }
+    public static WindowFunction fromName(String name) {
+        try {
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
             return null;
         }
-        return fromSqlKind(kind);
     }
 }

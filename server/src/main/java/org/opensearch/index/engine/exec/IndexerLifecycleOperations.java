@@ -88,13 +88,6 @@ public interface IndexerLifecycleOperations {
     ) throws EngineException, IOException;
 
     /**
-     * Returns the amount of RAM currently used by the indexing buffer.
-     *
-     * @return RAM usage in bytes
-     */
-    long getIndexBufferRAMBytesUsed();
-
-    /**
      * Activates indexing throttling to limit indexing to one thread.
      * Used to reduce load during recovery or when the system is under pressure.
      * Must be matched by a call to {@link #deactivateThrottling()}.

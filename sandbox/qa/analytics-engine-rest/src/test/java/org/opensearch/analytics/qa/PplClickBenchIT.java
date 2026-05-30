@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import java.io.IOException;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -17,7 +18,7 @@ import java.util.Set;
 /**
  * ClickBench PPL integration test. Runs PPL queries against a parquet-backed ClickBench index.
  * <p>
- * Query path: {@code POST /_analytics/ppl} → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion
+ * Query path: {@code POST /_plugins/_ppl} → opensearch-sql → analytics-engine → Calcite → Substrait → DataFusion
  * <p>
  * Currently restricted to Q1 to keep CI green. Auto-discovery of all 43 ClickBench queries is
  * temporarily disabled because several queries exercise unsupported translators/planner rules
@@ -44,7 +45,8 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws Exception {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET);
             dataProvisioned = true;
@@ -52,7 +54,6 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
     }
 
     public void testClickBenchPplQueries() throws Exception {
-        ensureDataProvisioned();
 
         List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(ClickBenchTestHelper.DATASET, "ppl")
             .stream()
@@ -69,7 +70,7 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
             queryNumbers,
             (client, dataset, queryBody) -> {
                 String ppl = queryBody.trim().replace("clickbench", dataset.indexName);
-                Request request = new Request("POST", "/_analytics/ppl");
+                Request request = new Request("POST", "/_plugins/_ppl");
                 request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
                 Response response = client.performRequest(request);
                 return assertOkAndParse(response, "PPL query");

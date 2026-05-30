@@ -269,12 +269,12 @@ public class LocalRecoveryIT extends AnalyticsRestTestCase {
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private List<List<Object>> executePplRows(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         Response response = client().performRequest(request);
         Map<String, Object> parsed = assertOkAndParse(response, "PPL: " + ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) parsed.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) parsed.get("datarows");
         assertNotNull("Response missing 'rows' for: " + ppl, rows);
         return rows;
     }

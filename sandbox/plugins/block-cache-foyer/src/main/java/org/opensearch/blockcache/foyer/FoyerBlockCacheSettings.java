@@ -44,17 +44,17 @@ public final class FoyerBlockCacheSettings {
      * byte allocation scales automatically with the instance's SSD capacity.
      *
      * <p>Example: 1&nbsp;TB SSD, {@code node.search.cache.size=80%} (800&nbsp;GB budget),
-     * {@code block_cache.foyer.size=25%} → Foyer gets 200&nbsp;GB, FileCache gets 600&nbsp;GB.
+      * {@code block_cache.foyer.size=50%} → Foyer gets 400&nbsp;GB, FileCache gets 400&nbsp;GB.
      *
-     * <p>Default: {@code 25%}. Set to {@code 0%} to disable the block cache.
-     * Accepts a percentage (e.g. {@code 25%}) or a ratio (e.g. {@code 0.25}).
+     * <p>Default: {@code 50%}. Set to {@code 0%} to disable the block cache.
+     * Accepts a percentage (e.g. {@code 50%}) or a ratio (e.g. {@code 0.50}).
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.foyer.size: 25%
+     * block_cache.foyer.size: 50%
      * }</pre>
      */
-    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "25%", value -> {
+    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "50%", value -> {
         try {
             RatioValue ratio = RatioValue.parseRatioValue(value);
             if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 1.0) {
@@ -127,7 +127,8 @@ public final class FoyerBlockCacheSettings {
         0L,    // 0 = disabled (no sweep task spawned)
         0L,    // min: 0
         3600L, // max: 1 hour
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -154,7 +155,39 @@ public final class FoyerBlockCacheSettings {
         0.70, // default: skip sweep when cache < 70% full
         0.0,  // min: 0.0 (explicit 0 = always sweep)
         1.0,  // max: 1.0
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How often (seconds) the independent persist task flushes the key_index to disk.
+     *
+     * <p>The persist task is decoupled from the sweep task so that persist frequency
+     * (a cheap file write, default 60 s) and sweep frequency (an expensive DashMap scan)
+     * can be tuned independently.
+     *
+     * <p>The task uses {@code used_bytes} as a change signal: if {@code used_bytes} has
+     * not changed since the last successful write, the tick is skipped (no disk I/O).
+     * This means idle caches produce zero I/O even if the interval is short.
+     *
+     * <p>{@code 0} = disabled — the key_index is only persisted on graceful shutdown
+     * via the {@code Drop} impl (i.e. when the JVM shuts down cleanly). In this mode
+     * the maximum durability window after a crash equals the node uptime since startup.
+     *
+     * <p>Default: {@code 60} seconds. Range: [0, 3600].
+     *
+     * <p>Configure in {@code opensearch.yml}:
+     * <pre>{@code
+     * block_cache.foyer.key_index_persist_interval_seconds: 60
+     * }</pre>
+     */
+    public static final Setting<Long> KEY_INDEX_PERSIST_INTERVAL_SETTING = Setting.longSetting(
+        "block_cache.foyer.key_index_persist_interval_seconds",
+        60L,   // default: 60 seconds
+        0L,    // min: 0 (0 = disabled, persist only on graceful shutdown)
+        3600L, // max: 1 hour
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private FoyerBlockCacheSettings() {}

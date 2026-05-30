@@ -262,7 +262,7 @@ public class BackendPlanAdapter {
 
         // Backend-specific PPL→backend rewrites (e.g. ARG_MIN→FIRST_VALUE). The adapter receives
         // already-adapted operands/PARTITION/ORDER, picks an operator, and returns a fresh RexOver.
-        WindowFunction fn = WindowFunction.fromRexOver(over);
+        WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
         WindowFunctionAdapter adapter = fn == null ? null : adapters.window().get(fn);
         if (adapter != null) {
             return adapter.adapt(over, adaptedOperands, adaptedPartitionKeys, adaptedOrderKeys, cluster);

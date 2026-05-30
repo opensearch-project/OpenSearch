@@ -28,6 +28,7 @@ import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -63,15 +64,44 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
         // Empty list → base short-circuits to SUCCEEDED (nothing to dispatch).
         List<StageTask> tasks = new ArrayList<>(resolved.size());
+        List<ShardExecutionTarget> shardTargets = new ArrayList<>(resolved.size());
         for (int i = 0; i < resolved.size(); i++) {
-            tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), resolved.get(i)));
+            ExecutionTarget target = resolved.get(i);
+            tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), target));
+            shardTargets.add((ShardExecutionTarget) target);
         }
+        // Side-table for cross-stage routing (e.g. QTF Phase C maps ___ugsi → target).
+        // See QueryContext.resolvedTargetsByStage Javadoc for HACK rationale.
+        config.recordResolvedTargets(getStageId(), shardTargets);
         return tasks;
     }
 
-    // TODO: override retargetForRetry for replica failover — needs TargetResolver.alternateReplica
-    // and per-task attempt tracking. Scheduler-side wiring is already in place.
-    //
+    /**
+     * Replica failover: on dispatch failure, advance to the next copy of the same shard via
+     * {@link ShardExecutionTarget#nextCopy(Exception)}, which delegates to
+     * {@link org.opensearch.cluster.routing.FailAwareWeightedRouting#findNext} — same iterator
+     * walk + weighted-routing skip + fail-open semantics the search API uses in
+     * {@code AbstractSearchAsyncAction.onShardFailure}.
+     *
+     * <p>Returns empty when the iterator is exhausted; the scheduler then propagates the cause
+     * via {@code onTaskTerminal} and the stage fails. Cancellation short-circuit lives one
+     * layer up in {@code QueryScheduler.handleFor} — it applies uniformly to every stage type.
+     */
+    @Override
+    public Optional<StageTask> retargetForRetry(StageTask failed, Exception cause) {
+        if (!(failed instanceof ShardStageTask shardTask)) {
+            return Optional.empty();
+        }
+        if (!(shardTask.target() instanceof ShardExecutionTarget shardTarget)) {
+            return Optional.empty();
+        }
+        ShardExecutionTarget nextCopy = shardTarget.nextCopy(cause);
+        if (nextCopy == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new ShardStageTask(shardTask.id(), nextCopy));
+    }
+
     // FOLLOW-UP: per-stage cancel granularity. Today AbstractStageExecution.cancel cancels
     // the whole parent task (via ct.cancel) to terminate in-flight data-node Flight streams.
     // That's coarse — fine for current query shapes (one failure means the query fails) but
@@ -93,7 +123,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
      * offload: reordering would let isLast race ahead and drop earlier batches via the
      * stage-terminal short-circuit. Inline also preserves end-to-end backpressure.
      */
-    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ActionListener<Void> listener) {
+    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(int sourceOrdinal, ActionListener<Void> listener) {
         return new StreamingResponseListener<>() {
             @Override
             public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
@@ -107,7 +137,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                     return;
                 }
                 try {
-                    outputSink.feed(vsr);
+                    outputSink.feed(vsr, sourceOrdinal);
                 } catch (Exception e) {
                     // Sink didn't take ownership — close the VSR before surfacing.
                     RuntimeException wrapped = new RuntimeException("Stage " + getStageId() + " sink feed failed", e);

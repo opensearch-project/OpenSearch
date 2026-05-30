@@ -53,11 +53,6 @@ public interface NativeAllocator extends Closeable {
     void setRootLimit(long limit);
 
     /**
-     * Collects a point-in-time stats snapshot across all pools.
-     */
-    NativeAllocatorPoolStats stats();
-
-    /**
      * Opaque handle to a memory pool. Plugins downcast to the concrete type
      * (e.g., Arrow's {@code BufferAllocator}) in the implementation layer.
      */
