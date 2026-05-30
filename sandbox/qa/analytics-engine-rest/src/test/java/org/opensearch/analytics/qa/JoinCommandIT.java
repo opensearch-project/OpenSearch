@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -37,9 +36,6 @@ import java.util.Map;
  * without pulling in a second dataset. Row-count assertions are used for this
  * exploratory coverage — the IT focuses on whether each command plans, converts
  * to Substrait, and executes end-to-end rather than on exact row values.
- *
- * <p>All join / lookup tests pass end-to-end. {@code testAppendcol} is
- * {@code @AwaitsFix} — see task #113.
  */
 public class JoinCommandIT extends AnalyticsRestTestCase {
 
@@ -193,15 +189,11 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
 
     /**
      * appendcol pairs the outer pipeline with a subsearch by synthesized row
-     * number. PPL grammar does not allow {@code source=…} inside the
-     * {@code appendcol [ … ]} brackets — the subsearch operates on the implicit
-     * upstream input.
-     *
-     * <p><b>Pending (window-function track)</b>: appendcol lowers to
-     * {@code ROW_NUMBER() OVER (ORDER BY …)} for pairing rows. Window-function
-     * support is a follow-up.
+     * number, lowered to {@code ROW_NUMBER() OVER (ORDER BY …)} + a FULL OUTER
+     * LogicalJoin on the row numbers. PPL grammar does not allow {@code source=…}
+     * inside the {@code appendcol [ … ]} brackets — the subsearch operates on
+     * the implicit upstream input.
      */
-    @AwaitsFix(bugUrl = "Task #113: appendcol plans correctly (ROW_NUMBER supported) but hits the same AggregateSplit-under-per-side-ER issue surfacing a runtime schema coercion mismatch.")
     public void testAppendcol() throws IOException {
         final String ppl = "source="
             + CALCS.indexName
