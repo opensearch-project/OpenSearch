@@ -159,7 +159,8 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
         return Map.of();
     }
 
-    protected Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+    @Override
+    public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
         return Map.of();
     }
 

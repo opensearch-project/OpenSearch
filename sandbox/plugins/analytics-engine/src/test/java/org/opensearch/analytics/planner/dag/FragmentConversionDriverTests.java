@@ -298,7 +298,8 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             cluster.traitSet(),
             0,
             inputRowType,
-            List.of("datafusion")
+            List.of("datafusion"),
+            List.of()
         );
         RelNode exchange = new org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer(
             cluster,
