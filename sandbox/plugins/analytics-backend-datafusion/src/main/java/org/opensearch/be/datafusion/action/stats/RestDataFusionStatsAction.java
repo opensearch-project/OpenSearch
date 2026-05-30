@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -52,12 +53,6 @@ public class RestDataFusionStatsAction extends BaseRestHandler {
     private static final String DEPRECATION_MESSAGE = "Use /_plugins/_analytics_backend_datafusion instead of "
         + "/_plugins/analytics_backend_datafusion";
 
-    /**
-     * Comma-separated list of valid stat section names for display in error messages.
-     */
-    public static final String VALID_STATS = "io_runtime, cpu_runtime, coordinator_reduce, "
-        + "query_execution, stream_next, plan_setup, datanode_gate, coordinator_gate";
-
     private static final Set<String> VALID_STAT_NAMES = Set.of(
         "io_runtime",
         "cpu_runtime",
@@ -68,6 +63,12 @@ public class RestDataFusionStatsAction extends BaseRestHandler {
         "datanode_gate",
         "coordinator_gate"
     );
+
+    /**
+     * Comma-separated list of valid stat section names for display in error messages.
+     * Derived from {@link #VALID_STAT_NAMES} so there is a single place to edit when adding stats.
+     */
+    public static final String VALID_STATS = VALID_STAT_NAMES.stream().sorted().collect(Collectors.joining(", "));
 
     @Override
     public String getName() {
@@ -115,17 +116,18 @@ public class RestDataFusionStatsAction extends BaseRestHandler {
         if (statParam != null && !statParam.isEmpty()) {
             String[] requestedStats = Strings.splitStringByCommaToArray(statParam);
 
-            // Validate stat names
-            for (String stat : requestedStats) {
-                if (!VALID_STAT_NAMES.contains(stat)) {
-                    return channel -> {
-                        XContentBuilder builder = channel.newBuilder();
-                        builder.startObject();
-                        builder.field("error", "Invalid stat sections: [" + stat + "]. Valid values are: " + VALID_STATS);
-                        builder.endObject();
-                        channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
-                    };
-                }
+            // Validate stat names — collect all invalid names and report together
+            List<String> invalidStats = Arrays.stream(requestedStats)
+                .filter(s -> !VALID_STAT_NAMES.contains(s))
+                .toList();
+            if (!invalidStats.isEmpty()) {
+                return channel -> {
+                    XContentBuilder builder = channel.newBuilder();
+                    builder.startObject();
+                    builder.field("error", "Invalid stat sections: " + invalidStats + ". Valid values are: " + VALID_STATS);
+                    builder.endObject();
+                    channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
+                };
             }
             statsToRetrieve.addAll(Arrays.asList(requestedStats));
         }
