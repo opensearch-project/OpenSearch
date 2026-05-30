@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 public class RecordingConvertor implements FragmentConvertor {
     public boolean shardScanCalled;
     public boolean finalAggCalled;
-    public boolean attachFragmentCalled;
     public String shardScanTableName;
     public RelNode shardScanFragment;
     public RelNode reduceFragment;
@@ -48,7 +47,6 @@ public class RecordingConvertor implements FragmentConvertor {
 
     @Override
     public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
-        this.attachFragmentCalled = true;
         return ("attach:" + new String(innerBytes, StandardCharsets.UTF_8)).getBytes(StandardCharsets.UTF_8);
     }
 

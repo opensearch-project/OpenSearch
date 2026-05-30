@@ -388,23 +388,85 @@ public class FragmentConversionDriver {
     }
 
     /**
-     * Reduce-stage conversion: serialise the entire coordinator-side subtree (everything from
-     * the ExchangeReducer boundary up through the user-level operators) in one convertFragment
-     * pass. {@code strip(...)} removes ExchangeReducers and annotations on the way down, leaving
-     * {@code OpenSearchStageInputScan} as the leaf; the convertor's {@code rewriteStageInputScans}
-     * then swaps that leaf for a plain TableScan. Isthmus serialises the whole subtree
-     * end-to-end, deriving every fieldRef from the same row-type system.
+     * Reduce stage conversion: strips ExchangeReducer, converts the final agg fragment
+     * (with StageInputScan as leaf for schema), then attaches any operators above it
+     * (Sort, Project, etc.) via attachFragmentOnTop.
      *
-     * <p>Splitting reduce-stage chains into {@code convertFragment(child) + attachFragmentOnTop
-     * (wrapper, ...)} used to break helper-chain shapes (e.g.
-     * {@code Sort(Project(Project-with-window(ER(StageInputScan))))} that PPL emits for
-     * {@code streamstats by}) — the wrapper conversion bound fieldRefs against the placeholder
-     * schema while the inner plan's actual schema may have shifted (partial-agg lowering,
-     * NULL-typed CASE branches, etc.), producing DataFusion runtime panics like "index out of
-     * bounds: len=6 idx=14". A single conversion pass eliminates that whole class of bugs.
+     * <p>Single-input ancestors of a single gathered subtree (Sort/Project/Aggregate over
+     * a partial agg) reach convertFragment as soon as we see a node whose inputs
+     * are all ExchangeReducers, and attach via attachFragmentOnTop on the way back up.
+     *
+     * <p>Multi-input nodes (Join, Union, Intersect, Minus) are converted as a single
+     * subtree via convertFragment: isthmus handles all of them natively, and
+     * rewriting OpenSearchStageInputScan leaves to plain TableScans (inside the convertor)
+     * lets the whole gathered subtree serialize in one pass. No post-conversion
+     * substrait-level stitching is needed.
      */
     private static byte[] convertReduceFragment(RelNode node, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
-        return convertor.convertFragment(strip(node, delegationBytes));
+        return convertReduceNode(node, convertor, false, delegationBytes);
+    }
+
+    private static byte[] convertReduceNode(
+        RelNode node,
+        FragmentConvertor convertor,
+        boolean finalAggConverted,
+        IntraOperatorDelegationBytes delegationBytes
+    ) {
+        if (node instanceof OpenSearchExchangeReducer) {
+            // Strip ExchangeReducer — StageInputScan below it is the schema source.
+            return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
+        }
+        if (node instanceof OpenSearchRelNode openSearchNode) {
+            List<RelNode> strippedInputs = node.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
+            Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(openSearchNode, node.getCluster().getRexBuilder());
+            RelNode strippedNode = openSearchNode.stripAnnotations(strippedInputs, resolver);
+
+            if (!finalAggConverted) {
+                // First OpenSearchRelNode whose ALL inputs are ExchangeReducers is treated as the
+                // boundary between the coordinator-side fragment and the data-node child stages.
+                // For single-input shapes (Sort/Project/Aggregate over a partial agg) this is the
+                // final-aggregate operator; for multi-input shapes (Union) every branch is itself
+                // an ER → StageInputScan, and the entire Union+ER subtree is converted as one
+                // fragment so all branches end up in the same Substrait plan reading from their
+                // respective input partitions.
+                boolean allChildrenAreExchangeReducer = !node.getInputs().isEmpty()
+                    && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchExchangeReducer);
+                if (allChildrenAreExchangeReducer && node.getInputs().size() == 1) {
+                    List<RelNode> finalAggInputs = new ArrayList<>(node.getInputs().size());
+                    for (RelNode input : node.getInputs()) {
+                        // Skip the ER, keep StageInputScan below it as the leaf for schema inference.
+                        finalAggInputs.add(strip(input.getInputs().getFirst(), delegationBytes));
+                    }
+                    RelNode finalAggFragment = openSearchNode.stripAnnotations(finalAggInputs, resolver);
+                    return convertor.convertFragment(finalAggFragment);
+                }
+
+                // LM-fed reduce stage (post-LM Stage 3): the LM stage emits a stitched VSR straight
+                // into this stage's input partition with no ExchangeReducer between, so the
+                // StageInputScan leaf sits directly under this op. Convert the whole node as one
+                // fragment; the convertor's rewriteStageInputScans turns the leaf into a NamedScan
+                // so isthmus can serialize it.
+                boolean allChildrenAreStageInputScan = !node.getInputs().isEmpty()
+                    && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchStageInputScan);
+                if (allChildrenAreStageInputScan) {
+                    return convertor.convertFragment(strip(node, delegationBytes));
+                }
+            }
+
+            // Multi-input node (Join, Union, Intersect, Minus): isthmus handles all of them
+            // natively. The whole subtree — multi-input node + its branches + ERs +
+            // StageInputScans — serializes in one convertFragment pass. The convertor's
+            // StageInputScan → plain TableScan rewrite makes the leaves isthmus-friendly without
+            // any post-conversion substrait-level stitching.
+            if (node.getInputs().size() >= 2) {
+                return convertor.convertFragment(strip(node, delegationBytes));
+            }
+
+            // Single-input operator above the final-fragment boundary — convert child first, then attach.
+            byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
+            return convertor.attachFragmentOnTop(strippedNode, innerBytes);
+        }
+        throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
     }
 
     /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan as-is. */
