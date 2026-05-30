@@ -214,6 +214,13 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         // Every nested scalar function in the predicate must also be evaluable by a candidate backend
         for (RexCall scalarFunctionCall : analysis.scalarFunctionCalls()) {
+            // Calcite-internal value constructors (named-parameter MAP/ARRAY/ROW used by full-text
+            // operators like match() to pass `field`, `query`, etc.) aren't real scalar functions
+            // they're parameter-passing scaffolding. Skip them
+            SqlKind kind = scalarFunctionCall.getKind();
+            if (kind == SqlKind.MAP_VALUE_CONSTRUCTOR || kind == SqlKind.ARRAY_VALUE_CONSTRUCTOR || kind == SqlKind.ROW) {
+                continue;
+            }
             ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(scalarFunctionCall.getOperator());
             if (scalarFunc == null) {
                 throw new IllegalStateException(
