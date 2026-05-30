@@ -92,6 +92,17 @@ aggregate_functions:
           - name: x
             value: any
         return: any
+  - name: approx_percentile_cont
+    description: >-
+      PPL `percentile_approx(field, percentile)` — t-digest based approximate
+      percentile. Maps to DataFusion's builtin `approx_percentile_cont`.
+    impls:
+      - args:
+          - name: x
+            value: any1
+          - name: percentile
+            value: any2
+        return: any1
   - name: internal_pattern
     description: >-
       PPL `patterns ... method=BRAIN` (aggregation mode). Custom Rust UDAF in

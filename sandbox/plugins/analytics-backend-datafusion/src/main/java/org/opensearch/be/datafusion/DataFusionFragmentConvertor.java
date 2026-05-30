@@ -25,6 +25,7 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.ColumnStrategy;
@@ -37,6 +38,7 @@ import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Optionality;
@@ -49,6 +51,8 @@ import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -304,6 +308,30 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    /**
+     * PPL {@code percentile_approx(field, percentile)} → DataFusion's builtin
+     * {@code approx_percentile_cont(field, percentile)}. PPL's trailing field-type-flag
+     * arg is stripped by {@link PplAggregateCallRewriter} before binding; the percentile
+     * literal is rescaled from PPL's [0, 100] to DataFusion's [0, 1] convention via
+     * {@link LocalAggOp#normaliseLiteralArg} at substrait emission.
+     */
+    static final LocalAggOp LOCAL_PERCENTILE_APPROX_OP = new LocalAggOp(
+        "approx_percentile_cont",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0.andThen(SqlTypeTransforms.FORCE_NULLABLE),
+        OperandTypes.ANY_ANY
+    ) {
+        @Override
+        public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+            if (argIndex == 1 && lit.getValue() instanceof BigDecimal bd) {
+                BigDecimal scaled = bd.divide(BigDecimal.valueOf(100), MathContext.DECIMAL64);
+                RelDataType doubleType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
+                return rexBuilder.makeLiteral(scaled, doubleType);
+            }
+            return lit;
+        }
+    };
+
     /** BRAIN window stub for {@code patterns ... method=BRAIN mode=label}. */
     static final SqlAggFunction LOCAL_INTERNAL_PATTERN_WINDOW_OP = new SqlAggFunction(
         "internal_pattern",
@@ -342,6 +370,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg"),
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
+        FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern")
     );
 
@@ -602,6 +631,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 List<RexNode> projects = project.getProjects();
                 List<FunctionArg> args = fn.arguments();
                 List<FunctionArg> rewritten = null;
+                RexBuilder rexBuilder = project.getCluster().getRexBuilder();
                 for (int i = 0; i < args.size(); i++) {
                     FunctionArg arg = args.get(i);
                     if (!(arg instanceof io.substrait.expression.FieldReference fr)) continue;
@@ -609,7 +639,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     if (offset == null || offset < 0 || offset >= projects.size()) continue;
                     if (!(projects.get(offset) instanceof RexLiteral rexLit)) continue;
                     if (rewritten == null) rewritten = new ArrayList<>(args);
-                    rewritten.set(i, rexConverter.apply(rexLit));
+                    RexNode toConvert = call.getAggregation() instanceof LocalAggOp localOp
+                        ? localOp.normaliseLiteralArg(i, rexLit, rexBuilder, typeFactory)
+                        : rexLit;
+                    rewritten.set(i, rexConverter.apply(toConvert));
                 }
                 if (rewritten == null) return bound;
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
@@ -640,6 +673,40 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         io.substrait.expression.FieldReference.ReferenceSegment seg = fr.segments().get(0);
         if (!(seg instanceof io.substrait.expression.FieldReference.StructField sf)) return null;
         return sf.offset();
+    }
+
+    /**
+     * Local aggregate stub that may transform inlined literal args before substrait emission.
+     * Other local stubs without transformations stay as plain {@link SqlAggFunction}; the
+     * {@code convert()} override only invokes {@link #normaliseLiteralArg} when the call's
+     * operator is a {@code LocalAggOp}, so adding a new normalisation is purely a matter of
+     * subclassing here next to the op's declaration.
+     */
+    abstract static class LocalAggOp extends SqlAggFunction {
+        LocalAggOp(
+            String name,
+            SqlKind kind,
+            org.apache.calcite.sql.type.SqlReturnTypeInference returnTypeInference,
+            org.apache.calcite.sql.type.SqlOperandTypeChecker operandTypeChecker
+        ) {
+            super(
+                name,
+                null,
+                kind,
+                returnTypeInference,
+                null,
+                operandTypeChecker,
+                SqlFunctionCategory.USER_DEFINED_FUNCTION,
+                false,
+                false,
+                Optionality.FORBIDDEN
+            );
+        }
+
+        /** Identity by default; override to transform the {@code argIndex}-th inlined literal arg. */
+        public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+            return lit;
+        }
     }
 
     // ── Plan serde helpers ──────────────────────────────────────────────────────
