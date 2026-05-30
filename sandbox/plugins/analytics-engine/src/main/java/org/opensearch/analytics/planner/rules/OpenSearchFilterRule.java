@@ -148,8 +148,11 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<FieldStorageInfo> fieldStorageInfos,
         List<String> childViableBackends
     ) {
-        Set<Integer> fieldIndices = new HashSet<>();
-        collectFieldIndices(predicate, fieldIndices);
+        PredicateAnalysis analysis = new PredicateAnalysis(new HashSet<>(), new ArrayList<>());
+        for (RexNode operand : predicate.getOperands()) {
+            analyze(operand, analysis);
+        }
+        Set<Integer> fieldIndices = analysis.fieldIndices();
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
@@ -209,6 +212,50 @@ public class OpenSearchFilterRule extends RelOptRule {
             viableSet.retainAll(fieldViable);
         }
 
+        // Every nested scalar function in the predicate must also be evaluable by a candidate backend
+        for (RexCall scalarFunctionCall : analysis.scalarFunctionCalls()) {
+            ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(scalarFunctionCall.getOperator());
+            if (scalarFunc == null) {
+                throw new IllegalStateException(
+                    "Unrecognized scalar function ["
+                        + scalarFunctionCall.getOperator().getName()
+                        + "] in call ["
+                        + scalarFunctionCall
+                        + "] within filter predicate ["
+                        + predicate
+                        + "]"
+                );
+            }
+            FieldType returnType = FieldType.fromSqlTypeName(scalarFunctionCall.getType().getSqlTypeName());
+            // Polymorphic UDF fallback (e.g. SCALAR_MAX/MIN return SqlTypeName.ANY): infer
+            // FieldType from the first concrete operand. Backend capabilities for these UDFs
+            // are declared over operand types, so this preserves correct dispatch — see
+            // OpenSearchProjectRule.resolveScalarViableBackends for the parallel fallback.
+            if (returnType == null) {
+                for (RexNode operand : scalarFunctionCall.getOperands()) {
+                    FieldType operandType = FieldType.fromSqlTypeName(operand.getType().getSqlTypeName());
+                    if (operandType != null) {
+                        returnType = operandType;
+                        break;
+                    }
+                }
+                if (returnType == null) {
+                    throw new IllegalStateException(
+                        "Unmapped return type ["
+                            + scalarFunctionCall.getType().getSqlTypeName()
+                            + "] for scalar function ["
+                            + scalarFunc
+                            + "] in call ["
+                            + scalarFunctionCall
+                            + "] within filter predicate ["
+                            + predicate
+                            + "]"
+                    );
+                }
+            }
+            viableSet.retainAll(registry.scalarBackendsAnyFormat(scalarFunc, returnType));
+        }
+
         if (viableSet.isEmpty()) {
             throw new IllegalStateException(
                 "No backend can evaluate filter predicate ["
@@ -223,13 +270,23 @@ public class OpenSearchFilterRule extends RelOptRule {
         return new ArrayList<>(viableSet);
     }
 
-    /** Extracts all field indices referenced by RexInputRef nodes in the expression. */
-    private void collectFieldIndices(RexNode node, Set<Integer> result) {
+    /**
+     * Result of a single walk over a predicate's operand subtree.
+     *
+     * <p>{@code fieldIndices} — RexInputRef indices feeding the field-storage intersection.
+     * <p>{@code scalarFunctionCalls} — nested RexCalls feeding the scalar-function capability intersection.
+     */
+    private record PredicateAnalysis(Set<Integer> fieldIndices, List<RexCall> scalarFunctionCalls) {
+    }
+
+    /** Recurses the operand subtree, populating {@code analysis} in-place. */
+    private void analyze(RexNode node, PredicateAnalysis analysis) {
         if (node instanceof RexInputRef inputRef) {
-            result.add(inputRef.getIndex());
+            analysis.fieldIndices().add(inputRef.getIndex());
         } else if (node instanceof RexCall rexCall) {
+            analysis.scalarFunctionCalls().add(rexCall);
             for (RexNode operand : rexCall.getOperands()) {
-                collectFieldIndices(operand, result);
+                analyze(operand, analysis);
             }
         }
     }

@@ -14,6 +14,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
@@ -283,6 +284,144 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
         RelNode result = runPlanner(having, context);
         assertNotNull("Planner must produce a plan for HAVING on derived column", result);
+    }
+
+    // ---- Scalar-function capability narrowing ----
+
+    /**
+     * Baseline: {@code country = 'US'} has no nested scalar function, so both backends
+     * stay viable. Sets the expected shape that the next four tests narrow against.
+     */
+    public void testNoScalarFunctionsKeepsLuceneViable() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US")
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(annotated, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * {@code UPPER(country) = 'US'}: Lucene supports EQUALS on KEYWORD but does not
+     * support UPPER, so the predicate is no longer viable for Lucene.
+     */
+    public void testNestedScalarFunctionDropsLuceneFromPredicateAnnotation() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode upperCall = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, rexBuilder.makeInputRef(varchar, 0));
+        RexNode predicate = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, upperCall, rexBuilder.makeLiteral("US"));
+
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            predicate
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("Only DataFusion remains viable", 1, annotated.getViableBackends().size());
+        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must be excluded — no scalar capability for UPPER",
+            annotated.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+    }
+
+    /**
+     * Two-level nesting: {@code UPPER(CONCAT(name, '_x')) = 'FOO'}. Confirms the walk
+     * looks past the outer scalar function into its operands; Lucene supports neither
+     * UPPER nor CONCAT, so it drops out either way.
+     */
+    public void testNestedScalarFunctionsDropLucene() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode concatCall = rexBuilder.makeCall(
+            SqlStdOperatorTable.CONCAT,
+            rexBuilder.makeInputRef(varchar, 0),
+            rexBuilder.makeLiteral("_x")
+        );
+        RexNode upperCall = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, concatCall);
+        RexNode predicate = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, upperCall, rexBuilder.makeLiteral("FOO"));
+
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("name", Map.of("type", "keyword", "index", true)),
+            new String[] { "name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            predicate
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("Only DataFusion remains viable", 1, annotated.getViableBackends().size());
+        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must be excluded across nested scalar-function calls",
+            annotated.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+    }
+
+    /**
+     * AND of {@code status = 200} (no nested function) and {@code UPPER(country) = 'US'}
+     * (nested UPPER). Each leaf is annotated independently: Lucene stays on the first
+     * leaf and drops only on the second.
+     */
+    public void testScalarFunctionNarrowingIsPerLeaf() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode upperCall = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, rexBuilder.makeInputRef(varchar, 1));
+        RexNode upperEq = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, upperCall, rexBuilder.makeLiteral("US"));
+
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("status", Map.of("type", "integer", "index", true), "country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "status", "country_name" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
+            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), upperEq)
+        );
+
+        RexCall andCondition = (RexCall) result.getCondition();
+        AnnotatedPredicate plainEq = (AnnotatedPredicate) andCondition.getOperands().get(0);
+        AnnotatedPredicate upperEqAnnotated = (AnnotatedPredicate) andCondition.getOperands().get(1);
+
+        assertPredicateAnnotation(plainEq, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertEquals("Only DataFusion remains viable for the scalar-function leaf", 1, upperEqAnnotated.getViableBackends().size());
+        assertTrue(upperEqAnnotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must be excluded only on the scalar-function leaf",
+            upperEqAnnotated.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+    }
+
+    /**
+     * A nested scalar function that the framework doesn't know about (no entry in the
+     * {@link org.opensearch.analytics.spi.ScalarFunction} enum) makes the predicate
+     * unevaluable on every backend. Marking should fail fast and the error should name
+     * the unrecognized function.
+     */
+    public void testUnrecognizedScalarFunctionThrows() {
+        SqlFunction unknown = new SqlFunction(
+            "FAKE_UDF",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_2000,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode unknownCall = rexBuilder.makeCall(unknown, rexBuilder.makeInputRef(varchar, 0));
+        RexNode predicate = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, unknownCall, rexBuilder.makeLiteral("X"));
+
+        RelOptTable table = mockTable("test_index", new String[] { "name" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), predicate);
+        PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword", "index", true)));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Message must name the unrecognized scalar function",
+            exception.getMessage().contains("Unrecognized scalar function [FAKE_UDF]")
+        );
     }
 
     // ---- Helpers ----
