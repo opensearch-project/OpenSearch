@@ -96,7 +96,15 @@ public class StatsLifecycleIT extends BaseStatsIT {
             assertCounterAtLeast("stage 5 parquet merge_input_files", r5, "indices.lifecycle-idx.merge.merge_input_files_total", 2L);
             assertCounter("stage 5 parquet merge_failures", r5, "indices.lifecycle-idx.merge.merge_failures", 0L);
             Map<String, Object> l5 = luceneIndexStats("lifecycle-idx");
-            assertCounterAtLeast("stage 5 lucene merge_total", l5, "indices.lifecycle-idx.merge.merge_total", 1L);
+            // Note: lucene.merge.merge_total stays 0 in the composite-engine flow because the
+            // lucene secondary uses flush+addIndexes (not standalone IndexWriter.maybeMerge()).
+            // The force-merge work is recorded under flush.flush_force_merge_time_millis instead.
+            assertCounterAtLeast(
+                "stage 5 lucene flush_force_merge_time_millis",
+                l5,
+                "indices.lifecycle-idx.flush.flush_force_merge_time_millis",
+                1L
+            );
             assertCounter("stage 5 lucene merge_failures", l5, "indices.lifecycle-idx.merge.merge_failures", 0L);
         }, 30, java.util.concurrent.TimeUnit.SECONDS);
 

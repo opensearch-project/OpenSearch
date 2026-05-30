@@ -8,6 +8,8 @@
 
 package org.opensearch.parquet.stats;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
@@ -36,6 +38,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ParquetStatsProvider implements DataFormatStatsProvider<ParquetShardStats> {
 
     public static final String FORMAT_NAME = "parquet";
+
+    private static final Logger logger = LogManager.getLogger(ParquetStatsProvider.class);
 
     private static volatile ParquetStatsProvider INSTANCE;
 
@@ -96,7 +100,19 @@ public final class ParquetStatsProvider implements DataFormatStatsProvider<Parqu
         for (ParquetShardStatsTracker t : trackers.values()) {
             agg = agg.add(t.stats());
         }
-        return Optional.of(agg);
+        // Attach native runtime metrics — only at node level. If the FFM/JNI bridge is
+        // unavailable (e.g., test infra without lib loaded) we still return the per-shard
+        // aggregate; missing runtime metrics shouldn't break the whole stats request.
+        // Catching Exception (not Throwable) so we still propagate JVM-fatal Errors.
+        try {
+            ParquetNativeRuntimeStats runtime = ParquetNativeRuntimeStats.fromArray(
+                org.opensearch.parquet.bridge.RustBridge.collectRuntimeMetrics()
+            );
+            return Optional.of(agg.withNativeRuntime(runtime));
+        } catch (Exception e) {
+            logger.warn("Failed to collect native runtime metrics; returning per-shard aggregate without runtime block", e);
+            return Optional.of(agg);
+        }
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.stats;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -59,6 +60,10 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
     private final long backgroundWriteTimeouts;
     private final long backgroundWriteFailures;
 
+    // Native Runtime (node-level only, null on shard trackers and cross-node aggregation)
+    @Nullable
+    private final ParquetNativeRuntimeStats nativeRuntime;
+
     /**
      * Returns an empty ParquetShardStats snapshot with all zero counters.
      * Used by transport actions when a shard does not have a Parquet primary delegate.
@@ -93,6 +98,59 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long backgroundWriteTimeouts,
         long backgroundWriteFailures
     ) {
+        this(
+            docsIndexedTotal,
+            indexTimeMillis,
+            vsrRotationsTotal,
+            nativeWriteTotal,
+            nativeWriteTimeMillis,
+            nativeWriteFailures,
+            nativeFinalizeTotal,
+            nativeFinalizeTimeMillis,
+            nativeFinalizeFailures,
+            nativeSyncTotal,
+            nativeSyncTimeMillis,
+            nativeSyncFailures,
+            mergeTotal,
+            mergeTimeMillis,
+            mergeFailures,
+            mergeInputFilesTotal,
+            mergeOutputRowsTotal,
+            backgroundWriteTotal,
+            backgroundWriteWaitMillis,
+            backgroundWriteTimeouts,
+            backgroundWriteFailures,
+            null
+        );
+    }
+
+    /**
+     * Constructs a snapshot with all values including optional native runtime stats.
+     */
+    public ParquetShardStats(
+        long docsIndexedTotal,
+        long indexTimeMillis,
+        long vsrRotationsTotal,
+        long nativeWriteTotal,
+        long nativeWriteTimeMillis,
+        long nativeWriteFailures,
+        long nativeFinalizeTotal,
+        long nativeFinalizeTimeMillis,
+        long nativeFinalizeFailures,
+        long nativeSyncTotal,
+        long nativeSyncTimeMillis,
+        long nativeSyncFailures,
+        long mergeTotal,
+        long mergeTimeMillis,
+        long mergeFailures,
+        long mergeInputFilesTotal,
+        long mergeOutputRowsTotal,
+        long backgroundWriteTotal,
+        long backgroundWriteWaitMillis,
+        long backgroundWriteTimeouts,
+        long backgroundWriteFailures,
+        @Nullable ParquetNativeRuntimeStats nativeRuntime
+    ) {
         this.docsIndexedTotal = docsIndexedTotal;
         this.indexTimeMillis = indexTimeMillis;
         this.vsrRotationsTotal = vsrRotationsTotal;
@@ -114,6 +172,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.backgroundWriteWaitMillis = backgroundWriteWaitMillis;
         this.backgroundWriteTimeouts = backgroundWriteTimeouts;
         this.backgroundWriteFailures = backgroundWriteFailures;
+        this.nativeRuntime = nativeRuntime;
     }
 
     public ParquetShardStats(StreamInput in) throws IOException {
@@ -147,6 +206,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.backgroundWriteWaitMillis = in.readVLong();
         this.backgroundWriteTimeouts = in.readVLong();
         this.backgroundWriteFailures = in.readVLong();
+
+        // Native Runtime
+        this.nativeRuntime = in.readOptionalWriteable(ParquetNativeRuntimeStats::new);
     }
 
     @Override
@@ -181,6 +243,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         out.writeVLong(backgroundWriteWaitMillis);
         out.writeVLong(backgroundWriteTimeouts);
         out.writeVLong(backgroundWriteFailures);
+
+        // Native Runtime
+        out.writeOptionalWriteable(nativeRuntime);
     }
 
     @Override
@@ -226,6 +291,11 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         builder.field("background_write_failures", backgroundWriteFailures);
         builder.endObject();
 
+        // Native Runtime (only present at node-level aggregate)
+        if (nativeRuntime != null) {
+            nativeRuntime.toXContent(builder, params);
+        }
+
         return builder;
     }
 
@@ -256,7 +326,39 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             this.backgroundWriteTotal + other.backgroundWriteTotal,
             this.backgroundWriteWaitMillis + other.backgroundWriteWaitMillis,
             this.backgroundWriteTimeouts + other.backgroundWriteTimeouts,
-            this.backgroundWriteFailures + other.backgroundWriteFailures
+            this.backgroundWriteFailures + other.backgroundWriteFailures,
+            null  // drop nativeRuntime on cross-node aggregation
+        );
+    }
+
+    /**
+     * Returns a copy of this with the given native runtime stats attached. Used by
+     * {@link ParquetStatsProvider} to attach per-node runtime stats to the aggregated value.
+     */
+    public ParquetShardStats withNativeRuntime(ParquetNativeRuntimeStats runtime) {
+        return new ParquetShardStats(
+            docsIndexedTotal,
+            indexTimeMillis,
+            vsrRotationsTotal,
+            nativeWriteTotal,
+            nativeWriteTimeMillis,
+            nativeWriteFailures,
+            nativeFinalizeTotal,
+            nativeFinalizeTimeMillis,
+            nativeFinalizeFailures,
+            nativeSyncTotal,
+            nativeSyncTimeMillis,
+            nativeSyncFailures,
+            mergeTotal,
+            mergeTimeMillis,
+            mergeFailures,
+            mergeInputFilesTotal,
+            mergeOutputRowsTotal,
+            backgroundWriteTotal,
+            backgroundWriteWaitMillis,
+            backgroundWriteTimeouts,
+            backgroundWriteFailures,
+            runtime
         );
     }
 }

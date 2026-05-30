@@ -174,15 +174,18 @@ impl MergeContext {
 
         let chunk_results: Vec<
             Result<parquet::arrow::arrow_writer::ArrowColumnChunk, parquet::errors::ParquetError>,
-        > = get_merge_pool(self.rayon_threads).install(|| {
-            leaves_and_writers
-                .into_par_iter()
-                .map(|(leaf, mut col_writer)| {
-                    col_writer.write(&leaf)?;
-                    col_writer.close()
-                })
-                .collect()
-        });
+        > = super::metrics::record_merge(|| {
+            let results: Vec<_> = get_merge_pool(self.rayon_threads).install(|| {
+                leaves_and_writers
+                    .into_par_iter()
+                    .map(|(leaf, mut col_writer)| {
+                        col_writer.write(&leaf)?;
+                        col_writer.close()
+                    })
+                    .collect()
+            });
+            Ok(results)
+        })?;
 
         let mut encoded_chunks = Vec::with_capacity(chunk_results.len());
         for r in chunk_results {

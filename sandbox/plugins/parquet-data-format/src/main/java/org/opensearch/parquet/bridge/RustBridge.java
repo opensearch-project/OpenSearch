@@ -12,6 +12,7 @@ import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.parquet.stats.ParquetNativeRuntimeStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,6 +45,7 @@ public class RustBridge {
     private static final MethodHandle FREE_MERGE_RESULT;
     private static final MethodHandle READ_AS_JSON;
     private static final MethodHandle FREE_ROW_ID_MAPPING;
+    private static final MethodHandle COLLECT_RUNTIME_METRICS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -244,6 +246,14 @@ public class RustBridge {
             FunctionDescriptor.ofVoid(
                 ValueLayout.JAVA_LONG,                         // mapping_ptr
                 ValueLayout.JAVA_LONG                          // mapping_len
+            )
+        );
+        COLLECT_RUNTIME_METRICS = linker.downcallHandle(
+            lib.find("parquet_collect_runtime_metrics").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,    // return value
+                ValueLayout.ADDRESS,      // out_buf
+                ValueLayout.JAVA_LONG     // out_len
             )
         );
     }
@@ -478,6 +488,25 @@ public class RustBridge {
         try (var call = new NativeCall()) {
             var idx = call.str(indexName);
             call.invoke(REMOVE_SETTINGS, idx.segment(), idx.len());
+        }
+    }
+
+    /**
+     * Collects a snapshot of native runtime metrics for the parquet merge path.
+     * Returns a long array of {@link ParquetNativeRuntimeStats#FIELD_COUNT} elements in the
+     * order documented in {@link org.opensearch.parquet.stats.ParquetNativeRuntimeStats#fromArray}.
+     */
+    public static long[] collectRuntimeMetrics() {
+        try (var call = new NativeCall()) {
+            var buf = call.buf(ParquetNativeRuntimeStats.FIELD_COUNT * 8);
+            call.invokeIO(COLLECT_RUNTIME_METRICS, buf, (long) ParquetNativeRuntimeStats.FIELD_COUNT);
+            long[] out = new long[ParquetNativeRuntimeStats.FIELD_COUNT];
+            for (int i = 0; i < ParquetNativeRuntimeStats.FIELD_COUNT; i++) {
+                out[i] = buf.getAtIndex(ValueLayout.JAVA_LONG, i);
+            }
+            return out;
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException("collectRuntimeMetrics failed", e);
         }
     }
 
