@@ -80,6 +80,15 @@ public class CapabilityRegistry {
     private final Set<String> filterCapableBackends = new HashSet<>();
     private final Set<String> aggregateCapableBackends = new HashSet<>();
     private final Set<String> projectCapableBackends = new HashSet<>();
+    /**
+     * Backends whose only declared scan capability is {@link ScanCapability.InvertedIndex} —
+     * i.e. they can drive metadata-only operations (count aggregates, future top-K) but
+     * cannot deliver row values for Project / Sort / value-producing Filter.
+     *
+     * <p>Used by {@code OpenSearchTableScanRule} to relax the strict per-field coverage
+     * requirement for these backends: they stay viable if they cover SOME field, not all.
+     */
+    private final Set<String> metadataOnlyScanBackends = new HashSet<>();
 
     public CapabilityRegistry(
         List<AnalyticsSearchBackendPlugin> backends,
@@ -120,11 +129,21 @@ public class CapabilityRegistry {
             // exists for each function actually delegated to this backend. Startup validation is
             // intentionally omitted — a backend may accept delegation for a subset of its filter
             // capabilities, and which functions are delegated depends on the query.
+            boolean hasValueScan = false;
+            boolean hasMetadataScan = false;
             for (ScanCapability cap : caps.scanCapabilities()) {
                 for (FieldType fieldType : cap.supportedFieldTypes()) {
                     addToFormatMap(scanIndex, new ScanKey(cap.getClass(), fieldType), cap.formats(), name);
                 }
                 scanCapableBackends.add(name);
+                if (cap instanceof ScanCapability.InvertedIndex) {
+                    hasMetadataScan = true;
+                } else {
+                    hasValueScan = true;
+                }
+            }
+            if (hasMetadataScan && !hasValueScan) {
+                metadataOnlyScanBackends.add(name);
             }
             for (FilterCapability cap : caps.filterCapabilities()) {
                 switch (cap) {
@@ -192,6 +211,15 @@ public class CapabilityRegistry {
         return scanCapableBackends;
     }
 
+    /**
+     * Backends that declare ONLY {@link ScanCapability.InvertedIndex} (no DocValues / StoredFields).
+     * Such backends can drive metadata-only operations without reading row values; the marking
+     * phase relaxes the strict per-field coverage requirement for them.
+     */
+    public Set<String> metadataOnlyScanBackends() {
+        return metadataOnlyScanBackends;
+    }
+
     public Set<String> filterCapableBackends() {
         return filterCapableBackends;
     }
@@ -255,6 +283,29 @@ public class CapabilityRegistry {
         List<String> result = new ArrayList<>();
         for (String format : field.getDocValueFormats()) {
             result.addAll(scanBackends(ScanCapability.DocValues.class, fieldType, format));
+        }
+        return result;
+    }
+
+    /**
+     * All backends that can drive metadata-only operations on this field via the inverted
+     * index (term dictionary), without reading row values. Used by:
+     * <ul>
+     *   <li>{@code OpenSearchTableScanRule} — to allow a backend (Lucene-secondary) to mark
+     *       itself viable for scans whose only consumer is a metadata-only aggregate.</li>
+     *   <li>Future {@code OpenSearchAggregateRule} extension — count(col), top-K terms,
+     *       group-by-count once those land.</li>
+     * </ul>
+     *
+     * <p>Walks {@code field.getIndexFormats()} (formats that index the field's terms) against
+     * {@link ScanCapability.InvertedIndex} declarations. Symmetric with
+     * {@link #scanBackendsForField} but for the term-dictionary path instead of doc values.
+     */
+    public List<String> metadataScanBackendsForField(FieldStorageInfo field) {
+        FieldType fieldType = field.getFieldType();
+        List<String> result = new ArrayList<>();
+        for (String format : field.getIndexFormats()) {
+            result.addAll(scanBackends(ScanCapability.InvertedIndex.class, fieldType, format));
         }
         return result;
     }

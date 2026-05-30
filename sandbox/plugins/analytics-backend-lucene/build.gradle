@@ -29,6 +29,17 @@ dependencies {
     compileOnly project(':sandbox:libs:analytics-framework')
     compileOnly project(':sandbox:plugins:analytics-engine')
 
+    // Arrow vector + memory — needed by the Lucene-as-driver count fast path to emit
+    // Arrow batches as the engine's result. Provided at runtime via the analytics-engine
+    // plugin (which itself depends on arrow via arrow-base).
+    compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+    compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+    compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+    // Arrow C-Data interface: the count batch is built via export+import so the resulting
+    // VSR has the same buffer layout DataFusion's result vectors arrive in. Without this,
+    // pure-Java setSafe + Flight VectorTransfer.transferRoot zeros the underlying memory.
+    implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
+
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 

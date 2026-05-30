@@ -14,6 +14,8 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.IndexResolution;
@@ -33,6 +35,8 @@ import java.util.List;
  * @opensearch.internal
  */
 public class OpenSearchTableScanRule extends RelOptRule {
+
+    private static final Logger LOGGER = LogManager.getLogger(OpenSearchTableScanRule.class);
 
     private final PlannerContext context;
 
@@ -79,20 +83,53 @@ public class OpenSearchTableScanRule extends RelOptRule {
         List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.SCAN);
         List<String> viableBackends = new ArrayList<>(registry.scanCapableBackends());
 
+        // Two-phase field coverage check:
+        // 1. Value-producing backends (DocValues / StoredFields) must cover EVERY field —
+        // downstream ops can need any column's actual value, so a value-driver must be
+        // able to deliver all of them. This is the original strict invariant.
+        // 2. Metadata-only backends (InvertedIndex) stay viable if they cover SOME field —
+        // downstream ops that need a column the metadata backend can't reach (e.g.
+        // Project on a numeric field that Lucene-secondary doesn't index) will mark
+        // the metadata backend non-viable themselves; PlanForker's chain-agreement
+        // filter drops it. The only chain that survives end-to-end with Lucene driving
+        // is the count fast-path shape: count(*) / count(col) over filters that
+        // reference only Lucene-indexable fields.
+        //
+        // Without the split, a single non-keyword field in the scan's row type (e.g. `amount`
+        // in a logs index) would disqualify Lucene from every query against the index, even
+        // queries that never reference `amount`.
+        java.util.Set<String> metadataOnlyBackends = new java.util.HashSet<>(registry.metadataOnlyScanBackends());
+        java.util.Set<String> coveredByMetadata = new java.util.HashSet<>();
         for (FieldStorageInfo field : fieldStorage) {
             if (field.isDerived()) {
                 throw new IllegalStateException(
                     "TableScan encountered derived field [" + field.getFieldName() + "] — derived fields cannot appear in a scan"
                 );
             }
-            // Backends that can natively scan this field's doc values
-            List<String> fieldBackends = registry.scanBackendsForField(field);
-            // Keep candidates that can scan natively or delegate to one that can
+            List<String> dvBackends = registry.scanBackendsForField(field);
+            List<String> idxBackends = registry.metadataScanBackendsForField(field);
+            for (String b : idxBackends) {
+                coveredByMetadata.add(b);
+            }
+            LOGGER.debug(
+                "[table-scan] field={} type={} indexFormats={} docValueFormats={} dvBackends={} idxBackends={}",
+                field.getFieldName(),
+                field.getFieldType(),
+                field.getIndexFormats(),
+                field.getDocValueFormats(),
+                dvBackends,
+                idxBackends
+            );
+            // Strict: every value-producing candidate must cover this field (or delegate to one that does).
             viableBackends.removeIf(candidate -> {
-                if (fieldBackends.contains(candidate)) return false;
-                return !delegationSupporters.contains(candidate) || fieldBackends.stream().noneMatch(delegationAcceptors::contains);
+                if (metadataOnlyBackends.contains(candidate)) return false;  // skip metadata-only here
+                if (dvBackends.contains(candidate)) return false;
+                return !delegationSupporters.contains(candidate) || dvBackends.stream().noneMatch(delegationAcceptors::contains);
             });
         }
+        // Permissive: metadata-only backends stay viable if any field they can scan exists.
+        viableBackends.removeIf(candidate -> metadataOnlyBackends.contains(candidate) && !coveredByMetadata.contains(candidate));
+        LOGGER.debug("[table-scan] viableBackends={}", viableBackends);
 
         if (viableBackends.isEmpty()) {
             throw new IllegalStateException("No backend can scan all requested fields on table [" + tableName + "]");

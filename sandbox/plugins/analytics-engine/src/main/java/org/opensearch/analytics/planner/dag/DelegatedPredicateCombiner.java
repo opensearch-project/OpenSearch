@@ -229,13 +229,42 @@ final class DelegatedPredicateCombiner {
      * - {@link DelegatedPredicateFunction} for correctness-delegation (driving backend cannot evaluate)
      * - {@link DelegationPossibleFunction} for performance-delegation (driving backend can evaluate natively,
      *   peer consulted opportunistically)
+     *
+     * <p>{@link Delegated#subtree()} is either a single {@link AnnotatedPredicate} (leaf
+     * case) or a raw {@code RexCall} that bubbled up an AND/OR/NOT of same-backend children
+     * (the bubble branches in {@link #classify}). The driving backend evaluates the unwrapped
+     * expression natively, so every {@code AnnotatedPredicate} marker — leaf or under a
+     * bubbled AND/OR — has to come off before the placeholder is built.
      */
     RexNode makePlaceholder(Delegated d) {
         if (d.performanceDelegation()) {
-            RexNode original = ((AnnotatedPredicate) d.subtree()).unwrap();
+            RexNode original = unwrapAnnotations(d.subtree());
             return DelegationPossibleFunction.makeCall(rexBuilder, original, d.firstAnnotationId());
         }
         return DelegatedPredicateFunction.makeCall(rexBuilder, d.firstAnnotationId());
+    }
+
+    /**
+     * Recursively strips {@link AnnotatedPredicate} wrappers from a RexNode tree. AND/OR/NOT
+     * are reconstructed with unwrapped operands; bare RexCalls that aren't AnnotatedPredicates
+     * pass through. Without this the driving backend's Substrait converter (e.g. Isthmus)
+     * trips on the unknown {@code ANNOTATED_PREDICATE} SqlOperator.
+     */
+    private RexNode unwrapAnnotations(RexNode node) {
+        if (node instanceof AnnotatedPredicate ap) {
+            return ap.unwrap();
+        }
+        if (node instanceof RexCall call) {
+            List<RexNode> unwrapped = new ArrayList<>(call.getOperands().size());
+            boolean changed = false;
+            for (RexNode op : call.getOperands()) {
+                RexNode u = unwrapAnnotations(op);
+                if (u != op) changed = true;
+                unwrapped.add(u);
+            }
+            return changed ? call.clone(call.getType(), unwrapped) : call;
+        }
+        return node;
     }
 
     /** Checks if the peer backend has a serializer for this predicate's function. */
