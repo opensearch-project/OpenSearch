@@ -59,8 +59,8 @@ public final class StatsLayout {
         taskMonitorGroup("query_execution"),
         taskMonitorGroup("stream_next"),
         taskMonitorGroup("plan_setup"),
-        partitionGateGroup("datanode_gate"),
-        partitionGateGroup("coordinator_gate")
+        partitionGateGroup("fragment_executor_gate"),
+        partitionGateGroup("reduce_gate")
     );
 
     static {
@@ -111,21 +111,21 @@ public final class StatsLayout {
     private static final VarHandle PS_TOTAL_SCHEDULED_DURATION_MS = handle("plan_setup", "total_scheduled_duration_ms");
     private static final VarHandle PS_TOTAL_IDLE_DURATION_MS = handle("plan_setup", "total_idle_duration_ms");
 
-    // ---- VarHandles for datanode_gate fields ----
-    private static final VarHandle DG_MAX_PERMITS = handle("datanode_gate", "max_permits");
-    private static final VarHandle DG_ACTIVE_PERMITS = handle("datanode_gate", "active_permits");
-    private static final VarHandle DG_TOTAL_WAIT_DURATION_MS = handle("datanode_gate", "total_wait_duration_ms");
-    private static final VarHandle DG_TOTAL_BATCHES_STARTED = handle("datanode_gate", "total_batches_started");
-    private static final VarHandle DG_POISON_PERMITS = handle("datanode_gate", "poison_permits");
-    private static final VarHandle DG_TARGET_MAX_PERMITS = handle("datanode_gate", "target_max_permits");
+    // ---- VarHandles for fragment_executor_gate fields ----
+    private static final VarHandle DG_MAX_PERMITS = handle("fragment_executor_gate", "max_permits");
+    private static final VarHandle DG_ACTIVE_PERMITS = handle("fragment_executor_gate", "active_permits");
+    private static final VarHandle DG_TOTAL_WAIT_DURATION_MS = handle("fragment_executor_gate", "total_wait_duration_ms");
+    private static final VarHandle DG_TOTAL_BATCHES_STARTED = handle("fragment_executor_gate", "total_batches_started");
+    private static final VarHandle DG_POISON_PERMITS = handle("fragment_executor_gate", "poison_permits");
+    private static final VarHandle DG_TARGET_MAX_PERMITS = handle("fragment_executor_gate", "target_max_permits");
 
-    // ---- VarHandles for coordinator_gate fields ----
-    private static final VarHandle CG_MAX_PERMITS = handle("coordinator_gate", "max_permits");
-    private static final VarHandle CG_ACTIVE_PERMITS = handle("coordinator_gate", "active_permits");
-    private static final VarHandle CG_TOTAL_WAIT_DURATION_MS = handle("coordinator_gate", "total_wait_duration_ms");
-    private static final VarHandle CG_TOTAL_BATCHES_STARTED = handle("coordinator_gate", "total_batches_started");
-    private static final VarHandle CG_POISON_PERMITS = handle("coordinator_gate", "poison_permits");
-    private static final VarHandle CG_TARGET_MAX_PERMITS = handle("coordinator_gate", "target_max_permits");
+    // ---- VarHandles for reduce_gate fields ----
+    private static final VarHandle CG_MAX_PERMITS = handle("reduce_gate", "max_permits");
+    private static final VarHandle CG_ACTIVE_PERMITS = handle("reduce_gate", "active_permits");
+    private static final VarHandle CG_TOTAL_WAIT_DURATION_MS = handle("reduce_gate", "total_wait_duration_ms");
+    private static final VarHandle CG_TOTAL_BATCHES_STARTED = handle("reduce_gate", "total_batches_started");
+    private static final VarHandle CG_POISON_PERMITS = handle("reduce_gate", "poison_permits");
+    private static final VarHandle CG_TARGET_MAX_PERMITS = handle("reduce_gate", "target_max_permits");
 
     private StatsLayout() {}
 
@@ -179,7 +179,7 @@ public final class StatsLayout {
      * Read a partition gate group (6 fields) from the segment.
      *
      * @param seg   the memory segment containing the DfStatsBuffer
-     * @param group "datanode_gate" or "coordinator_gate"
+     * @param group "fragment_executor_gate" or "reduce_gate"
      * @return a populated PartitionGateStats instance
      */
     public static PartitionGateStats readPartitionGate(MemorySegment seg, String group) {
@@ -278,14 +278,14 @@ public final class StatsLayout {
 
     private static VarHandle[] partitionGateHandles(String group) {
         return switch (group) {
-            case "datanode_gate" -> new VarHandle[] {
+            case "fragment_executor_gate" -> new VarHandle[] {
                 DG_MAX_PERMITS,
                 DG_ACTIVE_PERMITS,
                 DG_TOTAL_WAIT_DURATION_MS,
                 DG_TOTAL_BATCHES_STARTED,
                 DG_POISON_PERMITS,
                 DG_TARGET_MAX_PERMITS };
-            case "coordinator_gate" -> new VarHandle[] {
+            case "reduce_gate" -> new VarHandle[] {
                 CG_MAX_PERMITS,
                 CG_ACTIVE_PERMITS,
                 CG_TOTAL_WAIT_DURATION_MS,

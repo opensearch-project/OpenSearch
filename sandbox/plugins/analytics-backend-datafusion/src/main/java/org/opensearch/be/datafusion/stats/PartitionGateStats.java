@@ -53,7 +53,7 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
     /**
      * Construct from explicit field values.
      *
-     * @param name                JSON key for this gate (e.g. "datanode_gate", "coordinator_gate")
+     * @param name                JSON key for this gate (e.g. "fragment_executor_gate", "reduce_gate")
      * @param maxPermits          total semaphore capacity
      * @param activePermits       currently held permits
      * @param totalWaitDurationMs cumulative wait time in milliseconds

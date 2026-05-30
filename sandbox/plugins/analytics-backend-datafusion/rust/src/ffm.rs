@@ -89,8 +89,8 @@ pub extern "C" fn df_shutdown_runtime_manager() {
 }
 
 /// Updates the effective permit count of a named concurrency gate.
-/// Gate names: "datanode" (targets DedicatedExecutor gate) or
-///             "coordinator" (targets RuntimeManager coordinator gate).
+/// Gate names: "fragment_executor" (targets DedicatedExecutor gate) or
+///             "reduce" (targets RuntimeManager coordinator gate).
 ///
 /// Scale-up is synchronous. Scale-down spawns an async task on the IO
 /// runtime to acquire poison permits (may need to wait for in-flight
@@ -116,8 +116,8 @@ pub unsafe extern "C" fn df_update_concurrency_gate(
     };
 
     let gate = match gate_name {
-        "datanode" => mgr.cpu_executor().concurrency_gate().clone(),
-        "coordinator" => mgr.coordinator_gate().clone(),
+        "fragment_executor" => mgr.cpu_executor().concurrency_gate().clone(),
+        "reduce" => mgr.coordinator_gate().clone(),
         other => {
             warn!("df_update_concurrency_gate: unknown gate '{}'", other);
             return Ok(0);
@@ -1161,8 +1161,8 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         query_execution: pack_task_monitor(query_execution_monitor()),
         stream_next: pack_task_monitor(stream_next_monitor()),
         plan_setup: pack_task_monitor(plan_setup_monitor()),
-        datanode_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
-        coordinator_gate: pack_partition_gate(mgr.coordinator_gate()),
+        fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
+        reduce_gate: pack_partition_gate(mgr.coordinator_gate()),
     };
 
     // Copy struct bytes to caller buffer

@@ -38,28 +38,28 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
 
     public void testDatanodeMultiplierIsDynamic() {
         assertTrue(
-            "datafusion.concurrency.datanode_multiplier must be dynamic",
+            "datafusion.concurrency.fragment_executor_multiplier must be dynamic",
             DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.isDynamic()
         );
     }
 
     public void testCoordinatorMultiplierIsDynamic() {
         assertTrue(
-            "datafusion.concurrency.coordinator_multiplier must be dynamic",
+            "datafusion.concurrency.reduce_multiplier must be dynamic",
             DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.isDynamic()
         );
     }
 
     public void testDatanodeMultiplierHasNodeScope() {
         assertTrue(
-            "datafusion.concurrency.datanode_multiplier must have node scope",
+            "datafusion.concurrency.fragment_executor_multiplier must have node scope",
             DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.hasNodeScope()
         );
     }
 
     public void testCoordinatorMultiplierHasNodeScope() {
         assertTrue(
-            "datafusion.concurrency.coordinator_multiplier must have node scope",
+            "datafusion.concurrency.reduce_multiplier must have node scope",
             DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.hasNodeScope()
         );
     }
@@ -75,69 +75,69 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
     }
 
     public void testDatanodeMultiplierKeyName() {
-        assertEquals("datafusion.concurrency.datanode_multiplier", DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.getKey());
+        assertEquals("datafusion.concurrency.fragment_executor_multiplier", DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.getKey());
     }
 
     public void testCoordinatorMultiplierKeyName() {
-        assertEquals("datafusion.concurrency.coordinator_multiplier", DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.getKey());
+        assertEquals("datafusion.concurrency.reduce_multiplier", DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.getKey());
     }
 
     // ── Requirement 1.5, 1.6: Invalid values are rejected ──
 
     public void testDatanodeMultiplierRejectsZero() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 0.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 0.0).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings));
     }
 
     public void testDatanodeMultiplierRejectsNegative() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", -1.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", -1.0).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings));
     }
 
     public void testDatanodeMultiplierRejectsAboveMax() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 11.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 11.0).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings));
     }
 
     public void testDatanodeMultiplierRejectsBelowMin() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 0.05).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 0.05).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings));
     }
 
     public void testCoordinatorMultiplierRejectsZero() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.coordinator_multiplier", 0.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 0.0).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings));
     }
 
     public void testCoordinatorMultiplierRejectsAboveMax() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.coordinator_multiplier", 11.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 11.0).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings));
     }
 
     public void testCoordinatorMultiplierRejectsBelowMin() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.coordinator_multiplier", 0.05).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 0.05).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings));
     }
 
     // ── Requirement 1.5: Valid boundary values are accepted ──
 
     public void testDatanodeMultiplierAcceptsMinBoundary() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 0.1).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 0.1).build();
         assertEquals(0.1, DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings), 1e-15);
     }
 
     public void testDatanodeMultiplierAcceptsMaxBoundary() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 10.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 10.0).build();
         assertEquals(10.0, DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings), 1e-15);
     }
 
     public void testCoordinatorMultiplierAcceptsMinBoundary() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.coordinator_multiplier", 0.1).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 0.1).build();
         assertEquals(0.1, DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings), 1e-15);
     }
 
     public void testCoordinatorMultiplierAcceptsMaxBoundary() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.coordinator_multiplier", 10.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 10.0).build();
         assertEquals(10.0, DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings), 1e-15);
     }
 
@@ -211,7 +211,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
 
         clusterSettings.addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, receivedValue::set);
 
-        Settings newSettings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 3.0).build();
+        Settings newSettings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 3.0).build();
         clusterSettings.applySettings(newSettings);
 
         assertNotNull("Consumer should have been called", receivedValue.get());
@@ -224,7 +224,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
 
         clusterSettings.addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, receivedValue::set);
 
-        Settings newSettings = Settings.builder().put("datafusion.concurrency.coordinator_multiplier", 5.0).build();
+        Settings newSettings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 5.0).build();
         clusterSettings.applySettings(newSettings);
 
         assertNotNull("Consumer should have been called", receivedValue.get());
@@ -242,7 +242,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
         });
 
         double testMultiplier = 3.0;
-        Settings newSettings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", testMultiplier).build();
+        Settings newSettings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", testMultiplier).build();
         clusterSettings.applySettings(newSettings);
 
         int expected = Math.max(1, (int) (cpuThreads * testMultiplier));
@@ -256,7 +256,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
         clusterSettings.addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, receivedValue::set);
 
         // Attempting to apply an invalid value should throw
-        Settings invalidSettings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 0.0).build();
+        Settings invalidSettings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 0.0).build();
         expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(invalidSettings));
 
         // Consumer should NOT have been called
@@ -269,7 +269,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
 
         clusterSettings.addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, receivedValue::set);
 
-        Settings invalidSettings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", 11.0).build();
+        Settings invalidSettings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", 11.0).build();
         expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(invalidSettings));
 
         assertNull("Consumer should not fire for invalid values", receivedValue.get());
@@ -288,7 +288,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
         // Apply multiple updates sequentially
         double[] multipliers = { 2.0, 5.0, 0.5, 1.0, 8.0 };
         for (double m : multipliers) {
-            Settings newSettings = Settings.builder().put("datafusion.concurrency.datanode_multiplier", m).build();
+            Settings newSettings = Settings.builder().put("datafusion.concurrency.fragment_executor_multiplier", m).build();
             clusterSettings.applySettings(newSettings);
         }
 

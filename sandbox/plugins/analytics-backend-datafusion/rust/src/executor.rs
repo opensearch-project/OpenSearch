@@ -181,13 +181,15 @@ impl ConcurrencyGate {
                     gate_name, old_max, new_max, excess
                 );
             } else {
-                // Need to acquire additional poison permits
+                // Need to acquire additional poison permits (one at a time for precise release)
                 let additional_needed = total_poison_needed - existing_poison;
-                let permit = self.semaphore.clone()
-                    .acquire_many_owned(additional_needed)
-                    .await
-                    .expect("semaphore closed during resize");
-                state.poison_permits.push(permit);
+                for _ in 0..additional_needed {
+                    let permit = self.semaphore.clone()
+                        .acquire_owned()
+                        .await
+                        .expect("semaphore closed during resize");
+                    state.poison_permits.push(permit);
+                }
                 self.max_permits.store(new_max, Ordering::Release);
                 state.target_max_permits = new_max;
                 info!(
@@ -547,33 +549,26 @@ mod tests {
     /// Scale-up after scale-down: create gate with 8, resize down to 4 (poison held),
     /// then resize up to 6. Verify poison permits released and max_permits == 6.
     ///
-    /// Implementation note: acquire_many_owned(N) returns a single OwnedSemaphorePermit
-    /// representing N permits. The scale-up logic counts Vec entries (not permit count),
-    /// so dropping one entry releases all N permits back to the semaphore. The test
-    /// verifies the observable contract: max_permits reflects the target, and poison
-    /// permits are released (vec is empty after scale-up past the poison).
+    /// Each poison permit is acquired individually (one Vec entry = one permit),
+    /// so scale-up releases exactly the needed count without overshoot.
     #[tokio::test]
     async fn test_resize_scale_up_after_scale_down() {
         let gate = ConcurrencyGate::new(8);
 
-        // Scale down: 8 → 4 (acquires 4 poison permits as one OwnedSemaphorePermit)
+        // Scale down: 8 → 4 (acquires 4 individual poison permits)
         gate.resize(4, "test").await;
         assert_eq!(gate.max_permits(), 4);
         assert_eq!(gate.semaphore.available_permits(), 4);
-        assert_eq!(poison_permits_held(&gate).await, 1); // 1 entry holding 4 permits
+        assert_eq!(poison_permits_held(&gate).await, 4); // 4 entries, one permit each
 
         // Scale up: 4 → 6
-        // The poison entry (holding 4 permits) is dropped, returning 4 to semaphore.
-        // Then add_permits(1) is called for the remaining delta.
+        // Releases 2 poison permits (pops 2 entries), leaving 2 poison held.
         gate.resize(6, "test").await;
         assert_eq!(gate.max_permits(), 6);
-        // Poison permits should be fully released after scale-up
-        assert_eq!(poison_permits_held(&gate).await, 0);
-        // Available permits: the semaphore has more permits than max_permits due to
-        // the bulk release of the poison entry. This is an implementation detail of
-        // how acquire_many_owned stores multiple permits as one entry.
-        // The key contract is: max_permits == 6 and no poison held.
-        assert!(gate.semaphore.available_permits() >= 6);
+        // 2 poison permits remain (8 - 6 = 2 needed to maintain capacity at 6)
+        assert_eq!(poison_permits_held(&gate).await, 2);
+        // Available permits == max_permits - poison_held = 6 (semaphore has 6 available)
+        assert_eq!(gate.semaphore.available_permits(), 6);
     }
 
     // ─── Property-based tests ────────────────────────────────────────────

@@ -422,12 +422,12 @@ public class DataFusionPlugin extends Plugin
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
             int newMax = Math.max(1, (int) (cpuThreads * multiplier));
-            NativeBridge.updateConcurrencyGate("datanode", newMax);
+            NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
         });
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
             int newMax = Math.max(1, (int) (cpuThreads * multiplier));
-            NativeBridge.updateConcurrencyGate("coordinator", newMax);
+            NativeBridge.updateConcurrencyGate("reduce", newMax);
         });
 
         // Apply initial values

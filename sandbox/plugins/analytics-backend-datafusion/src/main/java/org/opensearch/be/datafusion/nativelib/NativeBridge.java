@@ -668,7 +668,7 @@ public final class NativeBridge {
 
     /**
      * Updates the effective permit count of a concurrency gate at runtime.
-     * Gate names: "datanode" or "coordinator".
+     * Gate names: "fragment_executor" or "reduce".
      */
     public static void updateConcurrencyGate(String gateName, int newMaxPermits) {
         try (var call = new NativeCall()) {
@@ -964,8 +964,8 @@ public final class NativeBridge {
             }
 
             // Partition gates
-            var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
-            var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
+            var datanodeGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate");
+            var coordinatorGate = StatsLayout.readPartitionGate(seg, "reduce_gate");
 
             return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
         }
