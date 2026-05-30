@@ -148,11 +148,11 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<FieldStorageInfo> fieldStorageInfos,
         List<String> childViableBackends
     ) {
-        PredicateAnalysis analysis = new PredicateAnalysis(new HashSet<>(), new ArrayList<>());
+        PredicateContents contents = new PredicateContents(new HashSet<>(), new ArrayList<>());
         for (RexNode operand : predicate.getOperands()) {
-            analyze(operand, analysis);
+            collect(operand, contents);
         }
-        Set<Integer> fieldIndices = analysis.fieldIndices();
+        Set<Integer> fieldIndices = contents.fieldIndices();
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
@@ -213,7 +213,7 @@ public class OpenSearchFilterRule extends RelOptRule {
         }
 
         // Every nested scalar function in the predicate must also be evaluable by a candidate backend
-        for (RexCall scalarFunctionCall : analysis.scalarFunctionCalls()) {
+        for (RexCall scalarFunctionCall : contents.scalarFunctionCalls()) {
             // Calcite-internal value constructors (named-parameter MAP/ARRAY/ROW used by full-text
             // operators like match() to pass `field`, `query`, etc.) aren't real scalar functions
             // they're parameter-passing scaffolding. Skip them
@@ -282,18 +282,25 @@ public class OpenSearchFilterRule extends RelOptRule {
      *
      * <p>{@code fieldIndices} — RexInputRef indices feeding the field-storage intersection.
      * <p>{@code scalarFunctionCalls} — nested RexCalls feeding the scalar-function capability intersection.
+     *
+     * <p>TODO: refactor as part of a wider {@link #resolveViableBackends} cleanup. Today the method
+     * juggles four concerns (operand walk, no-field branching, per-field intersection, scalar-function
+     * intersection); the unknown-operator throws at the outer comparator and the nested scalar function
+     * duplicate the same lookup-and-throw shape, and the walker here mirrors {@code OpenSearchProjectRule}'s
+     * operand traversal. A unified visitor over the predicate tree, shared between filter and project
+     * rules, would consolidate all of this.
      */
-    private record PredicateAnalysis(Set<Integer> fieldIndices, List<RexCall> scalarFunctionCalls) {
+    private record PredicateContents(Set<Integer> fieldIndices, List<RexCall> scalarFunctionCalls) {
     }
 
-    /** Recurses the operand subtree, populating {@code analysis} in-place. */
-    private void analyze(RexNode node, PredicateAnalysis analysis) {
+    /** Recurses the operand subtree, populating {@code contents} in-place. */
+    private void collect(RexNode node, PredicateContents contents) {
         if (node instanceof RexInputRef inputRef) {
-            analysis.fieldIndices().add(inputRef.getIndex());
+            contents.fieldIndices().add(inputRef.getIndex());
         } else if (node instanceof RexCall rexCall) {
-            analysis.scalarFunctionCalls().add(rexCall);
+            contents.scalarFunctionCalls().add(rexCall);
             for (RexNode operand : rexCall.getOperands()) {
-                analyze(operand, analysis);
+                collect(operand, contents);
             }
         }
     }

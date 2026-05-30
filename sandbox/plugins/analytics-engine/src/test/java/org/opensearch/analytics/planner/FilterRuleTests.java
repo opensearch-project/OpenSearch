@@ -364,6 +364,39 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     }
 
     /**
+     * Four-level nesting: {@code UPPER(CONCAT(UPPER(CONCAT(name, '_a')), '_b')) = 'FOO'}.
+     * Confirms the walk recurses through arbitrary depth; Lucene drops at any level it can't evaluate.
+     */
+    public void testDeeplyNestedScalarFunctionsDropLucene() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode level4 = rexBuilder.makeCall(
+            SqlStdOperatorTable.CONCAT,
+            rexBuilder.makeInputRef(varchar, 0),
+            rexBuilder.makeLiteral("_a")
+        );
+        RexNode level3 = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, level4);
+        RexNode level2 = rexBuilder.makeCall(SqlStdOperatorTable.CONCAT, level3, rexBuilder.makeLiteral("_b"));
+        RexNode level1 = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, level2);
+        RexNode predicate = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, level1, rexBuilder.makeLiteral("FOO"));
+
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("name", Map.of("type", "keyword", "index", true)),
+            new String[] { "name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            predicate
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("Only DataFusion remains viable", 1, annotated.getViableBackends().size());
+        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse(
+            "Lucene must be excluded across deeply nested scalar-function calls",
+            annotated.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
+    }
+
+    /**
      * AND of {@code status = 200} (no nested function) and {@code UPPER(country) = 'US'}
      * (nested UPPER). Each leaf is annotated independently: Lucene stays on the first
      * leaf and drops only on the second.
