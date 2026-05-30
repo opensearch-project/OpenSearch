@@ -34,6 +34,7 @@ import java.util.List;
 public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
+    private final boolean perPartition;
 
     public OpenSearchSort(
         RelOptCluster cluster,
@@ -44,8 +45,27 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         RexNode fetch,
         List<String> viableBackends
     ) {
+        this(cluster, traitSet, input, collation, offset, fetch, viableBackends, false);
+    }
+
+    public OpenSearchSort(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelNode input,
+        RelCollation collation,
+        RexNode offset,
+        RexNode fetch,
+        List<String> viableBackends,
+        boolean perPartition
+    ) {
         super(cluster, traitSet, input, collation, offset, fetch);
         this.viableBackends = viableBackends;
+        this.perPartition = perPartition;
+    }
+
+    /** True when this Sort runs per-shard (shard-bucket oversampling). */
+    public boolean isPerPartition() {
+        return perPartition;
     }
 
     @Override
@@ -65,7 +85,7 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
     @Override
     public Sort copy(RelTraitSet traitSet, RelNode input, RelCollation collation, RexNode offset, RexNode fetch) {
-        return new OpenSearchSort(getCluster(), traitSet, input, collation, offset, fetch, viableBackends);
+        return new OpenSearchSort(getCluster(), traitSet, input, collation, offset, fetch, viableBackends, perPartition);
     }
 
     /**

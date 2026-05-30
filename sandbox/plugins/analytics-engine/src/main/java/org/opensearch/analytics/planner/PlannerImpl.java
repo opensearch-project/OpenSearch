@@ -41,6 +41,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
+import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
@@ -107,6 +108,11 @@ public class PlannerImpl {
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
             LOGGER.info("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+        }
+        Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
+        if (topK.isPresent()) {
+            modifiedRelNode = topK.get();
+            LOGGER.info("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
         }
 
         if (listener != null) {
@@ -288,6 +294,7 @@ public class PlannerImpl {
     }
 
     /** Phase 2: VolcanoPlanner for trait propagation + exchange insertion. */
+
     private static RelNode cbo(RelNode marked, RelNode rawRelNode, PlannerContext context, RuleProfilingListener listener) {
         VolcanoPlanner volcanoPlanner = new VolcanoPlanner();
         volcanoPlanner.addRelTraitDef(ConventionTraitDef.INSTANCE);
