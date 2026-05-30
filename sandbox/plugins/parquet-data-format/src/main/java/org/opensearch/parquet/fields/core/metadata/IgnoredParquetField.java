@@ -19,6 +19,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS;
+
 /**
  * Parquet field for _ignored metadata stored as UTF-8 using {@link VarCharVector}.
  */
@@ -47,6 +50,6 @@ public class IgnoredParquetField extends ParquetField {
 
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-        return Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS);
+        return Set.of(STORED_FIELDS, COLUMNAR_STORAGE);
     }
 }

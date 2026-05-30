@@ -42,14 +42,11 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
-import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -69,7 +66,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return List.of(new MapperExtrasModulePlugin(), new MockDataFormatPlugin(), new MockCommitterEnginePlugin());
+        return List.of(new MapperExtrasModulePlugin());
     }
 
     @Override
@@ -222,26 +219,5 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
         return mapper.parse(request).docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
-    }
-
-    private DocumentMapper createIndexWithTokenCountFieldPluggableDataFormat() throws IOException {
-        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
-        return createDocumentMapper(pluggableSettings, mapping(b -> {
-            b.startObject("test");
-            {
-                b.field("type", "text");
-                b.startObject("fields");
-                {
-                    b.startObject("tc");
-                    {
-                        b.field("type", "token_count");
-                        b.field("analyzer", "standard");
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-        }));
     }
 }

@@ -30,6 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS;
+
 /**
  * Metadata fields plugin providing Parquet field implementations for OpenSearch metadata fields.
  */
@@ -53,7 +56,7 @@ public class MetadataFieldPlugin implements ParquetFieldPlugin {
         fieldMap.put(SourceFieldMapper.NAME, new BinaryParquetField() {
             @Override
             public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-                return Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS);
+                return Set.of(STORED_FIELDS, COLUMNAR_STORAGE);
             }
         });
         return fieldMap;
