@@ -138,9 +138,9 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
 
     /**
      * Mixed-backend AND: keyword-side leaf (Lucene viable) AND numeric-side leaf
-     * (DataFusion-only). With {@code fuseDualViable} on for count fast path, the planner
-     * delegates the keyword leaf to Lucene as a {@code DelegatedExpression} while DataFusion
-     * still owns the numeric leaf. With it off, both leaves stay native on the chosen backend.
+     * (DataFusion-only). The numeric leaf forces DataFusion as the operator backend on the
+     * Filter, so the keyword leaf either correctness-delegates to Lucene (when DataFusion
+     * doesn't have it natively) or stays as a {@code delegation_possible} performance hint.
      * Either way, the count must match the oracle.
      */
     public void testMixedAndFilter_keywordPlusNumeric() throws Exception {

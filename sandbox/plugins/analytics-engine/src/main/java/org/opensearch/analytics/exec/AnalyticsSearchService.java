@@ -476,34 +476,22 @@ public class AnalyticsSearchService implements AutoCloseable {
         int stageId, String shardIdStr) {
     }
 
-    /** Prefer this backend among the registered alternatives when present — count fast path. */
-    private static final String PREFERRED_BACKEND_ID = "lucene";
-
     private ResolvedFragment resolveFragment(FragmentExecutionRequest request, IndexShard shard) {
         IndexReaderProvider readerProvider = shard.getReaderProvider();
         if (readerProvider == null) {
             throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
         }
 
-        // Select among registered plan alternatives. Prefer Lucene when present — Lucene is
-        // only marked viable end-to-end when the fragment is fully metadata-soluble (count
-        // fast path today), so when it appears among alternatives it's strictly faster than
-        // the DataFusion alternative for the same fragment. Future Lucene-soluble shapes
-        // (group-by-count, top-K terms) plug in here naturally without a new selection rule.
+        // Backend selection happens on the coordinator (PlanAlternativeSelector), so the
+        // request typically carries a single alternative. We still iterate to handle the
+        // case where a stage genuinely has multiple value-producing alternatives — pick the
+        // first one whose backend is registered locally.
         FragmentExecutionRequest.PlanAlternative selectedPlan = null;
-        FragmentExecutionRequest.PlanAlternative fallbackPlan = null;
         for (FragmentExecutionRequest.PlanAlternative alt : request.getPlanAlternatives()) {
-            if (!backends.containsKey(alt.getBackendId())) continue;
-            if (PREFERRED_BACKEND_ID.equals(alt.getBackendId())) {
+            if (backends.containsKey(alt.getBackendId())) {
                 selectedPlan = alt;
                 break;
             }
-            if (fallbackPlan == null) {
-                fallbackPlan = alt;
-            }
-        }
-        if (selectedPlan == null) {
-            selectedPlan = fallbackPlan;
         }
         if (selectedPlan == null) {
             throw new IllegalArgumentException(

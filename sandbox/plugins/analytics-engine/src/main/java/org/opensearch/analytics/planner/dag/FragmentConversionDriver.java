@@ -77,11 +77,22 @@ public class FragmentConversionDriver {
     private FragmentConversionDriver() {}
 
     /**
-     * Converts all {@link StagePlan} alternatives in the DAG, populating
-     * {@link StagePlan#convertedBytes()} on each plan.
+     * Backwards-compatible overload — equivalent to {@code convertAll(dag, registry, false)}.
      */
     public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
-        convertStage(dag.rootStage(), registry);
+        convertAll(dag, registry, false);
+    }
+
+    /**
+     * Converts all {@link StagePlan} alternatives in the DAG, populating
+     * {@link StagePlan#convertedBytes()} on each plan.
+     *
+     * @param fuseDualViable when {@code true}, performance-delegated leaves fuse with
+     *     correctness-delegated siblings even under OR/NOT. Sourced from the cluster setting
+     *     {@code analytics.delegation.fuse_dual_viable}.
+     */
+    public static void convertAll(QueryDAG dag, CapabilityRegistry registry, boolean fuseDualViable) {
+        convertStage(dag.rootStage(), registry, fuseDualViable);
         // Root stage executes locally at coordinator — store factory for instruction dispatch.
         Stage root = dag.rootStage();
         if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
@@ -90,9 +101,9 @@ public class FragmentConversionDriver {
         }
     }
 
-    private static void convertStage(Stage stage, CapabilityRegistry registry) {
+    private static void convertStage(Stage stage, CapabilityRegistry registry, boolean fuseDualViable) {
         for (Stage child : stage.getChildStages()) {
-            convertStage(child, registry);
+            convertStage(child, registry, fuseDualViable);
         }
         // After children are converted, surface any decorator-induced schema delta as
         // postDecorationSchemaBytes on the child plans. The reduce sink consults this when
@@ -116,7 +127,7 @@ public class FragmentConversionDriver {
                 ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
                 : FilterTreeShape.NO_DELEGATION;
 
-            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
+            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry, fuseDualViable);
             byte[] bytes = convert(plan.resolvedFragment(), convertor, delegationBytes);
 
             // Assemble instruction list
@@ -228,10 +239,16 @@ public class FragmentConversionDriver {
      */
     static final class IntraOperatorDelegationBytes {
         private final CapabilityRegistry registry;
+        private final boolean fuseDualViable;
         private List<DelegatedExpression> delegatedExpressions;
 
         IntraOperatorDelegationBytes(CapabilityRegistry registry) {
+            this(registry, false);
+        }
+
+        IntraOperatorDelegationBytes(CapabilityRegistry registry, boolean fuseDualViable) {
             this.registry = registry;
+            this.fuseDualViable = fuseDualViable;
         }
 
         /**
@@ -248,7 +265,8 @@ public class FragmentConversionDriver {
                 fieldStorage,
                 registry,
                 rexBuilder,
-                delegatedExpressions
+                delegatedExpressions,
+                fuseDualViable
             );
             return new AnnotationResolver() {
 

@@ -93,6 +93,48 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     );
 
     /**
+     * When {@code true}, performance-delegated leaves (driver natively evaluable, peer also
+     * viable) fuse with their correctness-delegated siblings even under {@code OR} / {@code NOT}.
+     * The combiner ships the entire boolean structure as a single delegated expression instead
+     * of throwing the dual-viable leaves back to native.
+     *
+     * <p>Default {@code false} — the carve-out exists for a reason. Under {@code OR}, the
+     * {@code delegation_possible} pattern (driver evaluates natively, peer-consults
+     * opportunistically) is incorrect: the driver can't tell whether a peer miss means "this
+     * leaf didn't match" or "no leaf matched". Forcing fusion trades that semantic guarantee
+     * for fewer round-trips. Flip to {@code true} only when measurements show the peer's
+     * filter (e.g. Lucene's term dictionary) is decisively faster than the driver's column
+     * scan AND the workload's OR shape benefits from the consolidation.
+     */
+    public static final Setting<Boolean> DELEGATION_FUSE_DUAL_VIABLE = Setting.boolSetting(
+        "analytics.delegation.fuse_dual_viable",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * When {@code true}, prefer a metadata-only driving backend (e.g. Lucene's inverted index)
+     * over value-producing backends (e.g. DataFusion) whenever both are viable for a stage —
+     * i.e. the planner collapses {@code [lucene, datafusion]} alternatives into {@code [lucene]}
+     * before shipping. Each stage ends up with exactly one {@link
+     * org.opensearch.analytics.planner.dag.StagePlan}, so the data node skips per-request
+     * alternative selection and the convertor runs once per stage instead of once per
+     * alternative (saves coordinator CPU on conversion).
+     *
+     * <p>Default {@code true} — metadata-only backends are only viable end-to-end when the
+     * fragment is fully metadata-soluble (count fast path today), in which case they are
+     * strictly faster. Flip to {@code false} for A/B comparisons or to fall back to the
+     * value-producing backend if the metadata driver hits a regression.
+     */
+    public static final Setting<Boolean> PREFER_METADATA_DRIVER = Setting.boolSetting(
+        "analytics.planner.prefer_metadata_driver",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Creates a new analytics engine hub plugin.
      */
     public AnalyticsPlugin() {}
@@ -171,7 +213,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(COORDINATOR_BUFFER_LIMIT, ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
+        return List.of(
+            COORDINATOR_BUFFER_LIMIT,
+            DELEGATION_FUSE_DUAL_VIABLE,
+            PREFER_METADATA_DRIVER,
+            ReaderContextStore.READER_CONTEXT_KEEP_ALIVE
+        );
     }
 
     @Override

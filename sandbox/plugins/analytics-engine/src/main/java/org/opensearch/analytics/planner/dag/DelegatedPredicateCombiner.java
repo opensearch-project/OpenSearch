@@ -41,6 +41,13 @@ final class DelegatedPredicateCombiner {
     private final CapabilityRegistry registry;
     private final RexBuilder rexBuilder;
     private final List<DelegatedExpression> delegatedExpressions;
+    /**
+     * When true, performance-delegated leaves stay in the delegation pool under OR/NOT
+     * (instead of being thrown back to native). Lets the entire boolean structure ship to
+     * the peer backend as one delegated expression. See
+     * {@code AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE} for the tradeoff.
+     */
+    private final boolean fuseDualViable;
 
     DelegatedPredicateCombiner(
         String operatorBackend,
@@ -49,11 +56,23 @@ final class DelegatedPredicateCombiner {
         RexBuilder rexBuilder,
         List<DelegatedExpression> delegatedExpressions
     ) {
+        this(operatorBackend, fieldStorage, registry, rexBuilder, delegatedExpressions, false);
+    }
+
+    DelegatedPredicateCombiner(
+        String operatorBackend,
+        List<FieldStorageInfo> fieldStorage,
+        CapabilityRegistry registry,
+        RexBuilder rexBuilder,
+        List<DelegatedExpression> delegatedExpressions,
+        boolean fuseDualViable
+    ) {
         this.operatorBackend = operatorBackend;
         this.fieldStorage = fieldStorage;
         this.registry = registry;
         this.rexBuilder = rexBuilder;
         this.delegatedExpressions = delegatedExpressions;
+        this.fuseDualViable = fuseDualViable;
     }
 
     /** Bottom-up: classify each node as Delegated (carries the RexNode subtree) or Resolved. */
@@ -99,7 +118,12 @@ final class DelegatedPredicateCombiner {
 
         for (Classified c : kids) {
             if (c instanceof Delegated d) {
-                if (isOrNot && d.performanceDelegation()) {
+                // Under OR/NOT, performance-delegated leaves are thrown back to native by
+                // default — the {@code delegation_possible} pattern doesn't compose with
+                // disjunction (the driver can't tell "leaf didn't match" from "no leaf matched"
+                // when the peer misses). When {@code fuseDualViable} is on the carve-out is
+                // skipped so the entire boolean ships to the peer as one delegated expression.
+                if (isOrNot && d.performanceDelegation() && !fuseDualViable) {
                     ordered.add(applyFn.apply((AnnotatedPredicate) d.subtree()));
                 } else {
                     (d.performanceDelegation() ? performanceChildren : correctnessChildren).add(d);
