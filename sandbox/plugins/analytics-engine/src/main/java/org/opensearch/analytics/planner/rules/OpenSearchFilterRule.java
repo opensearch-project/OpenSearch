@@ -283,12 +283,9 @@ public class OpenSearchFilterRule extends RelOptRule {
      * <p>{@code fieldIndices} — RexInputRef indices feeding the field-storage intersection.
      * <p>{@code scalarFunctionCalls} — nested RexCalls feeding the scalar-function capability intersection.
      *
-     * <p>TODO: refactor as part of a wider {@link #resolveViableBackends} cleanup. Today the method
-     * juggles four concerns (operand walk, no-field branching, per-field intersection, scalar-function
-     * intersection); the unknown-operator throws at the outer comparator and the nested scalar function
-     * duplicate the same lookup-and-throw shape, and the walker here mirrors {@code OpenSearchProjectRule}'s
-     * operand traversal. A unified visitor over the predicate tree, shared between filter and project
-     * rules, would consolidate all of this.
+     * <p>TODO: ensure that the code for tagging and checking the scalar function of a predicate
+     * remains the same as the code for tagging and checking its nested inner expressions as much
+     * as possible.
      */
     private record PredicateContents(Set<Integer> fieldIndices, List<RexCall> scalarFunctionCalls) {
     }
