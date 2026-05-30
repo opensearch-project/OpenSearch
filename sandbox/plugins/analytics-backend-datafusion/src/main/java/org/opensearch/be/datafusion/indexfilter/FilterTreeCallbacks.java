@@ -57,14 +57,30 @@ public final class FilterTreeCallbacks {
     }
 
     private static long trackStart() {
-        DelegationThreadTracker t = TRACKER.get();
-        return (t != null) ? t.trackStart() : -1;
+        // Must never throw — runs OUTSIDE the try/catch in each upcall target, so any
+        // escaping exception (e.g. an `assert false` in TaskResourceTrackingService when
+        // the thread is already tracked) crosses the FFM boundary and aborts the JVM
+        // with `Unrecoverable uncaught exception encountered`. Swallow everything and
+        // disable tracking for the remainder of this upcall by returning -1.
+        try {
+            DelegationThreadTracker t = TRACKER.get();
+            return (t != null) ? t.trackStart() : -1;
+        } catch (Throwable throwable) {
+            LOGGER.warn("trackStart failed; resource attribution disabled for this upcall", throwable);
+            return -1;
+        }
     }
 
     private static void trackEnd(long threadId) {
         if (threadId < 0) return;
-        DelegationThreadTracker t = TRACKER.get();
-        if (t != null) t.trackEnd(threadId);
+        // Same FFM safety rule as trackStart — runs in a `finally` block, so any
+        // exception escaping here would mask the actual upcall result and abort the JVM.
+        try {
+            DelegationThreadTracker t = TRACKER.get();
+            if (t != null) t.trackEnd(threadId);
+        } catch (Throwable throwable) {
+            LOGGER.warn("trackEnd failed", throwable);
+        }
     }
 
     // ── Provider lifecycle (cold path, once per query) ────────────────
