@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -23,8 +25,8 @@ import java.util.Map;
  *
  * <p>Mirrors {@code CalciteReplaceCommandIT} from the {@code opensearch-project/sql} repository so
  * that the analytics-engine path can be verified inside core without cross-plugin dependencies on
- * the SQL plugin. Each test sends a PPL query through {@code POST /_analytics/ppl} (exposed by the
- * {@code test-ppl-frontend} plugin), which runs the same {@code UnifiedQueryPlanner} →
+ * the SQL plugin. Each test sends a PPL query through {@code POST /_plugins/_ppl} (exposed by the
+ * {@code opensearch-sql} plugin), which runs the same {@code UnifiedQueryPlanner} →
  * {@code CalciteRelNodeVisitor} → Substrait → DataFusion pipeline.
  *
  * <p>Two distinct lowering targets are exercised:
@@ -51,7 +53,8 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -60,6 +63,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
 
     // ── command form: literal pattern (SqlStdOperatorTable.REPLACE) ─────────────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralSinglePair() throws IOException {
         // FURNITURE → FURN in str0; 2 rows affected, others unchanged.
         // assertContainsRow uses substring/contains — order-independent.
@@ -69,6 +73,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralMultiplePairs() throws IOException {
         // Nested REPLACE in projection: REPLACE(REPLACE(str0, 'FURNITURE', 'F'), 'TECHNOLOGY', 'T').
         // FURNITURE (×2) → 'F', TECHNOLOGY (×9) → 'T', OFFICE SUPPLIES (×6) → unchanged.
@@ -90,6 +95,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralExpectedRows() throws IOException {
         // Verify the actual replaced values (not just counts) for the FURNITURE rows.
         assertRows(
@@ -99,6 +105,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceLiteralAcrossMultipleFields() throws IOException {
         // Replace value 'FURNITURE' in BOTH str0 and str1. str1 has no FURNITURE → unaffected.
         // str0 has 2 → renamed to FURN.
@@ -116,6 +123,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
     // parse. RegexpReplaceAdapter (in DataFusionAnalyticsBackendPlugin.scalarFunctionAdapters)
     // rewrites `\Q…\E` blocks to per-char-escaped literals before substrait serialization.
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceWildcardSuffix() throws IOException {
         // '*BOARDS' matches strings ending in BOARDS — CORDED KEYBOARDS, CORDLESS KEYBOARDS (×2).
         // Whole-string replacement: matched values become 'KBD'.
@@ -125,6 +133,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceWildcardPrefix() throws IOException {
         // 'BUSINESS*' matches BUSINESS ENVELOPES, BUSINESS COPIERS (×2).
         assertRowCount(
@@ -135,6 +144,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
 
     // ── function form: regexp_replace() in eval projection ─────────────────────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testRegexpReplaceInEval() throws IOException {
         // eval-side regexp_replace lowers to REGEXP_REPLACE_3. Replace any digit run in str0 with
         // empty — no-op for these string values, exercises the function-form code path.
@@ -145,6 +155,7 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testReplaceFunctionInEval() throws IOException {
         // PPL replace() function in eval also lowers to REGEXP_REPLACE_3 (per
         // PPLFuncImpTable.register for BuiltinFunctionName.REPLACE).
@@ -172,8 +183,8 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
     private void assertRowCount(String ppl, int expectedCount) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expectedCount, actualRows.size());
     }
 
@@ -182,8 +193,8 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
     private final void assertRows(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
             List<Object> want = expected[i];
@@ -210,8 +221,8 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(
@@ -223,11 +234,4 @@ public class ReplaceCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

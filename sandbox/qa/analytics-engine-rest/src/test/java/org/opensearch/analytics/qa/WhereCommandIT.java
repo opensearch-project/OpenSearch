@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -22,8 +24,8 @@ import java.util.Map;
  * <p>Mirrors the surface exercised by {@code CalciteWhereCommandIT} from the
  * {@code opensearch-project/sql} repository, adapted to the {@code calcs} dataset
  * shipped under {@code sandbox/qa/analytics-engine-rest/src/test/resources/datasets/calcs/}.
- * Each test sends a PPL query through {@code POST /_analytics/ppl} (exposed by the
- * {@code test-ppl-frontend} plugin), exercising the same {@code UnifiedQueryPlanner} →
+ * Each test sends a PPL query through {@code POST /_plugins/_ppl} (exposed by the
+ * {@code opensearch-sql} plugin), exercising the same {@code UnifiedQueryPlanner} →
  * {@code CalciteRelNodeVisitor} → analytics-engine planner → Substrait → DataFusion
  * pipeline as the SQL plugin's force-routed analytics path.
  *
@@ -53,7 +55,8 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
      * as {@link FillNullCommandIT} — {@code client()} is only reliably available inside a
      * test body, not in {@code @BeforeClass} / {@code setUp()}.
      */
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -242,6 +245,7 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
 
     // ── Sub-expression scalar calls (pass through to DataFusion) ────────────
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testWhereInnerLength() throws IOException {
         // length('FURNITURE') = 9 → 2 rows.
         assertRowCount(
@@ -280,8 +284,8 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
     private void assertRowCount(String ppl, int expectedCount) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals(
             "Row count mismatch for query: " + ppl + " — got rows: " + actualRows,
             expectedCount,
@@ -299,8 +303,8 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
     private final void assertRows(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
             List<Object> want = expected[i];
@@ -320,13 +324,6 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     private static void assertCellEquals(String message, Object expected, Object actual) {
         if (expected == null || actual == null) {

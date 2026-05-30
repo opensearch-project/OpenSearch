@@ -97,7 +97,7 @@ public class IndexPatternUnionIT extends AnalyticsRestTestCase {
         ensureProvisioned();
         Map<String, Object> body = executePpl("source=" + ALIAS + " | fields name, age, alias");
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) body.get("columns");
+        List<String> columns = extractColumnNames(body);
         assertEquals("union output column order must match requested fields", List.of("name", "age", "alias"), columns);
     }
 
@@ -114,7 +114,7 @@ public class IndexPatternUnionIT extends AnalyticsRestTestCase {
         bulk(dotted, "{\"v\":1}\n{\"v\":2}\n");
         Map<String, Object> body = executePpl("source=" + dotted + " | stats count() as c");
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals("single count row", 1, rows.size());
         assertEquals("dotted index must scan its 2 rows", 2L, ((Number) rows.get(0).get(0)).longValue());
     }
@@ -124,7 +124,7 @@ public class IndexPatternUnionIT extends AnalyticsRestTestCase {
         ensureProvisioned();
         Map<String, Object> body = executePpl("source=" + ALIAS + " | stats count() as c");
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals("single count row", 1, rows.size());
         assertEquals("union_a (2) + union_b (1)", 3L, ((Number) rows.get(0).get(0)).longValue());
     }
@@ -137,7 +137,7 @@ public class IndexPatternUnionIT extends AnalyticsRestTestCase {
         assertTrue("schema must carry all union columns", col.containsKey("name") && col.containsKey("age") && col.containsKey("alias"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals("union row count", 3, rows.size());
 
         Map<String, List<Object>> byName = new HashMap<>();
@@ -164,7 +164,7 @@ public class IndexPatternUnionIT extends AnalyticsRestTestCase {
     /** Maps each column name in the PPL response to its position in the row arrays. */
     @SuppressWarnings("unchecked")
     private static Map<String, Integer> columnIndex(Map<String, Object> body) {
-        List<String> columns = (List<String>) body.get("columns");
+        List<String> columns = extractColumnNames(body);
         assertNotNull("response must carry columns", columns);
         Map<String, Integer> col = new HashMap<>();
         for (int i = 0; i < columns.size(); i++) {
@@ -175,11 +175,6 @@ public class IndexPatternUnionIT extends AnalyticsRestTestCase {
 
     // ── helpers ──────────────────────────────────────────────────────────
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        return assertOkAndParse(client().performRequest(request), "PPL: " + ppl);
-    }
 
     private void createParquetIndex(String name, String mappingJson) throws IOException {
         Request create = new Request("PUT", "/" + name);

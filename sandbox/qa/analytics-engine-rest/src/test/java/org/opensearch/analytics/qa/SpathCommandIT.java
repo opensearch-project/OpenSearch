@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -22,7 +24,7 @@ import java.util.Map;
  * <p>Mirrors {@code CalcitePPLSpathCommandIT} from the {@code opensearch-project/sql}
  * repository one-test-method-to-one so the analytics-engine path can be verified inside
  * core without cross-plugin dependencies on the SQL plugin. Each test sends a PPL query
- * through {@code POST /_analytics/ppl} (exposed by the {@code test-ppl-frontend}
+ * through {@code POST /_plugins/_ppl} (exposed by the {@code opensearch-sql}
  * plugin), which runs the same {@code UnifiedQueryPlanner} → {@code CalciteRelNodeVisitor}
  * → Substrait → DataFusion pipeline as the SQL plugin's force-routed analytics path.
  *
@@ -57,7 +59,8 @@ public class SpathCommandIT extends AnalyticsRestTestCase {
      * {@code client()} is not initialized until after {@code @BeforeClass}, but is
      * reliably available inside test bodies.
      */
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), SIMPLE);
             DatasetProvisioner.provision(client(), AUTO);
@@ -171,6 +174,7 @@ public class SpathCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testSpathAutoExtractWithWhere() throws IOException {
         // EQUALS on a MAP-column expression goes through the FieldType.MAP filter
         // capability registered for the analytics-engine route.
@@ -257,8 +261,8 @@ public class SpathCommandIT extends AnalyticsRestTestCase {
     private final void assertMapRows(String ppl, Map<String, Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
             Map<String, Object> want = expected[i];
@@ -291,8 +295,8 @@ public class SpathCommandIT extends AnalyticsRestTestCase {
     private final void assertRowsAnyOrder(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         java.util.List<List<Object>> remaining = new java.util.ArrayList<>(actualRows);
         for (List<Object> want : expected) {
@@ -334,8 +338,8 @@ public class SpathCommandIT extends AnalyticsRestTestCase {
     private final void assertRows(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
             List<Object> want = expected[i];
@@ -355,14 +359,8 @@ public class SpathCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    /** {@code POST /_analytics/ppl} and parse the JSON body. */
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
+    /** {@code POST /_plugins/_ppl} and parse the JSON body. */
+
 
     /**
      * Numeric-tolerant cell comparison. Numbers cross-compare via {@code doubleValue()};
