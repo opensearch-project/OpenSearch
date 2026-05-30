@@ -13,6 +13,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -50,6 +51,36 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET);
             dataProvisioned = true;
+        }
+    }
+
+    /**
+     * Regression for the QTF Arrow type converter: a {@code sort … | head N} query goes through
+     * late-materialization (query-then-fetch), which fetches the above-anchor physical fields by
+     * row-id and builds their Arrow output schema via {@code ArrowCalciteTypes.toArrow}. Here
+     * {@code Age} is an OpenSearch {@code short} (Calcite SMALLINT); before SMALLINT/TINYINT were
+     * mapped, the stitch threw {@code "Unsupported Calcite type: SMALLINT"} and the whole query
+     * 500'd. Assert the short column materializes as numbers across the fetched rows.
+     *
+     * <p>Row <em>order</em> is intentionally not asserted — clickbench is provisioned at 2 shards
+     * and the QTF concat-gather does not globally merge-sort, so which 5 rows come back is not
+     * deterministic. This test only proves the SMALLINT above-anchor field round-trips.
+     */
+    public void testQtfFetchOfShortAboveAnchorField() throws IOException {
+        Map<String, Object> response = executePpl(
+            "source=" + ClickBenchTestHelper.DATASET.indexName + " | sort WatchID | head 5 | fields WatchID, Age"
+        );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("datarows missing — QTF stitch likely failed before returning", rows);
+        assertEquals("head 5 should return 5 rows", 5, rows.size());
+        for (List<Object> r : rows) {
+            assertEquals("row should have [WatchID, Age]", 2, r.size());
+            assertTrue(
+                "Age (short/SMALLINT) must materialize as a number, got " + r.get(1) + " of "
+                    + (r.get(1) == null ? "null" : r.get(1).getClass().getSimpleName()),
+                r.get(1) instanceof Number
+            );
         }
     }
 
