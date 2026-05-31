@@ -33,6 +33,7 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     private final DocumentInput<?> primaryDocumentInput;
     private final DataFormat primaryFormat;
     private final Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs;
+    private long rowId = -1L;
 
     /**
      * Constructs a CompositeDocumentInput with a primary format input and secondary format inputs.
@@ -81,6 +82,12 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
         for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
             input.setRowId(rowIdFieldName, rowId);
         }
+        this.rowId = rowId;
+    }
+
+    /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
+    public long getRowId() {
+        return rowId;
     }
 
     public long getFieldCount(String fieldName) {

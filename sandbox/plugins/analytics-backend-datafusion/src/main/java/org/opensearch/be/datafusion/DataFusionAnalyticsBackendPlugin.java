@@ -8,15 +8,19 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -39,9 +43,12 @@ import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -334,6 +341,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.WIDTH_BUCKET,
         ScalarFunction.MINSPAN_BUCKET,
         ScalarFunction.RANGE_BUCKET,
+        ScalarFunction.CONVERT,
         // PPL `TIMESTAMPDIFF(unit, t1, t2)` / `TIMESTAMPADD(unit, n, t)` — lowering target for
         // timechart's `per_*` aggregations (per_second / per_minute / per_hour / per_day),
         // which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND', @timestamp,
@@ -359,11 +367,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.ARRAY,
         ScalarFunction.ARRAY_SLICE,
         ScalarFunction.ARRAY_DISTINCT,
-        // PPL `mvzip` returns ARRAY<VARCHAR>; backed by a custom Rust UDF on the DataFusion
-        // session context (`udf::mvzip`), routed via {@link MvzipAdapter}.
+        ScalarFunction.ITEM,
+        ScalarFunction.SAFE_CAST,
         ScalarFunction.MVZIP,
-        // PPL `mvappend` returns ARRAY<commonType>; backed by a custom Rust UDF
-        // (`udf::mvappend`), routed via {@link MvappendAdapter}.
         ScalarFunction.MVAPPEND
     );
 
@@ -381,16 +387,19 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * auto-extract mode; routes to the {@code json_extract_all} Rust UDF via
      * {@link JsonFunctionAdapters.JsonExtractAllAdapter}.
      */
-    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL, ScalarFunction.PARSE);
+    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
+        ScalarFunction.JSON_EXTRACT_ALL,
+        ScalarFunction.PARSE,
+        ScalarFunction.ITEM,
+        ScalarFunction.SAFE_CAST,
+        ScalarFunction.PATTERN_PARSER
+    );
 
     /**
      * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
      */
     private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS = Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
 
-    // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
-    // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
-    // opensearch_aggregate_functions.yaml.
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -403,7 +412,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.FIRST,
         AggregateFunction.LAST,
         AggregateFunction.LIST,
-        AggregateFunction.VALUES
+        AggregateFunction.VALUES,
+        AggregateFunction.PATTERN
     );
 
     private final DataFusionPlugin plugin;
@@ -460,7 +470,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.COUNT,
                             WindowFunction.MIN,
                             WindowFunction.MAX,
-                            WindowFunction.ROW_NUMBER
+                            WindowFunction.ROW_NUMBER,
+                            WindowFunction.PATTERN
                         ),
                         Set.copyOf(plugin.getSupportedFormats())
                     )
@@ -572,13 +583,26 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
+                    // Trigonometric functions: substrait `sin/cos/tan/...` declare fp32/fp64 impls only.
+                    // PPL emits e.g. SIN(integer_field) which Calcite types as SIN(i32?) — isthmus then
+                    // fails signature lookup. NumericToDoubleAdapter widens any numeric operand to fp64
+                    // before substrait conversion (no-op when the operand is already fp32/fp64).
+                    Map.entry(ScalarFunction.ACOS, new NumericToDoubleAdapter(SqlStdOperatorTable.ACOS)),
+                    Map.entry(ScalarFunction.ASIN, new NumericToDoubleAdapter(SqlStdOperatorTable.ASIN)),
+                    Map.entry(ScalarFunction.ATAN, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN)),
+                    Map.entry(ScalarFunction.ATAN2, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN2)),
+                    Map.entry(ScalarFunction.RADIANS, new NumericToDoubleAdapter(SqlStdOperatorTable.RADIANS)),
+                    Map.entry(ScalarFunction.DEGREES, new NumericToDoubleAdapter(SqlStdOperatorTable.DEGREES)),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
                     Map.entry(ScalarFunction.CAST, ipBinaryCast),
                     Map.entry(ScalarFunction.CIDRMATCH, new CidrMatchFunctionAdapter()),
                     Map.entry(ScalarFunction.COALESCE, new CoalesceAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
+                    Map.entry(ScalarFunction.CONVERT, new ConvAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
+                    Map.entry(ScalarFunction.COS, new NumericToDoubleAdapter(SqlStdOperatorTable.COS)),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
+                    Map.entry(ScalarFunction.COT, new NumericToDoubleAdapter(SqlStdOperatorTable.COT)),
                     Map.entry(ScalarFunction.CURDATE, currentDate),
                     Map.entry(ScalarFunction.CURRENT_DATE, currentDate),
                     Map.entry(ScalarFunction.CURRENT_TIME, currentTime),
@@ -615,6 +639,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
+                    Map.entry(ScalarFunction.PATTERN_PARSER, new PatternParserAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.LN, new NumericToDoubleAdapter(SqlStdOperatorTable.LN)),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
@@ -649,6 +674,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SECOND_OF_MINUTE, second),
                     Map.entry(ScalarFunction.SHA2, new Sha2FunctionAdapter()),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
+                    Map.entry(ScalarFunction.SIN, new NumericToDoubleAdapter(SqlStdOperatorTable.SIN)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.SPAN, new SpanAdapter()),
                     Map.entry(ScalarFunction.SPAN_BUCKET, new SpanBucketAdapter()),
@@ -658,6 +684,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SUBSTR, nameMapping(SqlStdOperatorTable.SUBSTRING)),
                     Map.entry(ScalarFunction.SUBSTRING, nameMapping(SqlStdOperatorTable.SUBSTRING)),
                     Map.entry(ScalarFunction.SYSDATE, now),
+                    Map.entry(ScalarFunction.TAN, new NumericToDoubleAdapter(SqlStdOperatorTable.TAN)),
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
@@ -794,7 +821,45 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
+    public EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
+        DataFusionService dataFusionService = plugin.getDataFusionService();
+        if (dataFusionService == null) {
+            throw new IllegalStateException("DataFusionService not initialized");
+        }
+
+        DatafusionReader dfReader = null;
+        DataFormatRegistry registry = plugin.getDataFormatRegistry();
+        for (String formatName : plugin.getSupportedFormats()) {
+            dfReader = reader.getReader(registry.format(formatName), DatafusionReader.class);
+            if (dfReader != null) break;
+        }
+        if (dfReader == null) {
+            throw new IllegalStateException("No DatafusionReader available for fetch-by-row-ids");
+        }
+
+        // Pass row IDs to Rust via BigIntVector's direct buffer (zero-copy at FFM).
+        // BigIntVector data buffer is a contiguous off-heap array of i64 values.
+        long bufAddr = rowIdVector.getDataBuffer().memoryAddress();
+        int count = rowIdVector.getValueCount();
+
+        long streamPtr;
+        if (bufAddr != 0 && count > 0) {
+            streamPtr = NativeBridge.fetchByRowIds(
+                dfReader.getReaderHandle().getPointer(),
+                bufAddr,
+                count,
+                columns,
+                dataFusionService.getNativeRuntime().get()
+            );
+        } else {
+            throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
+        }
+        StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
+        return new DatafusionResultStream(streamHandle, allocator);
+    }
+
+    @Override
+    public void setDelegationThreadTracker(DelegationThreadTracker tracker) {
         FilterTreeCallbacks.setThreadTracker(tracker);
     }
 

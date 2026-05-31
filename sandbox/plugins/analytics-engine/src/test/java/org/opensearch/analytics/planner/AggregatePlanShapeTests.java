@@ -9,13 +9,7 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.logical.LogicalAggregate;
-import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-
-import java.util.List;
 
 /**
  * Plan-shape tests for {@link org.opensearch.analytics.planner.rel.OpenSearchAggregate}.
@@ -26,8 +20,9 @@ import java.util.List;
  */
 public class AggregatePlanShapeTests extends PlanShapeTestBase {
 
-    public void testStatsCountStar_1shard() {
-        RelNode plan = makeAggregate(stubScan(mockTable("test_index", "status", "size")), countStarCall());
+    public void testStatsCountStarByKey_1shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, countStarCall(scan));
         RelNode result = runPlanner(plan, singleShardContext());
         assertPlanShape("""
             OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
@@ -35,12 +30,14 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
             """, result);
     }
 
-    public void testStatsCountStar_2shard() {
-        RelNode plan = makeAggregate(stubScan(mockTable("test_index", "status", "size")), countStarCall());
+    public void testStatsCountStarByKey_2shard() {
+        // FINAL's COUNT is rebuilt as SUM($1) by the COUNT→SUM swap in FinalAggCallBuilder.
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, countStarCall(scan));
         RelNode result = runPlanner(plan, multiShardContext());
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                   OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                     OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -50,7 +47,8 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
     }
 
     public void testStatsSumByKey_1shard() {
-        RelNode plan = makeAggregate(stubScan(mockTable("test_index", "status", "size")), sumCall());
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, sumCall(scan));
         RelNode result = runPlanner(plan, singleShardContext());
         assertPlanShape("""
             OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
@@ -59,7 +57,8 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
     }
 
     public void testStatsSumByKey_2shard() {
-        RelNode plan = makeAggregate(stubScan(mockTable("test_index", "status", "size")), sumCall());
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, sumCall(scan));
         RelNode result = runPlanner(plan, multiShardContext());
         assertPlanShape(
             """
@@ -72,37 +71,30 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
         );
     }
 
-    public void testStatsAvgByKey_2shard() {
-        // AVG is decomposed during the reduce phase into SUM/COUNT plus a Project
-        // computing the quotient. After split, FINAL receives reduced primitive aggs.
-        // Use AggregateCall.create with null type so Calcite infers AVG's canonical
-        // return type — passing an explicit type can drift from typeMatchesInferred.
+    public void testStatsAvgByKey_1shard() {
+        // AVG → SUM/COUNT primitives plus a Project for the quotient; SINGLE only.
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
-        AggregateCall avg = AggregateCall.create(
-            SqlStdOperatorTable.AVG,
-            false,
-            false,
-            false,
-            List.of(),
-            List.of(1),
-            -1,
-            null,
-            org.apache.calcite.rel.RelCollations.EMPTY,
-            1,
-            scan,
-            null,
-            "avg_size"
-        );
-        RelNode plan = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(avg));
-        RelNode result = runPlanner(plan, multiShardContext());
-        // Project on top performs CAST(SUM(x) / COUNT()) back to AVG's declared return type.
-        // COUNT here has no field operand because the inferred AVG decomposition produces a
-        // bare COUNT (counts all rows in the group, equivalent to COUNT(x) when x is not nullable).
-        // Skeleton: Project ← FINAL(SUM,COUNT) ← ER ← PARTIAL(SUM,COUNT) ← Scan.
+        RelNode plan = makeAggregate(scan, ImmutableBitSet.of(0), avgCall(scan));
+        RelNode result = runPlanner(plan, singleShardContext());
         assertPlanShape(
             """
                 OpenSearchProject(status=[$0], avg_size=[ANNOTATED_PROJECT_EXPR(id=3, backends=[mock-parquet], CAST(ANNOTATED_PROJECT_EXPR(id=2, backends=[mock-parquet], /($1, $2))):INTEGER NOT NULL)], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    public void testStatsAvgByKey_2shard() {
+        // AVG decomposes pre-split; FINAL receives the reduced primitives.
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, ImmutableBitSet.of(0), avgCall(scan));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], avg_size=[ANNOTATED_PROJECT_EXPR(id=3, backends=[mock-parquet], CAST(ANNOTATED_PROJECT_EXPR(id=2, backends=[mock-parquet], /($1, $2))):INTEGER NOT NULL)], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], $f1=[SUM($1)], $f2=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -111,36 +103,60 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
         );
     }
 
-    public void testStatsMultiCall_2shard() {
-        // sum + count_star, both grouped by status. Single PARTIAL/FINAL pair carries
-        // both calls.
+    public void testStatsSumCountByKey_1shard() {
+        // SINGLE aggregate carries both calls; no split, no rebase.
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
-        AggregateCall sum = AggregateCall.create(
-            SqlStdOperatorTable.SUM,
-            false,
-            List.of(1),
-            -1,
-            scan,
-            typeFactory.createSqlType(SqlTypeName.INTEGER),
-            "sum_size"
-        );
-        AggregateCall cnt = AggregateCall.create(
-            SqlStdOperatorTable.COUNT,
-            false,
-            List.of(),
-            -1,
-            scan,
-            typeFactory.createSqlType(SqlTypeName.BIGINT),
-            "cnt"
-        );
-        RelNode plan = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(sum, cnt));
+        RelNode plan = makeAggregate(scan, ImmutableBitSet.of(0), sumCall(scan), countStarCall(scan));
+        RelNode result = runPlanner(plan, singleShardContext());
+        assertPlanShape("""
+            OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
+    }
+
+    public void testStatsSumCountByKey_2shard() {
+        // FINAL: SUM stays (engine-native merge), COUNT→SUM($2) via FinalAggCallBuilder.
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, ImmutableBitSet.of(0), sumCall(scan), countStarCall(scan));
         RelNode result = runPlanner(plan, multiShardContext());
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], sum_size=[SUM($1)], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], cnt=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
                   OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                    OpenSearchAggregate(group=[{0}], sum_size=[SUM($1)], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /** Empty-group count(), single-shard. SINGLE alternative; no split, no wrap. */
+    public void testStatsCountStar_emptyGroup_1shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, ImmutableBitSet.of(), countStarCall(scan));
+        RelNode result = runPlanner(plan, singleShardContext());
+        assertPlanShape("""
+            OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
+    }
+
+    /**
+     * Empty-group count(), multi-shard. The Project on top is the CAST-wrap from
+     * {@code OpenSearchAggregateSplitRule.wrapWithCastIfNeeded} — without it, Volcano rejects
+     * FINAL's nullable BIGINT against SINGLE's BIGINT NOT NULL.
+     */
+    public void testStatsCountStar_emptyGroup_2shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, ImmutableBitSet.of(), countStarCall(scan));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(cnt=[CAST($0):BIGINT NOT NULL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[SUM($0)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

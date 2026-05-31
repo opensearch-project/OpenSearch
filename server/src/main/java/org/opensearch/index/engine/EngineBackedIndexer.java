@@ -88,7 +88,7 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
         return engine.getIndexBufferRAMBytesUsed();
     }
 
@@ -399,9 +399,10 @@ public class EngineBackedIndexer implements Indexer {
         return Indexer.super.currentOngoingRefreshCheckpoint();
     }
 
+    /** Engine-backed indexer uses only JVM heap for indexing buffers, no native memory. */
     @Override
     public long getNativeBytesUsed() {
-        return Indexer.super.getNativeBytesUsed();
+        return 0;
     }
 
     /**

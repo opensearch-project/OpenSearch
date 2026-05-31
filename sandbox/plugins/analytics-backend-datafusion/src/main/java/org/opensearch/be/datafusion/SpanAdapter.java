@@ -14,8 +14,14 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -35,11 +41,25 @@ import java.util.Map;
  *       {@code (field / interval) * interval} for integer types (where Calcite's
  *       integer division already truncates).</li>
  *   <li><b>Time span</b> ({@code unit} is a single-letter unit string like
- *       {@code "y"}, {@code "M"}, {@code "d"}, etc.): rewritten to
- *       {@code DATE_TRUNC(<unit>, field)} when {@code interval == 1}. Multi-unit
- *       intervals like {@code 12h} aren't expressible as {@code date_trunc} and
- *       fall through to the original UDF, which surfaces as a normal substrait
- *       binding error rather than a silent wrong-result.</li>
+ *       {@code "y"}, {@code "M"}, {@code "d"}, etc.) lowers through three paths,
+ *       checked in order:
+ *       <ul>
+ *         <li><b>{@code interval == 1}, any unit:</b> rewritten to
+ *             {@code DATE_TRUNC(<unit>, field)} — the cheapest DataFusion path.</li>
+ *         <li><b>Fixed-length unit (s/m/h/d/w) with {@code interval > 1}:</b> bucketed
+ *             via integer-seconds arithmetic ({@code TIMESTAMP_SECONDS(FLOOR(UNIX_SECONDS(t) / B) * B)}).
+ *             Exact because the epoch is a fixed reference for these units.</li>
+ *         <li><b>Sub-second unit (us/ms) with {@code interval > 1}:</b> rewritten to
+ *             DataFusion's native {@code date_bin("<N> <unit>", field)}. The arithmetic
+ *             path can't be used here because {@code to_unixtime} returns BIGINT seconds
+ *             and loses sub-second precision. Emitting the stride as a plain string
+ *             literal (e.g. {@code "40 milliseconds"}) avoids substrait interval-type
+ *             plumbing and matches how DataFusion's native parser accepts strides.</li>
+ *       </ul>
+ *       Multi-unit month / quarter / year intervals (e.g. {@code 12M}) still fall through
+ *       to the original UDF — their bucket length is calendar-dependent, requiring a
+ *       {@code date_bin} with an interval-month stride; tracked separately.
+ *   </li>
  * </ul>
  *
  * <p>The unit-letter mapping mirrors PPL's {@code SpanUnit} enum (defined in the SQL
@@ -81,6 +101,38 @@ class SpanAdapter implements ScalarFunctionAdapter {
         Map.entry("w", 604800L)
     );
 
+    /**
+     * Sub-second PPL span units → DataFusion {@code date_bin} stride suffix. Only used
+     * for the multi-unit {@code date_bin} rewrite path (N &gt; 1); N == 1 cases use the
+     * cheaper {@code date_trunc} path above. The fixed-second arithmetic path can't be
+     * used here because {@code to_unixtime} returns BIGINT seconds, losing sub-second
+     * precision; emitting a string-form stride to DataFusion's native {@code date_bin}
+     * preserves the millisecond / microsecond resolution.
+     */
+    private static final Map<String, String> SUB_SECOND_UNIT_TO_DATE_BIN_STRIDE = Map.of("us", "microseconds", "ms", "milliseconds");
+
+    /**
+     * Locally-declared target operator for the sub-second {@code date_bin} path. Name
+     * matches DataFusion's native {@code date_bin}; the operand checker is informational
+     * (the adapter constructs the call directly and isthmus resolves the substrait
+     * function by name). Return type is pinned to ARG1 (the source-timestamp operand)
+     * so the rewritten call's declared type matches the original SPAN call (and thus
+     * the enclosing Project's cached rowType).
+     */
+    static final SqlOperator LOCAL_DATE_BIN_OP = new SqlFunction(
+        "date_bin",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG1_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.TIMEDATE
+    );
+
+    // TODO: SPAN is a PPL-shaped UDF; matching by operator name and decomposing its operands here
+    // couples this backend adapter to the SQL/PPL plugin's frontend representation. Long term,
+    // Analytics-Engine should hand the backend a backend-neutral bucketing primitive (e.g. a typed
+    // DATE_BIN / FLOOR-divide expression already lowered upstream) so this adapter can disappear
+    // and we stop replicating SPAN's semantics per-backend.
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         if (!original.getOperator().getName().equalsIgnoreCase("SPAN")) {
@@ -119,6 +171,20 @@ class SpanAdapter implements ScalarFunctionAdapter {
                 if (bucketSeconds != null && bucketSeconds > 0L) {
                     return rewriteFixedLengthTimeBucket(rexBuilder, field, bucketSeconds, original.getType());
                 }
+                // Sub-second multi-unit time span: bucket via DataFusion's native date_bin.
+                // SPAN(t, N, 'us'|'ms') → date_bin("<N> microseconds"|"<N> milliseconds", t).
+                // The arithmetic path above can't be used because to_unixtime returns BIGINT
+                // seconds and would truncate sub-second precision. date_bin accepts the
+                // stride as a plain string literal natively in DataFusion's SQL parser,
+                // which sidesteps the substrait interval-type plumbing.
+                String dateBinStrideUnit = SUB_SECOND_UNIT_TO_DATE_BIN_STRIDE.get(unitText);
+                if (dateBinStrideUnit != null) {
+                    Long n = extractPositiveInteger(interval);
+                    if (n != null) {
+                        RexNode stride = rexBuilder.makeLiteral(n + " " + dateBinStrideUnit);
+                        return rexBuilder.makeCall(original.getType(), LOCAL_DATE_BIN_OP, List.of(stride, field));
+                    }
+                }
             }
         }
 
@@ -127,33 +193,58 @@ class SpanAdapter implements ScalarFunctionAdapter {
     }
 
     /**
-     * Returns {@code N * unit_seconds} when both inputs are present and {@code N} is a
-     * positive integer literal; {@code null} otherwise.
+     * Returns the interval as a positive whole-number {@code Long} if it is a numeric
+     * literal whose value is a positive integer; {@code null} otherwise. Sibling of
+     * {@link #bucketSecondsIfPositiveInteger} without the unit-seconds multiplier — the
+     * sub-second date_bin path bakes the unit into the stride string instead.
      */
-    private static Long bucketSecondsIfPositiveInteger(RexNode interval, Long unitSeconds) {
-        if (unitSeconds == null || !(interval instanceof RexLiteral lit)) {
+    private static Long extractPositiveInteger(RexNode interval) {
+        if (!(interval instanceof RexLiteral lit)) {
             return null;
         }
         Object value = lit.getValue();
         long n;
         if (value instanceof BigDecimal bd) {
-            if (bd.scale() > 0 && bd.stripTrailingZeros().scale() > 0) {
-                return null; // non-integer interval not supported
-            }
-            n = bd.longValueExact();
-        } else if (value instanceof Number num) {
-            double d = num.doubleValue();
-            if (d != Math.floor(d)) {
+            // stripTrailingZeros canonicalises both forms — `1`, `1.0`, `1E2` all collapse
+            // to scale ≤ 0; any fractional component leaves scale > 0.
+            if (bd.stripTrailingZeros().scale() > 0) {
                 return null;
             }
-            n = (long) d;
+            try {
+                n = bd.longValueExact();
+            } catch (ArithmeticException e) {
+                return null;
+            }
+        } else if (value instanceof Number num) {
+            if (!isIntegralDouble(num.doubleValue())) {
+                return null;
+            }
+            n = (long) num.doubleValue();
         } else {
             return null;
         }
-        if (n <= 0) {
+        return n > 0 ? n : null;
+    }
+
+    /**
+     * Returns {@code N * unit_seconds} when both inputs are present and {@code N} is a
+     * positive integer literal; {@code null} otherwise.
+     */
+    private static Long bucketSecondsIfPositiveInteger(RexNode interval, Long unitSeconds) {
+        if (unitSeconds == null) {
             return null;
         }
-        return n * unitSeconds;
+        Long n = extractPositiveInteger(interval);
+        return n == null ? null : n * unitSeconds;
+    }
+
+    /**
+     * True when {@code d} is finite and equal to its floor — i.e. a whole-number double
+     * with no fractional part. Centralises the rounding check used by the literal
+     * extractors above.
+     */
+    private static boolean isIntegralDouble(double d) {
+        return Double.isFinite(d) && d == Math.floor(d);
     }
 
     private static RexNode rewriteFixedLengthTimeBucket(RexBuilder rexBuilder, RexNode field, long bucketSeconds, RelDataType resultType) {

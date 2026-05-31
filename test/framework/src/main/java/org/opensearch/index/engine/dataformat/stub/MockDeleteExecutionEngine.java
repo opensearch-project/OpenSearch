@@ -17,9 +17,12 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongFunction;
 
 /**
  * A mock {@link DeleteExecutionEngine} for testing purposes.
@@ -51,7 +54,17 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
     }
 
     @Override
-    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
+    public void recordWrite(String id, long generation) {
+
+    }
+
+    @Override
+    public boolean onWriterCheckedOut(long generation) throws IOException {
+        return false;
+    }
+
+    @Override
+    public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
         Deleter deleter = deleters.get(deleteInput.generation());
         if (deleter != null) {
             return deleter.deleteDoc(deleteInput);
@@ -82,15 +95,19 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
         }
 
         @Override
-        public void lock() {}
-
-        @Override
-        public boolean tryLock() {
-            return true;
+        public Queue<String> deactivate() {
+            return null;
         }
 
         @Override
-        public void unlock() {}
+        public boolean recordBufferedDeletes(String id) {
+            return false;
+        }
+
+        @Override
+        public boolean isActive() {
+            return false;
+        }
 
         @Override
         public void close() throws IOException {}

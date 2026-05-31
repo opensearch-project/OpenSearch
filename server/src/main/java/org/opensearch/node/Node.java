@@ -212,6 +212,8 @@ import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorStatsRegistry;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.BlockCacheRegistry;
@@ -1592,6 +1594,16 @@ public class Node implements Closeable {
                 analyticsTaskCancellationStatsSupplier
             );
 
+            // Discover the native-allocator stats supplier from any plugin that publishes a
+            // NativeAllocatorStatsRegistry component (today: ArrowBasePlugin). Lookup mirrors
+            // the SearchRequestOperationsListener instanceof filter on pluginComponents elsewhere
+            // in this file. Server has no compile-time dependency on arrow-base.
+            final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier = pluginComponents.stream()
+                .filter(c -> c instanceof NativeAllocatorStatsRegistry)
+                .map(c -> ((NativeAllocatorStatsRegistry) c).supplier())
+                .findFirst()
+                .orElse(null);
+
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1618,7 +1630,8 @@ public class Node implements Closeable {
                 segmentReplicationStatsTracker,
                 repositoryService,
                 admissionControlService,
-                cacheService
+                cacheService,
+                nativeAllocatorStatsSupplier
             );
 
             final SearchService searchService = newSearchService(
@@ -1634,7 +1647,8 @@ public class Node implements Closeable {
                 searchModule.getIndexSearcherExecutor(threadPool),
                 taskResourceTrackingService,
                 searchModule.getConcurrentSearchRequestDeciderFactories(),
-                searchModule.getPluginProfileMetricsProviders()
+                searchModule.getPluginProfileMetricsProviders(),
+                workloadGroupService
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -2393,7 +2407,8 @@ public class Node implements Closeable {
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
+        WorkloadGroupService workloadGroupService
     ) {
         return new SearchService(
             clusterService,
@@ -2408,7 +2423,8 @@ public class Node implements Closeable {
             indexSearcherExecutor,
             taskResourceTrackingService,
             concurrentSearchDeciderFactories,
-            pluginProfilers
+            pluginProfilers,
+            workloadGroupService
         );
     }
 

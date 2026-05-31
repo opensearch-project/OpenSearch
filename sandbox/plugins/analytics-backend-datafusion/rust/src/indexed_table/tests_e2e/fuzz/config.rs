@@ -660,6 +660,35 @@ impl FixtureConfig {
             min_skip_run_override: Some(4),
         }
     }
+
+    /// Shuffled columns: same as `small` but columns are in reversed
+    /// order. Exercises the stream.rs reprojection-by-name path .
+    pub fn shuffled_columns(seed: u64) -> Self {
+        let mut cols = default_columns();
+        cols.reverse();
+        Self {
+            seed,
+            num_rows: 10_000,
+            num_segments: 1,
+            target_partitions: 1,
+            rows_per_row_group: 2_048,
+            rows_per_page: 512,
+            columns: cols,
+            null_pct: 0.1,
+            num_collector_leaves: 3,
+            collector_density: 0.05,
+            tree_max_depth: 5,
+            tree_max_fanout: 5,
+            batch_size: None,
+            max_collector_parallelism: None,
+            null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
+            min_skip_run_override: None,
+        }
+    }
 }
 
 /// Default column mix — covers every Predicate code path our evaluator

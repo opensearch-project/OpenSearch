@@ -132,6 +132,7 @@ import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineBackedIndexer;
@@ -252,7 +253,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorCompletionService;
@@ -333,8 +333,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
-    private final ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache = new ConcurrentHashMap<>();
-    private final Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier;
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -559,34 +557,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             readerWrapper = indexReaderWrapper;
         }
-
-        nonClosingReaderWrapperSupplier = directoryReader -> {
-            int[] fromCache = new int[] { 0 };
-            try {
-                // To prevent instantiating a new NonClosingReaderWrapper per query/get/update request,
-                // the wrapper can be shared across all uses of the same NonClosingReaderWrapper.
-                return nonClosingReaderWrapperCache.computeIfAbsent(directoryReader, key -> {
-                    try {
-                        NonClosingReaderWrapper closingReaderWrapper = new NonClosingReaderWrapper(key);
-                        fromCache[0] = 1;
-                        return closingReaderWrapper;
-                    } catch (IOException e) {
-                        fromCache[0] = 2;
-                        throw new OpenSearchException("failed to wrap searcher", e);
-                    }
-                });
-            } finally {
-                if (fromCache[0] == 1) {
-                    OpenSearchDirectoryReader.addReaderCloseListener(
-                        directoryReader,
-                        cacheKey -> nonClosingReaderWrapperCache.remove(directoryReader)
-                    );
-                } else if (fromCache[0] == 2) {
-                    nonClosingReaderWrapperCache.remove(directoryReader);
-                }
-            }
-        };
-
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -854,7 +824,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        postActivatePrimaryMode();
+                        // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload
+                        // needed) but still ensure peer recovery retention leases exist for replicas.
+                        // Reset hasAllPeerRecoveryRetentionLeases to false first to prevent assertion
+                        // failures in renewPeerRecoveryRetentionLeases() during the async window.
+                        if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+                            postActivatePrimaryMode();
+                        } else {
+                            replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+                            ensurePeerRecoveryRetentionLeasesExist();
+                        }
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -927,14 +906,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // Force update the checkpoint post engine reset.
                                 updateReplicationCheckpoint();
                             }
-
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
                                 // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
                             }
-                            postActivatePrimaryMode();
+                            // DFA warm primaries: activate primary mode (needed for initiateTracking
+                            // during replica recovery) but skip postActivatePrimaryMode (no remote
+                            // translog upload). Reset hasAllPeerRecoveryRetentionLeases and ensure
+                            // retention leases exist for replicas.
+                            if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+                                postActivatePrimaryMode();
+                            } else {
+                                replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+                                ensurePeerRecoveryRetentionLeasesExist();
+                            }
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
                              * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -2448,9 +2435,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null
-                ? searcher
-                : wrapSearcher(searcher, readerWrapper, nonClosingReaderWrapperSupplier);
+            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -2470,28 +2455,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {
-        return wrapSearcher(engineSearcher, readerWrapper, null);
-    }
-
-    public static Engine.Searcher wrapSearcher(
-        Engine.Searcher engineSearcher,
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
-        Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier
-    ) throws IOException {
         assert readerWrapper != null;
-        DirectoryReader directoryReader = engineSearcher.getDirectoryReader();
-        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(directoryReader);
+        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(
+            engineSearcher.getDirectoryReader()
+        );
         if (openSearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
-
-        DirectoryReader nonClosingReaderWrapper;
-        if (nonClosingReaderWrapperSupplier == null) {
-            nonClosingReaderWrapper = new NonClosingReaderWrapper(directoryReader);
-        } else {
-            nonClosingReaderWrapper = nonClosingReaderWrapperSupplier.apply(directoryReader);
-            assert nonClosingReaderWrapper instanceof NonClosingReaderWrapper;
-        }
+        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
             if (reader.getReaderCacheHelper() != openSearchDirectoryReader.getReaderCacheHelper()) {
@@ -2588,7 +2559,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.CLOSED, reason);
                 }
             } finally {
-                nonClosingReaderWrapperCache.clear();
                 final Indexer engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
@@ -3394,7 +3364,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return 0;
         }
         try {
-            return engine.getIndexBufferRAMBytesUsed();
+            return engine.getHeapBytesUsed();
+        } catch (AlreadyClosedException ex) {
+            return 0;
+        }
+    }
+
+    /** Returns native (off-heap) bytes used by indexing buffers for this shard, or 0 if closed. */
+    public long getNativeBytesUsed() {
+        Indexer engine = getIndexerOrNull();
+        if (engine == null) {
+            return 0;
+        }
+        try {
+            return engine.getNativeBytesUsed();
         } catch (AlreadyClosedException ex) {
             return 0;
         }
@@ -4170,16 +4153,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // So, we can use a stricter check where local checkpoint of new primary is checked against that of old primary.
             allocationId = primaryContext.getRoutingTable().primaryShard().allocationId().getId();
         }
+
+        // DFA warm primaries: relax checkpoint assertion. During hot-to-warm relocation after cancel+bulk+retry,
+        // the old primary's checkpoint may be ahead of the warm target which recovered from an earlier remote
+        // store state. The warm primary is read-only and will serve all data from remote store regardless of
+        // local checkpoint value.
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(allocationId).getLocalCheckpoint()
-            || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
+            || indexSettings().getTranslogDurability() == Durability.ASYNC
+            || (getIndexer() instanceof DataFormatAwareReadOnlyEngine) : "local checkpoint ["
                 + getLocalCheckpoint()
                 + "] does not match checkpoint from primary context ["
                 + primaryContext
                 + "]";
+
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
-        postActivatePrimaryMode();
+        // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload needed).
+        // Reset hasAllPeerRecoveryRetentionLeases and ensure retention leases exist for replicas.
+        if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+            postActivatePrimaryMode();
+        } else {
+            replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+            ensurePeerRecoveryRetentionLeasesExist();
+        }
     }
 
     private void postActivatePrimaryMode() {
@@ -4595,9 +4592,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 public void afterRefresh(boolean didRefresh) {
                     if (!didRefresh) return;
                     // Use the engine directly (not IndexShard.acquireSearcher) so that we do NOT
-                    // go through IndexShard.wrapSearcher / nonClosingReaderWrapperSupplier.
-                    // Going through the shard-level wrapper would create entries in the
-                    // nonClosingReaderWrapperCache that callers do not expect.
+                    // go through IndexShard.wrapSearcher.
                     try (
                         Engine.Searcher searcher = applyOnEngine(
                             getIndexer(),
@@ -6367,16 +6362,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalStateException("Cannot apply function on indexer " + indexer.getClass() + " directly on IndexShard");
         }
-    }
-
-    // Visible for testing
-    Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier() {
-        return nonClosingReaderWrapperSupplier;
-    }
-
-    // Visible for testing
-    ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache() {
-        return nonClosingReaderWrapperCache;
     }
 
     // Visible for testing

@@ -153,8 +153,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getAdmissionControlStats(),
                 nodeStats.getNodeCacheStats(),
                 nodeStats.getRemoteStoreNodeStats(),
-                nodeStats.getPluginStats(),
-                nodeStats.getAnalyticsBackendNativeMemoryStats()
+                nodeStats.getNativeAllocatorStats(),
+                nodeStats.getAnalyticsBackendNativeMemoryStats(),
+                nodeStats.getTotalEstimatedNativeBytes()
             );
         }).collect(Collectors.toList());
     }

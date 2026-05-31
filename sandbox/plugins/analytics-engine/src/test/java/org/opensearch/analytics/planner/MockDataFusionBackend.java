@@ -184,7 +184,12 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         // Logical connectives (projection-side composition: `case(a and b, …)`)
         ScalarFunction.AND,
         ScalarFunction.OR,
-        ScalarFunction.NOT
+        ScalarFunction.NOT,
+        // String — used by QTF plan-shape tests covering composite expressions / dedup.
+        ScalarFunction.CONCAT,
+        ScalarFunction.UPPER,
+        ScalarFunction.SIN,
+        ScalarFunction.ABS
     );
 
     private static final Set<ProjectCapability> PROJECT_CAPS;

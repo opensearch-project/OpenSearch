@@ -300,7 +300,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             expr.accept(new org.apache.calcite.rex.RexShuttle() {
                 @Override
                 public RexNode visitOver(RexOver over) {
-                    WindowFunction fn = WindowFunction.fromSqlKind(over.getAggOperator().getKind());
+                    WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
                     if (fn == null) {
                         throw new IllegalStateException("Window function [" + over.getAggOperator().getName() + "] is not supported");
                     }

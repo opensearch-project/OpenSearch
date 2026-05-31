@@ -66,6 +66,7 @@ pub async fn build_segments(
     }
 
     let mut segments = Vec::with_capacity(object_metas.len());
+    let mut cumulative_rows: u64 = 0;
 
     for (seg_ord, meta) in object_metas.iter().enumerate() {
         // Per-segment parquet metadata (RG info, page index) — still needed
@@ -93,6 +94,8 @@ pub async fn build_segments(
             offset += num_rows;
         }
         let max_doc = offset;
+        let global_base = cumulative_rows;
+        cumulative_rows += max_doc as u64;
 
         let writer_generation = writer_generations[seg_ord];
 
@@ -109,6 +112,7 @@ pub async fn build_segments(
             parquet_size: size,
             row_groups,
             metadata: pq_meta,
+            global_base,
         });
     }
 
@@ -121,7 +125,9 @@ pub async fn build_segments(
     //      primitives (recursively merged for Struct/List/Union).
     //   5. Apply `binary_as_string` and `force_view_types` transforms
     //      if configured.
-    let format = ParquetFormat::default();
+    // Use Utf8View — ParquetOpener's apply_file_schema_type_coercions keeps the file/table
+    // schemas aligned, so QTF's coordinator-declared Utf8View matches the produced batches.
+    let format = ParquetFormat::default().with_force_view_types(true);
     let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
         .await
         .map_err(|e| format!("infer_schema union: {}", e))?;
