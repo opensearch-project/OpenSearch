@@ -205,6 +205,15 @@ pub fn register_all(ctx: &SessionContext) {
     time_format::register_all(ctx);
     width_bucket::register_all(ctx);
     reduce_eval::register_all(ctx);
+    // Delegation markers (index_filter = correctness-delegation, delegation_possible =
+    // performance-delegation). Calcite emits these into a shard filter's substrait; they are
+    // unwrapped/executed ONLY on the data-node indexed path. But every session must be able to
+    // PARSE them: a coordinator-reduce session derives the producer (shard) plan's output schema
+    // via derive_schema_from_partial_plan, which builds the producer's physical plan and fails on
+    // an unregistered function. Register here so all sessions can parse; the bodies still error if
+    // ever actually invoked (they never are off the indexed path).
+    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_index_filter_udf());
+    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     log::info!(
         "OpenSearch UDF register_all: convert_tz, conversion(numeric_conversion: num/auto/memk/rmcomma/rmunit/dur2sec/mstime, time_conversion: ctime/mktime), crc32, date_format, extract, from_unixtime, item, json_append, json_array_length, json_delete, json_extend, json_extract, json_extract_all, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, parse, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, width_bucket registered"
     );

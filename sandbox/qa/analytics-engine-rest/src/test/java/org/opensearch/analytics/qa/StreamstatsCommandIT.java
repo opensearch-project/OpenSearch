@@ -672,46 +672,55 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsGlobalWithNull. */
+    /** sql IT: testStreamstatsGlobalWithNull. PR #21795 + the layered marking fixes
+     *  (LITERAL_AGG lowering, OpenSearchJoinRule relaxation) wire enough of the
+     *  streamstats lowering through that this query now plans and executes. */
     public void testStreamstatsGlobalWithNull() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats window=2 global=true avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsGlobalWithNullBucket. */
     public void testStreamstatsGlobalWithNullBucket() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats bucket_nullable=false window=2 global=true avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsReset. {@code reset_before} / {@code reset_after} use
-     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver. */
+     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver.
+     *  Ryan's PR #21795 added subquery-remove + decorrelate to PlannerImpl; this test
+     *  is flipped to positive to observe whether streamstats-reset's directly-built
+     *  LogicalCorrelate falls through that path correctly. */
     public void testStreamstatsReset() throws IOException {
-        assertErrorAny(
-            "source=" + DATASET.indexName
-                + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0 | fields key, str0, int0, avg"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsResetWithNull. */
     public void testStreamstatsResetWithNull() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsResetWithNullBucket. */
     public void testStreamstatsResetWithNullBucket() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats bucket_nullable=false reset_before=(int0 > 5)"
                 + " avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     // ── Unsupported window functions ───────────────────────────────────────────
