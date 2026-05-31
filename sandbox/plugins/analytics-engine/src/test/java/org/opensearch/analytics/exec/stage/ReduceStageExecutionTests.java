@@ -17,6 +17,7 @@ import org.opensearch.analytics.exec.stage.coordinator.ReduceStageExecution;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.MultiInputExchangeSink;
 import org.opensearch.analytics.spi.ReducingExchangeSink;
@@ -183,6 +184,43 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
         assertFalse("transition rejected — already terminal", transitioned);
         assertEquals(StageExecution.State.CANCELLED, exec.getState());
         assertEquals("backend close fires exactly once across both calls", 1, backend.closeCount);
+    }
+
+    // ── CancellableExchangeSink interaction ────────────────────────────────
+
+    public void testCancelCallsCancellableExchangeSinkCancelBeforeClose() {
+        CancellableCapturingSink backend = new CancellableCapturingSink();
+        ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
+
+        exec.cancel("user requested");
+
+        assertEquals(StageExecution.State.CANCELLED, exec.getState());
+        assertTrue("cancel() must be called on CancellableExchangeSink", backend.cancelCalled);
+        assertTrue("close() must still be called after cancel()", backend.closed);
+        assertTrue("cancel() must fire before close()", backend.cancelCalledBeforeClose);
+    }
+
+    public void testFailFromChildCallsCancellableExchangeSinkCancelBeforeClose() {
+        CancellableCapturingSink backend = new CancellableCapturingSink();
+        ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
+
+        exec.failWithCause(new RuntimeException("child failed"));
+
+        assertEquals(StageExecution.State.FAILED, exec.getState());
+        assertTrue("cancel() must be called on FAILED transition", backend.cancelCalled);
+        assertTrue("close() must still be called", backend.closed);
+        assertTrue("cancel() before close()", backend.cancelCalledBeforeClose);
+    }
+
+    public void testSuccessDoesNotCallCancellableExchangeSinkCancel() {
+        CancellableCapturingSink backend = new CancellableCapturingSink();
+        ReduceStageExecution exec = new ReduceStageExecution(stageWithId(0), mockContext(), backend, new CapturingSink());
+
+        scheduleAndDispatch(exec);
+
+        assertEquals(StageExecution.State.SUCCEEDED, exec.getState());
+        assertFalse("cancel() must NOT be called on SUCCEEDED", backend.cancelCalled);
+        assertTrue("close() is still called on terminal", backend.closed);
     }
 
     // ── Streaming mode (supportsEagerScheduling = true) ───────────────────
@@ -352,6 +390,18 @@ public class ReduceStageExecutionTests extends OpenSearchTestCase {
                     closedChildIds.add(id);
                 }
             });
+        }
+    }
+
+    /** CancellableExchangeSink variant that records cancel/close ordering. */
+    private static class CancellableCapturingSink extends CapturingReducingSink implements CancellableExchangeSink {
+        boolean cancelCalled = false;
+        boolean cancelCalledBeforeClose = false;
+
+        @Override
+        public void cancel() {
+            cancelCalled = true;
+            cancelCalledBeforeClose = !closed;
         }
     }
 

@@ -84,7 +84,8 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
     private static boolean dataProvisioned = false;
     private static boolean multiProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -168,7 +169,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
      *  rows form their own running partition and accumulate normally. {@code str3} has 7 nulls
      *  + 10 'e' rows; companion to {@link #testStreamstatsByWithNullBucket}. */
     public void testStreamstatsByWithNull() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats count() as cnt, avg(int0) as avg, min(int0) as mn, max(int0) as mx by str3"
@@ -200,7 +200,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
      *  the non-null partition's running count proceeds as usual. Same {@code by str3} as
      *  {@link #testStreamstatsByWithNull}; null-key rows now show NULL aggregates. */
     public void testStreamstatsByWithNullBucket() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
                 + " | streamstats bucket_nullable=false count() as cnt, avg(int0) as avg, min(int0) as mn, max(int0) as mx by str3"
@@ -572,7 +571,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
     /** sql IT: testStreamstatsWindowError. window=-1 must be a parse-time / argument-validation
      *  error. PPL parser rejects this before reaching analytics-engine planner. */
     public void testStreamstatsWindowError() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | streamstats window=-1 avg(int0) as avg",
             "Window size must be >= 0"
@@ -674,58 +672,61 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsGlobalWithNull. */
+    /** sql IT: testStreamstatsGlobalWithNull. PR #21795 + the layered marking fixes
+     *  (LITERAL_AGG lowering, OpenSearchJoinRule relaxation) wire enough of the
+     *  streamstats lowering through that this query now plans and executes. */
     public void testStreamstatsGlobalWithNull() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats window=2 global=true avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsGlobalWithNullBucket. */
     public void testStreamstatsGlobalWithNullBucket() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats bucket_nullable=false window=2 global=true avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsReset. {@code reset_before} / {@code reset_after} use
-     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver. */
+     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver.
+     *  Ryan's PR #21795 added subquery-remove + decorrelate to PlannerImpl; this test
+     *  is flipped to positive to observe whether streamstats-reset's directly-built
+     *  LogicalCorrelate falls through that path correctly. */
     public void testStreamstatsReset() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
-            "source=" + DATASET.indexName
-                + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0 | fields key, str0, int0, avg"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsResetWithNull. */
     public void testStreamstatsResetWithNull() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsResetWithNullBucket. */
     public void testStreamstatsResetWithNullBucket() throws IOException {
-        ensureDataProvisioned();
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats bucket_nullable=false reset_before=(int0 > 5)"
                 + " avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     // ── Unsupported window functions ───────────────────────────────────────────
 
     /** sql IT: testUnsupportedWindowFunctions. */
     public void testUnsupportedWindowFunctions() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | streamstats percentile_approx(int0)",
             "percentile_approx"
@@ -913,7 +914,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
      *  may not flow through analytics-engine for the specific embedded shape; conservatively
      *  expect throw. */
     public void testLeftJoinWithStreamstats() throws IOException {
-        ensureDataProvisioned();
         // Test source uses BANK_TWO which we don't have. Use a self-join on calcs as a stand-in;
         // analytics-engine likely rejects the streamstats-in-subsearch shape.
         assertErrorAny(
@@ -937,7 +937,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
             + " assert a deterministic outcome"
     )
     public void testWhereInWithStreamstatsSubquery() throws IOException {
-        ensureDataProvisioned();
         assertErrorAny(
             "source=" + DATASET.indexName + " | where key in"
                 + " [ source=" + DATASET.indexName + " | streamstats count() as cnt"
@@ -1041,10 +1040,10 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
                 + " | fields key, int0, sp, ss, vp, vs"
         );
         assertRowsEqual(response,
-            row("key00", 1,    0.0,                 Double.NaN,         0.0,                Double.NaN),
-            row("key01", null, 0.0,                 Double.NaN,         0.0,                Double.NaN),
-            row("key02", null, 0.0,                 Double.NaN,         0.0,                Double.NaN),
-            row("key03", null, 0.0,                 Double.NaN,         0.0,                Double.NaN),
+            row("key00", 1,    0.0,                 (Double) null,         0.0,                (Double) null),
+            row("key01", null, 0.0,                 (Double) null,         0.0,                (Double) null),
+            row("key02", null, 0.0,                 (Double) null,         0.0,                (Double) null),
+            row("key03", null, 0.0,                 (Double) null,         0.0,                (Double) null),
             row("key04", 7,    3.0,                 4.242640687119285,  9.0,                18.0),
             row("key05", 3,    2.494438257849294,   3.055050463303893,  6.222222222222221,  9.333333333333332),
             row("key06", 8,    2.8613807855648994,  3.304037933599835,  8.1875,             10.916666666666666),
@@ -1070,10 +1069,10 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
                 + " | fields key, int0, sp, ss, vp, vs"
         );
         assertRowsEqual(response,
-            row("key00", 1,    0.0,                 Double.NaN,         0.0,                Double.NaN),
-            row("key01", null, 0.0,                 Double.NaN,         0.0,                Double.NaN),
-            row("key02", null, 0.0,                 Double.NaN,         0.0,                Double.NaN),
-            row("key03", null, 0.0,                 Double.NaN,         0.0,                Double.NaN),
+            row("key00", 1,    0.0,                 (Double) null,         0.0,                (Double) null),
+            row("key01", null, 0.0,                 (Double) null,         0.0,                (Double) null),
+            row("key02", null, 0.0,                 (Double) null,         0.0,                (Double) null),
+            row("key03", null, 0.0,                 (Double) null,         0.0,                (Double) null),
             row("key04", 7,    3.0,                 4.242640687119285,  9.0,                18.0),
             row("key05", 3,    2.494438257849294,   3.055050463303893,  6.222222222222221,  9.333333333333332),
             row("key06", 8,    2.8613807855648994,  3.304037933599835,  8.1875,             10.916666666666666),
@@ -1099,16 +1098,16 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
                 + " | fields key, str0, int0, sp, ss, vp, vs"
         );
         assertRowsEqual(response,
-            row("key00", "FURNITURE",       1,    0.0,                 Double.NaN,         0.0,                Double.NaN),
-            row("key01", "FURNITURE",       null, 0.0,                 Double.NaN,         0.0,                Double.NaN),
+            row("key00", "FURNITURE",       1,    0.0,                 (Double) null,         0.0,                (Double) null),
+            row("key01", "FURNITURE",       null, 0.0,                 (Double) null,         0.0,                (Double) null),
             row("key02", "OFFICE SUPPLIES", null, null,                null,               null,               null),
             row("key03", "OFFICE SUPPLIES", null, null,                null,               null,               null),
-            row("key04", "OFFICE SUPPLIES", 7,    0.0,                 Double.NaN,         0.0,                Double.NaN),
+            row("key04", "OFFICE SUPPLIES", 7,    0.0,                 (Double) null,         0.0,                (Double) null),
             row("key05", "OFFICE SUPPLIES", 3,    2.0,                 2.8284271247461903, 4.0,                8.0),
             row("key06", "OFFICE SUPPLIES", 8,    2.160246899469287,   2.6457513110645907, 4.666666666666667,  7.0),
             row("key07", "OFFICE SUPPLIES", null, 2.160246899469287,   2.6457513110645907, 4.666666666666667,  7.0),
             row("key08", "TECHNOLOGY",      null, null,                null,               null,               null),
-            row("key09", "TECHNOLOGY",      8,    0.0,                 Double.NaN,         0.0,                Double.NaN),
+            row("key09", "TECHNOLOGY",      8,    0.0,                 (Double) null,         0.0,                (Double) null),
             row("key10", "TECHNOLOGY",      4,    2.0,                 2.8284271247461903, 4.0,                8.0),
             row("key11", "TECHNOLOGY",      10,   2.4944382578492936,  3.0550504633038926, 6.222222222222219,  9.333333333333329),
             row("key12", "TECHNOLOGY",      null, 2.4944382578492936,  3.0550504633038926, 6.222222222222219,  9.333333333333329),
@@ -1128,7 +1127,7 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
                 + " | fields key, int0, ss"
         );
         assertRowsEqual(response,
-            row("key00", 1,    Double.NaN),
+            row("key00", 1,    (Double) null),
             row("key01", null, null),
             row("key02", null, null),
             row("key03", null, null),
@@ -1139,7 +1138,7 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
             row("key08", null, null),
             row("key09", 8,    3.209361307176242),
             row("key10", 4,    2.926886855802026),
-            row("key11", 10,   Double.NaN),
+            row("key11", 10,   (Double) null),
             row("key12", null, null),
             row("key13", 4,    2.70801280154532),
             row("key14", 11,   0.7071067811865476),
@@ -1158,11 +1157,11 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
                 + " | fields key, str3, int0, sp, ss, vp, vs"
         );
         assertRowsEqual(response,
-            row("key00", "e",  1,    0.0,                Double.NaN,         0.0,                Double.NaN),
-            row("key01", "e",  null, 0.0,                Double.NaN,         0.0,                Double.NaN),
-            row("key02", "e",  null, 0.0,                Double.NaN,         0.0,                Double.NaN),
-            row("key03", "e",  null, 0.0,                Double.NaN,         0.0,                Double.NaN),
-            row("key04", null, 7,    0.0,                Double.NaN,         0.0,                Double.NaN),
+            row("key00", "e",  1,    0.0,                (Double) null,         0.0,                (Double) null),
+            row("key01", "e",  null, 0.0,                (Double) null,         0.0,                (Double) null),
+            row("key02", "e",  null, 0.0,                (Double) null,         0.0,                (Double) null),
+            row("key03", "e",  null, 0.0,                (Double) null,         0.0,                (Double) null),
+            row("key04", null, 7,    0.0,                (Double) null,         0.0,                (Double) null),
             row("key05", null, 3,    2.0,                2.8284271247461903, 4.0,                8.0),
             row("key06", "e",  8,    3.5,                4.949747468305833,  12.25,              24.5),
             row("key07", "e",  null, 3.5,                4.949747468305833,  12.25,              24.5),
@@ -1182,7 +1181,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testStreamstatsDistinctCount. */
     public void testStreamstatsDistinctCount() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | streamstats dc(str3) as dc_str3",
             "DISTINCT_COUNT_APPROX"
@@ -1191,7 +1189,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testStreamstatsDistinctCountByCountry. */
     public void testStreamstatsDistinctCountByCountry() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | streamstats dc(str3) as dc_str3 by str0",
             "DISTINCT_COUNT_APPROX"
@@ -1200,7 +1197,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testStreamstatsDistinctCountFunction. */
     public void testStreamstatsDistinctCountFunction() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | streamstats distinct_count(str0) as dc_str0",
             "DISTINCT_COUNT_APPROX"
@@ -1209,7 +1205,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testStreamstatsDistinctCountWithNull. */
     public void testStreamstatsDistinctCountWithNull() throws IOException {
-        ensureDataProvisioned();
         assertErrorContains(
             "source=" + DATASET.indexName + " | streamstats dc(str3) as dc_str3",
             "DISTINCT_COUNT_APPROX"
@@ -1220,7 +1215,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
      *  default-{@code @timestamp} check — calcs has no @timestamp column. Either way the
      *  path is not yet reachable on analytics-engine — assert the failure. */
     public void testStreamstatsEarliestAndLatest() throws IOException {
-        ensureDataProvisioned();
         assertErrorAny(
             "source=" + DATASET.indexName + " | streamstats earliest(str0), latest(str0) by str3"
         );
@@ -1235,7 +1229,7 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
     @SafeVarargs
     @SuppressWarnings({"unchecked", "varargs"})
     private final void assertRowsEqual(Map<String, Object> response, List<Object>... expected) {
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", actualRows);
         assertEquals("Row count mismatch", expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
@@ -1250,7 +1244,7 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static void assertScalarRow(Map<String, Object> response, Object... expected) {
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Expected exactly one row", 1, rows.size());
         List<Object> got = rows.get(0);
@@ -1262,13 +1256,13 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static void assertRowCount(Map<String, Object> response, int expected) {
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Row count mismatch", expected, rows.size());
     }
 
     /** Numeric-tolerant cell comparator (Jackson returns Integer/Long/Double interchangeably).
-     *  NaN-aware: Double.NaN matches both Double.NaN and the string "NaN" (Jackson encodes
+     *  NaN-aware: (Double) null matches both (Double) null and the string "NaN" (Jackson encodes
      *  NaN as a string in JSON arrays). */
     private static void assertCellEquals(String message, Object expected, Object actual) {
         if (expected == null || actual == null) {
@@ -1291,17 +1285,10 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         assertEquals(message, expected, actual);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     /** Send a PPL query and assert response body contains {@code expectedSubstring}. */
     private void assertErrorContains(String ppl, String expectedSubstring) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);
@@ -1310,8 +1297,8 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(
@@ -1326,7 +1313,7 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
      *  may change as more analytics-engine functionality lands). The contract here is just
      *  "this PPL form is not yet supported". */
     private void assertErrorAny(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);

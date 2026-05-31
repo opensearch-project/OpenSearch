@@ -17,8 +17,16 @@ import java.util.Map;
 
 /**
  * Integration test for {@code POST /_analytics/ppl/_explain}.
- * Verifies that the explain endpoint executes the query and returns
- * profiling information (stage timings, plan) alongside the normal results.
+ *
+ * <p>Unlike the other QA ITs in this package, this one targets the {@code test-ppl-frontend}
+ * shim rather than the real {@code opensearch-sql} plugin. The shim's explain output ships
+ * a structured {@code profile} block ({@code query_id}, {@code execution_time_ms}, per-stage
+ * timing) that these tests assert against; the real plugin's {@code /_plugins/_ppl/_explain}
+ * returns just the Calcite plan text with no profile wrapper. Until the explain shape is
+ * unified (or these tests are rewritten against plain plan-text), keep them on the shim.
+ *
+ * <p>Verifies that the explain endpoint executes the query and returns profiling information
+ * (stage timings, plan) alongside the normal results.
  */
 public class ExplainApiIT extends AnalyticsRestTestCase {
 
@@ -27,7 +35,8 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
     private static boolean dataProvisioned = false;
     private static boolean clickBenchProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -43,7 +52,6 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExplainReturnsProfileWithStages() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> result = executeExplain("source=" + DATASET.indexName + " | fields str0, num0");
 
         // Should have normal query results
@@ -71,7 +79,6 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExplainReturnsFullPlan() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> result = executeExplain("source=" + DATASET.indexName + " | where num0 > 0 | fields str0");
 
         Map<String, Object> profile = (Map<String, Object>) result.get("profile");
@@ -146,7 +153,6 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExplainStagesShowSucceededState() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> result = executeExplain("source=" + DATASET.indexName + " | fields str0");
 
         Map<String, Object> profile = (Map<String, Object>) result.get("profile");
@@ -161,7 +167,6 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExplainTotalElapsedIsPositive() throws IOException {
-        ensureDataProvisioned();
         Map<String, Object> result = executeExplain("source=" + DATASET.indexName + " | fields str0");
 
         Map<String, Object> profile = (Map<String, Object>) result.get("profile");

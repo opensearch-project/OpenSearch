@@ -171,7 +171,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(COORDINATOR_BUFFER_LIMIT, ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
+        List<Setting<?>> settings = new java.util.ArrayList<>();
+        settings.add(COORDINATOR_BUFFER_LIMIT);
+        settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
+        settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
+        return List.copyOf(settings);
     }
 
     @Override

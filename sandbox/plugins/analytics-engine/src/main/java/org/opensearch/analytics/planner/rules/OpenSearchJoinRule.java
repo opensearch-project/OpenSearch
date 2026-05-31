@@ -13,7 +13,6 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -34,8 +33,13 @@ import java.util.Set;
  * gathered to the coordinator (enforced by the join's cost gate, which only accepts
  * SINGLETON inputs — Volcano inserts an {@link OpenSearchExchangeReducer} per side).
  *
- * <p>Accepts INNER / LEFT / RIGHT / FULL / SEMI / ANTI equi-joins. Cross joins match
- * via {@link JoinInfo#isEqui()}. Pure non-equi predicates are rejected.
+ * <p>Accepts INNER / LEFT / RIGHT / FULL / SEMI / ANTI joins of any condition
+ * shape — pure equi (hash join), mixed equi + non-equi (hash on the equi keys
+ * with the residual riding along as a filter), null-safe equi via
+ * {@code IS_NOT_DISTINCT_FROM}, equi with one operand being a {@code RexCall}
+ * expression, and pure non-equi (e.g. {@code t1.a < t2.b} alone) — DataFusion
+ * picks the appropriate physical strategy (HashJoin / SortMergeJoin /
+ * NestedLoopJoin) based on the condition shape downstream.
  *
  * @opensearch.internal
  */
@@ -52,23 +56,12 @@ public class OpenSearchJoinRule extends RelOptRule {
     public boolean matches(RelOptRuleCall call) {
         LogicalJoin join = call.rel(0);
         JoinRelType joinType = join.getJoinType();
-        // Accept INNER / LEFT / RIGHT / FULL / SEMI / ANTI equi-joins. FULL is needed
-        // by PPL's `appendcol` lowering (ROW_NUMBER pairing via a full outer join on the
-        // row numbers). Pure non-equi joins are rejected below via JoinInfo.isEqui().
-        if (joinType != JoinRelType.INNER
-            && joinType != JoinRelType.LEFT
-            && joinType != JoinRelType.RIGHT
-            && joinType != JoinRelType.FULL
-            && joinType != JoinRelType.SEMI
-            && joinType != JoinRelType.ANTI) {
-            return false;
-        }
-        // Accept equi-joins and cross joins (both satisfy JoinInfo.isEqui() — empty
-        // nonEquiConditions). A pure non-equi predicate (e.g. t1.a < t2.b) yields
-        // isEqui()=false and stays rejected — DataFusion would need a non-equi
-        // NestedLoopJoin path we don't enable yet.
-        JoinInfo info = join.analyzeCondition();
-        return info.isEqui();
+        return joinType == JoinRelType.INNER
+            || joinType == JoinRelType.LEFT
+            || joinType == JoinRelType.RIGHT
+            || joinType == JoinRelType.FULL
+            || joinType == JoinRelType.SEMI
+            || joinType == JoinRelType.ANTI;
     }
 
     @Override

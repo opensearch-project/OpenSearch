@@ -75,7 +75,7 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureProvisioned();
         Map<String, Object> body = executePpl("source=" + PQONLY_ALIAS + " | stats sum(status) as total");
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals(1, rows.size());
         long total = ((Number) rows.get(0).get(0)).longValue();
         assertEquals("sum(200+500+200+200+404)", 1504L, total);
@@ -85,10 +85,10 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureProvisioned();
         Map<String, Object> body = executePpl("source=" + PQONLY_ALIAS + " | fields message, source");
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) body.get("columns");
+        List<String> columns = extractColumnNames(body);
         assertTrue("must have source column", columns.contains("source"));
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals("total rows: 3 + 2 = 5", 5, rows.size());
         int sourceCol = columns.indexOf("source");
         int nullCount = 0;
@@ -132,7 +132,7 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureProvisioned();
         Map<String, Object> body = executePpl("source=" + PQLUC_ALIAS + " | stats sum(status) as total");
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals(1, rows.size());
         long total = ((Number) rows.get(0).get(0)).longValue();
         assertEquals("sum(200+500+200+200+404)", 1504L, total);
@@ -142,10 +142,10 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureProvisioned();
         Map<String, Object> body = executePpl("source=" + PQLUC_ALIAS + " | fields message, source");
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) body.get("columns");
+        List<String> columns = extractColumnNames(body);
         assertTrue("must have source column", columns.contains("source"));
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals(5, rows.size());
         int sourceCol = columns.indexOf("source");
         int nullCount = 0;
@@ -190,7 +190,7 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureMshardProvisioned();
         Map<String, Object> body = executePpl("source=" + MSHARD_ALIAS + " | stats sum(val) as total");
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals(1, rows.size());
         long total = ((Number) rows.get(0).get(0)).longValue();
         // sum(0..9) + sum(10..19) = 45 + 145 = 190
@@ -201,11 +201,11 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureMshardProvisioned();
         Map<String, Object> body = executePpl("source=" + MSHARD_ALIAS + " | fields val, tag, extra");
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) body.get("columns");
+        List<String> columns = extractColumnNames(body);
         assertTrue("must have tag", columns.contains("tag"));
         assertTrue("must have extra", columns.contains("extra"));
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals("20 total rows", 20, rows.size());
         int tagCol = columns.indexOf("tag");
         int extraCol = columns.indexOf("extra");
@@ -249,10 +249,10 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureTypesProvisioned();
         Map<String, Object> body = executePpl("source=" + TYPES_ALIAS + " | fields id, label, active, score, count");
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) body.get("columns");
+        List<String> columns = extractColumnNames(body);
         assertTrue("must have all union columns", columns.containsAll(List.of("id", "label", "active", "score", "count")));
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals("4 total rows", 4, rows.size());
         int labelCol = columns.indexOf("label");
         int scoreCol = columns.indexOf("score");
@@ -269,7 +269,7 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         ensureTypesProvisioned();
         Map<String, Object> body = executePpl("source=" + TYPES_ALIAS + " | stats sum(id) as total");
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals(1, rows.size());
         long total = ((Number) rows.get(0).get(0)).longValue();
         assertEquals("sum(1+2+3+4)", 10L, total);
@@ -294,11 +294,11 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
 
         Map<String, Object> body = executePpl("source=" + dynAlias + " | fields id, city, country");
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) body.get("columns");
+        List<String> columns = extractColumnNames(body);
         assertTrue("must have city", columns.contains("city"));
         assertTrue("must have country", columns.contains("country"));
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertEquals(4, rows.size());
         int cityCol = columns.indexOf("city");
         int countryCol = columns.indexOf("country");
@@ -342,7 +342,7 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
     }
 
     private String executePplExpectingFailure(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);
@@ -362,7 +362,7 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
     private long singleCount(String ppl) throws IOException {
         Map<String, Object> body = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertNotNull("missing 'rows' for: " + ppl, rows);
         assertEquals("single count row expected: " + ppl, 1, rows.size());
         Object cell = rows.get(0).get(0);
@@ -370,12 +370,6 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
         return ((Number) cell).longValue();
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     private void createParquetIndex(String name, String mappingJson) throws IOException {
         createIndexWithSettings(name, mappingJson, false, 1);

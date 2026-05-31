@@ -106,8 +106,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
+    /** TopK reduce expression: evaluates opaque aggregate state to a sortable scalar. */
+    static final SqlOperator REDUCE_EVAL_OP = new SqlFunction(
+        "reduce_eval",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(REDUCE_EVAL_OP, "reduce_eval"),
         FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
@@ -494,7 +505,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             return Project.builder().from(project).input(newInput).build();
         }
         if (wrapper instanceof Fetch fetch) {
-            return Fetch.builder().from(fetch).input(newInput).build();
+            // A single Calcite LogicalSort carrying both a collation AND a fetch/offset lowers to
+            // Fetch(Sort(input)) — two Substrait rels from one node. Rewiring the Fetch's input
+            // directly would drop the Sort and lose global order before the limit. Descend into
+            // the Sort so the shape becomes Fetch(Sort(newInput)): gather, sort globally, then limit.
+            Rel rewiredInput = fetch.getInput() instanceof Sort ? replaceInput(fetch.getInput(), newInput) : newInput;
+            return Fetch.builder().from(fetch).input(rewiredInput).build();
         }
         throw new UnsupportedOperationException(
             "Cannot attach-on-top a Substrait Rel of type " + wrapper.getClass().getSimpleName() + " — no single-input rewire defined"

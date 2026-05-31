@@ -33,7 +33,8 @@ public class SystemFunctionsIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -91,17 +92,10 @@ public class SystemFunctionsIT extends AnalyticsRestTestCase {
     private Object firstRowFirstCell(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertTrue("Expected at least one row for query: " + ppl, rows.size() >= 1);
         return rows.get(0).get(0);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }
