@@ -16,21 +16,9 @@ import org.apache.calcite.rex.RexOver;
 import java.util.List;
 
 /**
- * Per-function adapter that transforms a backend-agnostic window function
- * {@link RexOver} into a backend-compatible form. Registered by backends
- * alongside their capability declarations, keyed by {@link WindowFunction}.
- *
- * <p>Examples — DataFusion:
- * <ul>
- *   <li>PPL {@code ARG_MIN(value, ts)} → {@code FIRST_VALUE(value) ORDER BY ts ASC}
- *       (DataFusion has no built-in arg_min UDAF)</li>
- *   <li>PPL {@code DISTINCT_COUNT_APPROX(x)} → {@code APPROX_COUNT_DISTINCT(x)}
- *       (substrait function-name re-bind to a DataFusion built-in)</li>
- * </ul>
- *
- * <p>Operands, PARTITION BY, and ORDER BY have already been recursively adapted
- * by {@code BackendPlanAdapter} when this is called — adapters receive them as
- * pre-adapted inputs and decide how to rewire them around the new operator.
+ * Per-function adapter that rewrites a backend-agnostic window {@link RexOver} into a backend-compatible form.
+ * Registered by backends keyed by {@link WindowFunction}. Operands, PARTITION BY, and ORDER BY arrive
+ * already-adapted from {@code BackendPlanAdapter}'s scalar-recursion pass.
  *
  * @opensearch.internal
  */

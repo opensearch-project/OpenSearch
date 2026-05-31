@@ -24,31 +24,14 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * DataFusion-side {@link WindowFunctionAdapter} implementations that rewrite PPL-form
- * window aggregates into the shapes DataFusion's substrait consumer understands.
- *
+ * DataFusion-side {@link WindowFunctionAdapter}s rewriting PPL-form window aggregates:
  * <ul>
- *   <li>{@link #argMin()} — {@code ARG_MIN(value, ts)} → {@code FIRST_VALUE(value) ORDER BY ts ASC}.
- *       DataFusion 53.x has no built-in {@code arg_min} UDAF; under PPL's default
- *       UNBOUNDED PRECEDING / UNBOUNDED FOLLOWING frame, FIRST_VALUE with ORDER BY ts is exactly
- *       equivalent.</li>
- *   <li>{@link #argMax()} — {@code ARG_MAX(value, ts)} → {@code LAST_VALUE(value) ORDER BY ts ASC}.
- *       Same reasoning; LAST_VALUE on the full partition under the unbounded frame picks the
- *       row whose ORDER BY key is largest.</li>
- *   <li>{@link #distinctCountApprox()} — {@code DISTINCT_COUNT_APPROX(x)}
- *       → {@code APPROX_COUNT_DISTINCT(x)}.
- *       sql-plugin's PPL maps {@code dc()}/{@code distinct_count()}/{@code distinct_count_approx()}
- *       all to a UDAF named {@code DISTINCT_COUNT_APPROX} (HyperLogLog++ via OpenSearch cardinality
- *       on the V3 path, i.e. always approximate). DataFusion exposes the same family of HLL
- *       semantics under {@code APPROX_COUNT_DISTINCT}; this adapter rebinds the operator so
- *       isthmus emits the substrait function name DataFusion's substrait consumer recognizes
- *       (after the wrapper UDAF in {@code rust/src/udaf/approx_count_distinct.rs} aliases it
- *       to DataFusion's built-in {@code approx_distinct}).
- *
- *       <p>We do not rewrite to {@code COUNT(DISTINCT x)} because DataFusion's substrait
- *       consumer drops the {@code AggregationInvocation.DISTINCT} flag on window functions
- *       (see {@code datafusion-substrait/.../window_function.rs} hard-coding
- *       {@code distinct: false}).</li>
+ *   <li>{@link #argMin()} / {@link #argMax()} — {@code ARG_MIN/MAX(value, ts)} →
+ *       {@code FIRST_VALUE/LAST_VALUE(value) ORDER BY ts ASC} (no native arg_min/max UDAF in DataFusion 53.x).</li>
+ *   <li>{@link #distinctCountApprox()} — {@code DISTINCT_COUNT_APPROX(x)} → Calcite
+ *       {@code APPROX_COUNT_DISTINCT(x)}, which the convertor renames to substrait {@code approx_distinct}
+ *       (DataFusion's built-in HLL UDAF). Direct rewrite to {@code COUNT(DISTINCT x)} is unsafe — the
+ *       DataFusion substrait consumer drops the DISTINCT flag on window functions.</li>
  * </ul>
  *
  * @opensearch.internal

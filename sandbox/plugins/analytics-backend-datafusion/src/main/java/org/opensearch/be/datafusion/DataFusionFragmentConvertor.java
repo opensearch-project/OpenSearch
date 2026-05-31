@@ -346,7 +346,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
-        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern")
+        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern"),
+        // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
     );
 
     /**
@@ -610,12 +612,20 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
         };
+        // Same APPROX_COUNT_DISTINCT filter as aggConverter — let our `approx_distinct` entry win.
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(
             extensions.windowFunctions(),
             ADDITIONAL_WINDOW_SIGS,
             typeFactory,
             typeConverter
-        );
+        ) {
+            @Override
+            protected ImmutableList<FunctionMappings.Sig> getSigs() {
+                return super.getSigs().stream()
+                    .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                    .collect(ImmutableList.toImmutableList());
+            }
+        };
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
             extensions,

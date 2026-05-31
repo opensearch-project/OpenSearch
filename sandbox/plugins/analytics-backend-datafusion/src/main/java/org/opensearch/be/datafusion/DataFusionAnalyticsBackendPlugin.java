@@ -456,24 +456,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Set<WindowCapability> windowCapabilities() {
-                // SUM/AVG/COUNT/MIN/MAX cover PPL eventstats; ROW_NUMBER covers PPL dedup
-                // (ROW_NUMBER OVER PARTITION BY … <= N) and the helper sequence column
-                // PPL streamstats … by … emits as __row_number_for_streamstats__.
-                //
-                // ARG_MIN / ARG_MAX / DISTINCT_COUNT_APPROX advertise the *PPL form* of
-                // earliest() / latest() / dc()-distinct_count(). DataFusion has no built-in
-                // by those names; BackendPlanAdapter rewrites them before substrait emission:
-                // ARG_MIN(value, ts) → FIRST_VALUE(value) ORDER BY ts ASC
-                // ARG_MAX(value, ts) → LAST_VALUE(value) ORDER BY ts ASC
-                // DISTINCT_COUNT_APPROX(x) → COUNT(x) with isDistinct=true
-                // first_value / last_value / count(distinct) are DataFusion built-ins
-                // (datafusion-functions-aggregate first_last.rs and count.rs respectively).
-                // Per-partition the SINGLETON cost gate guarantees fully-gathered input,
-                // so first_value's ORDER-BY pick and count_distinct's hash dedup are exact.
-                //
-                // isthmus's RexExpressionConverter.visitOver serializes the RexOver inline as a
-                // Substrait WindowFunctionInvocation; DataFusion's substrait consumer splits it
-                // into a dedicated LogicalPlan::Window. No adapter or Rust UDF is needed.
+                // PPL-form aggregates (ARG_MIN/MAX, DISTINCT_COUNT_APPROX) are advertised here and
+                // rewritten into DataFusion-native shapes by WindowFunctionAdapters before emission.
+                // SINGLETON cost gate guarantees fully-gathered partition input.
                 return Set.of(
                     new WindowCapability(
                         Set.of(

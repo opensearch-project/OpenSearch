@@ -202,12 +202,8 @@ public class BackendPlanAdapter {
             if (adapted != operand) operandsChanged = true;
         }
 
-        // Window functions: adapter recursion has to descend into PARTITION BY / ORDER BY
-        // expressions too — they live on RexOver.window, not in getOperands(), and isthmus's
-        // WindowFunctionConverter walks them when emitting substrait. Without this,
-        // calls like SPAN that need a backend-specific rewrite (SPAN(field, n, NULL) →
-        // FLOOR(field/n)*n) survive into substrait emission carrying their NULL-typed
-        // operand and trip TypeConverter.
+        // PARTITION BY / ORDER BY expressions live on RexOver.window, not in getOperands(), so
+        // adapter recursion has to descend through adaptOver to reach them.
         if (call instanceof RexOver over) {
             return adaptOver(over, adapters, fieldStorage, cluster, adaptedOperands, operandsChanged);
         }
@@ -260,8 +256,7 @@ public class BackendPlanAdapter {
             }
         }
 
-        // Backend-specific PPL→backend rewrites (e.g. ARG_MIN→FIRST_VALUE). The adapter receives
-        // already-adapted operands/PARTITION/ORDER, picks an operator, and returns a fresh RexOver.
+        // Backend-specific rewrites (e.g. ARG_MIN→FIRST_VALUE). Adapter sees already-adapted operands.
         WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
         WindowFunctionAdapter adapter = fn == null ? null : adapters.window().get(fn);
         if (adapter != null) {
