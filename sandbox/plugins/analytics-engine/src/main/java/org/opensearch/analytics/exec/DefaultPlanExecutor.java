@@ -297,7 +297,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             listener::onResponse,
             e -> listener.onFailure(e instanceof Exception ex ? contextProvider.convertException(ex) : e)
         );
-        searchExecutor.execute(() -> {
+        ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
                 executeInternal(
                     request.getPlan(),

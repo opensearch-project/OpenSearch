@@ -202,7 +202,7 @@ public class DataStreamIT extends AnalyticsRestTestCase {
 
         Map<String, Object> body = executePpl("source=" + STREAM + " | stats count() as c by category | sort category");
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertNotNull(rows);
         assertEquals("two distinct categories", 2, rows.size());
         // After sort by category: alpha (3), beta (3).
@@ -304,7 +304,7 @@ public class DataStreamIT extends AnalyticsRestTestCase {
     private long singleLongAgg(String ppl) throws IOException {
         Map<String, Object> body = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) body.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) body.get("datarows");
         assertNotNull("missing 'rows' for: " + ppl, rows);
         assertEquals("single row expected: " + ppl, 1, rows.size());
         Object cell = rows.get(0).get(0);
@@ -312,15 +312,9 @@ public class DataStreamIT extends AnalyticsRestTestCase {
         return ((Number) cell).longValue();
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     private String executePplExpectingFailure(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);

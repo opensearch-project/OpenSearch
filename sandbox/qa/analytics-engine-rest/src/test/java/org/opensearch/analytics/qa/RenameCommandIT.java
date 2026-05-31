@@ -31,7 +31,8 @@ public class RenameCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -46,7 +47,7 @@ public class RenameCommandIT extends AnalyticsRestTestCase {
         assertSingletonColumn(response, "label");
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertEquals("Row count", 3, rows.size());
     }
 
@@ -58,8 +59,8 @@ public class RenameCommandIT extends AnalyticsRestTestCase {
                 + " | rename str2 as label, num0 as value | fields label, value | head 5"
         );
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) response.get("columns");
-        assertNotNull("Response missing 'columns'", columns);
+        List<String> columns = extractColumnNames(response);
+        assertNotNull("Response missing 'schema'", columns);
         assertEquals("Column count", 2, columns.size());
         assertEquals("First renamed column", "label", columns.get(0));
         assertEquals("Second renamed column", "value", columns.get(1));
@@ -88,8 +89,8 @@ public class RenameCommandIT extends AnalyticsRestTestCase {
 
     private void assertSingletonColumn(Map<String, Object> response, String expectedName) {
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) response.get("columns");
-        assertNotNull("Response missing 'columns'", columns);
+        List<String> columns = extractColumnNames(response);
+        assertNotNull("Response missing 'schema'", columns);
         assertEquals("Column count", 1, columns.size());
         assertEquals("Column name", expectedName, columns.get(0));
     }
@@ -101,8 +102,8 @@ public class RenameCommandIT extends AnalyticsRestTestCase {
         } catch (org.opensearch.client.ResponseException e) {
             String body;
             try {
-                body = org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(
@@ -114,11 +115,4 @@ public class RenameCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }
