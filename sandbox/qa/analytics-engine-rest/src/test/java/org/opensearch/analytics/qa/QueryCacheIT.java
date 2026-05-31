@@ -53,7 +53,7 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
 
         // First call — BooleanQuery threshold=1 → caches immediately
         // All 20 docs match because default operator is OR ("hello" OR "world")
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePpl(ppl);
         assertRowCount(result, 20);
 
         long cacheSizeAfter = getQueryCacheStat("cache_size");
@@ -65,7 +65,7 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
 
         // Second call — should produce a cache hit
         long hitsBefore = getQueryCacheStat("hit_count");
-        executePPL(ppl);
+        executePpl(ppl);
         long hitsAfter = getQueryCacheStat("hit_count");
         assertTrue(
             "Cache hit_count should increase on repeat. Before: " + hitsBefore + ", After: " + hitsAfter,
@@ -89,9 +89,9 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
         long cacheSizeBefore = getQueryCacheStat("cache_size");
 
         // Multiple calls — TermQuery should never be cached regardless of frequency
-        executePPL(ppl);
-        executePPL(ppl);
-        executePPL(ppl);
+        executePpl(ppl);
+        executePpl(ppl);
+        executePpl(ppl);
 
         long cacheSizeAfter = getQueryCacheStat("cache_size");
         assertEquals(
@@ -115,7 +115,7 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
         long cacheSizeBefore = getQueryCacheStat("cache_size");
 
         // First call — BooleanQuery threshold=2, frequency=1 → not cached
-        executePPL(ppl);
+        executePpl(ppl);
         long cacheSizeAfterFirst = getQueryCacheStat("cache_size");
         assertEquals(
             "BooleanQuery should NOT cache on first use when min_frequency=3 (threshold=2)",
@@ -124,7 +124,7 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
         );
 
         // Second call — frequency=2 → threshold met → cache populates
-        executePPL(ppl);
+        executePpl(ppl);
         long cacheSizeAfterSecond = getQueryCacheStat("cache_size");
         assertTrue(
             "BooleanQuery should cache on second use when min_frequency=3. Before: "
@@ -134,7 +134,7 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
 
         // Third call — cache hit
         long hitsBefore = getQueryCacheStat("hit_count");
-        executePPL(ppl);
+        executePpl(ppl);
         long hitsAfter = getQueryCacheStat("hit_count");
         assertTrue(
             "Cache hit should occur on third call. Before: " + hitsBefore + ", After: " + hitsAfter,
@@ -158,12 +158,12 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
         long cacheSizeBefore = getQueryCacheStat("cache_size");
 
         // Cache first query (BooleanQuery, threshold=1 → immediate)
-        executePPL(ppl1);
+        executePpl(ppl1);
         long cacheSizeAfterFirst = getQueryCacheStat("cache_size");
         assertTrue(cacheSizeAfterFirst > cacheSizeBefore);
 
         // Cache second query
-        executePPL(ppl2);
+        executePpl(ppl2);
         long cacheSizeAfterSecond = getQueryCacheStat("cache_size");
         assertTrue(
             "Second distinct query should add its own cache entry. After first: "
@@ -249,16 +249,10 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + ppl + "\"}");
-        Response response = client().performRequest(request);
-        return entityAsMap(response);
-    }
 
     @SuppressWarnings("unchecked")
     private void assertRowCount(Map<String, Object> result, long expectedCount) {
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
         assertEquals(expectedCount, ((Number) rows.get(0).get(0)).longValue());

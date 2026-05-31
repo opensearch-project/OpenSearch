@@ -148,6 +148,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     ) {
         try {
             executor.execute(() -> {
+                LOGGER.debug("[FragmentExecution] shard={} task={}", shard.shardId(), task.getId());
                 try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
                     Iterator<EngineResultBatch> it = ctx.stream().iterator();
                     while (it.hasNext()) {

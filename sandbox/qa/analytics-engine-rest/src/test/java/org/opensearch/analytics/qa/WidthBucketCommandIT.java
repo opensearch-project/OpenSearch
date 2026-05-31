@@ -42,7 +42,8 @@ public class WidthBucketCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -91,7 +92,7 @@ public class WidthBucketCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | bin num1 bins=10 | stats count() as c by num1 | sort num1"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         assertEquals("2 distinct buckets expected", 2, rows.size());
         // Lex-sort on VARCHAR: "0-10", "10-20".
@@ -158,8 +159,8 @@ public class WidthBucketCommandIT extends AnalyticsRestTestCase {
     private final void assertRows(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
             List<Object> want = expected[i];
@@ -179,13 +180,6 @@ public class WidthBucketCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     private static void assertCellEquals(String message, Object expected, Object actual) {
         if (expected == null || actual == null) {

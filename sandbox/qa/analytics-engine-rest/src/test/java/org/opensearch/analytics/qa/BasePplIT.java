@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import java.io.IOException;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -32,7 +33,8 @@ public abstract class BasePplIT extends AnalyticsRestTestCase {
         return Set.of();
     }
 
-    private void ensureDataProvisioned() throws Exception {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (!dataProvisioned) {
             DatasetProvisioner.provision(client(), getDataset());
             dataProvisioned = true;
@@ -40,8 +42,6 @@ public abstract class BasePplIT extends AnalyticsRestTestCase {
     }
 
     protected void runPplQueries() throws Exception {
-        ensureDataProvisioned();
-
         List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(getDataset(), "ppl")
             .stream()
             .filter(n -> !getSkipQueries().contains(n))
@@ -57,7 +57,7 @@ public abstract class BasePplIT extends AnalyticsRestTestCase {
             queryNumbers,
             (client, dataset, queryBody) -> {
                 String ppl = queryBody.trim();
-                Request request = new Request("POST", "/_analytics/ppl");
+                Request request = new Request("POST", "/_plugins/_ppl");
                 request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
                 Response response = client.performRequest(request);
                 return assertOkAndParse(response, "PPL query");
