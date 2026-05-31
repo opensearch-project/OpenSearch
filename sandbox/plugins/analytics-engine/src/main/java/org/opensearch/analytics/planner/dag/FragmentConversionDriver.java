@@ -121,10 +121,12 @@ public class FragmentConversionDriver {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(plan.backendId());
             FragmentConvertor convertor = backend.getFragmentConvertor();
 
-            // Derive filter tree shape BEFORE stripping (annotations must be intact)
+            // Derive filter tree shape BEFORE stripping (annotations must be intact). Mirrors
+            // fuseDualViable so the deriver's classification matches the post-combiner tree
+            // the data node actually sees.
             OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
             FilterTreeShape treeShape = filter != null
-                ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
+                ? FilterTreeShapeDeriver.derive(filter, plan.backendId(), fuseDualViable)
                 : FilterTreeShape.NO_DELEGATION;
 
             IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry, fuseDualViable);

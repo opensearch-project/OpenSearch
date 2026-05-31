@@ -155,6 +155,53 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
+    // ---- fuse_dual_viable interaction ----
+
+    /**
+     * Same OR(correctness, perf) shape as {@link #testOrWithCorrectnessAndPerfDelegated} but
+     * with {@code fuseDualViable=true}: combiner fuses both buckets into a single
+     * {@code delegation_possible} call wrapping the OR, so the post-combiner tree is
+     * conjunctive from the data node's evaluator-classification perspective.
+     */
+    public void testOrWithCorrectnessAndPerfDelegated_fused_isConjunctive() {
+        RexNode correctness = annotated(ACCEPTING);
+        RexNode perf = perfDelegated();
+        RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, correctness, perf);
+        OpenSearchFilter filter = buildFilter(orNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, true);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+    }
+
+    /**
+     * NOT(perf-delegated) with {@code fuseDualViable=true}: combiner keeps the perf leaf in
+     * the delegation pool under NOT, so the post-combiner tree is a single
+     * {@code delegation_possible} wrapping the NOT — conjunctive.
+     */
+    public void testNotOfPerfDelegated_fused_isConjunctive() {
+        RexNode perf = perfDelegated();
+        RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, perf);
+        OpenSearchFilter filter = buildFilter(notNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, true);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+    }
+
+    /**
+     * Even with {@code fuseDualViable=true}, OR(delegated, native-non-delegable) stays
+     * INTERLEAVED — the native arm can't be folded into the peer's delegation no matter
+     * what the carve-out policy is. Fusion only collapses the perf-vs-correctness axis.
+     */
+    public void testOrWithDelegatedAndNative_fused_stillInterleaved() {
+        RexNode delegated = annotated(ACCEPTING);
+        RexNode nativePred = annotated(DRIVING);
+        RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, delegated, nativePred);
+        OpenSearchFilter filter = buildFilter(orNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, true);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+    }
+
     private OpenSearchFilter buildFilter(RexNode condition) {
         return new OpenSearchFilter(
             cluster,

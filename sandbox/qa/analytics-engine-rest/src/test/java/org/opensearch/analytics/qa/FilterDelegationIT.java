@@ -333,6 +333,48 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         }
     }
 
+    /**
+     * Two performance-delegated EQUALS predicates under OR — the case where the
+     * {@code FilterTreeShape} differs by fuse mode:
+     *
+     * <ul>
+     *   <li>{@code fuse=false} — carve-out throws each perf leaf back individually:
+     *       {@code OR(delegation_possible(tag='hello'), delegation_possible(value=3))}.
+     *       Tree shape INTERLEAVED → data node uses the bitmap-tree evaluator.</li>
+     *   <li>{@code fuse=true} — combiner fuses both into a single
+     *       {@code delegation_possible(OR(tag='hello', value=3))}. Tree shape CONJUNCTIVE →
+     *       data node uses the single-collector evaluator. Without the deriver fix the
+     *       shape stays INTERLEAVED while the actual tree is conjunctive — Rust's classifier
+     *       picks the wrong evaluator path and either silently mis-selects or panics on
+     *       unimplemented cases.</li>
+     * </ul>
+     *
+     * Both modes must produce the same correct row count: 10 docs with
+     * {@code tag='hello'} (and {@code value=5}) plus 10 docs with {@code value=3} = 20.
+     */
+    public void testOrTwoPerf_fuseDualViable_bothModes() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
+
+        setFuseDualViable(false);
+        try {
+            Map<String, Object> result = executePplViaShim(ppl);
+            @SuppressWarnings("unchecked")
+            List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+            assertEquals("fuse=false: count for OR(perf, perf)", 20L, ((Number) rows.get(0).get(0)).longValue());
+
+            setFuseDualViable(true);
+            result = executePplViaShim(ppl);
+            @SuppressWarnings("unchecked")
+            List<List<Object>> rowsFused = (List<List<Object>>) result.get("rows");
+            assertEquals("fuse=true: same count for OR(perf, perf)", 20L, ((Number) rowsFused.get(0).get(0)).longValue());
+        } finally {
+            setFuseDualViable(false);
+        }
+    }
+
     private void setFuseDualViable(boolean value) throws Exception {
         Request req = new Request("PUT", "/_cluster/settings");
         req.setJsonEntity("{\"persistent\":{\"analytics.delegation.fuse_dual_viable\": " + value + "}}");
