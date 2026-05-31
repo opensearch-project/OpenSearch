@@ -292,6 +292,53 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         assertEquals(20L, ((Number) rows.get(0).get(0)).longValue());
     }
 
+    /**
+     * OR(perf-delegated EQUALS, correctness-delegated MATCH) executed twice with
+     * {@code analytics.delegation.fuse_dual_viable} flipped between false and true.
+     *
+     * <ul>
+     *   <li>{@code fuse=false} (default) — combiner carve-out: dual-viable EQUALS stays
+     *       native via {@code delegation_possible}, MATCH ships as one delegated expression.</li>
+     *   <li>{@code fuse=true} — perf + correctness leaves both ship to the peer; driver no
+     *       longer carries the {@code delegation_possible} marker for the EQUALS leaf.</li>
+     * </ul>
+     *
+     * Both paths must produce identical row counts. Oracle: 10 docs match
+     * {@code match(message,'hello')} AND 10 docs match {@code tag='hello'} (same 10 docs);
+     * union = 10.
+     */
+    public void testOrCorrectnessAndPerf_fuseDualViable_bothModes() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
+
+        // Default (fuse=false) — carve-out path
+        setFuseDualViable(false);
+        try {
+            Map<String, Object> result = executePplViaShim(ppl);
+            @SuppressWarnings("unchecked")
+            List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+            assertEquals("fuse=false: count for OR(MATCH, EQUALS)", 10L, ((Number) rows.get(0).get(0)).longValue());
+
+            // fuse=true — entire boolean ships to peer
+            setFuseDualViable(true);
+            result = executePplViaShim(ppl);
+            @SuppressWarnings("unchecked")
+            List<List<Object>> rowsFused = (List<List<Object>>) result.get("rows");
+            assertEquals("fuse=true: same count for OR(MATCH, EQUALS)", 10L, ((Number) rowsFused.get(0).get(0)).longValue());
+        } finally {
+            // Restore to default so subsequent tests aren't affected.
+            setFuseDualViable(false);
+        }
+    }
+
+    private void setFuseDualViable(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.delegation.fuse_dual_viable\": " + value + "}}");
+        client().performRequest(req);
+    }
+
     private void createIndex() throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX_NAME));

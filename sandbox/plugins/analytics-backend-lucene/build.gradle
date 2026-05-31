@@ -22,6 +22,16 @@ configurations {
     calciteTestCompile
     testCompileClasspath { exclude group: 'com.google.guava' }
 }
+
+// Pin flatbuffers across every test classpath. AggregateFunction's <clinit> instantiates
+// ArrowType.Int, whose generated FlatBuffers schema descends from com.google.flatbuffers.Table;
+// without the force, transitive 24.x clashes with the project-wide 2.0.0. Matches the
+// analytics-backend-datafusion pattern.
+configurations.all {
+    resolutionStrategy {
+        force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+    }
+}
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
 dependencies {
@@ -40,6 +50,13 @@ dependencies {
     // pure-Java setSafe + Flight VectorTransfer.transferRoot zeros the underlying memory.
     implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
 
+    // Substrait core — used by LuceneFragmentConvertor.convertSchemaOnlyRead to emit a
+    // Plan{Read{named_table; base_schema}} stub that the coordinator's reduce sink decodes
+    // for partition-schema derivation. Lucene's convertFragment produces a non-Substrait
+    // wire format (BoolQueryBuilder NamedWriteable bytes), so the schema-only Read is the
+    // only piece the reducer needs to be able to prost::decode.
+    implementation "io.substrait:core:0.89.1"
+
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
@@ -50,6 +67,11 @@ dependencies {
     calciteTestCompile "com.google.guava:guava:${versions.guava}"
     testRuntimeOnly "com.google.guava:guava:${versions.guava}"
     testRuntimeOnly 'com.google.guava:failureaccess:1.0.2'
+    // AggregateFunction's <clinit> instantiates ArrowType.Int, whose generated FlatBuffers
+    // schema descends from com.google.flatbuffers.Table. arrow-format / flatbuffers are
+    // provided at runtime by analytics-engine in production but not on the unit-test JVM.
+    testRuntimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+    testRuntimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
     // Calcite annotation compatibility
     testCompileOnly 'org.immutables:value-annotations:2.8.8'

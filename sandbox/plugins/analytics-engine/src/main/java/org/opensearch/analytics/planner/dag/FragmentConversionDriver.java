@@ -153,15 +153,28 @@ public class FragmentConversionDriver {
     }
 
     /**
-     * Detect a decorator-induced schema delta between a child stage's produced rowType and
-     * what the parent declares it expects, and emit a schema-only Read for partition registration.
+     * Emits a schema-only Read stub onto each child plan's {@code postDecorationSchemaBytes}
+     * whenever the parent reduce sink can't safely decode the child's {@code convertedBytes} as
+     * the wire format it expects. Two distinct triggers, both resolved by the CHILD's convertor
+     * (the producer describes its own output schema):
      *
-     * <p>The expected rowType lives on the parent's {@code OpenSearchStageInputScan(childStageId)}
-     * placeholder, which {@code DAGBuilder.cutAtExchange} sets to the reducer's output rowType
-     * (widened by the rewriter when a decorator like {@code OrdinalAppendingSink} runs). The
-     * produced rowType is the child's fragment top. When the two differ, the producer's natural
-     * schema undersells what arrives at the partition boundary post-decorator — the reduce sink
-     * needs the wider one.
+     * <ul>
+     *   <li><b>Schema decoration</b> — a partition decorator (e.g. {@code OrdinalAppendingSink})
+     *       widens the child's produced rowType before it reaches the partition boundary. The
+     *       parent declares the wider {@code expected} rowType on its
+     *       {@code OpenSearchStageInputScan} placeholder; the reducer needs that, not the
+     *       producer's narrower natural schema.</li>
+     *   <li><b>Non-substrait producer</b> — the child plan's backend (Lucene today) emits its
+     *       own wire format from {@code convertFragment}; the reducer can't decode that as
+     *       Substrait. The child's {@code convertSchemaOnlyRead} returns a Substrait stub
+     *       describing its actual output schema so the reducer can register the partition.
+     *       Without this, DataFusion's {@code derive_schema_from_partial_plan} runs prost::decode
+     *       over Lucene wire bytes and fails with "invalid tag value".</li>
+     * </ul>
+     *
+     * <p>Whether the child produces Substrait natively is asked of the child's convertor via
+     * {@link FragmentConvertor#producesSubstraitFragments()}. The schema-only Read uses the
+     * {@code expected} rowType (the post-decoration schema crossing the partition boundary).
      *
      * <p>TODO: Uses {@link RelNodeUtils#findNode} which only walks the first-input chain. Fine for
      * QTF today (linear fragments). When QTF extends to Joins/Unions, multi-input fragments will
@@ -173,16 +186,22 @@ public class FragmentConversionDriver {
             if (inputScan == null || inputScan.getChildStageId() != child.getStageId()) continue;
             RelDataType produced = child.getFragment().getRowType();
             RelDataType expected = inputScan.getRowType();
-            // Cheap int compare first, then digest string compare via equals.
-            if (produced.getFieldCount() == expected.getFieldCount() && produced.equals(expected)) continue;
+            boolean schemaMismatch = produced.getFieldCount() != expected.getFieldCount() || produced.equals(expected) == false;
 
             List<StagePlan> updated = new ArrayList<>(child.getPlanAlternatives().size());
+            boolean changed = false;
             for (StagePlan plan : child.getPlanAlternatives()) {
                 FragmentConvertor convertor = registry.getBackend(plan.backendId()).getFragmentConvertor();
+                boolean nonSubstraitProducer = convertor.producesSubstraitFragments() == false;
+                if (schemaMismatch == false && nonSubstraitProducer == false) {
+                    updated.add(plan);
+                    continue;
+                }
                 byte[] postDecorationBytes = convertor.convertSchemaOnlyRead(child.getStageId(), expected);
                 updated.add(plan.withPostDecorationSchemaBytes(postDecorationBytes));
+                changed = true;
             }
-            child.setPlanAlternatives(updated);
+            if (changed) child.setPlanAlternatives(updated);
         }
     }
 

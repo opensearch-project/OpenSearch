@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Lucene-side {@link BackendExecutionContext}. Built by {@link LuceneScanInstructionHandler}
@@ -37,9 +38,11 @@ final class LuceneSearcherState implements BackendExecutionContext {
     private final List<String> outputColumnNames;
 
     LuceneSearcherState(IndexSearcher searcher, Query filterQuery, List<String> outputColumnNames) {
-        this.searcher = searcher;
-        this.filterQuery = filterQuery;
-        this.outputColumnNames = List.copyOf(outputColumnNames);
+        this.searcher = Objects.requireNonNull(searcher, "searcher");
+        // Never null — see field javadoc. Caller must substitute MatchAllDocsQuery when the
+        // fragment has no filter so the search engine doesn't have to branch.
+        this.filterQuery = Objects.requireNonNull(filterQuery, "filterQuery (use MatchAllDocsQuery for no-filter fragments)");
+        this.outputColumnNames = List.copyOf(Objects.requireNonNull(outputColumnNames, "outputColumnNames"));
     }
 
     IndexSearcher searcher() {

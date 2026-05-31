@@ -97,4 +97,15 @@ public interface FragmentConvertor {
     default byte[] convertSchemaOnlyRead(int childStageId, RelDataType rowType) {
         throw new UnsupportedOperationException("convertSchemaOnlyRead not implemented for this backend");
     }
+
+    /**
+     * Whether {@link #convertFragment} emits Substrait bytes the reducer can decode for
+     * partition-schema derivation. Default {@code true}; backends with a custom wire format
+     * (e.g. Lucene's count fast path) return {@code false} and MUST also override
+     * {@link #convertSchemaOnlyRead} so the orchestrator emits a Substrait stub at the
+     * partition boundary.
+     */
+    default boolean producesSubstraitFragments() {
+        return true;
+    }
 }

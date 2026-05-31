@@ -114,18 +114,18 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     );
 
     /**
-     * When {@code true}, prefer a metadata-only driving backend (e.g. Lucene's inverted index)
-     * over value-producing backends (e.g. DataFusion) whenever both are viable for a stage —
-     * i.e. the planner collapses {@code [lucene, datafusion]} alternatives into {@code [lucene]}
-     * before shipping. Each stage ends up with exactly one {@link
-     * org.opensearch.analytics.planner.dag.StagePlan}, so the data node skips per-request
-     * alternative selection and the convertor runs once per stage instead of once per
-     * alternative (saves coordinator CPU on conversion).
+     * Controls the metadata-only driver vs. value-producing peer choice when both are viable
+     * for a stage:
      *
-     * <p>Default {@code true} — metadata-only backends are only viable end-to-end when the
-     * fragment is fully metadata-soluble (count fast path today), in which case they are
-     * strictly faster. Flip to {@code false} for A/B comparisons or to fall back to the
-     * value-producing backend if the metadata driver hits a regression.
+     * <ul>
+     *   <li>{@code true} (default) — collapse to the metadata-only alternative (e.g. Lucene)
+     *       whenever it can run the stage end-to-end (today: count fast path). Stage ships
+     *       exactly one {@link org.opensearch.analytics.planner.dag.StagePlan}; convertor
+     *       runs once per stage; data node skips per-request alternative selection.</li>
+     *   <li>{@code false} — force the value-producing backend (DataFusion). All metadata-only
+     *       alternatives are dropped from every stage. A/B comparison knob and regression
+     *       escape hatch.</li>
+     * </ul>
      */
     public static final Setting<Boolean> PREFER_METADATA_DRIVER = Setting.boolSetting(
         "analytics.planner.prefer_metadata_driver",

@@ -49,41 +49,41 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
      * Single source of truth — every assertion's oracle is computed from this list.
      * Layout (segment splits in {@link #ingestThreeSegments}):
      * <pre>
-     *   segment 0: arpit/click/10/us/"alpha beta", arpit/view/20/eu/"beta gamma",
-     *              arpit/click/30/us/"alpha", bob/view/40/eu/"gamma",
-     *              bob/click/50/us/"alpha beta gamma", carol/view/60/apac/"alpha gamma",
-     *              carol/click/70/apac/"beta"
-     *   segment 1: arpit/view/11/us/"alpha alpha", arpit/click/21/eu/"beta",
-     *              arpit/view/31/us/"gamma", bob/click/41/eu/"alpha",
-     *              bob/view/51/us/"alpha beta", carol/click/61/apac/"gamma alpha",
-     *              carol/view/71/apac/"beta beta", carol/click/81/us/"alpha"
-     *   segment 2: arpit/view/12/us/"alpha", carol_only_3rd/click/22/eu/"beta gamma",
-     *              carol_only_3rd/view/32/eu/"alpha", carol_only_3rd/click/42/apac/"gamma"
+     *   segment 0: u_a/click/10/us/"alpha beta", u_a/view/20/eu/"beta gamma",
+     *              u_a/click/30/us/"alpha", u_b/view/40/eu/"gamma",
+     *              u_b/click/50/us/"alpha beta gamma", u_c/view/60/apac/"alpha gamma",
+     *              u_c/click/70/apac/"beta"
+     *   segment 1: u_a/view/11/us/"alpha alpha", u_a/click/21/eu/"beta",
+     *              u_a/view/31/us/"gamma", u_b/click/41/eu/"alpha",
+     *              u_b/view/51/us/"alpha beta", u_c/click/61/apac/"gamma alpha",
+     *              u_c/view/71/apac/"beta beta", u_c/click/81/us/"alpha"
+     *   segment 2: u_a/view/12/us/"alpha", u_seg3_only/click/22/eu/"beta gamma",
+     *              u_seg3_only/view/32/eu/"alpha", u_seg3_only/click/42/apac/"gamma"
      * </pre>
      */
     private static final List<Doc> DOCS = List.of(
         // segment 0
-        new Doc("arpit", "click", 10, "us", "alpha beta"),
-        new Doc("arpit", "view", 20, "eu", "beta gamma"),
-        new Doc("arpit", "click", 30, "us", "alpha"),
-        new Doc("bob", "view", 40, "eu", "gamma"),
-        new Doc("bob", "click", 50, "us", "alpha beta gamma"),
-        new Doc("carol", "view", 60, "apac", "alpha gamma"),
-        new Doc("carol", "click", 70, "apac", "beta"),
+        new Doc("u_a", "click", 10, "us", "alpha beta"),
+        new Doc("u_a", "view", 20, "eu", "beta gamma"),
+        new Doc("u_a", "click", 30, "us", "alpha"),
+        new Doc("u_b", "view", 40, "eu", "gamma"),
+        new Doc("u_b", "click", 50, "us", "alpha beta gamma"),
+        new Doc("u_c", "view", 60, "apac", "alpha gamma"),
+        new Doc("u_c", "click", 70, "apac", "beta"),
         // segment 1
-        new Doc("arpit", "view", 11, "us", "alpha alpha"),
-        new Doc("arpit", "click", 21, "eu", "beta"),
-        new Doc("arpit", "view", 31, "us", "gamma"),
-        new Doc("bob", "click", 41, "eu", "alpha"),
-        new Doc("bob", "view", 51, "us", "alpha beta"),
-        new Doc("carol", "click", 61, "apac", "gamma alpha"),
-        new Doc("carol", "view", 71, "apac", "beta beta"),
-        new Doc("carol", "click", 81, "us", "alpha"),
+        new Doc("u_a", "view", 11, "us", "alpha alpha"),
+        new Doc("u_a", "click", 21, "eu", "beta"),
+        new Doc("u_a", "view", 31, "us", "gamma"),
+        new Doc("u_b", "click", 41, "eu", "alpha"),
+        new Doc("u_b", "view", 51, "us", "alpha beta"),
+        new Doc("u_c", "click", 61, "apac", "gamma alpha"),
+        new Doc("u_c", "view", 71, "apac", "beta beta"),
+        new Doc("u_c", "click", 81, "us", "alpha"),
         // segment 2
-        new Doc("arpit", "view", 12, "us", "alpha"),
-        new Doc("carol_only_3rd", "click", 22, "eu", "beta gamma"),
-        new Doc("carol_only_3rd", "view", 32, "eu", "alpha"),
-        new Doc("carol_only_3rd", "click", 42, "apac", "gamma")
+        new Doc("u_a", "view", 12, "us", "alpha"),
+        new Doc("u_seg3_only", "click", 22, "eu", "beta gamma"),
+        new Doc("u_seg3_only", "view", 32, "eu", "alpha"),
+        new Doc("u_seg3_only", "click", 42, "apac", "gamma")
     );
 
     /** Range of doc indices that go into each segment (start inclusive, end exclusive). */
@@ -100,17 +100,17 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         assertCount("stats count() as cnt", total);
 
         // Single keyword equality (Lucene-only viable: keyword has indexFormats=[lucene],
-        // operator EQ supported on Lucene). 'arpit' appears 7 times across all three segments.
-        assertCount("where userID = 'arpit' | stats count() as cnt", oracleWhere(d -> d.userID.equals("arpit")));
+        // operator EQ supported on Lucene). 'u_a' appears 7 times across all three segments.
+        assertCount("where userID = 'u_a' | stats count() as cnt", oracleWhere(d -> d.userID.equals("u_a")));
 
         // Zero-match: 'dave' isn't in any segment → Weight.count returns 0 per leaf.
         assertCount("where userID = 'dave' | stats count() as cnt", 0);
 
-        // Single-segment-only term: 'carol_only_3rd' only in segment 2. Per-leaf summation
+        // Single-segment-only term: 'u_seg3_only' only in segment 2. Per-leaf summation
         // covers segments where most leaves contribute zero.
         assertCount(
-            "where userID = 'carol_only_3rd' | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("carol_only_3rd"))
+            "where userID = 'u_seg3_only' | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_seg3_only"))
         );
 
         // Coverage parity: every doc has exactly one event_type, so click_count + view_count = total.
@@ -148,15 +148,15 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         ingestThreeSegments();
 
         assertCount(
-            "where userID = 'arpit' AND amount > 20 | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("arpit") && d.amount > 20)
+            "where userID = 'u_a' AND amount > 20 | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_a") && d.amount > 20)
         );
 
         // OR across backends — the combiner declines to fuse under disjunction unless
         // dual-viable is in effect (count fast path forces it on).
         assertCount(
-            "where userID = 'bob' OR amount = 42 | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("bob") || d.amount == 42)
+            "where userID = 'u_b' OR amount = 42 | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_b") || d.amount == 42)
         );
     }
 
@@ -170,8 +170,8 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         ingestThreeSegments();
 
         assertCount(
-            "where userID = 'arpit' AND event_type = 'click' | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("arpit") && d.eventType.equals("click"))
+            "where userID = 'u_a' AND event_type = 'click' | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_a") && d.eventType.equals("click"))
         );
 
         assertCount(
@@ -180,14 +180,14 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         );
 
         assertCount(
-            "where userID = 'bob' OR userID = 'carol_only_3rd' | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("bob") || d.userID.equals("carol_only_3rd"))
+            "where userID = 'u_b' OR userID = 'u_seg3_only' | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_b") || d.userID.equals("u_seg3_only"))
         );
 
         // Three-way AND across keyword fields exercises BoolQueryBuilder with multiple MUST clauses.
         assertCount(
-            "where userID = 'arpit' AND event_type = 'view' AND region = 'us' | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("arpit") && d.eventType.equals("view") && d.region.equals("us"))
+            "where userID = 'u_a' AND event_type = 'view' AND region = 'us' | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_a") && d.eventType.equals("view") && d.region.equals("us"))
         );
     }
 
@@ -200,8 +200,8 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         ingestThreeSegments();
 
         assertCount(
-            "where userID != 'arpit' | stats count() as cnt",
-            oracleWhere(d -> !d.userID.equals("arpit"))
+            "where userID != 'u_a' | stats count() as cnt",
+            oracleWhere(d -> !d.userID.equals("u_a"))
         );
 
         assertCount(
@@ -218,8 +218,8 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         ingestThreeSegments();
 
         assertCount(
-            "where userID IN ('arpit', 'carol') | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("arpit") || d.userID.equals("carol"))
+            "where userID IN ('u_a', 'u_c') | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_a") || d.userID.equals("u_c"))
         );
 
         // Single-element IN reduces to equality.
@@ -252,9 +252,112 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
 
         // Combined with a keyword filter — both delegate to Lucene, fused into one BoolQueryBuilder.
         assertCount(
-            "where userID = 'arpit' AND match(message, 'alpha') | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("arpit") && tokenizedContains(d.message, "alpha"))
+            "where userID = 'u_a' AND match(message, 'alpha') | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_a") && tokenizedContains(d.message, "alpha"))
         );
+    }
+
+    /**
+     * {@code count(field)} on a keyword field — DataFusion drives by design. PPL's
+     * {@code count(field)} desugars to {@code COUNT(field) → Project(field) →
+     * Filter(IS NOT NULL(field)) → Scan} (count of non-null values), and the {@code IS NOT NULL}
+     * filter on a keyword field has no Lucene cap declared, so the operator narrows to
+     * DataFusion only. Asserting on row correctness (DF computes the right count) is the
+     * useful invariant; backend choice is forced by the planner.
+     *
+     * <p>{@code count()} (no field) is the actual Lucene-driven path —
+     * {@link #testCountAcrossMultipleSegments} and
+     * {@link #testCountAcrossMultipleShards_luceneShardsToDataFusionReduce} cover that.
+     */
+    public void testCountByKeywordField_drivenByDataFusion() throws Exception {
+        createIndex();
+        ingestThreeSegments();
+
+        long total = DOCS.size();
+        assertCount("stats count(userID) as cnt", total);
+
+        Map<String, Object> explain = executeExplain("source = " + INDEX + " | stats count(userID) as cnt");
+        assertShardFragmentChoseBackend(explain, "datafusion");
+    }
+
+    /**
+     * {@code count(field)} on a numeric field where {@code amount} only has parquet doc values.
+     * Lucene's {@code InvertedIndex(supportedFieldTypes={KEYWORD, TEXT, MATCH_ONLY_TEXT})}
+     * doesn't cover LONG, so the planner never marks Lucene viable — the SHARD_FRAGMENT must
+     * be DataFusion. Catches the planner-level regression where a numeric scan accidentally
+     * picks Lucene because the field has {@code indexFormats=[lucene]} (BKD points).
+     */
+    public void testCountByNumericField_drivenByDataFusion() throws Exception {
+        createIndex();
+        ingestThreeSegments();
+
+        long total = DOCS.size();
+        assertCount("stats count(amount) as cnt", total);
+
+        Map<String, Object> explain = executeExplain("source = " + INDEX + " | stats count(amount) as cnt");
+        assertShardFragmentChoseBackend(explain, "datafusion");
+    }
+
+    /**
+     * Multi-shard count: exercises the cross-backend partition boundary that single-shard tests
+     * skip entirely. SHARD_FRAGMENT runs Lucene, COORDINATOR_REDUCE runs DataFusion summing
+     * per-shard counts. The reducer registers each shard's partition stream against the
+     * Substrait stub from {@code LuceneFragmentConvertor.convertSchemaOnlyRead}; if Lucene's
+     * non-Substrait wire bytes leak into {@code derive_schema_from_partial_plan}, this test
+     * fails with "decode failed: invalid tag value".
+     *
+     * <p>Three shards is enough to make the bug deterministic — fewer shards risk Lucene's
+     * stage being elided into the coord stage by the planner.
+     */
+    public void testCountAcrossMultipleShards_luceneShardsToDataFusionReduce() throws Exception {
+        createIndex(3);
+        ingestThreeSegments();
+
+        long total = DOCS.size();
+        assertCount("stats count() as cnt", total);
+        assertCount("where userID = 'u_a' | stats count() as cnt", oracleWhere(d -> d.userID.equals("u_a")));
+
+        Map<String, Object> explain = executeExplain("source = " + INDEX + " | stats count() as cnt");
+        assertShardFragmentChoseBackend(explain, "lucene");
+        assertCoordinatorReduceChoseBackend(explain, "datafusion");
+    }
+
+    // ── Explain helpers ─────────────────────────────────────────────────────
+
+    private Map<String, Object> executeExplain(String ppl) throws IOException {
+        Request request = new Request("POST", "/_analytics/ppl/_explain");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Response response = client().performRequest(request);
+        return assertOkAndParse(response, "EXPLAIN: " + ppl);
+    }
+
+    /** Asserts the SHARD_FRAGMENT stage in {@code explain.profile.stages} chose the given backend. */
+    private static void assertShardFragmentChoseBackend(Map<String, Object> explain, String expectedBackend) {
+        assertStageChoseBackend(explain, "SHARD_FRAGMENT", expectedBackend);
+    }
+
+    /** Asserts the COORDINATOR_REDUCE stage in {@code explain.profile.stages} chose the given backend. */
+    private static void assertCoordinatorReduceChoseBackend(Map<String, Object> explain, String expectedBackend) {
+        assertStageChoseBackend(explain, "COORDINATOR_REDUCE", expectedBackend);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertStageChoseBackend(Map<String, Object> explain, String executionType, String expectedBackend) {
+        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        assertNotNull("profile present", profile);
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        assertNotNull("stages present", stages);
+        for (Map<String, Object> stage : stages) {
+            if (executionType.equals(stage.get("execution_type"))) {
+                assertEquals(
+                    executionType + " chose unexpected backend (full stage: " + stage + ")",
+                    expectedBackend,
+                    stage.get("chosen_backend")
+                );
+                return;
+            }
+        }
+        fail("No " + executionType + " stage in profile: " + stages);
     }
 
     // ── Oracle helpers ──────────────────────────────────────────────────────
@@ -274,13 +377,19 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
     // ── Setup ───────────────────────────────────────────────────────────────
 
     private void createIndex() throws Exception {
+        createIndex(1);
+    }
+
+    private void createIndex(int numberOfShards) throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX));
         } catch (Exception ignored) {}
 
         String body = "{"
             + "\"settings\": {"
-            + "  \"number_of_shards\": 1,"
+            + "  \"number_of_shards\": "
+            + numberOfShards
+            + ","
             + "  \"number_of_replicas\": 0,"
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","

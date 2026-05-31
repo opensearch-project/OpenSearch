@@ -14,29 +14,30 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
-import org.apache.calcite.sql.SqlFunctionCategory;
-import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.type.OperandTypes;
-import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
-import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.spi.AggregateCapability;
+import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegatedExpression;
@@ -66,15 +67,9 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.query.MatchQueryBuilder;
-import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
@@ -88,26 +83,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * End-to-end test: MATCH predicate flows through FragmentConversionDriver with the real
- * {@link LuceneAnalyticsBackendPlugin} serializer, producing valid MatchQueryBuilder bytes.
+ * Tests for {@link PlanAlternativeSelector} executed against the real {@link LuceneAnalyticsBackendPlugin}.
+ *
+ * <p>Lives in the lucene module (rather than analytics-engine) so the production capability surface
+ * — {@code InvertedIndex} scan + standard filter + COUNT aggregate, declared only for keyword/text
+ * types — is consulted directly. If someone widens or narrows {@code STANDARD_TYPES} in the
+ * production plugin, these tests catch the change without any mock to update.
+ *
+ * <p>Pipeline executed: {@code PlanForker} → {@code PlanAlternativeSelector} (no convertor —
+ * selection happens before conversion, mirroring {@code DefaultPlanExecutor.executeInternal}).
  */
-public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
+public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
-    /** Default resolver for DAGBuilder in tests; production injects core's resolver. */
     private static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
-
-    private static final SqlFunction MATCH_FUNCTION = new SqlFunction(
-        "MATCH",
-        SqlKind.OTHER_FUNCTION,
-        ReturnTypes.BOOLEAN,
-        null,
-        OperandTypes.ANY,
-        SqlFunctionCategory.USER_DEFINED_FUNCTION
-    );
-
-    private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(
-        List.of(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchQueryBuilder.NAME, MatchQueryBuilder::new))
-    );
 
     private RelDataTypeFactory typeFactory;
     private RexBuilder rexBuilder;
@@ -122,71 +110,184 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
     }
 
     /**
-     * MATCH(message, 'hello world') through full pipeline → delegatedQueries contains
-     * valid MatchQueryBuilder bytes with correct field name and query text.
+     * Qualified shape: {@code COUNT(*)} over a keyword field with both parquet doc values and a
+     * lucene index. Forker emits {@code [lucene, mock-parquet]}; with prefer=true the selector
+     * collapses the leaf to {@code [lucene]}.
      */
-    public void testMatchPredicateDelegationEndToEnd() throws IOException {
-        // DF backend: drives the plan, supports delegation, has a stub convertor
-        AnalyticsSearchBackendPlugin dfBackend = new StubDfBackend();
-        // Real Lucene backend: accepts delegation, provides MATCH serializer
-        AnalyticsSearchBackendPlugin luceneBackend = new LuceneAnalyticsBackendPlugin(null);
+    public void testCountStarOverIndexedKeyword_selectsLucene() {
+        TableScan scan = scanOver("status", SqlTypeName.VARCHAR);
+        RelNode plan = aggregate(scan, countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, keywordMappings(), true);
 
-        Map<String, Map<String, Object>> fields = Map.of("message", Map.of("type", "keyword", "index", true));
-        PlannerContext context = buildContext("parquet", fields, List.of(dfBackend, luceneBackend));
-
-        RexNode condition = rexBuilder.makeCall(
-            MATCH_FUNCTION,
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
-            rexBuilder.makeLiteral("hello world")
-        );
-        RelOptTable table = mockTable("test_index", new String[] { "message" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
-        LogicalFilter filter = LogicalFilter.create(new TableScan(cluster, cluster.traitSet(), List.of(), table) {
-        }, condition);
-
-        RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
-        // Mirror DefaultPlanExecutor.executeInternal: forker → adapter → selector → convertor.
-        // preferMetadataDriver=false drops the Lucene alternative and forces the DataFusion
-        // peer; the surviving plan exercises the DF→Lucene filter delegation path, which is
-        // what this test is asserting on.
-        PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
-        PlanAlternativeSelector.selectAll(dag, false);
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
-
-        // Find the leaf stage (shard scan with filter)
-        Stage leaf = dag.rootStage();
-        while (!leaf.getChildStages().isEmpty()) {
-            leaf = leaf.getChildStages().getFirst();
-        }
-        StagePlan plan = leaf.getPlanAlternatives()
-            .stream()
-            .filter(p -> "mock-parquet".equals(p.backendId()))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No mock-parquet driver alternative found"));
-
-        // Verify delegation happened
-        assertFalse("delegatedExpressions should not be empty", plan.delegatedExpressions().isEmpty());
-        assertEquals("should have exactly one delegated expression", 1, plan.delegatedExpressions().size());
-
-        // Deserialize and verify the MatchQueryBuilder
-        byte[] queryBytes = plan.delegatedExpressions().getFirst().getExpressionBytes();
-        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(queryBytes), WRITEABLE_REGISTRY)) {
-            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
-            assertTrue("Should be MatchQueryBuilder", deserialized instanceof MatchQueryBuilder);
-            MatchQueryBuilder matchQuery = (MatchQueryBuilder) deserialized;
-            assertEquals("message", matchQuery.fieldName());
-            assertEquals("hello world", matchQuery.value());
-        }
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals("selector should collapse to a single alternative", 1, alternatives.size());
+        assertEquals("lucene", alternatives.getFirst().backendId());
     }
 
-    // ---- Minimal infrastructure ----
+    /**
+     * Same qualified shape, prefer=false: selector forces the value-producing backend. The
+     * Lucene alternative is dropped, leaving only mock-parquet — the data-node fallback can
+     * never silently pick Lucene when the cluster has flipped the setting off.
+     */
+    public void testCountStarOverIndexedKeyword_preferDisabled_forcesDataFusion() {
+        TableScan scan = scanOver("status", SqlTypeName.VARCHAR);
+        RelNode plan = aggregate(scan, countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, keywordMappings(), false);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals("prefer=false: only the value-producing backend remains", 1, alternatives.size());
+        assertEquals("mock-parquet", alternatives.getFirst().backendId());
+    }
+
+    /**
+     * Disqualified shape: {@code COUNT(*)} over an INTEGER field. Production Lucene's
+     * {@code InvertedIndex(supportedFieldTypes = {KEYWORD, TEXT, MATCH_ONLY_TEXT})} cap excludes
+     * numerics, so the table-scan rule never marks Lucene viable — irrespective of the field's
+     * {@code index} mapping setting.
+     */
+    public void testCountStarOverIntegerField_luceneNeverViable() {
+        TableScan scan = scanOver("status", SqlTypeName.INTEGER);
+        RelNode plan = aggregate(scan, countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, integerMappings(), true);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("mock-parquet", alternatives.getFirst().backendId());
+    }
+
+    /**
+     * Disqualified shape: {@code SUM(status)} over a keyword field. Lucene declares no SUM
+     * aggregate, so the SUM operator narrows to parquet regardless of where the field is
+     * indexed. Selector is a no-op.
+     */
+    public void testSumOverIntegerField_luceneNeverDrivesSum() {
+        TableScan scan = scanOver("status", SqlTypeName.INTEGER);
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(0),
+            -1,
+            scan,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            "sum_status"
+        );
+        RelNode plan = aggregate(scan, sum);
+        QueryDAG dag = forkAndSelect(plan, integerMappings(), true);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("mock-parquet", alternatives.getFirst().backendId());
+    }
+
+    /**
+     * Disqualified shape: {@code COUNT(*)} over a TEXT field with {@code index: false}. Even
+     * though the field's type is in Lucene's {@code InvertedIndex.supportedFieldTypes},
+     * {@link FieldStorageResolver} leaves {@code indexFormats} empty when {@code index} is
+     * explicitly false — Lucene has no inverted-index segment to drive a count against.
+     */
+    public void testCountStarOverNonIndexedTextField_luceneNeverViable() {
+        TableScan scan = scanOver("status", SqlTypeName.VARCHAR);
+        RelNode plan = aggregate(scan, countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, nonIndexedTextMappings(), true);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("mock-parquet", alternatives.getFirst().backendId());
+    }
+
+    /**
+     * Qualified-but-narrowed shape: {@code COUNT(*) WHERE status='200'} over a Lucene-indexed
+     * keyword field. EQUALS on KEYWORD is in Lucene's filter caps, so end-to-end agreement
+     * holds and the selector still picks Lucene with prefer=true.
+     */
+    public void testCountStarWithIndexedKeywordFilter_selectsLucene() {
+        TableScan scan = scanOver("status", SqlTypeName.VARCHAR);
+        RexNode equalsLiteral = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
+            rexBuilder.makeLiteral("200")
+        );
+        RelNode plan = aggregate(LogicalFilter.create(scan, equalsLiteral), countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, keywordMappings(), true);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("lucene", alternatives.getFirst().backendId());
+    }
+
+    // ---- Plan-execution helpers ----
+
+    private QueryDAG forkAndSelect(RelNode plan, Map<String, Map<String, Object>> fieldMappings, boolean preferMetadataDriver) {
+        AnalyticsSearchBackendPlugin dfBackend = new StubDfBackend();
+        AnalyticsSearchBackendPlugin luceneBackend = new LuceneAnalyticsBackendPlugin(null);
+
+        PlannerContext context = buildContext(fieldMappings, List.of(dfBackend, luceneBackend), preferMetadataDriver);
+        RelNode marked = PlannerImpl.runAllOptimizations(plan, context);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, preferMetadataDriver);
+        return dag;
+    }
+
+    private static Stage leafOf(QueryDAG dag) {
+        Stage stage = dag.rootStage();
+        while (!stage.getChildStages().isEmpty()) {
+            stage = stage.getChildStages().getFirst();
+        }
+        return stage;
+    }
+
+    // ---- Calcite helpers ----
+
+    private TableScan scanOver(String fieldName, SqlTypeName type) {
+        RelDataTypeFactory.Builder builder = typeFactory.builder();
+        builder.add(fieldName, typeFactory.createSqlType(type));
+        RelDataType rowType = builder.build();
+        RelOptTable table = mock(RelOptTable.class);
+        when(table.getQualifiedName()).thenReturn(List.of("test_index"));
+        when(table.getRowType()).thenReturn(rowType);
+        return new TableScan(cluster, cluster.traitSet(), List.of(), table) {
+        };
+    }
+
+    private RelNode aggregate(RelNode input, AggregateCall... calls) {
+        return LogicalAggregate.create(input, ImmutableBitSet.of(), null, List.of(calls));
+    }
+
+    private AggregateCall countStar(TableScan scan) {
+        return AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "count_star"
+        );
+    }
+
+    // ---- Mappings ----
+
+    private static Map<String, Map<String, Object>> keywordMappings() {
+        return Map.of("status", Map.of("type", "keyword", "index", true));
+    }
+
+    private static Map<String, Map<String, Object>> integerMappings() {
+        return Map.of("status", Map.of("type", "integer"));
+    }
+
+    private static Map<String, Map<String, Object>> nonIndexedTextMappings() {
+        return Map.of("status", Map.of("type", "text", "index", false));
+    }
+
+    // ---- Cluster state / context ----
 
     @SuppressWarnings("unchecked")
     private PlannerContext buildContext(
-        String primaryFormat,
         Map<String, Map<String, Object>> fieldMappings,
-        List<AnalyticsSearchBackendPlugin> backends
+        List<AnalyticsSearchBackendPlugin> backends,
+        boolean preferMetadataDriver
     ) {
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("properties", fieldMappings));
@@ -195,7 +296,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
         when(indexMetadata.getSettings()).thenReturn(
             Settings.builder()
-                .put("index.composite.primary_data_format", primaryFormat)
+                .put("index.composite.primary_data_format", "parquet")
                 .putList("index.composite.secondary_data_formats", "lucene")
                 .build()
         );
@@ -209,18 +310,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         when(clusterState.metadata()).thenReturn(metadata);
 
         Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
-        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
-    }
-
-    private RelOptTable mockTable(String tableName, String[] fieldNames, SqlTypeName[] fieldTypes) {
-        RelDataTypeFactory.Builder builder = typeFactory.builder();
-        for (int index = 0; index < fieldNames.length; index++) {
-            builder.add(fieldNames[index], typeFactory.createSqlType(fieldTypes[index]));
-        }
-        RelOptTable table = mock(RelOptTable.class);
-        when(table.getQualifiedName()).thenReturn(List.of(tableName));
-        when(table.getRowType()).thenReturn(builder.build());
-        return table;
+        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState, null, false, preferMetadataDriver);
     }
 
     private ClusterService mockClusterService() {
@@ -233,12 +323,17 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         return clusterService;
     }
 
-    /** Minimal DF backend that drives the plan with delegation support. */
+    /**
+     * Minimal DataFusion-shaped backend: drives parquet, declares enough cap surface
+     * for plan forking, exchange-sinks for the coordinator reduce. No delegation —
+     * we don't need it for selector tests.
+     */
     private static class StubDfBackend implements AnalyticsSearchBackendPlugin {
         private static final Set<FieldType> TYPES = new HashSet<>();
         static {
             TYPES.addAll(FieldType.numeric());
             TYPES.addAll(FieldType.keyword());
+            TYPES.addAll(FieldType.text());
             TYPES.addAll(FieldType.date());
             TYPES.add(FieldType.BOOLEAN);
         }
@@ -275,6 +370,14 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
                         caps.add(new FilterCapability.Standard(op, TYPES, Set.of("parquet")));
                     }
                     return caps;
+                }
+
+                @Override
+                public Set<AggregateCapability> aggregateCapabilities() {
+                    return Set.of(
+                        new AggregateCapability(AggregateFunction.COUNT, TYPES, Set.of("parquet")),
+                        new AggregateCapability(AggregateFunction.SUM, TYPES, Set.of("parquet"))
+                    );
                 }
 
                 @Override

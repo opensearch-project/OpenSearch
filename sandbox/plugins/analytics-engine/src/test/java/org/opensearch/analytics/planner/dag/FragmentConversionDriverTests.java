@@ -523,6 +523,26 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         SqlTypeName[] fieldTypes,
         Map<String, Map<String, Object>> fields
     ) {
+        return buildDelegationDag(condition, dfConvertor, serializer, fieldNames, fieldTypes, fields, false);
+    }
+
+    /**
+     * Like the non-fused overload but threads {@code fuseDualViable} through to
+     * {@link FragmentConversionDriver#convertAll(QueryDAG, CapabilityRegistry, boolean)} so
+     * tests can flip the {@code analytics.delegation.fuse_dual_viable} cluster setting
+     * deterministically. With {@code fuse=true}, performance-delegated leaves under OR/NOT
+     * stay in the delegation pool instead of being thrown back to native — the entire boolean
+     * ships to the peer as one delegated expression.
+     */
+    private QueryDAG buildDelegationDag(
+        RexNode condition,
+        RecordingConvertor dfConvertor,
+        RecordingSerializer serializer,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        Map<String, Map<String, Object>> fields,
+        boolean fuseDualViable
+    ) {
         var backends = delegationBackends(dfConvertor, serializer);
         var context = buildContext("parquet", fields, backends);
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", fieldNames, fieldTypes)), condition);
@@ -530,7 +550,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), fuseDualViable);
         return dag;
     }
 
@@ -556,6 +576,16 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
      *     {@link MockLuceneBackend}'s capability declarations.
      */
     private QueryDAG buildTwoFieldDelegationDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
+        return buildTwoFieldDelegationDag(condition, dfConvertor, serializer, false);
+    }
+
+    /** {@link #buildTwoFieldDelegationDag} with the {@code fuse_dual_viable} setting threaded through. */
+    private QueryDAG buildTwoFieldDelegationDag(
+        RexNode condition,
+        RecordingConvertor dfConvertor,
+        RecordingSerializer serializer,
+        boolean fuseDualViable
+    ) {
         return buildDelegationDag(
             condition,
             dfConvertor,
@@ -569,7 +599,8 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
                 Map.of("type", "keyword", "index", true),
                 "amount",
                 Map.of("type", "integer", "index", false)
-            )
+            ),
+            fuseDualViable
         );
     }
 
@@ -1347,6 +1378,150 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE", "FUZZY"), FilterTreeShape.CONJUNCTIVE);
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         assertTrue("AND structure should be preserved", strippedPlan.contains("AND"));
+    }
+
+    // ---- fuse_dual_viable cluster setting ----
+
+    /**
+     * Two performance-delegated leaves plus a correctness-delegated one under OR, with the
+     * {@code analytics.delegation.fuse_dual_viable} cluster setting governing how the perf
+     * leaves are emitted.
+     *
+     * <ul>
+     *   <li>{@code fuse=false} — combiner's OR/NOT carve-out throws each performance-delegated
+     *       leaf back individually: each becomes its own {@code delegation_possible} marker in
+     *       the driver plan AND its own entry in {@code delegatedExpressions}. So 3 leaves →
+     *       3 expressions and 2 separate {@code delegation_possible} markers (one per perf
+     *       leaf), the correctness one converts via the combine path.</li>
+     *   <li>{@code fuse=true} — combiner aggregates both perf leaves into a single perf
+     *       bucket and the correctness leaf into one correctness bucket. The perf bucket
+     *       emits ONE {@code delegation_possible} marker wrapping the combined perf subtree.
+     *       Total: 2 delegated expressions, 1 {@code delegation_possible}, 1
+     *       {@code delegated_predicate}.</li>
+     * </ul>
+     *
+     * <p>Setup: {@code status} is index=true (indexed integer) and {@code message} is keyword
+     * indexed — EQUALS on both is dual-viable (performance-delegation candidate). FUZZY on
+     * message is correctness-delegated to Lucene. Two distinct fields are used so Calcite's
+     * SEARCH/Sarg rewrite doesn't fold the two EQUALS into a single sargable predicate.
+     */
+    public void testOrPerformanceLeavesAndCorrectness_fuseDualViable_explicitFalse() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        // Two distinct performance-delegation candidates:
+        // - EQUALS on status (integer, indexed) — dual-viable
+        // - EQUALS on message (keyword, indexed) — dual-viable
+        // Different fields prevent Calcite's SEARCH/Sarg rewrite from folding the two EQUALS
+        // into a single sargable predicate, which would erase the multi-leaf shape this test
+        // depends on. Plus a correctness leaf (FUZZY) on message.
+        RexNode condition = rexBuilder.makeCall(
+            org.apache.calcite.sql.fun.SqlStdOperatorTable.OR,
+            makeEquals(0, SqlTypeName.INTEGER, 200),
+            rexBuilder.makeCall(
+                org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS,
+                rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 1),
+                rexBuilder.makeLiteral("hello")
+            ),
+            makeFullTextCall(FUZZY_FUNCTION, 1, "wrld")
+        );
+        QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer, /* fuseDualViable */ false);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+
+        assertEquals("fuse=false: 3 delegated expressions (2 perf leaves + 1 correctness)", 3, plan.delegatedExpressions().size());
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        // Two separate delegation_possible markers — one per individually thrown-back perf leaf.
+        assertEquals(
+            "fuse=false: 2 separate delegation_possible markers in plan",
+            2,
+            countOccurrences(strippedPlan, "delegation_possible")
+        );
+        assertTrue("OR structure preserved", strippedPlan.contains("OR"));
+    }
+
+    public void testOrPerformanceLeavesAndCorrectness_fuseDualViable_explicitTrue() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        // Two distinct performance-delegation candidates:
+        // - EQUALS on status (integer, indexed) — dual-viable
+        // - EQUALS on message (keyword, indexed) — dual-viable
+        // Different fields prevent Calcite's SEARCH/Sarg rewrite from folding the two EQUALS
+        // into a single sargable predicate, which would erase the multi-leaf shape this test
+        // depends on. Plus a correctness leaf (FUZZY) on message.
+        RexNode condition = rexBuilder.makeCall(
+            org.apache.calcite.sql.fun.SqlStdOperatorTable.OR,
+            makeEquals(0, SqlTypeName.INTEGER, 200),
+            rexBuilder.makeCall(
+                org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS,
+                rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 1),
+                rexBuilder.makeLiteral("hello")
+            ),
+            makeFullTextCall(FUZZY_FUNCTION, 1, "wrld")
+        );
+        QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer, /* fuseDualViable */ true);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+
+        // Combiner buckets: 1 perf-combined (covers both EQUALSes) + 1 correctness-combined (MATCH_PHRASE).
+        assertEquals(
+            "fuse=true: 2 delegated expressions (1 perf bucket combining both EQUALS, 1 correctness)",
+            2,
+            plan.delegatedExpressions().size()
+        );
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        // Single delegation_possible marker — perf leaves combined into one peer-consult call.
+        assertEquals(
+            "fuse=true: exactly 1 delegation_possible marker (perf leaves fused)",
+            1,
+            countOccurrences(strippedPlan, "delegation_possible")
+        );
+    }
+
+    /**
+     * Randomized: picks {@code fuse} at random, asserts the discriminating invariant —
+     * perf-leaf count in the AST changes with the setting. Surfaces non-obvious combiner
+     * regressions across both branches over many test runs.
+     */
+    public void testOrPerformanceLeavesAndCorrectness_fuseDualViable_randomized() {
+        boolean fuse = randomBoolean();
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        // Two distinct performance-delegation candidates:
+        // - EQUALS on status (integer, indexed) — dual-viable
+        // - EQUALS on message (keyword, indexed) — dual-viable
+        // Different fields prevent Calcite's SEARCH/Sarg rewrite from folding the two EQUALS
+        // into a single sargable predicate, which would erase the multi-leaf shape this test
+        // depends on. Plus a correctness leaf (FUZZY) on message.
+        RexNode condition = rexBuilder.makeCall(
+            org.apache.calcite.sql.fun.SqlStdOperatorTable.OR,
+            makeEquals(0, SqlTypeName.INTEGER, 200),
+            rexBuilder.makeCall(
+                org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS,
+                rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 1),
+                rexBuilder.makeLiteral("hello")
+            ),
+            makeFullTextCall(FUZZY_FUNCTION, 1, "wrld")
+        );
+        QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer, fuse);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        int markers = countOccurrences(strippedPlan, "delegation_possible");
+        if (fuse) {
+            assertEquals("fuse=true: perf leaves fused → 1 delegation_possible marker", 1, markers);
+            assertEquals("fuse=true: 2 delegated expressions (perf bucket + correctness bucket)", 2, plan.delegatedExpressions().size());
+        } else {
+            assertEquals("fuse=false: perf leaves carved out individually → 2 delegation_possible markers", 2, markers);
+            assertEquals("fuse=false: 3 delegated expressions (2 perf leaves + correctness)", 3, plan.delegatedExpressions().size());
+        }
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = haystack.indexOf(needle, idx)) != -1) {
+            count++;
+            idx += needle.length();
+        }
+        return count;
     }
 
     // ---- Error paths ----

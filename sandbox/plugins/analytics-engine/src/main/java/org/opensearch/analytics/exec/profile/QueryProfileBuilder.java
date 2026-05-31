@@ -52,6 +52,13 @@ public final class QueryProfileBuilder {
             List<String> fragment = stage != null && stage.getFragment() != null
                 ? splitPlanLines(RelOptUtil.toString(stage.getFragment()))
                 : List.of();
+            // PlanAlternativeSelector collapses each stage to a single chosen backend (or it
+            // was already singular post-fork). The first alternative IS the chosen one — the
+            // data node never re-selects when the list is size 1, which is the post-selector
+            // invariant DefaultPlanExecutor depends on.
+            String chosenBackend = stage != null && stage.getPlanAlternatives().isEmpty() == false
+                ? stage.getPlanAlternatives().getFirst().backendId()
+                : null;
 
             List<TaskProfile> taskProfiles = buildTaskProfiles(exec);
             long tasksCompleted = taskProfiles.stream().filter(t -> "FINISHED".equals(t.state())).count();
@@ -70,6 +77,7 @@ public final class QueryProfileBuilder {
                     tasksCompleted,
                     tasksFailed,
                     fragment,
+                    chosenBackend,
                     taskProfiles
                 )
             );

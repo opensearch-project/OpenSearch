@@ -30,14 +30,10 @@ public sealed interface ScanCapability {
     }
 
     /**
-     * Inverted index — backend can drive metadata-only operations (count aggregates today,
-     * group-by-count and top-K terms in future) by walking the term dictionary without
-     * reading row values. Cannot deliver field values for Project/Sort/Filter that need
-     * the actual data; consumers must check operation-specific capability when intending
-     * to read values.
-     *
-     * <p>Today's only producer is the Lucene-secondary backend for keyword / text /
-     * match_only_text field types — the same set indexed at write time.
+     * Inverted index — drives metadata-only ops (count today; group-by-count, top-K terms
+     * later) via the term dictionary. Cannot deliver row values; consumers needing values
+     * must check value-producing caps. Today only Lucene-secondary, for keyword/text/
+     * match_only_text.
      */
     record InvertedIndex(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {
     }
