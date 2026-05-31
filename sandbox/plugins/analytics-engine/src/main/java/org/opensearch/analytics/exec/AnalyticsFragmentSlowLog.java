@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.backend.FragmentExecutionStats;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.unit.TimeValue;
@@ -43,7 +44,8 @@ public class AnalyticsFragmentSlowLog implements AnalyticsOperationListener {
         String shardId,
         long tookInNanos,
         long rowsProduced,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        FragmentExecutionStats stats
     ) {
         long warnThreshold = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING).nanos();
         long infoThreshold = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING).nanos();
@@ -51,7 +53,7 @@ public class AnalyticsFragmentSlowLog implements AnalyticsOperationListener {
         long traceThreshold = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING).nanos();
         SlowLogLevel level = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
 
-        String message = formatMessage(queryId, stageId, shardId, tookInNanos, rowsProduced);
+        String message = formatMessage(queryId, stageId, shardId, tookInNanos, rowsProduced, stats);
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
             logger.warn(message);
         } else if (infoThreshold >= 0 && tookInNanos > infoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
@@ -63,19 +65,30 @@ public class AnalyticsFragmentSlowLog implements AnalyticsOperationListener {
         }
     }
 
-    private static String formatMessage(String queryId, int stageId, String shardId, long tookInNanos, long rowsProduced) {
-        return "took["
-            + TimeValue.timeValueNanos(tookInNanos)
-            + "], took_millis["
-            + TimeUnit.NANOSECONDS.toMillis(tookInNanos)
-            + "], query_id["
-            + queryId
-            + "], stage_id["
-            + stageId
-            + "], shard["
-            + shardId
-            + "], rows_produced["
-            + rowsProduced
-            + "]";
+    private static String formatMessage(
+        String queryId,
+        int stageId,
+        String shardId,
+        long tookInNanos,
+        long rowsProduced,
+        FragmentExecutionStats stats
+    ) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos));
+        sb.append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        sb.append("], query_id[").append(queryId);
+        sb.append("], stage_id[").append(stageId);
+        sb.append("], shard[").append(shardId);
+        sb.append("], rows_produced[").append(rowsProduced);
+        sb.append("], used_secondary_index[").append(stats.usedSecondaryIndex());
+        if (stats.usedSecondaryIndex()) {
+            sb.append("], delegated_predicates[").append(stats.delegatedPredicateCount());
+            sb.append("], filter_tree_shape[").append(stats.filterTreeShape());
+        }
+        sb.append("], partial_aggregate[").append(stats.hasPartialAggregate());
+        sb.append("], task_id[").append(stats.taskId());
+        sb.append("], id[").append(stats.opaqueId() != null ? stats.opaqueId() : "");
+        sb.append("]");
+        return sb.toString();
     }
 }

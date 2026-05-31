@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.analytics.backend.FragmentExecutionStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
@@ -52,7 +53,8 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
                 )
             );
 
-            fragmentSlowLog.onFragmentSuccess("q1", 0, "test-shard", TimeValue.timeValueMillis(5).nanos(), 42, indexSettings);
+            fragmentSlowLog.onFragmentSuccess("q1", 0, "test-shard", TimeValue.timeValueMillis(5).nanos(), 42, indexSettings,
+                new FragmentExecutionStats(42, true, 2, "CONJUNCTIVE", false, 99, "opaque-1"));
             appender.assertAllExpectationsMatched();
         }
     }
@@ -74,7 +76,8 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
                 )
             );
 
-            fragmentSlowLog.onFragmentSuccess("q1", 0, "test-shard", TimeValue.timeValueMillis(5).nanos(), 42, indexSettings);
+            fragmentSlowLog.onFragmentSuccess("q1", 0, "test-shard", TimeValue.timeValueMillis(5).nanos(), 42, indexSettings,
+                new FragmentExecutionStats(42, true, 2, "CONJUNCTIVE", false, 99, "opaque-1"));
             appender.assertAllExpectationsMatched();
         }
     }
@@ -92,11 +95,12 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
                     "all fields present",
                     AnalyticsFragmentSlowLog.LOGGER_NAME,
                     Level.WARN,
-                    ".*took\\[.*\\].*took_millis\\[\\d+\\].*query_id\\[q-fields\\].*stage_id\\[2\\].*shard\\[\\[my-idx\\]\\[0\\]\\].*rows_produced\\[100\\].*"
+                    ".*took\\[.*\\].*took_millis\\[\\d+\\].*query_id\\[q-fields\\].*stage_id\\[2\\].*shard\\[\\[my-idx\\]\\[0\\]\\].*rows_produced\\[100\\].*used_secondary_index\\[false\\].*partial_aggregate\\[true\\].*task_id\\[101\\].*id\\[opaque-2\\].*"
                 )
             );
 
-            fragmentSlowLog.onFragmentSuccess("q-fields", 2, "[my-idx][0]", TimeValue.timeValueMillis(50).nanos(), 100, indexSettings);
+            fragmentSlowLog.onFragmentSuccess("q-fields", 2, "[my-idx][0]", TimeValue.timeValueMillis(50).nanos(), 100, indexSettings,
+                new FragmentExecutionStats(100, false, 0, null, true, 101, "opaque-2"));
             appender.assertAllExpectationsMatched();
         }
     }
