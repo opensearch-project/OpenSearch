@@ -20,6 +20,7 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
@@ -425,6 +426,77 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public String name() {
         return plugin.name();
+    }
+
+    @Override
+    public boolean canMatch(org.opensearch.index.shard.IndexShard shard, byte[] filterBytes) {
+        // Decode the wire-format list of CanMatchFilter (column + range) and walk the
+        // shard's parquet segment files. A filter eliminates the shard only when EVERY
+        // file proves the predicate cannot overlap any row group. AND across filters.
+        if (filterBytes == null || filterBytes.length == 0 || shard == null) {
+            return true;
+        }
+        final java.util.List<org.opensearch.analytics.exec.canmatch.CanMatchFilter> filters;
+        try {
+            filters = org.opensearch.analytics.exec.canmatch.CanMatchFilter.listFromBytes(filterBytes);
+        } catch (java.io.IOException e) {
+            // Malformed filter bytes — fail open.
+            return true;
+        }
+        if (filters.isEmpty()) {
+            return true;
+        }
+        java.util.List<java.nio.file.Path> parquetFiles;
+        try {
+            parquetFiles = listShardParquetFiles(shard);
+        } catch (java.io.IOException e) {
+            return true; // listing failed — fail open
+        }
+        if (parquetFiles.isEmpty()) {
+            // No parquet files yet (e.g. empty / unflushed shard) — conservative.
+            return true;
+        }
+        // Look up the native runtime handle so can-match can hit DataFusion's file-metadata
+        // cache. Plugin not started yet → 0L, which makes the native side fall back to
+        // opening the file directly. Same semantics, just slower.
+        NativeRuntimeHandle runtime =
+            plugin.getDataFusionService() != null ? plugin.getDataFusionService().getNativeRuntime() : null;
+        long runtimePtr = runtime != null ? runtime.get() : 0L;
+        for (org.opensearch.analytics.exec.canmatch.CanMatchFilter filter : filters) {
+            boolean anyFileCanMatch = false;
+            for (java.nio.file.Path file : parquetFiles) {
+                long result = org.opensearch.be.datafusion.nativelib.NativeBridge.canMatch(
+                    runtimePtr,
+                    file.toString(),
+                    filter.getColumnName(),
+                    filter.getMinValue(),
+                    filter.getMaxValue()
+                );
+                // 1 = can match, -1 = unknown (treat as can match), 0 = cannot match
+                if (result != 0L) {
+                    anyFileCanMatch = true;
+                    break;
+                }
+            }
+            if (anyFileCanMatch == false) {
+                // This filter eliminated every file for the shard — short-circuit.
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Walks the shard's data path and returns every {@code .parquet} file found under it. */
+    private java.util.List<java.nio.file.Path> listShardParquetFiles(org.opensearch.index.shard.IndexShard shard) throws java.io.IOException {
+        java.nio.file.Path base = shard.shardPath().getDataPath();
+        if (java.nio.file.Files.exists(base) == false) {
+            return java.util.List.of();
+        }
+        java.util.List<java.nio.file.Path> out = new java.util.ArrayList<>();
+        try (java.util.stream.Stream<java.nio.file.Path> walk = java.nio.file.Files.walk(base)) {
+            walk.filter(p -> p.getFileName().toString().endsWith(".parquet")).forEach(out::add);
+        }
+        return out;
     }
 
     @Override

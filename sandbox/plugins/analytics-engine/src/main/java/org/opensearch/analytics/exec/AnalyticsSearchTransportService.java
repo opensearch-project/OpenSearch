@@ -14,6 +14,9 @@ import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchAction;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -73,7 +76,13 @@ public class AnalyticsSearchTransportService {
         this.transportService = streamTransportService;
         this.clusterService = clusterService;
         registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
+        registerCanMatchHandler(this.transportService, indicesService, searchService);
         registerFetchByRowIdsHandler(this.transportService, searchService, indicesService);
+    }
+
+    /** Underlying stream transport service. Used by {@link org.opensearch.analytics.exec.canmatch.CanMatchPreFilterPhase}. */
+    public StreamTransportService streamTransportService() {
+        return transportService;
     }
 
     private static void registerStreamingFragmentHandler(
@@ -100,6 +109,25 @@ public class AnalyticsSearchTransportService {
                         transportService.getThreadPool()
                     )
                 );
+            }
+        );
+    }
+
+    private static void registerCanMatchHandler(
+        StreamTransportService transportService,
+        IndicesService indicesService,
+        AnalyticsSearchService searchService
+    ) {
+        transportService.registerRequestHandler(
+            AnalyticsCanMatchAction.NAME,
+            // Handler walks the shard directory + invokes the native lib per parquet file —
+            // blocking I/O and FFM calls. Must not run on the transport thread (SAME).
+            ThreadPool.Names.SEARCH,
+            AnalyticsCanMatchRequest::new,
+            (request, channel, task) -> {
+                IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                AnalyticsCanMatchResponse response = searchService.canMatch(shard, request.getFilterBytes(), request.getBackendId());
+                channel.sendResponse(response);
             }
         );
     }

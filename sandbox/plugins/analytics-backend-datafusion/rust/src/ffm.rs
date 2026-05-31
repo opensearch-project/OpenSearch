@@ -911,6 +911,66 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
     })
 }
 
+/// Can-match: checks if any row group in the given file has statistics overlapping
+/// the range [filter_min, filter_max] for the specified column. Returns 1 (can match),
+/// 0 (cannot match), or -1 (unknown/error — conservatively treat as can match).
+///
+/// If {@code runtime_ptr != 0}, tries the runtime's file-metadata cache first to avoid
+/// re-reading the parquet footer per call. Falls back to opening the file on cache miss
+/// or when {@code runtime_ptr == 0} (path used by tests and tooling that don't carry a
+/// runtime reference).
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_can_match(
+    runtime_ptr: i64,
+    file_path_ptr: *const u8,
+    file_path_len: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    filter_min: i64,
+    filter_max: i64,
+) -> i64 {
+    let file_path = str_from_raw(file_path_ptr, file_path_len)
+        .map_err(|e| format!("df_can_match: file_path: {}", e))?;
+    let column_name = str_from_raw(column_name_ptr, column_name_len)
+        .map_err(|e| format!("df_can_match: column_name: {}", e))?;
+
+    let result = if runtime_ptr != 0 {
+        try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max)
+            .unwrap_or_else(|| crate::can_match::can_match_range(file_path, column_name, filter_min, filter_max))
+    } else {
+        crate::can_match::can_match_range(file_path, column_name, filter_min, filter_max)
+    };
+    Ok(match result {
+        crate::can_match::CanMatchResult::Yes => 1,
+        crate::can_match::CanMatchResult::No => 0,
+        crate::can_match::CanMatchResult::Unknown => -1,
+    })
+}
+
+/// Probe DataFusion's file-metadata cache for {@code file_path} and dispatch
+/// {@link crate::can_match::can_match_range_with_metadata} if a {@link CachedParquetMetaData}
+/// entry is present. Returns {@code None} on miss / wrong cached type / cache disabled —
+/// caller falls back to the direct-file path.
+unsafe fn try_cached_can_match(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+) -> Option<crate::can_match::CanMatchResult> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use datafusion::execution::cache::CacheAccessor;
+    use object_store::path::Path as ObjectPath;
+
+    let runtime = &*(runtime_ptr as *mut crate::api::DataFusionRuntime);
+    let cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+    let cached = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = cached.file_metadata.as_any().downcast_ref::<CachedParquetMetaData>()?;
+    let parquet_meta = cached_parquet.parquet_metadata();
+    Some(crate::can_match::can_match_range_with_metadata(parquet_meta, column_name, filter_min, filter_max))
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn df_close_session_context(ptr: i64) {
     crate::session_context::close_session_context(ptr);
