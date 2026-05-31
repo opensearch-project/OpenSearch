@@ -75,20 +75,24 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
         assertEquals("handle received providerKey for release", providerKey, handle.lastReleasedProviderKey);
     }
 
-    public void testNoHandleReturnsNegativeOne() {
+    /**
+     * Lifecycle assertion: invoking an upcall on an unregistered contextId trips
+     * {@code assert binding != null}. With {@code -ea} on (test default), this throws
+     * AssertionError rather than silently returning -1 — surfacing missing-register
+     * or premature-unregister bugs.
+     */
+    public void testUnregisteredContextIdAsserts() {
         FilterTreeCallbacks.unregister(CTX);
-        assertEquals(-1, FilterTreeCallbacks.createProvider(CTX, 1));
-        assertEquals(-1, FilterTreeCallbacks.createCollector(CTX, 1, 0L, 0, 64));
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment buf = arena.allocate(Long.BYTES);
-            assertEquals(-1L, FilterTreeCallbacks.collectDocs(CTX, 1, 0, 64, buf, 1));
-        }
-    }
-
-    public void testReleaseWithNoHandleIsSafe() {
-        FilterTreeCallbacks.unregister(CTX);
-        FilterTreeCallbacks.releaseCollector(CTX, Integer.MAX_VALUE);
-        FilterTreeCallbacks.releaseProvider(CTX, Integer.MAX_VALUE);
+        expectThrows(AssertionError.class, () -> FilterTreeCallbacks.createProvider(CTX, 1));
+        expectThrows(AssertionError.class, () -> FilterTreeCallbacks.createCollector(CTX, 1, 0L, 0, 64));
+        expectThrows(AssertionError.class, () -> {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment buf = arena.allocate(Long.BYTES);
+                FilterTreeCallbacks.collectDocs(CTX, 1, 0, 64, buf, 1);
+            }
+        });
+        expectThrows(AssertionError.class, () -> FilterTreeCallbacks.releaseCollector(CTX, Integer.MAX_VALUE));
+        expectThrows(AssertionError.class, () -> FilterTreeCallbacks.releaseProvider(CTX, Integer.MAX_VALUE));
     }
 
     public void testHandleReturningNegativeOnePropagates() {

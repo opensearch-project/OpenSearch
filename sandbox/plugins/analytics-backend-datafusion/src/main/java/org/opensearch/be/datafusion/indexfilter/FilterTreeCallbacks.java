@@ -38,6 +38,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Every method catches all {@link Throwable}s and returns {@code -1}
  * (or silently returns for void methods). A Java exception escaping through
  * an FFM upcall stub crashes the JVM.
+ *
+ * <h2>Lifecycle assertions</h2>
+ * <p>When assertions are enabled ({@code -ea}, default in tests and {@code ./gradlew run}),
+ * the callbacks {@code assert} that a binding exists before performing the upcall, and
+ * {@link #register} asserts no stale binding is left behind. These catch lifecycle bugs
+ * (double-register, premature unregister, leaked bindings) during development without
+ * affecting production behavior — assertions are off in production, where the same paths
+ * fall back to returning -1 silently.
  */
 public final class FilterTreeCallbacks {
 
@@ -59,17 +67,24 @@ public final class FilterTreeCallbacks {
      * Register a per-query binding keyed by {@code contextId}.
      * Must be called before query execution begins.
      *
+     * <p>Asserts no prior binding exists for {@code contextId}. A pre-existing binding
+     * indicates a leaked binding from an earlier query (missing {@link #unregister}) or
+     * a duplicate register call.
+     *
      * @param contextId the per-query identifier (from the native {@code QueryTrackingContext})
      * @param handle    the delegation handle for this query (must not be null)
      * @param tracker   the thread tracker for this query (may be null)
      */
     public static void register(long contextId, FilterDelegationHandle handle, DelegationThreadTracker tracker) {
-        BINDINGS.put(contextId, new QueryBinding(handle, tracker));
+        QueryBinding prev = BINDINGS.put(contextId, new QueryBinding(handle, tracker));
+        assert prev == null : "FilterTreeCallbacks.register: binding already present for contextId=" + contextId;
     }
 
     /**
      * Remove the per-query binding for {@code contextId}.
      * Must be called after query execution completes (in a finally block).
+     *
+     * <p>Idempotent — calling with no current binding is a no-op.
      */
     public static void unregister(long contextId) {
         BINDINGS.remove(contextId);
@@ -90,6 +105,26 @@ public final class FilterTreeCallbacks {
         if (t != null) t.trackEnd(threadId);
     }
 
+    /**
+     * Asserts a binding exists. Lifecycle bugs (premature unregister, missing register,
+     * stale Rust handle outliving its query) trip this in tests; production silently
+     * returns -1 from the caller's null check.
+     *
+     * <p>Throws {@link AssertionError} when assertions are enabled and binding is null.
+     * Upcall methods catch {@code Throwable} and re-throw {@code AssertionError} so it
+     * surfaces in tests (causing the JVM to exit through the FFM stub) rather than
+     * being silently logged.
+     */
+    private static void assertBindingExists(QueryBinding binding, String op, long contextId) {
+        assert binding != null : "FilterTreeCallbacks."
+            + op
+            + ": no binding for contextId="
+            + contextId
+            + " (registered: "
+            + BINDINGS.keySet()
+            + ")";
+    }
+
     // ── Provider lifecycle (cold path, once per query) ────────────────
 
     /**
@@ -99,10 +134,14 @@ public final class FilterTreeCallbacks {
         long tid = trackStart(contextId);
         try {
             QueryBinding binding = BINDINGS.get(contextId);
+            assertBindingExists(binding, "createProvider", contextId);
             if (binding == null || binding.handle() == null) {
                 return -1;
             }
             return binding.handle().createProvider(annotationId);
+        } catch (AssertionError e) {
+            // Propagate so lifecycle bugs surface in tests; in production -ea is off and this branch never runs.
+            throw e;
         } catch (Throwable throwable) {
             LOGGER.error("createProvider failed for contextId=" + contextId + " annotationId=" + annotationId, throwable);
             return -1;
@@ -117,9 +156,12 @@ public final class FilterTreeCallbacks {
     public static void releaseProvider(long contextId, int providerKey) {
         try {
             QueryBinding binding = BINDINGS.get(contextId);
+            assertBindingExists(binding, "releaseProvider", contextId);
             if (binding != null && binding.handle() != null) {
                 binding.handle().releaseProvider(providerKey);
             }
+        } catch (AssertionError e) {
+            throw e;
         } catch (Throwable throwable) {
             LOGGER.error(
                 new ParameterizedMessage("releaseProvider(contextId={}, providerKey={}) failed", contextId, providerKey),
@@ -139,10 +181,13 @@ public final class FilterTreeCallbacks {
         long tid = trackStart(contextId);
         try {
             QueryBinding binding = BINDINGS.get(contextId);
+            assertBindingExists(binding, "createCollector", contextId);
             if (binding == null || binding.handle() == null) {
                 return -1;
             }
             return binding.handle().createCollector(providerKey, writerGeneration, minDoc, maxDoc);
+        } catch (AssertionError e) {
+            throw e;
         } catch (Throwable throwable) {
             LOGGER.error(
                 new ParameterizedMessage(
@@ -168,6 +213,7 @@ public final class FilterTreeCallbacks {
         long tid = trackStart(contextId);
         try {
             QueryBinding binding = BINDINGS.get(contextId);
+            assertBindingExists(binding, "collectDocs", contextId);
             if (binding == null || binding.handle() == null) {
                 return -1L;
             }
@@ -179,6 +225,8 @@ public final class FilterTreeCallbacks {
             MemorySegment view = outPtr.reinterpret((long) maxWords * Long.BYTES);
             int wordsWritten = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
             return (wordsWritten < 0) ? -1L : wordsWritten;
+        } catch (AssertionError e) {
+            throw e;
         } catch (Throwable throwable) {
             LOGGER.error(
                 new ParameterizedMessage(
@@ -202,9 +250,12 @@ public final class FilterTreeCallbacks {
     public static void releaseCollector(long contextId, int collectorKey) {
         try {
             QueryBinding binding = BINDINGS.get(contextId);
+            assertBindingExists(binding, "releaseCollector", contextId);
             if (binding != null && binding.handle() != null) {
                 binding.handle().releaseCollector(collectorKey);
             }
+        } catch (AssertionError e) {
+            throw e;
         } catch (Throwable throwable) {
             LOGGER.error(
                 new ParameterizedMessage("releaseCollector(contextId={}, collectorKey={}) failed", contextId, collectorKey),

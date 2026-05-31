@@ -100,38 +100,23 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that clearing the thread tracker (via unregister) stops attribution.
-     * After clearing, callbacks on a new thread should NOT be attributed to the old task.
+     * Lifecycle assertion: invoking an upcall on a contextId that has no registered
+     * binding throws AssertionError when -ea is on. This catches premature unregister
+     * or stale Rust handles outliving their query.
+     *
+     * In production (no -ea), this same path silently returns -1 — the upcall's null
+     * check is the production safety net.
      */
-    public void testClearTaskTrackingStopsAttribution() throws Exception {
-        AnalyticsShardTask task = createAndTrackTask(2);
+    public void testUnregisteredContextIdAssertsInTests() throws Exception {
+        long unregisteredCtx = 9999L;
+        // Sanity: nothing registered for this contextId.
+        FilterTreeCallbacks.unregister(unregisteredCtx);
 
-        FilterTreeCallbacks.register(TEST_CONTEXT_ID, new MockHandle(new long[] { 1L }), createTracker(task.getId()));
-
-        // Clear tracking BEFORE running callbacks
-        FilterTreeCallbacks.unregister(TEST_CONTEXT_ID);
-
-        CountDownLatch done = new CountDownLatch(1);
-        Thread foreignThread = new Thread(() -> {
-            // With no binding, createProvider returns -1 (safe no-op); remaining calls
-            // also find no binding and return -1 or do nothing.
-            int pk = FilterTreeCallbacks.createProvider(TEST_CONTEXT_ID, 1);
-            int ck = FilterTreeCallbacks.createCollector(TEST_CONTEXT_ID, pk, 0, 0, 64);
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment buf = arena.allocate(Long.BYTES);
-                FilterTreeCallbacks.collectDocs(TEST_CONTEXT_ID, ck, 0, 64, buf, 1);
-            }
-            FilterTreeCallbacks.releaseCollector(TEST_CONTEXT_ID, ck);
-            FilterTreeCallbacks.releaseProvider(TEST_CONTEXT_ID, pk);
-            done.countDown();
-        }, "post-clear-thread");
-        foreignThread.start();
-        assertTrue(done.await(5, TimeUnit.SECONDS));
-
-        trackingService.stopTracking(task);
-
-        Map<Long, List<ThreadResourceInfo>> stats = task.getResourceStats();
-        assertFalse("Thread after clearing tracker should NOT be tracked", stats.containsKey(foreignThread.threadId()));
+        AssertionError failure = expectThrows(AssertionError.class, () -> FilterTreeCallbacks.createProvider(unregisteredCtx, 1));
+        assertTrue(
+            "AssertionError should mention the offending contextId. Got: " + failure.getMessage(),
+            failure.getMessage().contains("contextId=" + unregisteredCtx)
+        );
     }
 
     /**
@@ -268,96 +253,25 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
     }
 
     /**
-     * Demonstrates why per-query isolation is necessary. Simulates the old global-singleton
-     * race: each thread installs its own per-query handle but at a shared contextId. The race
-     * is between {@code register(SHARED, myHandle)} and the subsequent upcalls — another
-     * thread may overwrite the binding with its handle before our upcalls fire, so we read
-     * back the wrong handle's data.
-     *
-     * This test asserts that corruption count is greater than zero — proving the singleton
-     * pattern is unsafe under concurrency. Use of distinct contextIds eliminates this race
-     * (see {@link #testConcurrentQueriesIsolated}).
+     * Lifecycle assertion: registering a second binding for the same contextId without
+     * an intervening unregister trips the double-register assert. This catches leaked
+     * bindings (missing unregister) and accidental sharing of contextIds across queries.
      */
-    public void testSharedContextIdCausesDataCorruption() throws Exception {
-        int queryCount = 4;
-        long SHARED_CONTEXT_ID = 999L;
-
-        MockHandle[] handles = new MockHandle[queryCount];
-        for (int q = 0; q < queryCount; q++) {
-            handles[q] = new MockHandle(new long[] { 0xABCD_0000L | q });
+    public void testDoubleRegisterAsserts() throws Exception {
+        long ctx = 1234L;
+        FilterTreeCallbacks.register(ctx, new MockHandle(new long[] { 1L }), null);
+        try {
+            AssertionError failure = expectThrows(
+                AssertionError.class,
+                () -> FilterTreeCallbacks.register(ctx, new MockHandle(new long[] { 2L }), null)
+            );
+            assertTrue(
+                "AssertionError should mention the offending contextId. Got: " + failure.getMessage(),
+                failure.getMessage().contains("contextId=" + ctx)
+            );
+        } finally {
+            FilterTreeCallbacks.unregister(ctx);
         }
-
-        CyclicBarrier barrier = new CyclicBarrier(queryCount);
-        CountDownLatch done = new CountDownLatch(queryCount);
-        int[] corruptionCount = new int[queryCount];
-
-        Thread[] threads = new Thread[queryCount];
-        for (int q = 0; q < queryCount; q++) {
-            final int queryIdx = q;
-            threads[q] = new Thread(() -> {
-                try {
-                    barrier.await(5, TimeUnit.SECONDS);
-                    for (int i = 0; i < 20; i++) {
-                        // Each thread re-registers ITS OWN handle at the shared contextId before
-                        // every iteration. This mirrors the old global-singleton race where each
-                        // query installed its handle into a single AtomicReference. Concurrent
-                        // threads will overwrite each other's binding between this register call
-                        // and the upcalls below — leading to wrong-handle reads.
-                        FilterTreeCallbacks.register(SHARED_CONTEXT_ID, handles[queryIdx], null);
-
-                        int pk = FilterTreeCallbacks.createProvider(SHARED_CONTEXT_ID, 1);
-                        if (pk < 0) {
-                            corruptionCount[queryIdx]++;
-                            continue;
-                        }
-                        int ck = FilterTreeCallbacks.createCollector(SHARED_CONTEXT_ID, pk, 0, 0, 64);
-                        if (ck < 0) {
-                            corruptionCount[queryIdx]++;
-                            FilterTreeCallbacks.releaseProvider(SHARED_CONTEXT_ID, pk);
-                            continue;
-                        }
-
-                        try (Arena arena = Arena.ofConfined()) {
-                            MemorySegment buf = arena.allocate(Long.BYTES);
-                            long words = FilterTreeCallbacks.collectDocs(SHARED_CONTEXT_ID, ck, 0, 64, buf, 1);
-                            if (words < 0) {
-                                corruptionCount[queryIdx]++;
-                            } else {
-                                long value = buf.getAtIndex(ValueLayout.JAVA_LONG, 0);
-                                long expected = 0xABCD_0000L | queryIdx;
-                                if (value != expected) {
-                                    corruptionCount[queryIdx]++;
-                                }
-                            }
-                        }
-                        FilterTreeCallbacks.releaseCollector(SHARED_CONTEXT_ID, ck);
-                        FilterTreeCallbacks.releaseProvider(SHARED_CONTEXT_ID, pk);
-                    }
-                } catch (Exception e) {
-                    corruptionCount[queryIdx] += 100;
-                } finally {
-                    done.countDown();
-                }
-            }, "shared-ctx-query-" + q);
-            threads[q].start();
-        }
-
-        assertTrue(done.await(15, TimeUnit.SECONDS));
-        FilterTreeCallbacks.unregister(SHARED_CONTEXT_ID);
-
-        int totalCorruption = 0;
-        for (int c : corruptionCount)
-            totalCorruption += c;
-
-        assertTrue(
-            "With a shared contextId, concurrent queries SHOULD see data corruption "
-                + "(wrong handle's data returned). Got "
-                + totalCorruption
-                + " corruptions out of "
-                + (queryCount * 20)
-                + " attempts. If this is 0, the test is not exercising the race.",
-            totalCorruption > 0
-        );
     }
 
     private DelegationThreadTracker createTracker(long taskId) {
