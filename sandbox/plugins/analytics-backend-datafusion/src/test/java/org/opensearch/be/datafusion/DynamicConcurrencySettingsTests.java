@@ -45,7 +45,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
 
     public void testCoordinatorMultiplierIsDynamic() {
         assertTrue(
-            "datafusion.concurrency.reduce_multiplier must be dynamic",
+            "datafusion.concurrency.reduce_executor_multiplier must be dynamic",
             DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.isDynamic()
         );
     }
@@ -59,7 +59,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
 
     public void testCoordinatorMultiplierHasNodeScope() {
         assertTrue(
-            "datafusion.concurrency.reduce_multiplier must have node scope",
+            "datafusion.concurrency.reduce_executor_multiplier must have node scope",
             DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.hasNodeScope()
         );
     }
@@ -79,7 +79,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatorMultiplierKeyName() {
-        assertEquals("datafusion.concurrency.reduce_multiplier", DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.getKey());
+        assertEquals("datafusion.concurrency.reduce_executor_multiplier", DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.getKey());
     }
 
     // ── Requirement 1.5, 1.6: Invalid values are rejected ──
@@ -105,17 +105,17 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatorMultiplierRejectsZero() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 0.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_executor_multiplier", 0.0).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings));
     }
 
     public void testCoordinatorMultiplierRejectsAboveMax() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 11.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_executor_multiplier", 11.0).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings));
     }
 
     public void testCoordinatorMultiplierRejectsBelowMin() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 0.05).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_executor_multiplier", 0.05).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings));
     }
 
@@ -132,12 +132,12 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
     }
 
     public void testCoordinatorMultiplierAcceptsMinBoundary() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 0.1).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_executor_multiplier", 0.1).build();
         assertEquals(0.1, DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings), 1e-15);
     }
 
     public void testCoordinatorMultiplierAcceptsMaxBoundary() {
-        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 10.0).build();
+        Settings settings = Settings.builder().put("datafusion.concurrency.reduce_executor_multiplier", 10.0).build();
         assertEquals(10.0, DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings), 1e-15);
     }
 
@@ -224,7 +224,7 @@ public class DynamicConcurrencySettingsTests extends OpenSearchTestCase {
 
         clusterSettings.addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, receivedValue::set);
 
-        Settings newSettings = Settings.builder().put("datafusion.concurrency.reduce_multiplier", 5.0).build();
+        Settings newSettings = Settings.builder().put("datafusion.concurrency.reduce_executor_multiplier", 5.0).build();
         clusterSettings.applySettings(newSettings);
 
         assertNotNull("Consumer should have been called", receivedValue.get());

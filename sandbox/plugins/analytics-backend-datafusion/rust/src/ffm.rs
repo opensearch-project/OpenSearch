@@ -1162,7 +1162,7 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         stream_next: pack_task_monitor(stream_next_monitor()),
         plan_setup: pack_task_monitor(plan_setup_monitor()),
         fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
-        reduce_gate: pack_partition_gate(mgr.coordinator_gate()),
+        reduce_executor_gate: pack_partition_gate(mgr.coordinator_gate()),
     };
 
     // Copy struct bytes to caller buffer

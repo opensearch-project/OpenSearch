@@ -19,7 +19,7 @@
 //! | `stream_next`        | `TaskMonitorRepr`    | 3 × i64 |
 //! | `plan_setup`         | `TaskMonitorRepr`    | 3 × i64 |
 //! | `fragment_executor_gate` | `PartitionGateRepr`  | 6 × i64 |
-//! | `reduce_gate`            | `PartitionGateRepr`  | 6 × i64 |
+//! | `reduce_executor_gate`            | `PartitionGateRepr`  | 6 × i64 |
 
 use tokio::runtime::Handle;
 use tokio_metrics::{RuntimeMonitor, TaskMonitor};
@@ -81,7 +81,7 @@ pub struct DfStatsBuffer {
     pub stream_next: TaskMonitorRepr,
     pub plan_setup: TaskMonitorRepr,
     pub fragment_executor_gate: PartitionGateRepr,
-    pub reduce_gate: PartitionGateRepr,
+    pub reduce_executor_gate: PartitionGateRepr,
 }
 
 const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 9 * 8);
@@ -260,13 +260,13 @@ mod tests {
             stream_next: pack_task_monitor(stream_next_monitor()),
             plan_setup: pack_task_monitor(plan_setup_monitor()),
             fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
-            reduce_gate: pack_partition_gate(mgr.coordinator_gate()),
+            reduce_executor_gate: pack_partition_gate(mgr.coordinator_gate()),
         };
 
         assert_eq!(layout::BUFFER_BYTE_SIZE, 336);
         assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
         assert!(buf.fragment_executor_gate.max_permits > 0, "fragment_executor_gate max_permits should be > 0, got {}", buf.fragment_executor_gate.max_permits);
-        assert!(buf.reduce_gate.max_permits > 0, "reduce_gate max_permits should be > 0, got {}", buf.reduce_gate.max_permits);
+        assert!(buf.reduce_executor_gate.max_permits > 0, "reduce_executor_gate max_permits should be > 0, got {}", buf.reduce_executor_gate.max_permits);
 
         if mgr.cpu_monitor.is_some() {
             assert!(buf.cpu_runtime.workers_count > 0, "CPU runtime workers_count should be > 0, got {}", buf.cpu_runtime.workers_count);

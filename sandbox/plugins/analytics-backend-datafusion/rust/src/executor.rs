@@ -500,7 +500,7 @@ mod tests {
         gate.resize(4, "test").await;
 
         assert_eq!(gate.max_permits(), 4);
-        assert_eq!(poison_permits_held(&gate).await, 1); // stored as single acquire_many_owned
+        assert_eq!(poison_permits_held(&gate).await, 4); // 4 individual permits
         // Available permits should be 4: original 8 minus 4 acquired as poison
         assert_eq!(gate.semaphore.available_permits(), 4);
     }

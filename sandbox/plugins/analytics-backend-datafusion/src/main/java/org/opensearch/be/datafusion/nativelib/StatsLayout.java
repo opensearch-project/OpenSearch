@@ -60,7 +60,7 @@ public final class StatsLayout {
         taskMonitorGroup("stream_next"),
         taskMonitorGroup("plan_setup"),
         partitionGateGroup("fragment_executor_gate"),
-        partitionGateGroup("reduce_gate")
+        partitionGateGroup("reduce_executor_gate")
     );
 
     static {
@@ -119,13 +119,13 @@ public final class StatsLayout {
     private static final VarHandle DG_POISON_PERMITS = handle("fragment_executor_gate", "poison_permits");
     private static final VarHandle DG_TARGET_MAX_PERMITS = handle("fragment_executor_gate", "target_max_permits");
 
-    // ---- VarHandles for reduce_gate fields ----
-    private static final VarHandle CG_MAX_PERMITS = handle("reduce_gate", "max_permits");
-    private static final VarHandle CG_ACTIVE_PERMITS = handle("reduce_gate", "active_permits");
-    private static final VarHandle CG_TOTAL_WAIT_DURATION_MS = handle("reduce_gate", "total_wait_duration_ms");
-    private static final VarHandle CG_TOTAL_BATCHES_STARTED = handle("reduce_gate", "total_batches_started");
-    private static final VarHandle CG_POISON_PERMITS = handle("reduce_gate", "poison_permits");
-    private static final VarHandle CG_TARGET_MAX_PERMITS = handle("reduce_gate", "target_max_permits");
+    // ---- VarHandles for reduce_executor_gate fields ----
+    private static final VarHandle CG_MAX_PERMITS = handle("reduce_executor_gate", "max_permits");
+    private static final VarHandle CG_ACTIVE_PERMITS = handle("reduce_executor_gate", "active_permits");
+    private static final VarHandle CG_TOTAL_WAIT_DURATION_MS = handle("reduce_executor_gate", "total_wait_duration_ms");
+    private static final VarHandle CG_TOTAL_BATCHES_STARTED = handle("reduce_executor_gate", "total_batches_started");
+    private static final VarHandle CG_POISON_PERMITS = handle("reduce_executor_gate", "poison_permits");
+    private static final VarHandle CG_TARGET_MAX_PERMITS = handle("reduce_executor_gate", "target_max_permits");
 
     private StatsLayout() {}
 
@@ -179,7 +179,7 @@ public final class StatsLayout {
      * Read a partition gate group (6 fields) from the segment.
      *
      * @param seg   the memory segment containing the DfStatsBuffer
-     * @param group "fragment_executor_gate" or "reduce_gate"
+     * @param group "fragment_executor_gate" or "reduce_executor_gate"
      * @return a populated PartitionGateStats instance
      */
     public static PartitionGateStats readPartitionGate(MemorySegment seg, String group) {
@@ -285,7 +285,7 @@ public final class StatsLayout {
                 DG_TOTAL_BATCHES_STARTED,
                 DG_POISON_PERMITS,
                 DG_TARGET_MAX_PERMITS };
-            case "reduce_gate" -> new VarHandle[] {
+            case "reduce_executor_gate" -> new VarHandle[] {
                 CG_MAX_PERMITS,
                 CG_ACTIVE_PERMITS,
                 CG_TOTAL_WAIT_DURATION_MS,

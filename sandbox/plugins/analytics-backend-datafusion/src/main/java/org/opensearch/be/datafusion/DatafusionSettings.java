@@ -189,7 +189,7 @@ public final class DatafusionSettings {
 
     /** Reduce concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
     public static final Setting<Double> CONCURRENCY_COORDINATOR_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.reduce_multiplier",
+        "datafusion.concurrency.reduce_executor_multiplier",
         1.5,
         0.1,
         10.0,
