@@ -187,7 +187,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         ScalarFunction.NOT,
         // String — used by QTF plan-shape tests covering composite expressions / dedup.
         ScalarFunction.CONCAT,
-        ScalarFunction.UPPER
+        ScalarFunction.UPPER,
+        ScalarFunction.SIN,
+        ScalarFunction.ABS
     );
 
     private static final Set<ProjectCapability> PROJECT_CAPS;
