@@ -75,10 +75,7 @@ public class StatSectionFilteringPropertyTests {
             .between(0, Long.MAX_VALUE / 2)
             .list()
             .ofSize(9)
-            .map(l -> new RuntimeMetrics(
-                l.get(0), l.get(1), l.get(2), l.get(3),
-                l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)
-            ));
+            .map(l -> new RuntimeMetrics(l.get(0), l.get(1), l.get(2), l.get(3), l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)));
     }
 
     @Provide
@@ -90,24 +87,22 @@ public class StatSectionFilteringPropertyTests {
     /** DataFusionStats with all sections populated (CPU runtime present). */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsFullCpuPresent() {
-        return Combinators.combine(
-            runtimeMetrics(),
-            runtimeMetrics().map(rt -> {
-                if (rt.workersCount == 0) {
-                    return new RuntimeMetrics(
-                        1, rt.totalPollsCount, rt.totalBusyDurationMs,
-                        rt.totalOverflowCount, rt.globalQueueDepth,
-                        rt.blockingQueueDepth, rt.numAliveTasks,
-                        rt.spawnedTasksCount, rt.totalLocalQueueDepth
-                    );
-                }
-                return rt;
-            }),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats()
-        ).as((io, cpu, cr, qe, sn, ps) -> {
+        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+            if (rt.workersCount == 0) {
+                return new RuntimeMetrics(
+                    1,
+                    rt.totalPollsCount,
+                    rt.totalBusyDurationMs,
+                    rt.totalOverflowCount,
+                    rt.globalQueueDepth,
+                    rt.blockingQueueDepth,
+                    rt.numAliveTasks,
+                    rt.spawnedTasksCount,
+                    rt.totalLocalQueueDepth
+                );
+            }
+            return rt;
+        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, cr, qe, sn, ps) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("coordinator_reduce", cr);
             monitors.put("query_execution", qe);
@@ -124,24 +119,19 @@ public class StatSectionFilteringPropertyTests {
     /** DataFusionStats with CPU runtime absent. */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsFullCpuAbsent() {
-        return Combinators.combine(
-            runtimeMetrics(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats()
-        ).as((io, cr, qe, sn, ps) -> {
-            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("coordinator_reduce", cr);
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("plan_setup", ps);
-            return new DataFusionStats(
-                new NativeExecutorsStats(io, null, monitors),
-                new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
-            );
-        });
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
+            .as((io, cr, qe, sn, ps) -> {
+                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("coordinator_reduce", cr);
+                monitors.put("query_execution", qe);
+                monitors.put("stream_next", sn);
+                monitors.put("plan_setup", ps);
+                return new DataFusionStats(
+                    new NativeExecutorsStats(io, null, monitors),
+                    new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
+                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                );
+            });
     }
 
     /** Combined DataFusionStats generator (CPU present or absent). */
@@ -153,10 +143,7 @@ public class StatSectionFilteringPropertyTests {
     /** Generates a non-empty subset of the 8 valid stat section names. */
     @Provide
     Arbitrary<Set<String>> statSectionSubset() {
-        return Arbitraries.of(ALL_SECTIONS)
-            .set()
-            .ofMinSize(1)
-            .ofMaxSize(8);
+        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(1).ofMaxSize(8);
     }
 
     // ---- Property 3: Stat section filtering correctness ----
@@ -195,8 +182,7 @@ public class StatSectionFilteringPropertyTests {
         assertEquals(
             expectedSections,
             actualSections,
-            "Filtered JSON must contain exactly the requested (and available) sections. "
-                + "Requested: " + requestedSections
+            "Filtered JSON must contain exactly the requested (and available) sections. " + "Requested: " + requestedSections
         );
     }
 
@@ -227,8 +213,7 @@ public class StatSectionFilteringPropertyTests {
         for (String excluded : excludedSections) {
             assertFalse(
                 root.has(excluded),
-                "Section '" + excluded + "' should NOT be present in filtered output. "
-                    + "Requested: " + requestedSections
+                "Section '" + excluded + "' should NOT be present in filtered output. " + "Requested: " + requestedSections
             );
         }
     }
@@ -242,9 +227,7 @@ public class StatSectionFilteringPropertyTests {
      * <p><b>Validates: Requirements 3.4, 5.3</b>
      */
     @Property(tries = 100)
-    void emptyFilterReturnsAllSections(
-        @ForAll("dataFusionStats") DataFusionStats stats
-    ) throws IOException {
+    void emptyFilterReturnsAllSections(@ForAll("dataFusionStats") DataFusionStats stats) throws IOException {
         // Null filter returns same object
         DataFusionStats filteredNull = TransportDataFusionStatsAction.filteredStats(stats, null);
         assertTrue(stats == filteredNull, "Null filter must return the original stats object");
@@ -266,14 +249,12 @@ public class StatSectionFilteringPropertyTests {
         for (String section : requested) {
             switch (section) {
                 case "cpu_runtime":
-                    if (stats.getNativeExecutorsStats() != null
-                        && stats.getNativeExecutorsStats().getCpuRuntime() != null) {
+                    if (stats.getNativeExecutorsStats() != null && stats.getNativeExecutorsStats().getCpuRuntime() != null) {
                         expected.add(section);
                     }
                     break;
                 case "io_runtime":
-                    if (stats.getNativeExecutorsStats() != null
-                        && stats.getNativeExecutorsStats().getIoRuntime() != null) {
+                    if (stats.getNativeExecutorsStats() != null && stats.getNativeExecutorsStats().getIoRuntime() != null) {
                         expected.add(section);
                     }
                     break;
@@ -281,8 +262,7 @@ public class StatSectionFilteringPropertyTests {
                 case "query_execution":
                 case "stream_next":
                 case "plan_setup":
-                    if (stats.getNativeExecutorsStats() != null
-                        && stats.getNativeExecutorsStats().getTaskMonitors().get(section) != null) {
+                    if (stats.getNativeExecutorsStats() != null && stats.getNativeExecutorsStats().getTaskMonitors().get(section) != null) {
                         expected.add(section);
                     }
                     break;

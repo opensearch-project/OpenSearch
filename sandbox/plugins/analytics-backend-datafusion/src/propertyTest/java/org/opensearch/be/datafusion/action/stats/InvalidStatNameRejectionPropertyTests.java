@@ -92,9 +92,7 @@ public class InvalidStatNameRejectionPropertyTests {
      * <p><b>Validates: Requirements 3.3</b>
      */
     @Property(tries = 150)
-    void invalidStatNameReturnsHttp400WithValidNamesList(
-        @ForAll("invalidStatNames") String invalidStat
-    ) throws Exception {
+    void invalidStatNameReturnsHttp400WithValidNamesList(@ForAll("invalidStatNames") String invalidStat) throws Exception {
         RestDataFusionStatsAction handler = new RestDataFusionStatsAction();
 
         // Build a RestRequest with the invalid stat as the "stat" path parameter
@@ -110,11 +108,7 @@ public class InvalidStatNameRejectionPropertyTests {
 
         // Verify HTTP 400 status
         assertNotNull(channel.getResponse(), "Channel must have received a response");
-        assertEquals(
-            RestStatus.BAD_REQUEST,
-            channel.getResponse().status(),
-            "Invalid stat '" + invalidStat + "' must produce HTTP 400"
-        );
+        assertEquals(RestStatus.BAD_REQUEST, channel.getResponse().status(), "Invalid stat '" + invalidStat + "' must produce HTTP 400");
 
         // Verify the response body lists valid stat names
         String responseBody = channel.getResponse().content().utf8ToString();
@@ -137,14 +131,8 @@ public class InvalidStatNameRejectionPropertyTests {
     private static RestRequest buildFakeRestRequest(Map<String, String> params) {
         HttpRequest httpRequest = new MinimalHttpRequest();
         HttpChannel httpChannel = new MinimalHttpChannel();
-        return new RestRequest(
-            NamedXContentRegistry.EMPTY,
-            params,
-            httpRequest.uri(),
-            httpRequest.getHeaders(),
-            httpRequest,
-            httpChannel
-        ) {};
+        return new RestRequest(NamedXContentRegistry.EMPTY, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel) {
+        };
     }
 
     /**

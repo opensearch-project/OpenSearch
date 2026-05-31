@@ -115,10 +115,7 @@ public class DataFusionStatsIT extends OpenSearchIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSingleStatFilterReturnsOnlyRequestedSection() throws Exception {
-        DataFusionStatsNodesRequest request = new DataFusionStatsNodesRequest(
-            new String[] { "_local" },
-            Set.of("io_runtime")
-        );
+        DataFusionStatsNodesRequest request = new DataFusionStatsNodesRequest(new String[] { "_local" }, Set.of("io_runtime"));
         DataFusionStatsNodesResponse response = client().execute(DataFusionStatsActionType.INSTANCE, request).actionGet();
 
         assertEquals(1, response.getNodes().size());

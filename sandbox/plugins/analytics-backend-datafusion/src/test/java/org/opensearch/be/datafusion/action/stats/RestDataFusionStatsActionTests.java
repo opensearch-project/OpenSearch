@@ -30,8 +30,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for {@link RestDataFusionStatsAction}.
@@ -96,8 +96,7 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         }
 
         // All deprecated routes should have the correct deprecation message
-        String expectedMessage = "Use /_plugins/_analytics_backend_datafusion instead of "
-            + "/_plugins/analytics_backend_datafusion";
+        String expectedMessage = "Use /_plugins/_analytics_backend_datafusion instead of " + "/_plugins/analytics_backend_datafusion";
         for (DeprecatedRoute route : deprecatedRoutes) {
             assertEquals(expectedMessage, route.getDeprecationMessage());
         }
@@ -112,10 +111,9 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
             // Single node ID
             Map<String, String> params = new HashMap<>();
             params.put("nodeId", "node1");
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/node1/stats")
-                .withParams(params)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+                "/_plugins/_analytics_backend_datafusion/node1/stats"
+            ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, false, 1);
             action.handleRequest(request, channel, client);
@@ -129,10 +127,9 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         try (NodeClient client = buildCapturingClient(capturedRequest)) {
             Map<String, String> params = new HashMap<>();
             params.put("nodeId", "node1,node2,node3");
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/node1,node2,node3/stats")
-                .withParams(params)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+                "/_plugins/_analytics_backend_datafusion/node1,node2,node3/stats"
+            ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, false, 1);
             action.handleRequest(request, channel, client);
@@ -146,10 +143,9 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         try (NodeClient client = buildCapturingClient(capturedRequest)) {
             Map<String, String> params = new HashMap<>();
             params.put("nodeId", "_local");
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/_local/stats")
-                .withParams(params)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+                "/_plugins/_analytics_backend_datafusion/_local/stats"
+            ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, false, 1);
             action.handleRequest(request, channel, client);
@@ -168,10 +164,9 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         try (NodeClient client = buildCapturingClient(capturedRequest)) {
             Map<String, String> params = new HashMap<>();
             params.put("stat", "io_runtime");
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/stats/io_runtime")
-                .withParams(params)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+                "/_plugins/_analytics_backend_datafusion/stats/io_runtime"
+            ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, false, 1);
             action.handleRequest(request, channel, client);
@@ -185,19 +180,15 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         try (NodeClient client = buildCapturingClient(capturedRequest)) {
             Map<String, String> params = new HashMap<>();
             params.put("stat", "io_runtime,cpu_runtime,datanode_gate");
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/stats/io_runtime,cpu_runtime,datanode_gate")
-                .withParams(params)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+                "/_plugins/_analytics_backend_datafusion/stats/io_runtime,cpu_runtime,datanode_gate"
+            ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, false, 1);
             action.handleRequest(request, channel, client);
 
             assertNotNull(capturedRequest.get());
-            assertEquals(
-                Set.of("io_runtime", "cpu_runtime", "datanode_gate"),
-                capturedRequest.get().getStatsToRetrieve()
-            );
+            assertEquals(Set.of("io_runtime", "cpu_runtime", "datanode_gate"), capturedRequest.get().getStatsToRetrieve());
         }
     }
 
@@ -207,10 +198,9 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         try (NodeClient client = new NoOpNodeClient(getTestName())) {
             Map<String, String> params = new HashMap<>();
             params.put("stat", "invalid_stat_name");
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/stats/invalid_stat_name")
-                .withParams(params)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+                "/_plugins/_analytics_backend_datafusion/stats/invalid_stat_name"
+            ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, true, 1);
             action.handleRequest(request, channel, client);
@@ -240,8 +230,7 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
 
         try (NodeClient client = buildCapturingClient(capturedRequest)) {
             Map<String, String> params = new HashMap<>();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/stats")
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_plugins/_analytics_backend_datafusion/stats")
                 .withParams(params)
                 .build();
 
@@ -260,8 +249,7 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
 
         try (NodeClient client = buildCapturingClient(capturedRequest)) {
             Map<String, String> params = new HashMap<>();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/stats")
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_plugins/_analytics_backend_datafusion/stats")
                 .withParams(params)
                 .build();
 
@@ -279,10 +267,9 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         try (NodeClient client = new NoOpNodeClient(getTestName())) {
             Map<String, String> params = new HashMap<>();
             params.put("stat", "io_runtime,bogus_stat");
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withPath("/_plugins/_analytics_backend_datafusion/stats/io_runtime,bogus_stat")
-                .withParams(params)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+                "/_plugins/_analytics_backend_datafusion/stats/io_runtime,bogus_stat"
+            ).withParams(params).build();
 
             FakeRestChannel channel = new FakeRestChannel(request, true, 1);
             action.handleRequest(request, channel, client);

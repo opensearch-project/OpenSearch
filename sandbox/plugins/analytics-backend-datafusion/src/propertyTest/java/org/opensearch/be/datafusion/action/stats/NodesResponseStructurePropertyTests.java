@@ -30,7 +30,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,40 +74,32 @@ public class NodesResponseStructurePropertyTests {
 
     @Provide
     Arbitrary<RuntimeMetrics> runtimeMetrics() {
-        return nonNegLong().list().ofSize(9)
-            .map(l -> new RuntimeMetrics(
-                l.get(0), l.get(1), l.get(2), l.get(3),
-                l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)
-            ));
+        return nonNegLong().list()
+            .ofSize(9)
+            .map(l -> new RuntimeMetrics(l.get(0), l.get(1), l.get(2), l.get(3), l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)));
     }
 
     @Provide
     Arbitrary<TaskMonitorStats> taskMonitorStats() {
-        return Combinators.combine(nonNegLong(), nonNegLong(), nonNegLong())
-            .as(TaskMonitorStats::new);
+        return Combinators.combine(nonNegLong(), nonNegLong(), nonNegLong()).as(TaskMonitorStats::new);
     }
 
     /** Generates a DataFusionStats instance with all sections populated. */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStats() {
-        return Combinators.combine(
-            runtimeMetrics(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats()
-        ).as((io, cr, qe, sn, ps) -> {
-            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("coordinator_reduce", cr);
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("plan_setup", ps);
-            return new DataFusionStats(
-                new NativeExecutorsStats(io, null, monitors),
-                new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
-            );
-        });
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
+            .as((io, cr, qe, sn, ps) -> {
+                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("coordinator_reduce", cr);
+                monitors.put("query_execution", qe);
+                monitors.put("stream_next", sn);
+                monitors.put("plan_setup", ps);
+                return new DataFusionStats(
+                    new NativeExecutorsStats(io, null, monitors),
+                    new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
+                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                );
+            });
     }
 
     /**
@@ -124,8 +115,7 @@ public class NodesResponseStructurePropertyTests {
      */
     @Provide
     Arbitrary<String> nodeName() {
-        return Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(20)
-            .map(s -> "node-" + s);
+        return Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(20).map(s -> "node-" + s);
     }
 
     /**
@@ -133,7 +123,10 @@ public class NodesResponseStructurePropertyTests {
      */
     @Provide
     Arbitrary<String> hostAddress() {
-        return Arbitraries.integers().between(1, 254).list().ofSize(3)
+        return Arbitraries.integers()
+            .between(1, 254)
+            .list()
+            .ofSize(3)
             .map(octets -> "10." + octets.get(0) + "." + octets.get(1) + "." + octets.get(2));
     }
 
@@ -150,8 +143,7 @@ public class NodesResponseStructurePropertyTests {
      */
     @Provide
     Arbitrary<String> clusterName() {
-        return Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(20)
-            .map(s -> "cluster-" + s);
+        return Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(20).map(s -> "cluster-" + s);
     }
 
     /**
@@ -229,9 +221,7 @@ public class NodesResponseStructurePropertyTests {
         @ForAll("clusterName") String clusterNameStr
     ) throws IOException {
         ClusterName cluster = new ClusterName(clusterNameStr);
-        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(
-            cluster, successResponses, failureList
-        );
+        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(cluster, successResponses, failureList);
 
         JsonNode root = renderAndParse(response);
 
@@ -240,12 +230,13 @@ public class NodesResponseStructurePropertyTests {
         assertNotNull(nodesHeader, "_nodes object must be present");
 
         int expectedTotal = successResponses.size() + failureList.size();
-        assertEquals(expectedTotal, nodesHeader.get("total").asInt(),
-            "_nodes.total must equal successes + failures");
-        assertEquals(successResponses.size(), nodesHeader.get("successful").asInt(),
-            "_nodes.successful must equal number of successful responses");
-        assertEquals(failureList.size(), nodesHeader.get("failed").asInt(),
-            "_nodes.failed must equal number of failures");
+        assertEquals(expectedTotal, nodesHeader.get("total").asInt(), "_nodes.total must equal successes + failures");
+        assertEquals(
+            successResponses.size(),
+            nodesHeader.get("successful").asInt(),
+            "_nodes.successful must equal number of successful responses"
+        );
+        assertEquals(failureList.size(), nodesHeader.get("failed").asInt(), "_nodes.failed must equal number of failures");
     }
 
     /**
@@ -262,16 +253,13 @@ public class NodesResponseStructurePropertyTests {
         @ForAll("clusterName") String clusterNameStr
     ) throws IOException {
         ClusterName cluster = new ClusterName(clusterNameStr);
-        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(
-            cluster, successResponses, failureList
-        );
+        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(cluster, successResponses, failureList);
 
         JsonNode root = renderAndParse(response);
 
         // Verify cluster_name
         assertTrue(root.has("cluster_name"), "cluster_name field must be present");
-        assertEquals(clusterNameStr, root.get("cluster_name").asText(),
-            "cluster_name must match the input cluster name");
+        assertEquals(clusterNameStr, root.get("cluster_name").asText(), "cluster_name must match the input cluster name");
     }
 
     /**
@@ -289,23 +277,19 @@ public class NodesResponseStructurePropertyTests {
         @ForAll("clusterName") String clusterNameStr
     ) throws IOException {
         ClusterName cluster = new ClusterName(clusterNameStr);
-        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(
-            cluster, successResponses, failureList
-        );
+        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(cluster, successResponses, failureList);
 
         JsonNode root = renderAndParse(response);
 
         // Verify nodes object
         JsonNode nodesObj = root.get("nodes");
         assertNotNull(nodesObj, "nodes object must be present");
-        assertEquals(successResponses.size(), nodesObj.size(),
-            "nodes object must have exactly as many entries as successful responses");
+        assertEquals(successResponses.size(), nodesObj.size(), "nodes object must have exactly as many entries as successful responses");
 
         // Verify each node entry is keyed by node ID
         for (DataFusionStatsNodeResponse nodeResp : successResponses) {
             String expectedId = nodeResp.getNode().getId();
-            assertTrue(nodesObj.has(expectedId),
-                "nodes object must contain entry for node ID: " + expectedId);
+            assertTrue(nodesObj.has(expectedId), "nodes object must contain entry for node ID: " + expectedId);
         }
     }
 
@@ -325,9 +309,7 @@ public class NodesResponseStructurePropertyTests {
         @ForAll("clusterName") String clusterNameStr
     ) throws IOException {
         ClusterName cluster = new ClusterName(clusterNameStr);
-        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(
-            cluster, successResponses, failureList
-        );
+        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(cluster, successResponses, failureList);
 
         JsonNode root = renderAndParse(response);
         JsonNode nodesObj = root.get("nodes");
@@ -338,12 +320,9 @@ public class NodesResponseStructurePropertyTests {
             assertNotNull(nodeEntry, "Node entry must exist for ID: " + nodeId);
 
             // Verify metadata fields are NOT present
-            assertFalse(nodeEntry.has("name"),
-                "Node entry must NOT contain 'name' field for node: " + nodeId);
-            assertFalse(nodeEntry.has("host"),
-                "Node entry must NOT contain 'host' field for node: " + nodeId);
-            assertFalse(nodeEntry.has("transport_address"),
-                "Node entry must NOT contain 'transport_address' field for node: " + nodeId);
+            assertFalse(nodeEntry.has("name"), "Node entry must NOT contain 'name' field for node: " + nodeId);
+            assertFalse(nodeEntry.has("host"), "Node entry must NOT contain 'host' field for node: " + nodeId);
+            assertFalse(nodeEntry.has("transport_address"), "Node entry must NOT contain 'transport_address' field for node: " + nodeId);
         }
     }
 

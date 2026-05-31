@@ -77,10 +77,7 @@ public class WriteableRoundTripPropertyTests {
             .between(0, Long.MAX_VALUE / 2)
             .list()
             .ofSize(9)
-            .map(l -> new RuntimeMetrics(
-                l.get(0), l.get(1), l.get(2), l.get(3),
-                l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)
-            ));
+            .map(l -> new RuntimeMetrics(l.get(0), l.get(1), l.get(2), l.get(3), l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)));
     }
 
     @Provide
@@ -124,39 +121,34 @@ public class WriteableRoundTripPropertyTests {
     }
 
     private Arbitrary<DataFusionStats> dataFusionStatsWithoutCpu() {
-        return Combinators.combine(
-            runtimeMetrics(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats()
-        ).as((io, cr, qe, sn, ps) -> {
-            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("coordinator_reduce", cr);
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("plan_setup", ps);
-            return new DataFusionStats(
-                new NativeExecutorsStats(io, null, monitors),
-                new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
-            );
-        });
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
+            .as((io, cr, qe, sn, ps) -> {
+                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("coordinator_reduce", cr);
+                monitors.put("query_execution", qe);
+                monitors.put("stream_next", sn);
+                monitors.put("plan_setup", ps);
+                return new DataFusionStats(
+                    new NativeExecutorsStats(io, null, monitors),
+                    new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
+                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                );
+            });
     }
 
     /** Generates a set of stat section names (possibly empty). */
     @Provide
     Arbitrary<Set<String>> statsToRetrieve() {
-        return Arbitraries.of(ALL_SECTIONS)
-            .set()
-            .ofMinSize(0)
-            .ofMaxSize(8);
+        return Arbitraries.of(ALL_SECTIONS).set().ofMinSize(0).ofMaxSize(8);
     }
 
     /** Generates an array of node IDs (possibly empty). */
     @Provide
     Arbitrary<String[]> nodeIds() {
-        return Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(10)
+        return Arbitraries.strings()
+            .alpha()
+            .ofMinLength(3)
+            .ofMaxLength(10)
             .list()
             .ofMinSize(0)
             .ofMaxSize(5)
@@ -198,10 +190,7 @@ public class WriteableRoundTripPropertyTests {
      * <p><b>Validates: Requirements 5.4, 5.5, 5.6</b>
      */
     @Property(tries = 100)
-    void nodesRequestRoundTrip(
-        @ForAll("nodeIds") String[] nodeIds,
-        @ForAll("statsToRetrieve") Set<String> statsFilter
-    ) throws IOException {
+    void nodesRequestRoundTrip(@ForAll("nodeIds") String[] nodeIds, @ForAll("statsToRetrieve") Set<String> statsFilter) throws IOException {
         DataFusionStatsNodesRequest original = new DataFusionStatsNodesRequest(nodeIds, statsFilter);
 
         // Serialize
@@ -220,11 +209,7 @@ public class WriteableRoundTripPropertyTests {
         );
 
         // Verify statsToRetrieve
-        assertEquals(
-            original.getStatsToRetrieve(),
-            deserialized.getStatsToRetrieve(),
-            "statsToRetrieve must survive round-trip"
-        );
+        assertEquals(original.getStatsToRetrieve(), deserialized.getStatsToRetrieve(), "statsToRetrieve must survive round-trip");
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -240,9 +225,7 @@ public class WriteableRoundTripPropertyTests {
      * <p><b>Validates: Requirements 5.4, 5.5, 5.6</b>
      */
     @Property(tries = 100)
-    void nodeRequestRoundTrip(
-        @ForAll("statsToRetrieve") Set<String> statsFilter
-    ) throws IOException {
+    void nodeRequestRoundTrip(@ForAll("statsToRetrieve") Set<String> statsFilter) throws IOException {
         // Create a NodesRequest first, then derive the NodeRequest from it
         DataFusionStatsNodesRequest nodesRequest = new DataFusionStatsNodesRequest(new String[0], statsFilter);
         DataFusionStatsNodeRequest original = new DataFusionStatsNodeRequest(nodesRequest);
@@ -256,11 +239,7 @@ public class WriteableRoundTripPropertyTests {
         DataFusionStatsNodeRequest deserialized = new DataFusionStatsNodeRequest(in);
 
         // Verify statsToRetrieve
-        assertEquals(
-            original.getStatsToRetrieve(),
-            deserialized.getStatsToRetrieve(),
-            "statsToRetrieve must survive round-trip"
-        );
+        assertEquals(original.getStatsToRetrieve(), deserialized.getStatsToRetrieve(), "statsToRetrieve must survive round-trip");
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -276,10 +255,8 @@ public class WriteableRoundTripPropertyTests {
      * <p><b>Validates: Requirements 5.4, 5.5, 5.6</b>
      */
     @Property(tries = 100)
-    void nodeResponseRoundTrip(
-        @ForAll("discoveryNode") DiscoveryNode node,
-        @ForAll("dataFusionStats") DataFusionStats stats
-    ) throws IOException {
+    void nodeResponseRoundTrip(@ForAll("discoveryNode") DiscoveryNode node, @ForAll("dataFusionStats") DataFusionStats stats)
+        throws IOException {
         DataFusionStatsNodeResponse original = new DataFusionStatsNodeResponse(node, stats);
 
         // Serialize
@@ -308,9 +285,7 @@ public class WriteableRoundTripPropertyTests {
      * <p><b>Validates: Requirements 5.4, 5.5, 5.6</b>
      */
     @Property(tries = 100)
-    void nodeResponseRoundTripWithNullStats(
-        @ForAll("discoveryNode") DiscoveryNode node
-    ) throws IOException {
+    void nodeResponseRoundTripWithNullStats(@ForAll("discoveryNode") DiscoveryNode node) throws IOException {
         DataFusionStatsNodeResponse original = new DataFusionStatsNodeResponse(node, null);
 
         // Serialize
@@ -367,18 +342,10 @@ public class WriteableRoundTripPropertyTests {
 
         // Verify cluster name
         assertNotNull(deserialized.getClusterName(), "ClusterName must not be null after round-trip");
-        assertEquals(
-            original.getClusterName(),
-            deserialized.getClusterName(),
-            "ClusterName must survive round-trip"
-        );
+        assertEquals(original.getClusterName(), deserialized.getClusterName(), "ClusterName must survive round-trip");
 
         // Verify node responses count
-        assertEquals(
-            original.getNodes().size(),
-            deserialized.getNodes().size(),
-            "Number of node responses must survive round-trip"
-        );
+        assertEquals(original.getNodes().size(), deserialized.getNodes().size(), "Number of node responses must survive round-trip");
 
         // Verify each node response
         for (int i = 0; i < original.getNodes().size(); i++) {
@@ -388,11 +355,7 @@ public class WriteableRoundTripPropertyTests {
         }
 
         // Verify failures count (empty in this test)
-        assertEquals(
-            original.failures().size(),
-            deserialized.failures().size(),
-            "Failures list size must survive round-trip"
-        );
+        assertEquals(original.failures().size(), deserialized.failures().size(), "Failures list size must survive round-trip");
     }
 
     /**

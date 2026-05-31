@@ -42,8 +42,7 @@ import java.util.List;
  * }
  * </pre>
  */
-public class DataFusionStatsNodesResponse extends BaseNodesResponse<DataFusionStatsNodeResponse>
-    implements ToXContentFragment {
+public class DataFusionStatsNodesResponse extends BaseNodesResponse<DataFusionStatsNodeResponse> implements ToXContentFragment {
 
     /**
      * Construct a nodes response with the given cluster name, successful node responses, and failures.

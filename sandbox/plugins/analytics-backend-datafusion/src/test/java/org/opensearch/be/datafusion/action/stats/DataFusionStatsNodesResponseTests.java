@@ -138,11 +138,7 @@ public class DataFusionStatsNodesResponseTests extends OpenSearchTestCase {
             new DataFusionStatsNodeResponse(node3, stats)
         );
 
-        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(
-            clusterName,
-            nodeResponses,
-            Collections.emptyList()
-        );
+        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(clusterName, nodeResponses, Collections.emptyList());
 
         Map<String, Object> map = renderToMap(response);
 
@@ -174,11 +170,7 @@ public class DataFusionStatsNodesResponseTests extends OpenSearchTestCase {
             new FailedNodeException("node-3", "node not available", new RuntimeException("unavailable"))
         );
 
-        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(
-            clusterName,
-            List.of(nodeResponse),
-            failures
-        );
+        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(clusterName, List.of(nodeResponse), failures);
 
         Map<String, Object> map = renderToMap(response);
 
@@ -262,11 +254,7 @@ public class DataFusionStatsNodesResponseTests extends OpenSearchTestCase {
             new FailedNodeException("node-5", "failed", new RuntimeException())
         );
 
-        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(
-            clusterName,
-            nodeResponses,
-            failures
-        );
+        DataFusionStatsNodesResponse response = new DataFusionStatsNodesResponse(clusterName, nodeResponses, failures);
 
         Map<String, Object> map = renderToMap(response);
         Map<String, Object> nodesHeader = (Map<String, Object>) map.get("_nodes");

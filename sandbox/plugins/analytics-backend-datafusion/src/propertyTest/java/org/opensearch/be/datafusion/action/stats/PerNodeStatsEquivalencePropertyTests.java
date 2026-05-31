@@ -70,10 +70,7 @@ public class PerNodeStatsEquivalencePropertyTests {
             .between(0, Long.MAX_VALUE / 2)
             .list()
             .ofSize(9)
-            .map(l -> new RuntimeMetrics(
-                l.get(0), l.get(1), l.get(2), l.get(3),
-                l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)
-            ));
+            .map(l -> new RuntimeMetrics(l.get(0), l.get(1), l.get(2), l.get(3), l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)));
     }
 
     @Provide
@@ -85,24 +82,22 @@ public class PerNodeStatsEquivalencePropertyTests {
     /** DataFusionStats with all sections populated (CPU runtime present). */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsFullCpuPresent() {
-        return Combinators.combine(
-            runtimeMetrics(),
-            runtimeMetrics().map(rt -> {
-                if (rt.workersCount == 0) {
-                    return new RuntimeMetrics(
-                        1, rt.totalPollsCount, rt.totalBusyDurationMs,
-                        rt.totalOverflowCount, rt.globalQueueDepth,
-                        rt.blockingQueueDepth, rt.numAliveTasks,
-                        rt.spawnedTasksCount, rt.totalLocalQueueDepth
-                    );
-                }
-                return rt;
-            }),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats()
-        ).as((io, cpu, cr, qe, sn, ps) -> {
+        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+            if (rt.workersCount == 0) {
+                return new RuntimeMetrics(
+                    1,
+                    rt.totalPollsCount,
+                    rt.totalBusyDurationMs,
+                    rt.totalOverflowCount,
+                    rt.globalQueueDepth,
+                    rt.blockingQueueDepth,
+                    rt.numAliveTasks,
+                    rt.spawnedTasksCount,
+                    rt.totalLocalQueueDepth
+                );
+            }
+            return rt;
+        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, cr, qe, sn, ps) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("coordinator_reduce", cr);
             monitors.put("query_execution", qe);
@@ -119,24 +114,19 @@ public class PerNodeStatsEquivalencePropertyTests {
     /** DataFusionStats with CPU runtime absent. */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsFullCpuAbsent() {
-        return Combinators.combine(
-            runtimeMetrics(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats(),
-            taskMonitorStats()
-        ).as((io, cr, qe, sn, ps) -> {
-            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("coordinator_reduce", cr);
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("plan_setup", ps);
-            return new DataFusionStats(
-                new NativeExecutorsStats(io, null, monitors),
-                new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
-            );
-        });
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
+            .as((io, cr, qe, sn, ps) -> {
+                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("coordinator_reduce", cr);
+                monitors.put("query_execution", qe);
+                monitors.put("stream_next", sn);
+                monitors.put("plan_setup", ps);
+                return new DataFusionStats(
+                    new NativeExecutorsStats(io, null, monitors),
+                    new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
+                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                );
+            });
     }
 
     /** Combined DataFusionStats generator (CPU present or absent). */
@@ -158,9 +148,7 @@ public class PerNodeStatsEquivalencePropertyTests {
      */
     @Property(tries = 150)
     @SuppressWarnings("unchecked")
-    void perNodeStatsMatchDirectRendering(
-        @ForAll("dataFusionStats") DataFusionStats stats
-    ) throws Exception {
+    void perNodeStatsMatchDirectRendering(@ForAll("dataFusionStats") DataFusionStats stats) throws Exception {
         // Step 1: Render DataFusionStats directly
         Map<String, Object> directMap = renderStatsDirect(stats);
 
@@ -225,9 +213,7 @@ public class PerNodeStatsEquivalencePropertyTests {
         nodesResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> fullMap = XContentHelper.convertToMap(
-            MediaTypeRegistry.JSON.xContent(), builder.toString(), false
-        );
+        Map<String, Object> fullMap = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), builder.toString(), false);
 
         // Extract the per-node entry
         Map<String, Object> nodesObj = (Map<String, Object>) fullMap.get("nodes");

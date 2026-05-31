@@ -117,9 +117,7 @@ public class RestDataFusionStatsAction extends BaseRestHandler {
             String[] requestedStats = Strings.splitStringByCommaToArray(statParam);
 
             // Validate stat names — collect all invalid names and report together
-            List<String> invalidStats = Arrays.stream(requestedStats)
-                .filter(s -> !VALID_STAT_NAMES.contains(s))
-                .toList();
+            List<String> invalidStats = Arrays.stream(requestedStats).filter(s -> !VALID_STAT_NAMES.contains(s)).toList();
             if (!invalidStats.isEmpty()) {
                 return channel -> {
                     XContentBuilder builder = channel.newBuilder();
@@ -139,10 +137,8 @@ public class RestDataFusionStatsAction extends BaseRestHandler {
             nodesRequest,
             new RestBuilderListener<DataFusionStatsNodesResponse>(channel) {
                 @Override
-                public org.opensearch.rest.RestResponse buildResponse(
-                    DataFusionStatsNodesResponse response,
-                    XContentBuilder builder
-                ) throws Exception {
+                public org.opensearch.rest.RestResponse buildResponse(DataFusionStatsNodesResponse response, XContentBuilder builder)
+                    throws Exception {
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();
