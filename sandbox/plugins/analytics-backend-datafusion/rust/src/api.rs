@@ -1156,8 +1156,8 @@ fn derive_schema_from_partial_plan(
             arrow_schema
         };
         let arrow_schema = coerce_unsupported_timestamp_precision(&arrow_schema);
-
-        let table = MemTable::try_new(Arc::new(arrow_schema), vec![vec![]])?;
+        let arrow_schema = crate::schema_coerce::coerce_inferred_schema(Arc::new(arrow_schema));
+        let table = MemTable::try_new(arrow_schema, vec![vec![]])?;
         // Plan may scan the same table twice; the second register is a no-op.
         let _ = ctx.register_table(&table_name, Arc::new(table));
     }
@@ -1425,9 +1425,13 @@ pub async unsafe fn execute_local_plan(
 
     // Wrap the output in the same CrossRtStream + RecordBatchStreamAdapter
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
-    // drain this handle unchanged.
-    let cross_rt_stream =
-        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    // drain this handle unchanged. Use the cancellable variant so the CPU
+    // task can be aborted mid-execution when cancel_query fires.
+    let (cross_rt_stream, abort_handle) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    if let Some(h) = abort_handle {
+        query_tracker::set_abort_handle(context_id, h);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     let handle = QueryStreamHandle::new(wrapped, query_context, permit);
@@ -1466,8 +1470,11 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let cross_rt_stream =
-        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    let (cross_rt_stream, abort_handle) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    if let Some(h) = abort_handle {
+        query_tracker::set_abort_handle(context_id, h);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     let handle = QueryStreamHandle::new(wrapped, query_context, permit);

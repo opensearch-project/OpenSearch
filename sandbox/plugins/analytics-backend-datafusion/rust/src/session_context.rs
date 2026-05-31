@@ -339,10 +339,10 @@ pub async unsafe fn create_session_context_indexed(
 ) -> Result<i64, DataFusionError> {
     let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config, plan_bytes).await?;
 
-    // Augment with indexed config and UDF registration
+    // Augment with indexed config. The delegation marker UDFs (index_filter, delegation_possible)
+    // are now registered for every session by udf::register_all (via create_session_context above);
+    // the indexed path additionally UNWRAPS them before execution.
     let handle = &mut *(ptr as *mut SessionContextHandle);
-    handle.ctx.register_udf(crate::indexed_table::substrait_to_tree::create_index_filter_udf());
-    handle.ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     handle.indexed_config = Some(IndexedExecutionConfig {
         tree_shape,
         delegated_predicate_count,

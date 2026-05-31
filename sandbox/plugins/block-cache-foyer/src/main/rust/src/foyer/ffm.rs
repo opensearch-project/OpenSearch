@@ -28,6 +28,8 @@ use crate::foyer::foyer_cache::FoyerCache;
 /// - `sweep_threshold_ratio` — minimum `used_bytes / disk_bytes` ratio required to run the
 ///   sweep. When the ratio is below this value the sweep tick is skipped (no-op). `0.0` =
 ///   disabled (always sweep). Maps to `block_cache.foyer.key_index_sweep_threshold`.
+/// - `persist_interval_secs` — how often (in seconds) the independent persist task flushes the
+///   key_index to disk. `0` = disabled (only graceful-shutdown `Drop` persists).
 ///
 /// # Safety
 /// `dir_ptr` must point to `dir_len` consecutive valid UTF-8 bytes.
@@ -43,6 +45,7 @@ pub unsafe extern "C" fn foyer_create_cache(
     io_engine_len: u64,
     sweep_interval_secs: u64,
     sweep_threshold_ratio: f64,
+    persist_interval_secs: u64,
 ) -> i64 {
     if dir_ptr.is_null() {
         return Err("dir_ptr is null".to_string());
@@ -63,6 +66,7 @@ pub unsafe extern "C" fn foyer_create_cache(
         io_engine,
         sweep_interval_secs,
         sweep_threshold_ratio,
+        persist_interval_secs,
     ));
     Ok(Box::into_raw(Box::new(cache)) as i64)
 }
@@ -160,6 +164,68 @@ pub unsafe extern "C" fn foyer_clear_cache(ptr: i64) -> i64 {
     };
     foyer.clear_sync();
     native_bridge_common::log_info!("ffm: foyer_clear_cache completed");
+    Ok(0)
+}
+
+/// Update the sweep threshold ratio on the running cache without a restart.
+///
+/// Called by Java's `addSettingsUpdateConsumer` when
+/// `block_cache.foyer.key_index_sweep_threshold` is changed via the cluster settings API.
+/// The sweep task picks up the new value on its next tick.
+///
+/// # Parameters
+/// - `ptr` — the cache handle returned by [`foyer_create_cache`].
+/// - `new_ratio` — new threshold ratio in `[0.0, 1.0]`. `0.0` = always sweep.
+///
+/// # Returns
+/// `0` on success; `< 0` if `ptr` is invalid or the cache type is wrong.
+///
+/// # Safety
+/// `ptr` must be a valid handle from [`foyer_create_cache`], not yet destroyed.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_update_sweep_threshold(ptr: i64, new_ratio: f64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_update_sweep_threshold: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
+        Some(f) => f,
+        None => return Err("foyer_update_sweep_threshold: downcast to FoyerCache failed".to_string()),
+    };
+    foyer.update_sweep_threshold(new_ratio);
+    Ok(0)
+}
+
+/// Update the sweep interval on the running cache without a restart. `0` = disable.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_update_sweep_interval(ptr: i64, new_secs: u64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_update_sweep_interval: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
+        Some(f) => f,
+        None => return Err("foyer_update_sweep_interval: downcast failed".to_string()),
+    };
+    foyer.update_sweep_interval(new_secs);
+    Ok(0)
+}
+
+/// Update the persist interval on the running cache without a restart. `0` = disable.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_update_persist_interval(ptr: i64, new_secs: u64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_update_persist_interval: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
+        Some(f) => f,
+        None => return Err("foyer_update_persist_interval: downcast failed".to_string()),
+    };
+    foyer.update_persist_interval(new_secs);
     Ok(0)
 }
 
