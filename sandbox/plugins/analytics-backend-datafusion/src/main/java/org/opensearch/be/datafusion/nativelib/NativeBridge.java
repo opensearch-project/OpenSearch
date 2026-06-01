@@ -77,6 +77,7 @@ public final class NativeBridge {
      */
     private static final MethodHandle SET_SPILL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
+    private static final MethodHandle SET_REDUCE_TARGET_PARTITIONS;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
@@ -183,6 +184,11 @@ public final class NativeBridge {
 
         SET_MIN_TARGET_PARTITIONS = linker.downcallHandle(
             lib.find("df_set_min_target_partitions").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_REDUCE_TARGET_PARTITIONS = linker.downcallHandle(
+            lib.find("df_set_reduce_target_partitions").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
@@ -728,6 +734,15 @@ public final class NativeBridge {
             SET_MIN_TARGET_PARTITIONS.invokeExact((long) value);
         } catch (Throwable t) {
             logger.debug("Failed to set min target partitions", t);
+        }
+    }
+
+    /** Sets the initial target_partitions for coordinator-reduce sessions. */
+    public static void setReduceTargetPartitions(int value) {
+        try {
+            SET_REDUCE_TARGET_PARTITIONS.invokeExact((long) value);
+        } catch (Throwable t) {
+            logger.debug("Failed to set reduce target partitions", t);
         }
     }
 
