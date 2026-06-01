@@ -108,6 +108,7 @@ public final class NativeBridge {
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
+    private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
     private static final MethodHandle QUERY_REGISTRY_TOP_N_BY_CURRENT;
     private static final MethodHandle DF_NATIVE_NODE_STATS;
@@ -453,6 +454,11 @@ public final class NativeBridge {
 
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
+        SET_CANCEL_STATS_THRESHOLD_MS = linker.downcallHandle(
+            lib.find("df_set_cancel_stats_threshold_ms").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
         // Hand the five filter-tree upcall stubs to Rust now. No explicit
         // caller step required — as soon as this class is loaded, callbacks
         // are installed and `df_execute_indexed_query` can dispatch into Java.
@@ -530,25 +536,29 @@ public final class NativeBridge {
             Class<?> cb = org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks.class;
             var lookup = java.lang.invoke.MethodHandles.lookup();
 
+            // All five callbacks now receive contextId (long) as their first parameter.
+            // Rust passes it through every FFM upcall; Java uses it to look up the
+            // correct per-query FilterDelegationHandle in FilterTreeCallbacks.BINDINGS.
             MethodHandle createProvider = lookup.findStatic(
                 cb,
                 "createProvider",
-                java.lang.invoke.MethodType.methodType(int.class, int.class)
+                java.lang.invoke.MethodType.methodType(int.class, long.class, int.class)
             );
             MethodHandle releaseProvider = lookup.findStatic(
                 cb,
                 "releaseProvider",
-                java.lang.invoke.MethodType.methodType(void.class, int.class)
+                java.lang.invoke.MethodType.methodType(void.class, long.class, int.class)
             );
             MethodHandle createCollector = lookup.findStatic(
                 cb,
                 "createCollector",
-                java.lang.invoke.MethodType.methodType(int.class, int.class, long.class, int.class, int.class)
+                java.lang.invoke.MethodType.methodType(int.class, long.class, int.class, long.class, int.class, int.class)
             );
             MethodHandle collectDocs = lookup.findStatic(
                 cb,
                 "collectDocs",
                 java.lang.invoke.MethodType.methodType(
+                    long.class,
                     long.class,
                     int.class,
                     int.class,
@@ -560,23 +570,24 @@ public final class NativeBridge {
             MethodHandle releaseCollector = lookup.findStatic(
                 cb,
                 "releaseCollector",
-                java.lang.invoke.MethodType.methodType(void.class, int.class)
+                java.lang.invoke.MethodType.methodType(void.class, long.class, int.class)
             );
 
             java.lang.foreign.MemorySegment createProviderStub = linker.upcallStub(
                 createProvider,
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
                 arena
             );
             java.lang.foreign.MemorySegment releaseProviderStub = linker.upcallStub(
                 releaseProvider,
-                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT),
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
                 arena
             );
             java.lang.foreign.MemorySegment createCollectorStub = linker.upcallStub(
                 createCollector,
                 FunctionDescriptor.of(
                     ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
@@ -588,6 +599,7 @@ public final class NativeBridge {
                 collectDocs,
                 FunctionDescriptor.of(
                     ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
@@ -598,7 +610,7 @@ public final class NativeBridge {
             );
             java.lang.foreign.MemorySegment releaseCollectorStub = linker.upcallStub(
                 releaseCollector,
-                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT),
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
                 arena
             );
             NativeCall.invokeVoid(
@@ -844,6 +856,15 @@ public final class NativeBridge {
     /** Fires the cancellation token for the given context. No-op if already completed. */
     public static void cancelQuery(long contextId) {
         NativeCall.invokeVoid(CANCEL_QUERY, contextId);
+    }
+
+    /**
+     * Sets the cancellation stats threshold in milliseconds.
+     * Queries cancelled for less than this duration are not counted in stats.
+     * Primarily for testing — production uses the default (10 000 ms).
+     */
+    public static void setCancelStatsThresholdMs(long millis) {
+        NativeCall.invokeVoid(SET_CANCEL_STATS_THRESHOLD_MS, millis);
     }
 
     // ---- Stats collection ----
