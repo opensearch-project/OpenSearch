@@ -316,6 +316,24 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
         );
     }
 
+    public void testSlowLogWithPlaceHolder() throws IOException {
+        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "{}").endObject());
+        ParsedDocument pd = new ParsedDocument(
+            new NumericDocValuesField("version", 1),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            "id",
+            null,
+            null,
+            source,
+            MediaTypeRegistry.JSON,
+            null
+        );
+        Index index = new Index("foo", "123");
+        // Turning off document logging doesn't log source[]
+        IndexingSlowLogMessage p = new IndexingSlowLogMessage(index, pd, 10, true, 10);
+        assertThat(p.getFormattedMessage(), containsString("source[{\"foo\":\"{}"));
+    }
+
     public void testReformatSetting() {
         IndexMetadata metadata = newIndexMeta(
             "index",

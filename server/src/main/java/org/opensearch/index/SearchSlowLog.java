@@ -218,7 +218,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     static final class SearchSlowLogMessage extends OpenSearchLogMessage {
 
         SearchSlowLogMessage(SearchContext context, long tookInNanos) {
-            super(prepareMap(context, tookInNanos), message(context, tookInNanos));
+            super(prepareMap(context, tookInNanos), message(context, tookInNanos), messageArgs(context));
         }
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
@@ -282,7 +282,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 .append(context.numberOfShards())
                 .append("], ");
             if (context.request().source() != null) {
-                sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
+                sb.append("source[").append("{}").append("], ");
             } else {
                 sb.append("source[], ");
             }
@@ -297,6 +297,13 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("request_id[], ");
             }
             return sb.toString();
+        }
+
+        private static Object[] messageArgs(SearchContext context) {
+            if (context.request().source() != null) {
+                return new Object[] { context.request().source().toString(FORMAT_PARAMS) };
+            }
+            return null;
         }
 
         private static String escapeJson(String text) {
