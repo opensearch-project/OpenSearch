@@ -278,7 +278,18 @@ public final class MappingLookup implements Iterable<Mapper> {
 
     public boolean isMultiField(String field) {
         String sourceParent = parentObject(field);
-        return sourceParent != null && fieldMappers.containsKey(sourceParent);
+        if (sourceParent == null || !fieldMappers.containsKey(sourceParent)) {
+            return false;
+        }
+        // When disable_objects is true, dotted fields are independent flat fields, not multi-fields.
+        // Check if any ancestor ObjectMapper has disable_objects enabled.
+        for (String ancestor = parentObject(field); ancestor != null; ancestor = parentObject(ancestor)) {
+            ObjectMapper objectMapper = objectMappers.get(ancestor);
+            if (objectMapper != null && objectMapper.disableObjects()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public boolean isObjectField(String field) {

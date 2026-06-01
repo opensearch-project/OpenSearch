@@ -554,4 +554,45 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("int_value"));
     }
 
+    public void testMergePreservesFullNameForDottedSimpleName() {
+        Builder builder1 = new Builder("address.city");
+        builder1.required.setValue("value");
+        ContentPath path1 = new ContentPath();
+        path1.add("attributes");
+        TestMapper mapper1 = (TestMapper) builder1.build(new Mapper.BuilderContext(Settings.EMPTY, path1));
+
+        assertEquals("address.city", mapper1.simpleName());
+        assertEquals("attributes.address.city", mapper1.name());
+
+        Builder builder2 = new Builder("address.city");
+        builder2.required.setValue("updated");
+        ContentPath path2 = new ContentPath();
+        path2.add("attributes");
+        TestMapper mapper2 = (TestMapper) builder2.build(new Mapper.BuilderContext(Settings.EMPTY, path2));
+
+        TestMapper merged = (TestMapper) mapper1.merge(mapper2);
+
+        assertEquals("address.city", merged.simpleName());
+        assertEquals("attributes.address.city", merged.name());
+        assertEquals("updated", merged.required);
+    }
+
+    public void testMergePreservesFullNameForDeeplyDottedSimpleName() {
+        Builder builder1 = new Builder("a.b.c");
+        builder1.required.setValue("v1");
+        ContentPath path = new ContentPath();
+        path.add("root");
+        TestMapper mapper1 = (TestMapper) builder1.build(new Mapper.BuilderContext(Settings.EMPTY, path));
+
+        assertEquals("root.a.b.c", mapper1.name());
+
+        Builder builder2 = new Builder("a.b.c");
+        builder2.required.setValue("v2");
+        TestMapper mapper2 = (TestMapper) builder2.build(new Mapper.BuilderContext(Settings.EMPTY, path));
+
+        TestMapper merged = (TestMapper) mapper1.merge(mapper2);
+        assertEquals("root.a.b.c", merged.name());
+        assertEquals("a.b.c", merged.simpleName());
+    }
+
 }

@@ -3636,4 +3636,90 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(doc.getDocumentInput(), sameInstance(mockInput));
         assertNotNull(doc.rootDoc().getField("obj.inner"));
     }
+
+    public void testDisableObjectsFieldTypeLookupWithPrefixConflict() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            b.startObject("attributes").field("type", "object").field("dynamic", true).field("disable_objects", true).endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("attributes").field("address.city", "Austin").field("address.state", "Texas").endObject();
+        }));
+        if (doc1.dynamicMappingsUpdate() != null) {
+            merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
+        }
+        assertNotNull(mapperService.fieldType("attributes.address.city"));
+
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("attributes").field("address", "US").endObject();
+        }));
+        if (doc2.dynamicMappingsUpdate() != null) {
+            merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
+        }
+
+        assertNotNull("address should be resolvable", mapperService.fieldType("attributes.address"));
+        assertNotNull("address.city should be resolvable after prefix conflict",
+            mapperService.fieldType("attributes.address.city"));
+        assertNotNull("address.state should be resolvable after prefix conflict",
+            mapperService.fieldType("attributes.address.state"));
+
+        assertNull(mapperService.fieldType("attributes.address.address.city"));
+
+        MapperService ms2 = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            b.startObject("attributes").field("type", "object").field("dynamic", true).field("disable_objects", true).endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument docA = ms2.documentMapper().parse(source(b -> {
+            b.startObject("attributes").field("address", "US").endObject();
+        }));
+        if (docA.dynamicMappingsUpdate() != null) merge(ms2, dynamicMapping(docA.dynamicMappingsUpdate()));
+
+        ParsedDocument docB = ms2.documentMapper().parse(source(b -> {
+            b.startObject("attributes").field("address.city", "Austin").endObject();
+        }));
+        if (docB.dynamicMappingsUpdate() != null) merge(ms2, dynamicMapping(docB.dynamicMappingsUpdate()));
+
+        assertNotNull("address.city resolvable in reverse order", ms2.fieldType("attributes.address.city"));
+        assertNotNull("address resolvable in reverse order", ms2.fieldType("attributes.address"));
+    }
+
+    public void testDisableObjectsMappingRecoveryWithPrefixConflict() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("strings").field("match_mapping_type", "string");
+            b.startObject("mapping").field("type", "text").field("copy_to", "event_all");
+            b.startObject("fields").startObject("keyword").field("type", "keyword").field("ignore_above", 256)
+                .endObject().endObject().endObject().endObject().endObject();
+            b.endArray();
+            b.startObject("properties");
+            b.startObject("event_all").field("type", "text").endObject();
+            b.startObject("attributes").field("type", "object").field("dynamic", true).field("disable_objects", true).endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("attributes").field("address.city", "Austin").field("address.state", "Texas").endObject();
+        }));
+        if (doc1.dynamicMappingsUpdate() != null) merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
+
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("attributes").field("address", "US").endObject();
+        }));
+        if (doc2.dynamicMappingsUpdate() != null) merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
+
+        String mappingSource = mapperService.documentMapper().mappingSource().string();
+        MapperService recoveredService = createMapperService(MapperService.SINGLE_MAPPING_NAME, mappingSource);
+
+        assertNotNull("address.city resolvable after round-trip", recoveredService.fieldType("attributes.address.city"));
+        assertNotNull("address.state resolvable after round-trip", recoveredService.fieldType("attributes.address.state"));
+        assertNotNull("address resolvable after round-trip", recoveredService.fieldType("attributes.address"));
+        assertNull("no doubled name after round-trip", recoveredService.fieldType("attributes.address.address.city"));
+    }
 }
