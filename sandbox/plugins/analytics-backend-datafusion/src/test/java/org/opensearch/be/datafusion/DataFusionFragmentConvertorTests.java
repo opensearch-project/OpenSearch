@@ -221,7 +221,14 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     public void testConvertFinalAggFragment_WithStageInputScanLeaf() throws Exception {
         RelDataType stageRowType = rowType("A");
         int childStageId = 7;
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
 
         byte[] bytes = newConvertor().convertFragment(finalAgg);
@@ -253,7 +260,14 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         // Inner: final-agg over stage-input.
         RelDataType stageRowType = rowType("A");
         int childStageId = 3;
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
         byte[] innerBytes = convertor.convertFragment(finalAgg);
 
@@ -275,6 +289,54 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("Sort input must be an AggregateRel", inner.hasAggregate());
         Rel aggInput = inner.getAggregate().getInput();
         assertTrue("Agg input must be a ReadRel", aggInput.hasRead());
+        assertEquals(List.of("input-" + childStageId), aggInput.getRead().getNamedTable().getNamesList());
+    }
+
+    /**
+     * Regression: a single Calcite {@link LogicalSort} carrying BOTH a collation and a {@code fetch}
+     * (PPL {@code sort x | head N}, which Calcite merges into one node) lowers via isthmus to
+     * {@code Fetch(Sort(input))} — two Substrait rels from one operator. {@code attachFragmentOnTop}
+     * must rewire the inner plan under the Sort, preserving {@code Fetch(Sort(inner))} so the global
+     * order is applied before the limit.
+     *
+     * <p>The earlier rewire replaced the Fetch's input directly, dropping the Sort and yielding
+     * {@code Fetch(inner)} — the limit then ran over an unordered concat-gather, so a multi-shard
+     * {@code sort | head N} returned the first N rows in arrival order instead of sorted order.
+     */
+    public void testAttachFragmentOnTop_SortWithFetch_PreservesSortUnderFetch() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: final-agg over stage-input (same shape as testAttachFragmentOnTop_Sort).
+        RelDataType stageRowType = rowType("A");
+        int childStageId = 3;
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
+        LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
+        byte[] innerBytes = convertor.convertFragment(finalAgg);
+
+        // Wrapper: ONE LogicalSort carrying a collation (order by col 0) AND a fetch (head 5).
+        // isthmus lowers this single node to Fetch(Sort(Read)); the rewire must keep the Sort.
+        RelNode placeholderInput = buildTableScan("__placeholder__", "sum_col");
+        RexNode fetchN = rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        LogicalSort sortLimit = LogicalSort.create(placeholderInput, RelCollations.of(0), null, fetchN);
+
+        byte[] combined = convertor.attachFragmentOnTop(sortLimit, innerBytes);
+
+        Plan plan = decodeSubstrait(combined);
+        Rel root = rootRel(plan);
+        assertTrue("root must be a FetchRel (the limit)", root.hasFetch());
+        Rel underFetch = root.getFetch().getInput();
+        assertTrue("Sort must be preserved under the Fetch (global order before the limit), not dropped", underFetch.hasSort());
+        Rel underSort = underFetch.getSort().getInput();
+        assertTrue("Sort input must be the rewired inner AggregateRel", underSort.hasAggregate());
+        Rel aggInput = underSort.getAggregate().getInput();
+        assertTrue("Agg input must be the inner ReadRel", aggInput.hasRead());
         assertEquals(List.of("input-" + childStageId), aggInput.getRead().getNamedTable().getNamesList());
     }
 
@@ -318,11 +380,25 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         // Inner: a final-agg fragment whose StageInputScan rowType is intentionally wide
         // (3 columns). The aggregate above narrows it to 1 column.
         RelDataType wideStageRowType = rowType("A", "B", "C");
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, wideStageRowType, List.of("datafusion"));
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            wideStageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         // For this regression, the inner doesn't need to be a final-agg — a bare scan-shaped
         // plan with 3-column rowType is enough to surface the wrapper-vs-inner names mismatch.
         // Use convertFragment so the inner Plan.Root.names is the 3-column scan list.
-        RelNode innerStageScan = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, wideStageRowType, List.of("datafusion"));
+        RelNode innerStageScan = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            wideStageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
         // Wrap it in a no-op aggregate so the convertor accepts it as a final-agg fragment shape.
         // The inner's Plan.Root.names then carries the agg-output (1 col, "sum_col"), but the
         // *wrapper* we attach above has its own output rowType.
@@ -364,9 +440,9 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         // Inner: Union(Sin, Sin, Sin) — three branches, each 6 columns wide.
         RelDataType branchRowType = rowType("a", "b", "c", "d", "e", "f");
-        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"));
-        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"));
-        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"));
+        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"), List.of());
         LogicalUnion union = LogicalUnion.create(List.of(sin1, sin2, sin3), true);
         byte[] unionBytes = convertor.convertFragment(union);
 
@@ -404,9 +480,9 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         // Inner: Union(Sin, Sin, Sin) — 6-column rows.
         RelDataType branchRowType = rowType("a", "b", "c", "d", "e", "f");
-        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"));
-        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"));
-        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"));
+        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"), List.of());
+        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"), List.of());
         LogicalUnion union = LogicalUnion.create(List.of(sin1, sin2, sin3), true);
         byte[] unionBytes = convertor.convertFragment(union);
 
@@ -579,46 +655,6 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
      * SUM aggregate is not affected by the rename map — its extension function
      * name remains unchanged.
      */
-    /**
-     * End-to-end: a {@code Project[CAST(ts AS VARCHAR)]} fragment must serialize
-     * with a {@code to_char} extension function, not a raw Substrait {@code cast},
-     * proving {@link DatetimeOutputCastRewriter} fires inside the convertor and
-     * the {@code to_char} declaration in {@code opensearch_scalar_functions.yaml}
-     * is reachable through {@code FunctionMappings}. See issue
-     * <a href="https://github.com/opensearch-project/sql/issues/5420">sql#5420</a>.
-     */
-    public void testProjectTimestampOutputCastEmitsToCharExtension() throws Exception {
-        RelDataTypeFactory.Builder b = typeFactory.builder();
-        b.add("ts", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 6), true));
-        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", b.build());
-
-        RelDataType varcharType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
-        RexNode tsField = rexBuilder.makeInputRef(scan, 0);
-        RexNode castExpr = rexBuilder.makeCast(varcharType, tsField);
-        RelNode project = org.apache.calcite.rel.logical.LogicalProject.create(
-            scan,
-            List.of(),
-            List.of(castExpr),
-            List.of("ts_str"),
-            java.util.Set.of()
-        );
-
-        byte[] bytes = newConvertor().convertFragment(project);
-        Plan plan = decodeSubstrait(bytes);
-
-        boolean foundToChar = false;
-        for (SimpleExtensionDeclaration decl : plan.getExtensionsList()) {
-            if (decl.hasExtensionFunction()) {
-                String name = decl.getExtensionFunction().getName();
-                String baseName = name.contains(":") ? name.substring(0, name.indexOf(':')) : name;
-                if (baseName.equals("to_char")) {
-                    foundToChar = true;
-                    break;
-                }
-            }
-        }
-        assertTrue("CAST(<TIMESTAMP> AS VARCHAR) must serialize as the to_char extension, not a raw cast", foundToChar);
-    }
 
     public void testOtherFunctionsNotRenamed() throws Exception {
         RelNode scan = buildTableScan("test_index", "A");
@@ -639,6 +675,70 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             }
         }
         assertTrue("must find sum in extension declarations", foundSum);
+    }
+
+    /**
+     * Regression: a lifted-window Project wrapper, shaped {@code Project_outer(Project_lower(input))}
+     * with the outer's RexInputRefs pointing into the lower's appended window column, used
+     * to lose its lower layer when re-wired. The next attach-on-top then crashed deserialising
+     * with "Field reference offset (N) must be less than number of fields in struct (N)".
+     */
+    public void testAttachFragmentOnTop_PreservesLiftedWindowProjectLayer() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        RelDataType inputRowType = rowType("a");
+        RelNode innerStageScan = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            inputRowType,
+            List.of("datafusion"),
+            List.of()
+        );
+        byte[] innerBytes = convertor.convertFragment(innerStageScan);
+
+        RelNode placeholderInput = buildTableScan("__placeholder__", "a");
+
+        RelDataType bigintType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RexNode rowNumberOver = rexBuilder.makeOver(
+            bigintType,
+            (org.apache.calcite.sql.SqlAggFunction) SqlStdOperatorTable.ROW_NUMBER,
+            List.of(),
+            List.of(),
+            com.google.common.collect.ImmutableList.<org.apache.calcite.rex.RexFieldCollation>of(),
+            org.apache.calcite.rex.RexWindowBounds.UNBOUNDED_PRECEDING,
+            org.apache.calcite.rex.RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode lowerProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            placeholderInput,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(placeholderInput, 0), rowNumberOver),
+            List.of("a", "rn"),
+            java.util.Set.of()
+        );
+
+        RelNode outerProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            lowerProject,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(lowerProject, 0), rexBuilder.makeInputRef(lowerProject, 1)),
+            List.of("a", "rn"),
+            java.util.Set.of()
+        );
+
+        byte[] combined = convertor.attachFragmentOnTop(outerProject, innerBytes);
+
+        Plan plan = decodeSubstrait(combined);
+        Rel root = rootRel(plan);
+        assertTrue("root must be a ProjectRel (outer lift)", root.hasProject());
+        Rel innerOfOuter = root.getProject().getInput();
+        assertTrue("outer's input must remain the lower lift Project", innerOfOuter.hasProject());
+        Rel innerOfLower = innerOfOuter.getProject().getInput();
+        assertTrue("lower's input must be the rewired stage-scan", innerOfLower.hasRead());
     }
 
 }

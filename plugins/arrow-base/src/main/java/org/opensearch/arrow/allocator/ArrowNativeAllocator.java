@@ -11,7 +11,7 @@ package org.opensearch.arrow.allocator;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,26 +37,12 @@ import java.util.concurrent.TimeUnit;
  * the root limit. When contention rises, pools shrink back toward their guarantee.
  * This prevents idle capacity from being wasted while maintaining isolation under load.
  *
- * <p>The singleton instance is accessible via {@link #instance()} after the
- * plugin creates it. This allows child plugins (in the same classloader) to
- * locate the allocator without explicit injection.
+ * <p>Constructed once by {@link ArrowBasePlugin#createComponents} and exposed to
+ * downstream plugins via Guice and {@code PluginComponentRegistry} so consumers
+ * receive the instance through explicit dependency injection rather than a static
+ * singleton.
  */
 public class ArrowNativeAllocator implements NativeAllocator {
-
-    private static volatile ArrowNativeAllocator INSTANCE;
-
-    /**
-     * Returns the singleton instance, or throws if the plugin hasn't started.
-     */
-    public static ArrowNativeAllocator instance() {
-        ArrowNativeAllocator inst = INSTANCE;
-        if (inst == null) {
-            throw new IllegalStateException(
-                "ArrowNativeAllocator not initialized. " + "Ensure arrow-base plugin is installed and started."
-            );
-        }
-        return inst;
-    }
 
     private final RootAllocator root;
     private final ConcurrentMap<String, ArrowPoolHandle> pools = new ConcurrentHashMap<>();
@@ -64,6 +50,16 @@ public class ArrowNativeAllocator implements NativeAllocator {
     private final ConcurrentMap<String, Long> poolMaxes = new ConcurrentHashMap<>();
     private final ScheduledExecutorService rebalancer;
     private volatile ScheduledFuture<?> rebalanceTask;
+    /**
+     * True iff the rebalancer is configured to run periodically. Used by
+     * {@link #getOrCreatePool} to decide each pool's initial child-allocator
+     * limit: when rebalancing is enabled, pools start at {@code min} and grow
+     * via the next rebalance tick (preserving the original PR's
+     * "guarantee + burst" semantics); when rebalancing is disabled, pools
+     * start at {@code max} so consumers can allocate immediately without
+     * waiting for a tick that never comes.
+     */
+    private volatile boolean rebalancerEnabled = false;
 
     /**
      * Creates a new allocator with a fresh RootAllocator.
@@ -80,7 +76,6 @@ public class ArrowNativeAllocator implements NativeAllocator {
             });
         executor.setRemoveOnCancelPolicy(true);
         this.rebalancer = executor;
-        INSTANCE = this;
     }
 
     /**
@@ -95,7 +90,8 @@ public class ArrowNativeAllocator implements NativeAllocator {
             org.opensearch.common.util.concurrent.FutureUtils.cancel(existing);
             rebalanceTask = null;
         }
-        if (intervalSeconds > 0) {
+        rebalancerEnabled = intervalSeconds > 0;
+        if (rebalancerEnabled) {
             rebalanceTask = rebalancer.scheduleAtFixedRate(this::rebalance, intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
         }
     }
@@ -117,7 +113,14 @@ public class ArrowNativeAllocator implements NativeAllocator {
         poolMins.putIfAbsent(poolName, min);
         poolMaxes.putIfAbsent(poolName, max);
         return pools.computeIfAbsent(poolName, name -> {
-            BufferAllocator child = root.newChildAllocator(name, 0, min);
+            // Pick an initial limit that's safe for both rebalancer-on and rebalancer-off
+            // deployments. When rebalancing is enabled, start at min (the original PR's
+            // "guarantee + burst" semantics): the next rebalance tick will distribute
+            // headroom up to each pool's max. When rebalancing is disabled (the default),
+            // pools with min=0 would otherwise reject every allocation until a tick that
+            // never comes — start at max so consumers can allocate immediately.
+            long initial = rebalancerEnabled ? min : max;
+            BufferAllocator child = root.newChildAllocator(name, 0, initial);
             return new ArrowPoolHandle(child);
         });
     }
@@ -133,16 +136,39 @@ public class ArrowNativeAllocator implements NativeAllocator {
     }
 
     /**
-     * Updates the minimum guaranteed bytes for a pool.
+     * Updates the minimum guaranteed bytes for a pool. The new min is recorded for the
+     * rebalancer (which honors it as a floor on the next tick) and also pushed to the
+     * live {@link BufferAllocator} so the change takes effect immediately even when
+     * the rebalancer is disabled — the alternative was a Dynamic setting that returned
+     * HTTP 200 but had no observable effect.
+     *
+     * <p>Live propagation rules:
+     * <ul>
+     *   <li>If {@code newMin} exceeds the pool's current limit, the limit is raised to
+     *       {@code newMin} (capped at the configured pool max). Children of the pool
+     *       allocator inherit the change automatically via Arrow's parent-cap check at
+     *       allocation time, so dynamic resizes reach in-flight workloads without an
+     *       explicit notification SPI.
+     *   <li>If {@code newMin} is below the current limit, the limit is left alone —
+     *       the rebalancer is the only path that shrinks live limits, so a min change
+     *       on its own never reduces capacity in flight.
+     * </ul>
      *
      * @param poolName the pool name
      * @param newMin new minimum bytes
      */
     public void setPoolMin(String poolName, long newMin) {
-        if (!pools.containsKey(poolName)) {
+        ArrowPoolHandle handle = pools.get(poolName);
+        if (handle == null) {
             throw new IllegalStateException("Pool '" + poolName + "' does not exist");
         }
         poolMins.put(poolName, newMin);
+        long max = poolMaxes.getOrDefault(poolName, Long.MAX_VALUE);
+        long current = handle.allocator.getLimit();
+        long target = Math.min(newMin, max);
+        if (target > current) {
+            handle.allocator.setLimit(target);
+        }
     }
 
     @Override
@@ -150,7 +176,12 @@ public class ArrowNativeAllocator implements NativeAllocator {
         root.setLimit(limit);
     }
 
-    @Override
+    /**
+     * Returns a point-in-time stats snapshot across all pools. Used by the
+     * {@code NativeAllocatorStatsRegistry} component published from
+     * {@code ArrowBasePlugin.createComponents()} and wired into {@code NodeService} to
+     * render allocator state under {@code _nodes/stats[/native_allocator]}.
+     */
     public NativeAllocatorPoolStats stats() {
         List<NativeAllocatorPoolStats.PoolStats> poolStats = new ArrayList<>();
         for (var entry : pools.entrySet()) {
@@ -160,8 +191,7 @@ public class ArrowNativeAllocator implements NativeAllocator {
                     entry.getKey(),
                     alloc.getAllocatedMemory(),
                     alloc.getPeakMemoryAllocation(),
-                    alloc.getLimit(),
-                    alloc.getChildAllocators().size()
+                    alloc.getLimit()
                 )
             );
         }
@@ -179,8 +209,15 @@ public class ArrowNativeAllocator implements NativeAllocator {
             }
         });
         pools.clear();
+        // Close any remaining child allocators (e.g., ad-hoc children created via ArrowAllocatorService)
+        for (BufferAllocator child : new ArrayList<>(root.getChildAllocators())) {
+            try {
+                child.close();
+            } catch (Exception e) {
+                // best-effort — log but don't block shutdown
+            }
+        }
         root.close();
-        INSTANCE = null;
     }
 
     /**
@@ -190,9 +227,12 @@ public class ArrowNativeAllocator implements NativeAllocator {
      * <ol>
      *   <li>Every pool is guaranteed at least its configured min</li>
      *   <li>Compute headroom = rootLimit - sum(all pool current allocations)</li>
-     *   <li>Identify active pools (allocated > 0)</li>
-     *   <li>Distribute headroom equally among active pools, capped at each pool's max</li>
-     *   <li>Inactive pools are set to their min</li>
+     *   <li>Distribute headroom equally across all pools (not just active ones), capped
+     *       at each pool's max. Distributing to all pools — including those with zero
+     *       current allocation — avoids the dead-pool corner case where a pool with
+     *       min = 0 starts at limit = 0, can never make its first allocation, and so
+     *       never becomes "active" enough to receive a bonus. Pools that don't need the
+     *       headroom stay at min naturally because their max caps the bonus.</li>
      *   <li>No pool's limit ever drops below its current allocation or its min</li>
      * </ol>
      */
@@ -201,20 +241,14 @@ public class ArrowNativeAllocator implements NativeAllocator {
 
         long rootLimit = root.getLimit();
         long totalAllocated = 0;
-        List<String> activePoolNames = new ArrayList<>();
 
         for (Map.Entry<String, ArrowPoolHandle> entry : pools.entrySet()) {
-            long allocated = entry.getValue().allocator.getAllocatedMemory();
-            totalAllocated += allocated;
-
-            if (allocated > 0) {
-                activePoolNames.add(entry.getKey());
-            }
+            totalAllocated += entry.getValue().allocator.getAllocatedMemory();
         }
 
         long headroom = Math.max(0, rootLimit - totalAllocated);
-        int activeCount = activePoolNames.size();
-        long bonusPerActive = activeCount > 0 ? headroom / activeCount : 0;
+        int poolCount = pools.size();
+        long bonusPerPool = poolCount > 0 ? headroom / poolCount : 0;
 
         for (Map.Entry<String, ArrowPoolHandle> entry : pools.entrySet()) {
             String name = entry.getKey();
@@ -223,12 +257,7 @@ public class ArrowNativeAllocator implements NativeAllocator {
             long max = poolMaxes.getOrDefault(name, Long.MAX_VALUE);
             long currentAllocation = alloc.getAllocatedMemory();
 
-            long effectiveLimit;
-            if (activeCount > 0 && activePoolNames.contains(name)) {
-                effectiveLimit = min + bonusPerActive;
-            } else {
-                effectiveLimit = min;
-            }
+            long effectiveLimit = min + bonusPerPool;
 
             // Cap at pool's max
             effectiveLimit = Math.min(effectiveLimit, max);
@@ -269,11 +298,6 @@ public class ArrowNativeAllocator implements NativeAllocator {
         return Collections.unmodifiableSet(pools.keySet());
     }
 
-    /**
-     * Returns the guaranteed limit for a pool.
-     *
-     * @param poolName name of the pool
-     */
     /**
      * Returns the minimum guaranteed bytes for a pool.
      *

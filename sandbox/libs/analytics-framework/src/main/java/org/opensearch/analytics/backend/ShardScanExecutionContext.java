@@ -9,8 +9,11 @@
 package org.opensearch.analytics.backend;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.mapper.MapperService;
@@ -32,6 +35,9 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private MapperService mapperService;
     private IndexSettings indexSettings;
     private NamedWriteableRegistry namedWriteableRegistry;
+    private QueryCache queryCache;
+    private QueryCachingPolicy queryCachingPolicy;
+    private ShardId shardId;
 
     /**
      * Constructs an execution context.
@@ -108,5 +114,33 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     /** Sets the NamedWriteableRegistry. */
     public void setNamedWriteableRegistry(NamedWriteableRegistry namedWriteableRegistry) {
         this.namedWriteableRegistry = namedWriteableRegistry;
+    }
+
+    /** Returns the node-level query cache for Lucene filter delegation. */
+    public QueryCache getQueryCache() {
+        return queryCache;
+    }
+
+    /** Sets the node-level query cache. */
+    public void setQueryCache(QueryCache queryCache) {
+        this.queryCache = queryCache;
+    }
+
+    /** Returns the query caching policy for Lucene filter delegation. */
+    public QueryCachingPolicy getQueryCachingPolicy() {
+        return queryCachingPolicy;
+    }
+
+    /** Sets the query caching policy. */
+    public void setQueryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+        this.queryCachingPolicy = queryCachingPolicy;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public void setShardId(ShardId shardId) {
+        this.shardId = shardId;
     }
 }

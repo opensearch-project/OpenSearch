@@ -38,6 +38,7 @@ import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -197,11 +198,6 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SafeCommitInfo getSafeCommitInfo() {
-            return SafeCommitInfo.EMPTY;
-        }
-
-        @Override
         public List<CatalogSnapshot> listCommittedSnapshots() {
             if (lastCommittedSnapshot != null) {
                 return List.of(lastCommittedSnapshot);
@@ -314,6 +310,9 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
 
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)

@@ -43,6 +43,7 @@ public enum ScalarFunction {
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    CIDRMATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Logical connectives ─────────────────────────────────────────
     AND(Category.SCALAR, SqlKind.AND),
@@ -103,6 +104,15 @@ public enum ScalarFunction {
     REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code parse <field> '<regex>'} — extracts named regex groups into a
+     * {@code MAP<VARCHAR, VARCHAR>}. Resolves by identifier-name through
+     * {@link #fromSqlFunction(SqlFunction)} ({@code SqlKind.OTHER_FUNCTION}
+     * shared with many scalar UDFs). Pairs with {@link #ITEM} downstream:
+     * {@code parse} returns the map, {@code item(map, group)} extracts each
+     * named group at the call site.
+     */
+    PARSE(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // TODO: Frontend/lang-specific functions (NUM/AUTO/MEMK/MKTIME etc.) shouldn't
     // live in the shared analytics-framework SPI — they couple the framework to PPL
@@ -163,6 +173,8 @@ public enum ScalarFunction {
     SINH(Category.MATH, SqlKind.OTHER_FUNCTION),
     TAN(Category.MATH, SqlKind.OTHER_FUNCTION),
     TRUNCATE(Category.MATH, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code conv(n, fromBase, toBase)} — base conversion via Rust UDF. */
+    CONVERT(Category.MATH, SqlKind.OTHER_FUNCTION),
 
     // ── Cast / type ──────────────────────────────────────────────────
     CAST(Category.SCALAR, SqlKind.CAST),
@@ -228,6 +240,24 @@ public enum ScalarFunction {
     DATE_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     TIME_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     STR_TO_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code TIMESTAMPDIFF(unit, start, end)} — emits the integer number of {@code unit}s
+     * between two timestamps. Resolves through the SQL plugin's {@code TimestampDiffFunction}
+     * UDF named {@code "TIMESTAMPDIFF"}. Lowering target for PPL `timechart`'s {@code per_*}
+     * aggregations, which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND',
+     * @timestamp, TIMESTAMPADD(unit, n, @timestamp)))}. The analytics-backend-datafusion adapter
+     * rewrites the call into a DataFusion-native expression because the PPL UDF itself is
+     * unknown to isthmus's default extension catalog.
+     */
+    TIMESTAMPDIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code TIMESTAMPADD(unit, value, timestamp)} — emits {@code timestamp + value units}.
+     * Resolves through the SQL plugin's {@code TimestampAddFunction} UDF named
+     * {@code "TIMESTAMPADD"}. Lowering target for PPL `timechart`'s {@code per_*}
+     * aggregations (see {@link #TIMESTAMPDIFF}). The analytics-backend-datafusion adapter
+     * rewrites the call into a DataFusion-native interval-add expression.
+     */
+    TIMESTAMPADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
@@ -238,6 +268,8 @@ public enum ScalarFunction {
     JSON_EXTRACT_ALL(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    PATTERN_PARSER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── Array ────────────────────────────────────────────────────────
     /**

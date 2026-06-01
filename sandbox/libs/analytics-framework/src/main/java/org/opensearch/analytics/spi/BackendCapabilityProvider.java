@@ -96,6 +96,15 @@ public interface BackendCapabilityProvider {
     }
 
     /**
+     * Per-function adapters for transforming backend-agnostic window function RexOvers
+     * into backend-compatible forms before fragment conversion. Keyed by {@link WindowFunction}.
+     * Empty map means no adaptation needed (use the original operator and operands as-is).
+     */
+    default Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
+        return Map.of();
+    }
+
+    /**
      * Per-function serializers for delegated predicates this backend can accept.
      * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
      * serializer during fragment conversion when a predicate is delegated to this backend.

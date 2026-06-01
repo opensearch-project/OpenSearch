@@ -10,6 +10,8 @@ package org.opensearch.storage.tiering;
 
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdEvaluator;
@@ -114,7 +116,7 @@ public class HotToWarmTieringService extends TieringService {
     }
 
     @Override
-    protected Settings getTieringStartSettingsToAdd() {
+    protected Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata) {
         return Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), true)
             .put(INDEX_TIERING_STATE.getKey(), HOT_TO_WARM)
@@ -123,12 +125,28 @@ public class HotToWarmTieringService extends TieringService {
     }
 
     @Override
-    protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
+    protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
+        // For DFA indices we intentionally do NOT remove INDEX_BLOCKS_WRITE here.
+        // The write block is deferred to removeWriteBlockForCancelledDfaIndices(), which
+        // only lifts it once every shard is confirmed started on a hot node (writable engine).
+        // Removing it here would allow writes to reach warm-node shards.
         return Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), false)
             .put(INDEX_TIERING_STATE.getKey(), HOT)
             .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default")
             .build();
+    }
+
+    @Override
+    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        // For DFA: H2W write block is set by TransportHotToWarmTierAction.addWriteBlockAndPrepare()
+        // before tier() is called
+        // Non-DFA - Write block is not required
+        return blocksBuilder;
     }
 
     @Override
@@ -159,4 +177,5 @@ public class HotToWarmTieringService extends TieringService {
     private void setFileCacheActiveUsageThreshold(Integer fileCacheActiveUsageThreshold) {
         this.fileCacheActiveUsageThresholdPercent = fileCacheActiveUsageThreshold;
     }
+
 }

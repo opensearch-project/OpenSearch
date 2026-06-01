@@ -17,6 +17,8 @@ import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
@@ -52,8 +54,11 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
 public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     private final DataFormat dataFormat;
+    private final ShardId shardId;
     private final Map<Long, LuceneReader> readers;
     private volatile DirectoryReader currentReader;
+    private volatile DirectoryReader currentWrappedReader;
+    private volatile DirectoryReader initialWrappedReader;
     private final CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher;
 
     /**
@@ -64,17 +69,23 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
      * @param readers         shared map of generation to DirectoryReader for segment-level reader reuse
      * @param readerRefresher function that opens a refreshed reader given the current reader and new
      *                        {@link SegmentInfos}; returns {@code null} if no refresh is needed
-     * @throws NullPointerException if initialReader is null
+     * @param shardId         shard id for wrapping readers with OpenSearchDirectoryReader
+     * @throws NullPointerException if initialReader or shardId is null
      */
     public LuceneReaderManager(
         DataFormat dataFormat,
         DirectoryReader initialReader,
         Map<Long, LuceneReader> readers,
-        CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher
-    ) {
+        CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher,
+        ShardId shardId
+    ) throws IOException {
         this.dataFormat = dataFormat;
+        this.shardId = Objects.requireNonNull(shardId, "shardId must not be null");
         Objects.requireNonNull(initialReader, "initialReader must not be null");
         this.currentReader = initialReader;
+        DirectoryReader wrapped = OpenSearchDirectoryReader.wrap(initialReader, shardId);
+        this.currentWrappedReader = wrapped;
+        this.initialWrappedReader = wrapped;
         this.readers = readers;
         this.readerRefresher = readerRefresher;
     }
@@ -99,21 +110,24 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             return;
         }
         DirectoryReader refreshed = readerRefresher.apply(currentReader, LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot));
+        DirectoryReader readerForSnapshot;
         if (refreshed != null) {
-            // Guard against refresh/merge-apply races: a prior IT regression surfaced when
-            // overlapping threads produced a refreshed reader whose leaves disagreed with the
-            // catalog snapshot being registered, effectively pairing the snapshot with a stale
-            // reader. This assert catches that drift in test builds before the mismatched pair
-            // is published to readers.
             currentReader = refreshed;
+            // New wrapper — its creation ref (refCount=1) serves as the snapshot's ref.
+            currentWrappedReader = OpenSearchDirectoryReader.wrap(currentReader, shardId);
+            readerForSnapshot = currentWrappedReader;
         } else {
-            // If same reader is used, assert that calalog snapshot is same.
-            currentReader.incRef();
+            // Same reader reused — incRef for this snapshot.
+            currentWrappedReader.incRef();
+            readerForSnapshot = currentWrappedReader;
         }
+        // Catches refresh/merge-apply races where the refreshed reader's leaves disagree
+        // with the catalog snapshot being registered.
         assert readersAreSame(catalogSnapshot, currentReader);
+        assert OpenSearchDirectoryReader.unwrap(currentWrappedReader) == currentReader;
 
         Map<Long, String> generationToSegmentName = buildGenerationToSegmentName(catalogSnapshot, currentReader.leaves());
-        readers.put(catalogSnapshot.getId(), new LuceneReader(currentReader, generationToSegmentName));
+        readers.put(catalogSnapshot.getId(), new LuceneReader(readerForSnapshot, generationToSegmentName));
     }
 
     private static Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
@@ -195,6 +209,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         if (reader != null) {
             reader.directoryReader().decRef();
         }
+        releaseInitialReader();
     }
 
     @Override
@@ -213,5 +228,17 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             reader.directoryReader().decRef();
         }
         readers.clear();
+        releaseInitialReader();
+    }
+
+    /**
+     * Releases the initial wrapped reader's creation ref. Idempotent — safe to invoke
+     * from both {@link #close()} and {@link #onDeleted(CatalogSnapshot)}.
+     */
+    private void releaseInitialReader() throws IOException {
+        if (initialWrappedReader != null) {
+            initialWrappedReader.decRef();
+            initialWrappedReader = null;
+        }
     }
 }

@@ -1,0 +1,1 @@
+source=transactions | sort category, amount desc | streamstats count() as rnk by category | where rnk <= 3 | fields category, product, amount, rnk | sort category, rnk

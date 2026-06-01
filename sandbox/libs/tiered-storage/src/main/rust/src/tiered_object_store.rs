@@ -214,26 +214,27 @@ impl TieredObjectStore {
                 }));
             }
         }
-        // Directory existence check: if path looks like a directory and registry
-        // has entries, return synthetic metadata. Handles DataFusion's ListingTable
-        // directory existence check on warm where no local directory exists.
-        if (!path_str.contains('.') || path_str.ends_with('/')) && self.registry.len() > 0 {
-            let meta = ObjectMeta {
-                location: location.clone(),
-                last_modified: chrono::DateTime::<chrono::Utc>::default(),
-                size: 0,
-                e_tag: None,
-                version: None,
-            };
-            return Some(Ok(GetResult {
-                payload: object_store::GetResultPayload::Stream(
-                    futures::stream::empty().boxed(),
-                ),
-                meta,
-                range: 0..0,
-                attributes: Default::default(),
+        // Directory existence check: if the path is a prefix of any registered file,
+        // it's a directory. Return NotFound so DataFusion treats it as a
+        // directory and proceeds to list() (which returns all registry files).
+        // This matches LocalFileSystem behavior: head() on a directory returns NotFound.
+        let prefix_with_slash = if path_str.ends_with('/') {
+            path_str.to_string()
+        } else {
+            format!("{}/", path_str)
+        };
+        let matches = self.registry.entries_matching(&prefix_with_slash);
+        if !matches.is_empty() {
+            native_bridge_common::log_info!(
+                "TieredObjectStore: try_head_from_registry — path='{}' is a directory ({} files), returning NotFound",
+                path_str, matches.len()
+            );
+            return Some(Err(object_store::Error::NotFound {
+                path: path_str.to_string(),
+                source: format!("path is a directory with {} files", matches.len()).into(),
             }));
         }
+
         None
     }
 
@@ -390,6 +391,7 @@ impl ObjectStore for TieredObjectStore {
     ///
     /// Also handles head requests (options.head == true) by returning cached
     /// size from the registry when available — avoids I/O for the common case.
+    /// For directory paths, returns NotFound so DataFusion uses list() instead.
     async fn get_opts(&self, location: &Path, options: GetOptions) -> OsResult<GetResult> {
         let path_str = location.as_ref();
 

@@ -11,6 +11,7 @@ package org.opensearch.be.lucene.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
@@ -31,7 +32,6 @@ import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -95,9 +95,13 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private static final Logger logger = LogManager.getLogger(LuceneCommitter.class);
 
     private final Store store;
+    private final Sort userProvidedSort;
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
+
+    /** Cached latest committed {@link SegmentInfos}; refreshed inside {@link #commit}, read by {@link #getCommitStats}. */
+    private volatile SegmentInfos lastCommittedSegmentInfos;
     // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
     private final Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
 
@@ -111,11 +115,13 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     public LuceneCommitter(CommitterConfig committerConfig) throws IOException {
         super(committerConfig);
         this.store = Objects.requireNonNull(committerConfig.engineConfig().getStore());
+        this.userProvidedSort = committerConfig.engineConfig().getIndexSort();
         this.store.incRef();
         try {
             this.deletionPolicy = new LuceneCommitDeletionPolicy();
             IndexWriterConfig iwc = createIndexWriterConfig(committerConfig);
             this.indexWriter = new MergeIndexWriter(store.directory(), iwc);
+            this.lastCommittedSegmentInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
         } catch (Exception e) {
             store.decRef();
             throw e;
@@ -138,6 +144,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         indexWriter.setLiveCommitData(commitData.userData());
         indexWriter.commit();
         SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        this.lastCommittedSegmentInfos = committed;
 
         // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
         long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
@@ -187,31 +194,13 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     }
 
     /**
-     * Returns commit statistics derived from the latest committed segment infos.
-     *
-     * @return the commit stats, or {@code null} if segment infos cannot be read
+     * Returns commit stats from the cached {@link SegmentInfos} to avoid a per-call disk read
+     * (which validates referenced files and races with concurrent merges).
      */
     @Override
     public CommitStats getCommitStats() {
         ensureOpen();
-        try {
-            SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
-            return new CommitStats(segmentInfos);
-        } catch (IOException e) {
-            logger.warn("Failed to read segment infos for commit stats", e);
-            return null;
-        }
-    }
-
-    /**
-     * Not yet implemented. Will return safe commit info once the index deleter is wired in.
-     *
-     * @return never returns normally
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    public SafeCommitInfo getSafeCommitInfo() {
-        throw new UnsupportedOperationException("TODO:: with index deleter");
+        return new CommitStats(lastCommittedSegmentInfos);
     }
 
     @Override
@@ -224,6 +213,20 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public boolean isCommitManagedFile(String fileName) {
         return fileName.startsWith(IndexFileNames.SEGMENTS) || fileName.equals(IndexWriter.WRITE_LOCK_NAME);
+    }
+
+    @Override
+    public void markStoreCorrupted(IOException cause) {
+        if (store.tryIncRef() == false) {
+            return;
+        }
+        try {
+            store.markStoreCorrupted(cause);
+        } catch (IOException e) {
+            logger.warn("Couldn't mark store corrupted", e);
+        } finally {
+            store.decRef();
+        }
     }
 
     /**
@@ -249,12 +252,16 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getId());
             sis = new SegmentInfos(Version.LATEST.major);
         } else {
-            if (reader instanceof StandardDirectoryReader == false) {
+            DirectoryReader unwrapped = reader;
+            while (unwrapped instanceof FilterDirectoryReader fdr) {
+                unwrapped = fdr.getDelegate();
+            }
+            if (unwrapped instanceof StandardDirectoryReader == false) {
                 throw new IllegalStateException(
                     "Reader for catalog snapshot version=" + catalogSnapshot.getId() + " is not a StandardDirectoryReader: " + reader
                 );
             }
-            sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();
+            sis = ((StandardDirectoryReader) unwrapped).getSegmentInfos().clone();
         }
         Map<String, String> sisUserData = new HashMap<>(catalogSnapshot.getUserData());
         sisUserData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(catalogSnapshot.getId()));
@@ -275,6 +282,11 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     MergeIndexWriter getIndexWriter() {
         ensureOpen();
         return indexWriter;
+    }
+
+    Sort getUserProvidedSort() {
+        ensureOpen();
+        return userProvidedSort;
     }
 
     /** Returns the version-keyed reader map used by {@link #serializeToCommitFormat}. */
@@ -322,8 +334,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
 
         if (isSecondary) {
             iwc.setIndexSort(new Sort(new SortedNumericSortField(DocumentInput.ROW_ID_FIELD, SortField.Type.LONG)));
-        } else if (engineConfig.getIndexSort() != null) {
-            iwc.setIndexSort(engineConfig.getIndexSort());
+        } else if (userProvidedSort != null) {
+            iwc.setIndexSort(userProvidedSort);
         }
         iwc.setCommitOnClose(false);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);

@@ -24,8 +24,8 @@ import java.util.Map;
  * the broader stats family (AVG, SUM, COUNT, MIN/MAX, DISTINCT_COUNT, STDDEV_POP / SAMP,
  * VAR_POP / SAMP) which already flow through the analytics-engine route via Calcite's
  * {@link org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule} decomposition.
- * Each test sends a PPL query through {@code POST /_analytics/ppl} (exposed by the
- * {@code test-ppl-frontend} plugin), exercising the same {@code UnifiedQueryPlanner} →
+ * Each test sends a PPL query through {@code POST /_plugins/_ppl} (exposed by the
+ * {@code opensearch-sql} plugin), exercising the same {@code UnifiedQueryPlanner} →
  * {@code CalciteRelNodeVisitor} → Substrait → DataFusion pipeline as the SQL plugin's
  * analytics-route ITs, but inside core without depending on the SQL plugin.
  *
@@ -42,7 +42,8 @@ public class StatsCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -189,7 +190,7 @@ public class StatsCommandIT extends AnalyticsRestTestCase {
     private final void assertRowsEqual(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
@@ -227,11 +228,4 @@ public class StatsCommandIT extends AnalyticsRestTestCase {
         assertEquals(message, expected, actual);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

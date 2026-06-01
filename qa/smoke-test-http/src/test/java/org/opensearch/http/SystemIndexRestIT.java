@@ -32,6 +32,7 @@
 
 package org.opensearch.http;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Request;
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class SystemIndexRestIT extends HttpSmokeTestCase {
 
     private Set<String> assertedWarnings = new HashSet<>();

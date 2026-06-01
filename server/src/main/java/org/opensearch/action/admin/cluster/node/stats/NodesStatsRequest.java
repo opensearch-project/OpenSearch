@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.annotation.PublicApi;
@@ -56,6 +57,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
+    private boolean fileCacheDetailed = false;
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -67,6 +69,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         requestedMetrics.addAll(in.readStringList());
+        fileCacheDetailed = in.getVersion().onOrAfter(Version.V_3_7_0) && in.readBoolean();
     }
 
     /**
@@ -177,6 +180,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         super.writeTo(out);
         indices.writeTo(out);
         out.writeStringArray(requestedMetrics.toArray(new String[0]));
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeBoolean(fileCacheDetailed);
+        }
+    }
+
+    public boolean isFileCacheDetailed() {
+        return fileCacheDetailed;
+    }
+
+    public NodesStatsRequest fileCacheDetailed(boolean detailed) {
+        this.fileCacheDetailed = detailed;
+        return this;
     }
 
     /**
@@ -210,7 +225,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         REPOSITORIES("repositories"),
         ADMISSION_CONTROL("admission_control"),
         CACHE_STATS("caches"),
-        REMOTE_STORE("remote_store");
+        REMOTE_STORE("remote_store"),
+        NATIVE_ALLOCATOR("native_allocator"),
+        NATIVE_MEMORY("native_memory");
 
         private String metricName;
 

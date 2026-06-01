@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner;
 
+import org.opensearch.analytics.spi.DelegatedSubtreeConvertor;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
@@ -103,5 +104,35 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     @Override
     public EngineReaderManager<Object> createReaderManager(ReaderManagerConfig settings) {
         return null;
+    }
+
+    @Override
+    public DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
+        return (subtree, fieldStorage) -> {
+            // Simple test convertor: walks the subtree and produces a descriptive string
+            return describeSubtree(subtree).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        };
+    }
+
+    private static String describeSubtree(org.apache.calcite.rex.RexNode node) {
+        if (node instanceof org.opensearch.analytics.planner.rel.AnnotatedPredicate ap) {
+            node = ap.unwrap();
+        }
+        if (node instanceof org.apache.calcite.rex.RexCall call) {
+            switch (call.getKind()) {
+                case AND:
+                case OR:
+                case NOT: {
+                    java.util.List<String> children = new java.util.ArrayList<>();
+                    for (org.apache.calcite.rex.RexNode child : call.getOperands()) {
+                        children.add(describeSubtree(child));
+                    }
+                    return call.getKind() + "(" + String.join(",", children) + ")";
+                }
+                default:
+                    return call.getOperator().getName();
+            }
+        }
+        return node.toString();
     }
 }

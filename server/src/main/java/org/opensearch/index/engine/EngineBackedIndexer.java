@@ -9,7 +9,6 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -32,6 +31,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * An indexer implementation that uses an engine to perform indexing operations.
@@ -88,7 +88,7 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
         return engine.getIndexBufferRAMBytesUsed();
     }
 
@@ -304,6 +304,11 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public List<Segment> segments(boolean verbose) {
+        return engine.segments(verbose);
+    }
+
+    @Override
     public CompletionStats completionStats(String... fieldNamePatterns) {
         return engine.completionStats(fieldNamePatterns);
     }
@@ -394,9 +399,10 @@ public class EngineBackedIndexer implements Indexer {
         return Indexer.super.currentOngoingRefreshCheckpoint();
     }
 
+    /** Engine-backed indexer uses only JVM heap for indexing buffers, no native memory. */
     @Override
     public long getNativeBytesUsed() {
-        return Indexer.super.getNativeBytesUsed();
+        return 0;
     }
 
     /**
@@ -418,15 +424,16 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     /**
-     * Returns a snapshot of the catalog of segments in this engine. This snapshot is
-     * guaranteed to be consistent and can be used for recovery purposes.
+     * Returns a snapshot of the catalog of segments in this engine. Delegates to
+     * {@link Engine#acquireSnapshot()} so subclasses (e.g. the read-only wrapper used during
+     * engine reset) can route to a different snapshot source without going through the
+     * {@link Engine#getSegmentInfosSnapshot()} bridge — which is required when the underlying
+     * source is a non-Lucene indexer (e.g. {@link DataFormatAwareEngine}).
      */
     @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
-        GatedCloseable<SegmentInfos> segmentInfosRef = engine.getSegmentInfosSnapshot();
-        SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfosRef.get());
-        return new GatedCloseable<>(snapshot, segmentInfosRef::close);
+        return engine.acquireSnapshot();
     }
 
     @Override

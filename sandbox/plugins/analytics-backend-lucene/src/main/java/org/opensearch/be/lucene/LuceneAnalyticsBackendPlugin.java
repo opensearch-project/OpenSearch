@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
+import org.opensearch.analytics.spi.DelegatedSubtreeConvertor;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
@@ -155,6 +156,12 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         IndexReaderProvider.Reader reader = shardCtx.getReader();
         LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
         IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
+        if (shardCtx.getQueryCache() != null) {
+            searcher.setQueryCache(shardCtx.getQueryCache());
+        }
+        if (shardCtx.getQueryCachingPolicy() != null) {
+            searcher.setQueryCachingPolicy(shardCtx.getQueryCachingPolicy());
+        }
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
         BooleanSupplier isCancelled = () -> {
             Task task = shardCtx.getTask();
@@ -194,4 +201,13 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
 
     // ---- Serializers ----
 
+    @Override
+    public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return QuerySerializerRegistry.getSerializers();
+    }
+
+    @Override
+    public DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
+        return new LuceneSubtreeConvertor(QuerySerializerRegistry.getSerializers());
+    }
 }

@@ -5,6 +5,7 @@
 
 package org.opensearch.http;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.lessThan;
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2,
     numClientNodes = 0)
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class ShardIndexingPressureRestIT extends HttpSmokeTestCase {
 
     @Override

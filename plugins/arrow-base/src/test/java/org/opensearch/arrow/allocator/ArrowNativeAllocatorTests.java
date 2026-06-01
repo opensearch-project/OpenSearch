@@ -10,7 +10,7 @@ package org.opensearch.arrow.allocator;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
@@ -86,7 +86,8 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         assertEquals("stats-pool", poolStats.getName());
         assertEquals(64 * 1024 * 1024, poolStats.getLimitBytes());
         assertEquals(0, poolStats.getAllocatedBytes());
-        assertEquals(0, poolStats.getChildCount());
+        // child_count is no longer rendered in stats; getPoolAllocator(...).getChildAllocators()
+        // is the runtime accessor for that detail if needed.
     }
 
     public void testStatsMultiplePools() {
@@ -106,12 +107,12 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         assertEquals(2, allocator.getPoolNames().size());
     }
 
-    public void testRebalanceGivesHeadroomToActivePool() {
+    public void testRebalanceDistributesHeadroomToAllPools() {
         allocator.setRootLimit(100 * 1024 * 1024);
         allocator.getOrCreatePool("active", 10 * 1024 * 1024, 100 * 1024 * 1024);
         allocator.getOrCreatePool("idle", 10 * 1024 * 1024, 100 * 1024 * 1024);
 
-        // Simulate activity: allocate in "active" pool (allocated > 0 = active)
+        // Simulate activity: allocate in "active" pool.
         BufferAllocator activeAlloc = allocator.getPoolAllocator("active");
         BufferAllocator child = activeAlloc.newChildAllocator("worker", 0, 100 * 1024 * 1024);
         var buf = child.buffer(5 * 1024 * 1024);
@@ -119,16 +120,37 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         try {
             allocator.rebalance();
 
-            // Active pool should get bonus headroom beyond its min
+            // Active pool gets bonus headroom on top of its min.
             long activeLimit = activeAlloc.getLimit();
             assertTrue("Active pool limit should exceed min after rebalance, got " + activeLimit, activeLimit > 10 * 1024 * 1024);
 
-            // Idle pool should be at its min
+            // Idle pool also receives headroom: distributing to all pools (not just
+            // currently-active ones) avoids the dead-pool corner case where a pool
+            // with min = 0 starts at limit = 0 and can never make a first allocation.
+            // Idle pools that don't end up needing the headroom return it on the next
+            // tick once they remain at zero allocation.
             long idleLimit = allocator.getPoolAllocator("idle").getLimit();
-            assertEquals(10 * 1024 * 1024, idleLimit);
+            assertTrue("Idle pool should also receive headroom, got " + idleLimit, idleLimit > 10 * 1024 * 1024);
         } finally {
             buf.close();
             child.close();
+        }
+    }
+
+    public void testRebalanceLetsZeroMinPoolAllocate() {
+        // Regression test: under the previous "active pools only" rebalance algorithm,
+        // a pool with min = 0 would start at limit = 0 (rebalancer-on path), be unable
+        // to allocate, never become "active", and so never receive a bonus — permanently
+        // dead. Distributing headroom across all pools fixes the chicken-and-egg.
+        allocator.setRebalanceInterval(60);
+        allocator.setRootLimit(100 * 1024 * 1024);
+        allocator.getOrCreatePool("zero-min", 0L, 100 * 1024 * 1024);
+        try {
+            allocator.rebalance();
+            BufferAllocator pool = allocator.getPoolAllocator("zero-min");
+            assertTrue("Zero-min pool should receive headroom, got " + pool.getLimit(), pool.getLimit() > 0);
+        } finally {
+            allocator.setRebalanceInterval(0);
         }
     }
 
@@ -154,6 +176,24 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
         allocator.rebalance();
     }
 
+    public void testInitialLimitIsMaxWhenRebalancerDisabled() {
+        // Default tearDown allocator has rebalancer disabled (interval=0).
+        NativeAllocator.PoolHandle handle = allocator.getOrCreatePool("burst", 10 * 1024 * 1024, 100 * 1024 * 1024);
+        // With the rebalancer off, pools must start at their max so consumers can allocate
+        // immediately. Otherwise default-configured pools (min=0) would reject everything.
+        assertEquals(100 * 1024 * 1024, handle.limit());
+    }
+
+    public void testInitialLimitIsMinWhenRebalancerEnabled() {
+        // Enabling the rebalancer reverts to the original "guarantee + burst" semantics:
+        // pools start at min and grow via the next rebalance tick.
+        allocator.setRebalanceInterval(60); // any positive value enables the flag
+        NativeAllocator.PoolHandle handle = allocator.getOrCreatePool("guaranteed", 10 * 1024 * 1024, 100 * 1024 * 1024);
+        assertEquals(10 * 1024 * 1024, handle.limit());
+        // Disable so subsequent tests aren't affected by the scheduled task.
+        allocator.setRebalanceInterval(0);
+    }
+
     public void testCloseReleasesAllPools() {
         allocator.getOrCreatePool("close-test", 10 * 1024 * 1024);
         allocator.close();
@@ -161,5 +201,36 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
 
         // Recreate for tearDown
         allocator = new ArrowNativeAllocator(1024L * 1024 * 1024);
+    }
+
+    public void testSetPoolMinRaisesLiveLimitWhenRebalancerOff() {
+        // setPoolMin must affect the live BufferAllocator immediately, not just the
+        // poolMins map. Otherwise it's a Dynamic setting that returns HTTP 200 and
+        // does nothing observable until the operator also enables the rebalancer.
+        allocator.setRootLimit(100 * 1024 * 1024);
+        allocator.getOrCreatePool("p", 0L, 100 * 1024 * 1024);
+        BufferAllocator pool = allocator.getPoolAllocator("p");
+
+        long startLimit = pool.getLimit();
+        allocator.setPoolMin("p", 50 * 1024 * 1024);
+
+        long afterMinUpdate = pool.getLimit();
+        assertTrue(
+            "setPoolMin should raise live limit to at least the new min (was " + startLimit + ", now " + afterMinUpdate + ")",
+            afterMinUpdate >= 50 * 1024 * 1024
+        );
+    }
+
+    public void testSetPoolMinDoesNotShrinkLiveLimit() {
+        // Dropping the min must not shrink an in-flight pool — the rebalancer is the
+        // only path that reduces limits, so a min change on its own should never
+        // reclaim capacity.
+        allocator.setRootLimit(100 * 1024 * 1024);
+        allocator.getOrCreatePool("p", 0L, 100 * 1024 * 1024);
+        BufferAllocator pool = allocator.getPoolAllocator("p");
+        long startLimit = pool.getLimit();
+
+        allocator.setPoolMin("p", 1L);
+        assertEquals("dropping min must not shrink live limit", startLimit, pool.getLimit());
     }
 }

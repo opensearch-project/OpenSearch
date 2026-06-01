@@ -13,9 +13,6 @@ import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.plan.hep.HepMatchOrder;
-import org.apache.calcite.plan.hep.HepPlanner;
-import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelNode;
@@ -24,10 +21,12 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -35,15 +34,18 @@ import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
+import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Central planner for the Analytics Plugin.
@@ -61,10 +63,6 @@ import java.util.List;
  * {@link RuleProfilingListener} (when profiling is enabled on
  * {@link PlannerContext}) can be threaded through every planner created here.
  *
- * <p>TODO: eliminate copyToCluster — have frontends create RelNodes with Volcano cluster.
- * <p>TODO: DAG construction (cut at exchange boundaries, build stage tree)
- * <p>TODO: Per-stage plan forking (multiple plan generation)
- * <p>TODO: Fragment conversion (backend.getFragmentConvertor())
  * <p>TODO: Join strategy selection, sort removal via CBO
  *
  * @opensearch.internal
@@ -87,6 +85,8 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
+        modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
+        modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
@@ -103,44 +103,99 @@ public class PlannerImpl {
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
+        if (lateMat.isPresent()) {
+            modifiedRelNode = lateMat.get();
+            LOGGER.info("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+        }
+        Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
+        if (topK.isPresent()) {
+            modifiedRelNode = topK.get();
+            LOGGER.info("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
+        }
 
         if (listener != null) {
             RuleProfilingListener.PlannerProfile profile = listener.snapshot();
             context.recordProfilingResults(profile);
-            LOGGER.info("Planner profile:\n{}", profile.format());
+            LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
     }
 
     /**
+     * Phase 0: lower {@link org.apache.calcite.rex.RexSubQuery}s (EXISTS / IN / SOME / ANY,
+     * including the PPL {@code subsearch} shapes that the frontend lowers to them) into
+     * {@code LogicalCorrelate} via the three {@code *_SUB_QUERY_TO_CORRELATE} rules, then
+     * decorrelate back to a standard join shape. Without this phase, downstream rules see
+     * a {@code RexSubQuery} inside a filter / project predicate and either reject the
+     * operator outright (e.g. {@link org.opensearch.analytics.planner.rules.OpenSearchFilterRule}
+     * resolves leaf predicates through a {@code ScalarFunction} table that doesn't and
+     * shouldn't cover {@code EXISTS}) or carry the un-removed subquery into substrait
+     * emission. Runs first so every later phase observes a subquery-free tree.
+     */
+    private static RelNode removeSubQueries(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("subquery-remove")
+            .addRuleCollection(
+                List.of(
+                    CoreRules.FILTER_SUB_QUERY_TO_CORRELATE,
+                    CoreRules.PROJECT_SUB_QUERY_TO_CORRELATE,
+                    CoreRules.JOIN_SUB_QUERY_TO_CORRELATE
+                )
+            )
+            // RexSubQuery removal introduces LogicalCorrelate; decorrelate back to a
+            // straight join shape that the marking + capability rules already handle.
+            // RelDecorrelator is a visitor (not a RelOptRule) so it runs as a
+            // post-processing step inside the same listener phase.
+            .postProcess(
+                withCorrelates -> RelDecorrelator.decorrelateQuery(
+                    withCorrelates,
+                    RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null)
+                )
+            )
+            .run(input, listener);
+    }
+
+    /**
+     * Phase 0b: lower {@code LITERAL_AGG(literal)} aggregate calls into an
+     * {@code Aggregate + Project} shape via {@link ExtractLiteralAggRule}.
+     *
+     * <p>{@code LITERAL_AGG} is a Calcite-internal aggregate that Calcite expects
+     * each backend to implement natively (Calcite's own Interpreter and Enumerable
+     * codegen do; the SQL JDBC implementor inlines the literal directly into the
+     * SQL output). DataFusion has no equivalent UDAF, so we lower it away before
+     * the marking phase observes the plan.
+     *
+     * <p>{@code SubQueryRemoveRule}'s {@code NOT IN} / {@code SOME} / {@code ALL}
+     * rewrites are the only Calcite source of {@code LITERAL_AGG} that we know
+     * of, but the rule is kept as its own pass — independent of the subquery
+     * removal phase — for two reasons: (1) phase listing reflects each
+     * concern separately so profiling output stays meaningful, (2) the rule
+     * still fires correctly if a future frontend / pushdown rule constructs
+     * {@code LITERAL_AGG} directly via {@code RelBuilder.literalAgg(...)}.
+     */
+    private static RelNode extractLiteralAgg(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("literal-agg-extract").addRuleInstance(new ExtractLiteralAggRule()).run(input, listener);
+    }
+
+    /**
      * Phase 1a: constant-expression reduction on Filter and Project predicates. Kept in
      * its own phase so {@code ProjectReduceExpressionsRule} cannot use a downstream
-     * Filter's predicates (introduced by {@link #pushdownRules} in Phase 1b) to rewrite
+     * Filter's predicates (introduced by the pushdown phase in Phase 1b) to rewrite
      * Project expressions. Co-locating the reducer with the transposes lets Calcite
      * simplify e.g. {@code m = (int0 <= 4)} into {@code m = IS NOT NULL(int0)} once the
      * Filter sits below the Project — semantically correct but emits operators the
      * Project may not have backend support for.
      */
     private static RelNode reduceExpressions(RelNode input, RuleProfilingListener listener) {
-        HepProgramBuilder builder = new HepProgramBuilder();
-        builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        builder.addRuleCollection(
-            List.of(
-                new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
-                new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+        return HepPhase.named("reduce-expressions")
+            .bottomUp()
+            .addRuleCollection(
+                List.of(
+                    new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
+                    new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+                )
             )
-        );
-        HepPlanner planner = new HepPlanner(builder.build());
-        if (listener != null) {
-            planner.addListener(listener);
-            listener.beginPhase("reduce-expressions");
-        }
-        try {
-            planner.setRoot(input);
-            return planner.findBestExp();
-        } finally {
-            if (listener != null) listener.endPhase("reduce-expressions");
-        }
+            .run(input, listener);
     }
 
     /**
@@ -149,50 +204,38 @@ public class PlannerImpl {
      * nodes, then marking lowers the canonical post-pushdown shape in one go.
      */
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
-        HepProgramBuilder builder = new HepProgramBuilder();
-        builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        // Push Filters below Project/Aggregate/Join.
-        builder.addRuleCollection(
-            List.of(CoreRules.FILTER_PROJECT_TRANSPOSE, CoreRules.FILTER_AGGREGATE_TRANSPOSE, CoreRules.FILTER_INTO_JOIN)
-        );
-        // Merge adjacent Filters into one — must run after transposes so any
-        // auto-injected NOT NULL collapses with the user's WHERE.
-        builder.addRuleInstance(CoreRules.FILTER_MERGE);
-        HepPlanner planner = new HepPlanner(builder.build());
-        if (listener != null) {
-            planner.addListener(listener);
-            listener.beginPhase("pushdown-rules");
-        }
-        try {
-            planner.setRoot(input);
-            return planner.findBestExp();
-        } finally {
-            if (listener != null) listener.endPhase("pushdown-rules");
-        }
+        return HepPhase.named("pushdown-rules")
+            .bottomUp()
+            // Transposes (filter-into-* and sort-into-project) cascade together within
+            // one fixpoint, alongside PROJECT_MERGE which collapses the intermediate
+            // adjacent Projects that SORT_PROJECT_TRANSPOSE produces. FILTER_MERGE
+            // runs as its own instruction so it only fires after the transposes have
+            // settled — that way any auto-injected NOT NULL collapses with the user's
+            // WHERE on the post-pushdown filter, not on a half-pushed intermediate.
+            // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE feed the QTF (late-materialization)
+            // rewriter by lifting Project above Sort so it sees a single Project layer
+            // above the anchor.
+            .addRuleCollection(
+                List.of(
+                    CoreRules.FILTER_PROJECT_TRANSPOSE,
+                    CoreRules.FILTER_AGGREGATE_TRANSPOSE,
+                    CoreRules.FILTER_INTO_JOIN,
+                    CoreRules.SORT_PROJECT_TRANSPOSE,
+                    CoreRules.PROJECT_MERGE
+                )
+            )
+            .addRuleInstance(CoreRules.FILTER_MERGE)
+            .run(input, listener);
     }
 
     /**
      * Phase 1b: decompose AVG / STDDEV / VAR into primitive SUM/COUNT (+ SUM_SQ for variance) plus a
      * scalar LogicalProject computing the quotient. Runs as its own HEP pass on plain LogicalAggregate
-     * so Calcite's type inference is clean — no AGG_CALL_ANNOTATION wrappers in aggCall.rexList to
-     * propagate AVG's DOUBLE return type to the derived primitive calls. Downstream the marking phase,
-     * the Volcano split rule, and the AggregateDecompositionResolver see correctly-typed primitives.
+     * before {@link OpenSearchAggregateRule} marks it; the marking phase, the Volcano split rule, and
+     * the AggregateDecompositionResolver then see correctly-typed primitives.
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
-        HepProgramBuilder builder = new HepProgramBuilder();
-        builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        builder.addRuleInstance(new OpenSearchAggregateReduceRule());
-        HepPlanner planner = new HepPlanner(builder.build());
-        if (listener != null) {
-            planner.addListener(listener);
-            listener.beginPhase("aggregate-decompose");
-        }
-        try {
-            planner.setRoot(input);
-            return planner.findBestExp();
-        } finally {
-            if (listener != null) listener.endPhase("aggregate-decompose");
-        }
+        return HepPhase.named("aggregate-decompose").bottomUp().addRuleInstance(new OpenSearchAggregateReduceRule()).run(input, listener);
     }
 
     /**
@@ -205,34 +248,25 @@ public class PlannerImpl {
      * optimization.
      */
     private static RelNode mark(RelNode input, PlannerContext context, RuleProfilingListener listener) {
-        HepProgramBuilder builder = new HepProgramBuilder();
-        builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        builder.addRuleCollection(
-            List.of(
-                new OpenSearchTableScanRule(context),
-                new OpenSearchFilterRule(context),
-                new OpenSearchProjectRule(context),
-                new OpenSearchAggregateRule(context),
-                new OpenSearchJoinRule(context),
-                new OpenSearchSortRule(context),
-                new OpenSearchUnionRule(context),
-                new OpenSearchValuesRule(context)
+        return HepPhase.named("marking")
+            .bottomUp()
+            .addRuleCollection(
+                List.of(
+                    new OpenSearchTableScanRule(context),
+                    new OpenSearchFilterRule(context),
+                    new OpenSearchProjectRule(context),
+                    new OpenSearchAggregateRule(context),
+                    new OpenSearchJoinRule(context),
+                    new OpenSearchSortRule(context),
+                    new OpenSearchUnionRule(context),
+                    new OpenSearchValuesRule(context)
+                )
             )
-        );
-        HepPlanner planner = new HepPlanner(builder.build());
-        if (listener != null) {
-            planner.addListener(listener);
-            listener.beginPhase("marking");
-        }
-        try {
-            planner.setRoot(input);
-            return planner.findBestExp();
-        } finally {
-            if (listener != null) listener.endPhase("marking");
-        }
+            .run(input, listener);
     }
 
     /** Phase 2: VolcanoPlanner for trait propagation + exchange insertion. */
+
     private static RelNode cbo(RelNode marked, RelNode rawRelNode, PlannerContext context, RuleProfilingListener listener) {
         VolcanoPlanner volcanoPlanner = new VolcanoPlanner();
         volcanoPlanner.addRelTraitDef(ConventionTraitDef.INSTANCE);

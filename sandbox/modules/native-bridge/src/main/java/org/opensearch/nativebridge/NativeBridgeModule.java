@@ -20,6 +20,9 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
 import org.opensearch.nativebridge.spi.NativeHeapProfiler;
+import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -60,6 +63,13 @@ public class NativeBridgeModule extends Plugin {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    public AnalyticsBackendNativeMemoryStats memoryStats() {
+        if (!NativeLibraryLoader.isLoaded()) {
+            return null;
+        }
+        return NativeMemoryFetcher.fetch();
+    }
 
     @Override
     public Collection<Object> createComponents(

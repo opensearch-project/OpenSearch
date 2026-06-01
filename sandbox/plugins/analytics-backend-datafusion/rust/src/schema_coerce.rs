@@ -157,9 +157,67 @@ fn rewrite_data_type(dt: &DataType) -> DataType {
     }
 }
 
+/// Appends to `registered` any `expected` field whose name is absent, as a nullable column.
+/// `Some(augmented)` if anything was added, `None` if `registered` already covers `expected`.
+///
+/// The Substrait consumer binds `base_schema` to the provider BY NAME, so the registered schema
+/// only needs to *contain* every expected column — order is irrelevant and present columns keep
+/// their inferred (coerced) types. Appended columns are forced nullable; DataFusion's parquet
+/// `SchemaAdapter` null-fills them at read time.
+pub fn append_missing_nullable(registered: &Schema, expected: &Schema) -> Option<SchemaRef> {
+    let mut added: Vec<Field> = Vec::new();
+    for ef in expected.fields() {
+        if registered.field_with_name(ef.name()).is_err() {
+            added.push(
+                Field::new(ef.name(), ef.data_type().clone(), true).with_metadata(ef.metadata().clone()),
+            );
+        }
+    }
+    if added.is_empty() {
+        return None;
+    }
+    let mut fields: Vec<Field> = registered.fields().iter().map(|f| f.as_ref().clone()).collect();
+    fields.extend(added);
+    Some(Arc::new(Schema::new_with_metadata(fields, registered.metadata().clone())))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn append_missing_adds_absent_columns_as_nullable() {
+        let registered = Schema::new(vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("age", DataType::Int64, true),
+        ]);
+        // `alias` is declared non-nullable in the plan; it must still be appended as nullable
+        // since the shard has no data for it.
+        let expected = Schema::new(vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("age", DataType::Int64, true),
+            Field::new("alias", DataType::Utf8, false),
+        ]);
+
+        let merged = append_missing_nullable(&registered, &expected).expect("alias missing → augmented");
+        assert_eq!(merged.fields().len(), 3);
+        let alias = merged.field_with_name("alias").unwrap();
+        assert_eq!(alias.data_type(), &DataType::Utf8);
+        assert!(alias.is_nullable(), "appended column must be nullable");
+        assert!(merged.field_with_name("name").is_ok());
+        assert!(merged.field_with_name("age").is_ok());
+    }
+
+    #[test]
+    fn append_missing_returns_none_when_registered_covers_expected() {
+        let registered = Schema::new(vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("age", DataType::Int64, true),
+        ]);
+        // Registered may carry extra columns the plan doesn't reference — still nothing to add.
+        let expected = Schema::new(vec![Field::new("name", DataType::Utf8, true)]);
+        assert!(append_missing_nullable(&registered, &expected).is_none());
+    }
 
     #[test]
     fn top_level_binary_view_gets_rewritten() {

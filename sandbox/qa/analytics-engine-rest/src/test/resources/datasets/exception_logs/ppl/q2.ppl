@@ -1,0 +1,1 @@
+source=exception_logs | where `exception.exception_message` is not null | stats count() as exception_count by service_name, level | sort - exception_count

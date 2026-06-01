@@ -9,6 +9,8 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.analytics.backend.EngineResultBatch;
+import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
+import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
@@ -27,15 +29,14 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.stream.StreamErrorCode;
-import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * Stateless transport dispatch component for fragment requests. Owns the
@@ -72,6 +73,7 @@ public class AnalyticsSearchTransportService {
         this.transportService = streamTransportService;
         this.clusterService = clusterService;
         registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
+        registerFetchByRowIdsHandler(this.transportService, searchService, indicesService);
     }
 
     private static void registerStreamingFragmentHandler(
@@ -88,23 +90,83 @@ public class AnalyticsSearchTransportService {
             FragmentExecutionRequest::new,
             (request, channel, task) -> {
                 IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
-                try (FragmentResources ctx = searchService.executeFragmentStreaming(request, shard, (AnalyticsShardTask) task)) {
-                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
-                    while (it.hasNext()) {
-                        EngineResultBatch batch = it.next();
-                        channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
-                    }
-                    channel.completeStream();
-                } catch (StreamException e) {
-                    if (e.getErrorCode() != StreamErrorCode.CANCELLED) {
-                        channel.sendResponse(e);
-                    }
-                    // CANCELLED: channel already torn down — exit silently
-                } catch (Exception e) {
-                    channel.sendResponse(e);
-                }
+                searchService.executeFragmentStreamingAsync(
+                    request,
+                    shard,
+                    (AnalyticsShardTask) task,
+                    channelResponseHandler(channel),
+                    ContextAwareExecutor.wrap(
+                        transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                        transportService.getThreadPool()
+                    )
+                );
             }
         );
+    }
+
+    /**
+     * Mirrors {@link #registerStreamingFragmentHandler} for the QTF fetch-by-rowids path.
+     * Forks the iterator drain onto the SEARCH executor via
+     * {@link AnalyticsSearchService#executeFetchByRowIdsAsync} so a slow coordinator parks
+     * a search thread, not the transport thread, and the engine sees natural backpressure
+     * through the blocking {@code channel.sendResponseBatch} call.
+     */
+    private static void registerFetchByRowIdsHandler(
+        StreamTransportService transportService,
+        AnalyticsSearchService searchService,
+        IndicesService indicesService
+    ) {
+        transportService.registerRequestHandler(
+            FetchByRowIdsAction.NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            FetchByRowIdsRequest::new,
+            (request, channel, task) -> {
+                IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                searchService.executeFetchByRowIdsAsync(
+                    request,
+                    shard,
+                    (AnalyticsShardTask) task,
+                    channelResponseHandler(channel),
+                    ContextAwareExecutor.wrap(
+                        transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                        transportService.getThreadPool()
+                    )
+                );
+            }
+        );
+    }
+
+    /**
+     * Adapter from {@link AnalyticsSearchService.StreamingFragmentResponseHandler} to the
+     * channel streaming API. Each batch is sent on the channel; onComplete completes the
+     * stream; onFailure ignores cancellation and forwards everything else as an exception
+     * response. Shared by the streaming-fragment and fetch-by-rowids handlers — the dispatch
+     * shape is identical, only the request type differs.
+     */
+    private static AnalyticsSearchService.StreamingFragmentResponseHandler channelResponseHandler(TransportChannel channel) {
+        return new AnalyticsSearchService.StreamingFragmentResponseHandler() {
+            @Override
+            public void onBatch(EngineResultBatch batch) throws Exception {
+                channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
+            }
+
+            @Override
+            public void onComplete() {
+                channel.completeStream();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception sendException) {
+                    throw new RuntimeException(sendException);
+                }
+            }
+        };
     }
 
     Transport.Connection getConnection(String clusterAlias, String nodeId) {
@@ -114,6 +176,40 @@ public class AnalyticsSearchTransportService {
 
     public void dispatchFragmentStreaming(
         FragmentExecutionRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FragmentExecutionArrowResponse> listener,
+        Task parentTask,
+        PendingExecutions pending
+    ) {
+        dispatchStreaming(FragmentExecutionAction.NAME, request, targetNode, listener, parentTask, pending);
+    }
+
+    /**
+     * Dispatches a QTF fetch-by-rowids RPC to {@code targetNode}. Mirrors
+     * {@link #dispatchFragmentStreaming} — same streaming-response handler shape, same
+     * {@link PendingExecutions} gating, same cancellation propagation. Different action
+     * name routes the request to {@link FetchByRowIdsAction} on the data node.
+     */
+    public void dispatchFetchByRowIds(
+        FetchByRowIdsRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FragmentExecutionArrowResponse> listener,
+        Task parentTask,
+        PendingExecutions pending
+    ) {
+        dispatchStreaming(FetchByRowIdsAction.NAME, request, targetNode, listener, parentTask, pending);
+    }
+
+    /**
+     * Shared streaming dispatch path for {@link FragmentExecutionAction} and
+     * {@link FetchByRowIdsAction}. Drains the response stream inline — backpressure flows
+     * because {@code listener.onStreamResponse} blocks until the downstream sink accepts
+     * the batch, which gates the next {@code stream.nextResponse} call and propagates
+     * gRPC flow control back to the data node.
+     */
+    private void dispatchStreaming(
+        String actionName,
+        TransportRequest request,
         DiscoveryNode targetNode,
         StreamingResponseListener<FragmentExecutionArrowResponse> listener,
         Task parentTask,
@@ -182,7 +278,7 @@ public class AnalyticsSearchTransportService {
         pending.tryRun(() -> {
             try {
                 Transport.Connection connection = getConnection(null, targetNode.getId());
-                transportService.sendChildRequest(connection, FragmentExecutionAction.NAME, request, parentTask, options, handler);
+                transportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
             } catch (Exception e) {
                 try {
                     listener.onFailure(e);

@@ -18,6 +18,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -153,6 +155,19 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum total size of writer segments that will be merged inline during refresh.
+     * When the sum of all writer segment sizes exceeds this threshold, merge on refresh
+     * is skipped and segments are committed individually (background merge handles them later).
+     * Set to 0 to disable merge on refresh entirely.
+     */
+    public static final Setting<ByteSizeValue> MERGE_ON_REFRESH_MAX_SIZE = Setting.byteSizeSetting(
+        "index.composite.merge_on_refresh_max_size",
+        new ByteSizeValue(10, ByteSizeUnit.MB),
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
     public CompositeDataFormatPlugin() {}
 
     @Override
@@ -162,7 +177,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             SECONDARY_DATA_FORMATS,
             CLUSTER_PRIMARY_DATA_FORMAT,
             CLUSTER_SECONDARY_DATA_FORMATS,
-            CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
+            CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING,
+            MERGE_ON_REFRESH_MAX_SIZE
         );
     }
 
