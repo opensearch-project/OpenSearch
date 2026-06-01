@@ -799,38 +799,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
     public void testForkAlwaysForceExecutesWhenThresholdIsNegative() throws Exception {
         int queueCapacity = randomIntBetween(1, 4);
-        OpenSearchThreadPoolExecutor testExecutor = OpenSearchExecutors.newFixed(
-            getClass().getName(),
-            1,
-            queueCapacity,
-            OpenSearchExecutors.daemonThreadFactory("test"),
-            threadPool.getThreadContext()
-        );
-
         CountDownLatch blockLatch = new CountDownLatch(1);
-        CountDownLatch threadOccupied = new CountDownLatch(1);
-        testExecutor.execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws Exception {
-                threadOccupied.countDown();
-                blockLatch.await();
-            }
-
-            @Override
-            public void onFailure(Exception e) {}
-        });
-        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
-
-        for (int i = 0; i < queueCapacity; i++) {
-            testExecutor.execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
-        }
-        assertThat(testExecutor.getQueue().size(), equalTo(queueCapacity));
+        OpenSearchThreadPoolExecutor testExecutor = createBlockedFullExecutor(queueCapacity, blockLatch);
 
         createForkTestAction(testExecutor, -1).start();
 
@@ -846,44 +816,13 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
     public void testForkAllowsForceExecutionWhenQueueBelowThreshold() throws Exception {
         int queueCapacity = randomIntBetween(1, 4);
-        int threshold = queueCapacity + 1;
-        OpenSearchThreadPoolExecutor testExecutor = OpenSearchExecutors.newFixed(
-            getClass().getName(),
-            1,
-            queueCapacity,
-            OpenSearchExecutors.daemonThreadFactory("test"),
-            threadPool.getThreadContext()
-        );
-
         CountDownLatch blockLatch = new CountDownLatch(1);
-        CountDownLatch threadOccupied = new CountDownLatch(1);
-        testExecutor.execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws Exception {
-                threadOccupied.countDown();
-                blockLatch.await();
-            }
+        OpenSearchThreadPoolExecutor testExecutor = createBlockedFullExecutor(queueCapacity, blockLatch);
 
-            @Override
-            public void onFailure(Exception e) {}
-        });
-        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
-
-        for (int i = 0; i < queueCapacity; i++) {
-            testExecutor.execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
-        }
-        assertThat(testExecutor.getQueue().size(), equalTo(queueCapacity));
-
-        createForkTestAction(testExecutor, threshold).start();
+        createForkTestAction(testExecutor, queueCapacity + 1).start();
 
         assertThat(
-            "queue.size()=" + queueCapacity + " < threshold=" + threshold + " must allow force-put",
+            "fork must allow force-put when queue size (" + queueCapacity + ") is below threshold (" + (queueCapacity + 1) + ")",
             testExecutor.getQueue().size(),
             equalTo(queueCapacity + 1)
         );
@@ -894,7 +833,22 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
     public void testForkDeniesForceExecutionWhenQueueAtThreshold() throws Exception {
         int queueCapacity = randomIntBetween(1, 4);
-        int threshold = queueCapacity;
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        OpenSearchThreadPoolExecutor testExecutor = createBlockedFullExecutor(queueCapacity, blockLatch);
+
+        createForkTestAction(testExecutor, queueCapacity).start();
+
+        assertThat(
+            "fork must deny force-put when queue size equals threshold (" + queueCapacity + ")",
+            testExecutor.getQueue().size(),
+            equalTo(queueCapacity)
+        );
+
+        blockLatch.countDown();
+        terminate(testExecutor);
+    }
+
+    private OpenSearchThreadPoolExecutor createBlockedFullExecutor(int queueCapacity, CountDownLatch blockLatch) throws Exception {
         OpenSearchThreadPoolExecutor testExecutor = OpenSearchExecutors.newFixed(
             getClass().getName(),
             1,
@@ -903,7 +857,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             threadPool.getThreadContext()
         );
 
-        CountDownLatch blockLatch = new CountDownLatch(1);
         CountDownLatch threadOccupied = new CountDownLatch(1);
         testExecutor.execute(new AbstractRunnable() {
             @Override
@@ -927,17 +880,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             });
         }
         assertThat(testExecutor.getQueue().size(), equalTo(queueCapacity));
-
-        createForkTestAction(testExecutor, threshold).start();
-
-        assertThat(
-            "queue.size()=" + queueCapacity + " >= threshold=" + threshold + " must deny force-put, queue must not grow",
-            testExecutor.getQueue().size(),
-            equalTo(queueCapacity)
-        );
-
-        blockLatch.countDown();
-        terminate(testExecutor);
+        return testExecutor;
     }
 
     private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
@@ -1107,7 +1050,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         request.allowPartialSearchResults(true);
         SearchShardIterator nullShard = new SearchShardIterator(null, null, Collections.emptyList(), null);
         ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1);
-        return new AbstractSearchAsyncAction<SearchPhaseResult>(
+        return new AbstractSearchAsyncAction<>(
             "test",
             logger,
             null,

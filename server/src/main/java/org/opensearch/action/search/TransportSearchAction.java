@@ -259,8 +259,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
         this.forceExecutionQueueThreshold = SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.get(clusterService.getSettings());
 
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD,
-            this::setForceExecutionQueueThreshold);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD, this::setForceExecutionQueueThreshold);
     }
 
     private void setForceExecutionQueueThreshold(int threshold) {
