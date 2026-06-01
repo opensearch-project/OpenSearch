@@ -55,6 +55,9 @@ const HARDCODED_SELECTIVITY_THRESHOLD: f64 = 0.05;
 /// wraps `FfmSegmentCollector::create` (Java/Lucene round-trip); fuzz tests inject a
 /// mock that replays a pre-computed bitset without an FFM call.
 ///
+/// `context_id` is the per-query identifier passed through to every FFM upcall so Java
+/// can route each callback to the correct per-query handle and tracker.
+///
 /// TODO: extend this factory to also build the *correctness* collector currently passed
 /// in pre-built by `indexed_executor.rs`. Today delegated-backend (perf-delegated)
 /// collectors are built inside this evaluator while correctness collectors are built
@@ -63,6 +66,7 @@ const HARDCODED_SELECTIVITY_THRESHOLD: f64 = 0.05;
 pub trait DelegatedBackendCollectorFactory: Send + Sync + std::fmt::Debug {
     fn create(
         &self,
+        context_id: i64,
         provider_key: i32,
         writer_generation: i64,
         doc_min: i32,
@@ -78,12 +82,13 @@ pub struct FfmDelegatedBackendCollectorFactory;
 impl DelegatedBackendCollectorFactory for FfmDelegatedBackendCollectorFactory {
     fn create(
         &self,
+        context_id: i64,
         provider_key: i32,
         writer_generation: i64,
         doc_min: i32,
         doc_max: i32,
     ) -> Result<Arc<dyn RowGroupDocsCollector>, String> {
-        let collector = FfmSegmentCollector::create(provider_key, writer_generation, doc_min, doc_max)?;
+        let collector = FfmSegmentCollector::create(context_id, provider_key, writer_generation, doc_min, doc_max)?;
         Ok(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
     }
 }
@@ -166,6 +171,9 @@ pub struct SingleCollectorEvaluator {
     /// wires `FfmDelegatedBackendCollectorFactory`; fuzz tests inject a mock that
     /// replays a pre-computed bitset without an FFM call.
     delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
+    /// Per-query context identifier passed through every FFM upcall so Java can route
+    /// each callback to the correct per-query `FilterDelegationHandle` and tracker.
+    context_id: i64,
 }
 
 impl SingleCollectorEvaluator {
@@ -180,6 +188,7 @@ impl SingleCollectorEvaluator {
         performance_provider_locks: Arc<HashMap<i32, Arc<OnceLock<ProviderHandle>>>>,
         writer_generation: i64,
         delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
+        context_id: i64,
     ) -> Self {
         Self {
             collector,
@@ -192,6 +201,7 @@ impl SingleCollectorEvaluator {
             performance_provider_locks,
             writer_generation,
             delegated_backend_collector_factory,
+            context_id,
         }
     }
 }
@@ -366,24 +376,26 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 .performance_provider_locks
                 .get(&annotation_id)
                 .expect("annotation_id was just pulled from the map's keys");
+            let context_id = self.context_id;
             let mut just_initialized = false;
             let provider = lock.get_or_init(|| {
                 just_initialized = true;
-                create_provider(annotation_id).expect("create_provider FFM upcall failed")
+                create_provider(context_id, annotation_id).expect("create_provider FFM upcall failed")
             });
             if just_initialized {
                 log_debug!(
-                    "[scf-rust] lazy provider initialized annotation_id={} provider_key={}",
-                    annotation_id, provider.key()
+                    "[scf-rust] lazy provider initialized context_id={} annotation_id={} provider_key={}",
+                    context_id, annotation_id, provider.key()
                 );
             }
 
             let collector = self
                 .delegated_backend_collector_factory
-                .create(provider.key(), self.writer_generation, min_doc, max_doc)
+                .create(context_id, provider.key(), self.writer_generation, min_doc, max_doc)
                 .map_err(|e| {
                     format!(
-                        "DelegatedBackendCollectorFactory::create(provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                        "DelegatedBackendCollectorFactory::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                        context_id,
                         provider.key(),
                         self.writer_generation,
                         min_doc,
@@ -632,7 +644,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
 
         let rg = RowGroupInfo {
             index: 0,
@@ -648,7 +660,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -676,7 +688,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
         assert!(eval.needs_row_mask());
     }
 
@@ -684,7 +696,7 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -704,7 +716,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
 
         let rg = RowGroupInfo {
             index: 0,
