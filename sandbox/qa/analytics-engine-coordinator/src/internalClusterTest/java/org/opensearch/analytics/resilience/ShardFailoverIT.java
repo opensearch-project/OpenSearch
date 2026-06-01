@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.resilience;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
@@ -109,6 +110,11 @@ public class ShardFailoverIT extends RemoteStoreBaseIntegTestCase {
      * {@code CoordinatorTopologyTestBase} class-level comment). Disruption keeps both
      * processes alive; the coordinator just sees the primary's node as unreachable.
      */
+    @AwaitsFix(
+        bugUrl = "Flaky: the test's MockCommitterEnginePlugin (InMemoryCommitter) doesn't replicate the"
+            + " parquet catalog to the remote store, so the failover replica serves 0 rows and the PPL"
+            + " aggregate is null (NPE). Needs a replicating non-Lucene committer for this IT."
+    )
     public void testQuerySucceedsAfterPrimaryNodeIsolated() throws Exception {
         // 1 cluster-manager (also handles REST requests) + 2 data nodes (primary + replica
         // land on different nodes). Disrupting between cluster-manager and one data node

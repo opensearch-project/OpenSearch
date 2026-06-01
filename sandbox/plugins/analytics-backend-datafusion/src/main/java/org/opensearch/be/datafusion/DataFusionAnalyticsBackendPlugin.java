@@ -42,6 +42,7 @@ import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
+import org.opensearch.analytics.spi.WindowFunctionAdapter;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
@@ -408,6 +409,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.COUNT,
         AggregateFunction.AVG,
         AggregateFunction.APPROX_COUNT_DISTINCT,
+        AggregateFunction.PERCENTILE_APPROX,
         AggregateFunction.TAKE,
         AggregateFunction.FIRST,
         AggregateFunction.LAST,
@@ -455,13 +457,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Set<WindowCapability> windowCapabilities() {
-                // SUM/AVG/COUNT/MIN/MAX cover PPL eventstats; ROW_NUMBER covers PPL dedup
-                // (ROW_NUMBER OVER PARTITION BY … <= N) and the helper sequence column
-                // PPL streamstats … by … emits as __row_number_for_streamstats__.
-                // isthmus's RexExpressionConverter.visitOver serializes the RexOver inline as a
-                // Substrait WindowFunctionInvocation; DataFusion's substrait consumer splits it
-                // into a dedicated LogicalPlan::Window. No adapter or Rust UDF is needed —
-                // row_number is a Substrait-stdlib window function and a DataFusion built-in.
+                // PPL-form aggregates (ARG_MIN/MAX, DISTINCT_COUNT_APPROX) are advertised here and
+                // rewritten into DataFusion-native shapes by WindowFunctionAdapters before emission.
+                // SINGLETON cost gate guarantees fully-gathered partition input.
                 return Set.of(
                     new WindowCapability(
                         Set.of(
@@ -470,11 +468,27 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.COUNT,
                             WindowFunction.MIN,
                             WindowFunction.MAX,
+                            WindowFunction.ARG_MIN,
+                            WindowFunction.ARG_MAX,
+                            WindowFunction.DISTINCT_COUNT_APPROX,
                             WindowFunction.ROW_NUMBER,
+                            WindowFunction.NTH_VALUE,
                             WindowFunction.PATTERN
                         ),
                         Set.copyOf(plugin.getSupportedFormats())
                     )
+                );
+            }
+
+            @Override
+            public Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
+                return Map.of(
+                    WindowFunction.ARG_MIN,
+                    WindowFunctionAdapters.argMin(),
+                    WindowFunction.ARG_MAX,
+                    WindowFunctionAdapters.argMax(),
+                    WindowFunction.DISTINCT_COUNT_APPROX,
+                    WindowFunctionAdapters.distinctCountApprox()
                 );
             }
 
