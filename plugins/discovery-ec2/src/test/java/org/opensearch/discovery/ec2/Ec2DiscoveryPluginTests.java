@@ -76,10 +76,12 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
         }
     }
 
-    public void testNodeAttributesDisabled() {
+    public void testNodeAttributesDisabled() throws IOException {
         final Settings settings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), false).build();
-        final Settings result = Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(settings);
-        assertTrue(result.isEmpty());
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
+            final Settings result = plugin.getAvailabilityZoneNodeAttributes(settings);
+            assertTrue(result.isEmpty());
+        }
     }
 
     public void testNodeAttributes() throws Exception {

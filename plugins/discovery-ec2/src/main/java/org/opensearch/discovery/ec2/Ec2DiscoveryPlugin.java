@@ -32,7 +32,6 @@
 
 package org.opensearch.discovery.ec2;
 
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.imds.Ec2MetadataClient;
 
 import org.apache.logging.log4j.LogManager;
@@ -50,7 +49,6 @@ import org.opensearch.secure_sm.AccessController;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -84,7 +82,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         logger.debug("Register _ec2_, _ec2:xxx_ network names");
-        return new Ec2NameResolver();
+        return new Ec2NameResolver(ec2Service);
     }
 
     @Override
@@ -124,19 +122,13 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     }
 
     // pkg private for testing
-    static Settings getAvailabilityZoneNodeAttributes(Settings settings) {
+    Settings getAvailabilityZoneNodeAttributes(Settings settings) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
         }
 
-        try (
-            Ec2MetadataClient client = AccessController.doPrivilegedChecked(
-                () -> Ec2MetadataClient.builder()
-                    .httpClient(ApacheHttpClient.builder().connectionTimeout(Duration.ofSeconds(2)).socketTimeout(Duration.ofSeconds(2)))
-                    .build()
-            )
-        ) {
-            return getAvailabilityZoneNodeAttributes(settings, client);
+        try (AmazonEc2MetadataClientReference clientReference = ec2Service.metadataClient()) {
+            return getAvailabilityZoneNodeAttributes(settings, clientReference.get());
         } catch (final Exception e) {
             // this is lenient so the plugin does not fail when installed outside of ec2
             logger.error("failed to get metadata for [placement/availability-zone]", e);

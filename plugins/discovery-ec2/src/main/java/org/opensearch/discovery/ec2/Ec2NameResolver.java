@@ -32,7 +32,6 @@
 
 package org.opensearch.discovery.ec2;
 
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.imds.Ec2MetadataClient;
 
 import org.apache.logging.log4j.LogManager;
@@ -42,7 +41,6 @@ import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.time.Duration;
 
 /**
  * Resolves certain ec2 related 'meta' hostnames into an actual hostname
@@ -64,6 +62,12 @@ import java.time.Duration;
 class Ec2NameResolver implements CustomNameResolver {
 
     private static final Logger logger = LogManager.getLogger(Ec2NameResolver.class);
+
+    private final AwsEc2Service ec2Service;
+
+    Ec2NameResolver(AwsEc2Service ec2Service) {
+        this.ec2Service = ec2Service;
+    }
 
     /**
      * enum that can be added to over time with more meta-data types (such as ipv6 when this is available)
@@ -97,14 +101,8 @@ class Ec2NameResolver implements CustomNameResolver {
      * @see CustomNameResolver#resolveIfPossible(String)
      */
     public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
-        try (
-            Ec2MetadataClient client = AccessController.doPrivilegedChecked(
-                () -> Ec2MetadataClient.builder()
-                    .httpClient(ApacheHttpClient.builder().connectionTimeout(Duration.ofSeconds(2)).socketTimeout(Duration.ofSeconds(2)))
-                    .build()
-            )
-        ) {
-            return resolve(type, client);
+        try (AmazonEc2MetadataClientReference clientReference = ec2Service.metadataClient()) {
+            return resolve(type, clientReference.get());
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
