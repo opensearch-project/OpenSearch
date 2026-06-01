@@ -34,6 +34,8 @@ import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
+import org.opensearch.analytics.spi.WindowFunction;
+import org.opensearch.analytics.spi.WindowFunctionAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -69,9 +71,8 @@ public class BackendPlanAdapter {
         }
         List<StagePlan> adapted = new ArrayList<>(stage.getPlanAlternatives().size());
         for (StagePlan plan : stage.getPlanAlternatives()) {
-            Map<ScalarFunction, ScalarFunctionAdapter> adapters = registry.getBackend(plan.backendId())
-                .getCapabilityProvider()
-                .scalarFunctionAdapters();
+            var capabilityProvider = registry.getBackend(plan.backendId()).getCapabilityProvider();
+            Adapters adapters = new Adapters(capabilityProvider.scalarFunctionAdapters(), capabilityProvider.windowFunctionAdapters());
             LOGGER.debug("Before adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(plan.resolvedFragment()));
             RelNode fragment = adaptNode(plan.resolvedFragment(), adapters);
             LOGGER.debug("After adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(fragment));
@@ -84,7 +85,11 @@ public class BackendPlanAdapter {
         stage.setPlanAlternatives(adapted);
     }
 
-    private static RelNode adaptNode(RelNode node, Map<ScalarFunction, ScalarFunctionAdapter> adapters) {
+    /** Backend-provided adapter maps, bundled so helper signatures stay narrow. */
+    private record Adapters(Map<ScalarFunction, ScalarFunctionAdapter> scalar, Map<WindowFunction, WindowFunctionAdapter> window) {
+    }
+
+    private static RelNode adaptNode(RelNode node, Adapters adapters) {
         List<RelNode> adaptedChildren = new ArrayList<>(node.getInputs().size());
         boolean childrenChanged = false;
         for (RelNode child : node.getInputs()) {
@@ -109,12 +114,7 @@ public class BackendPlanAdapter {
         return childrenChanged ? node.copy(node.getTraitSet(), adaptedChildren) : node;
     }
 
-    private static RelNode adaptFilter(
-        OpenSearchFilter filter,
-        Map<ScalarFunction, ScalarFunctionAdapter> adapters,
-        List<RelNode> adaptedChildren,
-        boolean childrenChanged
-    ) {
+    private static RelNode adaptFilter(OpenSearchFilter filter, Adapters adapters, List<RelNode> adaptedChildren, boolean childrenChanged) {
         List<FieldStorageInfo> fieldStorage = filter.getOutputFieldStorage();
         RexNode adaptedCondition = adaptRex(filter.getCondition(), adapters, fieldStorage, filter.getCluster());
         if (adaptedCondition != filter.getCondition() || childrenChanged) {
@@ -131,7 +131,7 @@ public class BackendPlanAdapter {
 
     private static RelNode adaptProject(
         OpenSearchProject project,
-        Map<ScalarFunction, ScalarFunctionAdapter> adapters,
+        Adapters adapters,
         List<RelNode> adaptedChildren,
         boolean childrenChanged
     ) {
@@ -181,12 +181,7 @@ public class BackendPlanAdapter {
      * <p>This ordering is validated by {@code testNestedAdaptedFunctionsProduceSingleCast}
      * which confirms {@code SIN(ABS($0))} with both adapted produces one CAST at the leaf.
      */
-    private static RexNode adaptRex(
-        RexNode node,
-        Map<ScalarFunction, ScalarFunctionAdapter> adapters,
-        List<FieldStorageInfo> fieldStorage,
-        RelOptCluster cluster
-    ) {
+    private static RexNode adaptRex(RexNode node, Adapters adapters, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         if (!(node instanceof RexCall call)) {
             return node;
         }
@@ -207,34 +202,70 @@ public class BackendPlanAdapter {
             if (adapted != operand) operandsChanged = true;
         }
 
-        // Window functions: adapter recursion has to descend into PARTITION BY / ORDER BY
-        // expressions too — they live on RexOver.window, not in getOperands(), and isthmus's
-        // WindowFunctionConverter walks them when emitting substrait. Without this,
-        // calls like SPAN that need a backend-specific rewrite (SPAN(field, n, NULL) →
-        // FLOOR(field/n)*n) survive into substrait emission carrying their NULL-typed
-        // operand and trip TypeConverter.
+        // PARTITION BY / ORDER BY expressions live on RexOver.window, not in getOperands(), so
+        // adapter recursion has to descend through adaptOver to reach them.
         if (call instanceof RexOver over) {
-            RexWindow window = over.getWindow();
-            List<RexNode> adaptedPartitionKeys = new ArrayList<>(window.partitionKeys.size());
-            boolean windowChanged = false;
-            for (RexNode key : window.partitionKeys) {
-                RexNode adapted = adaptRex(key, adapters, fieldStorage, cluster);
-                adaptedPartitionKeys.add(adapted);
-                if (adapted != key) windowChanged = true;
+            return adaptOver(over, adapters, fieldStorage, cluster, adaptedOperands, operandsChanged);
+        }
+
+        RexCall current = operandsChanged ? call.clone(call.getType(), adaptedOperands) : call;
+
+        // Look up adapter for this function
+        ScalarFunction function = resolveFunction(current);
+        if (function != null) {
+            ScalarFunctionAdapter adapter = adapters.scalar().get(function);
+            if (adapter != null) {
+                return adapter.adapt(current, fieldStorage, cluster);
             }
-            List<RexFieldCollation> adaptedOrderKeys = new ArrayList<>(window.orderKeys.size());
-            for (RexFieldCollation order : window.orderKeys) {
-                RexNode adapted = adaptRex(order.left, adapters, fieldStorage, cluster);
-                if (adapted != order.left) {
-                    adaptedOrderKeys.add(new RexFieldCollation(adapted, order.right));
-                    windowChanged = true;
-                } else {
-                    adaptedOrderKeys.add(order);
-                }
+        }
+
+        return current;
+    }
+
+    /**
+     * Adapt a {@link RexOver}: recurse into its PARTITION BY and ORDER BY (which live on
+     * {@link RexWindow}, not in {@code getOperands()}), then dispatch to the backend's
+     * {@link WindowFunctionAdapter} for this {@link WindowFunction} (if any) to rewrite the
+     * operator / operands / order keys into the backend's expected shape. Returns the original
+     * RexOver unchanged when nothing under it changed and no adapter applies.
+     */
+    private static RexNode adaptOver(
+        RexOver over,
+        Adapters adapters,
+        List<FieldStorageInfo> fieldStorage,
+        RelOptCluster cluster,
+        List<RexNode> adaptedOperands,
+        boolean operandsChanged
+    ) {
+        RexWindow window = over.getWindow();
+        List<RexNode> adaptedPartitionKeys = new ArrayList<>(window.partitionKeys.size());
+        boolean windowChanged = false;
+        for (RexNode key : window.partitionKeys) {
+            RexNode adapted = adaptRex(key, adapters, fieldStorage, cluster);
+            adaptedPartitionKeys.add(adapted);
+            if (adapted != key) windowChanged = true;
+        }
+        List<RexFieldCollation> adaptedOrderKeys = new ArrayList<>(window.orderKeys.size());
+        for (RexFieldCollation order : window.orderKeys) {
+            RexNode adapted = adaptRex(order.left, adapters, fieldStorage, cluster);
+            if (adapted != order.left) {
+                adaptedOrderKeys.add(new RexFieldCollation(adapted, order.right));
+                windowChanged = true;
+            } else {
+                adaptedOrderKeys.add(order);
             }
-            if (operandsChanged || windowChanged) {
-                RexBuilder rexBuilder = cluster.getRexBuilder();
-                return rexBuilder.makeOver(
+        }
+
+        // Backend-specific rewrites (e.g. ARG_MIN→FIRST_VALUE). Adapter sees already-adapted operands.
+        WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
+        WindowFunctionAdapter adapter = fn == null ? null : adapters.window().get(fn);
+        if (adapter != null) {
+            return adapter.adapt(over, adaptedOperands, adaptedPartitionKeys, adaptedOrderKeys, cluster);
+        }
+
+        if (operandsChanged || windowChanged) {
+            return cluster.getRexBuilder()
+                .makeOver(
                     over.getType(),
                     over.getAggOperator(),
                     adaptedOperands,
@@ -249,22 +280,8 @@ public class BackendPlanAdapter {
                     over.isDistinct(),
                     over.ignoreNulls()
                 );
-            }
-            return over;
         }
-
-        RexCall current = operandsChanged ? call.clone(call.getType(), adaptedOperands) : call;
-
-        // Look up adapter for this function
-        ScalarFunction function = resolveFunction(current);
-        if (function != null) {
-            ScalarFunctionAdapter adapter = adapters.get(function);
-            if (adapter != null) {
-                return adapter.adapt(current, fieldStorage, cluster);
-            }
-        }
-
-        return current;
+        return over;
     }
 
     private static ScalarFunction resolveFunction(RexCall call) {

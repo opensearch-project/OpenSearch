@@ -1177,37 +1177,156 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── distinct_count / dc — not in WindowFunction enum ──────────────────────
+    // ── distinct_count / dc ────────────────────────────────────────────────────
+    // BackendPlanAdapter rewrites RexOver(DISTINCT_COUNT_APPROX) → APPROX_COUNT_DISTINCT,
+    // and the DataFusion plugin's approx_count_distinct wrapper UDAF aliases that name to
+    // DataFusion's built-in approx_distinct (HyperLogLog). streamstats applies the aggregate
+    // over a UNBOUNDED PRECEDING / CURRENT ROW frame, so dc_* is a per-row running count of
+    // distinct non-null values seen so far in the partition. At calcs's scale (low cardinality)
+    // HLL is exact, so we can pin the exact running count.
+    //
+    // calcs.str3 is "e" on every non-null row → dc_str3 stays at 1 once the first non-null is
+    // seen. calcs.str0 has three values {FURNITURE, OFFICE SUPPLIES, TECHNOLOGY} appearing in
+    // that order (sorted by key), so dc_str0 walks 1 → 2 → 3.
 
     /** sql IT: testStreamstatsDistinctCount. */
     public void testStreamstatsDistinctCount() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats dc(str3) as dc_str3",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats dc(str3) as dc_str3 | fields key, str3, dc_str3"
+        );
+        // Running dc(str3): "e" on key00..03 → 1; nulls on key04..05 don't change count;
+        // "e" on key06..07 still 1; null on key08; "e" on key09..10; nulls on key11..13;
+        // "e" on key14..15; null on key16. Once the first non-null is seen, count is 1 forever.
+        assertRowsEqual(
+            response,
+            row("key00", "e",  1L),
+            row("key01", "e",  1L),
+            row("key02", "e",  1L),
+            row("key03", "e",  1L),
+            row("key04", null, 1L),
+            row("key05", null, 1L),
+            row("key06", "e",  1L),
+            row("key07", "e",  1L),
+            row("key08", null, 1L),
+            row("key09", "e",  1L),
+            row("key10", "e",  1L),
+            row("key11", null, 1L),
+            row("key12", null, 1L),
+            row("key13", null, 1L),
+            row("key14", "e",  1L),
+            row("key15", "e",  1L),
+            row("key16", null, 1L)
         );
     }
 
-    /** sql IT: testStreamstatsDistinctCountByCountry. */
+    /** sql IT: testStreamstatsDistinctCountByCountry. Per-partition running dc(str3).
+     *  FURNITURE (key00..01): "e" both → 1, 1.
+     *  OFFICE SUPPLIES (key02..07): "e","e","e",null,null,"e","e" → 1,1,1,1,1,1.
+     *  TECHNOLOGY (key08..16): null,"e","e",null,null,null,"e","e",null
+     *    → 0,1,1,1,1,1,1,1,1 (the leading null sees no non-null yet, so dc=0). */
     public void testStreamstatsDistinctCountByCountry() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats dc(str3) as dc_str3 by str0",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats dc(str3) as dc_str3 by str0 | fields key, str0, dc_str3"
+        );
+        assertRowsEqual(
+            response,
+            row("key00", "FURNITURE", 1L),
+            row("key01", "FURNITURE", 1L),
+            row("key02", "OFFICE SUPPLIES", 1L),
+            row("key03", "OFFICE SUPPLIES", 1L),
+            row("key04", "OFFICE SUPPLIES", 1L),
+            row("key05", "OFFICE SUPPLIES", 1L),
+            row("key06", "OFFICE SUPPLIES", 1L),
+            row("key07", "OFFICE SUPPLIES", 1L),
+            row("key08", "TECHNOLOGY", 0L),
+            row("key09", "TECHNOLOGY", 1L),
+            row("key10", "TECHNOLOGY", 1L),
+            row("key11", "TECHNOLOGY", 1L),
+            row("key12", "TECHNOLOGY", 1L),
+            row("key13", "TECHNOLOGY", 1L),
+            row("key14", "TECHNOLOGY", 1L),
+            row("key15", "TECHNOLOGY", 1L),
+            row("key16", "TECHNOLOGY", 1L)
         );
     }
 
-    /** sql IT: testStreamstatsDistinctCountFunction. */
+    /** sql IT: testStreamstatsDistinctCountFunction. {@code distinct_count()} alias for dc. */
     public void testStreamstatsDistinctCountFunction() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats distinct_count(str0) as dc_str0",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats distinct_count(str0) as dc_str0 | fields key, str0, dc_str0"
+        );
+        // Running dc(str0): FURNITURE×2 → 1,1; OFFICE×6 → 2,2,2,2,2,2; TECHNOLOGY×9 → 3,3,...
+        assertRowsEqual(
+            response,
+            row("key00", "FURNITURE", 1L),
+            row("key01", "FURNITURE", 1L),
+            row("key02", "OFFICE SUPPLIES", 2L),
+            row("key03", "OFFICE SUPPLIES", 2L),
+            row("key04", "OFFICE SUPPLIES", 2L),
+            row("key05", "OFFICE SUPPLIES", 2L),
+            row("key06", "OFFICE SUPPLIES", 2L),
+            row("key07", "OFFICE SUPPLIES", 2L),
+            row("key08", "TECHNOLOGY", 3L),
+            row("key09", "TECHNOLOGY", 3L),
+            row("key10", "TECHNOLOGY", 3L),
+            row("key11", "TECHNOLOGY", 3L),
+            row("key12", "TECHNOLOGY", 3L),
+            row("key13", "TECHNOLOGY", 3L),
+            row("key14", "TECHNOLOGY", 3L),
+            row("key15", "TECHNOLOGY", 3L),
+            row("key16", "TECHNOLOGY", 3L)
         );
     }
 
-    /** sql IT: testStreamstatsDistinctCountWithNull. */
+    /** sql IT: testStreamstatsDistinctCountWithNull. Same shape as
+     *  {@link #testStreamstatsDistinctCount} — sql-plugin's variant uses STATE_COUNTRY_WITH_NULL,
+     *  but this QA module only ships the {@code calcs} dataset (whose {@code str3} already has
+     *  7 nulls). */
     public void testStreamstatsDistinctCountWithNull() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats dc(str3) as dc_str3",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats dc(str3) as dc_str3 | fields key, str3, dc_str3"
+        );
+        assertRowsEqual(
+            response,
+            row("key00", "e",  1L),
+            row("key01", "e",  1L),
+            row("key02", "e",  1L),
+            row("key03", "e",  1L),
+            row("key04", null, 1L),
+            row("key05", null, 1L),
+            row("key06", "e",  1L),
+            row("key07", "e",  1L),
+            row("key08", null, 1L),
+            row("key09", "e",  1L),
+            row("key10", "e",  1L),
+            row("key11", null, 1L),
+            row("key12", null, 1L),
+            row("key13", null, 1L),
+            row("key14", "e",  1L),
+            row("key15", "e",  1L),
+            row("key16", null, 1L)
+        );
+    }
+
+    /** Multi-shard variant for streamstats dc by partition. Streamstats running aggregates
+     *  depend on input row-order; under multi-shard parallelism rows arrive at the
+     *  coordinator out of key order, so per-row running values are not deterministic.
+     *  Collapse the running stream to per-partition finals via {@code stats max(dc_str3) by str0}
+     *  — same shape as {@link #testStreamstatsBy_3shard}. The final dc per partition is 1
+     *  (each {@code str0} group has only the value "e" or null in {@code str3}; null is
+     *  skipped). HLL is exact at calcs's scale so {@code max(dc_str3)} matches single-shard. */
+    public void testStreamstatsDistinctCountByCountry_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName
+                + " | sort key | streamstats dc(str3) as dc_str3 by str0"
+                + " | stats max(dc_str3) as final_dc by str0 | sort str0"
+        );
+        assertRowsEqual(
+            response,
+            row(1L, "FURNITURE"),
+            row(1L, "OFFICE SUPPLIES"),
+            row(1L, "TECHNOLOGY")
         );
     }
 
