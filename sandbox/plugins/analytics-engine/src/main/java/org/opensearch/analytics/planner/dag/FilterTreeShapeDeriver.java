@@ -58,19 +58,14 @@ final class FilterTreeShapeDeriver {
      *
      * @param filter              the OpenSearchFilter with annotations intact
      * @param drivingBackendId    the filter operator's resolved backend
+     * @param fuseDualViable      mirrors the {@code analytics.delegation.fuse_dual_viable} cluster
+     *                            setting. When {@code true}, the combiner fuses OR-of-same-backend
+     *                            delegated leaves into a single {@code delegated_predicate} call
+     *                            wrapping the OR; the post-combiner tree the data node sees is
+     *                            conjunctive (one delegated scalar at the top level). This deriver
+     *                            walks the pre-combiner condition, so it must mirror that fusion
+     *                            to keep the data-node evaluator path classification consistent.
      * @return the tree shape, or {@code null} if no delegated annotations exist
-     */
-    static FilterTreeShape derive(OpenSearchFilter filter, String drivingBackendId) {
-        return derive(filter, drivingBackendId, false);
-    }
-
-    /**
-     * @param fuseDualViable mirrors the {@code analytics.delegation.fuse_dual_viable} cluster
-     *     setting. When {@code true}, the combiner fuses OR-of-same-backend performance leaves
-     *     into a single {@code delegation_possible} call wrapping the OR; the post-combiner
-     *     tree the data node sees is conjunctive (one delegated scalar at the top level).
-     *     This deriver walks the pre-combiner condition, so it must mirror that fusion to
-     *     keep the data-node evaluator path classification consistent.
      */
     static FilterTreeShape derive(OpenSearchFilter filter, String drivingBackendId, boolean fuseDualViable) {
         Result result = walk(filter.getCondition(), drivingBackendId, fuseDualViable);

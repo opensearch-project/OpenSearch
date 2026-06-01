@@ -57,6 +57,12 @@ dependencies {
     // only piece the reducer needs to be able to prost::decode.
     implementation "io.substrait:core:0.89.1"
 
+    // Arrow's Schema.class carries @JsonInclude / @JsonTypeInfo / @JsonProperty annotations.
+    // compileOnly so it doesn't bundle at runtime (Jackson is provided by server) but
+    // resolves on the javadoc classpath — without this, javadoc -Werror fails on unknown
+    // enum-constant warnings in transitive Arrow types.
+    compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 

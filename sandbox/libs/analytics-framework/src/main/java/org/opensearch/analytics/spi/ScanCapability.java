@@ -30,11 +30,11 @@ public sealed interface ScanCapability {
     }
 
     /**
-     * Inverted index — drives metadata-only ops (count today; group-by-count, top-K terms
-     * later) via the term dictionary. Cannot deliver row values; consumers needing values
-     * must check value-producing caps. Today only Lucene-secondary, for keyword/text/
-     * match_only_text.
+     * Index — drives metadata-only ops (count today; group-by-count, top-K terms later)
+     * via the index. Cannot deliver row values; consumers needing values must check
+     * value-producing caps. Today only Lucene's inverted index satisfies this, for
+     * keyword/text/match_only_text.
      */
-    record InvertedIndex(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {
+    record Index(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {
     }
 }

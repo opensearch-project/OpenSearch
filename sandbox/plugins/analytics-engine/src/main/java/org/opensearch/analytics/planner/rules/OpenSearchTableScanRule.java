@@ -101,7 +101,7 @@ public class OpenSearchTableScanRule extends RelOptRule {
         // TODO: today {@code "lucene"} is the only metadata-only driver, identified by
         // membership in the per-field {@code FieldStorageInfo.getIndexFormats()}. When a
         // second metadata-only backend (e.g. Tantivy) lands — or worse, a backend that
-        // declares both InvertedIndex AND DocValues — replace this hardcoded id with a
+        // declares both Index AND DocValues — replace this hardcoded id with a
         // first-class identifier on {@code BackendCapabilityProvider} (e.g. a "metadata
         // driver" marker) so the planner can tell them apart from value-producing peers
         // that happen to also have an inverted index. See
@@ -124,9 +124,9 @@ public class OpenSearchTableScanRule extends RelOptRule {
             List<String> dvBackends = registry.scanBackendsForField(field);
             // Index-scan viability must respect the backend's declared supported field types, not
             // just the field's indexFormats. A keyword field with indexFormats=[lucene] satisfies
-            // Lucene's InvertedIndex(supportedFieldTypes={KEYWORD, TEXT, MATCH_ONLY_TEXT}) cap;
+            // Lucene's Index(supportedFieldTypes={KEYWORD, TEXT, MATCH_ONLY_TEXT}) cap;
             // a numeric field with the same indexFormats does not — even though its values are
-            // physically in Lucene, no backend declares an InvertedIndex scan over numerics today.
+            // physically in Lucene, no backend declares an Index scan over numerics today.
             List<String> idxBackends = registry.indexScanBackendsForField(field);
             boolean idxCoversMetadataDriver = idxBackends.contains(metadataOnlyDriver);
             if (idxCoversMetadataDriver) {

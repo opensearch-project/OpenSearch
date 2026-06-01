@@ -93,22 +93,20 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     );
 
     /**
-     * When {@code true}, performance-delegated leaves (driver natively evaluable, peer also
-     * viable) fuse with their correctness-delegated siblings even under {@code OR} / {@code NOT}.
-     * The combiner ships the entire boolean structure as a single delegated expression instead
-     * of throwing the dual-viable leaves back to native.
+     * When {@code true} (default), performance-delegated leaves (driver natively evaluable,
+     * peer also viable) fuse with their correctness-delegated siblings even under {@code OR}
+     * / {@code NOT}. The combiner ships the entire boolean structure as a single delegated
+     * expression rather than throwing the dual-viable leaves back to native.
      *
-     * <p>Default {@code false} — the carve-out exists for a reason. Under {@code OR}, the
-     * {@code delegation_possible} pattern (driver evaluates natively, peer-consults
-     * opportunistically) is incorrect: the driver can't tell whether a peer miss means "this
-     * leaf didn't match" or "no leaf matched". Forcing fusion trades that semantic guarantee
-     * for fewer round-trips. Flip to {@code true} only when measurements show the peer's
-     * filter (e.g. Lucene's term dictionary) is decisively faster than the driver's column
-     * scan AND the workload's OR shape benefits from the consolidation.
+     * <p>Default {@code true} — Lucene's term-dictionary random access typically beats
+     * managing per-leaf bitsets in DataFusion, so fusing the OR/NOT into one peer call is
+     * the favorable choice for the common workload. Flip to {@code false} for A/B comparison
+     * or to roll back if a workload regresses (e.g. very wide OR over highly-selective
+     * leaves where the driver's column scan would short-circuit before Lucene completes).
      */
     public static final Setting<Boolean> DELEGATION_FUSE_DUAL_VIABLE = Setting.boolSetting(
         "analytics.delegation.fuse_dual_viable",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

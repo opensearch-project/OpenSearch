@@ -13,6 +13,7 @@ import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +28,7 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.be.lucene.serializers.AbstractQuerySerializer;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -34,6 +36,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import io.substrait.proto.NamedStruct;
+import io.substrait.proto.Plan;
+import io.substrait.proto.PlanRel;
+import io.substrait.proto.ReadRel;
+import io.substrait.proto.Rel;
+import io.substrait.proto.RelRoot;
+import io.substrait.proto.Type;
 
 /**
  * Lucene-as-driver {@link FragmentConvertor}. Walks the resolved fragment, finds the
@@ -152,7 +162,7 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
         // hasFilter + optional QueryBuilder tail. We then copy the tail verbatim into the new
         // bytes prefixed by the aggregate's column names.
         int tailOffset;
-        try (org.opensearch.core.common.io.stream.StreamInput in = org.opensearch.core.common.io.stream.StreamInput.wrap(innerBytes)) {
+        try (StreamInput in = StreamInput.wrap(innerBytes)) {
             in.readStringList(); // discard inner columnNames; we'll write the agg names instead
             tailOffset = innerBytes.length - in.available();
         } catch (IOException e) {
@@ -202,25 +212,24 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
         // count emission uses nullable Int64, so the stub's columns must say NULLABLE too. A
         // mismatch here used to silently hang at the partition stream (Rust registers a
         // NOT-NULL partition, runtime batches arrive nullable, drain stalls).
-        io.substrait.proto.Type.Struct.Builder structBuilder = io.substrait.proto.Type.Struct.newBuilder()
-            .setNullability(io.substrait.proto.Type.Nullability.NULLABILITY_REQUIRED);
-        io.substrait.proto.NamedStruct.Builder namedStructBuilder = io.substrait.proto.NamedStruct.newBuilder();
-        for (org.apache.calcite.rel.type.RelDataTypeField field : rowType.getFieldList()) {
+        Type.Struct.Builder structBuilder = Type.Struct.newBuilder().setNullability(Type.Nullability.NULLABILITY_REQUIRED);
+        NamedStruct.Builder namedStructBuilder = NamedStruct.newBuilder();
+        for (RelDataTypeField field : rowType.getFieldList()) {
             namedStructBuilder.addNames(field.getName());
             structBuilder.addTypes(toSubstraitType(field.getType()));
         }
         namedStructBuilder.setStruct(structBuilder.build());
 
-        io.substrait.proto.ReadRel readRel = io.substrait.proto.ReadRel.newBuilder()
-            .setNamedTable(io.substrait.proto.ReadRel.NamedTable.newBuilder().addNames("input-" + childStageId).build())
+        ReadRel readRel = ReadRel.newBuilder()
+            .setNamedTable(ReadRel.NamedTable.newBuilder().addNames("input-" + childStageId).build())
             .setBaseSchema(namedStructBuilder.build())
             .build();
-        io.substrait.proto.Rel inputRel = io.substrait.proto.Rel.newBuilder().setRead(readRel).build();
-        io.substrait.proto.PlanRel planRel = io.substrait.proto.PlanRel.newBuilder()
-            .setRoot(io.substrait.proto.RelRoot.newBuilder().setInput(inputRel).addAllNames(rowType.getFieldNames()).build())
+        Rel inputRel = Rel.newBuilder().setRead(readRel).build();
+        PlanRel planRel = PlanRel.newBuilder()
+            .setRoot(RelRoot.newBuilder().setInput(inputRel).addAllNames(rowType.getFieldNames()).build())
             .build();
 
-        byte[] bytes = io.substrait.proto.Plan.newBuilder().addRelations(planRel).build().toByteArray();
+        byte[] bytes = Plan.newBuilder().addRelations(planRel).build().toByteArray();
         LOGGER.debug(
             "[lucene-count] convertSchemaOnlyRead stage={} fields={} bytes={}",
             childStageId,
@@ -248,28 +257,18 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
      * <p>TODO: when Lucene-driver shapes beyond COUNT land (group-by-count keys), wire in a
      * proper Calcite→Substrait converter so the stub describes real producer schemas.
      */
-    private static io.substrait.proto.Type toSubstraitType(RelDataType type) {
+    private static Type toSubstraitType(RelDataType type) {
         // Always nullable to match LuceneSearchExecEngine.buildSchema's output. See class doc.
-        io.substrait.proto.Type.Nullability n = io.substrait.proto.Type.Nullability.NULLABILITY_NULLABLE;
+        Type.Nullability n = Type.Nullability.NULLABILITY_NULLABLE;
         return switch (type.getSqlTypeName()) {
-            case BIGINT -> io.substrait.proto.Type.newBuilder().setI64(io.substrait.proto.Type.I64.newBuilder().setNullability(n)).build();
-            case INTEGER -> io.substrait.proto.Type.newBuilder().setI32(io.substrait.proto.Type.I32.newBuilder().setNullability(n)).build();
-            case SMALLINT -> io.substrait.proto.Type.newBuilder()
-                .setI16(io.substrait.proto.Type.I16.newBuilder().setNullability(n))
-                .build();
-            case TINYINT -> io.substrait.proto.Type.newBuilder().setI8(io.substrait.proto.Type.I8.newBuilder().setNullability(n)).build();
-            case BOOLEAN -> io.substrait.proto.Type.newBuilder()
-                .setBool(io.substrait.proto.Type.Boolean.newBuilder().setNullability(n))
-                .build();
-            case DOUBLE -> io.substrait.proto.Type.newBuilder()
-                .setFp64(io.substrait.proto.Type.FP64.newBuilder().setNullability(n))
-                .build();
-            case FLOAT, REAL -> io.substrait.proto.Type.newBuilder()
-                .setFp32(io.substrait.proto.Type.FP32.newBuilder().setNullability(n))
-                .build();
-            case VARCHAR, CHAR -> io.substrait.proto.Type.newBuilder()
-                .setString(io.substrait.proto.Type.String.newBuilder().setNullability(n))
-                .build();
+            case BIGINT -> Type.newBuilder().setI64(Type.I64.newBuilder().setNullability(n)).build();
+            case INTEGER -> Type.newBuilder().setI32(Type.I32.newBuilder().setNullability(n)).build();
+            case SMALLINT -> Type.newBuilder().setI16(Type.I16.newBuilder().setNullability(n)).build();
+            case TINYINT -> Type.newBuilder().setI8(Type.I8.newBuilder().setNullability(n)).build();
+            case BOOLEAN -> Type.newBuilder().setBool(Type.Boolean.newBuilder().setNullability(n)).build();
+            case DOUBLE -> Type.newBuilder().setFp64(Type.FP64.newBuilder().setNullability(n)).build();
+            case FLOAT, REAL -> Type.newBuilder().setFp32(Type.FP32.newBuilder().setNullability(n)).build();
+            case VARCHAR, CHAR -> Type.newBuilder().setString(Type.String.newBuilder().setNullability(n)).build();
             default -> throw new IllegalStateException(
                 "Lucene convertSchemaOnlyRead: unmapped Calcite type " + type.getSqlTypeName() + " for field of type " + type
             );

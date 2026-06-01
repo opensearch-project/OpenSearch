@@ -174,6 +174,21 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
             oracleWhere(d -> d.userID.equals("u_a") && d.eventType.equals("click"))
         );
 
+        // EQUALS + MATCH on keyword + text — both Lucene-resolvable; combiner ships them as
+        // one fused BoolQueryBuilder. Picks up perf-delegation on the keyword leaf and
+        // correctness-delegation on the MATCH leaf in the same shape.
+        assertCount(
+            "where userID = 'u_a' AND match(message, 'alpha') | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_a") && tokenizedContains(d.message, "alpha"))
+        );
+
+        // OR mixing keyword EQUALS with MATCH — the combiner's OR/NOT carve-out behavior
+        // depends on the fuse_dual_viable setting; both modes must produce the same count.
+        assertCount(
+            "where userID = 'u_b' OR match(message, 'gamma') | stats count() as cnt",
+            oracleWhere(d -> d.userID.equals("u_b") || tokenizedContains(d.message, "gamma"))
+        );
+
         assertCount(
             "where region = 'us' AND event_type = 'view' | stats count() as cnt",
             oracleWhere(d -> d.region.equals("us") && d.eventType.equals("view"))
@@ -278,11 +293,23 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
 
         Map<String, Object> explain = executeExplain("source = " + INDEX + " | stats count(userID) as cnt");
         assertShardFragmentChoseBackend(explain, "datafusion");
+
+        // count(field) + correctness-delegated MATCH filter: Project/Filter narrow to DF, but
+        // the MATCH leaf delegates to Lucene per row group. Asserts both correctness and that
+        // the SHARD_FRAGMENT remains DataFusion-driven (delegation, not driver collapse).
+        assertCount(
+            "where match(message, 'alpha') | stats count(userID) as cnt",
+            oracleWhere(d -> tokenizedContains(d.message, "alpha"))
+        );
+        Map<String, Object> mixedExplain = executeExplain(
+            "source = " + INDEX + " | where match(message, 'alpha') | stats count(userID) as cnt"
+        );
+        assertShardFragmentChoseBackend(mixedExplain, "datafusion");
     }
 
     /**
      * {@code count(field)} on a numeric field where {@code amount} only has parquet doc values.
-     * Lucene's {@code InvertedIndex(supportedFieldTypes={KEYWORD, TEXT, MATCH_ONLY_TEXT})}
+     * Lucene's {@code Index(supportedFieldTypes={KEYWORD, TEXT, MATCH_ONLY_TEXT})}
      * doesn't cover LONG, so the planner never marks Lucene viable — the SHARD_FRAGMENT must
      * be DataFusion. Catches the planner-level regression where a numeric scan accidentally
      * picks Lucene because the field has {@code indexFormats=[lucene]} (BKD points).

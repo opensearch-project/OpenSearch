@@ -313,7 +313,13 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
 
-        // Default (fuse=false) — carve-out path
+        // Force prefer_metadata_driver=false so DataFusion drives the scan and the combiner
+        // actually runs. With prefer=true, Lucene-as-driver would take the OR end-to-end via
+        // its own BoolQueryBuilder, bypassing the combiner — and the OR-mixed-correctness+perf
+        // shape bug (combiner emitting OR(delegated_predicate, delegation_possible) which the
+        // SingleCollector evaluator misclassified as residual=true → 100% match) wouldn't be
+        // exercised here. This IT pins the combiner-side fix end-to-end.
+        setPreferMetadataDriver(false);
         setFuseDualViable(false);
         try {
             Map<String, Object> result = executePplViaShim(ppl);
@@ -321,15 +327,15 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
             List<List<Object>> rows = (List<List<Object>>) result.get("rows");
             assertEquals("fuse=false: count for OR(MATCH, EQUALS)", 10L, ((Number) rows.get(0).get(0)).longValue());
 
-            // fuse=true — entire boolean ships to peer
             setFuseDualViable(true);
             result = executePplViaShim(ppl);
             @SuppressWarnings("unchecked")
             List<List<Object>> rowsFused = (List<List<Object>>) result.get("rows");
             assertEquals("fuse=true: same count for OR(MATCH, EQUALS)", 10L, ((Number) rowsFused.get(0).get(0)).longValue());
         } finally {
-            // Restore to default so subsequent tests aren't affected.
+            // Restore to defaults so subsequent tests aren't affected.
             setFuseDualViable(false);
+            setPreferMetadataDriver(true);
         }
     }
 
@@ -358,6 +364,8 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
 
+        // Force DataFusion-as-driver (see sibling test for rationale).
+        setPreferMetadataDriver(false);
         setFuseDualViable(false);
         try {
             Map<String, Object> result = executePplViaShim(ppl);
@@ -372,12 +380,19 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
             assertEquals("fuse=true: same count for OR(perf, perf)", 20L, ((Number) rowsFused.get(0).get(0)).longValue());
         } finally {
             setFuseDualViable(false);
+            setPreferMetadataDriver(true);
         }
     }
 
     private void setFuseDualViable(boolean value) throws Exception {
         Request req = new Request("PUT", "/_cluster/settings");
         req.setJsonEntity("{\"persistent\":{\"analytics.delegation.fuse_dual_viable\": " + value + "}}");
+        client().performRequest(req);
+    }
+
+    private void setPreferMetadataDriver(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.planner.prefer_metadata_driver\": " + value + "}}");
         client().performRequest(req);
     }
 

@@ -9,8 +9,11 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.sql.SqlKind;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,7 +40,7 @@ import java.util.List;
  *
  * <p>TODO: today {@code "lucene"} is the only metadata-only driver and is identified by
  * backend id. When a second metadata-only backend lands (or a backend that declares both
- * InvertedIndex AND DocValues), replace this hardcoded id with a first-class identifier on
+ * Index AND DocValues), replace this hardcoded id with a first-class identifier on
  * {@code BackendCapabilityProvider} so the planner can pick "the metadata-only driver"
  * generically. See {@code OpenSearchTableScanRule} for the matching TODO.
  *
@@ -74,7 +77,7 @@ public final class PlanAlternativeSelector {
         // we dropped any Lucene alternative, persist the filtered list so the data-node
         // fallback can't silently pick a non-drivable Lucene plan.
         StagePlan drivableLucene = null;
-        List<StagePlan> survivors = new java.util.ArrayList<>(alternatives.size());
+        List<StagePlan> survivors = new ArrayList<>(alternatives.size());
         for (StagePlan plan : alternatives) {
             boolean isLucene = METADATA_ONLY_DRIVER.equals(plan.backendId());
             if (isLucene && canMetadataDriverExecute(plan.resolvedFragment()) == false) continue;
@@ -96,11 +99,24 @@ public final class PlanAlternativeSelector {
 
     /**
      * Lucene-as-driver only emits a single count value per shard — no grouping, no value
-     * materialization. Drivable fragments today are aggregates with an EMPTY group-set: a
-     * Calcite Aggregate's {@code groupSet.isEmpty()} means "count(*) over all rows", which
-     * Lucene's {@code IndexSearcher.count} answers directly. Anything else
-     * ({@code count() BY RegionID}, a bare {@code TableScan}, a Project, a Filter without
-     * a parent agg) needs row values or per-group values Lucene can't produce.
+     * materialization, no other aggregate functions. A fragment is drivable iff its top is
+     * an {@link OpenSearchAggregate} that:
+     * <ul>
+     *   <li>has an EMPTY group-set (no {@code BY} keys — Lucene can't materialise per-group
+     *       counts via {@code IndexSearcher.count});</li>
+     *   <li>contains only {@code COUNT} aggregate calls — {@code SUM}/{@code MIN}/{@code MAX}/
+     *       {@code AVG}/etc. need actual column values that Lucene's term dictionary can't
+     *       provide. The {@link SqlKind#COUNT COUNT} kind covers both
+     *       {@code count(*)} (no field arg) and {@code count(field)} (count of non-nulls).</li>
+     * </ul>
+     * Anything else (a bare {@code TableScan}, a Project, a Filter without a parent agg,
+     * a grouped count, a SUM) needs row values or per-group values Lucene can't produce.
+     *
+     * <p>Today's filter coverage is also enforced upstream: PlanForker's chain-agreement
+     * narrows aggregate alternatives to backends that declare the aggregate function as a
+     * capability (prod Lucene declares only COUNT). This predicate is a defense-in-depth
+     * guard so a future capability declaration drift doesn't accidentally route a non-COUNT
+     * aggregate through the Lucene-driver path.
      *
      * <p>TODO: this is a coordinator-side coupling — the selector decides what Lucene can
      * physically execute by inspecting RelNode shapes that really belong to the backend's
@@ -108,7 +124,14 @@ public final class PlanAlternativeSelector {
      * backend-owned predicate (e.g. {@code FragmentConvertor.canDriveFragment(RelNode)})
      * so each backend declares its own drivability rule and the selector stays generic.
      */
-    private static boolean canMetadataDriverExecute(RelNode fragment) {
-        return fragment instanceof OpenSearchAggregate agg && agg.getGroupSet().isEmpty();
+    // Package-private for tests — see PlanAlternativeSelectorTests.
+    static boolean canMetadataDriverExecute(RelNode fragment) {
+        if (fragment instanceof OpenSearchAggregate == false) return false;
+        OpenSearchAggregate agg = (OpenSearchAggregate) fragment;
+        if (agg.getGroupSet().isEmpty() == false) return false;
+        for (AggregateCall call : agg.getAggCallList()) {
+            if (call.getAggregation().getKind() != SqlKind.COUNT) return false;
+        }
+        return true;
     }
 }

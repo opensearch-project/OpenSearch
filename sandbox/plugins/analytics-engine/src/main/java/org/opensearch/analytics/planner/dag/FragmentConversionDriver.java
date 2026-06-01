@@ -77,13 +77,6 @@ public class FragmentConversionDriver {
     private FragmentConversionDriver() {}
 
     /**
-     * Backwards-compatible overload — equivalent to {@code convertAll(dag, registry, false)}.
-     */
-    public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
-        convertAll(dag, registry, false);
-    }
-
-    /**
      * Converts all {@link StagePlan} alternatives in the DAG, populating
      * {@link StagePlan#convertedBytes()} on each plan.
      *
@@ -194,8 +187,11 @@ public class FragmentConversionDriver {
             boolean changed = false;
             for (StagePlan plan : child.getPlanAlternatives()) {
                 FragmentConvertor convertor = registry.getBackend(plan.backendId()).getFragmentConvertor();
-                boolean nonSubstraitProducer = convertor.producesSubstraitFragments() == false;
-                if (schemaMismatch == false && nonSubstraitProducer == false) {
+                boolean producesSubstrait = convertor.producesSubstraitFragments();
+                // Stub needed when (a) the schema decorator widened the partition rowType, or
+                // (b) the producer doesn't speak Substrait — the reducer can't decode its
+                // convertedBytes for partition-schema derivation.
+                if (schemaMismatch == false && producesSubstrait) {
                     updated.add(plan);
                     continue;
                 }

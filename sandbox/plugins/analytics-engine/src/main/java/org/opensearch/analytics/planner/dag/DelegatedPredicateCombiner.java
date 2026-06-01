@@ -54,16 +54,6 @@ final class DelegatedPredicateCombiner {
         List<FieldStorageInfo> fieldStorage,
         CapabilityRegistry registry,
         RexBuilder rexBuilder,
-        List<DelegatedExpression> delegatedExpressions
-    ) {
-        this(operatorBackend, fieldStorage, registry, rexBuilder, delegatedExpressions, false);
-    }
-
-    DelegatedPredicateCombiner(
-        String operatorBackend,
-        List<FieldStorageInfo> fieldStorage,
-        CapabilityRegistry registry,
-        RexBuilder rexBuilder,
         List<DelegatedExpression> delegatedExpressions,
         boolean fuseDualViable
     ) {
@@ -157,7 +147,24 @@ final class DelegatedPredicateCombiner {
             return new Delegated(commonBackend, call, firstId, true);
         }
 
-        // Mixed: combine correctness-delegated into one expression, performance-delegated into another.
+        // Under OR/NOT with all-delegated same-backend children, the driver can't decompose the
+        // boolean into independently-evaluable arms — `delegation_possible` only composes under
+        // AND (driver evaluates the perf arm natively, peer is opportunistic). With a correctness
+        // sibling under OR, the driver can't evaluate at all, so the entire OR/NOT must ship to
+        // the peer as one delegated_predicate. Bubble up `call` itself; the parent's eventual
+        // `convertor.convertSubtree(call, ...)` walks the original AnnotatedPredicate operands
+        // and emits one BoolQuery (LuceneSubtreeConvertor handles AND/OR/NOT generically).
+        // Annotation id is "any one of the bubbled leaves" — same convention as the homogeneous
+        // bubble-up branches above; the (N-1) other ids become orphans (no placeholder and no
+        // DelegatedExpression references them since the OR collapses to one leaf at the top).
+        if (isOrNot && ordered.size() == correctnessChildren.size() + performanceChildren.size()) {
+            int firstId = correctnessChildren.getFirst().firstAnnotationId();
+            return new Delegated(commonBackend, call, firstId, false);
+        }
+
+        // Mixed under AND (or with native siblings under OR): combine correctness-delegated into
+        // one expression, performance-delegated into another. Driver evaluates perf natively and
+        // consults peer per-RG; correctness ships entirely.
         byte[] correctnessCombined = null;
         int correctnessFirstId = 0;
         if (!correctnessChildren.isEmpty()) {
@@ -309,7 +316,7 @@ final class DelegatedPredicateCombiner {
         if (delegatedChildren.size() == 1) {
             return delegatedChildren.getFirst().subtree();
         }
-        List<RexNode> subtrees = delegatedChildren.stream().map(Delegated::subtree).map(n -> (RexNode) n).toList();
+        List<RexNode> subtrees = delegatedChildren.stream().<RexNode>map(Delegated::subtree).toList();
         return call.clone(call.getType(), subtrees);
     }
 

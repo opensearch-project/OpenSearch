@@ -32,7 +32,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode nativePred = annotated(DRIVING);
         OpenSearchFilter filter = buildFilter(nativePred);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals("No delegation should return PLAIN", FilterTreeShape.NO_DELEGATION, shape);
     }
 
@@ -43,7 +43,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode andNode = rexBuilder.makeCall(SqlStdOperatorTable.AND, nativePred, delegated);
         OpenSearchFilter filter = buildFilter(andNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
@@ -55,7 +55,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode andNode = rexBuilder.makeCall(SqlStdOperatorTable.AND, nativePred, delegated1, delegated2);
         OpenSearchFilter filter = buildFilter(andNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
@@ -66,7 +66,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, nativePred, delegated);
         OpenSearchFilter filter = buildFilter(orNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
@@ -78,7 +78,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, andNode);
         OpenSearchFilter filter = buildFilter(notNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
@@ -92,7 +92,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode andNode = rexBuilder.makeCall(SqlStdOperatorTable.AND, nativePred, orNode);
         OpenSearchFilter filter = buildFilter(andNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
@@ -103,7 +103,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, delegated);
         OpenSearchFilter filter = buildFilter(notNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
@@ -130,7 +130,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, correctness, perf);
         OpenSearchFilter filter = buildFilter(orNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
@@ -141,7 +141,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode andNode = rexBuilder.makeCall(SqlStdOperatorTable.AND, correctness, perf);
         OpenSearchFilter filter = buildFilter(andNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
@@ -151,7 +151,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, perf);
         OpenSearchFilter filter = buildFilter(notNode);
 
-        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING, false);
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
@@ -159,9 +159,11 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
 
     /**
      * Same OR(correctness, perf) shape as {@link #testOrWithCorrectnessAndPerfDelegated} but
-     * with {@code fuseDualViable=true}: combiner fuses both buckets into a single
-     * {@code delegation_possible} call wrapping the OR, so the post-combiner tree is
-     * conjunctive from the data node's evaluator-classification perspective.
+     * with {@code fuseDualViable=true}: combiner fuses both delegated children (correctness ∪
+     * perf) into a single {@code delegated_predicate} placeholder wrapping the OR. The peer
+     * evaluates the whole boolean (driver can't decompose OR into independently-evaluable
+     * arms — {@code delegation_possible} only composes under AND). Post-combiner tree is a
+     * bare delegated leaf — conjunctive from the data-node evaluator's perspective.
      */
     public void testOrWithCorrectnessAndPerfDelegated_fused_isConjunctive() {
         RexNode correctness = annotated(ACCEPTING);

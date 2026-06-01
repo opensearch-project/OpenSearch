@@ -119,18 +119,18 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
 
     /**
      * Lucene-secondary indexes the term dictionary (inverted index) for the same field
-     * types it accepts filters on — keyword / text / match_only_text. The InvertedIndex
+     * types it accepts filters on — keyword / text / match_only_text. The Index
      * scan capability lets the planner mark Lucene viable as a driver for metadata-only
      * operations (count today, group-by-count and top-K terms in future) over scans whose
      * fields are listed here. It does NOT imply Lucene can deliver row values; consumers
      * needing values (Project, Sort) consult value-producing scan capabilities separately
      * and self-restrict, which the chain-agreement filter at PlanForker enforces.
      */
-    private static final Set<ScanCapability> SCAN_CAPS = Set.of(new ScanCapability.InvertedIndex(LUCENE_FORMATS, STANDARD_TYPES));
+    private static final Set<ScanCapability> SCAN_CAPS = Set.of(new ScanCapability.Index(LUCENE_FORMATS, STANDARD_TYPES));
 
     /**
      * Lucene drives count(*) and (in a follow-up) count(col) over fields it indexes.
-     * Coupled with the InvertedIndex scan capability above, this lets PlanForker emit a
+     * Coupled with the Index scan capability above, this lets PlanForker emit a
      * Lucene-driver StagePlan alternative for count-shaped fragments without bypassing
      * the existing engine path.
      */

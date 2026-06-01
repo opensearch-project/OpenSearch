@@ -86,7 +86,7 @@ import static org.mockito.Mockito.when;
  * Tests for {@link PlanAlternativeSelector} executed against the real {@link LuceneAnalyticsBackendPlugin}.
  *
  * <p>Lives in the lucene module (rather than analytics-engine) so the production capability surface
- * — {@code InvertedIndex} scan + standard filter + COUNT aggregate, declared only for keyword/text
+ * — {@code Index} scan + standard filter + COUNT aggregate, declared only for keyword/text
  * types — is consulted directly. If someone widens or narrows {@code STANDARD_TYPES} in the
  * production plugin, these tests catch the change without any mock to update.
  *
@@ -141,7 +141,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
     /**
      * Disqualified shape: {@code COUNT(*)} over an INTEGER field. Production Lucene's
-     * {@code InvertedIndex(supportedFieldTypes = {KEYWORD, TEXT, MATCH_ONLY_TEXT})} cap excludes
+     * {@code Index(supportedFieldTypes = {KEYWORD, TEXT, MATCH_ONLY_TEXT})} cap excludes
      * numerics, so the table-scan rule never marks Lucene viable — irrespective of the field's
      * {@code index} mapping setting.
      */
@@ -181,7 +181,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
     /**
      * Disqualified shape: {@code COUNT(*)} over a TEXT field with {@code index: false}. Even
-     * though the field's type is in Lucene's {@code InvertedIndex.supportedFieldTypes},
+     * though the field's type is in Lucene's {@code Index.supportedFieldTypes},
      * {@link FieldStorageResolver} leaves {@code indexFormats} empty when {@code index} is
      * explicitly false — Lucene has no inverted-index segment to drive a count against.
      */
