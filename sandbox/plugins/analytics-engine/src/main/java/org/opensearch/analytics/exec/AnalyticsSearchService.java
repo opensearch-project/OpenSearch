@@ -19,6 +19,7 @@ import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
@@ -120,6 +121,36 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
         this.taskResourceTrackingService = service;
+    }
+
+    /**
+     * Evaluates can-match for a shard by delegating to the backend which has
+     * the shard's file layout (via DatafusionReader / shard-view) and can check
+     * Parquet row-group statistics against the filter predicate.
+     *
+     * <p>The backend (DataFusion) already knows which Parquet segment files belong
+     * to the shard via its reader creation path. It iterates those files and calls
+     * the native can-match evaluator (Rust) for each.
+     */
+    public AnalyticsCanMatchResponse canMatch(IndexShard shard, byte[] filterBytes, String backendId) {
+        if (filterBytes == null || filterBytes.length == 0) {
+            return AnalyticsCanMatchResponse.YES;
+        }
+        AnalyticsSearchBackendPlugin backend = backends.get(backendId);
+        if (backend == null) {
+            return AnalyticsCanMatchResponse.YES;
+        }
+        try {
+            // TODO: pass shard path or ReaderProvider to the backend so it can resolve files.
+            // The DataFusion backend uses its CustomCacheManager which already has the file
+            // metadata cached keyed by path. The shard's data directory gives the base path;
+            // the backend lists segment .parquet files under it.
+            boolean matches = backend.canMatch(shard, filterBytes);
+            return matches ? AnalyticsCanMatchResponse.YES : AnalyticsCanMatchResponse.NO;
+        } catch (Exception e) {
+            LOGGER.warn("can-match evaluation failed for shard [{}], conservatively returning true", shard.shardId(), e);
+            return AnalyticsCanMatchResponse.YES;
+        }
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {

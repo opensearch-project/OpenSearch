@@ -114,6 +114,7 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
+    private static final MethodHandle CAN_MATCH;
     private static final MethodHandle FETCH_BY_ROW_IDS;
 
     static {
@@ -452,6 +453,23 @@ public final class NativeBridge {
         );
 
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
+        // i64 df_can_match(runtime_ptr, file_path_ptr, file_path_len, column_name_ptr, column_name_len, filter_min, filter_max)
+        // runtime_ptr is used to look up the cached parquet footer; pass 0 when no runtime
+        // is available (test paths) to fall back to opening the file each call.
+        CAN_MATCH = linker.downcallHandle(
+            lib.find("df_can_match").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
 
         // Hand the five filter-tree upcall stubs to Rust now. No explicit
         // caller step required — as soon as this class is loaded, callbacks
@@ -844,6 +862,23 @@ public final class NativeBridge {
     /** Fires the cancellation token for the given context. No-op if already completed. */
     public static void cancelQuery(long contextId) {
         NativeCall.invokeVoid(CANCEL_QUERY, contextId);
+    }
+
+    // ---- Can-match (Parquet row-group stats check) ----
+
+    /**
+     * Checks whether any row group in the given Parquet file has column statistics
+     * that overlap with the filter range [filterMin, filterMax]. Pass {@code runtimePtr}
+     * to short-circuit the per-call footer read when the runtime's file-metadata cache
+     * already holds the metadata; pass {@code 0L} to always open the file directly
+     * (used by tests / paths without a runtime).
+     */
+    public static long canMatch(long runtimePtr, String filePath, String columnName, long filterMin, long filterMax) {
+        try (var call = new NativeCall()) {
+            var fp = call.str(filePath);
+            var cn = call.str(columnName);
+            return call.invoke(CAN_MATCH, runtimePtr, fp.segment(), fp.len(), cn.segment(), cn.len(), filterMin, filterMax);
+        }
     }
 
     // ---- Stats collection ----

@@ -79,12 +79,21 @@ public class QueryScheduler implements Scheduler {
      * (shard fan-outs that want to bound the outbound-throttle queue depth). Skips dispatch
      * when {@code start()} transitions straight to a terminal (empty target resolution →
      * SUCCEEDED; concurrent cancel → CANCELLED).
+     *
+     * <p>{@code start()} may transition the stage to RUNNING asynchronously (e.g. shard
+     * fragments dispatch a can-match round-trip before publishing). We register a state
+     * listener BEFORE calling {@code start()} so the dispatch fires whether the transition
+     * is synchronous or async. Stage state transitions are CAS-protected, so the RUNNING
+     * transition fires the listener at most once — no caller-side de-dup needed.
      */
     void scheduleStage(StageExecution stage) {
+        stage.addStateListener((previous, target) -> {
+            if (target == StageExecution.State.RUNNING) {
+                logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
+                stage.dispatchTasks(this::handleFor);
+            }
+        });
         stage.start();
-        if (stage.getState() != StageExecution.State.RUNNING) return;
-        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
-        stage.dispatchTasks(this::handleFor);
     }
 
     /**

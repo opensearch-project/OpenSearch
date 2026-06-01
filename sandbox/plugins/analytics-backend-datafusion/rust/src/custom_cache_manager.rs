@@ -77,6 +77,11 @@ impl CustomCacheManager {
         self.statistics_cache.clone()
     }
 
+    /// Get the raw file metadata cache for direct access (can-match evaluation).
+    pub fn get_file_metadata_cache_raw(&self) -> Option<Arc<MutexFileMetadataCache>> {
+        self.file_metadata_cache.clone()
+    }
+
     /// Get the file metadata cache as Arc<dyn FileMetadataCache> for DataFusion
     pub fn get_file_metadata_cache_for_datafusion(&self) -> Option<Arc<dyn FileMetadataCache>> {
         self.file_metadata_cache.as_ref().map(|cache| cache.clone() as Arc<dyn FileMetadataCache>)

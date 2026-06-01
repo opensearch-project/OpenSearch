@@ -9,6 +9,8 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilterExtractor;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
@@ -47,6 +49,13 @@ public class Stage {
     private final ExchangeSinkProvider exchangeSinkProvider;
     private final TargetResolver targetResolver;
     private final StageExecutionType executionType;
+    /**
+     * Range-style predicates extracted from the fragment at construction time, suitable
+     * for can-match pre-filtering. Captured here because downstream rewrites (e.g.
+     * pushing filters into scan operators) may make {@link CanMatchFilterExtractor}
+     * unable to recover them by walking the fragment later.
+     */
+    private final List<CanMatchFilter> canMatchFilters;
     private List<StagePlan> planAlternatives;
     private FragmentInstructionHandlerFactory instructionHandlerFactory;
     /**
@@ -74,6 +83,10 @@ public class Stage {
         this.targetResolver = targetResolver;
         this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver, fragment);
         this.planAlternatives = List.of();
+        // Capture predicates now while the plan still carries them in a recognizable
+        // (OpenSearchFilter / Filter) shape. Empty list for stages with no extractable
+        // predicates — extractor never throws.
+        this.canMatchFilters = fragment == null ? List.of() : List.copyOf(CanMatchFilterExtractor.extract(fragment));
     }
 
     public int getStageId() {
@@ -120,6 +133,11 @@ public class Stage {
      */
     public StageExecutionType getExecutionType() {
         return executionType;
+    }
+
+    /** Captured at construction; see field doc. Empty when no extractable predicates exist. */
+    public List<CanMatchFilter> getCanMatchFilters() {
+        return canMatchFilters;
     }
 
     public List<StagePlan> getPlanAlternatives() {
