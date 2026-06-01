@@ -503,7 +503,8 @@ pub async unsafe fn execute_query(
 
     // Create per-query context — auto-registers in the global registry
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone());
+    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone(), query_tracker::QueryType::Shard);
+
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
@@ -1419,7 +1420,7 @@ pub async unsafe fn execute_local_plan(
     // Per-query memory tracking — wraps the session's global pool. A
     // `context_id` of 0 disables tracking (pool is not consulted) and no
     // cancellation token is registered in the global QUERY_REGISTRY.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
     let token = query_tracker::get_cancellation_token(context_id);
 
     // Race substrait planning + execution against the cancellation token so
@@ -1473,7 +1474,7 @@ pub unsafe fn execute_local_prepared_plan(
     // so a `cancel_query(context_id)` call fires the token here too.
     // The token is held via the QueryStreamHandle's context and consulted by
     // stream_next on each batch pull.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
     // stream channels that require a Tokio reactor. Enter the IO runtime's
