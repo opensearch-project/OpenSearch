@@ -24,7 +24,7 @@ import io.substrait.relation.Project;
 import io.substrait.type.NamedStruct;
 import io.substrait.type.TypeCreator;
 
-public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
+public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
 
     private static final TypeCreator R = TypeCreator.of(false);
 
@@ -39,7 +39,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
             .build();
 
         Plan plan = buildFilterPlan(literal);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
@@ -55,7 +55,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder().value(epochNanos).precision(9).nullable(false).build();
 
         Plan plan = buildFilterPlan(literal);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
@@ -74,7 +74,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
             .build();
 
         Plan plan = buildFilterPlan(literal);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
@@ -107,7 +107,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
             .build();
 
         Plan plan = buildFilterPlan(gtCall);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.ScalarFunctionInvocation);
@@ -126,7 +126,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
             .build();
 
         Plan plan = buildPlan(scan);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         NamedScan rewrittenScan = (NamedScan) rewritten.getRoots().get(0).getInput();
         assertEquals(List.of("parquet_dates"), rewrittenScan.getNames());
@@ -136,7 +136,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder().value(12345L).precision(4).nullable(false).build();
 
         Plan plan = buildFilterPlan(literal);
-        expectThrows(IllegalArgumentException.class, () -> SubstraitPlanRewriter.rewrite(plan));
+        expectThrows(IllegalArgumentException.class, () -> SubstraitPlanPojoRewriter.rewrite(plan));
     }
 
     // --- VarCharLiteral → StrLiteral tests ---
@@ -145,7 +145,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         Expression varcharLiteral = ImmutableExpression.VarCharLiteral.builder().value("Sum").length(3).nullable(false).build();
 
         Plan plan = buildFilterPlan(varcharLiteral);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue("Expected StrLiteral, got " + condition.getClass(), condition instanceof Expression.StrLiteral);
@@ -166,7 +166,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         Project project = Project.builder().input(scan).addExpressions(varcharLiteral).build();
 
         Plan plan = buildPlan(project);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Project rewrittenProject = (Project) rewritten.getRoots().get(0).getInput();
         Expression expr = rewrittenProject.getExpressions().get(0);
@@ -180,7 +180,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         Expression varcharLiteral = ImmutableExpression.VarCharLiteral.builder().value("nullable_value").length(14).nullable(true).build();
 
         Plan plan = buildFilterPlan(varcharLiteral);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.StrLiteral);
@@ -207,7 +207,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
             .build();
 
         Plan plan = buildFilterPlan(eqCall);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.ScalarFunctionInvocation);
@@ -232,7 +232,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         Project project = Project.builder().input(scan).addExpressions(varchar1, varchar2, varchar3).build();
 
         Plan plan = buildPlan(project);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Project rewrittenProject = (Project) rewritten.getRoots().get(0).getInput();
         List<Expression> expressions = rewrittenProject.getExpressions();
@@ -257,7 +257,7 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         Expression strLiteral = ImmutableExpression.StrLiteral.builder().value("already_string").nullable(false).build();
 
         Plan plan = buildFilterPlan(strLiteral);
-        Plan rewritten = SubstraitPlanRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
 
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.StrLiteral);
