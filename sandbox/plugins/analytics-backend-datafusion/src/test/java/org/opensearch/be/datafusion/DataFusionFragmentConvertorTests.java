@@ -293,6 +293,54 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
+     * Regression: a single Calcite {@link LogicalSort} carrying BOTH a collation and a {@code fetch}
+     * (PPL {@code sort x | head N}, which Calcite merges into one node) lowers via isthmus to
+     * {@code Fetch(Sort(input))} — two Substrait rels from one operator. {@code attachFragmentOnTop}
+     * must rewire the inner plan under the Sort, preserving {@code Fetch(Sort(inner))} so the global
+     * order is applied before the limit.
+     *
+     * <p>The earlier rewire replaced the Fetch's input directly, dropping the Sort and yielding
+     * {@code Fetch(inner)} — the limit then ran over an unordered concat-gather, so a multi-shard
+     * {@code sort | head N} returned the first N rows in arrival order instead of sorted order.
+     */
+    public void testAttachFragmentOnTop_SortWithFetch_PreservesSortUnderFetch() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: final-agg over stage-input (same shape as testAttachFragmentOnTop_Sort).
+        RelDataType stageRowType = rowType("A");
+        int childStageId = 3;
+        RelNode stageInput = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            childStageId,
+            stageRowType,
+            List.of("datafusion"),
+            List.of()
+        );
+        LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
+        byte[] innerBytes = convertor.convertFragment(finalAgg);
+
+        // Wrapper: ONE LogicalSort carrying a collation (order by col 0) AND a fetch (head 5).
+        // isthmus lowers this single node to Fetch(Sort(Read)); the rewire must keep the Sort.
+        RelNode placeholderInput = buildTableScan("__placeholder__", "sum_col");
+        RexNode fetchN = rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        LogicalSort sortLimit = LogicalSort.create(placeholderInput, RelCollations.of(0), null, fetchN);
+
+        byte[] combined = convertor.attachFragmentOnTop(sortLimit, innerBytes);
+
+        Plan plan = decodeSubstrait(combined);
+        Rel root = rootRel(plan);
+        assertTrue("root must be a FetchRel (the limit)", root.hasFetch());
+        Rel underFetch = root.getFetch().getInput();
+        assertTrue("Sort must be preserved under the Fetch (global order before the limit), not dropped", underFetch.hasSort());
+        Rel underSort = underFetch.getSort().getInput();
+        assertTrue("Sort input must be the rewired inner AggregateRel", underSort.hasAggregate());
+        Rel aggInput = underSort.getAggregate().getInput();
+        assertTrue("Agg input must be the inner ReadRel", aggInput.hasRead());
+        assertEquals(List.of("input-" + childStageId), aggInput.getRead().getNamedTable().getNamesList());
+    }
+
+    /**
      * Regression: {@code attachPartialAggOnTop} must populate {@code Plan.Root.names}
      * with the *wrapper aggregate's* output column names — not the inner scan's.
      * Using the inner's names causes DataFusion's substrait consumer to fail
