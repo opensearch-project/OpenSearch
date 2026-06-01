@@ -22,7 +22,13 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -215,6 +221,66 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         assertEquals("lucene", alternatives.getFirst().backendId());
     }
 
+    /**
+     * Depth-3: {@code COUNT(*) WHERE tag='a' OR region='eu' OR message MATCH 'x'}. All three
+     * leaves are Lucene-delegatable (two keyword EQUALS on distinct fields + one MATCH on
+     * text). Distinct fields prevent Calcite's SEARCH/Sarg fold. Lucene drives end-to-end
+     * via convertFragment; combiner not invoked.
+     */
+    public void testCountStarWithDepth3OrAllDelegatable_selectsLucene() {
+        TableScan scan = threeFieldScan();
+        RexNode tagA = equalsLit(0, SqlTypeName.VARCHAR, "a");
+        RexNode regionEu = equalsLit(2, SqlTypeName.VARCHAR, "eu");
+        RexNode matchX = matchOn(1, "x");
+        RexNode condition = rexBuilder.makeCall(SqlStdOperatorTable.OR, tagA, regionEu, matchX);
+        RelNode plan = aggregate(LogicalFilter.create(scan, condition), countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, threeFieldMappings(), true);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("lucene", alternatives.getFirst().backendId());
+    }
+
+    /**
+     * Depth-4: {@code COUNT(*) WHERE (tag='a' AND msg MATCH 'x') OR (region='eu' AND msg MATCH 'y')}.
+     * Nested AND inside OR, all four leaves Lucene-delegatable on distinct fields. Lucene
+     * drives end-to-end.
+     */
+    public void testCountStarWithDepth4NestedAndOrAllDelegatable_selectsLucene() {
+        TableScan scan = threeFieldScan();
+        RexNode left = rexBuilder.makeCall(SqlStdOperatorTable.AND, equalsLit(0, SqlTypeName.VARCHAR, "a"), matchOn(1, "x"));
+        RexNode right = rexBuilder.makeCall(SqlStdOperatorTable.AND, equalsLit(2, SqlTypeName.VARCHAR, "eu"), matchOn(1, "y"));
+        RexNode condition = rexBuilder.makeCall(SqlStdOperatorTable.OR, left, right);
+        RelNode plan = aggregate(LogicalFilter.create(scan, condition), countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, threeFieldMappings(), true);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("lucene", alternatives.getFirst().backendId());
+    }
+
+    /**
+     * 4-arm flat OR: {@code COUNT(*) WHERE tag='a' OR msg MATCH 'x' OR region='eu' OR msg MATCH 'y'}.
+     * Calcite flattens OR-of-ORs, so authoring nested ORs and a flat 4-arm OR produce the
+     * same Filter — all four leaves Lucene-delegatable on distinct fields. Lucene drives.
+     */
+    public void testCountStarWithFourArmOrAllDelegatable_selectsLucene() {
+        TableScan scan = threeFieldScan();
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.OR,
+            equalsLit(0, SqlTypeName.VARCHAR, "a"),
+            matchOn(1, "x"),
+            equalsLit(2, SqlTypeName.VARCHAR, "eu"),
+            matchOn(1, "y")
+        );
+        RelNode plan = aggregate(LogicalFilter.create(scan, condition), countStar(scan));
+        QueryDAG dag = forkAndSelect(plan, threeFieldMappings(), true);
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("lucene", alternatives.getFirst().backendId());
+    }
+
     // ---- Plan-execution helpers ----
 
     private QueryDAG forkAndSelect(RelNode plan, Map<String, Map<String, Object>> fieldMappings, boolean preferMetadataDriver) {
@@ -226,7 +292,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
-        PlanAlternativeSelector.selectAll(dag, preferMetadataDriver);
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), preferMetadataDriver);
         return dag;
     }
 
@@ -249,6 +315,47 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         when(table.getRowType()).thenReturn(rowType);
         return new TableScan(cluster, cluster.traitSet(), List.of(), table) {
         };
+    }
+
+    /** Three-field scan: tag (keyword), message (text), region (keyword). Distinct keyword
+     *  fields prevent Calcite's SEARCH/Sarg fold of multi-EQUALS-on-same-field. */
+    private TableScan threeFieldScan() {
+        RelDataTypeFactory.Builder builder = typeFactory.builder();
+        builder.add("tag", typeFactory.createSqlType(SqlTypeName.VARCHAR));
+        builder.add("message", typeFactory.createSqlType(SqlTypeName.VARCHAR));
+        builder.add("region", typeFactory.createSqlType(SqlTypeName.VARCHAR));
+        RelDataType rowType = builder.build();
+        RelOptTable table = mock(RelOptTable.class);
+        when(table.getQualifiedName()).thenReturn(List.of("test_index"));
+        when(table.getRowType()).thenReturn(rowType);
+        return new TableScan(cluster, cluster.traitSet(), List.of(), table) {
+        };
+    }
+
+    private RexNode equalsLit(int fieldIndex, SqlTypeName type, String value) {
+        return rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(type), fieldIndex),
+            rexBuilder.makeLiteral(value)
+        );
+    }
+
+    /** MATCH on a text-typed field; mirrors the SqlFunction shape used by other Lucene tests. */
+    private static final SqlOperator MATCH_FUNCTION = new SqlFunction(
+        "MATCH",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    private RexNode matchOn(int fieldIndex, String query) {
+        return rexBuilder.makeCall(
+            MATCH_FUNCTION,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), fieldIndex),
+            rexBuilder.makeLiteral(query)
+        );
     }
 
     private RelNode aggregate(RelNode input, AggregateCall... calls) {
@@ -279,6 +386,19 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
     private static Map<String, Map<String, Object>> nonIndexedTextMappings() {
         return Map.of("status", Map.of("type", "text", "index", false));
+    }
+
+    /** tag (keyword indexed), message (text indexed), region (keyword indexed) — all
+     *  Lucene-delegatable. */
+    private static Map<String, Map<String, Object>> threeFieldMappings() {
+        return Map.of(
+            "tag",
+            Map.of("type", "keyword", "index", true),
+            "message",
+            Map.of("type", "text", "index", true),
+            "region",
+            Map.of("type", "keyword", "index", true)
+        );
     }
 
     // ---- Cluster state / context ----

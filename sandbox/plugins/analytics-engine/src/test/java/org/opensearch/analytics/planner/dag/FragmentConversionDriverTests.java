@@ -605,6 +605,36 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         );
     }
 
+    /**
+     * Realistic prod-Lucene-shape DAG for the combiner shape matrix: two keyword fields
+     * (both perf-delegatable for EQUALS) plus a non-indexed integer for the native sibling.
+     * Mirrors prod Lucene's {@code STANDARD_TYPES = {KEYWORD, TEXT, MATCH_ONLY_TEXT}} —
+     * EQUALS-on-int is NOT a Lucene cap in prod even when the field has BKD points.
+     */
+    private QueryDAG buildKeywordPlusNativeDag(
+        RexNode condition,
+        RecordingConvertor dfConvertor,
+        RecordingSerializer serializer,
+        boolean fuseDualViable
+    ) {
+        return buildDelegationDag(
+            condition,
+            dfConvertor,
+            serializer,
+            new String[] { "tag", "message", "amount" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.VARCHAR, SqlTypeName.INTEGER },
+            Map.of(
+                "tag",
+                Map.of("type", "keyword", "index", true),
+                "message",
+                Map.of("type", "keyword", "index", true),
+                "amount",
+                Map.of("type", "integer", "index", false)
+            ),
+            fuseDualViable
+        );
+    }
+
     // ---- Shared delegation assertions ----
 
     private static Stage leafStage(QueryDAG dag) {
@@ -1530,6 +1560,115 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             "fuse=true 2-leaf OR(correctness, perf): exactly 1 delegated_predicate marker at top",
             1,
             countOccurrences(strippedPlan, "delegated_predicate")
+        );
+    }
+
+    /**
+     * Combiner shape matrix across AND/OR/NOT × fuse modes × native sibling presence.
+     * Each row pins the post-combiner shape via three counters:
+     * <ol>
+     *   <li>number of {@code DelegatedExpression} entries the data node receives,</li>
+     *   <li>number of {@code delegated_predicate(annotationId)} markers in the rebuilt
+     *       RexCall (peer evaluates these subtrees end-to-end),</li>
+     *   <li>number of {@code delegation_possible(original, annotationId)} markers (driver
+     *       evaluates the wrapped predicate natively, peer consulted opportunistically).</li>
+     * </ol>
+     *
+     * <p>fuse=true contract: dual-viable leaves classify as correctness everywhere, so
+     * {@code delegation_possible} never appears under fuse=true. Cross-bucket merging
+     * (correctness + dual-viable in the same boolean) collapses to a single
+     * {@code delegated_predicate} regardless of native siblings.
+     *
+     * <p>fuse=false contract: dual-viable leaves stay as performance-delegated under AND
+     * (one {@code delegation_possible} per leaf) but get carved back to native individually
+     * under OR/NOT. Native-only siblings stay native at the top of the rebuilt boolean.
+     *
+     * <p>Field setup (from {@code buildKeywordPlusNativeDag}, prod-Lucene-shaped):
+     * tag:keyword(index=true) and message:keyword(index=true) → both dual-viable for EQUALS
+     * (perf-delegated to Lucene); message also handles MATCH/FUZZY (Lucene-correctness);
+     * amount:int(index=false) → no Lucene format, native-only.
+     */
+    public void testCombinerShapeMatrix_andOrNot_withAndWithoutNativeSibling() {
+        // ── shapes ──────────────────────────────────────────────────────────
+        RexNode match = makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "hello");
+        RexNode notMatch = rexBuilder.makeCall(SqlStdOperatorTable.NOT, match);
+        RexNode fuzzy = makeFullTextCall(FUZZY_FUNCTION, 1, "wrld");
+        // EQUALS on tag (keyword, indexed) — dual-viable, perf-delegation candidate.
+        RexNode eqPerf = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
+            rexBuilder.makeLiteral("alpha")
+        );
+        // Distinct field for the second perf EQUALS so Calcite's SEARCH/Sarg rewrite
+        // doesn't fold them. message is also keyword(indexed) → dual-viable.
+        RexNode eqPerf2 = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 1),
+            rexBuilder.makeLiteral("hello")
+        );
+        // amount has index=false → no Lucene format → native-only.
+        RexNode nativeArm = makeEquals(2, SqlTypeName.INTEGER, 42);
+
+        // (label, condition, fuse=false expectation, fuse=true expectation)
+        Object[][] cases = {
+            // ── AND: dual-viable stays as delegation_possible per-leaf under fuse=false ──
+            { "AND(MATCH, EQUALS-perf)", makeAnd(match, eqPerf), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
+            { "AND(MATCH, EQUALS-perf, native)", makeAnd(match, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
+            { "AND(MATCH, native)", makeAnd(match, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+
+            // ── OR: dual-viable carves back to native under fuse=false ─────────
+            { "OR(MATCH, FUZZY)", or(match, fuzzy), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+            { "OR(EQUALS-perf, EQUALS-perf2)", or(eqPerf, eqPerf2), new int[] { 2, 0, 2 }, new int[] { 1, 1, 0 } },
+            { "OR(EQUALS-perf, EQUALS-perf2, native)", or(eqPerf, eqPerf2, nativeArm), new int[] { 2, 0, 2 }, new int[] { 1, 1, 0 } },
+            { "OR(MATCH, EQUALS-perf)", or(match, eqPerf), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
+            { "OR(MATCH, EQUALS-perf, native)", or(match, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
+            { "OR(MATCH, FUZZY, native)", or(match, fuzzy, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+            { "OR(MATCH, native)", or(match, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+
+            // ── NOT shapes (Calcite folds NOT(=) → ≠ pre-combiner, so no perf survives there) ──
+            { "NOT(MATCH)", rexBuilder.makeCall(SqlStdOperatorTable.NOT, match), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+            { "NOT(EQUALS-perf)", rexBuilder.makeCall(SqlStdOperatorTable.NOT, eqPerf), new int[] { 0, 0, 0 }, new int[] { 0, 0, 0 } },
+
+            // ── NOT inside boolean — the prod-bug shape from the OR-fuse fix ───
+            { "OR(NOT(MATCH), EQUALS-perf)", or(notMatch, eqPerf), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
+            { "OR(NOT(MATCH), EQUALS-perf, native)", or(notMatch, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
+            { "AND(NOT(MATCH), EQUALS-perf, native)", makeAnd(notMatch, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
+            { "OR(NOT(MATCH), native)", or(notMatch, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+            { "AND(NOT(MATCH), native)", makeAnd(notMatch, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } }, };
+
+        for (Object[] testCase : cases) {
+            String label = (String) testCase[0];
+            RexNode condition = (RexNode) testCase[1];
+            int[] expectedFalse = (int[]) testCase[2];
+            int[] expectedTrue = (int[]) testCase[3];
+            assertCombinerShape(label, condition, false, expectedFalse[0], expectedFalse[1], expectedFalse[2]);
+            assertCombinerShape(label, condition, true, expectedTrue[0], expectedTrue[1], expectedTrue[2]);
+        }
+    }
+
+    private void assertCombinerShape(
+        String label,
+        RexNode condition,
+        boolean fuse,
+        int expDelegatedExprs,
+        int expDelegatedPredicate,
+        int expDelegationPossible
+    ) {
+        RecordingConvertor c = new RecordingConvertor();
+        QueryDAG d = buildKeywordPlusNativeDag(condition, c, new RecordingSerializer(), fuse);
+        StagePlan p = leafStage(d).getPlanAlternatives().getFirst();
+        String stripped = RelOptUtil.toString(c.shardScanFragment);
+        String prefix = label + " fuse=" + fuse;
+        assertEquals(prefix + " — delegatedExpressions (plan: " + stripped + ")", expDelegatedExprs, p.delegatedExpressions().size());
+        assertEquals(
+            prefix + " — delegated_predicate markers (plan: " + stripped + ")",
+            expDelegatedPredicate,
+            countOccurrences(stripped, "delegated_predicate")
+        );
+        assertEquals(
+            prefix + " — delegation_possible markers (plan: " + stripped + ")",
+            expDelegationPossible,
+            countOccurrences(stripped, "delegation_possible")
         );
     }
 

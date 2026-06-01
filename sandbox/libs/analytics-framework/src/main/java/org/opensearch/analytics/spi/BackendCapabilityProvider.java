@@ -86,6 +86,15 @@ public interface BackendCapabilityProvider {
     }
 
     /**
+     * Drives stages using segment metadata only (term dictionary, BKD points) — no row
+     * materialization. Pairs with {@link FragmentConvertor#canDriveFragment} for the
+     * per-fragment yes/no.
+     */
+    default boolean isMetadataOnlyDriver() {
+        return false;
+    }
+
+    /**
      * Per-function adapters for transforming backend-agnostic scalar function RexCalls
      * into backend-compatible forms before fragment conversion. Keyed by {@link ScalarFunction}.
      * Applied regardless of operator context (filter, project, aggregate expression).

@@ -181,6 +181,13 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
                 return QuerySerializerRegistry.getSerializers();
             }
+
+            @Override
+            public boolean isMetadataOnlyDriver() {
+                // Lucene drives count via IndexSearcher.count, no row materialization.
+                // Per-fragment drivability lives in LuceneFragmentConvertor.canDriveFragment.
+                return true;
+            }
         };
     }
 

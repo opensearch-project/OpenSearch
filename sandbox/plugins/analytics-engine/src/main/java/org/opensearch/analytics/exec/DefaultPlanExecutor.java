@@ -195,7 +195,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
         // Collapse multi-backend stages to a single chosen alternative before conversion
         // so the convertor runs once per stage and the wire request carries one PlanAlternative.
-        PlanAlternativeSelector.selectAll(dag, preferMetadataDriver);
+        PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry, fuseDualViable);
         final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);

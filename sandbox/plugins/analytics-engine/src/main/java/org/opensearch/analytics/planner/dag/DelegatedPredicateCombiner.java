@@ -42,10 +42,12 @@ final class DelegatedPredicateCombiner {
     private final RexBuilder rexBuilder;
     private final List<DelegatedExpression> delegatedExpressions;
     /**
-     * When true, performance-delegated leaves stay in the delegation pool under OR/NOT
-     * (instead of being thrown back to native). Lets the entire boolean structure ship to
-     * the peer backend as one delegated expression. See
-     * {@code AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE} for the tradeoff.
+     * When true, dual-viable leaves are classified as correctness-delegated everywhere —
+     * the {@code delegation_possible} marker (driver-evaluates-natively + opportunistic peer
+     * consult) is not emitted under fuse=true. Result: one merged {@code delegated_predicate}
+     * ships the whole eligible subtree to the peer; the driver doesn't evaluate any
+     * delegatable arm itself. Trade-off: AND-side opportunistic optimization gone in
+     * exchange for cross-bucket merging under OR/NOT with native siblings.
      */
     private final boolean fuseDualViable;
 
@@ -74,7 +76,9 @@ final class DelegatedPredicateCombiner {
             } else if (!ap.getPerformanceDelegationBackends().isEmpty()) {
                 String peerBackend = ap.getPerformanceDelegationBackends().getFirst();
                 if (canSerialize(ap, peerBackend)) {
-                    return new Delegated(peerBackend, node, ap.getAnnotationId(), true);
+                    // Under fuseDualViable, demote perf to correctness so the leaf merges
+                    // freely with correctness siblings and ships entirely to the peer.
+                    return new Delegated(peerBackend, node, ap.getAnnotationId(), !fuseDualViable);
                 }
             }
             return new Resolved(applyFn.apply(ap));
@@ -108,12 +112,11 @@ final class DelegatedPredicateCombiner {
 
         for (Classified c : kids) {
             if (c instanceof Delegated d) {
-                // Under OR/NOT, performance-delegated leaves are thrown back to native by
-                // default — the {@code delegation_possible} pattern doesn't compose with
-                // disjunction (the driver can't tell "leaf didn't match" from "no leaf matched"
-                // when the peer misses). When {@code fuseDualViable} is on the carve-out is
-                // skipped so the entire boolean ships to the peer as one delegated expression.
-                if (isOrNot && d.performanceDelegation() && !fuseDualViable) {
+                // Under OR/NOT with fuse=false, perf-delegated leaves carve back to native:
+                // delegation_possible doesn't compose under disjunction (driver can't tell
+                // "leaf didn't match" from "no leaf matched when the peer missed"). Under
+                // fuse=true, classify() never emits perf, so this branch never fires.
+                if (isOrNot && d.performanceDelegation()) {
                     ordered.add(applyFn.apply((AnnotatedPredicate) d.subtree()));
                 } else {
                     (d.performanceDelegation() ? performanceChildren : correctnessChildren).add(d);
@@ -136,35 +139,18 @@ final class DelegatedPredicateCombiner {
         }
 
         if (ordered.size() == correctnessChildren.size() && performanceChildren.isEmpty()) {
-            // All children are correctness-delegated to the same backend — bubble up
+            // All children are correctness-delegated to the same backend — bubble up.
             int firstId = correctnessChildren.getFirst().firstAnnotationId();
             return new Delegated(commonBackend, call, firstId, false);
         }
 
-        if (ordered.size() == performanceChildren.size() && correctnessChildren.isEmpty()) {
-            // All children are performance-delegated to the same backend — bubble up
-            int firstId = performanceChildren.getFirst().firstAnnotationId();
-            return new Delegated(commonBackend, call, firstId, true);
-        }
-
-        // Under OR/NOT with all-delegated same-backend children, the driver can't decompose the
-        // boolean into independently-evaluable arms — `delegation_possible` only composes under
-        // AND (driver evaluates the perf arm natively, peer is opportunistic). With a correctness
-        // sibling under OR, the driver can't evaluate at all, so the entire OR/NOT must ship to
-        // the peer as one delegated_predicate. Bubble up `call` itself; the parent's eventual
-        // `convertor.convertSubtree(call, ...)` walks the original AnnotatedPredicate operands
-        // and emits one BoolQuery (LuceneSubtreeConvertor handles AND/OR/NOT generically).
-        // Annotation id is "any one of the bubbled leaves" — same convention as the homogeneous
-        // bubble-up branches above; the (N-1) other ids become orphans (no placeholder and no
-        // DelegatedExpression references them since the OR collapses to one leaf at the top).
-        if (isOrNot && ordered.size() == correctnessChildren.size() + performanceChildren.size()) {
-            int firstId = correctnessChildren.getFirst().firstAnnotationId();
-            return new Delegated(commonBackend, call, firstId, false);
-        }
-
-        // Mixed under AND (or with native siblings under OR): combine correctness-delegated into
-        // one expression, performance-delegated into another. Driver evaluates perf natively and
-        // consults peer per-RG; correctness ships entirely.
+        // Mixed: combine correctness-delegated into one delegated_predicate. Performance-
+        // delegated children stay as individual delegation_possible markers so the driver
+        // can evaluate each leaf natively + opportunistically consult the peer per-leaf —
+        // bubbling them up into a single combined delegation_possible would lose that
+        // per-leaf semantic. Reachable only under fuse=false + AND (OR/NOT carved perf out
+        // above; fuse=true never classifies perf in the first place). Native siblings stay
+        // native at the top of the rebuilt boolean.
         byte[] correctnessCombined = null;
         int correctnessFirstId = 0;
         if (!correctnessChildren.isEmpty()) {
@@ -257,45 +243,25 @@ final class DelegatedPredicateCombiner {
 
     /**
      * Returns the appropriate placeholder for a delegated predicate:
-     * - {@link DelegatedPredicateFunction} for correctness-delegation (driving backend cannot evaluate)
-     * - {@link DelegationPossibleFunction} for performance-delegation (driving backend can evaluate natively,
-     *   peer consulted opportunistically)
+     * <ul>
+     *   <li>{@link DelegatedPredicateFunction} for correctness-delegation (driving backend
+     *       cannot evaluate; peer runs the predicate)</li>
+     *   <li>{@link DelegationPossibleFunction} for performance-delegation (driving backend
+     *       evaluates natively, peer consulted opportunistically per-RG)</li>
+     * </ul>
      *
-     * <p>{@link Delegated#subtree()} is either a single {@link AnnotatedPredicate} (leaf
-     * case) or a raw {@code RexCall} that bubbled up an AND/OR/NOT of same-backend children
-     * (the bubble branches in {@link #classify}). The driving backend evaluates the unwrapped
-     * expression natively, so every {@code AnnotatedPredicate} marker — leaf or under a
-     * bubbled AND/OR — has to come off before the placeholder is built.
+     * <p>The performance-delegation branch only sees a leaf {@link AnnotatedPredicate} —
+     * perf children are never bubbled up into a multi-leaf subtree (that would lose the
+     * per-leaf semantic of {@code delegation_possible}). Correctness-delegation can carry a
+     * bubbled-up subtree, but the placeholder only references the annotation id, not the
+     * subtree contents.
      */
     RexNode makePlaceholder(Delegated d) {
         if (d.performanceDelegation()) {
-            RexNode original = unwrapAnnotations(d.subtree());
+            RexNode original = ((AnnotatedPredicate) d.subtree()).unwrap();
             return DelegationPossibleFunction.makeCall(rexBuilder, original, d.firstAnnotationId());
         }
         return DelegatedPredicateFunction.makeCall(rexBuilder, d.firstAnnotationId());
-    }
-
-    /**
-     * Recursively strips {@link AnnotatedPredicate} wrappers from a RexNode tree. AND/OR/NOT
-     * are reconstructed with unwrapped operands; bare RexCalls that aren't AnnotatedPredicates
-     * pass through. Without this the driving backend's Substrait converter (e.g. Isthmus)
-     * trips on the unknown {@code ANNOTATED_PREDICATE} SqlOperator.
-     */
-    private RexNode unwrapAnnotations(RexNode node) {
-        if (node instanceof AnnotatedPredicate ap) {
-            return ap.unwrap();
-        }
-        if (node instanceof RexCall call) {
-            List<RexNode> unwrapped = new ArrayList<>(call.getOperands().size());
-            boolean changed = false;
-            for (RexNode op : call.getOperands()) {
-                RexNode u = unwrapAnnotations(op);
-                if (u != op) changed = true;
-                unwrapped.add(u);
-            }
-            return changed ? call.clone(call.getType(), unwrapped) : call;
-        }
-        return node;
     }
 
     /** Checks if the peer backend has a serializer for this predicate's function. */

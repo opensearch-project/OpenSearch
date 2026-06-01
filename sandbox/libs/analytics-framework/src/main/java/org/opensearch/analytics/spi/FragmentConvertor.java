@@ -108,4 +108,14 @@ public interface FragmentConvertor {
     default boolean producesSubstraitFragments() {
         return true;
     }
+
+    /**
+     * Whether this convertor can drive {@code fragment} end-to-end without materializing
+     * rows. Consulted only when {@link BackendCapabilityProvider#isMetadataOnlyDriver()} is
+     * true; value-producing backends ignore this. Default {@code false} — opt in by
+     * overriding when the convertor can compile the fragment with metadata-only access.
+     */
+    default boolean canDriveFragment(RelNode fragment) {
+        return false;
+    }
 }

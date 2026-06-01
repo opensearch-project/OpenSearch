@@ -293,95 +293,92 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * OR(perf-delegated EQUALS, correctness-delegated MATCH) executed twice with
-     * {@code analytics.delegation.fuse_dual_viable} flipped between false and true.
-     *
-     * <ul>
-     *   <li>{@code fuse=false} (default) — combiner carve-out: dual-viable EQUALS stays
-     *       native via {@code delegation_possible}, MATCH ships as one delegated expression.</li>
-     *   <li>{@code fuse=true} — perf + correctness leaves both ship to the peer; driver no
-     *       longer carries the {@code delegation_possible} marker for the EQUALS leaf.</li>
-     * </ul>
-     *
-     * Both paths must produce identical row counts. Oracle: 10 docs match
-     * {@code match(message,'hello')} AND 10 docs match {@code tag='hello'} (same 10 docs);
-     * union = 10.
+     * OR(MATCH on text, EQUALS on keyword), oracle = 10. Both arms are Lucene-delegatable.
+     * Under {@code prefer=true} Lucene drives end-to-end (combiner skipped, no tree_shape).
+     * Under {@code prefer=false} the combiner runs: {@code fuse=false} keeps
+     * {@code OR(delegated_predicate, delegation_possible)} as INTERLEAVED; {@code fuse=true}
+     * collapses to a single {@code delegated_predicate} as CONJUNCTIVE.
      */
-    public void testOrCorrectnessAndPerf_fuseDualViable_bothModes() throws Exception {
+    public void testOrCorrectnessAndPerf_fuseDualViable() throws Exception {
         createIndex();
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
+        Map<MatrixKey, ShardStage> expected = Map.of(
+            new MatrixKey(true, false), new ShardStage("lucene", null),
+            new MatrixKey(true, true), new ShardStage("lucene", null),
+            new MatrixKey(false, false), new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
+            new MatrixKey(false, true), new ShardStage("datafusion", "CONJUNCTIVE")
+        );
+        runFuseMatrix(ppl, 10L, expected);
+    }
 
-        // Force prefer_metadata_driver=false so DataFusion drives the scan and the combiner
-        // actually runs. With prefer=true, Lucene-as-driver would take the OR end-to-end via
-        // its own BoolQueryBuilder, bypassing the combiner — and the OR-mixed-correctness+perf
-        // shape bug (combiner emitting OR(delegated_predicate, delegation_possible) which the
-        // SingleCollector evaluator misclassified as residual=true → 100% match) wouldn't be
-        // exercised here. This IT pins the combiner-side fix end-to-end.
-        setPreferMetadataDriver(false);
-        setFuseDualViable(false);
+    /**
+     * OR(EQUALS on keyword, EQUALS on integer), oracle = 20. The integer arm isn't
+     * Lucene-filterable, so the planner picks DataFusion in every cell, and the OR has a
+     * non-delegatable sibling which keeps the shape INTERLEAVED in both fuse modes.
+     */
+    public void testOrTwoPerf_fuseDualViable() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
+        ShardStage interleavedDf = new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+        Map<MatrixKey, ShardStage> expected = Map.of(
+            new MatrixKey(true, false), interleavedDf,
+            new MatrixKey(true, true), interleavedDf,
+            new MatrixKey(false, false), interleavedDf,
+            new MatrixKey(false, true), interleavedDf
+        );
+        runFuseMatrix(ppl, 20L, expected);
+    }
+
+    /** Cluster-setting combination: ({@code prefer_metadata_driver}, {@code fuse_dual_viable}). */
+    private record MatrixKey(boolean prefer, boolean fuse) {}
+
+    /** Asserted SHARD_FRAGMENT profile fields. {@code treeShape == null} means the field
+     *  must be absent (Lucene-as-driver has no delegation instruction). */
+    private record ShardStage(String chosenBackend, String treeShape) {}
+
+    private void runFuseMatrix(String ppl, long oracle, Map<MatrixKey, ShardStage> expected) throws Exception {
         try {
-            Map<String, Object> result = executePplViaShim(ppl);
-            @SuppressWarnings("unchecked")
-            List<List<Object>> rows = (List<List<Object>>) result.get("rows");
-            assertEquals("fuse=false: count for OR(MATCH, EQUALS)", 10L, ((Number) rows.get(0).get(0)).longValue());
+            for (Map.Entry<MatrixKey, ShardStage> entry : expected.entrySet()) {
+                MatrixKey key = entry.getKey();
+                ShardStage want = entry.getValue();
+                setPreferMetadataDriver(key.prefer());
+                setFuseDualViable(key.fuse());
 
-            setFuseDualViable(true);
-            result = executePplViaShim(ppl);
-            @SuppressWarnings("unchecked")
-            List<List<Object>> rowsFused = (List<List<Object>>) result.get("rows");
-            assertEquals("fuse=true: same count for OR(MATCH, EQUALS)", 10L, ((Number) rowsFused.get(0).get(0)).longValue());
+                String label = "prefer=" + key.prefer() + ",fuse=" + key.fuse();
+                assertEquals(label + " — count", oracle, executeCount(ppl));
+                Map<String, Object> stage = shardFragmentStage(ppl);
+                assertEquals(label + " — chosen_backend", want.chosenBackend(), stage.get("chosen_backend"));
+                assertEquals(label + " — tree_shape", want.treeShape(), stage.get("tree_shape"));
+            }
         } finally {
-            // Restore to defaults so subsequent tests aren't affected.
             setFuseDualViable(false);
             setPreferMetadataDriver(true);
         }
     }
 
-    /**
-     * Two performance-delegated EQUALS predicates under OR — the case where the
-     * {@code FilterTreeShape} differs by fuse mode:
-     *
-     * <ul>
-     *   <li>{@code fuse=false} — carve-out throws each perf leaf back individually:
-     *       {@code OR(delegation_possible(tag='hello'), delegation_possible(value=3))}.
-     *       Tree shape INTERLEAVED → data node uses the bitmap-tree evaluator.</li>
-     *   <li>{@code fuse=true} — combiner fuses both into a single
-     *       {@code delegation_possible(OR(tag='hello', value=3))}. Tree shape CONJUNCTIVE →
-     *       data node uses the single-collector evaluator. Without the deriver fix the
-     *       shape stays INTERLEAVED while the actual tree is conjunctive — Rust's classifier
-     *       picks the wrong evaluator path and either silently mis-selects or panics on
-     *       unimplemented cases.</li>
-     * </ul>
-     *
-     * Both modes must produce the same correct row count: 10 docs with
-     * {@code tag='hello'} (and {@code value=5}) plus 10 docs with {@code value=3} = 20.
-     */
-    public void testOrTwoPerf_fuseDualViable_bothModes() throws Exception {
-        createIndex();
-        indexDocs();
+    private long executeCount(String ppl) throws Exception {
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        return ((Number) rows.get(0).get(0)).longValue();
+    }
 
-        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
-
-        // Force DataFusion-as-driver (see sibling test for rationale).
-        setPreferMetadataDriver(false);
-        setFuseDualViable(false);
-        try {
-            Map<String, Object> result = executePplViaShim(ppl);
-            @SuppressWarnings("unchecked")
-            List<List<Object>> rows = (List<List<Object>>) result.get("rows");
-            assertEquals("fuse=false: count for OR(perf, perf)", 20L, ((Number) rows.get(0).get(0)).longValue());
-
-            setFuseDualViable(true);
-            result = executePplViaShim(ppl);
-            @SuppressWarnings("unchecked")
-            List<List<Object>> rowsFused = (List<List<Object>>) result.get("rows");
-            assertEquals("fuse=true: same count for OR(perf, perf)", 20L, ((Number) rowsFused.get(0).get(0)).longValue());
-        } finally {
-            setFuseDualViable(false);
-            setPreferMetadataDriver(true);
+    private Map<String, Object> shardFragmentStage(String ppl) throws Exception {
+        Request request = new Request("POST", "/_analytics/ppl/_explain");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Map<String, Object> explain = assertOkAndParse(client().performRequest(request), "EXPLAIN: " + ppl);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        for (Map<String, Object> stage : stages) {
+            if ("SHARD_FRAGMENT".equals(stage.get("execution_type"))) return stage;
         }
+        throw new AssertionError("No SHARD_FRAGMENT stage in profile: " + stages);
     }
 
     private void setFuseDualViable(boolean value) throws Exception {

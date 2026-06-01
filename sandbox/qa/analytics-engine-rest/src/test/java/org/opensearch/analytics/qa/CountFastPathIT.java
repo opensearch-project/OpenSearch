@@ -169,10 +169,11 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         createIndex();
         ingestThreeSegments();
 
-        assertCount(
-            "where userID = 'u_a' AND event_type = 'click' | stats count() as cnt",
-            oracleWhere(d -> d.userID.equals("u_a") && d.eventType.equals("click"))
-        );
+        // AND of two keyword EQUALS — fully Lucene-driven, combiner not invoked.
+        String andPpl = "where userID = 'u_a' AND event_type = 'click' | stats count() as cnt";
+        assertCount(andPpl, oracleWhere(d -> d.userID.equals("u_a") && d.eventType.equals("click")));
+        Map<String, Object> andExplain = executeExplain("source = " + INDEX + " | " + andPpl);
+        assertShardFragmentChoseBackend(andExplain, "lucene");
 
         // EQUALS + MATCH on keyword + text — both Lucene-resolvable; combiner ships them as
         // one fused BoolQueryBuilder. Picks up perf-delegation on the keyword leaf and
@@ -254,10 +255,10 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         ingestThreeSegments();
 
         // 'alpha' appears in many docs; oracle counts whitespace-tokenised occurrences.
-        assertCount(
-            "where match(message, 'alpha') | stats count() as cnt",
-            oracleWhere(d -> tokenizedContains(d.message, "alpha"))
-        );
+        String alphaPpl = "where match(message, 'alpha') | stats count() as cnt";
+        assertCount(alphaPpl, oracleWhere(d -> tokenizedContains(d.message, "alpha")));
+        Map<String, Object> alphaExplain = executeExplain("source = " + INDEX + " | " + alphaPpl);
+        assertShardFragmentChoseBackend(alphaExplain, "lucene");
 
         // Term that's present in fewer docs.
         assertCount(
@@ -347,6 +348,11 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
         Map<String, Object> explain = executeExplain("source = " + INDEX + " | stats count() as cnt");
         assertShardFragmentChoseBackend(explain, "lucene");
         assertCoordinatorReduceChoseBackend(explain, "datafusion");
+        // No WHERE clause → no delegation instruction → tree_shape must be absent on both
+        // stages. Pins that the multi-shard reducer path doesn't accidentally synthesize a
+        // FilterDelegationInstructionNode where there's no filter to delegate.
+        assertStageHasNoTreeShape(explain, "SHARD_FRAGMENT");
+        assertStageHasNoTreeShape(explain, "COORDINATOR_REDUCE");
     }
 
     // ── Explain helpers ─────────────────────────────────────────────────────
@@ -381,6 +387,20 @@ public class CountFastPathIT extends AnalyticsRestTestCase {
                     expectedBackend,
                     stage.get("chosen_backend")
                 );
+                return;
+            }
+        }
+        fail("No " + executionType + " stage in profile: " + stages);
+    }
+
+    /** Asserts the named stage has no {@code tree_shape} field — i.e. no delegation instruction. */
+    @SuppressWarnings("unchecked")
+    private static void assertStageHasNoTreeShape(Map<String, Object> explain, String executionType) {
+        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        for (Map<String, Object> stage : stages) {
+            if (executionType.equals(stage.get("execution_type"))) {
+                assertNull(executionType + " unexpectedly carries tree_shape (full stage: " + stage + ")", stage.get("tree_shape"));
                 return;
             }
         }

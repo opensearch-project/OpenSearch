@@ -17,6 +17,9 @@ import org.opensearch.analytics.exec.stage.StageTask;
 import org.opensearch.analytics.exec.stage.shard.ShardStageTask;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
+import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +62,7 @@ public final class QueryProfileBuilder {
             String chosenBackend = stage != null && stage.getPlanAlternatives().isEmpty() == false
                 ? stage.getPlanAlternatives().getFirst().backendId()
                 : null;
+            String treeShape = stage != null ? extractTreeShape(stage) : null;
 
             List<TaskProfile> taskProfiles = buildTaskProfiles(exec);
             long tasksCompleted = taskProfiles.stream().filter(t -> "FINISHED".equals(t.state())).count();
@@ -78,6 +82,7 @@ public final class QueryProfileBuilder {
                     tasksFailed,
                     fragment,
                     chosenBackend,
+                    treeShape,
                     taskProfiles
                 )
             );
@@ -119,6 +124,20 @@ public final class QueryProfileBuilder {
             if (line.isEmpty() == false) out.add(line);
         }
         return out;
+    }
+
+    /**
+     * Returns the {@code FilterTreeShape} carried by the stage's chosen plan's delegation
+     * instruction (filter or shard-scan-with-delegation). Stages without a delegation-bearing
+     * instruction (no filter, or a coord stage with no shard scan) return {@code null} — the
+     * shape concept doesn't apply to them. This reads from the post-selector first plan.
+     */
+    private static String extractTreeShape(Stage stage) {
+        for (InstructionNode node : stage.getPlanAlternatives().getFirst().instructions()) {
+            if (node instanceof FilterDelegationInstructionNode f) return f.getTreeShape().name();
+            if (node instanceof ShardScanWithDelegationInstructionNode s) return s.getTreeShape().name();
+        }
+        return null;
     }
 
     private static Stage findStageById(Stage root, int stageId) {

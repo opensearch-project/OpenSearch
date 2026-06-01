@@ -16,6 +16,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
@@ -72,6 +73,24 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
 
     LuceneFragmentConvertor(Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers) {
         this.leafSerializers = leafSerializers;
+    }
+
+    /**
+     * Drivable iff the top is an {@link Aggregate} with empty group-set whose every call is
+     * {@link SqlKind#COUNT} — what {@code IndexSearcher.count} can answer from the term
+     * dictionary. Defense-in-depth: PlanForker's chain-agreement filter already narrows
+     * aggregate alternatives to declared capabilities (prod Lucene declares only COUNT), so
+     * this guards against capability-declaration drift.
+     */
+    @Override
+    public boolean canDriveFragment(RelNode fragment) {
+        if (fragment instanceof Aggregate == false) return false;
+        Aggregate agg = (Aggregate) fragment;
+        if (agg.getGroupSet().isEmpty() == false) return false;
+        for (AggregateCall call : agg.getAggCallList()) {
+            if (call.getAggregation().getKind() != SqlKind.COUNT) return false;
+        }
+        return true;
     }
 
     @Override
