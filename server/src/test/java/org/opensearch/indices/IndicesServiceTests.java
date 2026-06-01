@@ -36,9 +36,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.DocStatusStats;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -54,6 +57,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -61,8 +65,10 @@ import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
@@ -72,6 +78,8 @@ import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.BaseQueryRewriteContext;
+import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -81,6 +89,9 @@ import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.Scroll;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.IndexSettingsModule;
@@ -97,10 +108,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -248,6 +261,126 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()),
             ShardDeletionCheckResult.NO_FOLDER_FOUND
         );
+    }
+
+    public void testIndexServiceLookupsRequireMatchingUUID() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata metadata = newIndexMetadata("lookup-test", UUIDs.randomBase64UUID());
+        IndexService indexService = indicesService.createIndex(metadata, Collections.emptyList(), false);
+
+        assertTrue(indicesService.hasIndex(metadata.getIndex()));
+        assertSame(indexService, indicesService.indexService(metadata.getIndex()));
+        assertSame(indexService, indicesService.indexServiceSafe(metadata.getIndex()));
+
+        Index sameNameDifferentUUID = new Index(metadata.getIndex().getName(), UUIDs.randomBase64UUID());
+        assertFalse(indicesService.hasIndex(sameNameDifferentUUID));
+        assertNull(indicesService.indexService(sameNameDifferentUUID));
+        expectThrows(IndexNotFoundException.class, () -> indicesService.indexServiceSafe(sameNameDifferentUUID));
+    }
+
+    public void testCreateIndexRejectsExistingIndex() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata metadata = newIndexMetadata("create-test", UUIDs.randomBase64UUID());
+
+        indicesService.createIndex(metadata, Collections.emptyList(), false);
+        ResourceAlreadyExistsException duplicate = expectThrows(
+            ResourceAlreadyExistsException.class,
+            () -> indicesService.createIndex(metadata, Collections.emptyList(), false)
+        );
+        assertThat(duplicate.getMessage(), containsString("already exists"));
+    }
+
+    public void testCreateIndexRejectsMetadataWithoutUUID() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata missingUUID = IndexMetadata.builder("missing-uuid-test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException missingUUIDException = expectThrows(
+            IllegalArgumentException.class,
+            () -> indicesService.createIndex(missingUUID, Collections.emptyList(), false)
+        );
+        assertThat(missingUUIDException.getMessage(), containsString("index must have a real UUID"));
+    }
+
+    public void testTempIndexServiceIsClosedWithoutRegistration() throws Exception {
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata metadata = newIndexMetadata("temp-test", UUIDs.randomBase64UUID());
+        AtomicBoolean consumerCalled = new AtomicBoolean(false);
+
+        String indexUUID = indicesService.withTempIndexService(metadata, tempIndexService -> {
+            consumerCalled.set(true);
+            assertEquals(metadata.getIndex(), tempIndexService.index());
+            assertFalse(indicesService.hasIndex(metadata.getIndex()));
+            assertNull(indicesService.indexService(metadata.getIndex()));
+            return tempIndexService.indexUUID();
+        });
+
+        assertTrue(consumerCalled.get());
+        assertEquals(metadata.getIndexUUID(), indexUUID);
+        assertFalse(indicesService.hasIndex(metadata.getIndex()));
+        assertNull(indicesService.indexService(metadata.getIndex()));
+
+        IndexService indexService = indicesService.createIndex(metadata, Collections.emptyList(), false);
+        assertSame(indexService, indicesService.indexServiceSafe(metadata.getIndex()));
+        expectThrows(ResourceAlreadyExistsException.class, () -> indicesService.withTempIndexService(metadata, tempIndexService -> null));
+    }
+
+    public void testAddPendingDeleteRejectsNullArguments() {
+        IndexService indexService = createIndex("pending-delete-null-test");
+        IndicesService indicesService = getIndicesService();
+
+        IllegalArgumentException nullShardId = expectThrows(
+            IllegalArgumentException.class,
+            () -> indicesService.addPendingDelete((ShardId) null, indexService.getIndexSettings())
+        );
+        assertEquals("shardId must not be null", nullShardId.getMessage());
+
+        IllegalArgumentException nullSettings = expectThrows(
+            IllegalArgumentException.class,
+            () -> indicesService.addPendingDelete(indexService.getShard(0).shardId(), null)
+        );
+        assertEquals("settings must not be null", nullSettings.getMessage());
+        assertFalse(indicesService.hasUncompletedPendingDeletes());
+    }
+
+    public void testCanDeleteIndexContentsRequiresNoAllocatedIndex() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata metadata = newIndexMetadata("delete-index-contents-test", UUIDs.randomBase64UUID());
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(metadata);
+
+        assertTrue(indicesService.canDeleteIndexContents(metadata.getIndex(), indexSettings));
+
+        IndexService indexService = indicesService.createIndex(metadata, Collections.emptyList(), false);
+        assertFalse(indicesService.canDeleteIndexContents(metadata.getIndex(), indexService.getIndexSettings()));
+    }
+
+    public void testVerifyIndexIsDeletedReturnsNullWhenIndexHasNoPaths() {
+        IndicesService indicesService = getIndicesService();
+        Index index = new Index("missing-index-paths-test", UUIDs.randomBase64UUID());
+        ClusterState clusterState = getInstanceFromNode(ClusterService.class).state();
+
+        assertNull(indicesService.verifyIndexIsDeleted(index, clusterState));
+    }
+
+    public void testDeleteUnassignedIndexDoesNotDeleteIndexStillInClusterState() {
+        final IndicesService indicesService = getIndicesService();
+        final IndexMetadata metadata = newIndexMetadata("still-assigned-index", UUIDs.randomBase64UUID());
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))
+            .metadata(Metadata.builder().put(metadata, true))
+            .build();
+
+        indicesService.deleteUnassignedIndex("test", metadata, clusterState);
+    }
+
+    public void testVerifyIndexMetadataDoesNotRegisterIndex() throws IOException {
+        final IndicesService indicesService = getIndicesService();
+        final IndexMetadata metadata = newIndexMetadata("metadata-verification-index", UUIDs.randomBase64UUID());
+
+        indicesService.verifyIndexMetadata(metadata, metadata);
+
+        assertFalse(indicesService.hasIndex(metadata.getIndex()));
     }
 
     public void testDeleteIndexStore() throws Exception {
@@ -569,12 +702,119 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
     }
 
+    public void testStatsByShardSkipsNullShardStats() {
+        final Index index = new Index("test-index", "abc123");
+        final IndexShard shardWithNullStats = mock(IndexShard.class);
+        final IndexShard shardWithStats = mock(IndexShard.class);
+        final IndexShardStats expectedShardStats = mock(IndexShardStats.class);
+
+        final IndicesService mockIndicesService = mock(IndicesService.class);
+        final IndexService indexService = mock(IndexService.class);
+        when(mockIndicesService.iterator()).thenReturn(Collections.singleton(indexService).iterator());
+        when(indexService.iterator()).thenReturn(Arrays.asList(shardWithNullStats, shardWithStats).iterator());
+        when(indexService.index()).thenReturn(index);
+        when(mockIndicesService.indexShardStats(mockIndicesService, shardWithNullStats, CommonStatsFlags.ALL)).thenReturn(null);
+        when(mockIndicesService.indexShardStats(mockIndicesService, shardWithStats, CommonStatsFlags.ALL)).thenReturn(expectedShardStats);
+
+        final Map<Index, List<IndexShardStats>> indexStats = getIndicesService().statsByShard(mockIndicesService, CommonStatsFlags.ALL);
+
+        assertThat(indexStats.get(index), equalTo(Collections.singletonList(expectedShardStats)));
+    }
+
+    public void testStatusCountersAreIncludedInStatsSnapshots() {
+        final IndicesService indicesService = getIndicesService();
+        final DocStatusStats docStatusStats = new DocStatusStats();
+        docStatusStats.add(RestStatus.CREATED, 2L);
+        indicesService.addDocStatusStats(docStatusStats);
+
+        indicesService.getSearchResponseStatusStats().add(RestStatus.OK, 3L);
+        assertNotNull(indicesService.stats(CommonStatsFlags.ALL));
+
+        final StatusCounterStats statusCounters = indicesService.stats(CommonStatsFlags.NONE).getStatusCounterStats();
+        assertEquals(
+            2L,
+            statusCounters.getDocStatusStats().getDocStatusCounter()[RestStatus.CREATED.getStatusFamilyCode() - 1].longValue()
+        );
+        assertEquals(
+            3L,
+            statusCounters.getSearchResponseStatusStats().getSearchResponseStatusCounter()[RestStatus.OK.getStatusFamilyCode() - 1]
+                .longValue()
+        );
+    }
+
+    public void testRewriteContextsUseProvidedNowSupplierAndValidationFlag() {
+        final IndicesService indicesService = getIndicesService();
+        final QueryRewriteContext rewriteContext = indicesService.getRewriteContext(() -> 123L);
+        final QueryRewriteContext validationRewriteContext = indicesService.getValidationRewriteContext(() -> 456L);
+
+        assertEquals(123L, rewriteContext.nowInMillis());
+        assertEquals(456L, validationRewriteContext.nowInMillis());
+        assertFalse(((BaseQueryRewriteContext) rewriteContext).validate());
+        assertTrue(((BaseQueryRewriteContext) validationRewriteContext).validate());
+        assertSame(rewriteContext.getXContentRegistry(), validationRewriteContext.getXContentRegistry());
+        assertSame(rewriteContext.getWriteableRegistry(), validationRewriteContext.getWriteableRegistry());
+    }
+
+    public void testIndexShardCacheEntityDelegatesToShard() {
+        final IndexShard indexShard = mock(IndexShard.class);
+        final ShardRequestCache requestCache = new ShardRequestCache();
+        when(indexShard.requestCache()).thenReturn(requestCache);
+        when(indexShard.state()).thenReturn(IndexShardState.STARTED, IndexShardState.CLOSED);
+
+        final IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(indexShard);
+
+        assertSame(requestCache, cacheEntity.stats());
+        assertSame(indexShard, cacheEntity.getCacheIdentity());
+        assertTrue(cacheEntity.ramBytesUsed() > 0L);
+        assertTrue(cacheEntity.isOpen());
+        assertFalse(cacheEntity.isOpen());
+    }
+
     public void testIsMetadataField() {
         IndicesService indicesService = getIndicesService();
         assertFalse(indicesService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
             assertTrue(indicesService.isMetadataField(builtIn));
         }
+    }
+
+    public void testNodeLevelServicesAreExposed() {
+        final IndicesService indicesService = getIndicesService();
+
+        assertSame(getInstanceFromNode(ClusterService.class), indicesService.clusterService());
+        assertNotNull(indicesService.getIndicesFieldDataCache());
+        assertNotNull(indicesService.getCircuitBreakerService());
+        assertNotNull(indicesService.getIndicesQueryCache());
+        assertNotNull(indicesService.getAnalysis());
+        assertTrue(indicesService.getFieldFilter().apply("test").test("field"));
+        assertTrue(indicesService.isIdFieldDataEnabled());
+        assertTrue(indicesService.allPendingDanglingIndicesWritten());
+        assertTrue(indicesService.getTotalIndexingBufferBytes().getBytes() > 0L);
+    }
+
+    public void testClearIndexShardCacheHandlesAllocatedAndMissingShards() {
+        final IndicesService indicesService = getIndicesService();
+
+        final IndexService indexService = createIndex("cache-clear-paths");
+        indicesService.clearIndexShardCache(new ShardId(indexService.index(), 0), true, true, true);
+        indicesService.clearIndexShardCache(new ShardId(new Index("missing", UUIDs.randomBase64UUID()), 0), true, true, true);
+        indicesService.forceClearNodewideCaches();
+    }
+
+    public void testBuildAliasFilterWithFilteredAlias() {
+        final String indexName = "alias-filter-index";
+        final String aliasName = "alias-filter";
+        createIndex(indexName);
+        assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName, termQuery("field", "value")));
+
+        final AliasFilter aliasFilter = getIndicesService().buildAliasFilter(
+            getInstanceFromNode(ClusterService.class).state(),
+            indexName,
+            Collections.singleton(aliasName)
+        );
+
+        assertArrayEquals(new String[] { aliasName }, aliasFilter.getAliases());
+        assertNotNull(aliasFilter.getQueryBuilder());
     }
 
     public void testGetEngineFactory() throws IOException {
@@ -660,6 +900,54 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testCanCacheRejectsUncacheableRequestProperties() {
+        final IndexService indexService = createIndex("can-cache-rejects");
+        final IndicesService indicesService = getIndicesService();
+
+        ShardSearchRequest scrollRequest = mock(ShardSearchRequest.class);
+        when(scrollRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(1)));
+        assertFalse(indicesService.canCache(scrollRequest, getTestContext(indexService, 0)));
+
+        ShardSearchRequest streamRequest = mock(ShardSearchRequest.class);
+        TestSearchContext streamContext = new TestSearchContext(indexService.getBigArrays(), indexService) {
+            @Override
+            public boolean isStreamSearch() {
+                return true;
+            }
+        };
+        assertFalse(indicesService.canCache(streamRequest, streamContext));
+
+        ShardSearchRequest dfsRequest = mock(ShardSearchRequest.class);
+        TestSearchContext dfsContext = new TestSearchContext(indexService.getBigArrays(), indexService) {
+            @Override
+            public SearchType searchType() {
+                return SearchType.DFS_QUERY_THEN_FETCH;
+            }
+        };
+        assertFalse(indicesService.canCache(dfsRequest, dfsContext));
+
+        ShardSearchRequest profileRequest = mock(ShardSearchRequest.class);
+        when(profileRequest.source()).thenReturn(new SearchSourceBuilder().profile(true));
+        assertFalse(indicesService.canCache(profileRequest, getTestContext(indexService, 0)));
+
+        ShardSearchRequest requestCacheDisabled = mock(ShardSearchRequest.class);
+        when(requestCacheDisabled.requestCache()).thenReturn(false);
+        assertFalse(indicesService.canCache(requestCacheDisabled, getTestContext(indexService, 0)));
+    }
+
+    public void testCanCacheRejectsUncacheableQueryShardContext() {
+        final IndexService indexService = createIndex("can-cache-query-shard-context");
+        final IndicesService indicesService = getIndicesService();
+        final ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.requestCache()).thenReturn(true);
+
+        TestSearchContext context = getTestContext(indexService, 0);
+        setupMocksForCanCache(context, mock(DelegatingCacheHelper.class));
+        context.getQueryShardContext().setIsCacheable(false);
+
+        assertFalse(indicesService.canCache(request, context));
+    }
+
     public void testCanCacheSizeNonzero() {
         // Requests should only be cached if their size is <= INDICES_REQUEST_CACHE_MAX_SIZE_TO_CACHE_SETTING.
         final IndexService indexService = createIndex("test");
@@ -714,5 +1002,17 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
                 return size;
             }
         };
+    }
+
+    private static IndexMetadata newIndexMetadata(String indexName, String indexUUID) {
+        return IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
     }
 }
