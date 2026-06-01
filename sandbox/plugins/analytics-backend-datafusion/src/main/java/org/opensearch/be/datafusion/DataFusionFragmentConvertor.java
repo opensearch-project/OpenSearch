@@ -412,7 +412,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
             fieldNames(partialAggFragment)
         );
-        return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
+        return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewired));
     }
 
     /**
@@ -447,7 +447,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             .setRoot(io.substrait.proto.RelRoot.newBuilder().setInput(inputRel).addAllNames(rowType.getFieldNames()).build())
             .build();
 
-        byte[] bytes = io.substrait.proto.Plan.newBuilder().addRelations(planRel).build().toByteArray();
+        byte[] bytes = SubstraitPlanProtoRewriter.rewrite(io.substrait.proto.Plan.newBuilder().addRelations(planRel).build()).toByteArray();
         LOGGER.debug("Schema-only Read for stage [{}]: {} bytes", childStageId, bytes.length);
         return bytes;
     }
@@ -459,7 +459,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
         // Rewriter must run on the assembled plan so wrapper literals get rewritten alongside the inner.
-        return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
+        return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
     private byte[] convertToSubstrait(RelNode fragment) {
@@ -483,9 +483,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
 
-        plan = SubstraitPlanRewriter.rewrite(plan);
+        plan = SubstraitPlanPojoRewriter.rewrite(plan);
 
-        io.substrait.proto.Plan protoPlan = new PlanProtoConverter().toProto(plan);
+        io.substrait.proto.Plan protoPlan = SubstraitPlanProtoRewriter.rewrite(new PlanProtoConverter().toProto(plan));
         byte[] bytes = protoPlan.toByteArray();
         LOGGER.debug("Substrait plan: {} bytes", bytes.length);
         return bytes;
@@ -733,7 +733,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Serializes a model-level {@link Plan} to proto bytes. */
     private static byte[] serializePlan(Plan plan) {
-        return new PlanProtoConverter().toProto(plan).toByteArray();
+        return SubstraitPlanProtoRewriter.rewrite(new PlanProtoConverter().toProto(plan)).toByteArray();
     }
 
     // ── Calcite TableScan wrappers for OpenSearchStageInputScan rewrite ─────────
