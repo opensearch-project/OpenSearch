@@ -53,8 +53,14 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
                 )
             );
 
-            fragmentSlowLog.onFragmentSuccess("q1", 0, "test-shard", TimeValue.timeValueMillis(5).nanos(), 42, indexSettings,
-                new FragmentExecutionStats(42, true, 2, "CONJUNCTIVE", false, 99, "opaque-1"));
+            fragmentSlowLog.onFragmentSuccess(
+                "q1",
+                0,
+                "test-shard",
+                TimeValue.timeValueMillis(5).nanos(),
+                indexSettings,
+                new FragmentExecutionStats(42, true, 2, "CONJUNCTIVE", false, 99, "opaque-1")
+            );
             appender.assertAllExpectationsMatched();
         }
     }
@@ -76,8 +82,14 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
                 )
             );
 
-            fragmentSlowLog.onFragmentSuccess("q1", 0, "test-shard", TimeValue.timeValueMillis(5).nanos(), 42, indexSettings,
-                new FragmentExecutionStats(42, true, 2, "CONJUNCTIVE", false, 99, "opaque-1"));
+            fragmentSlowLog.onFragmentSuccess(
+                "q1",
+                0,
+                "test-shard",
+                TimeValue.timeValueMillis(5).nanos(),
+                indexSettings,
+                new FragmentExecutionStats(42, true, 2, "CONJUNCTIVE", false, 99, "opaque-1")
+            );
             appender.assertAllExpectationsMatched();
         }
     }
@@ -99,8 +111,80 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
                 )
             );
 
-            fragmentSlowLog.onFragmentSuccess("q-fields", 2, "[my-idx][0]", TimeValue.timeValueMillis(50).nanos(), 100, indexSettings,
-                new FragmentExecutionStats(100, false, 0, null, true, 101, "opaque-2"));
+            fragmentSlowLog.onFragmentSuccess(
+                "q-fields",
+                2,
+                "[my-idx][0]",
+                TimeValue.timeValueMillis(50).nanos(),
+                indexSettings,
+                new FragmentExecutionStats(100, false, 0, null, true, 101, "opaque-2")
+            );
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testFragmentSlowLogWithSecondaryIndexShowsDelegationFields() throws Exception {
+        AnalyticsFragmentSlowLog fragmentSlowLog = new AnalyticsFragmentSlowLog();
+        Logger logger = LogManager.getLogger(AnalyticsFragmentSlowLog.LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        IndexSettings indexSettings = createIndexSettings(TimeValue.timeValueMillis(0));
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "delegation fields present when secondary index used",
+                    AnalyticsFragmentSlowLog.LOGGER_NAME,
+                    Level.WARN,
+                    ".*used_secondary_index\\[true\\].*delegated_predicates\\[3\\].*filter_tree_shape\\[CONJUNCTIVE\\].*"
+                )
+            );
+
+            fragmentSlowLog.onFragmentSuccess(
+                "q-sec",
+                0,
+                "[idx][0]",
+                TimeValue.timeValueMillis(10).nanos(),
+                indexSettings,
+                new FragmentExecutionStats(50, true, 3, "CONJUNCTIVE", false, 200, null)
+            );
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testFragmentSlowLogWithoutSecondaryIndexOmitsDelegationFields() throws Exception {
+        AnalyticsFragmentSlowLog fragmentSlowLog = new AnalyticsFragmentSlowLog();
+        Logger logger = LogManager.getLogger(AnalyticsFragmentSlowLog.LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        IndexSettings indexSettings = createIndexSettings(TimeValue.timeValueMillis(0));
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "no delegation fields when secondary index not used",
+                    AnalyticsFragmentSlowLog.LOGGER_NAME,
+                    Level.WARN,
+                    ".*used_secondary_index\\[false\\].*partial_aggregate\\[.*"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "delegated_predicates absent",
+                    AnalyticsFragmentSlowLog.LOGGER_NAME,
+                    Level.WARN,
+                    "*delegated_predicates*"
+                )
+            );
+
+            fragmentSlowLog.onFragmentSuccess(
+                "q-nosec",
+                0,
+                "[idx][0]",
+                TimeValue.timeValueMillis(10).nanos(),
+                indexSettings,
+                new FragmentExecutionStats(50, false, 0, null, false, 201, "op-1")
+            );
             appender.assertAllExpectationsMatched();
         }
     }

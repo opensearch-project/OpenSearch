@@ -43,6 +43,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Verifies that the analytics engine search slow log fires for queries
@@ -143,6 +144,10 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
             appender.addExpectation(expectFragment("has stage_id", ".*stage_id\\[\\d+\\].*"));
             appender.addExpectation(expectFragment("has shard", ".*shard\\[\\[" + INDEX + "\\]\\[\\d+\\]\\].*"));
             appender.addExpectation(expectFragment("has rows_produced > 0", ".*rows_produced\\[(?!0\\])\\d+\\].*"));
+            appender.addExpectation(expectFragment("has used_secondary_index", ".*used_secondary_index\\[.*\\].*"));
+            appender.addExpectation(expectFragment("has partial_aggregate", ".*partial_aggregate\\[.*\\].*"));
+            appender.addExpectation(expectFragment("has task_id", ".*task_id\\[\\d+\\].*"));
+            appender.addExpectation(expectFragment("has id field", ".*id\\[.*\\].*"));
 
             List<Object[]> rows = runner.executeSql("SELECT val FROM " + INDEX);
             assertFalse("query must return rows", rows.isEmpty());
@@ -171,7 +176,7 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testSlowLogContainsQuerySourceViaPPLFrontend() throws Exception {
+    public void testSlowLogContainsQuerySourceAndOpaqueIdViaPPLFrontend() throws Exception {
         setSlowLogThreshold(TimeValue.timeValueMillis(0));
         createAndSeedIndex();
 
@@ -179,19 +184,12 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
         Loggers.setLevel(queryLogger, Level.WARN);
 
         try (MockLogAppender appender = MockLogAppender.createForLoggers(queryLogger)) {
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
-                    "source field contains PPL text",
-                    QUERY_LOGGER,
-                    Level.WARN,
-                    ".*source\\[source = " + INDEX + ".*\\].*"
-                )
-            );
+            appender.addExpectation(expectQuery("source field contains PPL text", ".*source\\[source = " + INDEX + ".*\\].*"));
+            appender.addExpectation(expectQuery("id field contains opaque id", ".*id\\[slow-log-test-id\\].*"));
 
-            PPLResponse response = client().execute(
-                UnifiedPPLExecuteAction.INSTANCE,
-                new PPLRequest("source = " + INDEX + " | fields val")
-            ).actionGet();
+            PPLResponse response = client().filterWithHeader(Map.of("X-Opaque-Id", "slow-log-test-id"))
+                .execute(UnifiedPPLExecuteAction.INSTANCE, new PPLRequest("source = " + INDEX + " | fields val"))
+                .actionGet();
             assertFalse("PPL query must return rows", response.getRows().isEmpty());
 
             appender.assertAllExpectationsMatched();

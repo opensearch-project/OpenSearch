@@ -138,16 +138,14 @@ public interface AnalyticsOperationListener {
      * @param stageId the stage this fragment belongs to
      * @param shardId the shard that was queried
      * @param tookInNanos wall-clock time for the fragment execution
-     * @param rowsProduced number of rows produced by this fragment
      * @param indexSettings the index settings for per-index slow log threshold lookup
-     * @param stats quantitative execution stats (rows scanned, bytes read, etc.)
+     * @param stats execution stats including rows produced, delegation info, and task headers
      */
     default void onFragmentSuccess(
         String queryId,
         int stageId,
         String shardId,
         long tookInNanos,
-        long rowsProduced,
         IndexSettings indexSettings,
         FragmentExecutionStats stats
     ) {}
@@ -292,13 +290,12 @@ public interface AnalyticsOperationListener {
             int stageId,
             String shardId,
             long tookInNanos,
-            long rowsProduced,
             IndexSettings indexSettings,
             FragmentExecutionStats stats
         ) {
             for (AnalyticsOperationListener l : delegates) {
                 try {
-                    l.onFragmentSuccess(queryId, stageId, shardId, tookInNanos, rowsProduced, indexSettings, stats);
+                    l.onFragmentSuccess(queryId, stageId, shardId, tookInNanos, indexSettings, stats);
                 } catch (Exception e) {
                     warn("onFragmentSuccess", e);
                 }

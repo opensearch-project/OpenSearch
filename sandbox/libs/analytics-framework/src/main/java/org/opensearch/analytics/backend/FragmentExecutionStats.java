@@ -22,15 +22,8 @@ package org.opensearch.analytics.backend;
  *
  * @opensearch.internal
  */
-public record FragmentExecutionStats(
-    long rowsProduced,
-    boolean usedSecondaryIndex,
-    int delegatedPredicateCount,
-    String filterTreeShape,
-    boolean hasPartialAggregate,
-    long taskId,
-    String opaqueId
-) {
+public record FragmentExecutionStats(long rowsProduced, boolean usedSecondaryIndex, int delegatedPredicateCount, String filterTreeShape,
+    boolean hasPartialAggregate, long taskId, String opaqueId) {
 
     public static final FragmentExecutionStats EMPTY = new FragmentExecutionStats(0, false, 0, null, false, -1, null);
 }

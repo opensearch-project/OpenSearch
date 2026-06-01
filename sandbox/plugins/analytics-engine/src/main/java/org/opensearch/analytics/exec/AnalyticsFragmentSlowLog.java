@@ -43,7 +43,6 @@ public class AnalyticsFragmentSlowLog implements AnalyticsOperationListener {
         int stageId,
         String shardId,
         long tookInNanos,
-        long rowsProduced,
         IndexSettings indexSettings,
         FragmentExecutionStats stats
     ) {
@@ -53,7 +52,7 @@ public class AnalyticsFragmentSlowLog implements AnalyticsOperationListener {
         long traceThreshold = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING).nanos();
         SlowLogLevel level = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
 
-        String message = formatMessage(queryId, stageId, shardId, tookInNanos, rowsProduced, stats);
+        String message = formatMessage(queryId, stageId, shardId, tookInNanos, stats);
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
             logger.warn(message);
         } else if (infoThreshold >= 0 && tookInNanos > infoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
@@ -65,21 +64,14 @@ public class AnalyticsFragmentSlowLog implements AnalyticsOperationListener {
         }
     }
 
-    private static String formatMessage(
-        String queryId,
-        int stageId,
-        String shardId,
-        long tookInNanos,
-        long rowsProduced,
-        FragmentExecutionStats stats
-    ) {
+    private static String formatMessage(String queryId, int stageId, String shardId, long tookInNanos, FragmentExecutionStats stats) {
         StringBuilder sb = new StringBuilder();
         sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos));
         sb.append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         sb.append("], query_id[").append(queryId);
         sb.append("], stage_id[").append(stageId);
         sb.append("], shard[").append(shardId);
-        sb.append("], rows_produced[").append(rowsProduced);
+        sb.append("], rows_produced[").append(stats.rowsProduced());
         sb.append("], used_secondary_index[").append(stats.usedSecondaryIndex());
         if (stats.usedSecondaryIndex()) {
             sb.append("], delegated_predicates[").append(stats.delegatedPredicateCount());

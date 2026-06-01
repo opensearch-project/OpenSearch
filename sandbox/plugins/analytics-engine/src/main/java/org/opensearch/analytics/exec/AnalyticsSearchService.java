@@ -182,7 +182,9 @@ public class AnalyticsSearchService implements AutoCloseable {
                     boolean usedSecondaryIndex = delegation != null;
                     int delegatedPredicateCount = delegation != null ? delegation.delegatedPredicateCount() : 0;
                     String filterTreeShape = delegation != null ? delegation.treeShape().name() : null;
-                    boolean hasPartialAggregate = resolved.plan().getInstructions().stream()
+                    boolean hasPartialAggregate = resolved.plan()
+                        .getInstructions()
+                        .stream()
                         .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE);
                     FragmentExecutionStats stats = new FragmentExecutionStats(
                         rowsProduced,
@@ -198,7 +200,6 @@ public class AnalyticsSearchService implements AutoCloseable {
                         request.getStageId(),
                         shard.shardId().toString(),
                         fragmentTookNanos,
-                        rowsProduced,
                         shard.indexSettings(),
                         stats
                     );
