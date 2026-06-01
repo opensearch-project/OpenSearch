@@ -71,7 +71,7 @@ impl LocalSession {
     pub fn new(runtime_env: &RuntimeEnv) -> Self {
         let runtime_env = Arc::new(runtime_env.clone());
         let mut config = SessionConfig::new();
-        config.options_mut().execution.target_partitions = 4;
+        config.options_mut().execution.target_partitions = crate::api::get_reduce_target_partitions();
         let state = SessionStateBuilder::new()
             .with_config(config)
             .with_runtime_env(runtime_env)

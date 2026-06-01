@@ -157,6 +157,11 @@ pub extern "C" fn df_set_min_target_partitions(value: i64) {
     api::set_min_target_partitions(value);
 }
 
+#[no_mangle]
+pub extern "C" fn df_set_reduce_target_partitions(value: i64) {
+    api::set_reduce_target_partitions(value);
+}
+
 /// Sets memory guard thresholds. Values are thresholds multiplied by 1000
 /// (e.g., 700 = 0.70, 850 = 0.85, 950 = 0.95).
 #[no_mangle]

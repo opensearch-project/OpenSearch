@@ -406,6 +406,18 @@ pub fn set_min_target_partitions(value: i64) {
     crate::query_budget::set_min_target_partitions(value.max(1) as usize);
 }
 
+/// Initial target_partitions for coordinator-reduce sessions. Defaults to 4.
+static REDUCE_TARGET_PARTITIONS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(4);
+
+pub fn set_reduce_target_partitions(value: i64) {
+    REDUCE_TARGET_PARTITIONS.store(value.max(1).min(32) as usize, std::sync::atomic::Ordering::Release);
+}
+
+pub fn get_reduce_target_partitions() -> usize {
+    REDUCE_TARGET_PARTITIONS.load(std::sync::atomic::Ordering::Acquire)
+}
+
 /// Creates a native reader (ShardView) for the given path and files.
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
