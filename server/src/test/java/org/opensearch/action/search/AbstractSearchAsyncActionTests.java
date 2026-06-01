@@ -836,7 +836,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         CountDownLatch blockLatch = new CountDownLatch(1);
         OpenSearchThreadPoolExecutor testExecutor = createBlockedFullExecutor(queueCapacity, blockLatch);
 
-        createForkTestAction(testExecutor, queueCapacity).start();
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createForkTestAction(testExecutor, queueCapacity);
+        action.start();
 
         assertThat(
             "fork must deny force-put when queue size equals threshold (" + queueCapacity + ")",
@@ -846,6 +847,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
         blockLatch.countDown();
         terminate(testExecutor);
+
+        assertEquals("totalOps must not advance when the fork task is rejected", 0, action.totalOps.get());
     }
 
     private OpenSearchThreadPoolExecutor createBlockedFullExecutor(int queueCapacity, CountDownLatch blockLatch) throws Exception {
@@ -881,6 +884,53 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         }
         assertThat(testExecutor.getQueue().size(), equalTo(queueCapacity));
         return testExecutor;
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createForkTestAction(Executor testExecutor, int threshold) {
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(true);
+        SearchShardIterator nullShard = new SearchShardIterator(null, null, Collections.emptyList(), null);
+        ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1);
+        return new AbstractSearchAsyncAction<>(
+            "test",
+            logger,
+            null,
+            (cluster, node) -> null,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            testExecutor,
+            request,
+            ActionListener.wrap(r -> {}, e -> {}),
+            new GroupShardsIterator<>(Collections.singletonList(nullShard)),
+            new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
+            ClusterState.EMPTY_STATE,
+            null,
+            results,
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(Collections.emptyList(), LogManager.getLogger()),
+                request,
+                () -> null
+            ),
+            NoopTracer.INSTANCE,
+            threshold
+        ) {
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                return null;
+            }
+
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<SearchPhaseResult> listener
+            ) {
+                listener.onResponse(new QuerySearchResult());
+            }
+        };
     }
 
     private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
@@ -1043,52 +1093,5 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         PhaseResult(ShardSearchContextId contextId) {
             this.contextId = contextId;
         }
-    }
-
-    private AbstractSearchAsyncAction<SearchPhaseResult> createForkTestAction(Executor testExecutor, int threshold) {
-        SearchRequest request = new SearchRequest();
-        request.allowPartialSearchResults(true);
-        SearchShardIterator nullShard = new SearchShardIterator(null, null, Collections.emptyList(), null);
-        ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1);
-        return new AbstractSearchAsyncAction<>(
-            "test",
-            logger,
-            null,
-            (cluster, node) -> null,
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            testExecutor,
-            request,
-            ActionListener.wrap(r -> {}, e -> {}),
-            new GroupShardsIterator<>(Collections.singletonList(nullShard)),
-            new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
-            ClusterState.EMPTY_STATE,
-            null,
-            results,
-            request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(
-                new SearchRequestOperationsListener.CompositeListener(Collections.emptyList(), LogManager.getLogger()),
-                request,
-                () -> null
-            ),
-            NoopTracer.INSTANCE,
-            threshold
-        ) {
-            @Override
-            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                return null;
-            }
-
-            @Override
-            protected void executePhaseOnShard(
-                SearchShardIterator shardIt,
-                SearchShardTarget shard,
-                SearchActionListener<SearchPhaseResult> listener
-            ) {
-                listener.onResponse(new QuerySearchResult());
-            }
-        };
     }
 }

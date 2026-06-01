@@ -1309,10 +1309,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         AtomicInteger updatedValue = new AtomicInteger(-1);
         clusterSettings.addSettingsUpdateConsumer(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD, updatedValue::set);
 
-        clusterSettings.applySettings(Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD_KEY, 5).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.getKey(), 5).build()
+        );
         assertEquals("Dynamic update must propagate the new threshold value", 5, updatedValue.get());
 
-        clusterSettings.applySettings(Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD_KEY, 0).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.getKey(), 0).build()
+        );
         assertEquals("Dynamic update must allow setting threshold to 0", 0, updatedValue.get());
     }
 }

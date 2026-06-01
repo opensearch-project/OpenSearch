@@ -412,9 +412,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
             @Override
             public boolean isForceExecution() {
-                // when threshold is negative, always force execution (backward-compatible default)
+                // threshold < 0: always force-execute (backward-compatible default)
                 if (forceExecutionQueueThreshold < 0) return true;
 
+                // Queue-size based threshold only applies to OpenSearchThreadPoolExecutor.
+                // For any other Executor type the threshold has no effect and force-execution
+                // is always granted, preserving the pre-existing behavior.
                 if (executor instanceof OpenSearchThreadPoolExecutor) {
                     int currentSize = ((OpenSearchThreadPoolExecutor) executor).getQueue().size();
                     return currentSize < forceExecutionQueueThreshold;

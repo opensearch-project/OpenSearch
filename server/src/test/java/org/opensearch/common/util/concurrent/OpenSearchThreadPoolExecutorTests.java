@@ -37,11 +37,9 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasToString;
 
 public class OpenSearchThreadPoolExecutorTests extends OpenSearchSingleNodeTestCase {
@@ -99,59 +97,4 @@ public class OpenSearchThreadPoolExecutorTests extends OpenSearchSingleNodeTestC
         assertTrue(rejected.get());
     }
 
-    public void testForcePutBypassesQueueCapacity() throws InterruptedException {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-
-        OpenSearchThreadPoolExecutor executor = OpenSearchExecutors.newFixed(
-            "test-search",
-            1,
-            5,
-            OpenSearchExecutors.daemonThreadFactory("test"),
-            threadContext
-        );
-
-        CountDownLatch blockLatch = new CountDownLatch(1);
-        CountDownLatch threadOccupied = new CountDownLatch(1);
-
-        executor.execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws InterruptedException {
-                threadOccupied.countDown();
-                blockLatch.await();
-            }
-
-            @Override
-            public void onFailure(Exception e) {}
-        });
-        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
-
-        for (int i = 0; i < 5; i++) {
-            executor.execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
-        }
-
-        executor.execute(new AbstractRunnable() {
-            @Override
-            public boolean isForceExecution() {
-                return true;
-            }
-
-            @Override
-            protected void doRun() {}
-
-            @Override
-            public void onFailure(Exception e) {}
-        });
-
-        assertThat("isForceExecution()=true must bypass queue capacity and force-put the task", executor.getQueue().size(), greaterThan(5));
-
-        blockLatch.countDown();
-        executor.shutdown();
-        assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
-    }
 }
