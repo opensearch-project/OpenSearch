@@ -127,6 +127,31 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * {@code stats percentile_approx(value, 50) as p} — t-digest approximate median.
+     * STATE_EXPANDING, so the split rule gathers to coordinator + single-stage. Maps to
+     * DataFusion's {@code approx_percentile_cont} via {@link
+     * org.opensearch.be.datafusion.PplAggregateCallRewriter}.
+     */
+    public void testPercentileApproxAcrossShards() throws Exception {
+        String index = "coord_reduce_percentile_approx";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePpl("source = " + index + " | stats percentile_approx(value, 50) as p");
+        List<List<Object>> rows = scalarRows(result, "p");
+
+        Object cell = rows.get(0).get(0);
+        assertNotNull("cell for 'p' must not be null — coordinator-reduce returned no value", cell);
+        double actual = ((Number) cell).doubleValue();
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        double expected = (totalDocs + 1) / 2.0;
+        assertTrue(
+            "percentile_approx(value, 50) should be approximately " + expected + " (±2.0), got " + actual,
+            Math.abs(actual - expected) <= 2.0
+        );
+    }
+
     /** Single-shard {@code take(value, 3)} — bounded array of up to 3 values. */
     public void testTakeSingleShard() throws Exception {
         String index = "coord_reduce_take_single";

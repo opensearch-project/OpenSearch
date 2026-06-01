@@ -270,9 +270,10 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     /**
      * Coord-side fragment: Aggregate ← Join ← (ER ← ...) | (ER ← ...).
-     * Both branches are gathered subtrees. convertReduceNode must convert the whole Join +
-     * branches + ERs + StageInputScans subtree in a single {@code convertFragment (final-agg shape)}
-     * pass — same path as Union / Intersect / Minus. No substrait-level join stitching.
+     * Both branches are gathered subtrees. Reduce-stage conversion must serialize the whole
+     * Join + branches + ERs + StageInputScans subtree in a single
+     * {@code convertFragment (final-agg shape)} pass — same path as Union / Intersect /
+     * Minus. No substrait-level join stitching.
      */
     public void testJoinDirectlyOverTwoExchanges() {
         RecordingConvertor convertor = new RecordingConvertor();
@@ -297,7 +298,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     /**
      * Coord-side Union with pass-through operators (Sort/Project) between each arm and its
-     * ER. Isthmus's SubstraitRelVisitor handles Union natively; convertReduceNode converts
+     * ER. Isthmus's SubstraitRelVisitor handles Union natively; reduce-stage conversion serializes
      * the whole Union subtree as one convertFragment (final-agg shape) call — same path as Join.
      */
     public void testUnionOverPassthroughThenExchange() {

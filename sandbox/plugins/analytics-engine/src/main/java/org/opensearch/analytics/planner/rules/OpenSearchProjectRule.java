@@ -84,11 +84,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             ? computeProjectViableBackends(annotatedExprs, childViableBackends)
             : childViableBackends;
 
-        // Window functions (RexOver): PPL `eventstats` / `appendcol` emit window calls inline
-        // on the projection; PPL `dedup` lowers to ROW_NUMBER OVER (PARTITION BY ...). Narrow
-        // viable backends to those whose WindowCapability declares every required function.
-        // PARTITION BY is rejected for aggregate-as-window functions (no shuffle exchange
-        // available yet) but allowed for ROW_NUMBER since its partition is local.
+        // Narrow viable backends to those whose WindowCapability declares every RexOver function used.
         Set<WindowFunction> requiredWindowFns = collectWindowFunctions(project.getProjects());
         if (!requiredWindowFns.isEmpty()) {
             viableBackends = narrowByWindowCapability(viableBackends, requiredWindowFns);
@@ -284,16 +280,9 @@ public class OpenSearchProjectRule extends RelOptRule {
         return context.getCapabilityRegistry().isOpaqueOperation(funcName);
     }
 
-    /** Walks project expressions and collects the {@link WindowFunction}s used by any {@link RexOver}.
-     *  Unrecognized window SqlKinds (LAG, LEAD, NTILE, etc.) fail here.
-     *
-     *  <p>PARTITION BY and ORDER BY are both accepted — {@code OpenSearchProject}'s cost gate
-     *  already forces SINGLETON input on any RexOver-bearing project, so all rows in a partition
-     *  arrive on the coordinator regardless of whether partition keys span shards. The
-     *  coordinator's WindowAggExec then computes the window correctly per partition / per frame.
-     *  Covers ROW_NUMBER OVER PARTITION BY (PPL dedup), SUM/AVG/COUNT/MIN/MAX OVER PARTITION BY
-     *  (PPL eventstats by ...), and the empty-OVER aggregate-as-window forms. HASH-shuffle is a
-     *  future strict improvement, not a correctness prerequisite. */
+    /** Collects {@link WindowFunction}s used by any {@link RexOver} in {@code exprs}.
+     *  Unrecognized window SqlKinds (LAG, LEAD, NTILE, etc.) fail here. The SINGLETON cost gate
+     *  on RexOver-bearing projects guarantees PARTITION BY / ORDER BY see fully-gathered input. */
     private static Set<WindowFunction> collectWindowFunctions(List<? extends RexNode> exprs) {
         Set<WindowFunction> fns = new LinkedHashSet<>();
         for (RexNode expr : exprs) {
