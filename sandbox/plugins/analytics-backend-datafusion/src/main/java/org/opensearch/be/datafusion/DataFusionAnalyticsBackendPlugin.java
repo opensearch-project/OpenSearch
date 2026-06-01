@@ -599,6 +599,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
+                    Map.entry(ScalarFunction.ARRAY_LENGTH, new IntegerReturnWideningCastAdapter()),
                     Map.entry(ScalarFunction.ARRAY_SLICE, new ArraySliceAdapter()),
                     Map.entry(ScalarFunction.ITEM, new ArrayElementAdapter()),
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
