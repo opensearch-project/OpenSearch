@@ -86,7 +86,9 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         assert luceneReader != null : "luceneReader must not be null";
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = luceneReader.directoryReader();
-        this.searcher = queryShardContext.searcher();
+        // Build the Weight from the snapshot reader whose leaves we resolve below; a foreign
+        // searcher (e.g. under concurrent queries) makes weight.scorer(leaf) reject the leaf.
+        this.searcher = new IndexSearcher(directoryReader);
         this.leaves = directoryReader.leaves();
         this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
