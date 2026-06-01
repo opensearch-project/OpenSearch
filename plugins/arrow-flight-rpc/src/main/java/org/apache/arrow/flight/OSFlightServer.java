@@ -57,8 +57,10 @@ import org.apache.arrow.util.Preconditions;
 public class OSFlightServer {
     /** The maximum size of an individual gRPC message. This effectively disables the limit. */
     static final int MAX_GRPC_MESSAGE_SIZE = Integer.MAX_VALUE;
-    /** The default number of bytes that can be queued on an output stream before blocking. */
-    static final int DEFAULT_BACKPRESSURE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+    /** Default per-stream outbound buffered-bytes threshold; can be overridden via
+     *  {@code arrow.flight.channel.outbound_buffer_threshold}. See
+     *  {@code docs/backpressure.md} for sizing guidance. */
+    static final int DEFAULT_BACKPRESSURE_THRESHOLD = 64 * 1024 * 1024; // 64MB
 
     private static final MethodHandle FLIGHT_SERVER_CTOR_MH;
 

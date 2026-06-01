@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.flight.BackpressureStrategy;
 import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.FlightRuntimeException;
@@ -36,8 +37,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
 /**
- * TcpChannel implementation for Arrow Flight. It is created per call in ArrowFlightProducer.
- * This implementation is not thread safe; consumer must ensure to invoke sendBatch serially and call completeStream() at the end
+ * TcpChannel implementation for Arrow Flight. Created per call in {@link ArrowFlightProducer}.
+ *
+ * <p>Honours gRPC's {@code isReady()} contract via {@link CompositeBackpressureStrategy}:
+ * producer threads call {@link #awaitReadyOrThrow()} before {@code sendBatch} is queued
+ * and park until gRPC's outbound buffer drains below {@code setOnReadyThreshold}.
+ *
+ * <p>This implementation is not thread safe; the producer must invoke {@code sendBatch}
+ * serially and call {@code completeStream()} at the end.
  */
 class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private static final String PROFILE_NAME = "flight";
@@ -56,29 +63,74 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private final ExecutorService executor;
     private final long correlationId;
     private final AtomicInteger batchNumber = new AtomicInteger(0);
+    private final CompositeBackpressureStrategy bp;
+    private final long readyTimeoutMillis;
 
     public FlightServerChannel(
         ServerStreamListener serverStreamListener,
         BufferAllocator allocator,
         ServerHeaderMiddleware middleware,
         FlightCallTracker callTracker,
-        ExecutorService executor
+        ExecutorService executor,
+        long readyTimeoutMillis
     ) {
         this.correlationId = Long.parseLong(middleware.getCorrelationId());
         logger.debug("Creating FlightServerChannel for correlation ID: {}", correlationId);
         this.serverStreamListener = serverStreamListener;
         this.serverStreamListener.setUseZeroCopy(true);
-        this.serverStreamListener.setOnCancelHandler(() -> {
-            cancelled = true;
-            callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());
-            close();
-        });
         this.allocator = allocator;
         this.middleware = middleware;
         this.callTracker = callTracker;
         this.executor = executor;
+        this.readyTimeoutMillis = readyTimeoutMillis;
         this.localAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         this.remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        // CompositeBackpressureStrategy.register installs both setOnReadyHandler and
+        // setOnCancelHandler; the cancel callback runs onChannelCancelled before
+        // notifying parked threads so the cancelled state is visible on wake.
+        this.bp = new CompositeBackpressureStrategy(this::onChannelCancelled);
+        this.bp.register(serverStreamListener);
+    }
+
+    /**
+     * Parks the calling thread until gRPC signals it can accept another batch. Called
+     * from the producer thread before the batch is submitted to the channel's executor.
+     *
+     * <p><b>Warning:</b> the calling thread may park for up to {@code readyTimeoutMillis}
+     * under a slow consumer. If the action handler is registered on a bounded thread
+     * pool (e.g. {@code SEARCH}), N concurrent slow streams will hold N threads parked
+     * simultaneously and can starve the pool. Operators should size the action's thread
+     * pool — or limit concurrent streams via admission control — accordingly.
+     *
+     * @throws StreamException with {@link StreamErrorCode#TIMED_OUT} if the consumer
+     *         remains not-ready longer than {@code readyTimeoutMillis}, or
+     *         {@link StreamErrorCode#CANCELLED} if the client cancelled.
+     */
+    public void awaitReadyOrThrow() {
+        if (cancelled) {
+            throw StreamException.cancelled("stream cancelled before back-pressure wait");
+        }
+        BackpressureStrategy.WaitResult result = bp.waitForListener(readyTimeoutMillis);
+        switch (result) {
+            case READY:
+                return;
+            case CANCELLED:
+                throw StreamException.cancelled("stream cancelled while waiting for consumer");
+            case TIMEOUT:
+                throw new StreamException(StreamErrorCode.TIMED_OUT, "consumer not ready after " + readyTimeoutMillis + "ms");
+            default:
+                logger.warn("unexpected back-pressure wait result: {}", result);
+                throw new StreamException(StreamErrorCode.INTERNAL, "unexpected back-pressure wait result: " + result);
+        }
+    }
+
+    /** Idempotent cleanup invoked from the strategy when gRPC fires {@code OnCancelHandler}. */
+    private void onChannelCancelled() {
+        if (!cancelled) {
+            cancelled = true;
+            callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());
+            close();
+        }
     }
 
     public BufferAllocator getAllocator() {
