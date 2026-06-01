@@ -1730,6 +1730,31 @@ mod tests {
             "Non-sliced array must NOT need gc"
         );
     }
+
+    #[test]
+    fn reduce_target_partitions_roundtrips_and_clamps() {
+        // Set/get round-trips a value in range.
+        set_reduce_target_partitions(8);
+        assert_eq!(get_reduce_target_partitions(), 8);
+
+        // Clamps to the [1, 32] range used by the datafusion.reduce.target_partitions setting.
+        set_reduce_target_partitions(0);
+        assert_eq!(get_reduce_target_partitions(), 1, "values below 1 clamp up to 1");
+        set_reduce_target_partitions(-5);
+        assert_eq!(get_reduce_target_partitions(), 1, "negative values clamp up to 1");
+        set_reduce_target_partitions(1000);
+        assert_eq!(get_reduce_target_partitions(), 32, "values above 32 clamp down to 32");
+
+        // Boundary values pass through unchanged.
+        set_reduce_target_partitions(1);
+        assert_eq!(get_reduce_target_partitions(), 1);
+        set_reduce_target_partitions(32);
+        assert_eq!(get_reduce_target_partitions(), 32);
+
+        // Restore the default so test ordering can't leak state into other tests.
+        set_reduce_target_partitions(4);
+        assert_eq!(get_reduce_target_partitions(), 4);
+    }
 }
 
 /// Imports a batch of Arrow C Data structures into a [`Vec<RecordBatch>`] and
