@@ -90,7 +90,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * the split is conservative in those shapes — distributed parallelism is traded for
      * correctness.
      */
-    private static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
+    static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
             if (isPercentileApprox(aggCall)) {
                 return true;
@@ -203,7 +203,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
      * row-type check on transformTo passes.
      */
-    private static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
+    static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
         List<AggregateCall> rebuilt = null;
         for (int i = 0; i < aggCalls.size(); i++) {
             AggregateCall call = aggCalls.get(i);
@@ -234,7 +234,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return rebuilt != null ? rebuilt : aggCalls;
     }
 
-    private static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
+    static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
         if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {
             return Map.of();
         }

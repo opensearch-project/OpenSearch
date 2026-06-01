@@ -94,7 +94,7 @@ public final class HashShuffleDispatch {
      * with {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} / {@code SHUFFLE_SCAN_RIGHT} on the producer
      * children of a consumer stage. Caller is responsible for selecting the right strategy
      * (this class is invoked only when {@link JoinStrategyAdvisor#observe} returns
-     * {@link JoinStrategy#HASH_SHUFFLE}).
+     * {@link MppStrategy#HASH_SHUFFLE}).
      *
      * @param ctx the query context owning the DAG.
      * @param dag the post-CBO DAG produced by {@code DAGBuilder}; not mutated structurally.

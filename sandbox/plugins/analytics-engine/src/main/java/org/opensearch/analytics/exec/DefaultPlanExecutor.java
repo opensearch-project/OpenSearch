@@ -27,9 +27,9 @@ import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
 import org.opensearch.analytics.exec.join.BroadcastDispatch;
-import org.opensearch.analytics.exec.join.JoinStrategy;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
-import org.opensearch.analytics.exec.join.JoinStrategyMetrics;
+import org.opensearch.analytics.exec.join.MppStrategy;
+import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
@@ -91,7 +91,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final ThreadPool threadPool;
     private final TaskManager taskManager;
     private final NodeClient client;
-    private final JoinStrategyMetrics joinStrategyMetrics;
+    private final MppStrategyMetrics mppStrategyMetrics;
     private final EngineContext engineContext;
     private final org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager;
     // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
@@ -110,7 +110,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         EngineContext engineContext,
         NodeClient client,
         Scheduler scheduler,
-        JoinStrategyMetrics joinStrategyMetrics,
+        MppStrategyMetrics mppStrategyMetrics,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle,
         org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager,
         org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver
@@ -123,7 +123,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
-        this.joinStrategyMetrics = joinStrategyMetrics;
+        this.mppStrategyMetrics = mppStrategyMetrics;
         this.engineContext = engineContext;
         this.shuffleBufferManager = shuffleBufferManager;
         // Use the plugin-owned coordinator allocator (a child of POOL_QUERY). The plugin
@@ -229,31 +229,40 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // M2 producer is filled). The "routed" claim is honest: counter reflects what the
         // dispatcher would route IF execution proceeds — partial wiring failures don't hide
         // the planner's decision from /_analytics/_strategies observers.
-        final JoinStrategy joinStrategy = JoinStrategyAdvisor.observe(dag);
+        final MppStrategy joinStrategy = JoinStrategyAdvisor.observe(dag);
         final Stage broadcastBuild = JoinStrategyAdvisor.findBroadcastBuild(dag);
         final Stage broadcastProbe = JoinStrategyAdvisor.findBroadcastProbe(dag);
         final Stage shuffleLeft = JoinStrategyAdvisor.findShuffleScanLeft(dag);
         final Stage shuffleRight = JoinStrategyAdvisor.findShuffleScanRight(dag);
+        final Stage shuffleAggProducer = org.opensearch.analytics.exec.agg.AggregateStrategyAdvisor.findAggregateShuffleProducer(dag);
         final boolean isQueryScheduler = scheduler instanceof QueryScheduler;
-        final boolean dispatchBroadcast = joinStrategy == JoinStrategy.BROADCAST
+        final boolean dispatchBroadcast = joinStrategy == MppStrategy.BROADCAST
             && broadcastBuild != null
             && broadcastProbe != null
             && isQueryScheduler;
-        final boolean dispatchHashShuffle = joinStrategy == JoinStrategy.HASH_SHUFFLE
+        final boolean dispatchHashShuffle = joinStrategy == MppStrategy.HASH_SHUFFLE
             && shuffleLeft != null
             && shuffleRight != null
             && isQueryScheduler;
+        final boolean dispatchHashShuffleAggregate = shuffleAggProducer != null && isQueryScheduler;
 
         if (JoinStrategyAdvisor.containsJoin(dag)) {
-            JoinStrategy routedStrategy;
+            MppStrategy routedStrategy;
             if (dispatchBroadcast) {
-                routedStrategy = JoinStrategy.BROADCAST;
+                routedStrategy = MppStrategy.BROADCAST;
             } else if (dispatchHashShuffle) {
-                routedStrategy = JoinStrategy.HASH_SHUFFLE;
+                routedStrategy = MppStrategy.HASH_SHUFFLE;
             } else {
-                routedStrategy = JoinStrategy.COORDINATOR_CENTRIC;
+                routedStrategy = MppStrategy.COORDINATOR_CENTRIC;
             }
-            joinStrategyMetrics.recordDispatch(routedStrategy);
+            mppStrategyMetrics.recordDispatch(routedStrategy);
+        } else if (org.opensearch.analytics.exec.agg.AggregateStrategyAdvisor.containsFinalAggregate(dag)) {
+            // Agg-shaped query (FINAL aggregate present, no join): record the dispatch shape so
+            // /_analytics/_strategies surfaces whether the M3 worker tier actually fired vs.
+            // fell back to coord-centric (e.g. when the SHUFFLE_SCAN_AGG producer is absent
+            // because CBO picked the coord-centric alternative).
+            MppStrategy routedStrategy = dispatchHashShuffleAggregate ? MppStrategy.HASH_SHUFFLE_AGG : MppStrategy.COORDINATOR_CENTRIC;
+            mppStrategyMetrics.recordDispatch(routedStrategy);
         }
 
         PlanForker.forkAll(dag, capabilityRegistry);
@@ -262,14 +271,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
-        if (joinStrategy == JoinStrategy.HASH_SHUFFLE && !dispatchHashShuffle) {
+        if (joinStrategy == MppStrategy.HASH_SHUFFLE && !dispatchHashShuffle) {
             logger.info(
                 "[DefaultPlanExecutor] HASH_SHUFFLE plan-shape produced but dispatch ineligible (left={}, right={}, scheduler={}); falling back to single-pass execution.",
                 shuffleLeft != null,
                 shuffleRight != null,
                 scheduler.getClass().getSimpleName()
             );
-        } else if (joinStrategy == JoinStrategy.BROADCAST && !dispatchBroadcast) {
+        } else if (joinStrategy == MppStrategy.BROADCAST && !dispatchBroadcast) {
             logger.info(
                 "[DefaultPlanExecutor] BROADCAST plan-shape produced but scheduler is {}, not QueryScheduler; falling back to single-pass execution.",
                 scheduler.getClass().getSimpleName()
@@ -363,6 +372,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, execRef, batchesListener);
             } else if (dispatchHashShuffle) {
                 dispatchHashShuffle(dag, shuffleLeft, shuffleRight, context, execRef, batchesListener);
+            } else if (dispatchHashShuffleAggregate) {
+                dispatchHashShuffleAggregate(dag, shuffleAggProducer, context, execRef, batchesListener);
             } else {
                 // execRef read by profile listener after execution completes
                 execRef.set(scheduler.execute(context, batchesListener));
@@ -465,6 +476,47 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
         new org.opensearch.analytics.exec.join.HashShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry)
             .run(context, dag, leftProducer, rightProducer, consumer, execRef::set, terminal);
+    }
+
+    /**
+     * Runs the hash-shuffle aggregate path against a CBO-produced DAG. The DAG's producer child
+     * stage is tagged {@link Stage.StageRole#SHUFFLE_SCAN_AGG} by {@code DAGBuilder.cutShuffle}
+     * when the shuffle's parent is an {@link org.opensearch.analytics.planner.rel.OpenSearchAggregate}.
+     * The dispatcher lifts the FINAL aggregate into a worker stage via
+     * {@link org.opensearch.analytics.exec.agg.HashShuffleAggregateDAGRewriter}, attaches the
+     * single-side shuffle instructions, and hands off to the scheduler.
+     */
+    private void dispatchHashShuffleAggregate(
+        QueryDAG dag,
+        Stage producer,
+        QueryContext context,
+        AtomicReference<QueryExecution> execRef,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        Stage consumer = findAggregateConsumerStage(dag.rootStage(), producer);
+        if (consumer == null) {
+            throw new IllegalStateException(
+                "HashShuffleAggregateDispatch: could not locate consumer stage that holds the agg-shuffle producer as a child"
+            );
+        }
+        QueryScheduler qscheduler = (QueryScheduler) scheduler;
+        new org.opensearch.analytics.exec.agg.HashShuffleAggregateDispatch(
+            qscheduler,
+            clusterService,
+            shuffleBufferManager,
+            capabilityRegistry
+        ).run(context, dag, producer, consumer, execRef::set, terminal);
+    }
+
+    /** Walks {@code stage}'s subtree looking for the parent of {@code producer}. */
+    private static Stage findAggregateConsumerStage(Stage stage, Stage producer) {
+        if (stage == null) return null;
+        if (stage.getChildStages().contains(producer)) return stage;
+        for (Stage child : stage.getChildStages()) {
+            Stage found = findAggregateConsumerStage(child, producer);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     /** Walks {@code stage}'s subtree looking for the stage whose direct {@code childStages} list

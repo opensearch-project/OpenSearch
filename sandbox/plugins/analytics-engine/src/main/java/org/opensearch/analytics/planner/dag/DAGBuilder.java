@@ -250,6 +250,12 @@ public class DAGBuilder {
             } else if (parentInputIndex == 1) {
                 childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_RIGHT);
             }
+        } else if (parent instanceof org.opensearch.analytics.planner.rel.OpenSearchAggregate) {
+            // M3 hash-shuffle aggregate: single producer feeding a FINAL aggregate worker.
+            // No left/right semantics — just one input stream per partition. The agg dispatcher
+            // reads this role to lift the FINAL into a worker stage and attach a single
+            // ShuffleScan instruction (vs the join's two).
+            childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_AGG);
         }
         parentChildStages.add(childStage);
 

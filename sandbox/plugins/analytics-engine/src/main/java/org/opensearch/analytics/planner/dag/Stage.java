@@ -61,7 +61,10 @@ public class Stage {
         SHUFFLE_SCAN_LEFT,
         /** Hash-shuffle right scan — partitions and ships to workers (M2). */
         SHUFFLE_SCAN_RIGHT,
-        /** Hash-shuffle worker stage — one task per shuffle partition, consumes two input streams (M2). */
+        /** Hash-shuffle aggregate scan — single producer feeding an aggregate worker (M3). */
+        SHUFFLE_SCAN_AGG,
+        /** Hash-shuffle worker stage — one task per shuffle partition. Consumes two input streams
+         *  for a join (M2) or one for an aggregate FINAL (M3). */
         SHUFFLE_WORKER
     }
 

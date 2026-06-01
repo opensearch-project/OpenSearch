@@ -76,10 +76,15 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
             // (left + right). The expected sender counts come from the ShuffleScan instructions
             // (each scan carries the count for its side); the placeholder setup at the head
             // doesn't have them yet because it was added before per-partition info was known.
+            // Default to -1 ("leave unchanged" in setExpectedSenders) and let the placeholder's
+            // own value be the fallback for sides with no ShuffleScan — that's how the M3
+            // single-side aggregate path tells the worker buffer that the right side has zero
+            // expected senders (placeholder carries rightExpectedSenders=0).
             int leftExpected = -1;
             int rightExpected = -1;
             String queryId = null;
             int targetStageId = -1;
+            ShuffleWorkerSetupInstructionNode placeholderSetup = null;
             for (InstructionNode node : plan.instructions()) {
                 if (node instanceof ShuffleScanInstructionNode scan && scan.getShufflePartitionIndex() == partitionIndex) {
                     if ("left".equals(scan.getSide())) {
@@ -91,6 +96,19 @@ public final class WorkerFragmentStageExecutionFactory implements StageExecution
                         queryId = scan.getQueryId();
                         targetStageId = scan.getTargetStageId();
                     }
+                } else if (node instanceof ShuffleWorkerSetupInstructionNode setup) {
+                    placeholderSetup = setup;
+                }
+            }
+            // For sides with no ShuffleScan instruction (M3 agg shuffle has only "left" scans),
+            // fall back to the placeholder's stored value so a configured "rightExpected=0"
+            // pre-fires the right-side latch and doesn't get clobbered to -1.
+            if (placeholderSetup != null) {
+                if (leftExpected < 0) leftExpected = placeholderSetup.getLeftExpectedSenders();
+                if (rightExpected < 0) rightExpected = placeholderSetup.getRightExpectedSenders();
+                if (queryId == null) {
+                    queryId = placeholderSetup.getQueryId();
+                    targetStageId = placeholderSetup.getTargetStageId();
                 }
             }
 

@@ -22,11 +22,11 @@ import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.Scheduler;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
-import org.opensearch.analytics.exec.join.JoinStrategyMetrics;
+import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
-import org.opensearch.analytics.rest.RestJoinStrategyStatsAction;
+import org.opensearch.analytics.rest.RestMppStrategyStatsAction;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
@@ -107,7 +107,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
-    private final JoinStrategyMetrics joinStrategyMetrics = new JoinStrategyMetrics();
+    private final MppStrategyMetrics mppStrategyMetrics = new MppStrategyMetrics();
     private final ShuffleBufferManager shuffleBufferManager = new ShuffleBufferManager();
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
 
@@ -160,7 +160,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         // buffer manager is exposed both here (for Guice-injected consumers like
         // DefaultPlanExecutor) and via createGuiceModules' toInstance binding so the
         // transport handler that populates buffers from the wire side sees the same instance.
-        return List.of(searchService, ctx, capabilityRegistry, joinStrategyMetrics, shuffleBufferManager, coordinatorAllocatorHandle);
+        return List.of(searchService, ctx, capabilityRegistry, mppStrategyMetrics, shuffleBufferManager, coordinatorAllocatorHandle);
     }
 
     @Override
@@ -173,7 +173,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestJoinStrategyStatsAction(joinStrategyMetrics));
+        return List.of(new RestMppStrategyStatsAction(mppStrategyMetrics));
     }
 
     @Override

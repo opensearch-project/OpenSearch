@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
+import org.opensearch.analytics.planner.rules.OpenSearchAggregateShuffleSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
@@ -283,6 +284,7 @@ public class PlannerImpl {
         OpenSearchDistributionTraitDef distTraitDef = context.getDistributionTraitDef();
         volcanoPlanner.addRelTraitDef(distTraitDef);
         volcanoPlanner.addRule(new OpenSearchAggregateSplitRule(context));
+        volcanoPlanner.addRule(new OpenSearchAggregateShuffleSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchSortSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchBroadcastJoinSplitRule(context));

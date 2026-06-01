@@ -71,7 +71,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
 
         assertFalse("scan-only DAG must not be counted as a join", JoinStrategyAdvisor.containsJoin(dag));
-        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
+        assertEquals(MppStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
         assertNull(JoinStrategyAdvisor.findBroadcastBuild(dag));
         assertNull(JoinStrategyAdvisor.findBroadcastProbe(dag));
     }
@@ -84,7 +84,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         QueryDAG dag = buildDag(join, context);
 
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
-        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
+        assertEquals(MppStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
         assertNull(JoinStrategyAdvisor.findBroadcastBuild(dag));
     }
 
@@ -93,7 +93,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         QueryDAG dag = buildDag(makeInnerEquiJoin("dim", "fact"), context);
 
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
-        assertEquals(JoinStrategy.BROADCAST, JoinStrategyAdvisor.observe(dag));
+        assertEquals(MppStrategy.BROADCAST, JoinStrategyAdvisor.observe(dag));
 
         Stage build = JoinStrategyAdvisor.findBroadcastBuild(dag);
         Stage probe = JoinStrategyAdvisor.findBroadcastProbe(dag);
@@ -109,7 +109,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         QueryDAG dag = buildDag(makeInnerEquiJoin("a", "b"), context);
 
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
-        assertEquals(JoinStrategy.HASH_SHUFFLE, JoinStrategyAdvisor.observe(dag));
+        assertEquals(MppStrategy.HASH_SHUFFLE, JoinStrategyAdvisor.observe(dag));
         assertNull("hash-shuffle DAG must NOT have a BROADCAST_BUILD stage", JoinStrategyAdvisor.findBroadcastBuild(dag));
 
         // DAGBuilder.cutShuffle should role-tag each child stage based on which join input it
@@ -129,7 +129,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         QueryDAG dag = buildDag(makeThetaJoin("a", "b"), context);
 
         assertTrue(JoinStrategyAdvisor.containsJoin(dag));
-        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
+        assertEquals(MppStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
     }
 
     // ── helpers ────────────────────────────────────────────────────────────

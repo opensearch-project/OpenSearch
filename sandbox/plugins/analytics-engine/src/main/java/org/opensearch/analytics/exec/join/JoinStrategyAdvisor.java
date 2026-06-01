@@ -8,10 +8,8 @@
 
 package org.opensearch.analytics.exec.join;
 
-import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.RelNodeUtils;
-import org.opensearch.analytics.planner.dag.ExchangeInfo;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
@@ -21,7 +19,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchJoin;
  * <ul>
  *   <li>{@link #containsJoin(QueryDAG)} — whether the DAG contains an {@link OpenSearchJoin},
  *       used as a metrics gate so non-join queries don't pollute join-strategy counters.</li>
- *   <li>{@link #observe(QueryDAG)} — which {@link JoinStrategy} the DAG already encodes,
+ *   <li>{@link #observe(QueryDAG)} — which {@link MppStrategy} the DAG already encodes,
  *       inferred from the stage roles {@code DAGBuilder} stamped at cut time. Read-only:
  *       no decisions, no rewrites, no role mutations.</li>
  * </ul>
@@ -67,31 +65,34 @@ public final class JoinStrategyAdvisor {
      *
      * <p>Resolution priority (in order):
      * <ol>
-     *   <li>Any stage tagged {@link Stage.StageRole#BROADCAST_BUILD} → {@link JoinStrategy#BROADCAST}.</li>
+     *   <li>Any stage tagged {@link Stage.StageRole#BROADCAST_BUILD} → {@link MppStrategy#BROADCAST}.</li>
      *   <li>Any stage tagged {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} or
-     *       {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} → {@link JoinStrategy#HASH_SHUFFLE}.
-     *       (Fallback: any HASH_DISTRIBUTED ExchangeInfo, for shuffle stages whose parent isn't
-     *       an OpenSearchJoin — e.g. shuffle below an aggregate.)</li>
-     *   <li>Otherwise (including non-join queries) → {@link JoinStrategy#COORDINATOR_CENTRIC}.</li>
+     *       {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} → {@link MppStrategy#HASH_SHUFFLE}. The
+     *       agg-side hash shuffle uses {@link Stage.StageRole#SHUFFLE_SCAN_AGG} and is reported
+     *       separately by {@code AggregateStrategyAdvisor}; this advisor stays join-only.</li>
+     *   <li>Otherwise (including non-join queries) → {@link MppStrategy#COORDINATOR_CENTRIC}.</li>
      * </ol>
      *
      * <p>Callers that need to distinguish "non-join, returned coord-centric by default" from
      * "actual join, CBO picked coord-centric" should gate on {@link #containsJoin} first.
      */
-    public static JoinStrategy observe(QueryDAG dag) {
+    public static MppStrategy observe(QueryDAG dag) {
         Stage root = dag.rootStage();
         if (root == null) {
-            return JoinStrategy.COORDINATOR_CENTRIC;
+            return MppStrategy.COORDINATOR_CENTRIC;
         }
         if (anyStageHasRole(root, Stage.StageRole.BROADCAST_BUILD)) {
-            return JoinStrategy.BROADCAST;
+            return MppStrategy.BROADCAST;
         }
-        if (anyStageHasRole(root, Stage.StageRole.SHUFFLE_SCAN_LEFT)
-            || anyStageHasRole(root, Stage.StageRole.SHUFFLE_SCAN_RIGHT)
-            || anyStageHasHashExchange(root)) {
-            return JoinStrategy.HASH_SHUFFLE;
+        // Restricted to the join-side shuffle role tags. The earlier fallback to
+        // anyStageHasHashExchange returned HASH_SHUFFLE for any DAG containing a hash
+        // exchange — including the M3 agg-shuffle path, which uses SHUFFLE_SCAN_AGG, not
+        // SHUFFLE_SCAN_LEFT/RIGHT. That false positive triggered a misleading "HASH_SHUFFLE
+        // plan-shape produced but dispatch ineligible" warn log on every agg-shuffle query.
+        if (anyStageHasRole(root, Stage.StageRole.SHUFFLE_SCAN_LEFT) || anyStageHasRole(root, Stage.StageRole.SHUFFLE_SCAN_RIGHT)) {
+            return MppStrategy.HASH_SHUFFLE;
         }
-        return JoinStrategy.COORDINATOR_CENTRIC;
+        return MppStrategy.COORDINATOR_CENTRIC;
     }
 
     /**
@@ -139,17 +140,6 @@ public final class JoinStrategyAdvisor {
         if (stage.getRole() == role) return true;
         for (Stage child : stage.getChildStages()) {
             if (anyStageHasRole(child, role)) return true;
-        }
-        return false;
-    }
-
-    private static boolean anyStageHasHashExchange(Stage stage) {
-        ExchangeInfo info = stage.getExchangeInfo();
-        if (info != null && info.distributionType() == RelDistribution.Type.HASH_DISTRIBUTED) {
-            return true;
-        }
-        for (Stage child : stage.getChildStages()) {
-            if (anyStageHasHashExchange(child)) return true;
         }
         return false;
     }

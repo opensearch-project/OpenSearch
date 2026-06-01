@@ -163,9 +163,24 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     /**
      * SINGLE-mode aggregate over partitioned input is incorrect (each shard would aggregate
-     * independently, results would never merge). Return infinite cost so Volcano picks the
-     * split alternative. Allow SOURCE/EXECUTION SINGLETON (already gathered) and ANY
-     * (Volcano's "still exploring" placeholder). PARTIAL/FINAL skip the gate.
+     * independently, results would never merge). FINAL has two legal input shapes:
+     * SINGLETON+COORDINATOR (the M0/M1 coord-centric path — partials gathered to coord, FINAL
+     * merges) and HASH+WORKER (the M3 shuffle path — partials hash-shuffled by group keys,
+     * FINAL runs on each worker over its hash bucket). Anything else is rejected.
+     *
+     * <p>PARTIAL is unconstrained (it consumes whatever the child distribution is and emits
+     * partial-state output at the same locality).
+     *
+     * <p>The check tolerates ANY (Volcano's "still exploring" placeholder) on either side so the
+     * planner can register alternatives during memo expansion before the trait is finalized.
+     *
+     * <p>Cost: FINAL pays merge cost proportional to its input rows. At COORDINATOR+SINGLETON
+     * the merge runs serially → cost = inputRows. At HASH+WORKER+N the merge runs across N
+     * workers in parallel → cost = inputRows / N. The parallelism win is what makes the shuffle
+     * path beat the coord-centric path on high-cardinality {@code GROUP BY} despite paying an
+     * extra gather ER on top: for shuffle to win the savings on FINAL must exceed the extra
+     * gather ER's setup + final-output rows. This naturally amortizes only at scale, leaving
+     * tiny aggregates on coord-centric.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
@@ -178,6 +193,38 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
                 if (!singletonOrAny) {
                     return planner.getCostFactory().makeInfiniteCost();
                 }
+            }
+        } else if (mode == AggregateMode.FINAL) {
+            int partitionCount = 1;
+            boolean traitResolved = false;
+            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+                RelTrait trait = getInput().getTraitSet().getTrait(index);
+                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
+                if (distribution.getType() == RelDistribution.Type.ANY) continue;
+                boolean singletonCoord = distribution.getType() == RelDistribution.Type.SINGLETON
+                    && distribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
+                boolean hashWorker = distribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
+                    && distribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
+                if (!singletonCoord && !hashWorker) {
+                    return planner.getCostFactory().makeInfiniteCost();
+                }
+                traitResolved = true;
+                if (hashWorker && distribution.getPartitionCount() != null) {
+                    partitionCount = Math.max(1, distribution.getPartitionCount());
+                }
+            }
+            // FINAL pays a merge cost proportional to its input row count. Coord-centric merges
+            // serially (partitionCount=1); HASH+WORKER merges in parallel across N workers
+            // (partitionCount=N). The /N discount is what lets the shuffle path beat the
+            // coord-centric path on high-cardinality GROUP BY despite paying an extra gather
+            // ER on top — but only when the savings exceed the gather's setup, so tiny inputs
+            // still route coord-centric. Use tinyCost while the trait is unresolved (Volcano's
+            // ANY placeholder) so memo expansion can register alternatives without committing
+            // to a cost.
+            if (traitResolved) {
+                double finalRows = mq.getRowCount(getInput());
+                double finalCost = finalRows / partitionCount;
+                return planner.getCostFactory().makeCost(finalCost, finalCost, 0);
             }
         }
         return planner.getCostFactory().makeTinyCost();
