@@ -19,24 +19,17 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import java.util.List;
 
 /**
- * Bridges integer-input rounding calls (FLOOR, CEIL, SIGN, TRUNCATE) over to DataFusion's
- * fp64-only UDFs while preserving PPL's "same type as input" return-type contract.
+ * Calcite types {@code FLOOR(int_col)}, {@code CEIL}, {@code SIGN}, {@code TRUNCATE} as
+ * {@code int} (ARG0 inference), but DataFusion's UDFs only accept fp32/fp64 and produce
+ * {@code Float64}. On multi-shard plans the substrait schema check rejects the resulting
+ * wire/physical disagreement. Adjusting Calcite's return type would break the user-facing
+ * "same type as input" PPL contract; instead this adapter wraps the call in casts so wire
+ * and physical output agree without changing the outer-visible type.
  *
- * <p>For an integer first operand, rewrites {@code fn(int_col [, ...])} as
- * {@code CAST(fn(CAST(int_col AS DOUBLE) [, ...]) AS <original_type>)}. The outer CAST keeps
- * the call's type identical to {@code original.getType()}, so downstream rowTypes don't
- * shift; the inner CAST widens the first operand so isthmus binds the standard fp64 impl
- * (DataFusion's UDFs reject {@code Int32}). For non-integer operands the call is rebuilt
- * only when {@code target} renames the operator (e.g. SIGN → signum), otherwise passed
- * through.
- *
- * <p>Why we need this: without it, Calcite's wire schema says {@code Int32} but the producer's
- * actual physical output is {@code Float64}, and on multi-shard plans the consumer's
- * {@code ensure_schema_compatibility} check rejects the bind.
- *
- * <p>Trailing operands (e.g. the {@code scale} of {@code TRUNCATE(value, scale)}) pass through
- * untouched. Recursion is safe: once the first operand is widened to DOUBLE, the operand-type
- * guard short-circuits any re-visit.
+ * <p>Rewrites {@code fn(int_col [, ...])} as
+ * {@code CAST(fn(CAST(int_col AS DOUBLE) [, ...]) AS <original_type>)}. Trailing operands
+ * (e.g. {@code TRUNCATE}'s {@code scale}) pass through untouched; non-integer first operands
+ * are rebuilt only when {@code target} renames the operator (e.g. SIGN → signum).
  *
  * @opensearch.internal
  */
