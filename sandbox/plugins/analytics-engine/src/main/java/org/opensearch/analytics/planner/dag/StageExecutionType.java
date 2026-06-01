@@ -49,5 +49,14 @@ public enum StageExecutionType {
      * shuffle-scan instructions. Sibling of {@link #SHARD_FRAGMENT} but routed through
      * a separate transport ({@code WorkerFragmentExecutionAction}).
      */
-    WORKER_FRAGMENT
+    WORKER_FRAGMENT,
+    /**
+     * QTF (late-materialization) Scatter-Gather stage. Drains the upstream Sort+Limit
+     * output, fans out fetch-by-rowid requests to data nodes (one per UGSI), stitches
+     * fetched columns back by row position, and emits the wrapper's output schema
+     * upstream. No Substrait fragment — the stage execution drives fetch transport
+     * directly. Marked by an {@code OpenSearchLateMaterialization} node in the
+     * stage's fragment.
+     */
+    LATE_MATERIALIZATION
 }

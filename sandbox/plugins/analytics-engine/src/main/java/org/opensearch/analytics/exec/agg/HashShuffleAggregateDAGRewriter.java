@@ -99,7 +99,8 @@ public final class HashShuffleAggregateDAGRewriter {
             finalAgg.getTraitSet(),
             workerStageId,
             finalAgg.getRowType(),
-            ((OpenSearchRelNode) finalAgg).getViableBackends()
+            ((OpenSearchRelNode) finalAgg).getViableBackends(),
+            ((OpenSearchRelNode) finalAgg).getOutputFieldStorage()
         );
         RelNode rewrittenConsumerFragment = replaceWith(consumerFragment, finalAgg, workerInputScan);
 

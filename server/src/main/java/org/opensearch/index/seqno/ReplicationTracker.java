@@ -1858,6 +1858,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    /**
+     * Resets hasAllPeerRecoveryRetentionLeases to false. Called when a DFA read-only engine is created
+     * (warm primary) to prevent assertion failures in renewPeerRecoveryRetentionLeases() during the
+     * window between primary activation and async lease creation via ensurePeerRecoveryRetentionLeasesExist().
+     * The flag will be set back to true when createMissingPeerRecoveryRetentionLeases(ActionListener) completes.
+     */
+    public synchronized void resetHasAllPeerRecoveryRetentionLeases() {
+        hasAllPeerRecoveryRetentionLeases = false;
+    }
+
     private synchronized void setCreatedMissingRetentionLeases() {
         createdMissingRetentionLeases = true;
         assert invariant();

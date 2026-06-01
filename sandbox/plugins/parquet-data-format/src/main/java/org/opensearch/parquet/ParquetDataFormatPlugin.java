@@ -79,13 +79,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     private Settings settings = Settings.EMPTY;
     private ThreadPool threadPool;
     private ArrowNativeAllocator nativeAllocator;
-    /**
-     * Live value of {@link ParquetSettings#MAX_PER_VSR_ALLOCATION_DIVISOR}. Updated by the
-     * cluster-settings consumer registered in {@link #createComponents}. Read by every
-     * {@link org.opensearch.parquet.memory.ArrowBufferPool#createChildAllocator(String)}
-     * call so dynamic updates take effect for new child allocators without restart.
-     */
-    private volatile int maxPerVsrAllocationDivisor = ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(Settings.EMPTY);
 
     /** Creates a new ParquetDataFormatPlugin. */
     public ParquetDataFormatPlugin() {}
@@ -107,9 +100,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     ) {
         this.settings = clusterService.getSettings();
         this.threadPool = threadPool;
-        this.maxPerVsrAllocationDivisor = ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(this.settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR, v -> this.maxPerVsrAllocationDivisor = v);
         this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
             .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
         return Collections.emptyList();
@@ -131,7 +121,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             engineConfig.indexSettings(),
             threadPool,
             engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME),
-            () -> maxPerVsrAllocationDivisor,
             nativeAllocator
         );
     }

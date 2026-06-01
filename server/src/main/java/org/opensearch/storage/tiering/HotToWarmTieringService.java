@@ -25,7 +25,6 @@ import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.indices.ShardLimitValidator;
-import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.Set;
 
@@ -127,14 +126,15 @@ public class HotToWarmTieringService extends TieringService {
 
     @Override
     protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
-        Settings.Builder builder = Settings.builder()
+        // For DFA indices we intentionally do NOT remove INDEX_BLOCKS_WRITE here.
+        // The write block is deferred to removeWriteBlockForCancelledDfaIndices(), which
+        // only lifts it once every shard is confirmed started on a hot node (writable engine).
+        // Removing it here would allow writes to reach warm-node shards.
+        return Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), false)
             .put(INDEX_TIERING_STATE.getKey(), HOT)
-            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default");
-        if (TieringUtils.isDfaIndex(indexMetadata)) {
-            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
-        }
-        return builder.build();
+            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default")
+            .build();
     }
 
     @Override
@@ -147,19 +147,6 @@ public class HotToWarmTieringService extends TieringService {
         // before tier() is called
         // Non-DFA - Write block is not required
         return blocksBuilder;
-    }
-
-    @Override
-    protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
-        ClusterBlocks.Builder blocksBuilder,
-        String indexName,
-        IndexMetadata indexMetadata
-    ) {
-        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
-            return blocksBuilder;
-        }
-        // Cancel H2W: only DFA indices had a write block set — remove it so the index is writable again.
-        return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
     @Override

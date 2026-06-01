@@ -18,9 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.Discovery;
@@ -31,6 +29,7 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.memory.MemoryReportingService;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -43,7 +42,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -58,6 +59,13 @@ import static org.mockito.Mockito.when;
 public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
     private NodeService createNodeService(AnalyticsBackendNativeMemoryStats nativeStats) {
+        return createNodeService(nativeStats, null);
+    }
+
+    private NodeService createNodeService(
+        AnalyticsBackendNativeMemoryStats nativeStats,
+        Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier
+    ) {
         TransportService transportService = mock(TransportService.class);
         DiscoveryNode localNode = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), Version.CURRENT);
         when(transportService.getLocalNode()).thenReturn(localNode);
@@ -98,7 +106,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             mock(SegmentReplicationStatsTracker.class),
             mock(RepositoriesService.class),
             mock(AdmissionControlService.class),
-            null  // cacheService
+            null, // cacheService
+            nativeAllocatorStatsSupplier
         );
     }
 
@@ -141,7 +150,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 
@@ -188,7 +197,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 
@@ -234,7 +243,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // admissionControl
             false, // cacheService
             false, // remoteStoreNodeStats
-            false, // pluginStats
+            false, // nativeAllocator
             false  // nativeMemory
         );
 
@@ -282,18 +291,20 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 
         assertNotNull("nativeMemoryStats should be present", nodeStats.getAnalyticsBackendNativeMemoryStats());
 
-        // Render the AnalyticsBackendNativeMemoryStats to JSON and verify the format
+        // Render the parent NodeStats to JSON — NodeStats now opens the `native_memory`
+        // wrapper, emits `total_estimated_bytes` from OsProbe, then delegates to
+        // AnalyticsBackendNativeMemoryStats which renders only the `analytics_backend` block.
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        nodeStats.getAnalyticsBackendNativeMemoryStats().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        nodeStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        String json = Strings.toString(MediaTypeRegistry.JSON, nodeStats.getAnalyticsBackendNativeMemoryStats());
+        String json = builder.toString();
 
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
@@ -349,10 +360,108 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false,
             false,
             false,
-            false, // pluginStats
+            false, // nativeAllocator
             true   // nativeMemory
         );
 
         assertNull("nativeMemoryStats should be null when supplier is null", nodeStats.getAnalyticsBackendNativeMemoryStats());
+    }
+
+    /**
+     * Tests that {@code stats(... nativeAllocator=true ...)} invokes the constructor-injected
+     * {@code Supplier<NativeAllocatorPoolStats>} and surfaces its return value on
+     * {@link NodeStats#getNativeAllocatorStats()}. Covers the supplier-invocation branch in
+     * {@code collectNativeAllocatorStats}.
+     */
+    public void testStatsWithNativeAllocatorTrueAndSupplierPresent() {
+        NativeAllocatorPoolStats expected = new NativeAllocatorPoolStats(
+            1024L,
+            2048L,
+            8192L,
+            List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
+        );
+        NodeService nodeService = createNodeService(null, () -> expected);
+
+        NodeStats nodeStats = nodeService.stats(
+            CommonStatsFlags.NONE,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,  // nativeAllocator
+            false  // nativeMemory
+        );
+
+        assertNotNull("nativeAllocatorStats should be present when supplier returns non-null", nodeStats.getNativeAllocatorStats());
+        assertSame(expected, nodeStats.getNativeAllocatorStats());
+    }
+
+    /**
+     * Tests that {@code stats(... nativeAllocator=true ...)} returns {@code null} for the
+     * allocator stats when no supplier was injected at construction.
+     */
+    public void testStatsWithNativeAllocatorTrueAndNoSupplier() {
+        NodeService nodeService = createNodeService(null);
+        // No supplier passed to the factory — defaults to null.
+
+        NodeStats nodeStats = nodeService.stats(
+            CommonStatsFlags.NONE,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,  // nativeAllocator
+            false  // nativeMemory
+        );
+
+        assertNull("nativeAllocatorStats should be null when no supplier registered", nodeStats.getNativeAllocatorStats());
     }
 }

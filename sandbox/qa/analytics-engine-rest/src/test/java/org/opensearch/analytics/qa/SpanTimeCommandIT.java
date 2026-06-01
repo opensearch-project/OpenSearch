@@ -52,7 +52,8 @@ public class SpanTimeCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -83,7 +84,7 @@ public class SpanTimeCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(`@timestamp`, 1h) as s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         assertEquals("1h bucketing must collapse to a single bucket", 1, rows.size());
         return ((Number) rows.get(0).get(0)).longValue();
@@ -97,7 +98,7 @@ public class SpanTimeCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(`@timestamp`, 2h) as s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         assertEquals("2h bucketing must collapse to a single bucket", 1, rows.size());
         assertEquals("all 5 rows fall in the 00:00 2h bucket", 5L, ((Number) rows.get(0).get(0)).longValue());
@@ -115,7 +116,7 @@ public class SpanTimeCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(`@timestamp`, 40ms) as s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         assertEquals("each of 5 rows must fall in a distinct 40ms bucket", 5, rows.size());
 
@@ -140,7 +141,7 @@ public class SpanTimeCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(`@timestamp`, 250us) as s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         assertEquals("each of 5 rows must fall in a distinct 250us bucket", 5, rows.size());
     }
@@ -157,7 +158,7 @@ public class SpanTimeCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(`@timestamp`, 1ms) as s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         // All source @timestamp values have distinct millisecond values, so 1ms truncation
         // produces 5 buckets, one per row. The point of this assertion is that the query
@@ -172,11 +173,4 @@ public class SpanTimeCommandIT extends AnalyticsRestTestCase {
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

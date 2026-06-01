@@ -59,12 +59,15 @@ public class ShardTargetResolver extends TargetResolver {
         GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
             .searchShards(clusterState, concreteNames, null, null);
         List<ExecutionTarget> targets = new ArrayList<>();
+        int ordinal = 0;
         for (ShardIterator shardIt : shardIterators) {
             ShardRouting shard = shardIt.nextOrNull();
             if (shard != null) {
                 DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
                 if (node != null) {
-                    targets.add(new ShardExecutionTarget(node, shard.shardId()));
+                    // Pass the remaining iterator + cluster state to the target so dispatch
+                    // failure can fall over to a replica copy via ShardExecutionTarget.nextCopy.
+                    targets.add(new ShardExecutionTarget(node, shard.shardId(), ordinal++, shardIt, clusterState));
                 }
             }
         }

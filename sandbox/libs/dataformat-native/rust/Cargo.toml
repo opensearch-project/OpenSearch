@@ -56,7 +56,7 @@ tikv-jemallocator = { version = "=0.6.1", features = ["disable_initial_exec_tls"
 tikv-jemalloc-ctl = { version = "=0.6.1", features = ["stats"] }
 
 # Misc
-dashmap = { version = "=5.5.3", features = ["raw-api"] }
+dashmap = { version = "=5.5.3", features = ["raw-api", "serde"] }
 num_cpus = "=1.17.0"
 object_store = "=0.13.2"
 url = "=2.5.8"

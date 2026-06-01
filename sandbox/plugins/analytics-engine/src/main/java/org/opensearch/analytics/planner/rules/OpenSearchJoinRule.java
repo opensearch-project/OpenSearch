@@ -33,12 +33,13 @@ import java.util.Set;
  * gathered to the coordinator (enforced by the join's cost gate, which only accepts
  * SINGLETON inputs — Volcano inserts an {@link OpenSearchExchangeReducer} per side).
  *
- * <p>Accepts INNER / LEFT / RIGHT / FULL / SEMI / ANTI joins for both equi and non-equi
- * (theta) predicates. Equi joins reach the data-node engine as {@code HashJoinExec}; theta
- * joins fall back to {@code NestedLoopJoinExec} on the coordinator (the M0 path). The
- * downstream {@link org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule} doesn't
- * inspect the join condition — it only operates on distribution traits — so the same
- * SINGLETON+SINGLETON shape works for both kinds.
+ * <p>Accepts INNER / LEFT / RIGHT / FULL / SEMI / ANTI joins of any condition
+ * shape — pure equi (hash join), mixed equi + non-equi (hash on the equi keys
+ * with the residual riding along as a filter), null-safe equi via
+ * {@code IS_NOT_DISTINCT_FROM}, equi with one operand being a {@code RexCall}
+ * expression, and pure non-equi (e.g. {@code t1.a < t2.b} alone) — DataFusion
+ * picks the appropriate physical strategy (HashJoin / SortMergeJoin /
+ * NestedLoopJoin) based on the condition shape downstream.
  *
  * @opensearch.internal
  */

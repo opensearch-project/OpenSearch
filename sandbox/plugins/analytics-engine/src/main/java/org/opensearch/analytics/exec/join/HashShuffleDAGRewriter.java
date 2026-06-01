@@ -112,7 +112,8 @@ public final class HashShuffleDAGRewriter {
             join.getTraitSet(),
             workerStageId,
             join.getRowType(),
-            ((OpenSearchRelNode) join).getViableBackends()
+            ((OpenSearchRelNode) join).getViableBackends(),
+            ((OpenSearchRelNode) join).getOutputFieldStorage()
         );
         RelNode rewrittenConsumerFragment = replaceJoinWith(consumerFragment, join, workerInputScan);
 

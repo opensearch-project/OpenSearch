@@ -16,8 +16,8 @@ import java.lang.foreign.ValueLayout;
 
 public class WireConfigSnapshotTests extends OpenSearchTestCase {
 
-    public void testByteSizeEquals68() {
-        assertEquals(68L, WireConfigSnapshot.BYTE_SIZE);
+    public void testByteSize() {
+        assertEquals(72L, WireConfigSnapshot.BYTE_SIZE);
     }
 
     public void testWriteToWritesCorrectValuesAtCorrectOffsets() {
@@ -30,6 +30,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             .maxCollectorParallelism(4)
             .singleCollectorStrategy(2)
             .treeCollectorStrategy(1)
+            .queryStrategy(2)
             .build();
 
         try (Arena arena = Arena.ofConfined()) {
@@ -44,6 +45,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             assertEquals(4, segment.get(ValueLayout.JAVA_INT, 56)); // max_collector_parallelism
             assertEquals(2, segment.get(ValueLayout.JAVA_INT, 60)); // single_collector_strategy
             assertEquals(1, segment.get(ValueLayout.JAVA_INT, 64)); // tree_collector_strategy
+            assertEquals(2, segment.get(ValueLayout.JAVA_INT, 68)); // query_strategy = IndexedPredicateOnly
         }
     }
 
@@ -84,6 +86,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
         assertEquals(1, snapshot.maxCollectorParallelism());
         assertEquals(2, snapshot.singleCollectorStrategy());  // page_range_split
         assertEquals(1, snapshot.treeCollectorStrategy());    // tighten_outer_bounds
+        assertEquals(2, snapshot.queryStrategy());            // IndexedPredicateOnly
     }
 
     public void testBuilderCopyPreservesAllFields() {
@@ -96,6 +99,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             .maxCollectorParallelism(8)
             .singleCollectorStrategy(0)
             .treeCollectorStrategy(2)
+            .queryStrategy(1)
             .build();
 
         WireConfigSnapshot copy = WireConfigSnapshot.builder(original).build();
@@ -108,5 +112,6 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
         assertEquals(original.maxCollectorParallelism(), copy.maxCollectorParallelism());
         assertEquals(original.singleCollectorStrategy(), copy.singleCollectorStrategy());
         assertEquals(original.treeCollectorStrategy(), copy.treeCollectorStrategy());
+        assertEquals(original.queryStrategy(), copy.queryStrategy());
     }
 }

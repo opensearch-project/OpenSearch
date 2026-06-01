@@ -25,8 +25,11 @@ public interface FragmentInstructionHandlerFactory {
 
     // ── Coordinator-side: create instruction nodes ──
 
-    /** Creates a shard scan instruction node. */
-    Optional<InstructionNode> createShardScanNode();
+    /**
+     * Creates a shard scan instruction node. {@code requestsRowIds} signals that the scan
+     * must emit shard-global {@code __row_id__} values (QTF query phase).
+     */
+    Optional<InstructionNode> createShardScanNode(boolean requestsRowIds);
 
     /** Creates a filter delegation instruction node with the given delegation metadata. */
     Optional<InstructionNode> createFilterDelegationNode(
@@ -35,8 +38,17 @@ public interface FragmentInstructionHandlerFactory {
         List<DelegatedExpression> delegatedQueries
     );
 
-    /** Creates a shard scan with delegation instruction node — combines scan setup with delegation config. */
-    Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount);
+    /**
+     * Creates a shard scan with delegation instruction node — combines scan setup with
+     * delegation config. {@code requestsRowIds} signals that the scan must emit shard-global
+     * {@code __row_id__} values (QTF query phase). Backends that don't support QTF should
+     * return {@link Optional#empty()} when {@code requestsRowIds} is true.
+     */
+    Optional<InstructionNode> createShardScanWithDelegationNode(
+        FilterTreeShape treeShape,
+        int delegatedPredicateCount,
+        boolean requestsRowIds
+    );
 
     /** Creates a partial aggregate instruction node. */
     Optional<InstructionNode> createPartialAggregateNode();

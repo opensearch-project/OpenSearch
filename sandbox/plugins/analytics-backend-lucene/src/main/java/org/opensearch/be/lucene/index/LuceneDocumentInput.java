@@ -39,6 +39,7 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
 
     private final Document document;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
+    private long rowId = -1L;
 
     /**
      * Creates a new LuceneDocumentInput with the default field factory registry.
@@ -110,6 +111,12 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
         document.add(new SortedNumericDocValuesField(rowIdFieldName, rowId));
+        this.rowId = rowId;
+    }
+
+    /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
+    public long getRowId() {
+        return rowId;
     }
 
     @Override

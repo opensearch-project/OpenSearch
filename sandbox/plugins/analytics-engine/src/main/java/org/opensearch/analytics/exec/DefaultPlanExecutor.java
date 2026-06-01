@@ -22,7 +22,8 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.AnalyticsSettings;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
@@ -34,7 +35,6 @@ import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
-import org.opensearch.analytics.exec.task.AnalyticsQueryTaskRequest;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -47,13 +47,14 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.arrow.allocator.AllocationRejection;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
@@ -72,7 +73,7 @@ import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_A
  * {@link ClusterService}, {@link ThreadPool}, etc.) automatically.
  *
  * <p>Front-end plugins resolve this class from the Node's Guice injector and invoke
- * {@link #execute(RelNode, Object, ActionListener)} directly. Execution is asynchronous —
+ * {@link #execute(RelNode, QueryRequestContext, ActionListener)} directly. Execution is asynchronous —
  * the listener is fired by the scheduler once the query completes (or fails). The transport
  * path ({@code doExecute}) is reserved for future remote query invocation.
  *
@@ -89,16 +90,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final Scheduler scheduler;
     private final Executor searchExecutor;
     private final ThreadPool threadPool;
-    private final TaskManager taskManager;
     private final NodeClient client;
     private final MppStrategyMetrics mppStrategyMetrics;
-    private final EngineContext engineContext;
+    private final EngineContextProvider contextProvider;
     private final org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager;
     // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
-    private final org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public DefaultPlanExecutor(
@@ -107,24 +107,23 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ClusterService clusterService,
         ThreadPool threadPool,
         CapabilityRegistry capabilityRegistry,
-        EngineContext engineContext,
+        EngineContextProvider contextProvider,
         NodeClient client,
         Scheduler scheduler,
         MppStrategyMetrics mppStrategyMetrics,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle,
         org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager,
-        org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
         this.clusterService = clusterService;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.threadPool = threadPool;
-        this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
         this.mppStrategyMetrics = mppStrategyMetrics;
-        this.engineContext = engineContext;
+        this.contextProvider = contextProvider;
         this.shuffleBufferManager = shuffleBufferManager;
         // Use the plugin-owned coordinator allocator (a child of POOL_QUERY). The plugin
         // closes the underlying allocator on Plugin.close() via the handle, so coordinator-
@@ -140,13 +139,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     @Override
-    public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
+    public void execute(RelNode logicalFragment, QueryRequestContext queryCtx, ActionListener<Iterable<Object[]>> listener) {
         // Dispatch through ActionModule so the SecurityFilter evaluates index-level
         // permissions before any planning work begins. The AnalyticsQueryRequest
         // implements IndicesRequest.Replaceable, exposing target indices extracted
         // from the RelNode's TableScan nodes.
         String[] indices = RelNodeUtils.extractIndices(logicalFragment);
-        AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, context, indices);
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices);
         client.execute(
             AnalyticsQueryAction.INSTANCE,
             request,
@@ -155,24 +154,35 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     @Override
-    public void executeWithProfile(RelNode logicalFragment, Object context, ActionListener<ProfiledResult> listener) {
-        searchExecutor.execute(() -> {
-            try {
-                executeInternal(logicalFragment, true, listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            } catch (AssertionError e) {
-                listener.onFailure(new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e));
-            }
-        });
+    public void executeWithProfile(RelNode logicalFragment, QueryRequestContext queryCtx, ActionListener<ProfiledResult> listener) {
+        // Route through the framework action (profile=true) just like execute(), so a profiling
+        // query runs under the framework-provided, cancellable task rather than detached on
+        // searchExecutor. The SecurityFilter also evaluates index permissions on this path.
+        String[] indices = RelNodeUtils.extractIndices(logicalFragment);
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices, true);
+        client.execute(
+            AnalyticsQueryAction.INSTANCE,
+            request,
+            ActionListener.wrap(resp -> listener.onResponse(resp.getProfiledResult()), listener::onFailure)
+        );
     }
 
     /**
      * Unified planning + execution path. When {@code profile} is true, captures the CBO
      * plan text and snapshots per-stage timing into the {@link ProfiledResult}; when false,
      * wraps rows into a ProfiledResult with null profile for uniform listener handling.
+     *
+     * <p>If {@code queryCtx} is non-null, its {@link QueryRequestContext#clusterState()} is
+     * used for Calcite planning so the planner sees the same snapshot the front-end built
+     * the schema from. Otherwise a fresh {@code clusterService.state()} is read.
      */
-    private void executeInternal(RelNode logicalFragment, boolean profile, ActionListener<ProfiledResult> listener) {
+    private void executeInternal(
+        AnalyticsQueryTask queryTask,
+        RelNode logicalFragment,
+        QueryRequestContext queryCtx,
+        boolean profile,
+        ActionListener<ProfiledResult> listener
+    ) {
         RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
         logicalFragment.getCluster().invalidateMetadataQuery();
 
@@ -194,6 +204,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
             )
             .build();
+        // Reuse the snapshot captured at REST entry when present; this is the same ClusterState
+        // OpenSearchSchemaBuilder used to build the SchemaPlus, so planner and schema agree.
+        // TODO: remove the null fallback once every front-end (test-ppl-frontend,
+        // dsl-query-executor) threads an EngineContextProvider.getContext() snapshot through.
+        ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
         // Fetch primary-shard doc counts for every index this query touches. The CBO cost
         // model needs them to discriminate broadcast (small build × N probes) from
         // coord-centric (gather both sides) — without real counts every scan is Calcite's
@@ -202,14 +217,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ToLongFunction<String> tableRowCounts = IndexRowCountFetcher.fetchFor(logicalFragment, client);
         RelNode plan = PlannerImpl.createPlan(
             logicalFragment,
-            new PlannerContext(
-                capabilityRegistry,
-                clusterService.state(),
-                perQuerySettings,
-                tableRowCounts,
-                indexNameExpressionResolver,
-                profile
-            )
+            new PlannerContext(capabilityRegistry, planningState, perQuerySettings, tableRowCounts, indexNameExpressionResolver, profile)
         );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
@@ -285,14 +293,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             );
         }
 
-        // Register coordinator-level query task with TaskManager (like SearchTask).
-        // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
-        // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval — set from cluster settings below, null in req.
-        final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
-            "transport",
-            "analytics_query",
-            new AnalyticsQueryTaskRequest(dag.queryId(), null)
-        );
+        // The task is the framework-provided task from doExecute (registered by
+        // HandledTransportAction before doExecute, unregistered when the listener completes).
+        // Using it — rather than self-registering a detached task — is what lets a client
+        // disconnect / explicit task cancel propagate into the running query.
         final BufferAllocator queryAllocator;
         final boolean ownsAllocator;
         if (perQueryBufferLimit <= 0) {
@@ -337,6 +341,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // broadcast query leaks its per-query Arrow allocator (and any failed/cancelled query
         // that bails before QueryExecution is even constructed leaks unconditionally).
         final List<String> outputColumnOrder = logicalFragment.getRowType().getFieldNames();
+        // No taskManager.unregister here: the framework (HandledTransportAction) unregisters the
+        // task it created for doExecute once this listener settles. Unregistering it ourselves
+        // would double-free a task we no longer own.
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
             ActionListener.wrap(batches -> rowsListener.onResponse(batchesToRows(batches, outputColumnOrder)), rowsListener::onFailure),
             () -> {
@@ -344,8 +351,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                     context.close();
                 } catch (Exception e) {
                     logger.warn(new ParameterizedMessage("[query-{}] QueryContext.close() threw on teardown", dag.queryId()), e);
-                } finally {
-                    taskManager.unregister(queryTask);
                 }
             }
         );
@@ -571,15 +576,19 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // immediately. The listener is wrapped to convert backend-specific exceptions.
         ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(
             listener::onResponse,
-            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+            e -> listener.onFailure(e instanceof Exception ex ? contextProvider.convertException(ex) : e)
         );
-        searchExecutor.execute(() -> {
+        ContextAwareExecutor.wrap(searchExecutor, threadPool).execute(() -> {
             try {
                 executeInternal(
+                    (AnalyticsQueryTask) task,
                     request.getPlan(),
-                    false,
+                    request.getQueryCtx(),
+                    request.isProfile(),
                     ActionListener.wrap(
-                        result -> convertingListener.onResponse(new AnalyticsQueryResponse(result.rows())),
+                        result -> convertingListener.onResponse(
+                            request.isProfile() ? new AnalyticsQueryResponse(result) : new AnalyticsQueryResponse(result.rows())
+                        ),
                         convertingListener::onFailure
                     )
                 );

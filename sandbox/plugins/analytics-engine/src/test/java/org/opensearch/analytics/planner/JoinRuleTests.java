@@ -148,6 +148,8 @@ public class JoinRuleTests extends BasePlannerRulesTests {
      * doesn't inspect the join condition — it gates only on distribution traits — so the
      * marker rule produces an {@link OpenSearchJoin} regardless of equi-ness. At execution,
      * isthmus serializes the non-equi predicate and DataFusion picks NestedLoopJoinExec.
+     * Surfaces in RelDecorrelator output for correlated subqueries with non-equi correlation
+     * predicates (e.g. WHERE outer.id > inner.uid).
      */
     public void testPureNonEquiJoinAlsoMatchesAndProducesOpenSearchJoin() {
         // left.k < right.k — no equi-condition, the rule's analyzeCondition().leftKeys is empty.

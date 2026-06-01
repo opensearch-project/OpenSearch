@@ -88,13 +88,16 @@ public class HashShuffleAggregateDAGRewriterTests extends BasePlannerRulesTests 
         Stage consumer = findParentOf(dag.rootStage(), producer);
         assertNotNull("expected a consumer stage whose child is the producer", consumer);
 
-        // Sanity: BEFORE the rewrite, the consumer's FINAL aggregate fragment still carries the
-        // original COUNT call (proving adaptAll did not touch the fragment RelNode).
+        // The consumer's FINAL aggregate carries SUM, not COUNT — the split rule pre-decomposes
+        // via DistributedAggregateRewriter.FinalAggCallBuilder.buildFinalCalls so the agg call
+        // list already references the partial-count state column. The DAG rewriter then lifts
+        // this aggregate into a worker stage and re-runs adaptAll on the rewritten DAG so the
+        // worker plan-alternative bytes match.
         OpenSearchAggregate consumerFinal = findFinalAggregate(consumer.getFragment());
         assertNotNull("consumer fragment must hold an OpenSearchAggregate(FINAL)", consumerFinal);
         assertEquals(
-            "precondition: un-adapted consumer FINAL still uses COUNT",
-            "COUNT",
+            "split rule already adapts FINAL: COUNT pre-decomposed to SUM",
+            "SUM",
             consumerFinal.getAggCallList().getFirst().getAggregation().getName()
         );
 

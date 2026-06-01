@@ -14,9 +14,12 @@ import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,6 +59,22 @@ public class QueryContext {
      * executor and shut it down exactly once. Non-shared queries get a holder of their own.
      */
     private final SharedState sharedState;
+    /**
+     * HACK: side-table for cross-stage routing of resolved {@link ShardExecutionTarget}s.
+     * Today's only consumer is the QTF (late-materialization) Phase C, which needs to map
+     * an incoming row's {@code ___ugsi} ordinal back to the {@code (DiscoveryNode, ShardId)}
+     * to dispatch a fetch. Stage 1 (SHARD_FRAGMENT) populates this once after resolve;
+     * Stage 3 (LM) reads it.
+     *
+     * <p>TODO: this is a placeholder seam. {@code QueryContext} should not be a generic
+     * "things stages leave for other stages to find" map. Cleaner shapes: cache on
+     * {@code Stage} alongside {@code targetResolver}, or reify a typed cross-stage routing
+     * table. Revisit when a second consumer appears or when extending QTF to UNION/JOIN.
+     *
+     * <p>Single-threaded write inside one stage's {@code materializeTasks}; reads happen
+     * only after that stage SUCCEEDED → plain {@link HashMap} suffices.
+     */
+    private final Map<Integer, Map<Integer, ShardExecutionTarget>> resolvedTargetsByStage = new HashMap<>();
 
     private static final class SharedState {
         volatile ExecutorService localTaskExecutor;
@@ -148,6 +167,29 @@ public class QueryContext {
     /** Returns the operation listeners for this query. */
     public List<AnalyticsOperationListener> operationListeners() {
         return operationListeners;
+    }
+
+    /**
+     * Records the {@link ShardExecutionTarget}s resolved for a stage. Called once by the
+     * stage execution after {@code TargetResolver.resolve(...)} runs. See the field-level
+     * Javadoc on {@code resolvedTargetsByStage} for context on why this lives on
+     * {@code QueryContext}.
+     */
+    public void recordResolvedTargets(int stageId, List<ShardExecutionTarget> targets) {
+        Map<Integer, ShardExecutionTarget> byOrdinal = new HashMap<>(targets.size());
+        for (ShardExecutionTarget t : targets) {
+            byOrdinal.put(t.ordinal(), t);
+        }
+        resolvedTargetsByStage.put(stageId, byOrdinal);
+    }
+
+    /**
+     * Returns the resolved targets for a stage keyed by per-shard ordinal (UGSI), or
+     * {@code null} if that stage hasn't resolved yet (or doesn't have a resolver). The
+     * Map is built once at record time so callers can do O(1) ordinal-to-target lookup.
+     */
+    public Map<Integer, ShardExecutionTarget> getResolvedTargets(int stageId) {
+        return resolvedTargetsByStage.get(stageId);
     }
 
     public BufferAllocator bufferAllocator() {

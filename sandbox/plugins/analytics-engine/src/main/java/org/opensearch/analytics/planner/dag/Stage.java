@@ -9,6 +9,8 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.common.Nullable;
@@ -78,6 +80,14 @@ public class Stage {
     private List<StagePlan> planAlternatives;
     private FragmentInstructionHandlerFactory instructionHandlerFactory;
     private StageRole role = StageRole.SHARD_SOURCE;
+    /**
+     * Optional decorator wrapping this stage's incoming child sink. Set at DAG-build
+     * time (today only by {@code DAGBuilder.cutAtLateMaterialization}); applied at
+     * sink-resolution time inside the parent execution's {@code inputSink(...)}.
+     * Null when this stage doesn't need any decoration.
+     */
+    @Nullable
+    private InputSinkDecorator inputSinkDecorator;
 
     public Stage(
         int stageId,
@@ -169,11 +179,27 @@ public class Stage {
         this.role = role;
     }
 
+    @Nullable
+    public InputSinkDecorator getInputSinkDecorator() {
+        return inputSinkDecorator;
+    }
+
+    public void setInputSinkDecorator(InputSinkDecorator inputSinkDecorator) {
+        this.inputSinkDecorator = inputSinkDecorator;
+    }
+
     private StageExecutionType setStageExecutionType(
         ExchangeSinkProvider exchangeSinkProvider,
         TargetResolver targetResolver,
         RelNode fragment
     ) {
+        // QTF Scatter-Gather marker — orchestrates fetch-by-rowid + stitch internally,
+        // no targetResolver / no sinkProvider. Checked first so other categories don't
+        // accidentally claim the wrapper-stage. Null-fragment tolerant — some stub Stages
+        // in unit tests construct without a fragment.
+        if (fragment != null && RelNodeUtils.findNode(fragment, OpenSearchLateMaterialization.class) != null) {
+            return StageExecutionType.LATE_MATERIALIZATION;
+        }
         if (targetResolver instanceof WorkerTargetResolver) {
             return StageExecutionType.WORKER_FRAGMENT;
         } else if (targetResolver != null) {

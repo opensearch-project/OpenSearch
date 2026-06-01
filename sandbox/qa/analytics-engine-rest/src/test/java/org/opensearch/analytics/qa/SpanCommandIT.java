@@ -47,7 +47,8 @@ public class SpanCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -68,7 +69,7 @@ public class SpanCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(num1, 5) as s | sort s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         assertEquals("4 distinct numeric bin-starts expected", 4, rows.size());
         assertBucket(rows.get(0), 0.0, 1);
@@ -109,7 +110,7 @@ public class SpanCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(num0, 5) as s | sort s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         // Find the -15 bucket to verify floor semantics (the documented divergence
         // from Java integer-trunc). Don't assume null ordering; just scan.
@@ -155,7 +156,7 @@ public class SpanCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(num1, 2.5) as s | sort s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("rows missing", rows);
         // num1 ∈ {2.47, 6.71, 7.1, 7.12, 7.43, 8.42, 9.05, 9.38, 9.47, 9.78,
         //         10.32, 10.37, 11.38, 12.05, 12.4, 16.42, 16.81}
@@ -179,7 +180,7 @@ public class SpanCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | stats count() as c by span(num1, 5) as s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         long total = 0;
         for (List<Object> r : rows) {
             total += ((Number) r.get(0)).longValue();
@@ -194,11 +195,4 @@ public class SpanCommandIT extends AnalyticsRestTestCase {
         assertEquals("unexpected bin_start", expectedBinStart, ((Number) row.get(1)).doubleValue(), 1e-9);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

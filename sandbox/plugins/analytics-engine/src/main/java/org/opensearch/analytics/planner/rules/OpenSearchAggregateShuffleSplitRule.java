@@ -249,6 +249,23 @@ public class OpenSearchAggregateShuffleSplitRule extends RelOptRule {
             aggregate.getAggCallList(),
             child
         );
+
+        // Classify intermediate fields once and rebuild FINAL's aggCalls against the shuffled
+        // input so Volcano's typeMatchesInferred passes AND COUNT is decomposed to SUM (over the
+        // partial-count state column at index groupCount + i). Mirrors the coord-centric split
+        // rule — without this the worker FINAL would run COUNT() over already-counted rows and
+        // double-count across shards.
+        List<org.opensearch.analytics.spi.AggregateFunction.IntermediateField> intermediateFields =
+            org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder.classify(aggregate.getAggCallList());
+        List<AggregateCall> finalAggCalls = org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder
+            .buildFinalCalls(
+                aggregate.getAggCallList(),
+                intermediateFields,
+                aggregate.getGroupSet().cardinality(),
+                shuffled,
+                aggregate.getGroupSet().isEmpty()
+            );
+
         RelTraitSet finalTraits = aggregate.getTraitSet().replace(hashTrait);
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
@@ -256,11 +273,12 @@ public class OpenSearchAggregateShuffleSplitRule extends RelOptRule {
             shuffled,
             aggregate.getGroupSet(),
             aggregate.getGroupSets(),
-            aggregate.getAggCallList(),
+            finalAggCalls,
             AggregateMode.FINAL,
             aggregate.getViableBackends(),
             aggregate.getCallAnnotations(),
-            finalExtraLiterals
+            finalExtraLiterals,
+            intermediateFields
         );
 
         // Coord still needs the result. Convert WORKER+HASH → COORDINATOR+SINGLETON; Volcano

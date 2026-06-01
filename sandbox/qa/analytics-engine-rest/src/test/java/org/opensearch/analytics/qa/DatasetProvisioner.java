@@ -123,6 +123,12 @@ public final class DatasetProvisioner {
 
     /**
      * Inject parquet data format settings into the existing settings block.
+     *
+     * <p>Lucene is set as the secondary format so the Lucene analytics backend is available
+     * for text-search functions (match, match_phrase, query_string, ...). Without it those
+     * functions fail at planning time with
+     * {@code "No backend can evaluate filter predicate [OTHER_FUNCTION] on fields [...:text]"}
+     * because the Lucene backend never gets enrolled as a candidate.
      */
     private static String injectParquetSettings(String mappingBody) {
         return mappingBody.replace(
@@ -130,6 +136,7 @@ public final class DatasetProvisioner {
             "\"index.pluggable.dataformat.enabled\": true, "
                 + "\"index.pluggable.dataformat\": \"composite\", "
                 + "\"index.composite.primary_data_format\": \"parquet\", "
+                + "\"index.composite.secondary_data_formats\": [\"lucene\"], "
                 + "\"number_of_shards\""
         );
     }

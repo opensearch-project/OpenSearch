@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -62,7 +61,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(INDEX);
         indexConstantValueDocs(INDEX);
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats sum(value) as total");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats sum(value) as total");
         List<List<Object>> rows = scalarRows(result, "total");
 
         long actual = ((Number) rows.get(0).get(0)).longValue();
@@ -82,7 +81,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(INDEX);
         indexConstantValueDocs(INDEX);
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats count() as cnt");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats count() as cnt");
         List<List<Object>> rows = scalarRows(result, "cnt");
 
         long actual = ((Number) rows.get(0).get(0)).longValue();
@@ -99,7 +98,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(INDEX);
         indexConstantValueDocs(INDEX);
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats avg(value) as a");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats avg(value) as a");
         List<List<Object>> rows = scalarRows(result, "a");
 
         double actual = ((Number) rows.get(0).get(0)).doubleValue();
@@ -117,7 +116,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(index);
         indexVaryingValueDocs(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats dc(value) as dc");
+        Map<String, Object> result = executePpl("source = " + index + " | stats dc(value) as dc");
         List<List<Object>> rows = scalarRows(result, "dc");
 
         long actual = ((Number) rows.get(0).get(0)).longValue();
@@ -128,22 +127,46 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * {@code stats percentile_approx(value, 50) as p} — t-digest approximate median.
+     * STATE_EXPANDING, so the split rule gathers to coordinator + single-stage. Maps to
+     * DataFusion's {@code approx_percentile_cont} via {@link
+     * org.opensearch.be.datafusion.PplAggregateCallRewriter}.
+     */
+    public void testPercentileApproxAcrossShards() throws Exception {
+        String index = "coord_reduce_percentile_approx";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePpl("source = " + index + " | stats percentile_approx(value, 50) as p");
+        List<List<Object>> rows = scalarRows(result, "p");
+
+        Object cell = rows.get(0).get(0);
+        assertNotNull("cell for 'p' must not be null — coordinator-reduce returned no value", cell);
+        double actual = ((Number) cell).doubleValue();
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        double expected = (totalDocs + 1) / 2.0;
+        assertTrue(
+            "percentile_approx(value, 50) should be approximately " + expected + " (±2.0), got " + actual,
+            Math.abs(actual - expected) <= 2.0
+        );
+    }
+
     /** Single-shard {@code take(value, 3)} — bounded array of up to 3 values. */
-    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
     public void testTakeSingleShard() throws Exception {
         String index = "coord_reduce_take_single";
         createSingleShardParquetBackedIndex(index);
         indexSequentialValueDocsSingleShard(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats take(value, 3) as t");
+        Map<String, Object> result = executePpl("source = " + index + " | stats take(value, 3) as t");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 't', got " + columns, columns.contains("t"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -162,21 +185,20 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     }
 
     /** Cross-shard {@code take(value, 5)} — coordinator unions per-shard arrays and truncates to 5. */
-    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
     public void testTakeAcrossShards() throws Exception {
         String index = "coord_reduce_take_multi";
         createParquetBackedIndex(index);
         indexVaryingValueDocs(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats take(value, 5) as t");
+        Map<String, Object> result = executePpl("source = " + index + " | stats take(value, 5) as t");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 't', got " + columns, columns.contains("t"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -204,11 +226,11 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createSingleShardParquetBackedIndex(index);
         indexSequentialValueDocsSingleShard(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats first(value) as f");
+        Map<String, Object> result = executePpl("source = " + index + " | stats first(value) as f");
         List<List<Object>> rows = scalarRows(result, "f");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
+        List<String> columns = extractColumnNames(result);
         Object cell = rows.get(0).get(columns.indexOf("f"));
         int actual = ((Number) cell).intValue();
         assertTrue("first(value) must be in {1.." + DOCS_PER_SHARD + "}, got " + actual, actual >= 1 && actual <= DOCS_PER_SHARD);
@@ -220,11 +242,11 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(index);
         indexVaryingValueDocs(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats first(value) as f");
+        Map<String, Object> result = executePpl("source = " + index + " | stats first(value) as f");
         List<List<Object>> rows = scalarRows(result, "f");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
+        List<String> columns = extractColumnNames(result);
         Object cell = rows.get(0).get(columns.indexOf("f"));
         int actual = ((Number) cell).intValue();
         int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
@@ -237,11 +259,11 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createSingleShardParquetBackedIndex(index);
         indexSequentialValueDocsSingleShard(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats last(value) as l");
+        Map<String, Object> result = executePpl("source = " + index + " | stats last(value) as l");
         List<List<Object>> rows = scalarRows(result, "l");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
+        List<String> columns = extractColumnNames(result);
         Object cell = rows.get(0).get(columns.indexOf("l"));
         int actual = ((Number) cell).intValue();
         assertTrue("last(value) must be in {1.." + DOCS_PER_SHARD + "}, got " + actual, actual >= 1 && actual <= DOCS_PER_SHARD);
@@ -253,11 +275,11 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(index);
         indexVaryingValueDocs(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats last(value) as l");
+        Map<String, Object> result = executePpl("source = " + index + " | stats last(value) as l");
         List<List<Object>> rows = scalarRows(result, "l");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
+        List<String> columns = extractColumnNames(result);
         Object cell = rows.get(0).get(columns.indexOf("l"));
         int actual = ((Number) cell).intValue();
         int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
@@ -270,15 +292,15 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createSingleShardParquetBackedIndex(index);
         indexSequentialValueDocsSingleShard(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats list(value) as l");
+        Map<String, Object> result = executePpl("source = " + index + " | stats list(value) as l");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 'l', got " + columns, columns.contains("l"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -303,21 +325,20 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     }
 
     /** Cross-shard {@code list(value)} — coordinator concatenates per-shard lists via list_merge UDAF. */
-    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
     public void testListAcrossShards() throws Exception {
         String index = "coord_reduce_list_multi";
         createParquetBackedIndex(index);
         indexVaryingValueDocs(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats list(value) as l");
+        Map<String, Object> result = executePpl("source = " + index + " | stats list(value) as l");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 'l', got " + columns, columns.contains("l"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -348,15 +369,15 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createSingleShardParquetBackedIndex(index);
         indexDuplicateValueDocsSingleShard(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats values(value) as v");
+        Map<String, Object> result = executePpl("source = " + index + " | stats values(value) as v");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 'v', got " + columns, columns.contains("v"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -381,21 +402,20 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     }
 
     /** Cross-shard {@code values(value)} — coordinator concatenates and re-deduplicates via list_merge_distinct UDAF. */
-    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
     public void testValuesAcrossShards() throws Exception {
         String index = "coord_reduce_values_multi";
         createParquetBackedIndex(index);
         indexDuplicateValueDocs(index);
 
-        Map<String, Object> result = executePPL("source = " + index + " | stats values(value) as v");
+        Map<String, Object> result = executePpl("source = " + index + " | stats values(value) as v");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 'v', got " + columns, columns.contains("v"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -428,10 +448,10 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(INDEX);
         indexConstantValueDocs(INDEX);
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats sum(value) as total by value");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats sum(value) as total by value");
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("grouped agg on a single-valued column must return exactly 1 group", 1, rows.size());
     }
@@ -446,15 +466,15 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createParquetBackedIndex(INDEX);
         indexConstantValueDocs(INDEX);
 
-        Map<String, Object> result = executePPL(
+        Map<String, Object> result = executePpl(
             "source = " + INDEX + " | stats sum(value) as s, count() as c, avg(value) as a, dc(value) as d by value"
         );
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("Q10-shape on a single-valued column must return exactly 1 group", 1, rows.size());
 
@@ -488,7 +508,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createStringGroupIndex();
         indexStringGroupDocs();
 
-        executePPL(
+        executePpl(
             "source = " + STRING_GROUP_INDEX + " | where category != '' | stats count() as c by category | sort - c | head 5"
         );
     }
@@ -503,12 +523,12 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         createStringGroupIndex();
         indexStringGroupDocs();
 
-        Map<String, Object> result = executePPL(
+        Map<String, Object> result = executePpl(
             "source = " + STRING_GROUP_INDEX + " | stats count() as c by category | sort - c | head 5"
         );
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertFalse("should return at least one group", rows.isEmpty());
     }
@@ -567,12 +587,12 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
      */
     private static List<List<Object>> scalarRows(Map<String, Object> result, String columnName) {
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain '" + columnName + "', got " + columns, columns.contains(columnName));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -734,10 +754,4 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + indexName + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + ppl + "\"}");
-        Response response = client().performRequest(request);
-        return entityAsMap(response);
-    }
 }
