@@ -529,6 +529,44 @@ public class ConversionFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── convert + where on a constant-folded conversion ──────────────────────
+
+    /**
+     * Regression for the analytics-engine filter rule rejecting constant predicates.
+     *
+     * <p>{@code convert mktime(literal)} over an {@code eval}-produced literal yields a constant
+     * conversion. A following {@code where} comparison therefore has no field references. The
+     * plan-time {@code ReduceExpressionsRule} cannot fold {@code mktime(...)} (no plan-time
+     * implementation of the conversion UDF exists — only DataFusion evaluates it natively), so the
+     * constant predicate survives to {@code OpenSearchFilterRule}. The rule previously asserted
+     * that constant predicates were impossible and threw {@code UnsupportedOperationException};
+     * it now hands the predicate to a viable backend, which evaluates it at runtime.
+     *
+     * <p>mktime('10/18/2003 20:07:13') = 1066507633 &gt; 1000000000 → row passes.
+     */
+    public void testConvertMktimeThenWhereConstantPredicatePasses() throws IOException {
+        assertFirstRowDouble(
+            oneRow("key00")
+                + "| eval date_str = '10/18/2003 20:07:13' | convert mktime(date_str)"
+                + " | where date_str > 1000000000 | fields date_str",
+            1_066_507_633.0,
+            0.0
+        );
+    }
+
+    /** Same shape, predicate evaluates false — the constant filter removes every row. */
+    public void testConvertMktimeThenWhereConstantPredicateFiltersOut() throws IOException {
+        Map<String, Object> response = executePpl(
+            oneRow("key00")
+                + "| eval date_str = '10/18/2003 20:07:13' | convert mktime(date_str)"
+                + " | where date_str < 1000000000 | fields date_str"
+        );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        assertNotNull("Response missing 'rows'", rows);
+        assertEquals("Constant false predicate should remove all rows", 0, rows.size());
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {
