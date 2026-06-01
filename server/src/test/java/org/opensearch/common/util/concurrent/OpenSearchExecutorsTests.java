@@ -479,11 +479,8 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that when {@code isForceExecution()} conditionally checks queue size below a threshold,
-     * the task is force-put into the queue even when the queue is at capacity.
-     *
-     * <p>This mirrors the conditional logic in {@code AbstractSearchAsyncAction.fork()}:
-     * force put is permitted only when the current queue size is below the threshold.
+     * When {@code isForceExecution()} returns {@code true} based on a queue-size check,
+     * the executor must force-put the task even when the queue is at capacity.
      *
      * <p>Scenario: queueCapacity=4, threshold=5. After filling the queue to capacity (size=4),
      * {@code isForceExecution()} returns {@code true} (4 {@literal <} 5), so the task bypasses the capacity
@@ -531,7 +528,6 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         executor.execute(new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
-                // Mirrors AbstractSearchAsyncAction.fork(): allow force put only when queue is below threshold
                 return executor.getQueue().size() < forcePutThreshold;
             }
 
@@ -556,12 +552,8 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that when {@code isForceExecution()} conditionally checks queue size at or above a threshold,
-     * the task is rejected rather than force-put into the queue.
-     *
-     * <p>This validates the back-pressure protection in {@code AbstractSearchAsyncAction.fork()}:
-     * when the queue is already at or beyond the threshold, force put is denied to prevent
-     * unbounded queue growth.
+     * When {@code isForceExecution()} returns {@code false} based on a queue-size check,
+     * the executor must reject the task rather than force-put it.
      *
      * <p>Scenario: queueCapacity=5, threshold=5. After filling the queue to capacity (size=5),
      * {@code isForceExecution()} returns {@code false} (5 {@literal <} 5 is false), so the task is rejected
@@ -610,7 +602,6 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         executor.execute(new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
-                // Mirrors AbstractSearchAsyncAction.fork(): deny force put when queue is at or above threshold
                 return executor.getQueue().size() < forcePutThreshold;
             }
 
