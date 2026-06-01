@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -168,7 +169,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
         logger.info("R1: 100×50k feed+drain in {} ms; total={}", elapsedMs, downstream.total);
 
-        assertEquals("SUM across 100 × 50k constant-7 rows", expected, downstream.total);
+        assertEquals("SUM across 100 × 50k constant-7 rows", (double) expected, downstream.total, 0.0);
         assertTrue("downstream rows must be ≥ 1; got " + downstream.totalRows, downstream.totalRows >= 1);
         assertFalse("downstream must NOT be closed by the reduce sink", downstream.closed);
     }
@@ -478,7 +479,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         byte[] substrait = buildSumSubstrait();
 
         ExecutorService exec = Executors.newFixedThreadPool(concurrency);
-        ConcurrentHashMap<Integer, Long> totals = new ConcurrentHashMap<>();
+        ConcurrentHashMap<Integer, Double> totals = new ConcurrentHashMap<>();
         ConcurrentHashMap<Integer, Throwable> failures = new ConcurrentHashMap<>();
         try {
             CountDownLatch start = new CountDownLatch(1);
@@ -534,7 +535,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         }
         assertEquals("R4: every sink must report a total", concurrency, totals.size());
         for (var e : totals.entrySet()) {
-            assertEquals("R4 sink #" + e.getKey() + " total mismatch", expectedPerSink, (long) e.getValue());
+            assertEquals("R4 sink #" + e.getKey() + " total mismatch", (double) expectedPerSink, e.getValue(), 0.0);
         }
     }
 
@@ -651,7 +652,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             sink.close();
         }
 
-        assertEquals("SUM across 50 × 10k constant-7 rows", expected, downstream.total);
+        assertEquals("SUM across 50 × 10k constant-7 rows", (double) expected, downstream.total, 0.0);
         assertTrue("downstream rows must be ≥ 1; got " + downstream.totalRows, downstream.totalRows >= 1);
         assertFalse("downstream must NOT be closed by the reduce sink", downstream.closed);
     }
@@ -794,7 +795,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             sink.close();
         }
 
-        assertEquals("union SUM across both child partitions", expected, downstream.total);
+        assertEquals("union SUM across both child partitions", (double) expected, downstream.total, 0.0);
         assertTrue("downstream must have ≥ 1 row", downstream.totalRows >= 1);
     }
 
@@ -962,20 +963,20 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         return root;
     }
 
-    /** Sums every BigInt in every fed batch. Same shape as {@code DatafusionReduceSinkTests.CapturingSink}. */
+    /** Sums every Float64 in every fed batch. Same shape as {@code DatafusionReduceSinkTests.CapturingSink}. */
     private static final class CapturingSink implements ExchangeSink {
-        long total;
+        double total;
         int totalRows;
         boolean closed;
 
         @Override
         public synchronized void feed(VectorSchemaRoot batch) {
             try {
-                BigIntVector col = (BigIntVector) batch.getVector(0);
+                Float8Vector col = (Float8Vector) batch.getVector(0);
                 int rows = batch.getRowCount();
                 totalRows += rows;
                 for (int i = 0; i < rows; i++) {
-                    total += col.getDataBuffer().getLong((long) i * BigIntVector.TYPE_WIDTH);
+                    total += col.getDataBuffer().getDouble((long) i * Float8Vector.TYPE_WIDTH);
                 }
             } finally {
                 batch.close();

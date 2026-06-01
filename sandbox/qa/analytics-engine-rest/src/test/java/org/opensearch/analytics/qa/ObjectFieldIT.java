@@ -82,7 +82,7 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
     public void testSumOnObjectField() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | stats sum(city.population)",
-            row(2380000)
+            row(2380000.0)
         );
     }
 

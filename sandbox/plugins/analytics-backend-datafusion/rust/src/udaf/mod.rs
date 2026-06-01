@@ -14,10 +14,12 @@ use datafusion::execution::context::SessionContext;
 
 pub mod internal_pattern;
 pub mod list_merge;
+pub mod sum;
 pub mod take;
 
 pub fn register_all(ctx: &SessionContext) {
     take::register_all(ctx);
     list_merge::register_all(ctx);
     internal_pattern::register_all(ctx);
+    sum::register_all(ctx);
 }

@@ -324,7 +324,7 @@ fn test_execute_sum_substrait() {
     // Drain the output stream. Each `df_stream_next` returns either a
     // pointer to a heap-allocated `FFI_ArrowArray` (caller owns it and
     // must drop it) or 0 for EOS.
-    let mut total: i64 = 0;
+    let mut total: f64 = 0.0;
     loop {
         let rc = unsafe { df_stream_next(stream_ptr) };
         assert!(rc >= 0, "df_stream_next rc={}", rc);
@@ -335,7 +335,7 @@ fn test_execute_sum_substrait() {
         let ffi_array = unsafe { Box::from_raw(rc as *mut FFI_ArrowArray) };
         let result_schema = Arc::new(Schema::new(vec![Field::new(
             "total",
-            DataType::Int64,
+            DataType::Float64,
             true,
         )]));
         let ffi_schema =
@@ -347,8 +347,8 @@ fn test_execute_sum_substrait() {
         let col = batch
             .column(0)
             .as_any()
-            .downcast_ref::<Int64Array>()
-            .expect("i64 column");
+            .downcast_ref::<arrow_array::Float64Array>()
+            .expect("f64 column");
         for i in 0..col.len() {
             if !col.is_null(i) {
                 total += col.value(i);
@@ -359,7 +359,7 @@ fn test_execute_sum_substrait() {
     unsafe { df_close_local_session(session_ptr) };
     producer.join().expect("producer thread");
 
-    assert_eq!(total, 45, "SUM(1..=9) should be 45, got {}", total);
+    assert_eq!(total, 45.0, "SUM(1..=9) should be 45, got {}", total);
 }
 
 #[test]
@@ -425,4 +425,71 @@ fn test_close_session_drops_registered_senders() {
     );
 
     unsafe { df_sender_close(sender_ptr) };
+}
+
+#[test]
+fn test_sum_large_int64_no_overflow() {
+    let runtime = RuntimeGuard::new();
+    let session_ptr = unsafe { df_create_local_session(runtime.ptr) };
+    assert!(session_ptr > 0);
+
+    let schema = i64_schema("x");
+    let sender_ptr = register_input(session_ptr, "input-0", schema.as_ref());
+
+    let substrait_bytes = {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build tokio rt");
+        rt.block_on(build_sum_substrait(Arc::clone(&schema)))
+    };
+
+    let big = i64::MAX / 2 + 1;
+    let producer_schema = Arc::clone(&schema);
+    let producer = thread::spawn(move || {
+        let batch = i64_batch(&producer_schema, &[big, big, big]);
+        let (arr_ptr, sch_ptr) = export_batch_ptrs(batch);
+        let rc = unsafe { df_sender_send(sender_ptr, arr_ptr, sch_ptr) };
+        assert_eq!(rc, 0);
+        unsafe { df_sender_close(sender_ptr) };
+    });
+
+    thread::sleep(Duration::from_millis(10));
+
+    let stream_ptr = unsafe {
+        df_execute_local_plan(
+            session_ptr,
+            substrait_bytes.as_ptr(),
+            substrait_bytes.len() as i64,
+            0,
+        )
+    };
+    assert!(stream_ptr > 0, "df_execute_local_plan rc={}", stream_ptr);
+
+    let mut result_value: f64 = 0.0;
+    let mut got_result = false;
+    loop {
+        let rc = unsafe { df_stream_next(stream_ptr) };
+        assert!(rc >= 0, "df_stream_next rc={}", rc);
+        if rc == 0 { break; }
+        let ffi_array = unsafe { Box::from_raw(rc as *mut FFI_ArrowArray) };
+        let result_schema = Arc::new(Schema::new(vec![Field::new("total", DataType::Float64, true)]));
+        let ffi_schema = FFI_ArrowSchema::try_from(result_schema.as_ref()).expect("schema");
+        let array_data = unsafe { arrow_array::ffi::from_ffi(*ffi_array, &ffi_schema).expect("import") };
+        let struct_array = StructArray::from(array_data);
+        let batch = RecordBatch::from(struct_array);
+        let col = batch.column(0).as_any().downcast_ref::<arrow_array::Float64Array>().expect("f64 col");
+        for i in 0..col.len() {
+            if !col.is_null(i) { result_value = col.value(i); got_result = true; }
+        }
+    }
+    unsafe { df_stream_close(stream_ptr) };
+    unsafe { df_close_local_session(session_ptr) };
+    producer.join().expect("producer thread");
+
+    assert!(got_result, "should have received a result");
+    let expected = 3.0 * (big as f64);
+    assert!(result_value > 0.0, "sum must be positive, got {}", result_value);
+    let rel_err = ((result_value - expected) / expected).abs();
+    assert!(rel_err < 1e-10, "result {} != expected {}", result_value, expected);
 }
