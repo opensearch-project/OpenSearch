@@ -94,7 +94,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        Tracer tracer
+        Tracer tracer,
+        int forceExecutionQueueThreshold
     ) {
         this(
             logger,
@@ -158,7 +159,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             activeShardIndexLookup.length,
             clusters,
             searchRequestContext,
-            tracer
+            tracer,
+            forceExecutionQueueThreshold
         );
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;

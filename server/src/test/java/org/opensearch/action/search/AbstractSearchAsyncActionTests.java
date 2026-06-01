@@ -203,7 +203,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 request,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -845,7 +846,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 searchRequest,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         );
     }
 
@@ -900,7 +902,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 searchRequest,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
             @Override
             ShardSearchFailure[] buildShardFailures() {

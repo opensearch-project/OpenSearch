@@ -171,7 +171,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         );
 
         canMatchPhase.start();
@@ -429,7 +430,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         );
 
         canMatchPhase.start();
@@ -527,7 +529,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                         randomIntBetween(1, 32),
                         SearchResponse.Clusters.EMPTY,
                         new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-                        NoopTracer.INSTANCE
+                        NoopTracer.INSTANCE,
+                        -1
                     ) {
                         @Override
                         protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -557,7 +560,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         );
 
         canMatchPhase.start();
@@ -649,7 +653,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 },
                 SearchResponse.Clusters.EMPTY,
                 new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-                NoopTracer.INSTANCE
+                NoopTracer.INSTANCE,
+                -1
             );
 
             canMatchPhase.start();
@@ -756,7 +761,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 },
                 SearchResponse.Clusters.EMPTY,
                 new SearchRequestContext(searchRequestOperationsListener, searchRequest, () -> null),
-                NoopTracer.INSTANCE
+                NoopTracer.INSTANCE,
+                -1
             );
 
             canMatchPhase.start();
@@ -882,7 +888,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             },
             SearchResponse.Clusters.EMPTY,
             searchRequestContext,
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         );
 
         canMatchPhase.start();
@@ -932,7 +939,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 request.getMaxConcurrentShardRequests(),
                 clusters,
                 searchRequestContext,
-                NoopTracer.INSTANCE
+                NoopTracer.INSTANCE,
+                -1
             );
             this.listener = searchRequestContext.getSearchRequestOperationsListener();
         }

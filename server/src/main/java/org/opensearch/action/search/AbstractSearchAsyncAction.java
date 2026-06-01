@@ -123,6 +123,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final boolean throttleConcurrentRequests;
     private final SearchRequestContext searchRequestContext;
     private final Tracer tracer;
+    private final int forceExecutionQueueThreshold;
 
     private SearchPhase currentPhase;
     private boolean currentPhaseHasLifecycle;
@@ -148,7 +149,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        Tracer tracer
+        Tracer tracer,
+        int forceExecutionQueueThreshold
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -186,6 +188,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
         this.searchRequestContext = searchRequestContext;
         this.tracer = tracer;
+        this.forceExecutionQueueThreshold = forceExecutionQueueThreshold;
     }
 
     @Override
@@ -409,14 +412,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
             @Override
             public boolean isForceExecution() {
-                // we can not allow a stuffed queue to reject execution here
-                boolean permitForcePut = true;
-                if(permitForcePut) return true;
-                else {
-                    if(executor instanceof OpenSearchThreadPoolExecutor) {
-                        int currentSize = ((OpenSearchThreadPoolExecutor) executor).getQueue().size();
-                        return currentSize < 5; // 5 : dummy  threshold. should be injected from feature flag
-                    }
+                // when threshold is negative, always force execution (backward-compatible default)
+                if (forceExecutionQueueThreshold < 0) return true;
+
+                if (executor instanceof OpenSearchThreadPoolExecutor) {
+                    int currentSize = ((OpenSearchThreadPoolExecutor) executor).getQueue().size();
+                    return currentSize < forceExecutionQueueThreshold;
                 }
                 return true;
             }
