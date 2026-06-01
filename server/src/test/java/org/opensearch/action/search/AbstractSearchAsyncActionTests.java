@@ -41,8 +41,10 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -795,6 +797,149 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(0, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseNameOptional().get()));
     }
 
+    public void testForkAlwaysForceExecutesWhenThresholdIsNegative() throws Exception {
+        int queueCapacity = randomIntBetween(1, 4);
+        OpenSearchThreadPoolExecutor testExecutor = OpenSearchExecutors.newFixed(
+            getClass().getName(),
+            1,
+            queueCapacity,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext()
+        );
+
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        CountDownLatch threadOccupied = new CountDownLatch(1);
+        testExecutor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws Exception {
+                threadOccupied.countDown();
+                blockLatch.await();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
+
+        for (int i = 0; i < queueCapacity; i++) {
+            testExecutor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {}
+
+                @Override
+                public void onFailure(Exception e) {}
+            });
+        }
+        assertThat(testExecutor.getQueue().size(), equalTo(queueCapacity));
+
+        createForkTestAction(testExecutor, -1).start();
+
+        assertThat(
+            "threshold=-1 must always force-put regardless of queue size",
+            testExecutor.getQueue().size(),
+            equalTo(queueCapacity + 1)
+        );
+
+        blockLatch.countDown();
+        terminate(testExecutor);
+    }
+
+    public void testForkAllowsForceExecutionWhenQueueBelowThreshold() throws Exception {
+        int queueCapacity = randomIntBetween(1, 4);
+        int threshold = queueCapacity + 1;
+        OpenSearchThreadPoolExecutor testExecutor = OpenSearchExecutors.newFixed(
+            getClass().getName(),
+            1,
+            queueCapacity,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext()
+        );
+
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        CountDownLatch threadOccupied = new CountDownLatch(1);
+        testExecutor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws Exception {
+                threadOccupied.countDown();
+                blockLatch.await();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
+
+        for (int i = 0; i < queueCapacity; i++) {
+            testExecutor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {}
+
+                @Override
+                public void onFailure(Exception e) {}
+            });
+        }
+        assertThat(testExecutor.getQueue().size(), equalTo(queueCapacity));
+
+        createForkTestAction(testExecutor, threshold).start();
+
+        assertThat(
+            "queue.size()=" + queueCapacity + " < threshold=" + threshold + " must allow force-put",
+            testExecutor.getQueue().size(),
+            equalTo(queueCapacity + 1)
+        );
+
+        blockLatch.countDown();
+        terminate(testExecutor);
+    }
+
+    public void testForkDeniesForceExecutionWhenQueueAtThreshold() throws Exception {
+        int queueCapacity = randomIntBetween(1, 4);
+        int threshold = queueCapacity;
+        OpenSearchThreadPoolExecutor testExecutor = OpenSearchExecutors.newFixed(
+            getClass().getName(),
+            1,
+            queueCapacity,
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext()
+        );
+
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        CountDownLatch threadOccupied = new CountDownLatch(1);
+        testExecutor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws Exception {
+                threadOccupied.countDown();
+                blockLatch.await();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        assertTrue(threadOccupied.await(5, TimeUnit.SECONDS));
+
+        for (int i = 0; i < queueCapacity; i++) {
+            testExecutor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {}
+
+                @Override
+                public void onFailure(Exception e) {}
+            });
+        }
+        assertThat(testExecutor.getQueue().size(), equalTo(queueCapacity));
+
+        createForkTestAction(testExecutor, threshold).start();
+
+        assertThat(
+            "queue.size()=" + queueCapacity + " >= threshold=" + threshold + " must deny force-put, queue must not grow",
+            testExecutor.getQueue().size(),
+            equalTo(queueCapacity)
+        );
+
+        blockLatch.countDown();
+        terminate(testExecutor);
+    }
+
     private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
         List<SearchRequestOperationsListener> searchRequestOperationsListeners
     ) {
@@ -955,5 +1100,52 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         PhaseResult(ShardSearchContextId contextId) {
             this.contextId = contextId;
         }
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createForkTestAction(Executor testExecutor, int threshold) {
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(true);
+        SearchShardIterator nullShard = new SearchShardIterator(null, null, Collections.emptyList(), null);
+        ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1);
+        return new AbstractSearchAsyncAction<SearchPhaseResult>(
+            "test",
+            logger,
+            null,
+            (cluster, node) -> null,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            testExecutor,
+            request,
+            ActionListener.wrap(r -> {}, e -> {}),
+            new GroupShardsIterator<>(Collections.singletonList(nullShard)),
+            new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
+            ClusterState.EMPTY_STATE,
+            null,
+            results,
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(Collections.emptyList(), LogManager.getLogger()),
+                request,
+                () -> null
+            ),
+            NoopTracer.INSTANCE,
+            threshold
+        ) {
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                return null;
+            }
+
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<SearchPhaseResult> listener
+            ) {
+                listener.onResponse(new QuerySearchResult());
+            }
+        };
     }
 }

@@ -1292,4 +1292,27 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testForceExecutionQueueThresholdSettingDefaultValue() {
+        assertEquals(-1, (int) TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.get(Settings.EMPTY));
+    }
+
+    public void testForceExecutionQueueThresholdSettingIsRegisteredInClusterSettings() {
+        assertTrue(
+            "SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD must be registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS",
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD)
+        );
+    }
+
+    public void testForceExecutionQueueThresholdSettingDynamicUpdate() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AtomicInteger updatedValue = new AtomicInteger(-1);
+        clusterSettings.addSettingsUpdateConsumer(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD, updatedValue::set);
+
+        clusterSettings.applySettings(Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD_KEY, 5).build());
+        assertEquals("Dynamic update must propagate the new threshold value", 5, updatedValue.get());
+
+        clusterSettings.applySettings(Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD_KEY, 0).build());
+        assertEquals("Dynamic update must allow setting threshold to 0", 0, updatedValue.get());
+    }
 }
