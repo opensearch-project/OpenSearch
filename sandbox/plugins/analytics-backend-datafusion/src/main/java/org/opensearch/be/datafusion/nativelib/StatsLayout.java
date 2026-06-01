@@ -183,9 +183,21 @@ public final class StatsLayout {
      * @return a populated PartitionGateStats instance
      */
     public static PartitionGateStats readPartitionGate(MemorySegment seg, String group) {
+        return readPartitionGate(seg, group, group);
+    }
+
+    /**
+     * Read partition gate stats from the native buffer with a custom display name.
+     *
+     * @param seg         the memory segment containing the DfStatsBuffer
+     * @param group       "fragment_executor_gate" or "reduce_executor_gate" (layout key)
+     * @param displayName the JSON key name to use when serializing
+     * @return a populated PartitionGateStats instance
+     */
+    public static PartitionGateStats readPartitionGate(MemorySegment seg, String group, String displayName) {
         VarHandle[] handles = partitionGateHandles(group);
         return new PartitionGateStats(
-            group,
+            displayName,
             (long) handles[0].get(seg, 0L),
             (long) handles[1].get(seg, 0L),
             (long) handles[2].get(seg, 0L),

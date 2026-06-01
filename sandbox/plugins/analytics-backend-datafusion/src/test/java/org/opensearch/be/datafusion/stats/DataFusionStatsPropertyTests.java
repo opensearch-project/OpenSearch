@@ -101,16 +101,16 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
     private DataFusionStats randomDataFusionStatsCpuPresent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), randomRuntimeMetricsWithPositiveWorkers(), randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12)
         );
     }
 
     private DataFusionStats randomDataFusionStatsCpuAbsent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), null, randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12)
         );
     }
 
