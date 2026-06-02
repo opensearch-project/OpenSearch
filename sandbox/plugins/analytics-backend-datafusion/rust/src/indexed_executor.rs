@@ -175,7 +175,7 @@ pub async fn execute_indexed_query(
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
         writer_generations: shard_view.writer_generations.clone(),
-        query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
+        query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
@@ -475,6 +475,10 @@ async unsafe fn execute_indexed_with_context_inner(
     let object_metas = handle.object_metas;
     let writer_generations = handle.writer_generations;
     let query_context = handle.query_context;
+    // Extract context_id early so it can be captured by the per-segment closures
+    // below. The closures pass it through every FFM upcall so Java can route each
+    // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
+    let context_id = query_context.context_id();
 
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
     // Deregister the default ListingTable (registered by create_session_context) — will be replaced
@@ -612,7 +616,7 @@ async unsafe fn execute_indexed_with_context_inner(
             let correctness_provider: Option<Arc<ProviderHandle>> =
                 match single_collector_id(&extraction.tree) {
                     Some(annotation_id) => Some(Arc::new(
-                        create_provider(annotation_id)
+                        create_provider(context_id, annotation_id)
                             .map_err(|e| DataFusionError::External(e.into()))?,
                     )),
                     None => None,
@@ -660,6 +664,7 @@ async unsafe fn execute_indexed_with_context_inner(
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
                             let collector = FfmSegmentCollector::create(
+                                context_id,
                                 provider.key(),
                                 segment.writer_generation,
                                 chunk.doc_min,
@@ -667,7 +672,8 @@ async unsafe fn execute_indexed_with_context_inner(
                             )
                             .map_err(|e| {
                                 format!(
-                                    "FfmSegmentCollector::create(provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                                    "FfmSegmentCollector::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                                    context_id,
                                     provider.key(),
                                     segment.writer_generation,
                                     chunk.doc_min,
@@ -695,6 +701,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             Arc::clone(&performance_provider_locks),
                             segment.writer_generation,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                            context_id,
                         ));
                     Ok(eval)
                 },
@@ -716,7 +723,8 @@ async unsafe fn execute_indexed_with_context_inner(
             let mut providers: Vec<Arc<ProviderHandle>> = Vec::with_capacity(leaf_ids.len());
             for annotation_id in &leaf_ids {
                 providers.push(Arc::new(
-                    create_provider(*annotation_id).map_err(|e| DataFusionError::External(e.into()))?,
+                    create_provider(context_id, *annotation_id)
+                        .map_err(|e| DataFusionError::External(e.into()))?,
                 ));
             }
             let tree = Arc::new(tree);
@@ -752,6 +760,7 @@ async unsafe fn execute_indexed_with_context_inner(
                         Vec::with_capacity(providers.len());
                     for (idx, provider) in providers.iter().enumerate() {
                         let collector = FfmSegmentCollector::create(
+                            context_id,
                             provider.key(),
                             segment.writer_generation,
                             chunk.doc_min,
@@ -836,7 +845,6 @@ async unsafe fn execute_indexed_with_context_inner(
     let (cross_rt_stream, abort_handle) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
-    let context_id = query_context.context_id();
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
     }

@@ -112,12 +112,20 @@ public interface AnalyticsSearchBackendPlugin {
      * Called by Core after obtaining the handle from the accepting backend.
      *
      * <p>The driving backend registers the handle so that FFM upcalls from Rust
-     * (createProvider, createCollector, collectDocs) route to it.
+     * (createProvider, createCollector, collectDocs) route to the correct per-query binding.
      *
-     * @param handle the delegation handle from the accepting backend
+     * @param contextId      the per-query identifier (task ID), threaded through every FFM upcall
+     * @param handle         the delegation handle from the accepting backend
+     * @param tracker        the thread tracker for resource attribution, or {@code null}
      * @param backendContext the driving backend's execution context (from instruction handlers)
+     * @return a cleanup action that must be called (in a finally block) after query execution
      */
-    default void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
+    default Runnable configureFilterDelegation(
+        long contextId,
+        FilterDelegationHandle handle,
+        DelegationThreadTracker tracker,
+        BackendExecutionContext backendContext
+    ) {
         throw new UnsupportedOperationException("configureFilterDelegation not implemented for [" + name() + "]");
     }
 
@@ -152,12 +160,6 @@ public interface AnalyticsSearchBackendPlugin {
     default EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
         throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
     }
-
-    /**
-     * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
-     * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
-     */
-    default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
 
     /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.

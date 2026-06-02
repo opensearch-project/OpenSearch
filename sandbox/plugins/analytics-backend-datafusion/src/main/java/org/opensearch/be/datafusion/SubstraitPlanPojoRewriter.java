@@ -23,22 +23,28 @@ import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.util.EmptyVisitationContext;
 
 /**
- * Single-pass post-processor for Substrait plans before serialization to protobuf.
- *
- * <p>Applies two kinds of rewrites:
+ * POJO-layer Substrait plan rewriter. Runs before the plan is serialized to protobuf
+ * and patches expressions that isthmus emits incorrectly or that DataFusion's
+ * substrait consumer cannot handle. Today it covers two cases:
  * <ul>
- *   <li><b>Rel-level</b> — structural changes like table name stripping, handled by
- *       {@link RelCopyOnWriteVisitor} overrides.</li>
- *   <li><b>Expression-level</b> — literal/type fixes handled by
- *       {@link ExpressionCopyOnWriteVisitor} overrides. Adding a new expression rewrite
- *       only requires overriding the corresponding {@code visit} method.</li>
+ *   <li>{@code PrecisionTimestampLiteral} arrives at precision 6 (µs) regardless of
+ *       the source type; rescaled to precision 3 (ms) to match parquet storage.</li>
+ *   <li>{@code VarCharLiteral} → {@code StrLiteral} — DataFusion 53.1.0's consumer
+ *       has no VarCharLiteral arm; the two literal types are byte-identical.</li>
  * </ul>
+ *
+ * <p>Sibling {@link SubstraitPlanProtoRewriter} runs after this class on the proto layer
+ * for fixes that require setting fields the POJO API doesn't expose.
+ *
+ * <p>TODO: remove this class once both upstream gaps are closed — substrait-java
+ * isthmus inspects the source precision when lowering timestamp literals, and
+ * datafusion-substrait adds a VarCharLiteral arm to its consumer.
  *
  * @opensearch.internal
  */
-class SubstraitPlanRewriter {
+class SubstraitPlanPojoRewriter {
 
-    private SubstraitPlanRewriter() {}
+    private SubstraitPlanPojoRewriter() {}
 
     static Plan rewrite(Plan plan) {
         PlanRelVisitor visitor = new PlanRelVisitor();
