@@ -22,26 +22,15 @@ import java.util.Optional;
 
 /**
  * Post-CBO rewriter for non-aggregate TopK. Copies the bottom-most collated
- * {@link OpenSearchSort} to just below the {@link OpenSearchExchangeReducer}, so each
- * shard ships only its local top-N already-sorted rows. The coordinator Sort is left
- * intact to merge the per-shard streams and apply the final offset/limit.
+ * {@link OpenSearchSort} to just below the {@link OpenSearchExchangeReducer} so each shard
+ * ships only its local top-N sorted rows; the coordinator Sort still merges and applies the
+ * final offset/limit. Exact (no oversampling): a row in the global window is within its own
+ * shard's top-{@code (offset+fetch)}.
  *
- * <p>Two plan shapes collapse to "collated Sort directly above an ER, bounded by a fetch":
- * <pre>
- *   Sort(collation, [offset], fetch)        SQL: ORDER BY .. LIMIT N [OFFSET M]   (bound = the Sort)
- *     ER
- *
- *   Sort([offset], fetch) → Sort(collation) PPL: sort x | head N                  (bound = the outer Sort)
- *     ER
- * </pre>
- *
- * <p>Offset handling: a shard must NOT skip its own local rows, so the shard Sort drops
- * the offset and widens its fetch to {@code offset + fetch}; the offset stays only on the
- * coordinator. Exact (no oversampling): a row in the global window {@code [offset+1 ..
- * offset+fetch]} is within its own shard's top-{@code (offset+fetch)}.
- *
- * <p>Skips the aggregate path (ER feeding a PARTIAL aggregate) — that case belongs to
- * {@link OpenSearchTopKRewriter}.
+ * <p>Handles {@code Sort(collation,[offset,]fetch)} (SQL) and {@code Sort(fetch) → Sort(collation)}
+ * (PPL {@code sort | head}). Offset is not pushed — the shard fetch widens to {@code offset+fetch}
+ * and the offset stays on the coordinator. Walks only the single-input coordinator spine and skips
+ * the aggregate path (ER feeding a PARTIAL aggregate, owned by {@link OpenSearchTopKRewriter}).
  *
  * @opensearch.internal
  */
@@ -68,39 +57,34 @@ public final class OpenSearchSortPushdownRewriter {
     }
 
     /**
-     * Finds the bottom-most collated Sort sitting directly above an ER, bounded by a fetch.
-     * {@code fetchSortAbove} is an immediately-enclosing pure-fetch Sort (carries the limit
-     * for the two-node PPL shape).
+     * Walks the single-input coordinator spine for the bottom-most collated Sort directly above an
+     * ER, bounded by a fetch. {@code fetchSortAbove} is an immediately-enclosing pure-fetch Sort
+     * (carries the limit for the two-node PPL shape). Stops at multi-input ops (Join/Union) and leaves.
      */
     private static Match find(RelNode node, OpenSearchSort fetchSortAbove) {
         if (node instanceof OpenSearchSort sort) {
             boolean collated = sort.getCollation().getFieldCollations().isEmpty() == false;
             if (collated) {
-                // Bound = this Sort if it carries a fetch; else the enclosing pure-fetch Sort,
-                // but only when this Sort has no offset of its own (which we couldn't honor below).
+                // Bound = this Sort if it carries a fetch; else the enclosing pure-fetch Sort, but
+                // only when this Sort has no offset of its own (which the enclosing one can't honor).
                 OpenSearchSort bound = sort.fetch != null ? sort : (sort.offset == null ? fetchSortAbove : null);
                 RelNode below = sort.getInput();
                 if (bound != null
-                    && foldable(bound)
+                    && canComputeShardFetch(bound)
                     && below instanceof OpenSearchExchangeReducer er
                     && isAggregatePath(er) == false
                     && (er.getInput() instanceof OpenSearchSort) == false) {
                     return new Match(sort, bound, er);
                 }
             }
-            // A pure-fetch Sort (no collation, has fetch) carries its offset+fetch to its direct child.
             OpenSearchSort carry = (collated == false && sort.fetch != null) ? sort : null;
             return find(sort.getInput(), carry);
         }
-        for (RelNode child : node.getInputs()) {
-            Match m = find(child, null);
-            if (m != null) return m;
-        }
-        return null;
+        return node.getInputs().size() == 1 ? find(node.getInputs().get(0), null) : null;
     }
 
-    /** Foldable when there's no offset, or both offset and fetch are literals we can sum. */
-    private static boolean foldable(OpenSearchSort bound) {
+    /** True when the shard fetch is computable: no offset, or offset and fetch are both literals to sum. */
+    private static boolean canComputeShardFetch(OpenSearchSort bound) {
         return bound.offset == null || (bound.offset instanceof RexLiteral && bound.fetch instanceof RexLiteral);
     }
 

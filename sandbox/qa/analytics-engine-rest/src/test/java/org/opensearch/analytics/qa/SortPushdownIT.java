@@ -8,14 +8,16 @@
 
 package org.opensearch.analytics.qa;
 
+import org.opensearch.client.Request;
+
 import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end correctness for non-aggregate sort pushdown on a multi-shard index.
- * With the rewriter active, each shard ships only its local top-N already-sorted
- * rows; the coordinator merges them. These tests assert the merged result is the
- * correct, globally-ordered top-N (catches dropped rows / wrong ordering).
+ * End-to-end tests for non-aggregate sort pushdown on a multi-shard index. The result tests
+ * assert the merged output is the correct, globally-ordered top-N (catches dropped rows /
+ * wrong ordering); {@link #testExplain_sortPushedToShardFragment()} asserts via EXPLAIN that
+ * the collated Sort is actually pushed below the exchange (into the shard fragment).
  */
 public class SortPushdownIT extends AnalyticsRestTestCase {
 
@@ -98,6 +100,19 @@ public class SortPushdownIT extends AnalyticsRestTestCase {
         assertEquals(globalAgg("max", null), num(rows.get(0).get(0)), 0.0);
     }
 
+    /** EXPLAIN confirms the collated Sort is pushed below the exchange (into the shard fragment). */
+    @SuppressWarnings("unchecked")
+    public void testExplain_sortPushedToShardFragment() throws Exception {
+        ensureProvisioned();
+        Map<String, Object> profile = (Map<String, Object>) executeExplain("source = " + INDEX + " | sort - " + COL + " | head 10")
+            .get("profile");
+        String plan = String.join("\n", (List<String>) profile.get("full_plan"));
+        long sorts = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
+        assertTrue("expected coordinator + pushed shard Sort, plan:\n" + plan, sorts >= 2);
+        int er = plan.indexOf("ExchangeReducer");
+        assertTrue("a Sort must sit below the exchange (pushed down), plan:\n" + plan, er >= 0 && plan.indexOf("OpenSearchSort", er) > er);
+    }
+
     /** {@code fn} is count/min/max; {@code where} is an optional leading filter clause (may be null). */
     private double globalAgg(String fn, String where) throws Exception {
         String filter = where == null ? "" : where + " | ";
@@ -121,5 +136,11 @@ public class SortPushdownIT extends AnalyticsRestTestCase {
 
     private static double num(Object cell) {
         return ((Number) cell).doubleValue();
+    }
+
+    private Map<String, Object> executeExplain(String ppl) throws Exception {
+        Request request = new Request("POST", "/_analytics/ppl/_explain");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        return assertOkAndParse(client().performRequest(request), "EXPLAIN: " + ppl);
     }
 }
