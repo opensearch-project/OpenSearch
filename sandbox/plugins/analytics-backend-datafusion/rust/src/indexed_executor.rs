@@ -698,6 +698,8 @@ async unsafe fn execute_indexed_with_context_inner(
                             object_path: segment.object_path.clone(),
                             metadata: Arc::clone(&segment.metadata),
                             arrow_schema: Arc::clone(&bloom_schema),
+                            rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
+                            bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
                         })
                     } else {
                         None
