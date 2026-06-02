@@ -1,0 +1,1 @@
+source=%INDEX% | eventstats avg(amount) as ca by category | sort id | fields id, ca
