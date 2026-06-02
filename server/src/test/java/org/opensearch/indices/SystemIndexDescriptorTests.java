@@ -81,7 +81,7 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
     }
 
     public void testReadableFlag() {
-        ReadableSystemIndexDescriptor readable = new ReadableSystemIndexDescriptor(".test-index", "test");
+        UnrestrictedSystemIndexDescriptor readable = new UnrestrictedSystemIndexDescriptor(".test-index", "test");
         assertTrue(readable.isReadable());
 
         SystemIndexDescriptor notReadable = new SystemIndexDescriptor(".test-index", "test");
@@ -89,7 +89,7 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        ReadableSystemIndexDescriptor descriptor1 = new ReadableSystemIndexDescriptor(".test-index", "desc1");
+        UnrestrictedSystemIndexDescriptor descriptor1 = new UnrestrictedSystemIndexDescriptor(".test-index", "desc1");
         SystemIndexDescriptor descriptor2 = new SystemIndexDescriptor(".test-index", "desc2");
         SystemIndexDescriptor descriptor3 = new SystemIndexDescriptor(".other-index", "desc1");
 
@@ -102,7 +102,7 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        ReadableSystemIndexDescriptor descriptor = new ReadableSystemIndexDescriptor(".test-index", "test description");
+        UnrestrictedSystemIndexDescriptor descriptor = new UnrestrictedSystemIndexDescriptor(".test-index", "test description");
         String str = descriptor.toString();
         assertThat(str, containsString(".test-index"));
         assertThat(str, containsString("test description"));

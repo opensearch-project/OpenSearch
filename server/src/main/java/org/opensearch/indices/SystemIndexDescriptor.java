@@ -108,7 +108,7 @@ public class SystemIndexDescriptor {
      * @return A boolean corresponding to whether this system index is readable.
      */
     public boolean isReadable() {
-        return this instanceof ReadableSystemIndexDescriptor;
+        return this instanceof UnrestrictedSystemIndexDescriptor;
     }
 
     @Override
