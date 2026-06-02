@@ -12,8 +12,6 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
-apply plugin: 'opensearch.internal-cluster-test'
-
 repositories {
   maven {
     name = 'OpenSearch Snapshots'
@@ -104,32 +102,11 @@ dependencies {
   testImplementation project(':plugins:arrow-base')
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 
-  // Integration test dependencies
-  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
-  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
-  internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
-  internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
-  internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
-  internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
 }
 
 test {
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
   jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
-  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
-  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
-}
-
-internalClusterTest {
-  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
-  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
-  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
-  jvmArgs '-Darrow.memory.debug.allocator=false'
-  jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
-  systemProperty 'io.netty.allocator.numDirectArenas', '1'
-  systemProperty 'io.netty.noUnsafe', 'false'
-  systemProperty 'io.netty.tryUnsafe', 'true'
-  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
