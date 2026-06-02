@@ -164,7 +164,7 @@ public class WindowSqlIT extends OpenSearchIntegTestCase {
      * distinctly from DENSE_RANK end-to-end.
      */
     public void testRankOver_orderBy_tie_1shard() {
-        createAndSeedTieIndex();
+        createAndSeedTieIndex(1);
         SqlPlanRunner runner = sqlPlanRunner();
         RelNode plan = buildRankProject(runner, SqlStdOperatorTable.RANK);
         List<Object[]> rows = runner.executeRel(plan);
@@ -183,7 +183,7 @@ public class WindowSqlIT extends OpenSearchIntegTestCase {
      * a gap (rank 4) — the two assertions together prove the functions are distinct.
      */
     public void testDenseRankOver_orderBy_tie_1shard() {
-        createAndSeedTieIndex();
+        createAndSeedTieIndex(1);
         SqlPlanRunner runner = sqlPlanRunner();
         RelNode plan = buildRankProject(runner, SqlStdOperatorTable.DENSE_RANK);
         List<Object[]> rows = runner.executeRel(plan);
@@ -192,6 +192,44 @@ public class WindowSqlIT extends OpenSearchIntegTestCase {
         assertEquals("dense rank of val=1", 1L, (long) valToRank.get(1));
         assertEquals("dense rank of tied val=2", 2L, (long) valToRank.get(2));
         assertEquals("dense rank of val=3 has no gap after the tie", 3L, (long) valToRank.get(3));
+    }
+
+    /**
+     * {@code RANK() OVER (ORDER BY val)} over the same tied data spread across <b>2 shards</b>.
+     * The result must match the 1-shard case exactly — {1,2,2,4} — which only holds if the
+     * RexOver cost gate gathered both shards to a single node before the window ran. Were the
+     * window evaluated shard-locally, each shard would restart its rank at 1 and the tied 2s
+     * (likely on different shards) would no longer share a rank. This is the test that proves
+     * the cross-shard gather (validated structurally in {@code WindowPlanShapeTests}) is wired
+     * end-to-end for ranking functions.
+     */
+    public void testRankOver_orderBy_tie_2shard() {
+        createAndSeedTieIndex(2);
+        SqlPlanRunner runner = sqlPlanRunner();
+        RelNode plan = buildRankProject(runner, SqlStdOperatorTable.RANK);
+        List<Object[]> rows = runner.executeRel(plan);
+        assertEquals(TIE_DOCS, rows.size());
+        Map<Integer, Long> valToRank = collectValToRank(rows);
+        assertEquals("rank of val=1", 1L, (long) valToRank.get(1));
+        assertEquals("rank of tied val=2 — one global rank across shards", 2L, (long) valToRank.get(2));
+        assertEquals("rank of val=3 skips to 4 after the global tie", 4L, (long) valToRank.get(3));
+    }
+
+    /**
+     * {@code DENSE_RANK() OVER (ORDER BY val)} over the tied data across <b>2 shards</b>. Mirror
+     * of {@link #testRankOver_orderBy_tie_2shard}: the dense ranks stay {1,2,2,3} only if the
+     * gather assembled a single global stream before ranking.
+     */
+    public void testDenseRankOver_orderBy_tie_2shard() {
+        createAndSeedTieIndex(2);
+        SqlPlanRunner runner = sqlPlanRunner();
+        RelNode plan = buildRankProject(runner, SqlStdOperatorTable.DENSE_RANK);
+        List<Object[]> rows = runner.executeRel(plan);
+        assertEquals(TIE_DOCS, rows.size());
+        Map<Integer, Long> valToRank = collectValToRank(rows);
+        assertEquals("dense rank of val=1", 1L, (long) valToRank.get(1));
+        assertEquals("dense rank of tied val=2 — one global rank across shards", 2L, (long) valToRank.get(2));
+        assertEquals("dense rank of val=3 has no gap after the global tie", 3L, (long) valToRank.get(3));
     }
 
     /** Folds {@code [val, rank]} output rows into a {@code val → rank} map. The tied rows
@@ -238,9 +276,9 @@ public class WindowSqlIT extends OpenSearchIntegTestCase {
         return b.build();
     }
 
-    private void createAndSeedTieIndex() {
+    private void createAndSeedTieIndex(int shardCount) {
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")

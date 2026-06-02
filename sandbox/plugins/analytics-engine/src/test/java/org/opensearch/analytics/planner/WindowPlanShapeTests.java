@@ -21,6 +21,7 @@ import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexFieldCollation;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexWindowBound;
 import org.apache.calcite.rex.RexWindowBounds;
@@ -766,7 +767,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             (SqlAggFunction) SqlStdOperatorTable.SUM,
             List.of(rb.makeInputRef(scan, 1)),
             ImmutableList.of(rb.makeInputRef(scan, 0)),     // PARTITION BY status
-            ImmutableList.of(new org.apache.calcite.rex.RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
             RexWindowBounds.UNBOUNDED_PRECEDING,
             RexWindowBounds.CURRENT_ROW,
             false,                                          // rangeBased: range-by-default-when-ORDER-BY
@@ -808,7 +809,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             (SqlAggFunction) SqlStdOperatorTable.ROW_NUMBER,
             List.of(),
             ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
-            ImmutableList.of(new org.apache.calcite.rex.RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),
             RexWindowBounds.UNBOUNDED_PRECEDING,
             RexWindowBounds.CURRENT_ROW,
             true,                                            // rowBased
@@ -849,7 +850,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             (SqlAggFunction) SqlStdOperatorTable.RANK,
             List.of(),
             ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
-            ImmutableList.of(new org.apache.calcite.rex.RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
             RexWindowBounds.UNBOUNDED_PRECEDING,
             RexWindowBounds.CURRENT_ROW,
             true,
@@ -889,7 +890,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             (SqlAggFunction) SqlStdOperatorTable.DENSE_RANK,
             List.of(),
             ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
-            ImmutableList.of(new org.apache.calcite.rex.RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
             RexWindowBounds.UNBOUNDED_PRECEDING,
             RexWindowBounds.CURRENT_ROW,
             true,
