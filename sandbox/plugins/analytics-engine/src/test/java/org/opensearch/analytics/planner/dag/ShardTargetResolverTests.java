@@ -222,19 +222,24 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         }
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndexNames(eq(clusterState), any(IndicesOptions.class), org.mockito.ArgumentMatchers.anyBoolean(), any(String[].class)))
-            .thenReturn(new String[] { "idx_a", "idx_b" });
+        when(
+            resolver.concreteIndexNames(
+                eq(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "idx_a", "idx_b" });
 
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder()
-            .put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit)
-            .build();
+        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting opRouting = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(opRouting);
-        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "idx_a", "idx_b" }), any(), any()))
-            .thenReturn(new GroupShardsIterator<>(iterators));
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "idx_a", "idx_b" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
 
         RelNode fragment = stubScanForAlias("my_alias");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
@@ -278,19 +283,24 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         }
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndexNames(eq(clusterState), any(IndicesOptions.class), org.mockito.ArgumentMatchers.anyBoolean(), any(String[].class)))
-            .thenReturn(new String[] { "big_index" });
+        when(
+            resolver.concreteIndexNames(
+                eq(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "big_index" });
 
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder()
-            .put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit)
-            .build();
+        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting opRouting = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(opRouting);
-        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "big_index" }), any(), any()))
-            .thenReturn(new GroupShardsIterator<>(iterators));
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "big_index" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
 
         RelNode fragment = stubScanForAlias("big_index");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
@@ -350,19 +360,24 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         }
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndexNames(eq(clusterState), any(IndicesOptions.class), org.mockito.ArgumentMatchers.anyBoolean(), any(String[].class)))
-            .thenReturn(new String[] { "idx_a", "idx_b" });
+        when(
+            resolver.concreteIndexNames(
+                eq(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "idx_a", "idx_b" });
 
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder()
-            .put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit)
-            .build();
+        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting opRouting = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(opRouting);
-        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "idx_a", "idx_b" }), any(), any()))
-            .thenReturn(new GroupShardsIterator<>(iterators));
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "idx_a", "idx_b" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
 
         RelNode fragment = stubScanForAlias("my_alias");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
