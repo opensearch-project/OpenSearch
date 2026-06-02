@@ -153,7 +153,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
                     WindowFunction.ARG_MIN,
                     WindowFunction.ARG_MAX,
                     WindowFunction.DISTINCT_COUNT_APPROX,
-                    WindowFunction.ROW_NUMBER
+                    WindowFunction.ROW_NUMBER,
+                    WindowFunction.RANK,
+                    WindowFunction.DENSE_RANK
                 ),
                 Set.of(PARQUET_DATA_FORMAT)
             )

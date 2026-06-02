@@ -34,6 +34,8 @@ public class WindowFunctionTests extends OpenSearchTestCase {
         assertEquals(WindowFunction.ARG_MIN, WindowFunction.fromSqlKind(SqlKind.ARG_MIN));
         assertEquals(WindowFunction.ARG_MAX, WindowFunction.fromSqlKind(SqlKind.ARG_MAX));
         assertEquals(WindowFunction.ROW_NUMBER, WindowFunction.fromSqlKind(SqlKind.ROW_NUMBER));
+        assertEquals(WindowFunction.RANK, WindowFunction.fromSqlKind(SqlKind.RANK));
+        assertEquals(WindowFunction.DENSE_RANK, WindowFunction.fromSqlKind(SqlKind.DENSE_RANK));
         assertEquals(WindowFunction.NTH_VALUE, WindowFunction.fromSqlKind(SqlKind.NTH_VALUE));
     }
 
@@ -54,6 +56,16 @@ public class WindowFunctionTests extends OpenSearchTestCase {
         SqlOperator op = Mockito.mock(SqlOperator.class);
         Mockito.when(op.getKind()).thenReturn(SqlKind.SUM);
         assertEquals(WindowFunction.SUM, WindowFunction.resolveFunction(op));
+    }
+
+    public void testResolveFunctionResolvesRankByKind() {
+        SqlOperator rank = Mockito.mock(SqlOperator.class);
+        Mockito.when(rank.getKind()).thenReturn(SqlKind.RANK);
+        assertEquals(WindowFunction.RANK, WindowFunction.resolveFunction(rank));
+
+        SqlOperator denseRank = Mockito.mock(SqlOperator.class);
+        Mockito.when(denseRank.getKind()).thenReturn(SqlKind.DENSE_RANK);
+        assertEquals(WindowFunction.DENSE_RANK, WindowFunction.resolveFunction(denseRank));
     }
 
     public void testResolveFunctionFallsBackToNameForOtherKind() {

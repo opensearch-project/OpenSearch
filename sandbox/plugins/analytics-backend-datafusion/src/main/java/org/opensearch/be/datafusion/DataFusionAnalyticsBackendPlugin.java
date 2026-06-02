@@ -478,6 +478,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.ARG_MAX,
                             WindowFunction.DISTINCT_COUNT_APPROX,
                             WindowFunction.ROW_NUMBER,
+                            WindowFunction.RANK,
+                            WindowFunction.DENSE_RANK,
                             WindowFunction.NTH_VALUE,
                             WindowFunction.PATTERN
                         ),
