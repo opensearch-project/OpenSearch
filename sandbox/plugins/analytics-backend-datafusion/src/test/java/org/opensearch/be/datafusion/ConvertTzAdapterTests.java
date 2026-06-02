@@ -88,13 +88,13 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertEquals("UTC", ConvertTzAdapter.canonicalizeTz("UTC"));
     }
 
-    public void testCanonicalizeTzRejectsInvalidOffsetBounds() {
-        // Hours > 14 is beyond any real-world zone.
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+15:00"));
-        assertTrue("error must include the bad value: " + ex.getMessage(), ex.getMessage().contains("+15:00"));
-
-        // Minutes > 59 is malformed.
-        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+05:60"));
+    public void testCanonicalizeTzPassesOutOfRangeOffsetsThroughUnchanged() {
+        // Syntactically-valid but out-of-range offsets are NOT rejected at plan time.
+        // They pass through verbatim so the runtime UDF (rust convert_tz::parse_offset_seconds)
+        // returns None and the row surfaces as NULL — matching legacy PPL semantics
+        // (DateTimeFunctionIT#testConvertTZ expects NULL rows for '-17:00' / '+15:00').
+        assertEquals("hours > 14 must pass through, not throw", "+15:00", ConvertTzAdapter.canonicalizeTz("+15:00"));
+        assertEquals("minutes > 59 must pass through, not throw", "+05:60", ConvertTzAdapter.canonicalizeTz("+05:60"));
     }
 
     public void testCanonicalizeTzRejectsUnknownIana() {
