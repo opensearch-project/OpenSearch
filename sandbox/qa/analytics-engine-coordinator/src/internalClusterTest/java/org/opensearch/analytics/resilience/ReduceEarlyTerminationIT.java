@@ -29,6 +29,10 @@ import org.opensearch.ppl.TestPPLPlugin;
 import org.opensearch.ppl.action.PPLRequest;
 import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.UnifiedPPLExecuteAction;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -199,30 +203,19 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Reduce-input early termination, end-to-end, under shard skew.
-     *
-     * <p>Early termination here is <b>reactive</b>, not proactive: a shard only discovers the
-     * coordinator's LIMIT is satisfied when it next tries to feed a batch (and gets
-     * {@code RECEIVER_DROPPED}). With both shards equally fast they each race to completion and
-     * feed everything before the {@code limit 5} is hit — nothing to observe. So we deliberately
-     * <b>skew</b> the shards: one data node's {@link FragmentExecutionAction} handler is delayed
-     * for longer than the test would ever wait, while the other streams immediately.
-     *
-     * <p>The fast shard alone holds far more than 5 rows, so the coordinator's {@code LimitExec}
-     * satisfies its fetch from the fast shard, drops the reduce input's receiver, and the engine
-     * cancels the slow shard's stream instead of blocking on it. The proof is twofold:
-     * <ul>
-     *   <li><b>Correctness:</b> {@code head 5} returns exactly 5 rows.</li>
-     *   <li><b>Liveness:</b> the query returns well under the injected delay — i.e. it did NOT
-     *       wait for the slow shard. Without early termination the coordinator would block on the
-     *       delayed shard and the query would take at least {@code SLOW_SHARD_DELAY}.</li>
-     * </ul>
+     * Reduce-input early termination under shard skew. Early termination is reactive — a shard
+     * only learns the LIMIT is satisfied on its next feed — so equally-fast shards finish before
+     * there's anything to observe. Delaying one shard far past the assertion window forces the
+     * fast shard to satisfy the LIMIT first, dropping the receiver. Asserts: {@code head 5}
+     * returns exactly 5 rows; the query returns well under the slow-shard delay (didn't block on
+     * it); and the {@code [early-term] cancelling shard stream} log fired (the engine cancelled
+     * the stream — which only happens once {@code df_sender_send} surfaces {@code RECEIVER_DROPPED}).
      */
     public void testHeadLimitTerminatesEarlyUnderShardSkew() throws Exception {
         createAndSeedLargeIndex();
 
-        // Delay one data node's fragment handler far beyond the assertion window. If the query
-        // blocks on this shard (no early termination) it cannot finish before the delay elapses.
+        // Delay one shard far past the assertion window — if the query blocks on it, it can't
+        // finish in time.
         String victim = randomFrom(internalCluster().getDataNodeNames());
         MockTransportService mts = (MockTransportService) internalCluster().getInstance(TransportService.class, victim);
         mts.addRequestHandlingBehavior(FragmentExecutionAction.NAME, (handler, request, channel, task) -> {
@@ -234,7 +227,19 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
             handler.messageReceived(request, channel, task);
         });
 
-        try {
+        final String cancelLogger = "org.opensearch.analytics.exec.AnalyticsSearchTransportService";
+        Logger transportLogger = LogManager.getLogger(cancelLogger);
+        Loggers.setLevel(transportLogger, Level.DEBUG);
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(transportLogger)) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "shard stream cancelled on early termination",
+                    cancelLogger,
+                    Level.DEBUG,
+                    "*[early-term] cancelling shard stream*"
+                )
+            );
+
             long startNanos = System.nanoTime();
             PPLResponse response = executePPL("source = " + LARGE_INDEX + " | head 5");
             long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
@@ -249,7 +254,11 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
                     + "ms",
                 elapsedMs < SLOW_SHARD_DELAY.millis()
             );
+
+            // The cancel runs async after the query response settles; assertBusy tolerates the gap.
+            assertBusy(appender::assertAllExpectationsMatched, 10, TimeUnit.SECONDS);
         } finally {
+            Loggers.setLevel(transportLogger, Level.INFO);
             mts.clearAllRules();
         }
     }

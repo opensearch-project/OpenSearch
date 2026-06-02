@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -50,6 +52,8 @@ import java.io.IOException;
  */
 @Singleton
 public class AnalyticsSearchTransportService {
+    private static final Logger logger = LogManager.getLogger(AnalyticsSearchTransportService.class);
+
     private final StreamTransportService transportService;
     private final ClusterService clusterService;
 
@@ -244,6 +248,7 @@ public class AnalyticsSearchTransportService {
                                 if (next.getRoot() != null) {
                                     next.getRoot().close();
                                 }
+                                logger.debug("[early-term] cancelling shard stream: reduce input satisfied (downstream consumer finished)");
                                 stream.cancel("reduce input satisfied (downstream consumer finished)", null);
                             }
                             return;
