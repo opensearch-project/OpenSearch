@@ -40,8 +40,8 @@ public class OpenSearchSortSplitRule extends RelOptRule {
     @Override
     public boolean matches(RelOptRuleCall call) {
         OpenSearchSort sort = call.rel(0);
-        if (sort.getCollation().getFieldCollations().isEmpty()) {
-            return false; // pure LIMIT — skip
+        if (sort.getCollation().getFieldCollations().isEmpty() && sort.fetch == null && sort.offset == null) {
+            return false; // no ordering and no limit — nothing to gather for
         }
         return !isSingleton(sort.getInput()) || !isSingleton(sort);
     }
