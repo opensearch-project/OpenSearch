@@ -75,14 +75,14 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
                 if (hasBuffered) {
                     hasBuffered = false;
                     System.arraycopy(currentBytes, 0, encoded.bytes, 0, Long.BYTES);
-                    return BytesRef.deepCopyOf(encoded);
+                    return encoded;
                 }
 
                 if (!it.hasNext()) return null;
 
                 long v = it.next();
                 LongPoint.encodeDimension(v, encoded.bytes, 0);
-                return BytesRef.deepCopyOf(encoded);
+                return encoded;
             }
 
             @Override

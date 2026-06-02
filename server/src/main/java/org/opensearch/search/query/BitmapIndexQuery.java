@@ -82,7 +82,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
                     return null;
                 }
                 IntPoint.encodeDimension(value, encoded.bytes, 0);
-                return BytesRef.deepCopyOf(encoded);
+                return encoded;
             }
 
             public void advance(byte[] target) {
