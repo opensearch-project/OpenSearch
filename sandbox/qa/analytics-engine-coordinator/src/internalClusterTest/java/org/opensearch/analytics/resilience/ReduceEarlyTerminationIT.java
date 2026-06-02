@@ -12,11 +12,13 @@ import org.opensearch.Version;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
+import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
@@ -29,21 +31,30 @@ import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.UnifiedPPLExecuteAction;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
- * EXPLORATORY: verify whether a multi-shard {@code head N} query triggers reduce-input early
- * termination — i.e. once the coordinator's LIMIT is satisfied, the shard streams are cancelled
- * rather than scanned to exhaustion.
+ * Reduce-input early termination on a real multi-shard {@code head N} query: once the
+ * coordinator's LIMIT is satisfied, the upstream shard streams are cancelled rather than
+ * scanned to exhaustion.
  *
- * <p>This first cut is intentionally a log-observation test: it runs a real 2-shard query that
- * produces many batches per shard, far more than the {@code head N} needs, and asserts the
- * {@code [early-term]} log fires from {@code AnalyticsSearchTransportService} when the consumer is
- * satisfied. If the log does NOT fire, the query shape doesn't engage early termination and we
- * need a different shape (e.g. a stub-shard harness) — that's what this run tells us.
+ * <p>Two tests cover the two halves:
+ * <ul>
+ *   <li>{@link #testStatsSortHeadAcrossShardsReturnsCorrectTopN} — correctness of the top-N shape.</li>
+ *   <li>{@link #testHeadLimitTerminatesEarlyUnderShardSkew} — early termination itself, proven by
+ *       delaying one shard far longer than the query is allowed to take and asserting the query
+ *       still returns the right rows, fast, without blocking on the slow shard.</li>
+ * </ul>
+ *
+ * <p>Early termination is <b>reactive</b>: a shard only learns the receiver was dropped on its next
+ * feed, so with equally fast shards both finish before the LIMIT is hit and there is nothing to
+ * observe. The skew in the second test is what makes it observable.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
@@ -53,7 +64,13 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ArrowBasePlugin.class, TestPPLPlugin.class, CompositeDataFormatPlugin.class, MockCommitterEnginePlugin.class);
+        return List.of(
+            ArrowBasePlugin.class,
+            TestPPLPlugin.class,
+            CompositeDataFormatPlugin.class,
+            MockTransportService.TestPlugin.class,
+            MockCommitterEnginePlugin.class
+        );
     }
 
     @Override
@@ -179,5 +196,107 @@ public class ReduceEarlyTerminationIT extends OpenSearchIntegTestCase {
         }
         // The largest group (g11=12) must be first.
         assertEquals("top group must be g11 with count 12", 12L, ((Number) response.getRows().get(0)[cIdx]).longValue());
+    }
+
+    /**
+     * Reduce-input early termination, end-to-end, under shard skew.
+     *
+     * <p>Early termination here is <b>reactive</b>, not proactive: a shard only discovers the
+     * coordinator's LIMIT is satisfied when it next tries to feed a batch (and gets
+     * {@code RECEIVER_DROPPED}). With both shards equally fast they each race to completion and
+     * feed everything before the {@code limit 5} is hit — nothing to observe. So we deliberately
+     * <b>skew</b> the shards: one data node's {@link FragmentExecutionAction} handler is delayed
+     * for longer than the test would ever wait, while the other streams immediately.
+     *
+     * <p>The fast shard alone holds far more than 5 rows, so the coordinator's {@code LimitExec}
+     * satisfies its fetch from the fast shard, drops the reduce input's receiver, and the engine
+     * cancels the slow shard's stream instead of blocking on it. The proof is twofold:
+     * <ul>
+     *   <li><b>Correctness:</b> {@code head 5} returns exactly 5 rows.</li>
+     *   <li><b>Liveness:</b> the query returns well under the injected delay — i.e. it did NOT
+     *       wait for the slow shard. Without early termination the coordinator would block on the
+     *       delayed shard and the query would take at least {@code SLOW_SHARD_DELAY}.</li>
+     * </ul>
+     */
+    public void testHeadLimitTerminatesEarlyUnderShardSkew() throws Exception {
+        createAndSeedLargeIndex();
+
+        // Delay one data node's fragment handler far beyond the assertion window. If the query
+        // blocks on this shard (no early termination) it cannot finish before the delay elapses.
+        String victim = randomFrom(internalCluster().getDataNodeNames());
+        MockTransportService mts = (MockTransportService) internalCluster().getInstance(TransportService.class, victim);
+        mts.addRequestHandlingBehavior(FragmentExecutionAction.NAME, (handler, request, channel, task) -> {
+            try {
+                Thread.sleep(SLOW_SHARD_DELAY.millis());
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            handler.messageReceived(request, channel, task);
+        });
+
+        try {
+            long startNanos = System.nanoTime();
+            PPLResponse response = executePPL("source = " + LARGE_INDEX + " | head 5");
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+
+            assertEquals("head 5 must return exactly 5 rows even with one shard delayed", 5, response.getRows().size());
+            logger.info("[early-term] head 5 under shard skew returned in {}ms (slow-shard delay={}ms)", elapsedMs, SLOW_SHARD_DELAY.millis());
+            assertTrue(
+                "query must return without waiting for the slow shard (early-term); elapsed="
+                    + elapsedMs
+                    + "ms, slow-shard delay="
+                    + SLOW_SHARD_DELAY.millis()
+                    + "ms",
+                elapsedMs < SLOW_SHARD_DELAY.millis()
+            );
+        } finally {
+            mts.clearAllRules();
+        }
+    }
+
+    private static final String LARGE_INDEX = "early_term_large_idx";
+    private static final int LARGE_TOTAL_DOCS = 20_000;
+    private static final TimeValue SLOW_SHARD_DELAY = TimeValue.timeValueSeconds(10);
+
+    private void createAndSeedLargeIndex() throws Exception {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, NUM_SHARDS)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats")
+            .build();
+
+        assertTrue(
+            client().admin()
+                .indices()
+                .prepareCreate(LARGE_INDEX)
+                .setSettings(indexSettings)
+                .setMapping("category", "type=keyword", "value", "type=integer")
+                .get()
+                .isAcknowledged()
+        );
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        int pending = 0;
+        for (int i = 0; i < LARGE_TOTAL_DOCS; i++) {
+            bulk.add(client().prepareIndex(LARGE_INDEX).setSource("category", "c" + (i % 100), "value", i));
+            if (++pending == 2000) {
+                BulkResponse r = bulk.get();
+                assertFalse("bulk ingest must not error", r.hasFailures());
+                bulk = client().prepareBulk();
+                pending = 0;
+            }
+        }
+        if (pending > 0) {
+            BulkResponse r = bulk.get();
+            assertFalse("bulk ingest must not error", r.hasFailures());
+        }
+        client().admin().indices().prepareRefresh(LARGE_INDEX).get();
+        ensureGreen(LARGE_INDEX);
+
+        // Force the parquet commit to be visible to the analytics path before measuring.
+        executePPL("source = " + LARGE_INDEX + " | stats count() as c");
     }
 }
