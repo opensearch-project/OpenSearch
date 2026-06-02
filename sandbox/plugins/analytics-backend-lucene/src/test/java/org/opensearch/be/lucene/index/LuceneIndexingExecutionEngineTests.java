@@ -56,6 +56,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -171,10 +172,21 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         // Use LuceneWriter to create segments (which sets the writer_generation attribute via LuceneWriterCodec)
         Path tempBase = createTempDir();
-        MappedFieldType textField = new org.opensearch.index.mapper.TextFieldMapper.TextFieldType("content");
+        MappedFieldType textField = new TextFieldType("content");
 
         long generation = 1L;
-        try (LuceneWriter luceneWriter = new LuceneWriter(generation, 0L, luceneDataFormat, tempBase, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter luceneWriter = new LuceneWriter(
+                generation,
+                0L,
+                luceneDataFormat,
+                tempBase,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -324,7 +336,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
         IndexWriter sharedWriter = committer.getIndexWriter();
 
-        MappedFieldType textField = new org.opensearch.index.mapper.TextFieldMapper.TextFieldType("content");
+        MappedFieldType textField = new TextFieldType("content");
 
         long gen1 = 1L;
         long gen2 = 2L;
@@ -423,5 +435,52 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
         LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
         engine.deleteFiles(java.util.Map.of("parquet", java.util.List.of("_0.parquet")));
+    }
+
+    public void testGetHeapBytesUsedSumsActiveWriters() throws IOException {
+        LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+
+        assertEquals("No writers yet, heap should be 0", 0L, engine.getHeapBytesUsed());
+
+        // Create writers via engine.createWriter to use the engine's internal activeWriters set
+        Path tempBase = createTempDir();
+        MappedFieldType textField = new TextFieldType("content");
+
+        WriterConfig config1 = new WriterConfig(1L);
+        WriterConfig config2 = new WriterConfig(2L);
+        LuceneWriter writer1 = (LuceneWriter) engine.createWriter(config1);
+        LuceneWriter writer2 = (LuceneWriter) engine.createWriter(config2);
+
+        // Add docs to both writers
+        for (int i = 0; i < 5; i++) {
+            LuceneDocumentInput input = new LuceneDocumentInput();
+            input.addField(textField, "doc " + i);
+            input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+            writer1.addDoc(input);
+        }
+        for (int i = 0; i < 3; i++) {
+            LuceneDocumentInput input = new LuceneDocumentInput();
+            input.addField(textField, "doc " + i);
+            input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+            writer2.addDoc(input);
+        }
+
+        long totalHeap = engine.getHeapBytesUsed();
+        assertTrue("Engine heap should be > 0 with active writers", totalHeap > 0);
+        assertEquals(
+            "Engine heap should equal sum of individual writers",
+            writer1.getHeapBytesUsed() + writer2.getHeapBytesUsed(),
+            totalHeap
+        );
+
+        // Close writer1 — engine heap should decrease
+        writer1.close();
+        long heapAfterClose = engine.getHeapBytesUsed();
+        assertTrue("Heap should decrease after closing a writer", heapAfterClose < totalHeap);
+        assertEquals(writer2.getHeapBytesUsed(), heapAfterClose);
+
+        writer2.close();
+        assertEquals("All writers closed, heap should be 0", 0L, engine.getHeapBytesUsed());
     }
 }

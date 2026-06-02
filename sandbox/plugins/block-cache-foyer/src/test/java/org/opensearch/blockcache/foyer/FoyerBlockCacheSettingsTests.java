@@ -21,7 +21,7 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
     // ── CACHE_SIZE_SETTING ────────────────────────────────────────────────────
 
     public void testCacheSizeDefault() {
-        assertEquals("25%", FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(Settings.EMPTY));
+        assertEquals("50%", FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(Settings.EMPTY));
     }
 
     public void testCacheSizeAcceptsPercentage() {

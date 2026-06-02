@@ -282,7 +282,11 @@ public class DataFormatAwareEngine implements Indexer {
             // Lucene merges that skip because the shared writer has no matching segments —
             // applyMergeChanges acquires refreshLock itself. Either way, applyMergeChanges
             // releases the lock before returning.
-            this.committer = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig, refreshLock::lock));
+            this.committer = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig, () -> {
+                if (refreshLock.isHeldByCurrentThread() == false) {
+                    refreshLock.lock();
+                }
+            }));
 
             // 2. Read translogUUID and history UUID from last committed data
             final Map<String, String> userData = committer.getLastCommittedData();
@@ -971,7 +975,8 @@ public class DataFormatAwareEngine implements Indexer {
                         notifyRefreshListenersBefore();
                         if (refreshed) {
                             final long engineRefreshStartNanos = System.nanoTime();
-                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
+                            long nextGen = newSegments.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
+                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments, nextGen);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                             final long engineRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - engineRefreshStartNanos);
                             logger.debug(
@@ -1065,69 +1070,80 @@ public class DataFormatAwareEngine implements Indexer {
                 flushLock.lock();
             }
             try {
-                // Refresh first to flush buffered data to segments
-                refresh("flush");
-                translogManager.rollTranslogGeneration();
-                // Persist the latest catalog snapshot so it survives restart
-                try (GatedConditionalCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshotForCommit()) {
-                    CatalogSnapshot snapshot = snapshotRef.get();
-                    Map<String, String> lastCommitData = committer.getLastCommittedData();
-                    String lastCommittedSnapshotId = lastCommitData.get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
-                    // commit only if last committed CS id is different from the one we are about to commit or if force param is true
-                    if (force || lastCommittedSnapshotId == null || snapshot.getId() != Long.parseLong(lastCommittedSnapshotId)) {
-                        // Sync translog before commit so the global checkpoint is persisted
-                        // and available to the deletion policy when onCommit is triggered.
-                        translogManager.ensureCanFlush();
-                        translogManager.syncTranslog();
-                        Map<String, String> commitData = new HashMap<>();
-                        commitData.put(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(snapshot.getLastWriterGeneration()));
-                        commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
-                        commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
-                        commitData.put(
-                            SequenceNumbers.LOCAL_CHECKPOINT_KEY,
-                            Long.toString(localCheckpointTracker.getProcessedCheckpoint())
-                        );
-                        commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
-                        commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                        commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
+                // Hold refreshLock across the whole flush so a concurrent refresh cannot advance
+                // latestCatalogSnapshot between commit() and updateLastCommitInfo(). Reentrant.
+                refreshLock.lock();
+                try {
+                    // Refresh first to flush buffered data to segments
+                    refresh("flush");
+                    translogManager.rollTranslogGeneration();
+                    // Persist the latest catalog snapshot so it survives restart
+                    try (GatedConditionalCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshotForCommit()) {
+                        CatalogSnapshot snapshot = snapshotRef.get();
+                        Map<String, String> lastCommitData = committer.getLastCommittedData();
+                        String lastCommittedSnapshotId = lastCommitData.get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
+                        // commit only if last committed CS id is different from the one we are about to commit or if force param is true
+                        if (force || lastCommittedSnapshotId == null || snapshot.getId() != Long.parseLong(lastCommittedSnapshotId)) {
+                            // Sync translog before commit so the global checkpoint is persisted
+                            // and available to the deletion policy when onCommit is triggered.
+                            translogManager.ensureCanFlush();
+                            translogManager.syncTranslog();
+                            Map<String, String> commitData = new HashMap<>();
+                            commitData.put(
+                                CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY,
+                                Long.toString(snapshot.getLastWriterGeneration())
+                            );
+                            commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
+                            commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
+                            commitData.put(
+                                SequenceNumbers.LOCAL_CHECKPOINT_KEY,
+                                Long.toString(localCheckpointTracker.getProcessedCheckpoint())
+                            );
+                            commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                            commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                            commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
 
-                        // Update snapshot userData so deletion policy can read max_seq_no
-                        snapshot.setUserData(commitData, true);
+                            // Update snapshot userData so deletion policy can read max_seq_no
+                            snapshot.setUserData(commitData, true);
 
-                        // Now add snapshot to commit data so it has latest snapshot
-                        commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
+                            // Now add snapshot to commit data so it has latest snapshot
+                            commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
 
-                        // Commit data must contain all keys required for recovery
-                        assert commitData.containsKey(CatalogSnapshot.CATALOG_SNAPSHOT_KEY) : "commit data missing catalog snapshot";
-                        assert commitData.containsKey(Translog.TRANSLOG_UUID_KEY) : "commit data missing translog UUID";
-                        assert commitData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit data missing local checkpoint";
-                        assert commitData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit data missing max seq no";
-                        assert commitData.containsKey(Engine.HISTORY_UUID_KEY) : "commit data missing history UUID";
-                        assert snapshot.getId() >= 0 : "snapshot ID must be non-negative but was: " + snapshot.getId();
-                        assert Long.parseLong(commitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) >= -1
-                            : "local checkpoint in commit data must be >= -1";
-                        assert Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO)) >= -1 : "max seq no in commit data must be >= -1";
+                            // Commit data must contain all keys required for recovery
+                            assert commitData.containsKey(CatalogSnapshot.CATALOG_SNAPSHOT_KEY) : "commit data missing catalog snapshot";
+                            assert commitData.containsKey(Translog.TRANSLOG_UUID_KEY) : "commit data missing translog UUID";
+                            assert commitData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit data missing local checkpoint";
+                            assert commitData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit data missing max seq no";
+                            assert commitData.containsKey(Engine.HISTORY_UUID_KEY) : "commit data missing history UUID";
+                            assert snapshot.getId() >= 0 : "snapshot ID must be non-negative but was: " + snapshot.getId();
+                            assert Long.parseLong(commitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) >= -1
+                                : "local checkpoint in commit data must be >= -1";
+                            assert Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO)) >= -1
+                                : "max seq no in commit data must be >= -1";
 
-                        // We do an additional commit on engine start due to no catalog snapshot present in earlier commit during empty
-                        // recovery
-                        Committer.CommitResult commitResult = committer.commit(
-                            new Committer.CommitInput(commitData.entrySet(), snapshot, 0)
-                        );
+                            // We do an additional commit on engine start due to no catalog snapshot present in earlier commit during empty
+                            // recovery
+                            Committer.CommitResult commitResult = committer.commit(
+                                new Committer.CommitInput(commitData.entrySet(), snapshot, 0)
+                            );
 
-                        if (commitResult != null && snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-                            // If the catalog snapshot changed during the flush, this will ensure the latest one
-                            // has the commit format.
-                            // Any new snapshots created post this should track this commit info.
-                            catalogSnapshotManager.updateLastCommitInfo(commitResult);
+                            if (commitResult != null && snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
+                                // If the catalog snapshot changed during the flush, this will ensure the latest one
+                                // has the commit format.
+                                // Any new snapshots created post this should track this commit info.
+                                catalogSnapshotManager.updateLastCommitInfo(commitResult);
+                            }
+                            snapshotRef.markSuccess();
+                            translogManager.trimUnreferencedReaders();
                         }
-                        snapshotRef.markSuccess();
-                        translogManager.trimUnreferencedReaders();
                     }
-                }
-                logger.trace("flush completed");
+                    logger.trace("flush completed");
 
-                // Notify stats cache that flush completed to refresh committed state
-                statsCache.onFlushCompleted();
+                    // Notify stats cache that flush completed to refresh committed state
+                    statsCache.onFlushCompleted();
+                } finally {
+                    refreshLock.unlock();
+                }
             } catch (AlreadyClosedException e) {
                 failOnTragicEvent(e);
                 throw e;
@@ -1187,9 +1203,14 @@ public class DataFormatAwareEngine implements Indexer {
         mergeScheduler.forceMerge(1);
     }
 
-    /** {@inheritDoc} Returns the RAM bytes used by the indexing execution engine. */
+    /** {@inheritDoc} Returns the heap RAM bytes used by the indexing execution engine. */
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
+        return indexingExecutionEngine.getHeapBytesUsed();
+    }
+
+    @Override
+    public long getNativeBytesUsed() {
         return indexingExecutionEngine.getNativeBytesUsed();
     }
 
@@ -1455,6 +1476,13 @@ public class DataFormatAwareEngine implements Indexer {
         return throttle.getThrottleTimeInMillis();
     }
 
+    /**
+     * Returns 0 because DataFormatAwareEngine has no in-flight write state visible to the IMC.
+     * Unlike InternalEngine where IndexWriter stays open after flushNextBuffer() (keeping bytes
+     * reported via ramBytesUsed while they're being written to disk), here refresh closes and
+     * destroys all writers — memory reporting drops to 0 immediately on close, so there are
+     * never bytes that are "reported as used but already being freed."
+     */
     @Override
     public long getWritingBytes() {
         return 0L;
@@ -1463,11 +1491,6 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public long unreferencedFileCleanUpsPerformed() {
         return catalogSnapshotManager.getUnreferencedFileCleanUpsPerformed();
-    }
-
-    @Override
-    public long getNativeBytesUsed() {
-        return indexingExecutionEngine.getNativeBytesUsed();
     }
 
     @Override
@@ -1850,7 +1873,7 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private long currentMappingVersion() {
-        return engineConfig.getMapperService().getIndexSettings().getIndexMetadata().getMappingVersion();
+        return engineConfig.getMapperService().documentMapper().getVersion();
     }
 
     /**

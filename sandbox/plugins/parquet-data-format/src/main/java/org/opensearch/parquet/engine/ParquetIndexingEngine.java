@@ -44,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
@@ -116,7 +115,6 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             indexSettings,
             threadPool,
             new PrecomputedChecksumStrategy(),
-            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings),
             nativeAllocator
         );
     }
@@ -132,6 +130,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      * @param checksumStrategy  the checksum strategy to use (shared with the directory)
+     * @param nativeAllocator   the framework's unified native allocator
      */
     public ParquetIndexingEngine(
         Settings settings,
@@ -142,54 +141,13 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy,
-        ArrowNativeAllocator nativeAllocator
-    ) {
-        this(
-            settings,
-            dataFormat,
-            shardPath,
-            schemaSupplier,
-            mappingVersionSupplier,
-            indexSettings,
-            threadPool,
-            checksumStrategy,
-            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings),
-            nativeAllocator
-        );
-    }
-
-    /**
-     * Creates a new ParquetIndexingEngine with a live divisor supplier.
-     *
-     * @param settings          the node-level settings
-     * @param dataFormat        the Parquet data format descriptor
-     * @param shardPath         the shard path for file storage
-     * @param schemaSupplier     the supplier for schema resolution
-     * @param mappingVersionSupplier     the supplier for mapping version resolution
-     * @param indexSettings     the index-level settings
-     * @param threadPool        the thread pool for background native writes
-     * @param checksumStrategy  the checksum strategy to use (shared with the directory)
-     * @param divisorSupplier   live source for {@link ParquetSettings#MAX_PER_VSR_ALLOCATION_DIVISOR};
-     *                          read on every {@link org.opensearch.parquet.memory.ArrowBufferPool#createChildAllocator(String)}
-     *                          call so dynamic cluster-settings updates take effect
-     */
-    public ParquetIndexingEngine(
-        Settings settings,
-        ParquetDataFormat dataFormat,
-        ShardPath shardPath,
-        Supplier<Schema> schemaSupplier,
-        Supplier<Long> mappingVersionSupplier,
-        IndexSettings indexSettings,
-        ThreadPool threadPool,
-        FormatChecksumStrategy checksumStrategy,
-        IntSupplier divisorSupplier,
         ArrowNativeAllocator nativeAllocator
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.mappingVersionSupplier = mappingVersionSupplier;
-        this.bufferPool = new ArrowBufferPool(settings, divisorSupplier, nativeAllocator);
+        this.bufferPool = new ArrowBufferPool(settings, nativeAllocator);
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
         this.threadPool = threadPool;
@@ -254,20 +212,26 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public Writer<ParquetDocumentInput> createWriter(WriterConfig config) {
         long mappingVersion = mappingVersionSupplier.get();
-        Schema schema = getOrBuildSchema(mappingVersion);
+        Schema schema = getOrBuildSchema();
         Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
         return new ParquetWriter(
             filePath.toString(),
             config.writerGeneration(),
-            mappingVersion,
+            0L,
             dataFormat,
             schema,
-            () -> getOrBuildSchema(mappingVersionSupplier.get()),
+            this::getOrBuildSchema,
             bufferPool,
             indexSettings,
             threadPool,
             checksumStrategy
         );
+    }
+
+    /** Parquet indexing uses only native (off-heap) memory via Arrow buffers and Rust writers, no JVM heap. */
+    @Override
+    public long getHeapBytesUsed() {
+        return 0;
     }
 
     @Override
@@ -330,13 +294,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return null;
     }
 
-    private Schema getOrBuildSchema(long mappingVersion) {
-        if (cachedSchemaVersion == mappingVersion && cachedSchema != null) {
-            return cachedSchema;
-        }
-        cachedSchema = schemaSupplier.get();
-        cachedSchemaVersion = mappingVersion;
-        return cachedSchema;
+    private Schema getOrBuildSchema() {
+        return schemaSupplier.get();
     }
 
     @Override

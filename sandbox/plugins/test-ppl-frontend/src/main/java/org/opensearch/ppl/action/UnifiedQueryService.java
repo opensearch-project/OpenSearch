@@ -16,7 +16,8 @@ import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.sql.api.UnifiedQueryContext;
@@ -41,11 +42,11 @@ public class UnifiedQueryService {
     private static final String DEFAULT_CATALOG = "opensearch";
 
     private final QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor;
-    private final EngineContext engineContext;
+    private final EngineContextProvider contextProvider;
 
-    public UnifiedQueryService(QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor, EngineContext engineContext) {
+    public UnifiedQueryService(QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor, EngineContextProvider contextProvider) {
         this.planExecutor = planExecutor;
-        this.engineContext = engineContext;
+        this.contextProvider = contextProvider;
     }
 
     /**
@@ -65,33 +66,44 @@ public class UnifiedQueryService {
     }
 
     private PPLResponse execute(String pplText, boolean profile) {
-        // Extract tables from the SchemaPlus into a plain AbstractSchema.
-        // SchemaPlus wraps CalciteSchema — passing it to catalog() causes double-nesting
-        // where tables become inaccessible. A plain Schema avoids this.
-        SchemaPlus schemaPlus = engineContext.getSchema();
-        Map<String, Table> tableMap = new HashMap<>();
-        for (String tableName : schemaPlus.getTableNames()) {
-            tableMap.put(tableName, schemaPlus.getTable(tableName));
-        }
-        AbstractSchema flatSchema = new AbstractSchema() {
+        // Wrap the SchemaPlus in a delegating AbstractSchema that preserves lazy table resolution.
+        // The underlying OpenSearchSchemaBuilder resolves wildcard/comma/exclusion expressions
+        // lazily via getTable(name) — a static copy would lose that.
+        SchemaPlus schemaPlus = contextProvider.getContext().schema();
+        AbstractSchema delegatingSchema = new AbstractSchema() {
             @Override
             protected Map<String, Table> getTableMap() {
-                return tableMap;
+                return new HashMap<>() {
+                    {
+                        for (String tableName : schemaPlus.getTableNames()) {
+                            super.put(tableName, schemaPlus.getTable(tableName));
+                        }
+                    }
+
+                    @Override
+                    public Table get(Object key) {
+                        Table t = super.get(key);
+                        if (t == null && key instanceof String name) {
+                            t = schemaPlus.getTable(name);
+                            if (t != null) super.put(name, t);
+                        }
+                        return t;
+                    }
+                };
             }
         };
 
         logger.info(
-            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, tableMap: {}, engineContext class: {}",
+            "[UnifiedQueryService] schemaPlus class: {}, tableNames: {}, contextProvider class: {}",
             schemaPlus.getClass().getName(),
             schemaPlus.getTableNames(),
-            tableMap.keySet(),
-            engineContext.getClass().getName()
+            contextProvider.getClass().getName()
         );
 
         try (
             UnifiedQueryContext context = UnifiedQueryContext.builder()
                 .language(QueryType.PPL)
-                .catalog(DEFAULT_CATALOG, flatSchema)
+                .catalog(DEFAULT_CATALOG, delegatingSchema)
                 .defaultNamespace(DEFAULT_CATALOG)
                 // The unified PPL parser reuses the v2 AstBuilder, which gates Calcite-only
                 // commands (table, regex, rex, convert) on plugins.calcite.enabled. The unified
@@ -113,9 +125,12 @@ public class UnifiedQueryService {
                 columns.add(field.getName());
             }
 
+            QueryRequestContext baseCtx = contextProvider.getContext();
+            QueryRequestContext queryCtx = new QueryRequestContext(baseCtx.clusterState(), baseCtx.schema(), pplText);
+
             if (profile) {
                 PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
-                planExecutor.executeWithProfile(logicalPlan, null, future);
+                planExecutor.executeWithProfile(logicalPlan, queryCtx, future);
                 ProfiledResult result = future.actionGet();
 
                 if (result.isSuccess() == false) {
@@ -135,7 +150,7 @@ public class UnifiedQueryService {
             // (e.g. CircuitBreakingException) is handled by DefaultPlanExecutor's
             // convertingListener without being wrapped in ProfiledResult.
             PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
-            planExecutor.execute(logicalPlan, null, future);
+            planExecutor.execute(logicalPlan, queryCtx, future);
             Iterable<Object[]> results = future.actionGet();
 
             List<Object[]> rows = new ArrayList<>();

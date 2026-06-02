@@ -54,6 +54,18 @@ pub const COLLECTOR_FUNCTION_NAME: &str = "delegated_predicate";
 /// DF's own pruning isn't selective enough for a row group).
 pub const DELEGATION_POSSIBLE_FUNCTION_NAME: &str = "delegation_possible";
 
+/// Walk the logical plan looking for `__row_id__` column in a projection.
+/// Its presence signals the executor to emit computed row IDs (query phase).
+pub fn plan_requests_row_ids(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Projection(proj) => proj.expr.iter().any(|e| match e {
+            Expr::Column(col) => col.name() == crate::ROW_ID_COLUMN_NAME,
+            _ => false,
+        }),
+        _ => plan.inputs().iter().any(|child| plan_requests_row_ids(child)),
+    }
+}
+
 /// Classification of a query's filter expression — drives the evaluator choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterClass {

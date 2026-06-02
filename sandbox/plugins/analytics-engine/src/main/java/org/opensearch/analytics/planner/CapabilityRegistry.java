@@ -319,6 +319,23 @@ public class CapabilityRegistry {
         return fieldStorageFactory.apply(indexMetadata);
     }
 
+    /**
+     * Resolves field storage across all backing indices of a table (alias or index pattern),
+     * unioning their field sets. A singleton list resolves exactly as the single-index overload.
+     * Backing indices with differing field sets are expected — the scan's row type is the union —
+     * so each requested field is served by whichever index declares it.
+     */
+    public FieldStorageResolver resolveFieldStorage(List<IndexMetadata> indices) {
+        if (indices.size() == 1) {
+            return resolveFieldStorage(indices.get(0));
+        }
+        List<FieldStorageResolver> perIndex = new ArrayList<>(indices.size());
+        for (IndexMetadata index : indices) {
+            perIndex.add(resolveFieldStorage(index));
+        }
+        return FieldStorageResolver.merged(perIndex);
+    }
+
     // ---- Helpers ----
 
     private static List<String> allBackends(Map<String, List<String>> formatMap) {

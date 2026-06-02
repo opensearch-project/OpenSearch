@@ -271,6 +271,9 @@ public abstract class AbstractDataFormatAwareEngineTestCase extends OpenSearchTe
         when(ms.fieldType("_version")).thenReturn(versionFieldType);
         when(ms.fieldType("_seq_no")).thenReturn(seqNoFieldType);
         when(ms.getIndexSettings()).thenReturn(indexSettings);
+        org.opensearch.index.mapper.DocumentMapper documentMapper = mock(org.opensearch.index.mapper.DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(ms.documentMapper()).thenReturn(documentMapper);
         return ms;
     }
 

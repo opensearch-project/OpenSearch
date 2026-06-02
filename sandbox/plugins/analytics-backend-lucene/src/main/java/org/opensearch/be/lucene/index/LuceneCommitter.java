@@ -11,6 +11,7 @@ package org.opensearch.be.lucene.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
@@ -98,6 +99,9 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
+
+    /** Cached latest committed {@link SegmentInfos}; refreshed inside {@link #commit}, read by {@link #getCommitStats}. */
+    private volatile SegmentInfos lastCommittedSegmentInfos;
     // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
     private final Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
 
@@ -117,6 +121,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             this.deletionPolicy = new LuceneCommitDeletionPolicy();
             IndexWriterConfig iwc = createIndexWriterConfig(committerConfig);
             this.indexWriter = new MergeIndexWriter(store.directory(), iwc);
+            this.lastCommittedSegmentInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
         } catch (Exception e) {
             store.decRef();
             throw e;
@@ -139,6 +144,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         indexWriter.setLiveCommitData(commitData.userData());
         indexWriter.commit();
         SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        this.lastCommittedSegmentInfos = committed;
 
         // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
         long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
@@ -188,20 +194,13 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     }
 
     /**
-     * Returns commit statistics derived from the latest committed segment infos.
-     *
-     * @return the commit stats, or {@code null} if segment infos cannot be read
+     * Returns commit stats from the cached {@link SegmentInfos} to avoid a per-call disk read
+     * (which validates referenced files and races with concurrent merges).
      */
     @Override
     public CommitStats getCommitStats() {
         ensureOpen();
-        try {
-            SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
-            return new CommitStats(segmentInfos);
-        } catch (IOException e) {
-            logger.warn("Failed to read segment infos for commit stats", e);
-            return null;
-        }
+        return new CommitStats(lastCommittedSegmentInfos);
     }
 
     @Override
@@ -253,12 +252,16 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getId());
             sis = new SegmentInfos(Version.LATEST.major);
         } else {
-            if (reader instanceof StandardDirectoryReader == false) {
+            DirectoryReader unwrapped = reader;
+            while (unwrapped instanceof FilterDirectoryReader fdr) {
+                unwrapped = fdr.getDelegate();
+            }
+            if (unwrapped instanceof StandardDirectoryReader == false) {
                 throw new IllegalStateException(
                     "Reader for catalog snapshot version=" + catalogSnapshot.getId() + " is not a StandardDirectoryReader: " + reader
                 );
             }
-            sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();
+            sis = ((StandardDirectoryReader) unwrapped).getSegmentInfos().clone();
         }
         Map<String, String> sisUserData = new HashMap<>(catalogSnapshot.getUserData());
         sisUserData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(catalogSnapshot.getId()));

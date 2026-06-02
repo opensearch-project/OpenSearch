@@ -70,7 +70,7 @@ public class VSRManager implements AutoCloseable {
     private final String vsrRotationThread;
     private final long writerGeneration;
     private volatile Future<?> pendingWrite;
-    private NativeParquetWriter writer;
+    private final NativeParquetWriter writer;
     private final int ROTATION_TIMEOUT = 120;
     private LongAdder rowCount = new LongAdder();
     private long acceptedRows = 0L;
@@ -131,8 +131,13 @@ public class VSRManager implements AutoCloseable {
      * @param doc the document input containing field-value pairs
      */
     public void addDocument(ParquetDocumentInput doc) throws IOException {
-        if (pendingWrite != null && pendingWrite.isDone() && pendingWrite.exceptionNow() != null) {
-            throw new IllegalStateException(pendingWrite.exceptionNow());
+        if (pendingWrite != null && pendingWrite.isDone()) {
+            Future.State state = pendingWrite.state();
+            if (state == Future.State.FAILED) {
+                throw new IllegalStateException(pendingWrite.exceptionNow());
+            } else if (state == Future.State.CANCELLED) {
+                throw new IllegalStateException("Background write was cancelled");
+            }
         }
         maybeRotateActiveVSR();
         // Re-check the rowId invariant so a single-format Parquet path is protected too.
@@ -156,6 +161,12 @@ public class VSRManager implements AutoCloseable {
                 );
             }
             if (activeVSR.getVector(fieldType.name()) == null) {
+                logger.error(
+                    "[Gen: {}] VSR schema mismatch: field [{}] not in active VSR. VSR schema fields: {}",
+                    writerGeneration,
+                    fieldType.name(),
+                    activeVSR.getSchema().getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
+                );
                 throw new MismatchedInputException(
                     "Active VSR has no vector for field ["
                         + fieldType.name()
@@ -188,7 +199,7 @@ public class VSRManager implements AutoCloseable {
      *
      * @param newSchema the schema to reconcile against
      */
-    public void reconcileSchema(Schema newSchema) {
+    public boolean reconcileSchema(Schema newSchema) {
         ManagedVSR activeVSR = managedVSR.get();
         boolean changed = false;
         for (Field schemaField : newSchema.getFields()) {
@@ -200,7 +211,10 @@ public class VSRManager implements AutoCloseable {
         }
         if (changed) {
             vsrPool.updateSchema(activeVSR.getSchema());
+        } else {
+            logger.debug("no changes in schema despite change in mapping version");
         }
+        return changed;
     }
 
     /**
@@ -375,5 +389,10 @@ public class VSRManager implements AutoCloseable {
      */
     public RowIdMapping getRowIdMapping() {
         return writer.getRowIdMapping();
+    }
+
+    /** Visible for testing — returns the pending background write future, or null. */
+    Future<?> getPendingWrite() {
+        return pendingWrite;
     }
 }

@@ -11,7 +11,9 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
@@ -30,6 +32,7 @@ import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ProjectCapability;
@@ -108,7 +111,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         RelNode marked = runPlanner(filter, context);
         LOGGER.debug("Marked:\n{}", RelOptUtil.toString(marked));
 
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -178,7 +181,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         RelNode marked = runPlanner(project, context);
         LOGGER.info("Marked project:\n{}", RelOptUtil.toString(marked));
 
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -221,7 +224,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), condition);
 
         RelNode marked = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -248,7 +251,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), condition);
 
         RelNode marked = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -289,7 +292,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), condition);
 
         RelNode marked = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
@@ -309,6 +312,94 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
             "ABS",
             ((RexCall) sinResult.getOperands().getFirst()).getOperator().getName()
         );
+    }
+
+    /**
+     * Join condition carries SIN(integer_column) — a PPL UDF that the SIN adapter rewrites to
+     * SIN(CAST(... AS DOUBLE)). Calcite's FILTER_INTO_JOIN rule inlines outer-Filter predicates
+     * into inner-Join conditions, so any PPL UDF that lived above a Join can ride into the
+     * Join's condition. Without dispatching OpenSearchJoin in adaptNode, that inlined UDF
+     * reaches the substrait converter unrewritten and fails (e.g. PPL transpose's
+     * `Unable to convert call NUMBER_TO_STRING(fp64?)`).
+     *
+     * <p>Verifies the adapter chain runs on the join condition: SIN's INPUT_REF operand
+     * should be wrapped in a CAST after adaptation, exactly as it would on a Filter.
+     */
+    public void testJoinConditionAdapterInsertsCastForIntegerField() {
+        MockDataFusionBackend dfWithAdapter = new MockDataFusionBackend() {
+            @Override
+            protected Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+                return Map.of(ScalarFunction.SIN, sinCastAdapter);
+            }
+        };
+
+        PlannerContext context = buildContext("parquet", 1, intFields(), List.of(dfWithAdapter));
+
+        RelOptTable leftTable = mockTable("test_index", "status", "size");
+        RelOptTable rightTable = mockTable("test_index", "status", "size");
+        RelNode leftScan = stubScan(leftTable);
+        RelNode rightScan = stubScan(rightTable);
+
+        // Join condition: SIN(left.$0) > 0.5. SIN is a PPL UDF whose adapter inserts
+        // CAST(... AS DOUBLE) around any RexInputRef operand whose type is INTEGER/BIGINT.
+        RexNode sinCall = rexBuilder.makeCall(SIN_FUNCTION, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0));
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            sinCall,
+            rexBuilder.makeLiteral(0.5, typeFactory.createSqlType(SqlTypeName.DOUBLE), true)
+        );
+        RelNode join = LogicalJoin.create(leftScan, rightScan, List.of(), condition, Set.of(), JoinRelType.INNER);
+
+        RelNode marked = runPlanner(join, context);
+
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+
+        StagePlan plan = findStagePlanByFragmentType(dag, OpenSearchJoin.class);
+        OpenSearchJoin adaptedJoin = (OpenSearchJoin) plan.resolvedFragment();
+        RexCall sinResult = findCallByName(adaptedJoin.getCondition(), "SIN");
+        assertNotNull("SIN call should exist in adapted join condition", sinResult);
+        assertEquals(
+            "SIN operand should be CAST after adaptation in join condition",
+            SqlKind.CAST,
+            sinResult.getOperands().getFirst().getKind()
+        );
+    }
+
+    /**
+     * Join with no adapted UDFs in its condition — adapter chain runs but rewrites nothing,
+     * the Join's condition passes through structurally unchanged. Guards against the
+     * dispatcher accidentally rebuilding (and possibly mis-configuring) Joins that don't
+     * need adaptation.
+     */
+    public void testJoinConditionNoOpWhenNoAdaptedFunctions() {
+        PlannerContext context = buildContext("parquet", 1, intFields());
+
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode leftScan = stubScan(table);
+        RelNode rightScan = stubScan(table);
+
+        // Equi-join on left.$0 == right.$0 — no PPL UDF, nothing for adapter to rewrite.
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 2)
+        );
+        RelNode join = LogicalJoin.create(leftScan, rightScan, List.of(), condition, Set.of(), JoinRelType.INNER);
+
+        RelNode marked = runPlanner(join, context);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+
+        StagePlan plan = findStagePlanByFragmentType(dag, OpenSearchJoin.class);
+        OpenSearchJoin adaptedJoin = (OpenSearchJoin) plan.resolvedFragment();
+        // Condition is structurally identical: EQUALS($0, $2) — both operands still INPUT_REF.
+        RexCall eq = (RexCall) adaptedJoin.getCondition();
+        assertEquals(SqlKind.EQUALS, eq.getKind());
+        assertEquals(SqlKind.INPUT_REF, eq.getOperands().get(0).getKind());
+        assertEquals(SqlKind.INPUT_REF, eq.getOperands().get(1).getKind());
     }
 
     private static RexCall findCallByName(RexNode node, String name) {

@@ -32,6 +32,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 
 import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
 import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
@@ -359,23 +360,35 @@ public class VSRManagerTests extends OpenSearchTestCase {
         // Reconcile once before any docs — the tag vector must persist across the VSR
         // rotation triggered by maxRowsPerVSR=1.
         manager.reconcileSchema(schemaWith("tag", new ArrowType.Utf8()));
+        {
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+            doc1.addField(valField, 1);
+            doc1.addField(tagField, "a");
+            manager.addDocument(doc1);
+        }
 
-        ParquetDocumentInput doc1 = new ParquetDocumentInput();
-        populateMetadataFields(doc1);
-        doc1.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
-        doc1.addField(valField, 1);
-        doc1.addField(tagField, "a");
-        manager.addDocument(doc1);
+        {
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
+            populateMetadataFields(doc2);
+            doc2.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
+            doc2.addField(valField, 2);
+            doc2.addField(tagField, "b");
+            manager.addDocument(doc2); // this would've triggerer the rotation
+        }
 
-        ParquetDocumentInput doc2 = new ParquetDocumentInput();
-        populateMetadataFields(doc2);
-        doc2.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
-        doc2.addField(valField, 2);
-        doc2.addField(tagField, "b");
-        manager.addDocument(doc2);
+        {
+            ParquetDocumentInput doc3 = new ParquetDocumentInput();
+            populateMetadataFields(doc3);
+            doc3.setRowId(DocumentInput.ROW_ID_FIELD, 2L);
+            doc3.addField(valField, 3);
+            doc3.addField(tagField, "c");
+            manager.addDocument(doc3); // this would've triggerer the rotation
+        }
 
         ParquetFileMetadata metadata = manager.flush();
-        assertEquals(2, metadata.numRows());
+        assertEquals(3, metadata.numRows());
     }
 
     public void testReconcileSchemaAddsMultipleVectorsAtOnce() throws Exception {
@@ -497,4 +510,81 @@ public class VSRManagerTests extends OpenSearchTestCase {
         fields.addAll(metadataFields());
         manager.reconcileSchema(new Schema(fields));
     }
+
+    public void testAddDocumentAfterSuccessfulBackgroundWriteDoesNotThrow() throws Exception {
+        // Use a very low rotation threshold to trigger background writes frequently
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
+        String filePath = createTempDir().resolve("bg-write-success.parquet").toString();
+        int lowThreshold = randomIntBetween(2, 5);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, lowThreshold, threadPool, 0L);
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+
+        // Run multiple rotation cycles — each cycle fills the VSR to threshold,
+        // triggers background write, waits for completion, then verifies next addDocument works
+        int cycles = randomIntBetween(3, 8);
+        int rowId = 0;
+        for (int cycle = 0; cycle < cycles; cycle++) {
+            for (int i = 0; i < lowThreshold; i++) {
+                ParquetDocumentInput doc = new ParquetDocumentInput();
+                populateMetadataFields(doc);
+                doc.addField(valField, rowId);
+                doc.setRowId(DocumentInput.ROW_ID_FIELD, rowId);
+                manager.addDocument(doc);
+                rowId++;
+            }
+
+            // Wait for background write to complete using assertBusy
+            assertBusy(() -> {
+                Future<?> f = manager.getPendingWrite();
+                assertTrue("Background write should complete", f == null || f.isDone());
+            });
+
+            // This addDocument must NOT throw — verifies the fix for the
+            // exceptionNow() bug on successfully completed futures
+            ParquetDocumentInput nextDoc = new ParquetDocumentInput();
+            populateMetadataFields(nextDoc);
+            nextDoc.addField(valField, rowId);
+            nextDoc.setRowId(DocumentInput.ROW_ID_FIELD, rowId);
+            manager.addDocument(nextDoc);
+            rowId++;
+        }
+
+        manager.flush();
+    }
+
+    public void testContinuousAddDocumentAcrossMultipleRotationsWithoutWaiting() throws Exception {
+        // Continuously add documents across many rotations without ever waiting for
+        // background writes — verifies no error when future is still running or not yet done
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
+        String filePath = createTempDir().resolve("continuous-add.parquet").toString();
+        int lowThreshold = randomIntBetween(2, 4);
+        int totalDocs = lowThreshold * randomIntBetween(5, 12);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, lowThreshold, threadPool, 0L);
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+
+        // Add all docs in a tight loop — no waiting between rotations
+        for (int i = 0; i < totalDocs; i++) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(valField, i);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, i);
+            manager.addDocument(doc);
+        }
+
+        // Flush at the end — must succeed regardless of pending write state
+        ParquetFileMetadata metadata = manager.flush();
+        assertNotNull(metadata);
+        assertEquals(totalDocs, metadata.numRows());
+    }
+
 }

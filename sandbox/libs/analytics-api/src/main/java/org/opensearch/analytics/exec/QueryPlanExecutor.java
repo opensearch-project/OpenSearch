@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.core.action.ActionListener;
 
@@ -23,10 +24,10 @@ public interface QueryPlanExecutor<LogicalPlan, Stream> {
      * to {@code listener}.
      *
      * @param plan     the logical subtree to execute
-     * @param context  execution context (opaque Object to avoid server dependency)
+     * @param queryCtx per-query snapshot ({@code null} → executor reads a fresh cluster state)
      * @param listener receives the produced stream on success, or the failure cause on error
      */
-    void execute(LogicalPlan plan, Object context, ActionListener<Stream> listener);
+    void execute(LogicalPlan plan, QueryRequestContext queryCtx, ActionListener<Stream> listener);
 
     /**
      * Executes the given logical fragment with profiling enabled. Captures per-stage
@@ -34,10 +35,10 @@ public interface QueryPlanExecutor<LogicalPlan, Stream> {
      * containing both the query results and the profile snapshot.
      *
      * @param plan     the logical subtree to execute
-     * @param context  execution context (opaque Object to avoid server dependency)
+     * @param queryCtx per-query snapshot ({@code null} → executor reads a fresh cluster state)
      * @param listener receives the profiled result on success, or the failure cause on error
      */
-    default void executeWithProfile(LogicalPlan plan, Object context, ActionListener<ProfiledResult> listener) {
+    default void executeWithProfile(LogicalPlan plan, QueryRequestContext queryCtx, ActionListener<ProfiledResult> listener) {
         listener.onFailure(new UnsupportedOperationException(getClass().getSimpleName() + " does not support executeWithProfile"));
     }
 }

@@ -31,6 +31,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
@@ -48,6 +49,7 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -57,6 +59,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -98,6 +101,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
+    private final Set<LuceneWriter> registry;
     private long mappingVersion;
     private volatile long docCount;
     private volatile boolean flushed;
@@ -122,12 +126,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         Path baseDirectory,
         Analyzer analyzer,
         Codec codec,
-        Sort indexSort
+        Sort indexSort,
+        Set<LuceneWriter> registry
     ) throws IOException {
         this.writerGeneration = writerGeneration;
         this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
         this.docCount = 0;
+        this.registry = registry;
 
         // Create an isolated temp directory for this writer's segment
         this.tempDirectory = baseDirectory.resolve("lucene_gen_" + writerGeneration);
@@ -156,6 +162,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);
+        registry.add(this);
     }
 
     /**
@@ -704,6 +711,18 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
     }
 
+    /** Returns heap bytes used by this writer's IndexWriter RAM buffer. Returns 0 after flush. */
+    public long getHeapBytesUsed() {
+        if (indexWriter.isOpen()) {
+            try {
+                return indexWriter.ramBytesUsed();
+            } catch (AlreadyClosedException e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
     /**
      * Closes this writer, rolling back the IndexWriter if still open, closing the directory,
      * and deleting the temp directory. Safe to call multiple times.
@@ -724,11 +743,11 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             directory.close();
         } catch (Exception e) {
             logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
+        } finally {
+            registry.remove(this);
+            if (flushed == false) IOUtils.rm(tempDirectory);
+            state = WriterState.CLOSED;
         }
-        if (flushed == false) {
-            IOUtils.rm(tempDirectory);
-        }
-        state = WriterState.CLOSED;
     }
 
     /**
@@ -740,7 +759,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     @Override
     public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
-        Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
+        Term uid = new Term(deleteInput.fieldName(), Uid.encodeId(deleteInput.id()));
         indexWriter.deleteDocuments(uid);
         return new DeleteResult.Success(1L, 1L, 1L);
     }

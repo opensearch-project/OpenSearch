@@ -21,7 +21,6 @@ import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,37 +73,32 @@ public class QueryScheduler implements Scheduler {
     }
 
     /**
-     * Materialises {@code stage}'s tasks via {@link StageExecution#start()}, then dispatches each
-     * through {@link StageExecution#taskRunner()} with a scheduler-owned {@link ActionListener}.
-     * Skips dispatch when {@code start()} transitions straight to a terminal (empty target
-     * resolution → SUCCEEDED; concurrent cancel → CANCELLED).
-     *
-     * <p>TODO: in-flight cap - we have pendingExecutions but that's per query per node
+     * Materialises {@code stage}'s tasks via {@link StageExecution#start()}, then hands the
+     * scheduler-owned per-task listener factory to {@link StageExecution#dispatchTasks} —
+     * the stage decides whether to dispatch eagerly (default for-loop) or incrementally
+     * (shard fan-outs that want to bound the outbound-throttle queue depth). Skips dispatch
+     * when {@code start()} transitions straight to a terminal (empty target resolution →
+     * SUCCEEDED; concurrent cancel → CANCELLED).
      */
     void scheduleStage(StageExecution stage) {
         stage.start();
         if (stage.getState() != StageExecution.State.RUNNING) return;
-        // Stage owns both tasks() and taskRunner() — the variant types match by construction.
-        @SuppressWarnings("unchecked")
-        TaskRunner<StageTask> runner = (TaskRunner<StageTask>) stage.taskRunner();
-        List<StageTask> tasks = stage.tasks();
-        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), tasks.size());
-        for (StageTask task : tasks) {
-            assert task.state() == StageTaskState.CREATED : "stage "
-                + stage.getStageId()
-                + " task "
-                + task.id()
-                + " expected CREATED, got "
-                + task.state();
-            task.transitionTo(StageTaskState.RUNNING);
-            runner.run(task, handleFor(stage, task));
-        }
+        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
+        stage.dispatchTasks(this::handleFor);
     }
 
     /**
      * On failure, retries via {@link StageExecution#retargetForRetry} if the stage hands
      * back an alternate; otherwise propagates via {@code onTaskTerminal} (fast-fails the stage).
      * Protected for retry/admission-aware subclasses.
+     *
+     * <p>Terminal-stage short-circuit lives here, not in each stage's {@code retargetForRetry}:
+     * if the stage has already entered any terminal state ({@link StageExecution.State#SUCCEEDED SUCCEEDED},
+     * {@link StageExecution.State#FAILED FAILED}, or {@link StageExecution.State#CANCELLED CANCELLED}),
+     * retry is skipped uniformly across stage types. Spawning new dispatch work for a stage
+     * that's done — whether it succeeded, already gave up on a different task, or was
+     * cancelled — is always wrong. Catches the race where an in-flight task's onFailure
+     * fires after the stage has transitioned terminally for some other reason.
      *
      * <p>Tracks the current attempt so each attempt's terminal state is recorded truthfully:
      * superseded attempts get FAILED, the final (succeeding or last-failed) attempt gets the
@@ -123,7 +117,7 @@ public class QueryScheduler implements Scheduler {
 
             @Override
             public void onFailure(Exception cause) {
-                Optional<StageTask> retry = stage.retargetForRetry(task, cause);
+                Optional<StageTask> retry = stage.getState().isTerminal() ? Optional.empty() : stage.retargetForRetry(task, cause);
                 if (retry.isPresent()) {
                     currentAttempt.transitionTo(StageTaskState.FAILED);  // previous attempt is now superseded
                     StageTask r = retry.get();
