@@ -87,8 +87,12 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle, DataFusionReduceState preparedState) {
         super(ctx, runtimeHandle, preparedState);
-        logger.debug("[reduce-sink] OPEN taskId={} hasPreparedState={} sessionPtr={}",
-            ctx.taskId(), preparedState != null, session != null ? session.getPointer() : 0);
+        logger.debug(
+            "[reduce-sink] OPEN taskId={} hasPreparedState={} sessionPtr={}",
+            ctx.taskId(),
+            preparedState != null,
+            session != null ? session.getPointer() : 0
+        );
         Map<Integer, DatafusionPartitionSender> senders = new LinkedHashMap<>(childInputs.size());
         long streamPtr = 0;
         StreamHandle outStreamLocal = null;
@@ -113,8 +117,12 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                         producerPlanBytes
                     );
                     senders.put(childStageId, new DatafusionPartitionSender(registered.pointer()));
-                    logger.debug("[reduce-sink] ALLOC sender taskId={} childStageId={} senderPtr={}",
-                        ctx.taskId(), childStageId, registered.pointer());
+                    logger.debug(
+                        "[reduce-sink] ALLOC sender taskId={} childStageId={} senderPtr={}",
+                        ctx.taskId(),
+                        childStageId,
+                        registered.pointer()
+                    );
                     childSchemas.put(childStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
                 }
                 streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes(), ctx.taskId());
@@ -234,7 +242,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                     // here (double-free). The sender latched the drop (see DatafusionPartitionSender),
                     // so subsequent feeds for this input short-circuit and the producer stream is
                     // cancelled by the shard listener via isConsumerDone().
-                    logger.trace("[ReduceSink] receiver dropped before send (consumer finished), discarding batch");
+                    logger.debug("[ReduceSink] receiver dropped before send (consumer finished), discarding batch");
                     return;
                 }
                 feedCount.incrementAndGet();
@@ -247,7 +255,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                 array.release();
                 arrowSchema.release();
                 if (closed) {
-                    logger.trace("[ReduceSink] send-after-close race caught, discarding batch");
+                    logger.debug("[ReduceSink] send-after-close race caught, discarding batch");
                     return;
                 }
                 throw e;
@@ -349,13 +357,21 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
      */
     @Override
     protected Exception closeImpl() {
+        SinkState before = state.compareAndExchange(SinkState.READY, SinkState.DONE);
+        if (before == SinkState.REDUCING) {
+            // Drain parked — dropping senders/outStream now would panic in drop_in_place.
+            fireCancelQuery();
+            return null;  // reduce()'s finally calls closeImpl directly to tear down.
+        }
+        // before == READY (we just won) or DONE (reduce's finally calling us, or duplicate close).
         if (torndown.compareAndSet(false, true) == false) {
             return null;
         }
-        assert torndown.get() == true;
-        logger.debug("[reduce-sink] teardown taskId={} feedCount={}", ctx.taskId(), feedCount.get());
         Exception failure = null;
         try {
+            // Close outStream first: drops the native receiver, which unblocks any sender
+            // parked in send_blocking (waiting for channel capacity). This releases the
+            // sender's read lock so session.close() can acquire the write lock without deadlock.
             outStream.close();
         } catch (Exception t) {
             failure = accumulate(failure, t);
@@ -369,7 +385,6 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         } catch (Exception t) {
             failure = accumulate(failure, t);
         }
-        logger.debug("[reduce-sink] teardown complete taskId={}", ctx.taskId());
         return failure;
     }
 
@@ -382,8 +397,6 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     @Override
     public void reduce(ActionListener<Void> listener) {
         SinkState before = state.compareAndExchange(SinkState.READY, SinkState.REDUCING);
-        logger.debug("[reduce-sink] reduce() entered: taskId={} stateBefore={} feedCount={} senderCount={}",
-            ctx.taskId(), before, feedCount.get(), sendersByChildStageId.size());
         if (before == SinkState.DONE) {
             listener.onFailure(new IllegalStateException("sink closed before reduce"));
             return;
@@ -392,13 +405,10 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         Exception failure = null;
         try {
             drainOutputIntoDownstream(outStream);
-            logger.debug("[reduce-sink] drain returned normally: taskId={} totalFeedCount={}", ctx.taskId(), feedCount.get());
         } catch (Exception e) {
-            logger.debug("[reduce-sink] drain threw: taskId={} feedCount={} error={}", ctx.taskId(), feedCount.get(), e.getMessage());
             failure = e;
         } finally {
             state.set(SinkState.DONE);
-            logger.debug("[reduce-sink] closing in reduce finally: taskId={}", ctx.taskId());
             try {
                 Exception closeFailure = closeImpl();
                 if (closeFailure != null) {
@@ -409,10 +419,9 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             }
         }
         if (failure == null) {
-            logger.debug("[reduce-sink] reduce() success: taskId={}", ctx.taskId());
             listener.onResponse(null);
         } else {
-            logger.debug("[reduce-sink] reduce() failed: taskId={} error={}", ctx.taskId(), failure.getMessage());
+            logger.debug("[reduce-sink] reduce failed: taskId={} error={}", ctx.taskId(), failure.getMessage());
             listener.onFailure(failure);
         }
     }

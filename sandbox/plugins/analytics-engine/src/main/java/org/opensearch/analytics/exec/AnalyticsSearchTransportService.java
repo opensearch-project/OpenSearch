@@ -95,7 +95,10 @@ public class AnalyticsSearchTransportService {
                     shard,
                     (AnalyticsShardTask) task,
                     channelResponseHandler(channel),
-                    transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+                    ContextAwareExecutor.wrap(
+                        transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                        transportService.getThreadPool()
+                    )
                 );
             }
         );
@@ -127,7 +130,10 @@ public class AnalyticsSearchTransportService {
                     shard,
                     (AnalyticsShardTask) task,
                     channelResponseHandler(channel),
-                    transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+                    ContextAwareExecutor.wrap(
+                        transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                        transportService.getThreadPool()
+                    )
                 );
             }
         );

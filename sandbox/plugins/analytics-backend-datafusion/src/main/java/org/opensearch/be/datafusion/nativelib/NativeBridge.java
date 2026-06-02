@@ -616,21 +616,7 @@ public final class NativeBridge {
 
     // ---- Tokio runtime management (no Arena needed — no string/buffer args) ----
 
-    /**
-     * Guards against re-initializing the native tokio runtime manager once it is live. The native
-     * {@code df_init_runtime_manager} <em>replaces</em> the global {@code RuntimeManager}, dropping
-     * the previous tokio {@code Runtime} and stopping its worker threads — any task still settling
-     * on it (e.g. a cancelled reduce drain) then dies with "worker gone". Production initializes
-     * once at node start; the test suite re-calls per method, so this flag makes the first call win
-     * and turns later calls into no-ops.
-     */
-    private static final java.util.concurrent.atomic.AtomicBoolean RUNTIME_MANAGER_INITIALIZED =
-        new java.util.concurrent.atomic.AtomicBoolean(false);
-
     public static void initTokioRuntimeManager(int cpuThreads, double datanodeMultiplier, double coordinatorMultiplier) {
-        if (RUNTIME_MANAGER_INITIALIZED.compareAndSet(false, true) == false) {
-            return;
-        }
         NativeCall.invokeVoid(INIT_RUNTIME_MANAGER, cpuThreads, datanodeMultiplier, coordinatorMultiplier);
     }
 
@@ -641,8 +627,6 @@ public final class NativeBridge {
 
     public static void shutdownTokioRuntimeManager() {
         NativeCall.invokeVoid(SHUTDOWN_RUNTIME_MANAGER);
-        // Allow a subsequent init to take effect (the native global was just taken/dropped).
-        RUNTIME_MANAGER_INITIALIZED.set(false);
     }
 
     // ---- DataFusion runtime (confined Arena for spillDir string only) ----

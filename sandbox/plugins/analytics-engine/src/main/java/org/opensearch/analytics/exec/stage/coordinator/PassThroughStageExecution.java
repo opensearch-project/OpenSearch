@@ -29,16 +29,14 @@ import java.util.List;
  */
 public final class PassThroughStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
 
-    private final ExchangeSink ownedSink;
-    private final ExchangeSource ownedSource;
+    private final RowProducingSink ownedSink;
 
     public PassThroughStageExecution(Stage stage, QueryContext config, ExchangeSink sink) {
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
-        if ((sink instanceof ExchangeSource) == false) {
-            throw new IllegalArgumentException("PassThroughStageExecution requires a sink that also implements ExchangeSource");
+        if ((sink instanceof RowProducingSink) == false) {
+            throw new IllegalArgumentException("PassThroughStageExecution requires a RowProducingSink");
         }
-        this.ownedSink = sink;
-        this.ownedSource = (ExchangeSource) sink;
+        this.ownedSink = (RowProducingSink) sink;
         this.runner = new LocalTaskRunner(config.schedulerExecutor());
     }
 
@@ -54,6 +52,6 @@ public final class PassThroughStageExecution extends AbstractStageExecution impl
 
     @Override
     public ExchangeSource outputSource() {
-        return ownedSource;
+        return ownedSink;
     }
 }

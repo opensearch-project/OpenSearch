@@ -181,6 +181,7 @@ public interface StageExecution {
                         }
                     }
                     case FAILED -> {
+                        closeChildInput(childId);
                         Exception cause = child.getFailure();
                         failWithCause(
                             cause != null

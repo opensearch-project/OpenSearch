@@ -323,7 +323,7 @@ pub fn create_global_runtime(
     let memory_pool = Arc::new(TrackConsumersPool::new(
         dynamic_pool,
         NonZeroUsize::new(5).unwrap(),
-    )) as Arc<dyn datafusion::execution::memory_pool::MemoryPool>;
+    ));
 
     let (cache_manager_config, custom_cache_manager) = if cache_manager_ptr != 0 {
         let mgr = unsafe { *Box::from_raw(cache_manager_ptr as *mut CustomCacheManager) };
@@ -908,7 +908,6 @@ pub async unsafe fn stream_next(
             } else {
                 batch
             };
-
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);
@@ -979,10 +978,7 @@ fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
 pub unsafe fn stream_close(stream_ptr: i64) {
     if stream_ptr != 0 {
-        native_bridge_common::log_debug!("[stream-close] dropping QueryStreamHandle ptr={:#x}", stream_ptr);
-        let handle = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
-        drop(handle);
-        native_bridge_common::log_debug!("[stream-close] QueryStreamHandle dropped ptr={:#x}", stream_ptr);
+        let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
     }
 }
 
@@ -1320,9 +1316,7 @@ pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &
 pub unsafe fn create_local_session(runtime_ptr: i64) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
     let session = LocalSession::new(&runtime.runtime_env);
-    let ptr = Box::into_raw(Box::new(session)) as i64;
-    native_bridge_common::log_debug!("[local-session] OPEN ptr={:#x}", ptr);
-    Ok(ptr)
+    Ok(Box::into_raw(Box::new(session)) as i64)
 }
 
 /// Closes a `LocalSession`. Safe to call with 0 (no-op).
@@ -1331,10 +1325,7 @@ pub unsafe fn create_local_session(runtime_ptr: i64) -> Result<i64, DataFusionEr
 /// `ptr` must be 0 or a valid pointer returned by `create_local_session`.
 pub unsafe fn close_local_session(ptr: i64) {
     if ptr != 0 {
-        let session = Box::from_raw(ptr as *mut LocalSession);
-        let phantom_size = session.phantom_size();
-        native_bridge_common::log_debug!("[local-session] CLOSE ptr={:#x} phantom_bytes={}", ptr, phantom_size);
-        drop(session);
+        let _ = Box::from_raw(ptr as *mut LocalSession);
     }
 }
 

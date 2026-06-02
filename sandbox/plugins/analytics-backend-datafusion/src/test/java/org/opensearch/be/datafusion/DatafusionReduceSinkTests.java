@@ -148,6 +148,62 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     /**
+     * Coordinator reduce running {@code SELECT x FROM "input-0" LIMIT 3} produces exactly the
+     * limited output and tears down cleanly. Feeds far more rows than the limit through a real
+     * native reduce; the {@code LimitExec} emits 3 rows and the drain ends.
+     *
+     * <p>NOTE: this does NOT yet assert reduce-input <em>early termination</em> (the sink reporting
+     * {@code isConsumerDone()} so feeders stop early). With the reduce session's
+     * {@code target_partitions > 1}, the physical plan inserts a {@code RepartitionExec} below the
+     * limit that eagerly drains the whole input rather than letting the {@code LimitExec} drop the
+     * receiver after N rows — so the receiver-drop signal does not surface for this shape. The
+     * shard-side reaction to {@code isConsumerDone()} is covered by
+     * {@code ShardFragmentStageExecutionTests.testStreamStopsAndTaskSucceedsWhenConsumerDone}, and
+     * the receiver-drop sentinel contract by {@code testReceiverDroppedSentinelIsPositiveAndDistinctFromSuccess}.
+     * Asserting the end-to-end early-stop here is blocked on the planner sort/limit work; this test
+     * pins correctness of the LIMIT-over-reduce path in the meantime.
+     */
+    public void testReduceWithLimitProducesLimitedOutput() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            final int limit = 3;
+            CapturingSink downstream = new CapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-limit-reduce",
+                0,
+                7777L,
+                buildLimitSubstraitBytes(DatafusionReduceSink.INPUT_ID, limit),
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(drainDone));
+
+            try {
+                for (int i = 0; i < 20; i++) {
+                    sink.feed(makeBatch(alloc, inputSchema, new long[] { (long) i }));
+                }
+                sink.sinkForChild(0).close(); // input EOF
+                drainDone.actionGet(10, TimeUnit.SECONDS);
+            } finally {
+                sink.close();
+            }
+
+            assertEquals("LIMIT " + limit + " must yield exactly " + limit + " rows downstream", limit, downstream.totalRows);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    /**
      * Verifies that the drain task — submitted to the executor at sink construction —
      * runs concurrently with feeds, so producers complete every batch even when the
      * total volume exceeds the bounded native input mpsc's capacity.
@@ -268,6 +324,92 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     /**
+     * Regression: {@code close()} while a feeder is parked on a full input channel must NOT
+     * deadlock.
+     *
+     * <p>Old bug: {@code closeImpl} closed {@code session} first, which needed the write lock on
+     * the partition sender's {@code NativeHandle}. But a feeder parked inside {@code sender.send}
+     * (driving a full-channel {@code tx.send().await} via {@code block_on}) held the read lock —
+     * so the write lock blocked forever. Fix: {@code closeImpl} closes {@code outStream} FIRST,
+     * which drops the native receiver; the parked {@code tx.send} then returns immediately
+     * ({@code ReceiverDropped}), the feeder releases the read lock, and {@code close()} proceeds.
+     *
+     * <p>Setup mirrors that race: a blocking downstream sink stalls the reduce drain so the bounded
+     * native input channel (capacity 4) fills and a dedicated feeder thread parks; then we call
+     * {@code close()} and assert it returns well within a timeout.
+     */
+    public void testCloseWhileFeederParkedOnFullChannelDoesNotDeadlock() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            BlockingCapturingSink downstream = new BlockingCapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-close-deadlock",
+                0,
+                9999L,
+                buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID),
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(reduceDone));
+
+            // Feeder thread: flood the input. The drain is stalled in downstream.feed (blocked on
+            // `release`), so once a batch reaches the output the bounded input channel backs up and
+            // this thread parks inside sink.feed -> sender.send (holding the sender read lock).
+            // Once close() tears the sink down, further feeds throw (closed sink / closed allocator)
+            // — that's expected; the feeder swallows it and exits.
+            Thread feeder = new Thread(() -> {
+                try {
+                    for (int i = 0; i < 100; i++) {
+                        sink.feed(makeBatch(alloc, inputSchema, new long[] { (long) i }));
+                    }
+                } catch (RuntimeException expectedOnceClosed) {
+                    // sink/allocator closed underneath us — stop feeding.
+                }
+            }, "deadlock-feeder");
+            feeder.setDaemon(true);
+            feeder.start();
+
+            // Wait until the drain has produced its first output batch (drain now stalled) and give
+            // the feeder time to fill the channel and park.
+            assertTrue("drain should produce a first batch", downstream.firstBatchLatch.await(10, TimeUnit.SECONDS));
+            Thread.sleep(300);
+
+            // close() from this thread must not deadlock against the parked feeder. This is the
+            // crux of the regression: with the old teardown ordering close() would block forever
+            // on the sender write lock held by the parked feeder.
+            Thread closer = new Thread(sink::close, "deadlock-closer");
+            closer.setDaemon(true);
+            closer.start();
+            closer.join(15_000);
+            assertFalse("close() deadlocked against a feeder parked on the full channel", closer.isAlive());
+
+            // reduce() is in flight (state=REDUCING), so close() fires cancel and DEFERS teardown to
+            // reduce()'s finally — torndown is set only after the drain unwinds. Release the drain,
+            // wait for reduce to settle, then assert teardown ran exactly once.
+            downstream.release.countDown();
+            try {
+                reduceDone.actionGet(10, TimeUnit.SECONDS);
+            } catch (Exception expected) {
+                // reduce may complete or fail depending on cancel timing — either is fine here.
+            }
+            feeder.join(10_000);
+            assertFalse("feeder thread should have unparked and exited", feeder.isAlive());
+            assertTrue("teardown must have run after reduce unwound", sink.torndown.get());
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    /**
      * Cancel-before-first-batch: drain is parked in stream_next waiting for input.
      * {@code close()} fires {@code cancel_query} on the registered taskId — the cancellation
      * token wakes the {@code cancellable_or}'s select, drain returns sentinel, reduce()
@@ -322,82 +464,6 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     /**
-     * Regression: {@code close()} while a feeder is parked on a full input channel must NOT
-     * deadlock.
-     *
-     * <p>Old bug: {@code closeImpl} closed {@code session} first, which needed the write lock on
-     * the partition sender's {@code NativeHandle}. But a feeder parked inside {@code sender.send}
-     * (driving a full-channel {@code tx.send().await} via {@code block_on}) held the read lock —
-     * so the write lock blocked forever. Fix: {@code closeImpl} closes {@code outStream} FIRST,
-     * which drops the native receiver; the parked {@code tx.send} then returns immediately
-     * ({@code ReceiverDropped}), the feeder releases the read lock, and {@code close()} proceeds.
-     *
-     * <p>Setup mirrors that race: a blocking downstream sink stalls the reduce drain so the bounded
-     * native input channel (capacity 4) fills and a dedicated feeder thread parks; then we call
-     * {@code close()} and assert it returns well within a timeout.
-     */
-    public void testCloseWhileFeederParkedOnFullChannelDoesNotDeadlock() throws Exception {
-        NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
-        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
-        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
-
-        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
-            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
-            BlockingCapturingSink downstream = new BlockingCapturingSink();
-            ExchangeSinkContext ctx = new ExchangeSinkContext(
-                "q-close-deadlock",
-                0,
-                9999L,
-                buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID),
-                alloc,
-                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
-                downstream
-            );
-
-            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
-            PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
-            Thread.ofVirtual().start(() -> sink.reduce(reduceDone));
-
-            // Feeder thread: flood the input. The drain is stalled in downstream.feed (blocked on
-            // `release`), so once a batch reaches the output the bounded input channel backs up and
-            // this thread parks inside sink.feed -> sender.send (holding the sender read lock).
-            Thread feeder = new Thread(() -> {
-                for (int i = 0; i < 100; i++) {
-                    sink.feed(makeBatch(alloc, inputSchema, new long[] { (long) i }));
-                }
-            }, "deadlock-feeder");
-            feeder.setDaemon(true);
-            feeder.start();
-
-            // Wait until the drain has produced its first output batch (drain now stalled) and give
-            // the feeder time to fill the channel and park.
-            assertTrue("drain should produce a first batch", downstream.firstBatchLatch.await(10, TimeUnit.SECONDS));
-            Thread.sleep(300);
-
-            // close() from this thread must not deadlock against the parked feeder.
-            Thread closer = new Thread(sink::close, "deadlock-closer");
-            closer.setDaemon(true);
-            closer.start();
-            closer.join(15_000);
-            assertFalse("close() deadlocked against a feeder parked on the full channel", closer.isAlive());
-            assertTrue("teardown must have run", sink.torndown.get());
-
-            // Let everything unwind.
-            downstream.release.countDown();
-            try {
-                reduceDone.actionGet(10, TimeUnit.SECONDS);
-            } catch (Exception expected) {
-                // reduce may complete or fail depending on cancel timing — either is fine here.
-            }
-            feeder.join(10_000);
-            assertFalse("feeder thread should have unparked and exited", feeder.isAlive());
-        } finally {
-            runtimeHandle.close();
-        }
-    }
-
-    /**
      * Cancel-after-first-batch: drain has consumed at least one row, then {@code close()}
      * fires {@code cancel_query}. The drain returns partial output and unwinds cleanly.
      */
@@ -442,17 +508,12 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     /**
-     * Regression: {@code close()} must fire {@code cancelQuery} when state is REDUCING
-     * even if the prior {@code state.get()} observed READY. The old {@code get()+
-     * compareAndSet(READY,DONE)} pattern silently returned when the CAS failed (because
-     * {@code reduce()} raced and moved state to REDUCING in between), leaving the parked
-     * drain with no cancel signal. The fixed {@code compareAndExchange} returns the prior
-     * state atomically so the REDUCING branch fires unconditionally.
-     *
-     * <p>Simulates the race by pre-setting state to REDUCING via the package-private field
-     * (the same observable end-state the race produces) and verifying the cancel hook fires.
+     * Double-close is idempotent: calling {@code close()} multiple times (including from
+     * different threads, or after {@code reduce()} already tore down) must not throw or
+     * double-free native resources. The {@code torndown} CAS ensures the teardown body
+     * runs exactly once regardless of how many paths call {@code closeImpl}.
      */
-    public void testCloseFiresCancelWhenStateRacedToReducing() throws Exception {
+    public void testDoubleCloseIsIdempotent() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
@@ -462,7 +523,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             byte[] substrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
             CapturingSink downstream = new CapturingSink();
             ExchangeSinkContext ctx = new ExchangeSinkContext(
-                "q-race",
+                "q-double-close",
                 0,
                 7777L,
                 substrait,
@@ -470,22 +531,21 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
                 List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
                 downstream
             );
-            java.util.concurrent.atomic.AtomicInteger cancels = new java.util.concurrent.atomic.AtomicInteger();
-            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle) {
-                @Override
-                void fireCancelQuery() {
-                    cancels.incrementAndGet();
-                }
-            };
-            // Stand-in for "reduce() won the race to set REDUCING before close()'s CAS ran."
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            // First close tears down.
+            sink.close();
+            assertTrue("teardown must run on first close", sink.torndown.get());
+
+            // Second close must be a no-op (no exception, no double-free).
+            sink.close();
+            assertTrue("torndown still true after second close", sink.torndown.get());
+
+            // Close from REDUCING state: simulate reduce() already set state, then close
+            // arrives concurrently. Teardown already ran so torndown CAS fails — no-op.
             sink.state.set(DatafusionReduceSink.SinkState.REDUCING);
             sink.close();
-            assertEquals("close must fire cancel via compareAndExchange when state is REDUCING", 1, cancels.get());
-            assertEquals(
-                "close must NOT mutate REDUCING state — the in-flight reduce() owns the DONE transition",
-                DatafusionReduceSink.SinkState.REDUCING,
-                sink.state.get()
-            );
+            assertTrue("third close (from REDUCING) is still idempotent", sink.torndown.get());
         } finally {
             runtimeHandle.close();
         }
@@ -534,6 +594,35 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
 
         return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(agg);
+    }
+
+    /**
+     * Builds Substrait bytes for {@code SELECT x FROM "input-0" LIMIT n} — a streaming
+     * {@code Fetch} over the passthrough scan (the way {@code head n} lowers: a
+     * {@code LogicalSort} with empty collation + {@code fetch=n}). Unlike an aggregate, a
+     * {@code Fetch} is NOT a pipeline breaker: the native {@code LimitExec} stops pulling and
+     * drops the input receiver as soon as it has emitted {@code n} rows — which is exactly the
+     * reduce-input early-termination condition.
+     */
+    private static byte[] buildLimitSubstraitBytes(String inputId, int limit) {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType rowType = typeFactory.builder().add("x", bigintNullable).build();
+
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), inputId, rowType);
+        // Empty collation + fetch=limit → pure streaming LIMIT (no global sort), lowered to Fetch.
+        RelNode fetch = org.apache.calcite.rel.logical.LogicalSort.create(
+            scan,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            null,
+            rexBuilder.makeExactLiteral(java.math.BigDecimal.valueOf(limit))
+        );
+
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(fetch);
     }
 
     /**

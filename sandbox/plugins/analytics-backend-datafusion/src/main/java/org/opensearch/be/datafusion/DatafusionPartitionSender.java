@@ -70,9 +70,7 @@ public final class DatafusionPartitionSender extends NativeHandle {
         lifecycle.writeLock().lock();
         try {
             super.close();
-            if (logger.isTraceEnabled()) {
-                logger.trace("[sender] closed, native EOF signalled, ptr={}", ptr);
-            }
+            logger.debug("[sender] closed ptr={}", ptr);
         } finally {
             lifecycle.writeLock().unlock();
         }
