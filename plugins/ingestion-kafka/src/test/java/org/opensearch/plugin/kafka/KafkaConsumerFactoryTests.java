@@ -13,7 +13,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
-    public void testCreateShardConsumerWithNullSource() {
+    public void testCreateShardConsumerWithNullMetadata() {
         KafkaConsumerFactory factory = new KafkaConsumerFactory();
         expectThrows(NullPointerException.class, () -> factory.createShardConsumer("test-client", 0, (IndexMetadata) null));
     }

@@ -18,7 +18,7 @@ public class KinesisConsumerFactoryTests extends OpenSearchTestCase {
         Assert.assertNotNull("Factory should be created", factory);
     }
 
-    public void testCreateShardConsumerWithNullSource() {
+    public void testCreateShardConsumerWithNullMetadata() {
         KinesisConsumerFactory factory = new KinesisConsumerFactory();
         expectThrows(NullPointerException.class, () -> factory.createShardConsumer("test-client", 0, (IndexMetadata) null));
     }
