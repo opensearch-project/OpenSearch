@@ -48,7 +48,11 @@ public class ShardTargetResolver extends TargetResolver {
         this.indexName = RelNodeUtils.findTableName(fragment);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.maxShardsPerQuery = clusterService.getClusterSettings().get(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY);
+        // getClusterSettings() is null in unit tests that mock ClusterService without stubbing it;
+        // fall back to the setting's declared default there.
+        this.maxShardsPerQuery = clusterService.getClusterSettings() != null
+            ? clusterService.getClusterSettings().get(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY)
+            : AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(org.opensearch.common.settings.Settings.EMPTY);
         if (this.indexName == null) {
             throw new IllegalArgumentException("ShardTargetResolver: no OpenSearchTableScan found in fragment");
         }
