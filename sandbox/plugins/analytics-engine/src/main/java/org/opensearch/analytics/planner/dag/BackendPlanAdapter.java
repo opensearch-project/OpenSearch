@@ -28,6 +28,7 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
@@ -104,6 +105,9 @@ public class BackendPlanAdapter {
         if (node instanceof OpenSearchProject project) {
             return adaptProject(project, adapters, adaptedChildren, childrenChanged);
         }
+        if (node instanceof OpenSearchJoin join) {
+            return adaptJoin(join, adapters, adaptedChildren, childrenChanged);
+        }
         if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
             OpenSearchAggregate withAdaptedChildren = childrenChanged
                 ? (OpenSearchAggregate) agg.copy(agg.getTraitSet(), adaptedChildren)
@@ -112,6 +116,30 @@ public class BackendPlanAdapter {
         }
 
         return childrenChanged ? node.copy(node.getTraitSet(), adaptedChildren) : node;
+    }
+
+    /**
+     * Adapts {@link OpenSearchJoin#getCondition()} so PPL UDFs inlined by
+     * Calcite's FILTER_INTO_JOIN reach the fragment converter in their adapted shape.
+     * Field storage is left ++ right output storage (Calcite join row-type ordering).
+     */
+    private static RelNode adaptJoin(OpenSearchJoin join, Adapters adapters, List<RelNode> adaptedChildren, boolean childrenChanged) {
+        RelNode left = childrenChanged ? adaptedChildren.get(0) : join.getLeft();
+        RelNode right = childrenChanged ? adaptedChildren.get(1) : join.getRight();
+        List<FieldStorageInfo> fieldStorage = join.getOutputFieldStorage();
+        RexNode adaptedCondition = adaptRex(join.getCondition(), adapters, fieldStorage, join.getCluster());
+        if (adaptedCondition != join.getCondition() || childrenChanged) {
+            return new OpenSearchJoin(
+                join.getCluster(),
+                join.getTraitSet(),
+                left,
+                right,
+                adaptedCondition,
+                join.getJoinType(),
+                join.getViableBackends()
+            );
+        }
+        return join;
     }
 
     private static RelNode adaptFilter(OpenSearchFilter filter, Adapters adapters, List<RelNode> adaptedChildren, boolean childrenChanged) {
