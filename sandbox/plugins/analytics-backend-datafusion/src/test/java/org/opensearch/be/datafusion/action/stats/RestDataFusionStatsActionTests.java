@@ -13,7 +13,6 @@ import org.opensearch.action.ActionType;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.rest.RestHandler.DeprecatedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -36,9 +35,8 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Unit tests for {@link RestDataFusionStatsAction}.
  *
- * <p>Verifies route registration (canonical and deprecated), path parameter
- * parsing ({@code nodeId} and {@code stat}), HTTP 400 for invalid stat names,
- * and deprecation message on legacy routes.
+ * <p>Verifies route registration, path parameter parsing ({@code nodeId} and
+ * {@code stat}), and HTTP 400 for invalid stat names.
  *
  * @opensearch.internal
  */
@@ -71,34 +69,6 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         // All routes should be GET
         for (Route route : routes) {
             assertEquals(GET, route.getMethod());
-        }
-    }
-
-    // ---- Test: 4 deprecated routes registered with correct paths, methods, and deprecation message ----
-
-    public void testDeprecatedRoutesRegistered() {
-        List<DeprecatedRoute> deprecatedRoutes = action.deprecatedRoutes();
-        assertEquals("Expected 4 deprecated routes", 4, deprecatedRoutes.size());
-
-        Set<String> expectedPaths = Set.of(
-            "/_plugins/analytics_backend_datafusion/{nodeId}/stats/{stat}",
-            "/_plugins/analytics_backend_datafusion/{nodeId}/stats",
-            "/_plugins/analytics_backend_datafusion/stats/{stat}",
-            "/_plugins/analytics_backend_datafusion/stats"
-        );
-
-        Set<String> actualPaths = deprecatedRoutes.stream().map(Route::getPath).collect(Collectors.toSet());
-        assertEquals(expectedPaths, actualPaths);
-
-        // All deprecated routes should be GET
-        for (DeprecatedRoute route : deprecatedRoutes) {
-            assertEquals(GET, route.getMethod());
-        }
-
-        // All deprecated routes should have the correct deprecation message
-        String expectedMessage = "Use /_plugins/_analytics_backend_datafusion instead of " + "/_plugins/analytics_backend_datafusion";
-        for (DeprecatedRoute route : deprecatedRoutes) {
-            assertEquals(expectedMessage, route.getDeprecationMessage());
         }
     }
 

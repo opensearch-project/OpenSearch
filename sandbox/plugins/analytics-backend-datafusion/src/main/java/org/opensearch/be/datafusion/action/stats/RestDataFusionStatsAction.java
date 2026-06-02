@@ -32,9 +32,7 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * REST handler for DataFusion cluster stats.
  *
  * <p>Parses path parameters ({@code nodeId}, {@code stat}) and delegates to
- * {@link TransportDataFusionStatsAction} via the transport layer. Supports
- * both canonical routes (with leading underscore) and deprecated legacy routes
- * (without leading underscore).
+ * {@link TransportDataFusionStatsAction} via the transport layer.
  *
  * <p>Routes:
  * <ul>
@@ -49,9 +47,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestDataFusionStatsAction extends BaseRestHandler {
 
     private static final String CANONICAL_PREFIX = "/_plugins/_analytics_backend_datafusion";
-    private static final String LEGACY_PREFIX = "/_plugins/analytics_backend_datafusion";
-    private static final String DEPRECATION_MESSAGE = "Use /_plugins/_analytics_backend_datafusion instead of "
-        + "/_plugins/analytics_backend_datafusion";
 
     private static final Set<String> VALID_STAT_NAMES = Set.of(
         "io_runtime",
@@ -83,18 +78,6 @@ public class RestDataFusionStatsAction extends BaseRestHandler {
                 new Route(GET, CANONICAL_PREFIX + "/{nodeId}/stats"),
                 new Route(GET, CANONICAL_PREFIX + "/stats/{stat}"),
                 new Route(GET, CANONICAL_PREFIX + "/stats")
-            )
-        );
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return unmodifiableList(
-            asList(
-                new DeprecatedRoute(GET, LEGACY_PREFIX + "/{nodeId}/stats/{stat}", DEPRECATION_MESSAGE),
-                new DeprecatedRoute(GET, LEGACY_PREFIX + "/{nodeId}/stats", DEPRECATION_MESSAGE),
-                new DeprecatedRoute(GET, LEGACY_PREFIX + "/stats/{stat}", DEPRECATION_MESSAGE),
-                new DeprecatedRoute(GET, LEGACY_PREFIX + "/stats", DEPRECATION_MESSAGE)
             )
         );
     }

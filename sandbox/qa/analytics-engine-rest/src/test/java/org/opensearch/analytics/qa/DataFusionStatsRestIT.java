@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
@@ -35,7 +34,6 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
 
     private static final String STATS_ENDPOINT = "/_plugins/_analytics_backend_datafusion/stats";
     private static final String LOCAL_STATS_ENDPOINT = "/_plugins/_analytics_backend_datafusion/_local/stats";
-    private static final String LEGACY_STATS_ENDPOINT = "/_plugins/analytics_backend_datafusion/stats";
 
     /**
      * All 8 stat sections that a full (unfiltered) response should contain.
@@ -221,24 +219,6 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
             assertFalse("node entry must NOT contain 'host'", nodeEntry.has("host"));
             assertFalse("node entry must NOT contain 'transport_address'", nodeEntry.has("transport_address"));
         }
-    }
-
-    /**
-     * GET /_plugins/analytics_backend_datafusion/stats (legacy route without leading underscore)
-     * Verify HTTP 200 — the deprecated route should still work.
-     */
-    public void testDeprecatedLegacyRoute() throws Exception {
-        Request request = new Request("GET", LEGACY_STATS_ENDPOINT);
-        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.setWarningsHandler(warnings -> false);
-        request.setOptions(options);
-        Response response = client().performRequest(request);
-        assertEquals("expected HTTP 200 from deprecated legacy route", 200, response.getStatusLine().getStatusCode());
-
-        // Basic sanity: response should still be valid JSON with expected structure
-        JsonNode root = parseResponse(response);
-        assertTrue("legacy response must contain 'nodes'", root.has("nodes"));
-        assertTrue("legacy response must contain '_nodes'", root.has("_nodes"));
     }
 
     // ── Helper methods ──────────────────────────────────────────────────────
