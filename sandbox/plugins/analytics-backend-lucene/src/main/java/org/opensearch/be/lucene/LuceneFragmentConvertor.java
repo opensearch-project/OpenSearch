@@ -26,6 +26,7 @@ import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.WireFormat;
 import org.opensearch.be.lucene.serializers.AbstractQuerySerializer;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -76,14 +77,15 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
     }
 
     /**
-     * Drivable iff the top is an {@link Aggregate} with empty group-set whose every call is
+     * True iff the top is an {@link Aggregate} with empty group-set whose every call is
      * {@link SqlKind#COUNT} — what {@code IndexSearcher.count} can answer from the term
-     * dictionary. Defense-in-depth: PlanForker's chain-agreement filter already narrows
-     * aggregate alternatives to declared capabilities (prod Lucene declares only COUNT), so
-     * this guards against capability-declaration drift.
+     * dictionary. Read by {@link LuceneShardPreference} to score this fragment.
+     *
+     * <p>Defense-in-depth: PlanForker's chain-agreement filter already narrows aggregate
+     * alternatives to declared capabilities (prod Lucene declares only COUNT), so this
+     * guards against capability-declaration drift.
      */
-    @Override
-    public boolean canDriveFragment(RelNode fragment) {
+    static boolean isCountFastPath(RelNode fragment) {
         if (fragment instanceof Aggregate == false) return false;
         Aggregate agg = (Aggregate) fragment;
         if (agg.getGroupSet().isEmpty() == false) return false;
@@ -200,12 +202,12 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
     }
 
     @Override
-    public boolean producesSubstraitFragments() {
+    public WireFormat wireFormat() {
         // convertFragment emits a custom NamedWriteable wire format ([columnNames][hasFilter]
-        // [BoolQueryBuilder]?), not Substrait. The orchestrator queries this so it knows to
-        // emit a separate schema-only Substrait stub via convertSchemaOnlyRead for the
+        // [BoolQueryBuilder]?), not self-describing. The orchestrator queries this so it
+        // knows to emit a separate schema-only stub via convertSchemaOnlyRead for the
         // coordinator's reduce-sink partition registration.
-        return false;
+        return WireFormat.OPAQUE;
     }
 
     /**

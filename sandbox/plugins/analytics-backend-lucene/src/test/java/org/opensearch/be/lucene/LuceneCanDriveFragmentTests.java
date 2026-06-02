@@ -26,8 +26,6 @@ import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -36,29 +34,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Pins {@link LuceneFragmentConvertor#canDriveFragment}: drivable iff top is an Aggregate
- * with empty group-set and every call is {@code SqlKind.COUNT}. Guards capability-
- * declaration drift — PlanForker already narrows by declared caps, this is the second line.
+ * Pins {@link LuceneFragmentConvertor#isCountFastPath}: drivable iff top is an Aggregate
+ * with empty group-set and every call is {@code SqlKind.COUNT}. Read by
+ * {@link LuceneShardPreference} to score this fragment for the count-fast-path. Guards
+ * capability-declaration drift — PlanForker already narrows by declared caps, this is the
+ * second line.
  */
 public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
 
     private RelDataTypeFactory typeFactory;
     private RelOptCluster cluster;
-    private FragmentConvertor convertor;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         typeFactory = new JavaTypeFactoryImpl();
         cluster = RelOptCluster.create(new HepPlanner(new HepProgramBuilder().build()), new RexBuilder(typeFactory));
-        AnalyticsSearchBackendPlugin lucene = new LuceneAnalyticsBackendPlugin(null);
-        convertor = lucene.getFragmentConvertor();
     }
 
     public void testCountStarOverEmptyGroupSet_drivable() {
         TableScan scan = stubScan("status", SqlTypeName.VARCHAR);
         RelNode agg = aggregate(scan, ImmutableBitSet.of(), countStar(scan));
-        assertTrue("COUNT(*) with empty group-set is the canonical Lucene-driver shape", convertor.canDriveFragment(agg));
+        assertTrue("COUNT(*) with empty group-set is the canonical Lucene-driver shape", LuceneFragmentConvertor.isCountFastPath(agg));
     }
 
     public void testCountFieldOverEmptyGroupSet_drivable() {
@@ -75,7 +72,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         );
         assertTrue(
             "count(field) is also drivable — same SqlKind.COUNT",
-            convertor.canDriveFragment(aggregate(scan, ImmutableBitSet.of(), countField))
+            LuceneFragmentConvertor.isCountFastPath(aggregate(scan, ImmutableBitSet.of(), countField))
         );
     }
 
@@ -83,7 +80,9 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         assertFalse(
             "SUM needs column values Lucene can't materialise — must be rejected",
-            convertor.canDriveFragment(aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.SUM, scan, "total_size")))
+            LuceneFragmentConvertor.isCountFastPath(
+                aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.SUM, scan, "total_size"))
+            )
         );
     }
 
@@ -91,7 +90,9 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         assertFalse(
             "MIN must be rejected",
-            convertor.canDriveFragment(aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.MIN, scan, "min_size")))
+            LuceneFragmentConvertor.isCountFastPath(
+                aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.MIN, scan, "min_size"))
+            )
         );
     }
 
@@ -99,7 +100,9 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         assertFalse(
             "MAX must be rejected",
-            convertor.canDriveFragment(aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.MAX, scan, "max_size")))
+            LuceneFragmentConvertor.isCountFastPath(
+                aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.MAX, scan, "max_size"))
+            )
         );
     }
 
@@ -107,7 +110,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         // Even one non-COUNT call disqualifies the whole aggregate — every call must be COUNT.
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         RelNode agg = aggregate(scan, ImmutableBitSet.of(), countStar(scan), nullableNumeric(SqlStdOperatorTable.SUM, scan, "total_size"));
-        assertFalse("COUNT(*) + SUM mixed must be rejected", convertor.canDriveFragment(agg));
+        assertFalse("COUNT(*) + SUM mixed must be rejected", LuceneFragmentConvertor.isCountFastPath(agg));
     }
 
     public void testCountWithGroupBy_notDrivable() {
@@ -115,7 +118,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("status", SqlTypeName.VARCHAR);
         assertFalse(
             "COUNT(*) GROUP BY status must be rejected — Lucene has no per-group count",
-            convertor.canDriveFragment(aggregate(scan, ImmutableBitSet.of(0), countStar(scan)))
+            LuceneFragmentConvertor.isCountFastPath(aggregate(scan, ImmutableBitSet.of(0), countStar(scan)))
         );
     }
 
@@ -127,8 +130,8 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
             List.of(new RexBuilder(typeFactory).makeInputRef(scan, 0)),
             List.of("status")
         );
-        assertFalse("Project (no aggregate above) must be rejected", convertor.canDriveFragment(project));
-        assertFalse("Bare TableScan must be rejected", convertor.canDriveFragment(scan));
+        assertFalse("Project (no aggregate above) must be rejected", LuceneFragmentConvertor.isCountFastPath(project));
+        assertFalse("Bare TableScan must be rejected", LuceneFragmentConvertor.isCountFastPath(scan));
     }
 
     // ---- Helpers ----

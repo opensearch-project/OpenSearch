@@ -86,12 +86,16 @@ public interface BackendCapabilityProvider {
     }
 
     /**
-     * Drives stages using segment metadata only (term dictionary, BKD points) — no row
-     * materialization. Pairs with {@link FragmentConvertor#canDriveFragment} for the
-     * per-fragment yes/no.
+     * Per-shard preference scorer. The planner consults this when the same fragment has
+     * multiple viable backends, so this backend can declare a preference score for the
+     * resolved fragment given shard-local context. Default {@code null} = "no opinion in
+     * any case"; the selector treats this backend as a generic alternative.
+     *
+     * <p>See {@link BackendShardPreference} for the contract and the long-term migration
+     * path away from coordinator-side preference flags toward true shard-local routing.
      */
-    default boolean isMetadataOnlyDriver() {
-        return false;
+    default BackendShardPreference shardPreference() {
+        return null;
     }
 
     /**

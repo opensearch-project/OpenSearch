@@ -99,23 +99,12 @@ public interface FragmentConvertor {
     }
 
     /**
-     * Whether {@link #convertFragment} emits Substrait bytes the reducer can decode for
-     * partition-schema derivation. Default {@code true}; backends with a custom wire format
-     * (e.g. Lucene's count fast path) return {@code false} and MUST also override
-     * {@link #convertSchemaOnlyRead} so the orchestrator emits a Substrait stub at the
-     * partition boundary.
+     * Wire-format contract for the bytes {@link #convertFragment} produces. The reducer
+     * consults this when deriving a child stage's partition schema. Default
+     * {@link WireFormat#SELF_DESCRIBING}; backends with a custom wire format return
+     * {@link WireFormat#OPAQUE} and MUST also override {@link #convertSchemaOnlyRead}.
      */
-    default boolean producesSubstraitFragments() {
-        return true;
-    }
-
-    /**
-     * Whether this convertor can drive {@code fragment} end-to-end without materializing
-     * rows. Consulted only when {@link BackendCapabilityProvider#isMetadataOnlyDriver()} is
-     * true; value-producing backends ignore this. Default {@code false} — opt in by
-     * overriding when the convertor can compile the fragment with metadata-only access.
-     */
-    default boolean canDriveFragment(RelNode fragment) {
-        return false;
+    default WireFormat wireFormat() {
+        return WireFormat.SELF_DESCRIBING;
     }
 }

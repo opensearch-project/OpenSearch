@@ -16,6 +16,7 @@ import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.BackendShardPreference;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
@@ -183,13 +184,13 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             }
 
             @Override
-            public boolean isMetadataOnlyDriver() {
-                // Lucene drives count via IndexSearcher.count, no row materialization.
-                // Per-fragment drivability lives in LuceneFragmentConvertor.canDriveFragment.
-                return true;
+            public BackendShardPreference shardPreference() {
+                return SHARD_PREFERENCE;
             }
         };
     }
+
+    private static final BackendShardPreference SHARD_PREFERENCE = new LuceneShardPreference();
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneAnalyticsBackendPlugin.class);
 

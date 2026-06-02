@@ -41,6 +41,7 @@ import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.WireFormat;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -159,17 +160,16 @@ public class FragmentConversionDriver {
      *       parent declares the wider {@code expected} rowType on its
      *       {@code OpenSearchStageInputScan} placeholder; the reducer needs that, not the
      *       producer's narrower natural schema.</li>
-     *   <li><b>Non-substrait producer</b> — the child plan's backend (Lucene today) emits its
-     *       own wire format from {@code convertFragment}; the reducer can't decode that as
-     *       Substrait. The child's {@code convertSchemaOnlyRead} returns a Substrait stub
-     *       describing its actual output schema so the reducer can register the partition.
-     *       Without this, DataFusion's {@code derive_schema_from_partial_plan} runs prost::decode
-     *       over Lucene wire bytes and fails with "invalid tag value".</li>
+     *   <li><b>Opaque-wire-format producer</b> — the child plan's backend (Lucene today) emits
+     *       a custom wire format from {@code convertFragment} the reducer can't decode generically.
+     *       The child's {@code convertSchemaOnlyRead} returns a self-describing schema stub so the
+     *       reducer can register the partition. Without this, the reducer runs decode over the
+     *       opaque bytes and fails.</li>
      * </ul>
      *
-     * <p>Whether the child produces Substrait natively is asked of the child's convertor via
-     * {@link FragmentConvertor#producesSubstraitFragments()}. The schema-only Read uses the
-     * {@code expected} rowType (the post-decoration schema crossing the partition boundary).
+     * <p>Producer wire-format is asked of the child's convertor via
+     * {@link FragmentConvertor#wireFormat()}. The schema-only Read uses the {@code expected}
+     * rowType (the post-decoration schema crossing the partition boundary).
      *
      * <p>TODO: Uses {@link RelNodeUtils#findNode} which only walks the first-input chain. Fine for
      * QTF today (linear fragments). When QTF extends to Joins/Unions, multi-input fragments will
@@ -187,11 +187,11 @@ public class FragmentConversionDriver {
             boolean changed = false;
             for (StagePlan plan : child.getPlanAlternatives()) {
                 FragmentConvertor convertor = registry.getBackend(plan.backendId()).getFragmentConvertor();
-                boolean producesSubstrait = convertor.producesSubstraitFragments();
+                boolean selfDescribing = convertor.wireFormat() == WireFormat.SELF_DESCRIBING;
                 // Stub needed when (a) the schema decorator widened the partition rowType, or
-                // (b) the producer doesn't speak Substrait — the reducer can't decode its
+                // (b) the producer's wire format is opaque — the reducer can't decode its
                 // convertedBytes for partition-schema derivation.
-                if (schemaMismatch == false && producesSubstrait) {
+                if (schemaMismatch == false && selfDescribing) {
                     updated.add(plan);
                     continue;
                 }

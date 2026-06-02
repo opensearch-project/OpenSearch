@@ -116,7 +116,7 @@ final class DelegatedPredicateCombiner {
                 // delegation_possible doesn't compose under disjunction (driver can't tell
                 // "leaf didn't match" from "no leaf matched when the peer missed"). Under
                 // fuse=true, classify() never emits perf, so this branch never fires.
-                if (isOrNot && d.performanceDelegation()) {
+                if ((isOrNot && !fuseDualViable) && d.performanceDelegation()) {
                     ordered.add(applyFn.apply((AnnotatedPredicate) d.subtree()));
                 } else {
                     (d.performanceDelegation() ? performanceChildren : correctnessChildren).add(d);
@@ -144,13 +144,16 @@ final class DelegatedPredicateCombiner {
             return new Delegated(commonBackend, call, firstId, false);
         }
 
-        // Mixed: combine correctness-delegated into one delegated_predicate. Performance-
-        // delegated children stay as individual delegation_possible markers so the driver
-        // can evaluate each leaf natively + opportunistically consult the peer per-leaf —
-        // bubbling them up into a single combined delegation_possible would lose that
-        // per-leaf semantic. Reachable only under fuse=false + AND (OR/NOT carved perf out
-        // above; fuse=true never classifies perf in the first place). Native siblings stay
-        // native at the top of the rebuilt boolean.
+        if (ordered.size() == performanceChildren.size() && correctnessChildren.isEmpty()) {
+            // All children are performance-delegated to the same backend — bubble up so the
+            // parent can merge further up the tree before the Mixed branch flattens. Only
+            // reachable under fuse=false + AND (OR/NOT carved perf out above; fuse=true
+            // demotes perf to correctness so this branch never fires under fuse=true).
+            int firstId = performanceChildren.getFirst().firstAnnotationId();
+            return new Delegated(commonBackend, call, firstId, true);
+        }
+
+        // Mixed: combine correctness-delegated into one expression, performance-delegated into another.
         byte[] correctnessCombined = null;
         int correctnessFirstId = 0;
         if (!correctnessChildren.isEmpty()) {
