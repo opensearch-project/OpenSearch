@@ -78,8 +78,8 @@ public class SortPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(plan, multiShardContext());
         assertPlanShape(
             """
-                OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
-                  OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
+                OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
