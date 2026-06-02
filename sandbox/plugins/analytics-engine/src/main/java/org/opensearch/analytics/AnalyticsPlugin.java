@@ -175,6 +175,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         settings.add(COORDINATOR_BUFFER_LIMIT);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
         settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
+        settings.addAll(org.opensearch.analytics.settings.AnalyticsQuerySettings.all());
         return List.copyOf(settings);
     }
 
