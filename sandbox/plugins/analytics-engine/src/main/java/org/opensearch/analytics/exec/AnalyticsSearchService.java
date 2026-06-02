@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.FragmentExecutionStats;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -123,15 +124,31 @@ public class AnalyticsSearchService implements AutoCloseable {
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
+        return executeFragmentStreamingResolved(request, shard, task).resources;
+    }
+
+    private ResolvedExecution executeFragmentStreamingResolved(
+        FragmentExecutionRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task
+    ) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         try {
-            return startFragment(request, resolved, shard, task);
+            FragmentResources resources = startFragment(request, resolved, shard, task);
+            return new ResolvedExecution(resources, resolved);
         } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw e;
         } catch (Exception e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw new RuntimeException("Failed to start streaming fragment on " + shard.shardId(), e);
+        }
+    }
+
+    private record ResolvedExecution(FragmentResources resources, ResolvedFragment resolved) implements AutoCloseable {
+        @Override
+        public void close() throws Exception {
+            resources.close();
         }
     }
 
@@ -149,12 +166,43 @@ public class AnalyticsSearchService implements AutoCloseable {
         try {
             executor.execute(() -> {
                 LOGGER.debug("[FragmentExecution] shard={} task={}", shard.shardId(), task.getId());
-                try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
-                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
+                final long startNanos = System.nanoTime();
+                long rowsProduced = 0;
+                try (ResolvedExecution exec = executeFragmentStreamingResolved(request, shard, task)) {
+                    Iterator<EngineResultBatch> it = exec.resources().stream().iterator();
                     while (it.hasNext()) {
-                        responseHandler.onBatch(it.next());
+                        EngineResultBatch batch = it.next();
+                        rowsProduced += batch.getRowCount();
+                        responseHandler.onBatch(batch);
                     }
+                    long fragmentTookNanos = System.nanoTime() - startNanos;
                     responseHandler.onComplete();
+                    ResolvedFragment resolved = exec.resolved();
+                    DelegationDescriptor delegation = resolved.plan().getDelegationDescriptor();
+                    boolean usedSecondaryIndex = delegation != null;
+                    int delegatedPredicateCount = delegation != null ? delegation.delegatedPredicateCount() : 0;
+                    String filterTreeShape = delegation != null ? delegation.treeShape().name() : null;
+                    boolean hasPartialAggregate = resolved.plan()
+                        .getInstructions()
+                        .stream()
+                        .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE);
+                    FragmentExecutionStats stats = new FragmentExecutionStats(
+                        rowsProduced,
+                        usedSecondaryIndex,
+                        delegatedPredicateCount,
+                        filterTreeShape,
+                        hasPartialAggregate,
+                        task.getId(),
+                        task.getHeader(Task.X_OPAQUE_ID)
+                    );
+                    listener.onFragmentSuccess(
+                        request.getQueryId(),
+                        request.getStageId(),
+                        shard.shardId().toString(),
+                        fragmentTookNanos,
+                        shard.indexSettings(),
+                        stats
+                    );
                 } catch (Exception e) {
                     responseHandler.onFailure(e);
                 }
