@@ -16,7 +16,11 @@ import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -35,6 +39,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.apache.calcite.sql.type.SqlTypeName.BOOLEAN;
+
 /**
  * Converts {@link Filter} → {@link OpenSearchFilter}.
  *
@@ -52,6 +58,27 @@ import java.util.Set;
 public class OpenSearchFilterRule extends RelOptRule {
 
     private static final Logger LOGGER = LogManager.getLogger(OpenSearchFilterRule.class);
+
+    private static final String LUCENE_BACKEND_NAME = "lucene";
+    private static final String LUCENE_DATA_FORMAT = "lucene";
+
+    /**
+     * SqlFunction whose getName() upper-cases to {@link ScalarFunction#MATCHALL}.
+     * Constructed inline at the only call site that materializes a synthetic
+     * match-all RexCall ({@link #injectLuceneLiveDocsClauseIfNeeded}). The Lucene-side
+     * {@code MatchAllSerializer} produces a {@code MatchAllQueryBuilder} from
+     * this RexCall; at execution time, that query's {@code Weight.scorer} iterator
+     * filters out soft-deleted documents — guaranteeing live-docs filtering even
+     * when no user predicate naturally targets Lucene.
+     */
+    private static final SqlFunction MATCH_ALL_OPERATOR = new SqlFunction(
+        "MATCHALL",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.NILADIC,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
 
     private final PlannerContext context;
 
@@ -81,7 +108,19 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<FieldStorageInfo> childFieldStorage = openSearchInput.getOutputFieldStorage();
 
         // Annotate every leaf predicate with viable backends.
-        RexNode annotatedCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends);
+        RexNode annotatedUserCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends);
+
+        // Inject a synthetic MATCHALL() leaf for hybrid Lucene+Parquet shards that have
+        // no naturally-Lucene predicate, so live-docs filtering still happens via
+        // Lucene's Weight.scorer iterator. Prepended before annotateCondition so the
+        // existing FULL_TEXT field-less path resolves it to viableBackends=["lucene"]
+        // without code duplication.
+        RexNode annotatedCondition = injectLuceneLiveDocsClauseIfNeeded(
+            annotatedUserCondition,
+            childViableBackends,
+            childFieldStorage,
+            filter.getCluster().getRexBuilder()
+        );
 
         // Compute operator-level viable backends: must be viable for child AND handle predicates
         List<String> viableBackends = computeFilterViableBackends(annotatedCondition, childViableBackends);
@@ -105,6 +144,66 @@ public class OpenSearchFilterRule extends RelOptRule {
                 viableBackends
             )
         );
+    }
+
+    // ---- Predicate annotation ----
+    private RexNode injectLuceneLiveDocsClauseIfNeeded(
+        RexNode annotatedCondition,
+        List<String> childViableBackends,
+        List<FieldStorageInfo> childFieldStorage,
+        org.apache.calcite.rex.RexBuilder rexBuilder
+    ) {
+        // Lucene Backend can be lucene or mock-lucene, so better get the name from registry for Match_ALL.
+        List<String> luceneBackends = getLuceneBackendName();
+        if (luceneBackends.isEmpty() == true) {
+            return annotatedCondition;
+        }
+
+        assert luceneBackends.size() == 1;
+        String luceneBackEndName = luceneBackends.get(0);
+
+        // Guard 1: Lucene is one of the configured data formats on this shard
+        // (i.e., at least one non-derived field carries Lucene as a storage format).
+        boolean luceneConfigured = false;
+        for (FieldStorageInfo info : childFieldStorage) {
+            if (info.isDerived()) continue;
+            if (info.getIndexFormats().contains(LUCENE_DATA_FORMAT) || info.getDocValueFormats().contains(LUCENE_DATA_FORMAT)) {
+                luceneConfigured = true;
+                break;
+            }
+        }
+        if (luceneConfigured == false) {
+            return annotatedCondition;
+        }
+
+        // Guard 2: every annotated leaf in the user's condition has viableBackends == [datafusion]
+        // (exactly DataFusion, no other backend). If any leaf includes Lucene (or anything else),
+        // skip — that leaf is already Lucene-eligible (or unrelated to the live-docs concern).
+        List<AnnotatedPredicate> leaves = new ArrayList<>();
+        collectAnnotatedPredicates(annotatedCondition, leaves);
+        if (leaves.isEmpty()) {
+            return annotatedCondition;
+        }
+        for (AnnotatedPredicate leaf : leaves) {
+            List<String> viable = leaf.getViableBackends();
+            if (viable.size() == 1 && luceneBackEndName.equals(viable.get(0))) {
+                return annotatedCondition;
+            }
+        }
+
+        // All guards passed — build the synthetic, pre-annotated MATCHALL leaf and AND-attach it.
+        RexNode matchAllCall = rexBuilder.makeCall(rexBuilder.getTypeFactory().createSqlType(BOOLEAN), MATCH_ALL_OPERATOR, List.of());
+        AnnotatedPredicate annotatedMatchAll = new AnnotatedPredicate(
+            matchAllCall.getType(),
+            matchAllCall,
+            List.of(luceneBackEndName),
+            context.nextAnnotationId()
+        );
+        return RexUtil.composeConjunction(rexBuilder, List.of(annotatedCondition, annotatedMatchAll));
+    }
+
+    private List<String> getLuceneBackendName() {
+        return context.getCapabilityRegistry().filterBackends(ScalarFunction.MATCHALL, FieldType.TEXT, LUCENE_BACKEND_NAME);
     }
 
     // ---- Predicate annotation ----
