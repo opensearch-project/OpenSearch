@@ -387,7 +387,7 @@ mod tests {
         let hash_repart = Arc::new(
             RepartitionExec::try_new(
                 Arc::clone(&leaf),
-                Partitioning::Hash(
+                datafusion::physical_expr::Partitioning::Hash(
                     vec![Arc::new(
                         datafusion::physical_expr::expressions::Column::new("x", 0),
                     )],
@@ -421,7 +421,7 @@ mod tests {
         let hash_repart = Arc::new(
             RepartitionExec::try_new(
                 Arc::clone(&leaf),
-                Partitioning::Hash(
+                datafusion::physical_expr::Partitioning::Hash(
                     vec![Arc::new(
                         datafusion::physical_expr::expressions::Column::new("x", 0),
                     )],
@@ -445,7 +445,7 @@ mod tests {
         // load balancing pre-Final) — the strip must NOT touch it.
         let leaf = streaming_table_leaf();
         let rr_repart = Arc::new(
-            RepartitionExec::try_new(Arc::clone(&leaf), Partitioning::RoundRobinBatch(4))
+            RepartitionExec::try_new(Arc::clone(&leaf), datafusion::physical_expr::Partitioning::RoundRobinBatch(4))
                 .unwrap(),
         ) as Arc<dyn ExecutionPlan>;
 

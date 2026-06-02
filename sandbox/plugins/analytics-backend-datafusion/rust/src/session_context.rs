@@ -326,7 +326,7 @@ pub async unsafe fn create_worker_session_context(
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
 
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool.clone());
+    let query_context = QueryTrackingContext::new(context_id, global_pool.clone(), crate::query_tracker::QueryType::Shard);
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn MemoryPool>);
