@@ -91,6 +91,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final LuceneMerger luceneMerger;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
     private final Set<LuceneWriter> activeWriters = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<Long, LuceneWriter> pendingCleanup = new ConcurrentHashMap<>();
 
     /**
      * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
@@ -173,7 +174,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
             long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
-            return buildLuceneWriter(
+            LuceneWriter writer = buildLuceneWriter(
                 config.writerGeneration(),
                 mappingVersion,
                 dataFormat,
@@ -183,6 +184,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 getChildWriterSortConfiguration(),
                 activeWriters
             );
+            pendingCleanup.put(config.writerGeneration(), writer);
+            return writer;
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
@@ -353,7 +356,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             for (Segment segment : refreshInput.writerFiles()) {
                 WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
                 if (wfs != null) {
-                    tryDeleteDirectory(Path.of(wfs.directory()));
+                    LuceneWriter writer = pendingCleanup.remove(wfs.writerGeneration());
+                    if (writer != null) {
+                        writer.cleanupTempDirectory();
+                    }
                 }
             }
         }
