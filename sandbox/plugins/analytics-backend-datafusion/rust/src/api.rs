@@ -407,6 +407,18 @@ pub fn set_min_target_partitions(value: i64) {
     crate::query_budget::set_min_target_partitions(value.max(1) as usize);
 }
 
+/// Initial target_partitions for coordinator-reduce sessions. Defaults to 4.
+static REDUCE_TARGET_PARTITIONS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(4);
+
+pub fn set_reduce_target_partitions(value: i64) {
+    REDUCE_TARGET_PARTITIONS.store(value.max(1).min(32) as usize, std::sync::atomic::Ordering::Release);
+}
+
+pub fn get_reduce_target_partitions() -> usize {
+    REDUCE_TARGET_PARTITIONS.load(std::sync::atomic::Ordering::Acquire)
+}
+
 /// Creates a native reader (ShardView) for the given path and files.
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
@@ -1730,6 +1742,31 @@ mod tests {
             !view_needs_gc(full_array.data_buffers(), full_array.total_buffer_bytes_used()),
             "Non-sliced array must NOT need gc"
         );
+    }
+
+    #[test]
+    fn reduce_target_partitions_roundtrips_and_clamps() {
+        // Set/get round-trips a value in range.
+        set_reduce_target_partitions(8);
+        assert_eq!(get_reduce_target_partitions(), 8);
+
+        // Clamps to the [1, 32] range used by the datafusion.reduce.target_partitions setting.
+        set_reduce_target_partitions(0);
+        assert_eq!(get_reduce_target_partitions(), 1, "values below 1 clamp up to 1");
+        set_reduce_target_partitions(-5);
+        assert_eq!(get_reduce_target_partitions(), 1, "negative values clamp up to 1");
+        set_reduce_target_partitions(1000);
+        assert_eq!(get_reduce_target_partitions(), 32, "values above 32 clamp down to 32");
+
+        // Boundary values pass through unchanged.
+        set_reduce_target_partitions(1);
+        assert_eq!(get_reduce_target_partitions(), 1);
+        set_reduce_target_partitions(32);
+        assert_eq!(get_reduce_target_partitions(), 32);
+
+        // Restore the default so test ordering can't leak state into other tests.
+        set_reduce_target_partitions(4);
+        assert_eq!(get_reduce_target_partitions(), 4);
     }
 }
 

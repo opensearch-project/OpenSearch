@@ -13,6 +13,9 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
@@ -68,6 +71,8 @@ import java.util.Set;
  * creates per-shard execution engines.
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
+
+    private static final Logger LOGGER = LogManager.getLogger(DataFusionAnalyticsBackendPlugin.class);
 
     private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.VALUES);
 
@@ -881,11 +886,27 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
     }
 
+    /**
+     * Context-aware override: registers the handle and tracker under {@code contextId}
+     * so that concurrent queries each have their own isolated FFM callback binding.
+     * Returns a cleanup action that removes the binding when execution finishes.
+     */
     @Override
-    public void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
-        // Install the handle as the FFM upcall target. All Rust callbacks
-        // (createProvider, createCollector, collectDocs, release*) route to it.
-        FilterTreeCallbacks.setHandle(handle);
+    public Runnable configureFilterDelegation(
+        long contextId,
+        FilterDelegationHandle handle,
+        DelegationThreadTracker tracker,
+        BackendExecutionContext backendContext
+    ) {
+        FilterTreeCallbacks.register(contextId, handle, tracker);
+        return () -> {
+            FilterTreeCallbacks.unregister(contextId);
+            try {
+                handle.close();
+            } catch (Exception e) {
+                LOGGER.warn(new ParameterizedMessage("FilterDelegationHandle.close() failed for contextId={}", contextId), e);
+            }
+        };
     }
 
     @Override
@@ -932,11 +953,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         }
         StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
         return new DatafusionResultStream(streamHandle, allocator);
-    }
-
-    @Override
-    public void setDelegationThreadTracker(DelegationThreadTracker tracker) {
-        FilterTreeCallbacks.setThreadTracker(tracker);
     }
 
     public Exception convertException(Exception original) {

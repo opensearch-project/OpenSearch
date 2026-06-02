@@ -113,17 +113,22 @@ public final class FragmentResources implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        Exception first = null;
+        // Close the stream and engine first so any in-flight release upcalls from native
+        // code (e.g. ProviderHandle::drop -> releaseProvider) can still find their
+        // per-query binding in FilterTreeCallbacks. Running onClose first would unregister
+        // the binding while release upcalls are still pending, causing the eager release
+        // of Lucene resources to be skipped.
+        Exception first = closeQuietly(stream, null);
+        first = closeQuietly(engine, first);
+        first = closeQuietly(rowIdVector, first);
         if (onClose != null) {
             try {
                 onClose.run();
             } catch (Exception e) {
-                first = e;
+                if (first == null) first = e;
+                else first.addSuppressed(e);
             }
         }
-        first = closeQuietly(stream, first);
-        first = closeQuietly(engine, first);
-        first = closeQuietly(rowIdVector, first);
         // partitionedSink is closed by the routing flow in AnalyticsSearchService BEFORE this
         // close() runs, so the sink's isLast markers are guaranteed to ship before the engine /
         // reader are torn down. We don't double-close here — close() is idempotent on the sink
