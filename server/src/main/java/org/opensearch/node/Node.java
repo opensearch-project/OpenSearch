@@ -424,6 +424,9 @@ public class Node implements Closeable {
                     throw new IllegalArgumentException("invalid node.attr.server_name [" + value + "]", e);
                 }
             }
+            if (value.length() > 0 && EngineModeNodeAttribute.ENGINE_MODE_SETTING_KEY.equals(key)) {
+                EngineModeNodeAttribute.validate(value);
+            }
             return value;
         }, Property.NodeScope)
     );

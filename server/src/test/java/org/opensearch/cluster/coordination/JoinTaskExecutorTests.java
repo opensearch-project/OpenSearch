@@ -51,6 +51,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.node.EngineModeNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -1511,6 +1512,50 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
+    }
+
+    /**
+     * End-to-end {@link JoinTaskExecutor#ensureNodesCompatibility} test: a remote-store cluster
+     * (segment-replication backed by a remote store) merges a data node with
+     * {@code engine_mode=lucene} and a data node with {@code engine_mode=analytics}. Both share
+     * the same remote-store repository attributes so the remote-store compatibility check passes;
+     * {@code engine_mode} is a free-form node attribute as far as join validation is concerned and
+     * must not block cluster formation regardless of mix.
+     */
+    public void testRemoteStoreClusterAcceptsMixedEngineModeDataNodes() {
+        Map<String, String> luceneAttrs = new HashMap<>(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        luceneAttrs.put(EngineModeNodeAttribute.ENGINE_MODE_ATTRIBUTE_KEY, "lucene");
+
+        Map<String, String> analyticsAttrs = new HashMap<>(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        analyticsAttrs.put(EngineModeNodeAttribute.ENGINE_MODE_ATTRIBUTE_KEY, "analytics");
+
+        DiscoveryNode existingLuceneNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            luceneAttrs,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingLuceneNode).localNodeId(existingLuceneNode.getId()).build())
+            .build();
+
+        DiscoveryNode joiningAnalyticsNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            analyticsAttrs,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        // Should pass the full compatibility chain: version + remote-store repos + engine_mode.
+        JoinTaskExecutor.ensureNodesCompatibility(joiningAnalyticsNode, currentState.getNodes(), currentState.metadata());
+
+        // And in the reverse direction: an analytics-only cluster accepting a lucene data node.
+        ClusterState analyticsCluster = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(joiningAnalyticsNode).localNodeId(joiningAnalyticsNode.getId()).build())
+            .build();
+        JoinTaskExecutor.ensureNodesCompatibility(existingLuceneNode, analyticsCluster.getNodes(), analyticsCluster.metadata());
     }
 
     private static final String SEGMENT_REPO = "segment-repo";
