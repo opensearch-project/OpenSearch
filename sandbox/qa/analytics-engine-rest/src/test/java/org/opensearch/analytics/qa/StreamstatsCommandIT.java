@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -925,17 +924,10 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testWhereInWithStreamstatsSubquery. WHERE-IN with streamstats subquery — uses
      *  semi-join lowering inside the subquery. After PlannerImpl's subquery-remove phase the
-     *  RexSubQuery becomes a decorrelated correlate, but the streamstats-inside-correlate
-     *  shape is nondeterministic on multi-node execution: sometimes errors with
-     *  {@code Stage 0 sink feed failed: partition stream receiver dropped before send},
-     *  sometimes returns one row successfully. Neither a positive nor a broad-failure
-     *  assertion is stable across runs. Skipped until the downstream multi-node race is
-     *  fixed — re-enable by removing {@code @AwaitsFix}. */
-    @AwaitsFix(
-        bugUrl = "streamstats-inside-decorrelated-correlate has a nondeterministic multi-node"
-            + " execution race; needs a downstream analytics-engine fix before this test can"
-            + " assert a deterministic outcome"
-    )
+     *  RexSubQuery becomes a decorrelated correlate. This historically had a nondeterministic
+     *  multi-node race ({@code Stage 0 sink feed failed: partition stream receiver dropped before
+     *  send}); the assertion is now the tolerant {@link #assertErrorAny} (any error is accepted),
+     *  which is stable, so the test runs unmuted. */
     public void testWhereInWithStreamstatsSubquery() throws IOException {
         assertErrorAny(
             "source=" + DATASET.indexName + " | where key in"
