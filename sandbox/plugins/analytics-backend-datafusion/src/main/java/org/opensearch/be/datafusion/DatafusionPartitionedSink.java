@@ -154,17 +154,26 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
             return;
         }
 
-        // df_partition_batch_by_hash consumes the input FFI structs (the call's release callbacks
-        // already fired); just close the Java wrappers' tracking state.
+        // df_partition_batch_by_hash re-exported the input FFI structs in place with a Rust-side
+        // release callback (see api.rs partition_batch_by_hash). Fire release() before close() so
+        // the Rust-side callback decrements its Arc refs to the imported ArrayData; then closing
+        // the Java wrappers frees their 128-byte container buffers. Without release(), the Rust
+        // ArrayData (which transitively holds the original Java-side ExportedArrayPrivateData
+        // alive via the Arc'd FFI_ArrowArray) never drops, and the original batch's buffers leak.
+        try {
+            inputArray.release();
+        } catch (Throwable ignore) {}
         try {
             inputArray.close();
         } catch (Throwable ignore) {}
         try {
+            inputSchema.release();
+        } catch (Throwable ignore) {}
+        try {
             inputSchema.close();
         } catch (Throwable ignore) {}
-        // The original batch's buffers were transferred during exportVectorSchemaRoot, so closing
-        // the source root only releases its tracking shells — the underlying buffers continue to
-        // live inside the partitioned outputs.
+        // exportVectorSchemaRoot moved the batch's buffers into the export; closing the source
+        // root only releases its tracking shells. release() above is what frees the buffers.
         try {
             batch.close();
         } catch (Throwable ignore) {}
