@@ -36,6 +36,7 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
@@ -89,6 +90,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
+    private volatile boolean fuseDualViable;
+    private volatile boolean preferMetadataDriver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
@@ -126,6 +129,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
+        this.fuseDualViable = AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE, v -> fuseDualViable = v);
+        this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.analyticsSearchSlowLog = analyticsSearchSlowLog;
     }
@@ -195,15 +203,18 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
         RelNode plan = PlannerImpl.createPlan(
             logicalFragment,
-            new PlannerContext(capabilityRegistry, planningState, indexNameExpressionResolver, false)
+            new PlannerContext(capabilityRegistry, planningState, indexNameExpressionResolver, false, preferMetadataDriver)
         );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
+        // Collapse multi-backend stages to a single chosen alternative before conversion
+        // so the convertor runs once per stage and the wire request carries one PlanAlternative.
+        PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
+        FragmentConversionDriver.convertAll(dag, capabilityRegistry, fuseDualViable);
         final long planningTimeNanos = System.nanoTime() - planStartNanos;
-        final long planningTimeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos);
+        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
