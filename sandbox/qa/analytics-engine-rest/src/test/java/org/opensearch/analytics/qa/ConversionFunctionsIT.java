@@ -529,21 +529,14 @@ public class ConversionFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── convert + where on a constant-folded conversion ──────────────────────
+    // ── convert + where on a constant conversion ────────────────────────────
+    //
+    // convert mktime(<literal>) | where converted <op> N yields a column-less
+    // constant predicate. ReduceExpressionsRule can't fold mktime (no plan-time
+    // impl), so it reaches OpenSearchFilterRule and the indexed scan, both of
+    // which once rejected constant predicates. mktime('10/18/2003 20:07:13') =
+    // 1066507633: > 1000000000 keeps the row, < 1000000000 drops it.
 
-    /**
-     * Regression for the analytics-engine filter rule rejecting constant predicates.
-     *
-     * <p>{@code convert mktime(literal)} over an {@code eval}-produced literal yields a constant
-     * conversion. A following {@code where} comparison therefore has no field references. The
-     * plan-time {@code ReduceExpressionsRule} cannot fold {@code mktime(...)} (no plan-time
-     * implementation of the conversion UDF exists — only DataFusion evaluates it natively), so the
-     * constant predicate survives to {@code OpenSearchFilterRule}. The rule previously asserted
-     * that constant predicates were impossible and threw {@code UnsupportedOperationException};
-     * it now hands the predicate to a viable backend, which evaluates it at runtime.
-     *
-     * <p>mktime('10/18/2003 20:07:13') = 1066507633 &gt; 1000000000 → row passes.
-     */
     public void testConvertMktimeThenWhereConstantPredicatePasses() throws IOException {
         assertFirstRowDouble(
             oneRow("key00")
@@ -554,17 +547,16 @@ public class ConversionFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** Same shape, predicate evaluates false — the constant filter removes every row. */
     public void testConvertMktimeThenWhereConstantPredicateFiltersOut() throws IOException {
         Map<String, Object> response = executePpl(
             oneRow("key00")
                 + "| eval date_str = '10/18/2003 20:07:13' | convert mktime(date_str)"
                 + " | where date_str < 1000000000 | fields date_str"
         );
-        @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows'", rows);
-        assertEquals("Constant false predicate should remove all rows", 0, rows.size());
+        // An empty result may omit the data array entirely — treat absent as zero rows.
+        Object data = response.containsKey("datarows") ? response.get("datarows") : response.get("rows");
+        int rowCount = data == null ? 0 : ((List<?>) data).size();
+        assertEquals("Constant false predicate should remove all rows", 0, rowCount);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
