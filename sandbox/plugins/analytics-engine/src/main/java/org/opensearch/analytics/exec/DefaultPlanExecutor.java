@@ -93,6 +93,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile boolean fuseDualViable;
     private volatile boolean preferMetadataDriver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
     @Inject
     public DefaultPlanExecutor(
@@ -106,6 +107,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         Scheduler scheduler,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        AnalyticsSearchSlowLog analyticsSearchSlowLog,
         AnalyticsStatsCollector statsCollector
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
@@ -133,6 +135,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.analyticsSearchSlowLog = analyticsSearchSlowLog;
     }
 
     @Override
@@ -183,6 +186,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
         logicalFragment.getCluster().invalidateMetadataQuery();
 
+        // Create the slow log wrapper at the start so it observes the full query lifecycle.
+        final String querySource = queryCtx != null ? queryCtx.querySource() : null;
+        final AnalyticsSearchSlowLog.QuerySlowLogListener queryListener = analyticsSearchSlowLog.createQueryListener(querySource);
+        final long queryStartNanos = System.nanoTime();
+
         // Always time planning and capture the full plan: every query produces a QueryProfile
         // that's fed into AnalyticsStatsCollector for the _plugins/_analytics/stats endpoint.
         // The non-explain path drops the profile from the response after recording it; the
@@ -205,13 +213,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // so the convertor runs once per stage and the wire request carries one PlanAlternative.
         PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry, fuseDualViable);
-        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
+        final long planningTimeNanos = System.nanoTime() - planStartNanos;
+        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+
+        queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
 
         // The task is the framework-provided task from doExecute (registered by
         // HandledTransportAction before doExecute, unregistered when the listener completes).
         // Using it — rather than self-registering a detached task — is what lets a client
         // disconnect / explicit task cancel propagate into the running query.
+        queryListener.setHeaders(queryTask.getHeader(Task.X_OPAQUE_ID), queryTask.getHeader(Task.X_REQUEST_ID));
         final BufferAllocator queryAllocator;
         final boolean ownsAllocator;
         if (perQueryBufferLimit <= 0) {
@@ -229,14 +241,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             ownsAllocator = true;
         }
         logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);
+
+        // ─── Build query context ──────────────────────────────────────────
         final QueryContext context;
         try {
-            context = new QueryContext(dag, threadPool, queryTask, queryAllocator, ownsAllocator);
+            context = new QueryContext(dag, threadPool, queryTask, queryAllocator, ownsAllocator, List.of(queryListener));
         } catch (Exception e) {
             if (ownsAllocator) queryAllocator.close();
             throw e;
         }
 
+        // ─── Execution + materialization ──────────────────────────────────
         /*
         Profile and explain are captured within the QueryExecution, however QueryExecution requires the complete
         batchesListener to construct the ExecutionGraph. To get around this circular dependency we build a profiling
@@ -261,10 +276,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // No taskManager.unregister here: the framework (HandledTransportAction) unregisters the
         // task it created for doExecute once this listener settles. Unregistering it ourselves
         // would double-free a task we no longer own.
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.wrap(
-            batches -> rowsListener.onResponse(batchesToRows(batches, outputColumnOrder)),
-            rowsListener::onFailure
-        );
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.wrap(batches -> {
+            Iterable<Object[]> rows = batchesToRows(batches, outputColumnOrder);
+            long totalRows = rows instanceof List ? ((List<?>) rows).size() : 0;
+            queryListener.onQueryComplete(dag.queryId(), System.nanoTime() - queryStartNanos, totalRows);
+            rowsListener.onResponse(rows);
+        }, rowsListener::onFailure);
 
         TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
         TimeValue clusterTimeout = clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);

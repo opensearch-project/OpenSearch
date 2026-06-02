@@ -15,7 +15,9 @@ import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.analytics.exec.AnalyticsFragmentSlowLog;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
+import org.opensearch.analytics.exec.AnalyticsSearchSlowLog;
 import org.opensearch.analytics.exec.CoordinatorAllocatorHandle;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
@@ -150,6 +152,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private AnalyticsSearchService searchService;
+    private AnalyticsSearchSlowLog analyticsSearchSlowLog;
+    private AnalyticsFragmentSlowLog analyticsFragmentSlowLog;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
     private ReaderContextStore readerContextStore;
     private final AnalyticsStatsCollector statsCollector = new AnalyticsStatsCollector();
@@ -187,7 +191,15 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         readerContextStore = new ReaderContextStore(threadPool);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE, readerContextStore::setKeepAlive);
-        searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry, readerContextStore);
+        analyticsSearchSlowLog = new AnalyticsSearchSlowLog(clusterService);
+        analyticsFragmentSlowLog = new AnalyticsFragmentSlowLog();
+        searchService = new AnalyticsSearchService(
+            backEndsByName,
+            List.of(analyticsFragmentSlowLog),
+            nativeAllocator,
+            namedWriteableRegistry,
+            readerContextStore
+        );
         DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
@@ -197,7 +209,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE)
         );
 
-        return List.of(searchService, ctx, capabilityRegistry, coordinatorAllocatorHandle, statsCollector);
+        return List.of(searchService, ctx, capabilityRegistry, coordinatorAllocatorHandle, analyticsSearchSlowLog, statsCollector);
     }
 
     @Override
