@@ -126,19 +126,7 @@ public class BackendPlanAdapter {
     private static RelNode adaptJoin(OpenSearchJoin join, Adapters adapters, List<RelNode> adaptedChildren, boolean childrenChanged) {
         RelNode left = childrenChanged ? adaptedChildren.get(0) : join.getLeft();
         RelNode right = childrenChanged ? adaptedChildren.get(1) : join.getRight();
-        List<FieldStorageInfo> fieldStorage = new ArrayList<>();
-        if (RelNodeUtils.unwrapHep(left) instanceof OpenSearchRelNode l) {
-            fieldStorage.addAll(l.getOutputFieldStorage());
-        }
-        if (RelNodeUtils.unwrapHep(right) instanceof OpenSearchRelNode r) {
-            fieldStorage.addAll(r.getOutputFieldStorage());
-        }
-        // No marked input on either side ⇒ no FieldStorageInfo for adapters to consult; skip
-        // condition rewrite and just propagate any child changes via copy(). Adapters keyed on
-        // RexInputRef storage (the common case) would silently no-op here anyway.
-        if (fieldStorage.isEmpty()) {
-            return childrenChanged ? join.copy(join.getTraitSet(), adaptedChildren) : join;
-        }
+        List<FieldStorageInfo> fieldStorage = join.getOutputFieldStorage();
         RexNode adaptedCondition = adaptRex(join.getCondition(), adapters, fieldStorage, join.getCluster());
         if (adaptedCondition != join.getCondition() || childrenChanged) {
             return new OpenSearchJoin(
