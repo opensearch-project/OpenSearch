@@ -54,6 +54,7 @@
 //!   into Java (provider/collector lifetime wrappers + registration)
 //! - `page_pruner`, `partitioning`, `parquet_bridge`, `metrics`, `segment_info` — support
 
+pub mod bloom_pruner;
 pub mod bool_tree;
 pub mod eval;
 pub mod row_id_injection;

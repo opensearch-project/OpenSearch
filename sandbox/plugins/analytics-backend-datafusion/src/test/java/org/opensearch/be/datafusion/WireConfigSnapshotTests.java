@@ -17,7 +17,7 @@ import java.lang.foreign.ValueLayout;
 public class WireConfigSnapshotTests extends OpenSearchTestCase {
 
     public void testByteSize() {
-        assertEquals(72L, WireConfigSnapshot.BYTE_SIZE);
+        assertEquals(76L, WireConfigSnapshot.BYTE_SIZE);
     }
 
     public void testWriteToWritesCorrectValuesAtCorrectOffsets() {
@@ -81,6 +81,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
         assertEquals(8192, snapshot.batchSize());
         assertEquals(4, snapshot.targetPartitions());
         assertEquals(false, snapshot.parquetPushdownFilters());
+        assertEquals(true, snapshot.bloomFilterOnRead());
         assertEquals(1024, snapshot.minSkipRunDefault());
         assertEquals(0.03, snapshot.minSkipRunSelectivityThreshold(), 1e-15);
         assertEquals(1, snapshot.maxCollectorParallelism());
@@ -94,6 +95,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             .batchSize(4096)
             .targetPartitions(16)
             .parquetPushdownFilters(true)
+            .bloomFilterOnRead(false)
             .minSkipRunDefault(512)
             .minSkipRunSelectivityThreshold(0.5)
             .maxCollectorParallelism(8)
@@ -107,6 +109,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
         assertEquals(original.batchSize(), copy.batchSize());
         assertEquals(original.targetPartitions(), copy.targetPartitions());
         assertEquals(original.parquetPushdownFilters(), copy.parquetPushdownFilters());
+        assertEquals(original.bloomFilterOnRead(), copy.bloomFilterOnRead());
         assertEquals(original.minSkipRunDefault(), copy.minSkipRunDefault());
         assertEquals(original.minSkipRunSelectivityThreshold(), copy.minSkipRunSelectivityThreshold(), 0.0);
         assertEquals(original.maxCollectorParallelism(), copy.maxCollectorParallelism());

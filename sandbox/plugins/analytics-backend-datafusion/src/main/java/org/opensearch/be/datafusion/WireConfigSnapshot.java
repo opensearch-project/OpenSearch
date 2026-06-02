@@ -26,11 +26,12 @@ import java.lang.foreign.ValueLayout;
 public final class WireConfigSnapshot {
 
     /** Total byte size of the wire struct ({@code WireDatafusionQueryConfig}). */
-    public static final long BYTE_SIZE = 72;
+    public static final long BYTE_SIZE = 76;
 
     private final int batchSize;
     private final int targetPartitions;
     private final boolean parquetPushdownFilters;
+    private final boolean bloomFilterOnRead;
     private final int minSkipRunDefault;
     private final double minSkipRunSelectivityThreshold;
     private final int maxCollectorParallelism;
@@ -42,6 +43,7 @@ public final class WireConfigSnapshot {
         this.batchSize = builder.batchSize;
         this.targetPartitions = builder.targetPartitions;
         this.parquetPushdownFilters = builder.parquetPushdownFilters;
+        this.bloomFilterOnRead = builder.bloomFilterOnRead;
         this.minSkipRunDefault = builder.minSkipRunDefault;
         this.minSkipRunSelectivityThreshold = builder.minSkipRunSelectivityThreshold;
         this.maxCollectorParallelism = builder.maxCollectorParallelism;
@@ -62,6 +64,7 @@ public final class WireConfigSnapshot {
         return new Builder().batchSize(current.batchSize)
             .targetPartitions(current.targetPartitions)
             .parquetPushdownFilters(current.parquetPushdownFilters)
+            .bloomFilterOnRead(current.bloomFilterOnRead)
             .minSkipRunDefault(current.minSkipRunDefault)
             .minSkipRunSelectivityThreshold(current.minSkipRunSelectivityThreshold)
             .maxCollectorParallelism(current.maxCollectorParallelism)
@@ -80,6 +83,10 @@ public final class WireConfigSnapshot {
 
     public boolean parquetPushdownFilters() {
         return parquetPushdownFilters;
+    }
+
+    public boolean bloomFilterOnRead() {
+        return bloomFilterOnRead;
     }
 
     public int minSkipRunDefault() {
@@ -129,9 +136,10 @@ public final class WireConfigSnapshot {
      * 56      4     max_collector_parallelism            i32      from snapshot
      * 60      4     single_collector_strategy            i32      from snapshot
      * 64      4     tree_collector_strategy              i32      from snapshot
-     * 68      4     query_strategy                      i32      from snapshot (0/1/2)
+     * 68      4     query_strategy                       i32      from snapshot (0/1/2)
+     * 72      4     bloom_filter_on_read                 i32      from snapshot (0/1)
      * ──────  ────
-     * Total: 72 bytes
+     * Total: 76 bytes
      * </pre>
      *
      * @param segment the target memory segment (at least {@link #BYTE_SIZE} bytes)
@@ -165,6 +173,8 @@ public final class WireConfigSnapshot {
         segment.set(ValueLayout.JAVA_INT, 64, treeCollectorStrategy);
         // Offset 68: query_strategy (i32) — 0 = None, 1 = ListingTable, 2 = IndexedPredicateOnly
         segment.set(ValueLayout.JAVA_INT, 68, queryStrategy);
+        // Offset 72: bloom_filter_on_read (i32) — 0 = false, 1 = true
+        segment.set(ValueLayout.JAVA_INT, 72, bloomFilterOnRead ? 1 : 0);
     }
 
     /**
@@ -175,6 +185,7 @@ public final class WireConfigSnapshot {
         private int batchSize = 8192;
         private int targetPartitions = 4;
         private boolean parquetPushdownFilters = false;
+        private boolean bloomFilterOnRead = true;
         private int minSkipRunDefault = 1024;
         private double minSkipRunSelectivityThreshold = 0.03;
         private int maxCollectorParallelism = 1;
@@ -196,6 +207,11 @@ public final class WireConfigSnapshot {
 
         public Builder parquetPushdownFilters(boolean parquetPushdownFilters) {
             this.parquetPushdownFilters = parquetPushdownFilters;
+            return this;
+        }
+
+        public Builder bloomFilterOnRead(boolean bloomFilterOnRead) {
+            this.bloomFilterOnRead = bloomFilterOnRead;
             return this;
         }
 

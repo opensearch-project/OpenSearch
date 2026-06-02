@@ -659,6 +659,9 @@ async unsafe fn execute_indexed_with_context_inner(
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
             let call_strategy = query_config.single_collector_strategy;
+            let bloom_store = Arc::clone(&store);
+            let bloom_schema = schema.clone();
+            let bloom_on_read = query_config.bloom_filter_on_read;
             Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
@@ -689,6 +692,16 @@ async unsafe fn execute_indexed_with_context_inner(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
+                    let bloom_config = if bloom_on_read {
+                        Some(crate::indexed_table::eval::single_collector::BloomConfig {
+                            store: Arc::clone(&bloom_store),
+                            object_path: segment.object_path.clone(),
+                            metadata: Arc::clone(&segment.metadata),
+                            arrow_schema: Arc::clone(&bloom_schema),
+                        })
+                    } else {
+                        None
+                    };
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
@@ -702,6 +715,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             segment.writer_generation,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                             context_id,
+                            bloom_config,
                         ));
                     Ok(eval)
                 },

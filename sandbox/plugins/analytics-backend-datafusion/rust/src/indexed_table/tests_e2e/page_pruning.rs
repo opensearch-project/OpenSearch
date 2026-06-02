@@ -362,6 +362,7 @@ async fn run_single_collector(
                 segment.writer_generation,
                 std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                 0,
+                None,
             ));
             Ok(eval)
         })
