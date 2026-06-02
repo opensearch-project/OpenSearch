@@ -1,0 +1,1 @@
+source=%INDEX% | rename amount as amt | sort id | head 5 | fields id, amt
