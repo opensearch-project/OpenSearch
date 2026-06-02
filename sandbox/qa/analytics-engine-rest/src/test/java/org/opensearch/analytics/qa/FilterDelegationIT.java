@@ -292,6 +292,107 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         assertEquals(20L, ((Number) rows.get(0).get(0)).longValue());
     }
 
+    /**
+     * OR(MATCH on text, EQUALS on keyword), oracle = 10. Both arms are Lucene-delegatable.
+     * Under {@code prefer=true} Lucene drives end-to-end (combiner skipped, no tree_shape).
+     * Under {@code prefer=false} the combiner runs: {@code fuse=false} keeps
+     * {@code OR(delegated_predicate, delegation_possible)} as INTERLEAVED; {@code fuse=true}
+     * collapses to a single {@code delegated_predicate} as CONJUNCTIVE.
+     */
+    public void testOrCorrectnessAndPerf_fuseDualViable() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
+        Map<MatrixKey, ShardStage> expected = Map.of(
+            new MatrixKey(true, false), new ShardStage("lucene", null),
+            new MatrixKey(true, true), new ShardStage("lucene", null),
+            new MatrixKey(false, false), new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
+            new MatrixKey(false, true), new ShardStage("datafusion", "CONJUNCTIVE")
+        );
+        runFuseMatrix(ppl, 10L, expected);
+    }
+
+    /**
+     * OR(EQUALS on keyword, EQUALS on integer), oracle = 20. The integer arm isn't
+     * Lucene-filterable, so the planner picks DataFusion in every cell, and the OR has a
+     * non-delegatable sibling which keeps the shape INTERLEAVED in both fuse modes.
+     */
+    public void testOrTwoPerf_fuseDualViable() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
+        ShardStage interleavedDf = new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+        Map<MatrixKey, ShardStage> expected = Map.of(
+            new MatrixKey(true, false), interleavedDf,
+            new MatrixKey(true, true), interleavedDf,
+            new MatrixKey(false, false), interleavedDf,
+            new MatrixKey(false, true), interleavedDf
+        );
+        runFuseMatrix(ppl, 20L, expected);
+    }
+
+    /** Cluster-setting combination: ({@code prefer_metadata_driver}, {@code fuse_dual_viable}). */
+    private record MatrixKey(boolean prefer, boolean fuse) {}
+
+    /** Asserted SHARD_FRAGMENT profile fields. {@code treeShape == null} means the field
+     *  must be absent (Lucene-as-driver has no delegation instruction). */
+    private record ShardStage(String chosenBackend, String treeShape) {}
+
+    private void runFuseMatrix(String ppl, long oracle, Map<MatrixKey, ShardStage> expected) throws Exception {
+        try {
+            for (Map.Entry<MatrixKey, ShardStage> entry : expected.entrySet()) {
+                MatrixKey key = entry.getKey();
+                ShardStage want = entry.getValue();
+                setPreferMetadataDriver(key.prefer());
+                setFuseDualViable(key.fuse());
+
+                String label = "prefer=" + key.prefer() + ",fuse=" + key.fuse();
+                assertEquals(label + " — count", oracle, executeCount(ppl));
+                Map<String, Object> stage = shardFragmentStage(ppl);
+                assertEquals(label + " — chosen_backend", want.chosenBackend(), stage.get("chosen_backend"));
+                assertEquals(label + " — tree_shape", want.treeShape(), stage.get("tree_shape"));
+            }
+        } finally {
+            setFuseDualViable(false);
+            setPreferMetadataDriver(true);
+        }
+    }
+
+    private long executeCount(String ppl) throws Exception {
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        return ((Number) rows.get(0).get(0)).longValue();
+    }
+
+    private Map<String, Object> shardFragmentStage(String ppl) throws Exception {
+        Request request = new Request("POST", "/_analytics/ppl/_explain");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Map<String, Object> explain = assertOkAndParse(client().performRequest(request), "EXPLAIN: " + ppl);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        for (Map<String, Object> stage : stages) {
+            if ("SHARD_FRAGMENT".equals(stage.get("execution_type"))) return stage;
+        }
+        throw new AssertionError("No SHARD_FRAGMENT stage in profile: " + stages);
+    }
+
+    private void setFuseDualViable(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.delegation.fuse_dual_viable\": " + value + "}}");
+        client().performRequest(req);
+    }
+
+    private void setPreferMetadataDriver(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.planner.prefer_metadata_driver\": " + value + "}}");
+        client().performRequest(req);
+    }
+
     private void createIndex() throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX_NAME));
