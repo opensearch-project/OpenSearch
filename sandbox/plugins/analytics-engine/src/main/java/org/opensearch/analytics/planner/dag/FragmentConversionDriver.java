@@ -41,6 +41,7 @@ import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.WireFormat;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -79,9 +80,13 @@ public class FragmentConversionDriver {
     /**
      * Converts all {@link StagePlan} alternatives in the DAG, populating
      * {@link StagePlan#convertedBytes()} on each plan.
+     *
+     * @param fuseDualViable when {@code true}, performance-delegated leaves fuse with
+     *     correctness-delegated siblings even under OR/NOT. Sourced from the cluster setting
+     *     {@code analytics.delegation.fuse_dual_viable}.
      */
-    public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
-        convertStage(dag.rootStage(), registry);
+    public static void convertAll(QueryDAG dag, CapabilityRegistry registry, boolean fuseDualViable) {
+        convertStage(dag.rootStage(), registry, fuseDualViable);
         // Root stage executes locally at coordinator — store factory for instruction dispatch.
         Stage root = dag.rootStage();
         if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
@@ -90,9 +95,9 @@ public class FragmentConversionDriver {
         }
     }
 
-    private static void convertStage(Stage stage, CapabilityRegistry registry) {
+    private static void convertStage(Stage stage, CapabilityRegistry registry, boolean fuseDualViable) {
         for (Stage child : stage.getChildStages()) {
-            convertStage(child, registry);
+            convertStage(child, registry, fuseDualViable);
         }
         // After children are converted, surface any decorator-induced schema delta as
         // postDecorationSchemaBytes on the child plans. The reduce sink consults this when
@@ -110,13 +115,15 @@ public class FragmentConversionDriver {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(plan.backendId());
             FragmentConvertor convertor = backend.getFragmentConvertor();
 
-            // Derive filter tree shape BEFORE stripping (annotations must be intact)
+            // Derive filter tree shape BEFORE stripping (annotations must be intact). Mirrors
+            // fuseDualViable so the deriver's classification matches the post-combiner tree
+            // the data node actually sees.
             OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
             FilterTreeShape treeShape = filter != null
-                ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
+                ? FilterTreeShapeDeriver.derive(filter, plan.backendId(), fuseDualViable)
                 : FilterTreeShape.NO_DELEGATION;
 
-            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
+            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry, fuseDualViable);
             byte[] bytes = convert(plan.resolvedFragment(), convertor, delegationBytes);
 
             // Assemble instruction list
@@ -142,15 +149,27 @@ public class FragmentConversionDriver {
     }
 
     /**
-     * Detect a decorator-induced schema delta between a child stage's produced rowType and
-     * what the parent declares it expects, and emit a schema-only Read for partition registration.
+     * Emits a schema-only Read stub onto each child plan's {@code postDecorationSchemaBytes}
+     * whenever the parent reduce sink can't safely decode the child's {@code convertedBytes} as
+     * the wire format it expects. Two distinct triggers, both resolved by the CHILD's convertor
+     * (the producer describes its own output schema):
      *
-     * <p>The expected rowType lives on the parent's {@code OpenSearchStageInputScan(childStageId)}
-     * placeholder, which {@code DAGBuilder.cutAtExchange} sets to the reducer's output rowType
-     * (widened by the rewriter when a decorator like {@code OrdinalAppendingSink} runs). The
-     * produced rowType is the child's fragment top. When the two differ, the producer's natural
-     * schema undersells what arrives at the partition boundary post-decorator — the reduce sink
-     * needs the wider one.
+     * <ul>
+     *   <li><b>Schema decoration</b> — a partition decorator (e.g. {@code OrdinalAppendingSink})
+     *       widens the child's produced rowType before it reaches the partition boundary. The
+     *       parent declares the wider {@code expected} rowType on its
+     *       {@code OpenSearchStageInputScan} placeholder; the reducer needs that, not the
+     *       producer's narrower natural schema.</li>
+     *   <li><b>Opaque-wire-format producer</b> — the child plan's backend (Lucene today) emits
+     *       a custom wire format from {@code convertFragment} the reducer can't decode generically.
+     *       The child's {@code convertSchemaOnlyRead} returns a self-describing schema stub so the
+     *       reducer can register the partition. Without this, the reducer runs decode over the
+     *       opaque bytes and fails.</li>
+     * </ul>
+     *
+     * <p>Producer wire-format is asked of the child's convertor via
+     * {@link FragmentConvertor#wireFormat()}. The schema-only Read uses the {@code expected}
+     * rowType (the post-decoration schema crossing the partition boundary).
      *
      * <p>TODO: Uses {@link RelNodeUtils#findNode} which only walks the first-input chain. Fine for
      * QTF today (linear fragments). When QTF extends to Joins/Unions, multi-input fragments will
@@ -162,16 +181,25 @@ public class FragmentConversionDriver {
             if (inputScan == null || inputScan.getChildStageId() != child.getStageId()) continue;
             RelDataType produced = child.getFragment().getRowType();
             RelDataType expected = inputScan.getRowType();
-            // Cheap int compare first, then digest string compare via equals.
-            if (produced.getFieldCount() == expected.getFieldCount() && produced.equals(expected)) continue;
+            boolean schemaMismatch = produced.getFieldCount() != expected.getFieldCount() || produced.equals(expected) == false;
 
             List<StagePlan> updated = new ArrayList<>(child.getPlanAlternatives().size());
+            boolean changed = false;
             for (StagePlan plan : child.getPlanAlternatives()) {
                 FragmentConvertor convertor = registry.getBackend(plan.backendId()).getFragmentConvertor();
+                boolean selfDescribing = convertor.wireFormat() == WireFormat.SELF_DESCRIBING;
+                // Stub needed when (a) the schema decorator widened the partition rowType, or
+                // (b) the producer's wire format is opaque — the reducer can't decode its
+                // convertedBytes for partition-schema derivation.
+                if (schemaMismatch == false && selfDescribing) {
+                    updated.add(plan);
+                    continue;
+                }
                 byte[] postDecorationBytes = convertor.convertSchemaOnlyRead(child.getStageId(), expected);
                 updated.add(plan.withPostDecorationSchemaBytes(postDecorationBytes));
+                changed = true;
             }
-            child.setPlanAlternatives(updated);
+            if (changed) child.setPlanAlternatives(updated);
         }
     }
 
@@ -228,10 +256,16 @@ public class FragmentConversionDriver {
      */
     static final class IntraOperatorDelegationBytes {
         private final CapabilityRegistry registry;
+        private final boolean fuseDualViable;
         private List<DelegatedExpression> delegatedExpressions;
 
         IntraOperatorDelegationBytes(CapabilityRegistry registry) {
+            this(registry, false);
+        }
+
+        IntraOperatorDelegationBytes(CapabilityRegistry registry, boolean fuseDualViable) {
             this.registry = registry;
+            this.fuseDualViable = fuseDualViable;
         }
 
         /**
@@ -248,7 +282,8 @@ public class FragmentConversionDriver {
                 fieldStorage,
                 registry,
                 rexBuilder,
-                delegatedExpressions
+                delegatedExpressions,
+                fuseDualViable
             );
             return new AnnotationResolver() {
 
