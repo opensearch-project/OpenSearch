@@ -241,6 +241,15 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
      * parameters are tolerated because the data-node parquet reader and physical
      * planner pick a precision the Java-side declaration does not predict, and the
      * chosen precision round-trips through Arrow C Data — divergence is harmless.
+     *
+     * <p>Utf8 / Utf8View are treated as equivalent for this advisory check. DataFusion's
+     * coalesce / projection paths can return either variant for the same logical column
+     * (e.g. an outer join on the null-fill side returns plain Utf8 while a non-null side
+     * returns Utf8View). The two layouts are NOT byte-identical, so the Rust sender_send
+     * path casts each such column to the declared type before pushing it into the
+     * StreamingTable (see {@code conform_batch_to_schema} in api.rs) — this check only
+     * relaxes the Java-side tripwire so the legitimate divergence reaches that cast
+     * rather than tripping an early IllegalStateException.
      */
     private static boolean typesMatch(Schema actual, Schema declared) {
         List<Field> a = actual.getFields();
@@ -254,11 +263,19 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             if (at.getTypeID() == ArrowType.ArrowTypeID.Timestamp && dt.getTypeID() == ArrowType.ArrowTypeID.Timestamp) {
                 continue;
             }
+            if (isUtf8Family(at) && isUtf8Family(dt)) {
+                continue;
+            }
             if (!at.equals(dt)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isUtf8Family(ArrowType type) {
+        ArrowType.ArrowTypeID id = type.getTypeID();
+        return id == ArrowType.ArrowTypeID.Utf8 || id == ArrowType.ArrowTypeID.Utf8View;
     }
 
     /**

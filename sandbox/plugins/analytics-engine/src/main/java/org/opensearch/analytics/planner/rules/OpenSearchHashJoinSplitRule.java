@@ -12,15 +12,18 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 
 /**
  * Hash-shuffle split rule for {@link OpenSearchJoin} (M2). Sibling of
@@ -72,7 +75,11 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
         }
         OpenSearchJoin join = call.rel(0);
         JoinInfo info = join.analyzeCondition();
-        if (!info.isEqui()) {
+        // isEqui() returns true for `condition=true` (cross / 1=1) too, since the test is
+        // "no non-equi conditions". Hash-shuffle requires at least one equi key to define
+        // the partitioning expression — without it, distTraitDef.hash() would receive an
+        // empty key list and produce a partitioning that doesn't actually partition.
+        if (!info.isEqui() || info.leftKeys.isEmpty()) {
             return false;
         }
         if (joinAlreadyResolvedAsHash(join)) {
@@ -85,13 +92,38 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
         return isShardScan(join.getLeft()) && isShardScan(join.getRight());
     }
 
-    /** True when {@code rel}'s OpenSearchDistribution is SHARD-localized — i.e. the rel is an
-     *  unwrapped scan (or scan-shaped subtree) without an exchange already on top. Mirrors the
-     *  same check in {@link OpenSearchBroadcastJoinSplitRule}. */
+    /** True when {@code rel}'s OpenSearchDistribution is SHARD-localized AND its subtree is a
+     *  pure shard-scan shape (no Aggregate, no Join, no other reducer between the shuffle
+     *  exchange we'd insert and the underlying TableScan). The producer-side wiring for
+     *  hash-shuffle ({@link org.opensearch.analytics.exec.AnalyticsSearchService#startFragment})
+     *  builds the framework {@code ShuffleSender} only on shard-fragment dispatches, not on
+     *  coordinator-reduce stages. If a hash-shuffle plan tried to put a {@code ShuffleExchange}
+     *  above an {@code Aggregate(FINAL)} that itself sits above an {@code ExchangeReducer}, the
+     *  producer would be a coordinator-reduce stage with no partitioned-sink hookup — the
+     *  worker waits forever on senders that never ship. */
     private static boolean isShardScan(RelNode rel) {
         OpenSearchDistribution dist = distributionOf(rel);
         if (dist == null) return false;
-        return dist.getLocality() == OpenSearchDistribution.Locality.SHARD;
+        if (dist.getLocality() != OpenSearchDistribution.Locality.SHARD) return false;
+        return isPureShardScanShape(rel);
+    }
+
+    /** Walks the subtree to make sure no Aggregate / Join sits between this rel and its
+     *  underlying TableScan. Project / Filter are allowed (they run on the shard). Anything
+     *  else (or no scan reachable) returns false. */
+    private static boolean isPureShardScanShape(RelNode rel) {
+        if (rel instanceof RelSubset subset) {
+            RelNode best = subset.getBestOrOriginal();
+            if (best == null || best == rel) return false;
+            return isPureShardScanShape(best);
+        }
+        if (rel instanceof OpenSearchTableScan) return true;
+        if (rel instanceof OpenSearchAggregate) return false;
+        if (rel instanceof OpenSearchJoin) return false;
+        for (RelNode input : rel.getInputs()) {
+            if (!isPureShardScanShape(input)) return false;
+        }
+        return !rel.getInputs().isEmpty();
     }
 
     @Override

@@ -207,14 +207,20 @@ public class FragmentConversionDriver {
         RelNode leaf = findLeaf(plan.resolvedFragment());
 
         if (leaf instanceof OpenSearchTableScan tableScan) {
+            // The leaf's qualified name is the planner's logical table name (alias / index pattern /
+            // index) — the same single segment isthmus emits as the Substrait NamedTable. Pass it to
+            // the data node so it registers the scanned shard's table under this name, instead of the
+            // backend reverse-engineering it from the plan bytes.
+            String logicalTableName = tableScan.getTable().getQualifiedName().getLast();
             // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
             // backend so it picks the row-id-aware table provider regardless of delegation.
             boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanWithDelegationNode(logicalTableName, treeShape, delegated.size(), requestsRowIds)
+                    .ifPresent(instructions::add);
             } else {
-                factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanNode(logicalTableName, requestsRowIds).ifPresent(instructions::add);
             }
         }
         return instructions;

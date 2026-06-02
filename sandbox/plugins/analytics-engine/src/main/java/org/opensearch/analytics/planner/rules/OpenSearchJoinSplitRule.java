@@ -104,7 +104,11 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
             return false;
         }
         JoinInfo info = join.analyzeCondition();
-        if (!info.isEqui()) {
+        // isEqui() returns true for `condition=true` (cross / 1=1) too, since the test is
+        // "no non-equi conditions". The MPP rules now also require non-empty leftKeys, so
+        // mirror that: if there are no equi keys, neither MPP rule can fire and coord must
+        // stay enabled or Volcano can't plan.
+        if (!info.isEqui() || info.leftKeys.isEmpty()) {
             return false;
         }
         // Both MPP rules need multi-shard SHARD scans on both sides. Single-shard or non-
@@ -163,16 +167,41 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         return partitionCount > 1;
     }
 
-    /** True when both inputs originate from SHARD-distributed scans with shardCount > 1
-     *  (the situation the broadcast/hash rules need to fire — single-shard scans can't
-     *  benefit from broadcast/hash and would fail the broadcast cost gate, which requires
-     *  RANDOM+SHARD on the probe). Unlike the rules' own check that looks at {@code
-     *  rel.getTraitSet()}, this version unwraps RelSubsets via best/original so a transient
-     *  demanded-trait subset doesn't make us think the inputs are non-SHARD. */
+    /** True when both inputs originate from SHARD-distributed scans with shardCount > 1 AND
+     *  the input subtree is a "pure" shard scan shape (no Aggregate/Join between the input
+     *  and the underlying TableScan). Both broadcast and hash split rules require this:
+     *  the producer-side wiring for shuffle and the build-side capture for broadcast both
+     *  assume SHARD-fragment dispatch, not coordinator-reduce. If an input is post-aggregate
+     *  (e.g. {@code stats by str0 | join …}), neither MPP rule fires, so coord-rule must
+     *  not suppress itself or Volcano can't plan. */
     private static boolean bothInputsCouldBeMppShardScans(OpenSearchJoin join) {
-        OpenSearchDistribution leftDist = originalDistribution(join.getLeft());
-        OpenSearchDistribution rightDist = originalDistribution(join.getRight());
-        return isMultiShard(leftDist) && isMultiShard(rightDist);
+        return isPureShardScanInput(join.getLeft()) && isPureShardScanInput(join.getRight());
+    }
+
+    /** Combines the multi-shard distribution check with the pure-shard-scan-shape walk that
+     *  matches what {@link OpenSearchHashJoinSplitRule} and
+     *  {@link OpenSearchBroadcastJoinSplitRule} actually require. */
+    private static boolean isPureShardScanInput(RelNode rel) {
+        OpenSearchDistribution dist = originalDistribution(rel);
+        if (!isMultiShard(dist)) return false;
+        return isPureShardScanShape(rel);
+    }
+
+    /** Walks the subtree to make sure no Aggregate / Join sits between this rel and its
+     *  underlying TableScan. Project / Filter are allowed (they run on the shard). */
+    private static boolean isPureShardScanShape(RelNode rel) {
+        if (rel instanceof org.apache.calcite.plan.volcano.RelSubset subset) {
+            RelNode best = subset.getBestOrOriginal();
+            if (best == null || best == rel) return false;
+            return isPureShardScanShape(best);
+        }
+        if (rel instanceof org.opensearch.analytics.planner.rel.OpenSearchTableScan) return true;
+        if (rel instanceof org.opensearch.analytics.planner.rel.OpenSearchAggregate) return false;
+        if (rel instanceof OpenSearchJoin) return false;
+        for (RelNode input : rel.getInputs()) {
+            if (!isPureShardScanShape(input)) return false;
+        }
+        return !rel.getInputs().isEmpty();
     }
 
     private static boolean isMultiShard(OpenSearchDistribution dist) {

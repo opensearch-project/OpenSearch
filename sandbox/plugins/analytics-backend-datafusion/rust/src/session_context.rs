@@ -249,18 +249,12 @@ pub async unsafe fn create_session_context(
     // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
     let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
 
-    // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
-    // which differs from table_name (the concrete shard index). Extract it from the plan and
-    // register under that name so the Substrait consumer binds correctly. For single-index
-    // queries (empty plan_bytes), table_name is already the correct concrete name.
-    let register_name = if !plan_bytes.is_empty() {
-        crate::api::first_named_table_name(plan_bytes).unwrap_or_else(|| {
-            error!("create_session_context: failed to extract table name from plan, falling back to concrete name: {}", table_name);
-            table_name.to_string()
-        })
-    } else {
-        table_name.to_string()
-    };
+    // `table_name` is the planner's logical name (alias / index pattern / index): the coordinator
+    // captured it from the plan's table-scan leaf and shipped it on the shard-scan instruction node
+    // (see ShardScanInstructionHandler). It already matches the Substrait plan's NamedTable, so we
+    // register under it directly — no need to reverse-engineer which read is the real table from the
+    // plan bytes (which could never reliably tell a real `input-7` index from a stage placeholder).
+    let register_name = table_name.to_string();
 
     // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
     let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &resolved_schema);

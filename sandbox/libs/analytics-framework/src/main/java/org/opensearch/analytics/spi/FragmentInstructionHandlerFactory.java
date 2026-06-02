@@ -28,8 +28,13 @@ public interface FragmentInstructionHandlerFactory {
     /**
      * Creates a shard scan instruction node. {@code requestsRowIds} signals that the scan
      * must emit shard-global {@code __row_id__} values (QTF query phase).
+     *
+     * @param logicalTableName the planner's logical table name (alias / index pattern / index) the
+     *                         backend should register the scanned shard's table under, or {@code null}
+     *                         to let the data node fall back to the concrete shard index name
+     * @param requestsRowIds   whether the scan must emit shard-global {@code __row_id__} values
      */
-    Optional<InstructionNode> createShardScanNode(boolean requestsRowIds);
+    Optional<InstructionNode> createShardScanNode(String logicalTableName, boolean requestsRowIds);
 
     /** Creates a filter delegation instruction node with the given delegation metadata. */
     Optional<InstructionNode> createFilterDelegationNode(
@@ -43,8 +48,16 @@ public interface FragmentInstructionHandlerFactory {
      * delegation config. {@code requestsRowIds} signals that the scan must emit shard-global
      * {@code __row_id__} values (QTF query phase). Backends that don't support QTF should
      * return {@link Optional#empty()} when {@code requestsRowIds} is true.
+     *
+     * @param logicalTableName the planner's logical table name (alias / index pattern / index) the
+     *                         backend should register the scanned shard's table under, or {@code null}
+     *                         to let the data node fall back to the concrete shard index name
+     * @param treeShape        the delegated filter tree shape
+     * @param delegatedPredicateCount number of delegated predicates
+     * @param requestsRowIds   whether the scan must emit shard-global {@code __row_id__} values
      */
     Optional<InstructionNode> createShardScanWithDelegationNode(
+        String logicalTableName,
         FilterTreeShape treeShape,
         int delegatedPredicateCount,
         boolean requestsRowIds

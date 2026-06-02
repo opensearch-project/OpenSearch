@@ -1297,18 +1297,6 @@ fn collect_plan_reads(plan: &substrait::proto::Plan) -> Vec<substrait::proto::Re
     reads
 }
 
-/// Extracts the table name from the first NamedTable read in the plan bytes.
-pub(crate) fn first_named_table_name(plan_bytes: &[u8]) -> Option<String> {
-    use substrait::proto::read_rel::ReadType;
-    let plan: substrait::proto::Plan = prost::Message::decode(plan_bytes).ok()?;
-    for read in collect_plan_reads(&plan) {
-        if let Some(ReadType::NamedTable(nt)) = read.read_type {
-            return nt.names.last().cloned();
-        }
-    }
-    None
-}
-
 /// Extracts the `base_schema` NamedStruct from the plan's first ReadRel matching `table_name`.
 pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &str) -> Option<substrait::proto::NamedStruct> {
     use substrait::proto::read_rel::ReadType;
@@ -1550,7 +1538,99 @@ pub unsafe fn sender_send(
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);
 
+    // The producer may emit a string column as plain Utf8 where the declared
+    // (sender/StreamingTable) schema is Utf8View, or vice versa — e.g. an outer
+    // join's null-fill side yields Utf8 while the live side yields Utf8View. The
+    // StreamingTable advertises the declared schema, and downstream operators
+    // rebuild RecordBatches against it, so an unconformed string-view mismatch
+    // fails later with a schema/batch type mismatch. Cast ONLY those columns to
+    // the declared type here. RelabelExec on the producer side only retags
+    // bit-compatible Int/UInt pairs; Utf8 and Utf8View have distinct buffer
+    // layouts, so this must be a real cast rather than a relabel. Other tolerated
+    // divergences (e.g. Timestamp precision) are left untouched — see
+    // conform_batch_to_schema.
+    let batch = conform_batch_to_schema(batch, sender.schema())?;
+
     sender.send_blocking(Ok(batch), io_handle)
+}
+
+/// Conforms a producer batch to the consumer-side `StreamingTable`'s `declared`
+/// schema, but ONLY for the Utf8/Utf8View string-view family — the one divergence
+/// that is a genuine buffer-layout mismatch (offset buffers vs. view buffers) that
+/// crashes downstream operators rebuilding batches against the declared schema.
+///
+/// Every other type divergence is left untouched: the column keeps its actual type
+/// and field. This mirrors the pre-conform behavior (the batch flowed through as-is)
+/// and matches the Java sink's `typesMatch` tripwire, which deliberately tolerates
+/// e.g. Timestamp precision/timezone differences as advisory — a real
+/// [`arrow::compute::cast`] there would truncate sub-precision or shift values the
+/// previous contract treated as round-trippable. String-view conversion is the only
+/// safe, value-preserving cast (both are byte-identical UTF-8), so it is the only one
+/// performed here.
+fn conform_batch_to_schema(
+    batch: RecordBatch,
+    declared: &SchemaRef,
+) -> Result<RecordBatch, DataFusionError> {
+    if batch.schema().fields().len() != declared.fields().len() {
+        return Err(DataFusionError::Execution(format!(
+            "sender_send: batch column count {} does not match declared schema {}",
+            batch.schema().fields().len(),
+            declared.fields().len()
+        )));
+    }
+
+    let needs_conform = batch
+        .schema()
+        .fields()
+        .iter()
+        .zip(declared.fields().iter())
+        .any(|(actual, want)| {
+            actual.data_type() != want.data_type()
+                && is_utf8_family(actual.data_type())
+                && is_utf8_family(want.data_type())
+        });
+    if !needs_conform {
+        return Ok(batch);
+    }
+
+    // Build the output column-by-column: cast only the string-view-family mismatches
+    // to the declared type; keep every other column (and any tolerated divergence such
+    // as Timestamp precision) with its own actual type. The output schema therefore
+    // uses the declared field for conformed columns and the batch's own field otherwise.
+    let actual_fields = batch.schema().fields().clone();
+    let mut fields = Vec::with_capacity(batch.num_columns());
+    let mut columns = Vec::with_capacity(batch.num_columns());
+    for (i, want) in declared.fields().iter().enumerate() {
+        let col = batch.column(i);
+        if col.data_type() != want.data_type() && is_utf8_family(col.data_type()) && is_utf8_family(want.data_type()) {
+            let cast = arrow::compute::cast(col, want.data_type()).map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "sender_send: failed to cast column {} ('{}') from {:?} to declared {:?}: {}",
+                    i,
+                    want.name(),
+                    col.data_type(),
+                    want.data_type(),
+                    e
+                ))
+            })?;
+            columns.push(cast);
+            fields.push(Arc::clone(want));
+        } else {
+            columns.push(Arc::clone(col));
+            fields.push(Arc::clone(&actual_fields[i]));
+        }
+    }
+    let target_schema = Arc::new(arrow_schema::Schema::new(fields));
+    RecordBatch::try_new(target_schema, columns).map_err(|e| {
+        DataFusionError::Execution(format!("sender_send: failed to assemble conformed batch: {}", e))
+    })
+}
+
+/// Utf8 / Utf8View — the string-view family whose two variants share byte-identical
+/// UTF-8 content but use distinct buffer layouts. Mirrors the Java sink's
+/// `isUtf8Family` so both sides agree on which divergence is safe to cast.
+fn is_utf8_family(t: &DataType) -> bool {
+    matches!(t, DataType::Utf8 | DataType::Utf8View)
 }
 
 /// Closes a partition stream sender. Dropping the sender closes the mpsc,
@@ -1714,13 +1794,122 @@ mod tests {
     }
 
     #[test]
-    fn test_first_named_table_name_returns_none_on_empty() {
-        assert_eq!(super::first_named_table_name(&[]), None);
+    fn conform_batch_casts_utf8_to_declared_utf8view() {
+        use arrow_array::StringArray;
+        use arrow_schema::{Field, Schema};
+
+        let declared: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("s", DataType::Utf8View, true),
+            Field::new("n", DataType::Int64, false),
+        ]));
+        // Producer emitted plain Utf8 for the string column.
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("s", DataType::Utf8, true),
+                Field::new("n", DataType::Int64, false),
+            ])),
+            vec![
+                Arc::new(StringArray::from(vec![Some("a"), None, Some("c")])),
+                Arc::new(arrow_array::Int64Array::from(vec![1, 2, 3])),
+            ],
+        )
+        .unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        assert_eq!(out.schema().as_ref(), declared.as_ref());
+        assert_eq!(out.column(0).data_type(), &DataType::Utf8View);
+        let view = out
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringViewArray>()
+            .unwrap();
+        assert_eq!(view.value(0), "a");
+        assert!(view.is_null(1));
+        assert_eq!(view.value(2), "c");
+        // Non-divergent column is untwiddled.
+        assert_eq!(out.column(1).data_type(), &DataType::Int64);
     }
 
     #[test]
-    fn test_first_named_table_name_returns_none_on_garbage() {
-        assert_eq!(super::first_named_table_name(&[0xFF, 0x00, 0x01]), None);
+    fn conform_batch_is_noop_when_schemas_match() {
+        use arrow_schema::{Field, Schema};
+
+        let declared: SchemaRef =
+            Arc::new(Schema::new(vec![Field::new("n", DataType::Int64, false)]));
+        let col: arrow_array::ArrayRef = Arc::new(arrow_array::Int64Array::from(vec![10, 20]));
+        let batch = RecordBatch::try_new(Arc::clone(&declared), vec![Arc::clone(&col)]).unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        // Matching column keeps its original Arc (no copy).
+        assert!(Arc::ptr_eq(out.column(0), &col));
+    }
+
+    #[test]
+    fn conform_batch_passes_through_timestamp_precision_divergence() {
+        use arrow_array::{TimestampMillisecondArray, TimestampNanosecondArray};
+        use arrow_schema::{Field, Schema, TimeUnit};
+
+        // Declared stream schema says Millisecond; producer emitted Nanosecond. A real cast
+        // would truncate sub-ms precision — the Java tripwire tolerates this as advisory, so
+        // the conform step must leave the column (and its actual type) untouched.
+        let declared: SchemaRef = Arc::new(Schema::new(vec![Field::new(
+            "ts",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            true,
+        )]));
+        let col: arrow_array::ArrayRef =
+            Arc::new(TimestampNanosecondArray::from(vec![1_000_000_001i64, 2_000_000_999]));
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new(
+                "ts",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            )])),
+            vec![Arc::clone(&col)],
+        )
+        .unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        // Column passes through unchanged — same Arc, original nanosecond type, no truncation.
+        assert!(Arc::ptr_eq(out.column(0), &col));
+        assert_eq!(out.column(0).data_type(), &DataType::Timestamp(TimeUnit::Nanosecond, None));
+        let ts = out
+            .column(0)
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(ts.value(0), 1_000_000_001);
+        assert_eq!(ts.value(1), 2_000_000_999);
+    }
+
+    #[test]
+    fn conform_batch_casts_only_string_view_leaving_timestamp_alone() {
+        use arrow_array::{StringArray, TimestampNanosecondArray};
+        use arrow_schema::{Field, Schema, TimeUnit};
+
+        // Mixed batch: a Utf8→Utf8View mismatch (must cast) alongside a tolerated
+        // Timestamp precision mismatch (must pass through).
+        let declared: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("s", DataType::Utf8View, true),
+            Field::new("ts", DataType::Timestamp(TimeUnit::Millisecond, None), true),
+        ]));
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("s", DataType::Utf8, true),
+                Field::new("ts", DataType::Timestamp(TimeUnit::Nanosecond, None), true),
+            ])),
+            vec![
+                Arc::new(StringArray::from(vec![Some("x"), Some("y")])),
+                Arc::new(TimestampNanosecondArray::from(vec![10i64, 20])),
+            ],
+        )
+        .unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        // String column conformed to the declared view type.
+        assert_eq!(out.column(0).data_type(), &DataType::Utf8View);
+        // Timestamp column kept its actual (nanosecond) type — not truncated to the declared ms.
+        assert_eq!(out.column(1).data_type(), &DataType::Timestamp(TimeUnit::Nanosecond, None));
     }
 
     #[test]

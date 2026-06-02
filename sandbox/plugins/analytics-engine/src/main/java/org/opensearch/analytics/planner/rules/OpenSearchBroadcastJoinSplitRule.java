@@ -65,7 +65,11 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
         }
         OpenSearchJoin join = call.rel(0);
         JoinInfo info = join.analyzeCondition();
-        if (!info.isEqui()) {
+        // isEqui() returns true for `condition=true` (cross / 1=1) too, since the test is
+        // "no non-equi conditions". For broadcast we additionally need at least one equi key
+        // — pure cross joins must route through the coord-centric path so the build-side
+        // doesn't carry no-key broadcast data the probe Substrait can't consume.
+        if (!info.isEqui() || info.leftKeys.isEmpty()) {
             return false;
         }
         // Refuse to fire on already-resolved alternatives. Both inputs must be vanilla
