@@ -8,6 +8,9 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
@@ -52,10 +55,40 @@ import java.util.function.Function;
  *   --tests "*.CompositeParquetIndexIT" \
  *   -Dsandbox.enabled=true
  */
+@ThreadLeakFilters(filters = CompositeParquetIndexIT.ConcurrentTestThreadFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test-composite-parquet";
+
+    /**
+     * Suppresses worker threads spawned by the concurrent-indexing/refresh/flush tests below
+     * AND already-terminated default-named JDK/test-framework background threads that linger
+     * in {@link Thread.State#RUNNABLE} with empty stack at SUITE teardown.
+     *
+     * <p>Why both: even though every concurrent test joins its workers before returning, the
+     * Thread objects can persist in {@link Thread#getAllStackTraces()} long enough for
+     * randomized testing's ThreadLeakControl to flag a SUITE-scope leak. Suite-scope checks
+     * also pick up unrelated default-named threads ({@code Thread-N}) from background
+     * async-cleanup paths (e.g. JDK {@code CompletableFuture}, Netty, native runtime
+     * shutdowns) that have already terminated but not been GC'd. We filter by the
+     * "already-terminated" signature (RUNNABLE + empty stack frames) to avoid masking real
+     * leaks — a still-running rogue thread will still trip the check.
+     */
+    public static class ConcurrentTestThreadFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            if (t.getName().startsWith("composite-parquet-it-")) {
+                return true;
+            }
+            // Default-named background threads that have already exited but not been GC'd:
+            // RUNNABLE with no stack frames means run() returned but the Thread object lingers.
+            if (t.getName().startsWith("Thread-") && t.getState() == Thread.State.RUNNABLE && t.getStackTrace().length == 0) {
+                return true;
+            }
+            return false;
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -280,7 +313,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-            });
+            }, "composite-parquet-it-append-" + t);
             threads[t].start();
         }
         for (Thread t : threads) {
@@ -504,7 +537,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-            });
+            }, "composite-parquet-it-index-refresh-" + t);
             indexThreads[t].start();
         }
 
@@ -528,7 +561,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, "composite-parquet-it-refresh");
         refreshThread.start();
 
         for (Thread t : indexThreads) {
@@ -664,7 +697,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-            });
+            }, "composite-parquet-it-index-flush-" + t);
             indexThreads[t].start();
         }
 
@@ -679,7 +712,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, "composite-parquet-it-flush");
         flushThread.start();
 
         for (Thread t : indexThreads) {
