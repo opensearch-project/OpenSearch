@@ -196,6 +196,10 @@ exit 0
 %post
 set -e
 
+# Create tmp directory for snapshot operations (avoids filling /tmp)
+mkdir -p %{data_dir}/tmp
+chown %{name}:%{name} %{data_dir}/tmp
+
 # Fix ownership and permissions
 chown -R %{name}:%{name} %{config_dir}
 chown -R %{name}:%{name} %{log_dir}

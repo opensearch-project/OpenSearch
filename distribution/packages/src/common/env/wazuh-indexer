@@ -18,6 +18,10 @@ OPENSEARCH_PATH_CONF=${path.conf}
 # Additional Java OPTS
 #OPENSEARCH_JAVA_OPTS=
 
+# Temporary directory used by the JVM and OpenSearch for snapshot downloads,
+# extraction, and other transient files.
+OPENSEARCH_TMPDIR=/var/lib/wazuh-indexer/tmp
+
 # Configure restart on package upgrade (true, every other setting will lead to not restarting)
 #RESTART_ON_UPGRADE=true
 
