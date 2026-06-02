@@ -71,7 +71,7 @@ impl LocalSession {
     pub fn new(runtime_env: &RuntimeEnv) -> Self {
         let runtime_env = Arc::new(runtime_env.clone());
         let mut config = SessionConfig::new();
-        config.options_mut().execution.target_partitions = 4;
+        config.options_mut().execution.target_partitions = crate::api::get_reduce_target_partitions();
         let state = SessionStateBuilder::new()
             .with_config(config)
             .with_runtime_env(runtime_env)
@@ -471,7 +471,7 @@ mod tests {
         let ctx_id = 98_765;
         let pool: Arc<dyn datafusion::execution::memory_pool::MemoryPool> =
             Arc::new(GreedyMemoryPool::new(10_000));
-        let _tracking = QueryTrackingContext::new(ctx_id, pool);
+        let _tracking = QueryTrackingContext::new(ctx_id, pool, query_tracker::QueryType::Coordinator);
 
         // A future that would block indefinitely — `cancel_query` is the
         // only way out. Mirrors a coord reduce stalled on an input partition

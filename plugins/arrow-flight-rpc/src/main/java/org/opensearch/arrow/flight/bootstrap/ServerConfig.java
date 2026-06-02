@@ -14,6 +14,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 
 import java.security.AccessController;
@@ -145,6 +147,33 @@ public class ServerConfig {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Maximum time the producer thread parks in {@code FlightServerChannel.awaitReadyOrThrow}
+     * before failing the batch with
+     * {@link org.opensearch.transport.stream.StreamErrorCode#TIMED_OUT}.
+     */
+    public static final Setting<TimeValue> FLIGHT_READY_TIMEOUT = Setting.timeSetting(
+        "arrow.flight.channel.ready_timeout",
+        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueMillis(100),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Per-stream outbound buffered-bytes threshold passed to gRPC's
+     * {@code setOnReadyThreshold}. {@code isReady()} flips false once the per-stream
+     * outbound buffer crosses this size; the producer parks on that signal. Set this
+     * strictly below {@code native.allocator.pool.flight.max} so the gate engages
+     * before the allocator runs out.
+     */
+    public static final Setting<ByteSizeValue> FLIGHT_OUTBOUND_BUFFER_THRESHOLD = Setting.byteSizeSetting(
+        "arrow.flight.channel.outbound_buffer_threshold",
+        new ByteSizeValue(64, ByteSizeUnit.MB),
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(2, ByteSizeUnit.GB),
+        Setting.Property.NodeScope
+    );
+
     static final Setting<Integer> FLIGHT_EVENT_LOOP_THREADS = Setting.intSetting(
         "flight.event_loop.threads",
         Math.max(1, NettyRuntime.availableProcessors() * 2),
@@ -262,7 +291,9 @@ public class ServerConfig {
                 ARROW_ENABLE_UNSAFE_MEMORY_ACCESS,
                 ARROW_SSL_ENABLE,
                 FLIGHT_EVENT_LOOP_THREADS,
-                FLIGHT_THREAD_POOL_MIN_SIZE
+                FLIGHT_THREAD_POOL_MIN_SIZE,
+                FLIGHT_READY_TIMEOUT,
+                FLIGHT_OUTBOUND_BUFFER_THRESHOLD
             )
         );
     }
