@@ -185,6 +185,7 @@ pub struct BloomConfig {
     pub object_path: object_store::path::Path,
     pub metadata: Arc<ParquetMetaData>,
     pub arrow_schema: Arc<datafusion::arrow::datatypes::Schema>,
+    pub io_handle: tokio::runtime::Handle,
     pub rg_bloom_pruned: Option<datafusion::physical_plan::metrics::Count>,
     pub bloom_filter_eval_time: Option<datafusion::physical_plan::metrics::Time>,
 }
@@ -286,10 +287,11 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         }
 
         // Bloom filter pruning: runs after page pruning (free) but before
-        // the expensive FFM collector call.
+        // the expensive FFM collector call. Uses the IO runtime handle from
+        // the RuntimeManager to drive the async object-store read.
         if let (Some(bloom), Some(pp)) = (&self.bloom_config, &self.pruning_predicate) {
             let _timer = bloom.bloom_filter_eval_time.as_ref().map(|t| t.timer());
-            let pruned = futures::executor::block_on(
+            let pruned = bloom.io_handle.block_on(
                 crate::indexed_table::bloom_pruner::bloom_prune_rg(
                     &*bloom.store,
                     &bloom.object_path,

@@ -47,6 +47,9 @@ pub struct SessionContextHandle {
     pub indexed_config: Option<IndexedExecutionConfig>,
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
+    /// IO runtime handle for bloom filter reads and other async I/O dispatched
+    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
@@ -306,6 +309,7 @@ pub async unsafe fn create_session_context(
         table_name: table_name.to_string(),
         indexed_config: None,
         query_config,
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: phantom,
@@ -517,6 +521,7 @@ mod tests {
             table_name: "t".to_string(),
             indexed_config: None,
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
+            io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
             prepared_plan: None,
             phantom_reservation: None,

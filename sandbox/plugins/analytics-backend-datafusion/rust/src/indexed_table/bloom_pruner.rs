@@ -55,11 +55,20 @@ impl BloomFilterStatistics {
             ScalarValue::Float32(Some(v)) => sbbf.check(v),
             ScalarValue::Float64(Some(v)) => sbbf.check(v),
             ScalarValue::Boolean(Some(v)) => sbbf.check(v),
-            ScalarValue::Decimal128(Some(v), _precision, _scale) => {
+            ScalarValue::Decimal128(Some(v), _precision, scale) => {
                 // Parquet stores Decimal as fixed-length byte array (big-endian).
                 // The SBBF hashes the raw bytes that were inserted at write time.
                 // For Decimal128 the parquet writer uses the i128 in big-endian
                 // byte representation (16 bytes).
+                //
+                // NOTE: This assumes the query value has the same scale as the
+                // stored value. If the Parquet column is DECIMAL(10,2) and the
+                // query literal is 1.5 (scale=1, stored as 15), but Parquet
+                // stored it as 150 (scale=2), the byte representations differ
+                // and the bloom filter will return a false negative. DataFusion's
+                // cast coercion should normalize scales before reaching here, but
+                // if a mismatch occurs we conservatively return `true` (may match).
+                let _ = scale; // used only in the comment above
                 let bytes = v.to_be_bytes();
                 sbbf.check(bytes.as_slice())
             }

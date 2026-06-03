@@ -179,6 +179,7 @@ pub async fn execute_indexed_query(
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: None,
@@ -475,6 +476,7 @@ async unsafe fn execute_indexed_with_context_inner(
     let object_metas = handle.object_metas;
     let writer_generations = handle.writer_generations;
     let query_context = handle.query_context;
+    let io_handle = handle.io_handle;
     // Extract context_id early so it can be captured by the per-segment closures
     // below. The closures pass it through every FFM upcall so Java can route each
     // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
@@ -698,6 +700,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             object_path: segment.object_path.clone(),
                             metadata: Arc::clone(&segment.metadata),
                             arrow_schema: Arc::clone(&bloom_schema),
+                            io_handle: io_handle.clone(),
                             rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
                             bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
                         })
