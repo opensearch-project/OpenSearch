@@ -1,0 +1,1 @@
+source=%INDEX% | stats percentile(amount, 50)

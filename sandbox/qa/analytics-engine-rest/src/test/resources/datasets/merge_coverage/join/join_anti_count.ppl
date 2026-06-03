@@ -1,0 +1,1 @@
+source=%INDEX% | left anti join left=a, right=b ON a.category = b.category [ source=%INDEX% | where amount > 25 ] | stats count() as cnt
