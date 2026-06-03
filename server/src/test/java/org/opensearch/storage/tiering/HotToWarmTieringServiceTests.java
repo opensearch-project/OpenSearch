@@ -116,7 +116,14 @@ public class HotToWarmTieringServiceTests extends OpenSearchTestCase {
         assertEquals("false", settings.get(IS_WARM_INDEX_SETTING.getKey()));
         assertEquals(TieringState.HOT.toString(), settings.get(INDEX_TIERING_STATE.getKey()));
         assertEquals("default", settings.get(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey()));
-        assertEquals("false", settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+        // INDEX_BLOCKS_WRITE is intentionally NOT set during cancel — the write block is deferred
+        // and lifted by TieringService.removeWriteBlockForCancelledDfaIndices() only after all
+        // shards are confirmed started on hot nodes (writable engine). Removing it here would
+        // allow writes to reach warm-node shards that still run a read-only engine.
+        assertNull(
+            "blocks.write must NOT be set during cancel — deferred to removeWriteBlockForCancelledDfaIndices()",
+            settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey())
+        );
     }
 
     public void testGetIndexTierSettingsToRestoreAfterCancellation_NonDfaIndex_NoWriteBlockSetting() {
@@ -136,15 +143,22 @@ public class HotToWarmTieringServiceTests extends OpenSearchTestCase {
         assertSame("getTieringStartClusterBlocksToAdd must be a no-op for H2W", builder, result);
     }
 
-    public void testGetIndexTierClusterBlocksToRestoreAfterCancellation_RemovesWriteBlock() {
-        // Cancel H2W: write block must be removed so the index is writable again
+    public void testGetIndexTierClusterBlocksToRestoreAfterCancellation_IsNoOp() {
+        // H2W cancel: the cluster-level INDEX_WRITE_BLOCK is intentionally kept on the index
+        // during cancel so that writes cannot reach shards that are still on warm nodes and
+        // running a read-only engine. The block is removed later by
+        // TieringService.removeWriteBlockForCancelledDfaIndices() once all shards are confirmed
+        // started on hot nodes.
         String indexName = "test-index";
         ClusterBlocks.Builder builder = ClusterBlocks.builder().addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
 
         ClusterBlocks result = service.getIndexTierClusterBlocksToRestoreAfterCancellation(builder, indexName, buildDfaIndexMetadata())
             .build();
 
-        assertFalse("INDEX_WRITE_BLOCK must be removed after H2W cancel", result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
+        assertTrue(
+            "INDEX_WRITE_BLOCK must be KEPT during H2W cancel — deferred removal until shards are on hot",
+            result.hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+        );
     }
 
     public void testGetTieringStartTimeKey() {

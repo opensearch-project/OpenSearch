@@ -28,4 +28,13 @@ public sealed interface ScanCapability {
     /** Row-oriented stored fields (e.g. Lucene _source, stored fields). */
     record StoredFields(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {
     }
+
+    /**
+     * Index — drives metadata-only ops (count today; group-by-count, top-K terms later)
+     * via the index. Cannot deliver row values; consumers needing values must check
+     * value-producing caps. Today only Lucene's inverted index satisfies this, for
+     * keyword/text/match_only_text.
+     */
+    record Index(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {
+    }
 }

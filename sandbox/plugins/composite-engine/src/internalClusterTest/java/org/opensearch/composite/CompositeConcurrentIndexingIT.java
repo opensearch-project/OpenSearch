@@ -20,6 +20,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.CommitStats;
@@ -262,6 +263,147 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         assertEquals("No threads should have failed", 0, failures.get());
 
         // Final refresh + flush
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+
+        verifyIndex(indexName, numShards, indexedCount.get());
+    }
+
+    /**
+     * Stress test for the flush/refresh interleaving fixed by holding {@code refreshLock}
+     * across the entire {@code DataFormatAwareEngine.flush()} body. Without that lock, a
+     * refresh that fires between {@code committer.commit()} and {@code updateLastCommitInfo()}
+     * advances {@code latestCatalogSnapshot}, leaving the just-committed snapshot with a stale
+     * {@code lastCommitFileName} that may point to a {@code segments_<N>} the deletion sweep
+     * has already removed — surfacing later as peer-recovery {@code NoSuchFileException}.
+     *
+     * <p>The test pushes high contention with multiple parallel indexer + flusher + refresher
+     * threads. After every flush, each flusher reads back the just-committed snapshot's
+     * {@code lastCommitFileName} and asserts it (a) is non-null and (b) references a Lucene
+     * commit file that actually exists on disk — the direct invariant the {@code refreshLock}
+     * fix protects.
+     */
+    public void testConcurrentFlushAndRefreshHoldsRefreshLock() throws Exception {
+        String indexName = INDEX_NAMES[0];
+        int numShards = 1;
+        int docsPerIndexer = 50;
+        int numIndexers = 4;
+        int numFlushers = 3;
+        int numRefreshers = 3;
+        int flushesPerThread = 8;
+        int refreshesPerThread = 8;
+
+        client().admin().indices().prepareCreate(indexName).setSettings(indexSettings(numShards)).get();
+        ensureGreen(indexName);
+
+        // Resolve the primary shard once — used by flushers to read back commit-state invariant
+        ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        IndexShard primaryShard = null;
+        for (String node : internalCluster().getDataNodeNames()) {
+            try {
+                IndexShard s = getIndexShard(node, shardId, indexName);
+                if (s != null && s.routingEntry().primary()) {
+                    primaryShard = s;
+                    break;
+                }
+            } catch (Exception ignore) {}
+        }
+        assertNotNull("primary shard for [" + indexName + "][0] must be available", primaryShard);
+        final IndexShard primary = primaryShard;
+
+        AtomicInteger failures = new AtomicInteger(0);
+        AtomicInteger raceDetected = new AtomicInteger(0);
+        AtomicInteger indexedCount = new AtomicInteger(0);
+        CyclicBarrier barrier = new CyclicBarrier(numIndexers + numFlushers + numRefreshers);
+
+        Thread[] indexers = new Thread[numIndexers];
+        for (int t = 0; t < numIndexers; t++) {
+            final int threadId = t;
+            indexers[t] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < docsPerIndexer; i++) {
+                        client().prepareIndex()
+                            .setIndex(indexName)
+                            .setSource("name", "t" + threadId + "_d" + i, "value", threadId * 1000 + i)
+                            .get();
+                        indexedCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    failures.incrementAndGet();
+                }
+            }, "race-indexer-" + t);
+        }
+
+        Thread[] flushers = new Thread[numFlushers];
+        for (int t = 0; t < numFlushers; t++) {
+            flushers[t] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < flushesPerThread; i++) {
+                        Thread.sleep(randomIntBetween(20, 80));
+                        client().admin().indices().prepareFlush(indexName).setForce(false).setWaitIfOngoing(true).get();
+
+                        // Direct invariant: the just-committed snapshot's lastCommitFileName
+                        // must (a) be non-null and (b) reference a segments_<N> that is still
+                        // on disk. A refresh racing inside flush() leaves the committed snapshot
+                        // with a stale name; once the next deletion sweep runs that file is gone.
+                        try (GatedCloseable<CatalogSnapshot> ref = primary.acquireSafeCatalogSnapshot()) {
+                            String reported = ref.get().getLastCommitFileName();
+                            if (reported == null || !reported.startsWith("segments_")) {
+                                raceDetected.incrementAndGet();
+                                continue;
+                            }
+                            primary.store().incRef();
+                            try {
+                                Set<String> diskFiles = new HashSet<>(Arrays.asList(primary.store().directory().listAll()));
+                                if (!diskFiles.contains(reported)) {
+                                    raceDetected.incrementAndGet();
+                                }
+                            } finally {
+                                primary.store().decRef();
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    failures.incrementAndGet();
+                }
+            }, "race-flusher-" + t);
+        }
+
+        Thread[] refreshers = new Thread[numRefreshers];
+        for (int t = 0; t < numRefreshers; t++) {
+            refreshers[t] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < refreshesPerThread; i++) {
+                        Thread.sleep(randomIntBetween(10, 40));
+                        client().admin().indices().prepareRefresh(indexName).get();
+                    }
+                } catch (Exception e) {
+                    failures.incrementAndGet();
+                }
+            }, "race-refresher-" + t);
+        }
+
+        for (Thread t : indexers)
+            t.start();
+        for (Thread t : flushers)
+            t.start();
+        for (Thread t : refreshers)
+            t.start();
+
+        for (Thread t : indexers)
+            t.join(60_000);
+        for (Thread t : flushers)
+            t.join(60_000);
+        for (Thread t : refreshers)
+            t.join(60_000);
+
+        assertEquals("No worker thread should have failed under concurrent flush/refresh", 0, failures.get());
+        assertEquals("Committed snapshot's lastCommitFileName must always match an existing segments_<N> on disk", 0, raceDetected.get());
+
+        // Final flush so committed snapshot reflects all indexed docs
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 

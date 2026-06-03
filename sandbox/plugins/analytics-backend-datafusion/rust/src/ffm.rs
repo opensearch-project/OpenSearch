@@ -157,6 +157,11 @@ pub extern "C" fn df_set_min_target_partitions(value: i64) {
     api::set_min_target_partitions(value);
 }
 
+#[no_mangle]
+pub extern "C" fn df_set_reduce_target_partitions(value: i64) {
+    api::set_reduce_target_partitions(value);
+}
+
 /// Sets memory guard thresholds. Values are thresholds multiplied by 1000
 /// (e.g., 700 = 0.70, 850 = 0.85, 950 = 0.95).
 #[no_mangle]
@@ -345,6 +350,13 @@ pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
 #[no_mangle]
 pub extern "C" fn df_cancel_query(context_id: i64) {
     api::cancel_query(context_id);
+}
+
+/// Sets the cancellation stats threshold in milliseconds.
+/// Queries cancelled for less than this duration are not counted in stats.
+#[no_mangle]
+pub extern "C" fn df_set_cancel_stats_threshold_ms(millis: i64) {
+    crate::query_tracker::set_cancel_stats_threshold(millis as u64);
 }
 
 // ---------------------------------------------------------------------------

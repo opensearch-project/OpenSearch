@@ -138,7 +138,7 @@ pub async unsafe fn create_session_context(
     let shard_view = &*(shard_view_ptr as *const ShardView);
 
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool.clone());
+    let query_context = QueryTrackingContext::new(context_id, global_pool.clone(), crate::query_tracker::QueryType::Shard);
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn MemoryPool>);
@@ -339,10 +339,10 @@ pub async unsafe fn create_session_context_indexed(
 ) -> Result<i64, DataFusionError> {
     let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config, plan_bytes).await?;
 
-    // Augment with indexed config and UDF registration
+    // Augment with indexed config. The delegation marker UDFs (index_filter, delegation_possible)
+    // are now registered for every session by udf::register_all (via create_session_context above);
+    // the indexed path additionally UNWRAPS them before execution.
     let handle = &mut *(ptr as *mut SessionContextHandle);
-    handle.ctx.register_udf(crate::indexed_table::substrait_to_tree::create_index_filter_udf());
-    handle.ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     handle.indexed_config = Some(IndexedExecutionConfig {
         tree_shape,
         delegated_predicate_count,
@@ -506,7 +506,7 @@ mod tests {
         let table_path = datafusion::datasource::listing::ListingTableUrl::parse("file:///tmp")
             .expect("table_path");
         let global_pool = ctx.runtime_env().memory_pool.clone();
-        let query_context = QueryTrackingContext::new(0, global_pool);
+        let query_context = QueryTrackingContext::new(0, global_pool, crate::query_tracker::QueryType::Shard);
 
         let handle = SessionContextHandle {
             ctx,

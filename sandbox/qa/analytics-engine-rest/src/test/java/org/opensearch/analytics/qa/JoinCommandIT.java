@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -19,7 +18,7 @@ import java.util.Map;
 
 /**
  * Integration tests for PPL commands that lower to {@code LogicalJoin} on the
- * analytics-engine route (POST /_analytics/ppl).
+ * analytics-engine route (POST /_plugins/_ppl).
  *
  * <p>Exercises the three commands that produce a join RelNode:
  * <ul>
@@ -37,9 +36,6 @@ import java.util.Map;
  * without pulling in a second dataset. Row-count assertions are used for this
  * exploratory coverage — the IT focuses on whether each command plans, converts
  * to Substrait, and executes end-to-end rather than on exact row values.
- *
- * <p>All join / lookup tests pass end-to-end. {@code testAppendcol} is
- * {@code @AwaitsFix} — see task #113.
  */
 public class JoinCommandIT extends AnalyticsRestTestCase {
 
@@ -52,7 +48,8 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
      * Lazily provision both calcs indices on first invocation. Called inside test
      * methods — {@code client()} is not available in {@code @BeforeClass}.
      */
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), CALCS);
             DatasetProvisioner.provision(client(), CALCS_ALT);
@@ -192,15 +189,11 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
 
     /**
      * appendcol pairs the outer pipeline with a subsearch by synthesized row
-     * number. PPL grammar does not allow {@code source=…} inside the
-     * {@code appendcol [ … ]} brackets — the subsearch operates on the implicit
-     * upstream input.
-     *
-     * <p><b>Pending (window-function track)</b>: appendcol lowers to
-     * {@code ROW_NUMBER() OVER (ORDER BY …)} for pairing rows. Window-function
-     * support is a follow-up.
+     * number, lowered to {@code ROW_NUMBER() OVER (ORDER BY …)} + a FULL OUTER
+     * LogicalJoin on the row numbers. PPL grammar does not allow {@code source=…}
+     * inside the {@code appendcol [ … ]} brackets — the subsearch operates on
+     * the implicit upstream input.
      */
-    @AwaitsFix(bugUrl = "Task #113: appendcol plans correctly (ROW_NUMBER supported) but hits the same AggregateSplit-under-per-side-ER issue surfacing a runtime schema coercion mismatch.")
     public void testAppendcol() throws IOException {
         final String ppl = "source="
             + CALCS.indexName
@@ -276,7 +269,7 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
     private void assertRowCountPositive(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Expected single count row for query: " + ppl, 1, rows.size());
         Object actual = rows.get(0).get(0);
@@ -294,7 +287,7 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
     private void assertSingleCount(String ppl, long expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Expected single count row for query: " + ppl, 1, rows.size());
         Object actual = rows.get(0).get(0);
@@ -305,14 +298,8 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
         assertEquals("Count mismatch for query: " + ppl, expected, ((Number) actual).longValue());
     }
 
-    /** Send {@code POST /_analytics/ppl} and return the parsed JSON body. */
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
+    /** Send {@code POST /_plugins/_ppl} and return the parsed JSON body. */
+
 
     /**
      * Send a PPL query expecting a failure and assert the response body contains
@@ -327,8 +314,8 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(

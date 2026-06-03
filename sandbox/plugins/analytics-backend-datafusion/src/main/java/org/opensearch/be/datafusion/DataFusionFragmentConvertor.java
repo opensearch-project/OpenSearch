@@ -25,6 +25,7 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.ColumnStrategy;
@@ -37,6 +38,7 @@ import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Optionality;
@@ -49,6 +51,8 @@ import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -106,8 +110,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
+    /** TopK reduce expression: evaluates opaque aggregate state to a sortable scalar. */
+    static final SqlOperator REDUCE_EVAL_OP = new SqlFunction(
+        "reduce_eval",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(REDUCE_EVAL_OP, "reduce_eval"),
         FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
@@ -293,6 +308,30 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    /**
+     * PPL {@code percentile_approx(field, percentile)} → DataFusion's builtin
+     * {@code approx_percentile_cont(field, percentile)}. PPL's trailing field-type-flag
+     * arg is stripped by {@link PplAggregateCallRewriter} before binding; the percentile
+     * literal is rescaled from PPL's [0, 100] to DataFusion's [0, 1] convention via
+     * {@link LocalAggOp#normaliseLiteralArg} at substrait emission.
+     */
+    static final LocalAggOp LOCAL_PERCENTILE_APPROX_OP = new LocalAggOp(
+        "approx_percentile_cont",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0.andThen(SqlTypeTransforms.FORCE_NULLABLE),
+        OperandTypes.ANY_ANY
+    ) {
+        @Override
+        public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+            if (argIndex == 1 && lit.getValue() instanceof BigDecimal bd) {
+                BigDecimal scaled = bd.divide(BigDecimal.valueOf(100), MathContext.DECIMAL64);
+                RelDataType doubleType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
+                return rexBuilder.makeLiteral(scaled, doubleType);
+            }
+            return lit;
+        }
+    };
+
     /** BRAIN window stub for {@code patterns ... method=BRAIN mode=label}. */
     static final SqlAggFunction LOCAL_INTERNAL_PATTERN_WINDOW_OP = new SqlAggFunction(
         "internal_pattern",
@@ -331,11 +370,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg"),
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
+        FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern")
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
-        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern")
+        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern"),
+        // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
     );
 
     /**
@@ -370,7 +412,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
             fieldNames(partialAggFragment)
         );
-        return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
+        return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewired));
     }
 
     /**
@@ -405,7 +447,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             .setRoot(io.substrait.proto.RelRoot.newBuilder().setInput(inputRel).addAllNames(rowType.getFieldNames()).build())
             .build();
 
-        byte[] bytes = io.substrait.proto.Plan.newBuilder().addRelations(planRel).build().toByteArray();
+        byte[] bytes = SubstraitPlanProtoRewriter.rewrite(io.substrait.proto.Plan.newBuilder().addRelations(planRel).build()).toByteArray();
         LOGGER.debug("Schema-only Read for stage [{}]: {} bytes", childStageId, bytes.length);
         return bytes;
     }
@@ -417,7 +459,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
         // Rewriter must run on the assembled plan so wrapper literals get rewritten alongside the inner.
-        return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
+        return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
     private byte[] convertToSubstrait(RelNode fragment) {
@@ -441,9 +483,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
 
-        plan = SubstraitPlanRewriter.rewrite(plan);
+        plan = SubstraitPlanPojoRewriter.rewrite(plan);
 
-        io.substrait.proto.Plan protoPlan = new PlanProtoConverter().toProto(plan);
+        io.substrait.proto.Plan protoPlan = SubstraitPlanProtoRewriter.rewrite(new PlanProtoConverter().toProto(plan));
         byte[] bytes = protoPlan.toByteArray();
         LOGGER.debug("Substrait plan: {} bytes", bytes.length);
         return bytes;
@@ -494,7 +536,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             return Project.builder().from(project).input(newInput).build();
         }
         if (wrapper instanceof Fetch fetch) {
-            return Fetch.builder().from(fetch).input(newInput).build();
+            // A single Calcite LogicalSort carrying both a collation AND a fetch/offset lowers to
+            // Fetch(Sort(input)) — two Substrait rels from one node. Rewiring the Fetch's input
+            // directly would drop the Sort and lose global order before the limit. Descend into
+            // the Sort so the shape becomes Fetch(Sort(newInput)): gather, sort globally, then limit.
+            Rel rewiredInput = fetch.getInput() instanceof Sort ? replaceInput(fetch.getInput(), newInput) : newInput;
+            return Fetch.builder().from(fetch).input(rewiredInput).build();
         }
         throw new UnsupportedOperationException(
             "Cannot attach-on-top a Substrait Rel of type " + wrapper.getClass().getSimpleName() + " — no single-input rewire defined"
@@ -586,6 +633,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 List<RexNode> projects = project.getProjects();
                 List<FunctionArg> args = fn.arguments();
                 List<FunctionArg> rewritten = null;
+                RexBuilder rexBuilder = project.getCluster().getRexBuilder();
                 for (int i = 0; i < args.size(); i++) {
                     FunctionArg arg = args.get(i);
                     if (!(arg instanceof io.substrait.expression.FieldReference fr)) continue;
@@ -593,18 +641,29 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     if (offset == null || offset < 0 || offset >= projects.size()) continue;
                     if (!(projects.get(offset) instanceof RexLiteral rexLit)) continue;
                     if (rewritten == null) rewritten = new ArrayList<>(args);
-                    rewritten.set(i, rexConverter.apply(rexLit));
+                    RexNode toConvert = call.getAggregation() instanceof LocalAggOp localOp
+                        ? localOp.normaliseLiteralArg(i, rexLit, rexBuilder, typeFactory)
+                        : rexLit;
+                    rewritten.set(i, rexConverter.apply(toConvert));
                 }
                 if (rewritten == null) return bound;
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
         };
+        // Same APPROX_COUNT_DISTINCT filter as aggConverter — let our `approx_distinct` entry win.
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(
             extensions.windowFunctions(),
             ADDITIONAL_WINDOW_SIGS,
             typeFactory,
             typeConverter
-        );
+        ) {
+            @Override
+            protected ImmutableList<FunctionMappings.Sig> getSigs() {
+                return super.getSigs().stream()
+                    .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                    .collect(ImmutableList.toImmutableList());
+            }
+        };
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
             extensions,
@@ -626,6 +685,40 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return sf.offset();
     }
 
+    /**
+     * Local aggregate stub that may transform inlined literal args before substrait emission.
+     * Other local stubs without transformations stay as plain {@link SqlAggFunction}; the
+     * {@code convert()} override only invokes {@link #normaliseLiteralArg} when the call's
+     * operator is a {@code LocalAggOp}, so adding a new normalisation is purely a matter of
+     * subclassing here next to the op's declaration.
+     */
+    abstract static class LocalAggOp extends SqlAggFunction {
+        LocalAggOp(
+            String name,
+            SqlKind kind,
+            org.apache.calcite.sql.type.SqlReturnTypeInference returnTypeInference,
+            org.apache.calcite.sql.type.SqlOperandTypeChecker operandTypeChecker
+        ) {
+            super(
+                name,
+                null,
+                kind,
+                returnTypeInference,
+                null,
+                operandTypeChecker,
+                SqlFunctionCategory.USER_DEFINED_FUNCTION,
+                false,
+                false,
+                Optionality.FORBIDDEN
+            );
+        }
+
+        /** Identity by default; override to transform the {@code argIndex}-th inlined literal arg. */
+        public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+            return lit;
+        }
+    }
+
     // ── Plan serde helpers ──────────────────────────────────────────────────────
 
     /** Decodes serialized Substrait bytes into a model-level {@link Plan}. */
@@ -640,7 +733,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Serializes a model-level {@link Plan} to proto bytes. */
     private static byte[] serializePlan(Plan plan) {
-        return new PlanProtoConverter().toProto(plan).toByteArray();
+        return SubstraitPlanProtoRewriter.rewrite(new PlanProtoConverter().toProto(plan)).toByteArray();
     }
 
     // ── Calcite TableScan wrappers for OpenSearchStageInputScan rewrite ─────────

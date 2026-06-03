@@ -135,7 +135,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         LOGGER.info("[QTF-DUMP] QueryDAG (pre-conversion):\n{}", dag);
 
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
         LOGGER.info("[QTF-DUMP] QueryDAG (post-conversion, with backend-resolved fragments):\n{}", dag);
 
         // Walk every stage and dump its substrait Plan(s).
@@ -194,7 +194,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         RelNode cbo = PlannerImpl.runAllOptimizations(parsed, context);
         QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
         return dag;
     }
 
@@ -291,13 +291,11 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
             SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
             SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
             SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
-            SimpleExtension.ExtensionCollection roundingOverloads = SimpleExtension.load(List.of("/opensearch_rounding_overloads.yaml"));
             return DefaultExtensionCatalog.DEFAULT_COLLECTION
                 .merge(delegationExtensions)
                 .merge(scalarExtensions)
                 .merge(arrayExtensions)
-                .merge(aggregateExtensions)
-                .merge(roundingOverloads);
+                .merge(aggregateExtensions);
         } finally {
             t.setContextClassLoader(prev);
         }

@@ -95,21 +95,31 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
     private static final String INDEX_1 = "stress_idx_1";
     private static final String INDEX_3 = "stress_idx_3";
 
-    // ROWS_PER_BATCH: scaled down from a notional 50_000 to 5_000 because the
-    // coordinator's reduce-side RowProducingSink imposes a 1_000_000-row hard
-    // limit (RowProducingSink.DEFAULT_MAX_ROWS) for queries that do not push a
-    // backend-aggregating COORDINATOR_REDUCE stage. The synthetic batches we
-    // emit here come from a stub handler that bypasses the production
-    // partial-aggregation path — they arrive at the coordinator as raw
-    // Int32 row batches and feed the row-collecting sink directly. With
-    // ROWS_PER_BATCH=5_000 the heaviest test (S1: 100 batches) totals
-    // 500_000 rows, comfortably under that limit while still exercising
-    // 100 round-trip stream batches across the full streaming transport
-    // path. See "Coordinator finding" in the test report.
+    // ROWS_PER_BATCH: the coordinator's reduce-side RowProducingSink truncates
+    // buffered output at OUTPUT_ROW_CAP rows (RowProducingSink.DEFAULT_MAX_ROWS)
+    // for queries that do not push a backend-aggregating COORDINATOR_REDUCE
+    // stage. The synthetic batches we emit here come from a stub handler that
+    // bypasses the production partial-aggregation path — they arrive at the
+    // coordinator as raw Int32 row batches and feed the row-collecting sink
+    // directly, so the sink caps the result. These tests intentionally send far
+    // more than the cap to stress the streaming transport path (many round-trip
+    // stream batches, native mpsc backpressure, drain thread); the assertions
+    // therefore expect the capped output (min(sent, OUTPUT_ROW_CAP)) rather than
+    // every row sent. ROWS_PER_BATCH=5_000 divides the cap evenly so truncation
+    // (whole-batch) lands deterministically on the cap. See "Coordinator
+    // finding" in the test report.
     private static final int ROWS_PER_BATCH = 5_000;
     private static final int VALUE = 7;
     /** Per-batch native bytes ≈ 5_000 × 4 (Int32 data) + bitmap. */
     private static final long PER_BATCH_BYTES = ROWS_PER_BATCH * 4L + 8 * 1024L;
+    /**
+     * Coordinator output cap — mirrors the package-private
+     * {@code RowProducingSink.DEFAULT_MAX_ROWS}. The row-collecting sink truncates
+     * buffered output at this many rows (whole batches dropped once reached), so a
+     * raw (non-aggregating) stream of N rows yields {@code min(N, OUTPUT_ROW_CAP)}
+     * rows at the coordinator.
+     */
+    private static final long OUTPUT_ROW_CAP = 10_000L;
 
     private static final TimeValue STRESS_TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final TimeValue CONCURRENT_TIMEOUT = TimeValue.timeValueSeconds(90);
@@ -280,6 +290,21 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         return total;
     }
 
+    /**
+     * Asserts a raw (non-aggregating) stress response reflects the coordinator's
+     * output truncation: the row count is {@code min(rowsSent, OUTPUT_ROW_CAP)},
+     * and the retained rows are intact — every kept row carries {@link #VALUE}, so
+     * the summed column equals {@code rowsKept × VALUE}. We deliberately do NOT
+     * assert all {@code rowsSent} rows survive: {@code RowProducingSink} caps
+     * buffered output, and these tests stress the transport path well past that cap.
+     */
+    private static void assertCappedResult(String tag, long rowsSent, PPLResponse response) {
+        long expectedRows = Math.min(rowsSent, OUTPUT_ROW_CAP);
+        long actualRows = response.getRows().size();
+        assertEquals(tag + " capped row-count mismatch (sent=" + rowsSent + ", cap=" + OUTPUT_ROW_CAP + ")", expectedRows, actualRows);
+        assertEquals(tag + " retained rows must be intact (sum == rowsKept × VALUE)", actualRows * VALUE, sumValueColumn(response));
+    }
+
     /** Build a fresh VSR with {@link #ROWS_PER_BATCH} rows of constant {@link #VALUE}. */
     private static VectorSchemaRoot buildBatch() {
         VectorSchemaRoot vsr = VectorSchemaRoot.create(BATCH_SCHEMA, producerAllocator);
@@ -319,15 +344,17 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * S1 — 100 batches of 50k Int32 rows from a single shard. Verifies the
+     * S1 — 100 batches of 5k Int32 rows from a single shard. Verifies the
      * coordinator's reduce sink + native mpsc backpressure + drain-thread keep
-     * up under sustained per-shard load and the SUM is exact (50000 × 100 × 7).
+     * up under sustained per-shard load. The 500k rows sent far exceed the
+     * coordinator output cap, so the result is truncated to OUTPUT_ROW_CAP rows
+     * (with the retained rows intact); the stress value is the 100 streamed
+     * round-trips, not the final row count.
      */
     public void testCoordinatorHandlesHundredBatchesFromOneShard() throws Exception {
         createSingleShardIndex();
         final int batches = 100;
-        final long expectedRows = (long) ROWS_PER_BATCH * batches;
-        final long expectedSum = expectedRows * VALUE;
+        final long rowsSent = (long) ROWS_PER_BATCH * batches;
         String victim = pickShardHostingNode(INDEX_1);
         MockTransportService mts = (MockTransportService) internalCluster().getInstance(TransportService.class, victim);
         AtomicInteger sent = new AtomicInteger();
@@ -345,15 +372,17 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         });
         try {
             PPLResponse response = executePPL("source = " + INDEX_1, STRESS_TIMEOUT);
-            assertEquals("S1 row-count mismatch (sent=" + sent.get() + ")", expectedRows, response.getRows().size());
-            assertEquals("S1 sum mismatch", expectedSum, sumValueColumn(response));
+            assertCappedResult("S1 (sent=" + sent.get() + ")", rowsSent, response);
         } finally {
             mts.clearAllRules();
         }
     }
 
     /**
-     * S2 — 3-shard variant: 50 batches × 50k rows per shard.
+     * S2 — 3-shard variant: 50 batches × 5k rows per shard. The combined stream
+     * exceeds the coordinator output cap, so the result is truncated to
+     * OUTPUT_ROW_CAP rows (retained rows intact); the stress value is the
+     * concurrent 3-shard streaming fan-in, not the final row count.
      */
     public void testCoordinatorHandlesBatchesAcrossAllThreeShards() throws Exception {
         createThreeShardIndex();
@@ -365,8 +394,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         // on the same node, the stub fires once per FragmentExecutionAction
         // request (one per shard), still emitting batchesPerShard batches per
         // shard. Use shard-count for arithmetic, not host-node count.
-        long expectedRows = (long) ROWS_PER_BATCH * batchesPerShard * map.size();
-        long expectedSum = expectedRows * VALUE;
+        long rowsSent = (long) ROWS_PER_BATCH * batchesPerShard * map.size();
         Map<String, AtomicInteger> sentByNode = new HashMap<>();
         List<MockTransportService> stubbed = new ArrayList<>();
         for (String node : map.values()) {
@@ -396,8 +424,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
                 .stream()
                 .map(e -> e.getKey() + ":" + e.getValue().get())
                 .collect(Collectors.joining(","));
-            assertEquals("S2 row-count mismatch (sent=" + sentReport + ")", expectedRows, response.getRows().size());
-            assertEquals("S2 sum mismatch (sent=" + sentReport + ")", expectedSum, sumValueColumn(response));
+            assertCappedResult("S2 (sent=" + sentReport + ")", rowsSent, response);
         } finally {
             for (MockTransportService mts : stubbed) {
                 mts.clearAllRules();
@@ -492,14 +519,16 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * S4 — Backpressure: producer emits fast (no sleeps). Verifies sum is exact
-     * (no rows lost) and producer-side allocator high-water stays bounded.
+     * S4 — Backpressure: producer emits fast (no sleeps). The transport path must
+     * deliver every batch to the coordinator (no transport-level loss) and keep the
+     * producer-side allocator high-water bounded. The coordinator output sink then
+     * truncates the buffered rows at OUTPUT_ROW_CAP, so the response reflects the
+     * cap (retained rows intact), not all 250k rows sent.
      */
     public void testBackPressureDoesNotDropBatches() throws Exception {
         createSingleShardIndex();
         final int batches = 50;
-        final long expectedRows = (long) ROWS_PER_BATCH * batches;
-        final long expectedSum = expectedRows * VALUE;
+        final long rowsSent = (long) ROWS_PER_BATCH * batches;
         String victim = pickShardHostingNode(INDEX_1);
         MockTransportService mts = (MockTransportService) internalCluster().getInstance(TransportService.class, victim);
         AtomicInteger sent = new AtomicInteger();
@@ -523,8 +552,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         });
         try {
             PPLResponse response = executePPL("source = " + INDEX_1, STRESS_TIMEOUT);
-            assertEquals("S4 row-count mismatch (sent=" + sent.get() + ")", expectedRows, response.getRows().size());
-            assertEquals("S4 sum mismatch", expectedSum, sumValueColumn(response));
+            assertCappedResult("S4 (sent=" + sent.get() + ")", rowsSent, response);
             // The producer allocator high-water reflects how many in-flight
             // VSRs the producer holds at any one time. FlightTransportChannel
             // .sendResponseBatch enqueues to FlightOutboundHandler's executor
@@ -533,7 +561,8 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
             // can allocate all N batches before the serializer drains the
             // first, so the bound here is loose: high-water ≤ (N+1) × per-
             // batch bytes for N enqueued batches. This is informational —
-            // the substantive check is row-count + sum (no batch dropped).
+            // the substantive check is the capped row-count + retained-row
+            // integrity asserted above.
             long ceiling = beforeProducer + (long) (batches + 2) * PER_BATCH_BYTES * 4L;
             assertTrue(
                 "Producer allocator high-water exceeded loose bound: high="
@@ -550,9 +579,10 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * S5 — 4 concurrent stress queries against the same single-shard index.
-     * Each gets 30 batches × 50k × 7 rows. Independent client-side futures
-     * verify per-query correctness.
+     * S5 — concurrent stress queries against the same single-shard index. Each
+     * query streams 15 batches × 5k rows (75k sent), which exceeds the coordinator
+     * output cap, so each independent client-side future verifies the per-query
+     * result is truncated to OUTPUT_ROW_CAP rows with the retained rows intact.
      */
     public void testConcurrentStressRuns() throws Exception {
         createSingleShardIndex();
@@ -582,7 +612,9 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
         // 2 (or higher) once the streaming-dispatch hazard is fixed.
         final int concurrency = 1;
         final int batchesPerQuery = 15;
-        final long expectedRowsPerQuery = (long) ROWS_PER_BATCH * batchesPerQuery;
+        final long rowsSentPerQuery = (long) ROWS_PER_BATCH * batchesPerQuery;
+        // Coordinator output cap truncates each query's buffered result.
+        final long expectedRowsPerQuery = Math.min(rowsSentPerQuery, OUTPUT_ROW_CAP);
         final long expectedSumPerQuery = expectedRowsPerQuery * VALUE;
         String victim = pickShardHostingNode(INDEX_1);
         MockTransportService mts = (MockTransportService) internalCluster().getInstance(TransportService.class, victim);

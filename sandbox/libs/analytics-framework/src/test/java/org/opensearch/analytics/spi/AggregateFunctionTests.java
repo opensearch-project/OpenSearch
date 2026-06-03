@@ -164,6 +164,24 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
         assertEquals(integer, resolve(fields.get(0), integer));
     }
 
+    // ── PERCENTILE_APPROX: state-bearing, no decomposition declared ──
+    //
+    // DataFusion's t-digest state is multi-field and doesn't fit the single-field
+    // IntermediateField shape. OpenSearchAggregateSplitRule skips the partial/final split
+    // for STATE_EXPANDING aggregates, so PERCENTILE_APPROX runs single-stage on the
+    // coordinator after a singleton gather.
+    public void testPercentileApproxHasNoDecomposition() {
+        assertFalse(AggregateFunction.PERCENTILE_APPROX.hasDecomposition());
+        assertNull(AggregateFunction.PERCENTILE_APPROX.intermediateFields());
+        assertEquals(AggregateFunction.Type.STATE_EXPANDING, AggregateFunction.PERCENTILE_APPROX.getType());
+        assertEquals(SqlKind.OTHER, AggregateFunction.PERCENTILE_APPROX.getSqlKind());
+    }
+
+    public void testPercentileApproxResolvesByName() {
+        assertSame(AggregateFunction.PERCENTILE_APPROX, AggregateFunction.fromNameOrError("percentile_approx"));
+        assertSame(AggregateFunction.PERCENTILE_APPROX, AggregateFunction.fromNameOrError("PERCENTILE_APPROX"));
+    }
+
     // ── fromSqlKind still works ──
 
     public void testFromSqlKindResolvesExistingEntries() {

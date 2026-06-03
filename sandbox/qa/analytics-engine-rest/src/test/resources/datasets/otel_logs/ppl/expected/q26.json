@@ -1,0 +1,13 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "sev_band", "type": "string"}
+  ],
+  "datarows": [
+    [80, "mid"],
+    [15, "high"],
+    [5, "low"]
+  ],
+  "total": 3,
+  "size": 3
+}

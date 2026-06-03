@@ -9,7 +9,6 @@
 package org.opensearch.analytics.qa;
 
 import org.opensearch.client.Request;
-import org.opensearch.client.Response;
 
 import java.util.List;
 import java.util.Map;
@@ -39,7 +38,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -74,7 +73,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -108,7 +107,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -134,7 +133,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // 10 docs tag='hello' value=5 + 10 docs tag='goodbye' value=3.
         // match(message,'hello') OR value > 4 → 10 hello docs ∪ 10 value=5 docs (same set) = 10.
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or value > 4 | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -155,7 +154,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         // NOT(match(message,'hello')) → 10 goodbye docs.
         String ppl = "source = " + INDEX_NAME + " | where not match(message, 'hello') | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -178,7 +177,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         // dc(value) over docs matching match(message,'hello') → all values are 5 → 1 distinct.
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats dc(value) as d";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -202,7 +201,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // 10 docs match all three: match(message,'hello') AND tag='hello' AND value=5.
         String ppl = "source = " + INDEX_NAME
             + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -222,7 +221,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // sum(value) over the 10 matching docs (value=5 each) → 50.
         String ppl = "source = " + INDEX_NAME
             + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats sum(value) as s";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -241,7 +240,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         createIndex();
         indexDocs();
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as cnt";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
@@ -255,7 +254,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         createIndex();
         indexDocs();
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' and value = 5 | stats count() as cnt";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
@@ -271,7 +270,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         createIndex();
         indexDocs();
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' and value = 5 | stats count() as cnt";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
@@ -287,10 +286,111 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
         String ppl = "source = " + INDEX_NAME
             + " | where (match(message, 'hello') and tag = 'hello') or (tag = 'goodbye' and value = 3) | stats count() as cnt";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         assertEquals(20L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * OR(MATCH on text, EQUALS on keyword), oracle = 10. Both arms are Lucene-delegatable.
+     * Under {@code prefer=true} Lucene drives end-to-end (combiner skipped, no tree_shape).
+     * Under {@code prefer=false} the combiner runs: {@code fuse=false} keeps
+     * {@code OR(delegated_predicate, delegation_possible)} as INTERLEAVED; {@code fuse=true}
+     * collapses to a single {@code delegated_predicate} as CONJUNCTIVE.
+     */
+    public void testOrCorrectnessAndPerf_fuseDualViable() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
+        Map<MatrixKey, ShardStage> expected = Map.of(
+            new MatrixKey(true, false), new ShardStage("lucene", null),
+            new MatrixKey(true, true), new ShardStage("lucene", null),
+            new MatrixKey(false, false), new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
+            new MatrixKey(false, true), new ShardStage("datafusion", "CONJUNCTIVE")
+        );
+        runFuseMatrix(ppl, 10L, expected);
+    }
+
+    /**
+     * OR(EQUALS on keyword, EQUALS on integer), oracle = 20. The integer arm isn't
+     * Lucene-filterable, so the planner picks DataFusion in every cell, and the OR has a
+     * non-delegatable sibling which keeps the shape INTERLEAVED in both fuse modes.
+     */
+    public void testOrTwoPerf_fuseDualViable() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
+        ShardStage interleavedDf = new ShardStage("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+        Map<MatrixKey, ShardStage> expected = Map.of(
+            new MatrixKey(true, false), interleavedDf,
+            new MatrixKey(true, true), interleavedDf,
+            new MatrixKey(false, false), interleavedDf,
+            new MatrixKey(false, true), interleavedDf
+        );
+        runFuseMatrix(ppl, 20L, expected);
+    }
+
+    /** Cluster-setting combination: ({@code prefer_metadata_driver}, {@code fuse_dual_viable}). */
+    private record MatrixKey(boolean prefer, boolean fuse) {}
+
+    /** Asserted SHARD_FRAGMENT profile fields. {@code treeShape == null} means the field
+     *  must be absent (Lucene-as-driver has no delegation instruction). */
+    private record ShardStage(String chosenBackend, String treeShape) {}
+
+    private void runFuseMatrix(String ppl, long oracle, Map<MatrixKey, ShardStage> expected) throws Exception {
+        try {
+            for (Map.Entry<MatrixKey, ShardStage> entry : expected.entrySet()) {
+                MatrixKey key = entry.getKey();
+                ShardStage want = entry.getValue();
+                setPreferMetadataDriver(key.prefer());
+                setFuseDualViable(key.fuse());
+
+                String label = "prefer=" + key.prefer() + ",fuse=" + key.fuse();
+                assertEquals(label + " — count", oracle, executeCount(ppl));
+                Map<String, Object> stage = shardFragmentStage(ppl);
+                assertEquals(label + " — chosen_backend", want.chosenBackend(), stage.get("chosen_backend"));
+                assertEquals(label + " — tree_shape", want.treeShape(), stage.get("tree_shape"));
+            }
+        } finally {
+            setFuseDualViable(false);
+            setPreferMetadataDriver(true);
+        }
+    }
+
+    private long executeCount(String ppl) throws Exception {
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        return ((Number) rows.get(0).get(0)).longValue();
+    }
+
+    private Map<String, Object> shardFragmentStage(String ppl) throws Exception {
+        Request request = new Request("POST", "/_analytics/ppl/_explain");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Map<String, Object> explain = assertOkAndParse(client().performRequest(request), "EXPLAIN: " + ppl);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        for (Map<String, Object> stage : stages) {
+            if ("SHARD_FRAGMENT".equals(stage.get("execution_type"))) return stage;
+        }
+        throw new AssertionError("No SHARD_FRAGMENT stage in profile: " + stages);
+    }
+
+    private void setFuseDualViable(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.delegation.fuse_dual_viable\": " + value + "}}");
+        client().performRequest(req);
+    }
+
+    private void setPreferMetadataDriver(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.planner.prefer_metadata_driver\": " + value + "}}");
+        client().performRequest(req);
     }
 
     private void createIndex() throws Exception {
@@ -347,10 +447,4 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + ppl + "\"}");
-        Response response = client().performRequest(request);
-        return entityAsMap(response);
-    }
 }

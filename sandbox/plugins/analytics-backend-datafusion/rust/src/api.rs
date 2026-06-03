@@ -406,6 +406,18 @@ pub fn set_min_target_partitions(value: i64) {
     crate::query_budget::set_min_target_partitions(value.max(1) as usize);
 }
 
+/// Initial target_partitions for coordinator-reduce sessions. Defaults to 4.
+static REDUCE_TARGET_PARTITIONS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(4);
+
+pub fn set_reduce_target_partitions(value: i64) {
+    REDUCE_TARGET_PARTITIONS.store(value.max(1).min(32) as usize, std::sync::atomic::Ordering::Release);
+}
+
+pub fn get_reduce_target_partitions() -> usize {
+    REDUCE_TARGET_PARTITIONS.load(std::sync::atomic::Ordering::Acquire)
+}
+
 /// Creates a native reader (ShardView) for the given path and files.
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
@@ -502,7 +514,8 @@ pub async unsafe fn execute_query(
 
     // Create per-query context — auto-registers in the global registry
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone());
+    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone(), query_tracker::QueryType::Shard);
+
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
@@ -1155,8 +1168,8 @@ fn derive_schema_from_partial_plan(
             arrow_schema
         };
         let arrow_schema = coerce_unsupported_timestamp_precision(&arrow_schema);
-
-        let table = MemTable::try_new(Arc::new(arrow_schema), vec![vec![]])?;
+        let arrow_schema = crate::schema_coerce::coerce_inferred_schema(Arc::new(arrow_schema));
+        let table = MemTable::try_new(arrow_schema, vec![vec![]])?;
         // Plan may scan the same table twice; the second register is a no-op.
         let _ = ctx.register_table(&table_name, Arc::new(table));
     }
@@ -1407,7 +1420,7 @@ pub async unsafe fn execute_local_plan(
     // Per-query memory tracking — wraps the session's global pool. A
     // `context_id` of 0 disables tracking (pool is not consulted) and no
     // cancellation token is registered in the global QUERY_REGISTRY.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
     let token = query_tracker::get_cancellation_token(context_id);
 
     // Race substrait planning + execution against the cancellation token so
@@ -1424,9 +1437,13 @@ pub async unsafe fn execute_local_plan(
 
     // Wrap the output in the same CrossRtStream + RecordBatchStreamAdapter
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
-    // drain this handle unchanged.
-    let cross_rt_stream =
-        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    // drain this handle unchanged. Use the cancellable variant so the CPU
+    // task can be aborted mid-execution when cancel_query fires.
+    let (cross_rt_stream, abort_handle) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    if let Some(h) = abort_handle {
+        query_tracker::set_abort_handle(context_id, h);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     let handle = QueryStreamHandle::new(wrapped, query_context, permit);
@@ -1457,7 +1474,7 @@ pub unsafe fn execute_local_prepared_plan(
     // so a `cancel_query(context_id)` call fires the token here too.
     // The token is held via the QueryStreamHandle's context and consulted by
     // stream_next on each batch pull.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
     // stream channels that require a Tokio reactor. Enter the IO runtime's
@@ -1465,8 +1482,11 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let cross_rt_stream =
-        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    let (cross_rt_stream, abort_handle) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
+    if let Some(h) = abort_handle {
+        query_tracker::set_abort_handle(context_id, h);
+    }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     let handle = QueryStreamHandle::new(wrapped, query_context, permit);
@@ -1710,6 +1730,31 @@ mod tests {
             !view_needs_gc(full_array.data_buffers(), full_array.total_buffer_bytes_used()),
             "Non-sliced array must NOT need gc"
         );
+    }
+
+    #[test]
+    fn reduce_target_partitions_roundtrips_and_clamps() {
+        // Set/get round-trips a value in range.
+        set_reduce_target_partitions(8);
+        assert_eq!(get_reduce_target_partitions(), 8);
+
+        // Clamps to the [1, 32] range used by the datafusion.reduce.target_partitions setting.
+        set_reduce_target_partitions(0);
+        assert_eq!(get_reduce_target_partitions(), 1, "values below 1 clamp up to 1");
+        set_reduce_target_partitions(-5);
+        assert_eq!(get_reduce_target_partitions(), 1, "negative values clamp up to 1");
+        set_reduce_target_partitions(1000);
+        assert_eq!(get_reduce_target_partitions(), 32, "values above 32 clamp down to 32");
+
+        // Boundary values pass through unchanged.
+        set_reduce_target_partitions(1);
+        assert_eq!(get_reduce_target_partitions(), 1);
+        set_reduce_target_partitions(32);
+        assert_eq!(get_reduce_target_partitions(), 32);
+
+        // Restore the default so test ordering can't leak state into other tests.
+        set_reduce_target_partitions(4);
+        assert_eq!(get_reduce_target_partitions(), 4);
     }
 }
 

@@ -37,7 +37,8 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -149,7 +150,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | where bool0 xor bool1 | fields bool0, bool1"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("xor query returned no rows block", rows);
         // The calcs dataset contains rows where bool0 != bool1; assert the filter surfaces them.
         assertTrue("xor should return at least 1 row, got " + rows.size(), !rows.isEmpty());
@@ -220,19 +221,19 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** MOD on zero divisor follows IEEE 754 for fp: {@code num0 % 0} → NaN (serialized as string). */
+    /** MOD on zero divisor → NaN, which opensearch-sql renders as JSON null (not "NaN" string). */
     public void testArithmeticModByZero() throws IOException {
         assertSingleRowField(
             "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 0 | fields r",
-            "NaN"
+            null
         );
     }
 
-    /** DIVIDE by zero follows IEEE 754 for fp: positive numerator over 0 → +Infinity (serialized as string). */
+    /** DIVIDE by zero → ±Infinity, which opensearch-sql renders as JSON null. */
     public void testArithmeticDivideByZero() throws IOException {
         assertSingleRowField(
             "source=" + DATASET.indexName + " | where key = 'key00' | eval q = num0 / 0 | fields q",
-            "Infinity"
+            null
         );
     }
 
@@ -272,7 +273,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
     private void assertRowCount(String ppl, int expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Row count mismatch for query: " + ppl, expected, rows.size());
     }
@@ -280,7 +281,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
     private void assertSingleRowField(String ppl, Object expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Expected exactly 1 row for query: " + ppl, 1, rows.size());
         Object actual = rows.get(0).get(0);
@@ -290,7 +291,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
     private void assertSingleRowApprox(String ppl, double expected, double tolerance) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Expected exactly 1 row for query: " + ppl, 1, rows.size());
         Object actual = rows.get(0).get(0);
@@ -301,13 +302,6 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     /**
      * Numeric-tolerant cell comparison: Integer/Long/Double arriving from JSON parsing

@@ -405,6 +405,7 @@ pub fn wrap_stream_as_handle(
     let query_context = crate::query_tracker::QueryTrackingContext::new(
         0,
         runtime.runtime_env.memory_pool.clone(),
+        crate::query_tracker::QueryType::Shard,
     );
     let handle = crate::api::QueryStreamHandle::new(wrapped, query_context, None);
     Box::into_raw(Box::new(handle)) as i64

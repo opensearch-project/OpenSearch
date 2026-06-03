@@ -163,7 +163,13 @@ class FlightTransport extends TcpTransport {
                 statsCollector.setBufferAllocator(flightPool);
                 statsCollector.setThreadPool(threadPool);
             }
-            flightProducer = new ArrowFlightProducer(this, flightPool, SERVER_HEADER_KEY, statsCollector);
+            flightProducer = new ArrowFlightProducer(
+                this,
+                flightPool,
+                SERVER_HEADER_KEY,
+                statsCollector,
+                ServerConfig.FLIGHT_READY_TIMEOUT.get(settings).millis()
+            );
             bindServer();
             success = true;
             if (statsCollector != null) {
@@ -242,6 +248,7 @@ class FlightTransport extends TcpTransport {
                     .bossEventLoopGroup(bossEventLoopGroup)
                     .workerEventLoopGroup(workerEventLoopGroup)
                     .executor(serverExecutor)
+                    .backpressureThreshold((int) ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(settings).getBytes())
                     .middleware(SERVER_HEADER_KEY, factory);
 
                 builder.location(locations.get(0));
