@@ -160,7 +160,16 @@ final class PplAggregateCallRewriter {
             // operator identity has no substrait sig. Remap to Calcite's stock
             // APPROX_COUNT_DISTINCT, which ADDITIONAL_AGGREGATE_SIGS binds to DataFusion's native
             // `approx_distinct` (same single-arg expr → bigint shape).
-            case "DISTINCT_COUNT_APPROX" -> targetOp = SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
+            case "DISTINCT_COUNT_APPROX" -> {
+                targetOp = SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
+                // APPROX_COUNT_DISTINCT is a count — its return-type inference yields BIGINT NOT NULL.
+                // Reusing the PPL call's original (nullable) BIGINT as the explicit type leaves the
+                // AggregateCall's declared type disagreeing with the operator's inferred type, which
+                // trips Calcite's validity assertion ("aggCall type BIGINT vs inferred BIGINT NOT NULL")
+                // on the grouped two-phase path. Pin the explicit type to the operator-consistent
+                // NOT NULL BIGINT so declared and inferred agree.
+                explicitReturnType = agg.getCluster().getTypeFactory().createTypeWithNullability(call.getType(), false);
+            }
             case "LIST", "VALUES" -> {
                 // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
                 if (call.getArgList().isEmpty()) {

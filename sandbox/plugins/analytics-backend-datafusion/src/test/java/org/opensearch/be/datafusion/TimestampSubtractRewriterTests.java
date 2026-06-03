@@ -77,7 +77,8 @@ public class TimestampSubtractRewriterTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNumericMinusIsUnchanged() {
+    /** A plain numeric MINUS must be a true identity no-op (same object returned, not a rebuild). */
+    public void testNumericMinusIsIdentityNoOp() {
         RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
         RelNode values = LogicalValues.createOneRow(cluster);
         RexNode a = rexBuilder.makeExactLiteral(java.math.BigDecimal.TEN, intType);
@@ -87,12 +88,53 @@ public class TimestampSubtractRewriterTests extends OpenSearchTestCase {
 
         RelNode rewritten = TimestampSubtractRewriter.rewrite(project);
 
-        RexNode rewrittenExpr = ((LogicalProject) rewritten).getProjects().get(0);
-        // No to_unixtime wrapping — a plain numeric MINUS is left intact.
-        RexCall call = (RexCall) rewrittenExpr;
-        assertEquals(SqlKind.MINUS, call.getKind());
-        for (RexNode operand : call.getOperands()) {
-            assertFalse("numeric operands must not be wrapped in to_unixtime", operand instanceof RexCall);
-        }
+        assertSame("non-timestamp MINUS must be a true identity no-op", project, rewritten);
+    }
+
+    /**
+     * A node with no timestamp-minus must not be rebuilt — the rewriter must not re-derive its
+     * expression types. Rebuilding can flip a cached nullable BIGINT to BIGINT NOT NULL and trip
+     * Calcite's validity assertions (observed on the grouped APPROX_COUNT_DISTINCT path).
+     */
+    public void testNoTimestampMinusDoesNotRebuildProject() {
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType inputRow = typeFactory.builder().add("v", bigintNullable).build();
+        RelNode values = LogicalValues.createEmpty(cluster, inputRow);
+        RexNode ref = rexBuilder.makeInputRef(bigintNullable, 0);
+        RelNode project = LogicalProject.create(values, List.of(), List.of(ref), List.of("v"), Set.of());
+
+        RelNode rewritten = TimestampSubtractRewriter.rewrite(project);
+
+        assertSame("rewriter must not rebuild nodes without timestamp-minus", project, rewritten);
+        assertEquals(bigintNullable, rewritten.getRowType().getFieldList().get(0).getType());
+    }
+
+    /**
+     * An Aggregate (and its child) must be returned untouched when there is no timestamp-minus —
+     * the rewriter must never re-derive aggCall return types.
+     */
+    public void testAggregateLeftUntouched() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType inputRow = typeFactory.builder().add("g", intType).add("v", intType).build();
+        RelNode values = LogicalValues.createEmpty(cluster, inputRow);
+        org.apache.calcite.rel.core.AggregateCall countDistinct = org.apache.calcite.rel.core.AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            true,
+            List.of(1),
+            -1,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+        org.apache.calcite.rel.logical.LogicalAggregate agg = org.apache.calcite.rel.logical.LogicalAggregate.create(
+            values,
+            List.of(),
+            org.apache.calcite.util.ImmutableBitSet.of(0),
+            null,
+            List.of(countDistinct)
+        );
+
+        RelNode rewritten = TimestampSubtractRewriter.rewrite(agg);
+
+        assertSame("Aggregate must be returned untouched", agg, rewritten);
     }
 }

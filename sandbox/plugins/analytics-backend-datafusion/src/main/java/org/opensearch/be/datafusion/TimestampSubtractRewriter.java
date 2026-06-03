@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelVisitor;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
@@ -44,6 +45,17 @@ import java.util.List;
  * <p>Mirrors the {@code to_unixtime}-difference idiom already used by
  * {@link TimestampDiffAdapter} (which builds {@code MINUS(to_unixtime(end), to_unixtime(start))}).
  *
+ * <p><b>Identity preservation.</b> This rewriter must be a true no-op for any plan that does not
+ * contain a {@code MINUS(timestamp, timestamp)}. It runs on every fragment via the shared
+ * pre-Substrait pipeline (including the wrapper / two-phase-aggregate path through
+ * {@code convertStandalone}), so it must never rebuild unrelated nodes: calling
+ * {@code RelNode.accept(RexShuttle)} on an arbitrary node re-derives that node's expression /
+ * aggCall types, which can flip a cached nullable {@code BIGINT} to {@code BIGINT NOT NULL} and
+ * trip Calcite's validity assertions (observed on the grouped {@code APPROX_COUNT_DISTINCT}
+ * path). To guarantee identity it first detects the target shape with read-only visitors and
+ * only applies the rewriting {@link RexShuttle} to {@link RelNode}s whose own local expressions
+ * actually contain it.
+ *
  * @opensearch.internal
  */
 final class TimestampSubtractRewriter {
@@ -51,15 +63,87 @@ final class TimestampSubtractRewriter {
     private TimestampSubtractRewriter() {}
 
     static RelNode rewrite(RelNode root) {
+        // Preserve object identity for the common path. Even an "equivalent" Calcite rebuild can
+        // perturb inferred nullability and trip Project/Aggregate validity assertions, so bail out
+        // entirely when there is nothing to rewrite.
+        if (!containsTimestampMinus(root)) {
+            return root;
+        }
+
         return root.accept(new RelHomogeneousShuttle() {
             @Override
             public RelNode visit(RelNode other) {
                 RelNode visited = super.visit(other);
+
+                // Only run the RexShuttle against nodes whose own Rex expressions contain the target
+                // shape. Do not touch unrelated Projects / Filters / Aggregates.
+                if (!containsTimestampMinusInLocalExpressions(visited)) {
+                    return visited;
+                }
+
                 RexShuttle shuttle = new RewriteShuttle(visited.getCluster().getRexBuilder());
                 RelNode rewritten = visited.accept(shuttle);
                 return rewritten == null ? visited : rewritten;
             }
         });
+    }
+
+    /** True if any node in the tree rooted at {@code root} holds a {@code MINUS(timestamp, timestamp)}. */
+    private static boolean containsTimestampMinus(RelNode root) {
+        class Finder extends RelVisitor {
+            boolean found;
+
+            @Override
+            public void visit(RelNode node, int ordinal, RelNode parent) {
+                if (found) {
+                    return;
+                }
+                if (containsTimestampMinusInLocalExpressions(node)) {
+                    found = true;
+                    return;
+                }
+                super.visit(node, ordinal, parent);
+            }
+        }
+
+        Finder finder = new Finder();
+        finder.go(root);
+        return finder.found;
+    }
+
+    /**
+     * True if any of {@code node}'s own (non-recursive) Rex expressions is a timestamp-minus.
+     *
+     * <p>Calcite 1.41 removed {@code RelNode#getChildExps()}, so expressions are reached via
+     * {@code RelNode#accept(RexShuttle)}. The detector shuttle below is strictly read-only — it
+     * records a flag and returns every input node by identity. Because the shuttle changes nothing,
+     * Calcite's {@code accept} returns the original {@link RelNode} object (no {@code copy} is
+     * triggered), so detection does not rebuild the node or perturb its cached types.
+     */
+    private static boolean containsTimestampMinusInLocalExpressions(RelNode node) {
+        boolean[] found = { false };
+        node.accept(new RexShuttle() {
+            @Override
+            public RexNode visitCall(RexCall call) {
+                if (isTimestampMinus(call)) {
+                    found[0] = true;
+                }
+                // Returning the identical operands/call keeps this a no-op so Calcite does not
+                // rebuild the enclosing RelNode.
+                return super.visitCall(call);
+            }
+        });
+        return found[0];
+    }
+
+    private static boolean isTimestampMinus(RexCall call) {
+        List<RexNode> operands = call.getOperands();
+        return call.getKind() == SqlKind.MINUS && operands.size() == 2 && isTimestamp(operands.get(0)) && isTimestamp(operands.get(1));
+    }
+
+    static boolean isTimestamp(RexNode node) {
+        SqlTypeName type = node.getType().getSqlTypeName();
+        return type == SqlTypeName.TIMESTAMP || type == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE;
     }
 
     private static final class RewriteShuttle extends RexShuttle {
@@ -87,11 +171,6 @@ final class TimestampSubtractRewriter {
                 return call;
             }
             return rexBuilder.makeCall(call.getType(), call.getOperator(), newOperands);
-        }
-
-        private static boolean isTimestamp(RexNode node) {
-            SqlTypeName type = node.getType().getSqlTypeName();
-            return type == SqlTypeName.TIMESTAMP || type == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE;
         }
     }
 }
