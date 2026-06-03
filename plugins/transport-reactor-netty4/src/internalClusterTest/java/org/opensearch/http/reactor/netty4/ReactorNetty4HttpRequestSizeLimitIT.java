@@ -76,6 +76,7 @@ public class ReactorNetty4HttpRequestSizeLimitIT extends OpenSearchReactorNetty4
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
+            .put(ReactorNetty4HttpServerTransport.SETTING_H2_MAX_CONCURRENT_STREAMS.getKey(), 1500L)
             .build();
     }
 
