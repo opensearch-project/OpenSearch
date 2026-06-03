@@ -23,8 +23,22 @@ public final class AnalyticsQuerySettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Max in-flight shard fragment requests <b>per data node</b> for a single query. The coordinator
+     * keeps an independent throttle per target node, so total in-flight requests for a query can be
+     * up to this value times the number of nodes it fans out to — this bounds the load any single
+     * node sees, not the query's overall concurrency.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE = Setting.intSetting(
+        "analytics.query.max_concurrent_shard_requests_per_node",
+        5,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> all() {
-        return List.of(MAX_SHARDS_PER_QUERY);
+        return List.of(MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
     }
 
     private AnalyticsQuerySettings() {}

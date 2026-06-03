@@ -39,6 +39,7 @@ import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -90,6 +91,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
+    private volatile int maxShardsPerQuery;
+    private volatile int maxConcurrentShardRequestsPerNode;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
@@ -124,7 +127,30 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
+
+        // TODO: These should be honored as query params, but requires front-end changes to pass request options.
+        this.maxShardsPerQuery = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY, v -> maxShardsPerQuery = v);
+        this.maxConcurrentShardRequestsPerNode = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE.get(
+            clusterService.getSettings()
+        );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
+                v -> maxConcurrentShardRequestsPerNode = v
+            );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    /** Visible for testing: the live per-node concurrent-shard-request limit (reflects dynamic updates). */
+    public int maxConcurrentShardRequestsPerNode() {
+        return maxConcurrentShardRequestsPerNode;
+    }
+
+    /** Visible for testing: the live max-shards-per-query limit (reflects dynamic updates). */
+    public int maxShardsPerQuery() {
+        return maxShardsPerQuery;
     }
 
     @Override
@@ -215,7 +241,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);
         final QueryContext context;
         try {
-            context = new QueryContext(dag, threadPool, queryTask, queryAllocator, ownsAllocator);
+            context = new QueryContext(
+                dag,
+                threadPool,
+                queryTask,
+                queryAllocator,
+                ownsAllocator,
+                maxConcurrentShardRequestsPerNode,
+                maxShardsPerQuery
+            );
         } catch (Exception e) {
             if (ownsAllocator) queryAllocator.close();
             throw e;

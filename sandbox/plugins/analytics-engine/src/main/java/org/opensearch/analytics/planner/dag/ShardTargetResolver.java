@@ -21,6 +21,7 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,22 +43,25 @@ public class ShardTargetResolver extends TargetResolver {
     private final String indexName;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private volatile int maxShardsPerQuery;
+    // Defaults to the setting's declared default; the actual per-query value (snapshotted from
+    // the dynamic cluster setting) is injected via setMaxShardsPerQuery before resolve() runs —
+    // see ShardFragmentStageExecutionFactory.
+    private volatile int maxShardsPerQuery = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(Settings.EMPTY);
 
     public ShardTargetResolver(RelNode fragment, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexName = RelNodeUtils.findTableName(fragment);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        // getClusterSettings() is null in unit tests that mock ClusterService without stubbing it;
-        // fall back to the setting's declared default there.
-        this.maxShardsPerQuery = clusterService.getClusterSettings() != null
-            ? clusterService.getClusterSettings().get(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY)
-            : AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(org.opensearch.common.settings.Settings.EMPTY);
         if (this.indexName == null) {
             throw new IllegalArgumentException("ShardTargetResolver: no OpenSearchTableScan found in fragment");
         }
     }
 
+    /**
+     * Sets the max-shards-per-query limit enforced in {@link #resolve}. Called per query from
+     * {@code ShardFragmentStageExecutionFactory} with the value snapshotted from the dynamic
+     * {@code analytics.query.max_shards_per_query} cluster setting.
+     */
     public void setMaxShardsPerQuery(int maxShardsPerQuery) {
         this.maxShardsPerQuery = maxShardsPerQuery;
     }

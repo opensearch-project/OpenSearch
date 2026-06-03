@@ -243,6 +243,7 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
 
         RelNode fragment = stubScanForAlias("my_alias");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
+        resolverUnderTest.setMaxShardsPerQuery(limit);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> resolverUnderTest.resolve(clusterState, null));
         assertTrue(ex.getMessage().contains("alias [my_alias]"));
@@ -304,6 +305,7 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
 
         RelNode fragment = stubScanForAlias("big_index");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
+        resolverUnderTest.setMaxShardsPerQuery(limit);
 
         List<ExecutionTarget> targets = resolverUnderTest.resolve(clusterState, null);
         assertEquals(shardCount, targets.size());
@@ -381,6 +383,7 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
 
         RelNode fragment = stubScanForAlias("my_alias");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
+        resolverUnderTest.setMaxShardsPerQuery(limit);
 
         List<ExecutionTarget> targets = resolverUnderTest.resolve(clusterState, null);
         assertEquals(limit, targets.size());
