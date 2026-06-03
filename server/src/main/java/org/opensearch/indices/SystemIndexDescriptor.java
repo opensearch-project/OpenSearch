@@ -104,13 +104,6 @@ public class SystemIndexDescriptor {
         return description;
     }
 
-    /**
-     * @return A boolean corresponding to whether this system index is readable.
-     */
-    public boolean isReadable() {
-        return this instanceof UnrestrictedSystemIndexDescriptor;
-    }
-
     @Override
     public String toString() {
         return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";

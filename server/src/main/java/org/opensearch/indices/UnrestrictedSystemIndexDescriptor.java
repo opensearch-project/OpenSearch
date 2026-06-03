@@ -8,14 +8,14 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * A {@link SystemIndexDescriptor} that has unrestricted read access (search/get) while blocking writes.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
-@PublicApi(since = "3.8.0")
+@ExperimentalApi
 public final class UnrestrictedSystemIndexDescriptor extends SystemIndexDescriptor {
 
     /**

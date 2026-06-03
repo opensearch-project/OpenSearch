@@ -75,19 +75,6 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
         }
     }
 
-    public void testReadableDefaultsToFalse() {
-        SystemIndexDescriptor descriptor = new SystemIndexDescriptor(".test-index", "test");
-        assertFalse(descriptor.isReadable());
-    }
-
-    public void testReadableFlag() {
-        UnrestrictedSystemIndexDescriptor readable = new UnrestrictedSystemIndexDescriptor(".test-index", "test");
-        assertTrue(readable.isReadable());
-
-        SystemIndexDescriptor notReadable = new SystemIndexDescriptor(".test-index", "test");
-        assertFalse(notReadable.isReadable());
-    }
-
     public void testEqualsAndHashCode() {
         UnrestrictedSystemIndexDescriptor descriptor1 = new UnrestrictedSystemIndexDescriptor(".test-index", "desc1");
         SystemIndexDescriptor descriptor2 = new SystemIndexDescriptor(".test-index", "desc2");
