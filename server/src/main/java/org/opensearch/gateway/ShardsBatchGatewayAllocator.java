@@ -720,8 +720,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             logger.trace("Checking if fetching done for batch id {}", batchId);
             ShardsBatch shardsBatch = shard.primary() ? batchIdToStartedShardBatch.get(batchId) : batchIdToStoreShardBatch.get(batchId);
             // if fetchData has never been called, the per node cache will be empty and have no nodes
-            /// this is because {@link AsyncShardFetchCache#fillShardCacheWithDataNodes(DiscoveryNodes)} initialises this map
-            /// and is called in {@link AsyncShardFetch#fetchData(DiscoveryNodes, Map)}
+            // this is because {@link AsyncShardFetchCache#fillShardCacheWithDataNodes(DiscoveryNodes)} initialises this map
+            // and is called in {@link AsyncShardFetch#fetchData(DiscoveryNodes, Map)}
             if (shardsBatch == null || shardsBatch.getAsyncFetcher().hasEmptyCache()) {
                 logger.trace("Batch cache is empty for batch {} ", batchId);
                 return false;
