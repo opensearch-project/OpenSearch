@@ -238,18 +238,6 @@ pub async unsafe fn create_session_context(
         .with_file_extension(".parquet")
         .with_collect_stat(true);
 
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await
-        .map_err(|e| {
-            error!("create_session_context: failed to infer schema: {}", e);
-            e
-        })?;
-    let inferred_field_count = resolved_schema.fields().len();
-    // Substrait's type system is narrower than Arrow's; normalize the inferred
-    // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
-
     // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
     // which differs from table_name (the concrete shard index). Extract it from the plan and
     // register under that name so the Substrait consumer binds correctly. For single-index
@@ -263,25 +251,33 @@ pub async unsafe fn create_session_context(
         table_name.to_string()
     };
 
-    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
-    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &resolved_schema);
+    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
+    // below populates columns from the substrait base_schema.
+    let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
+        Arc::new(arrow::datatypes::Schema::empty())
+    } else {
+        let inferred = listing_options
+            .infer_schema(&ctx.state(), &shard_view.table_path)
+            .await
+            .map_err(|e| {
+                error!("create_session_context: failed to infer schema: {}", e);
+                e
+            })?;
+        // Substrait's type system is narrower than Arrow's; normalize the inferred
+        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
+        crate::schema_coerce::coerce_inferred_schema(inferred)
+    };
+    // Pre-widening field count — compared below to detect whether widening added columns.
+    let inferred_field_count = inferred.fields().len();
 
-    // If widening added columns this shard's parquet files don't physically have, disable stat
-    // collection for this table. DataFusion's per-file Statistics are sized to the table schema,
-    // but the runtime-global statistics cache (keyed by path + size + last_modified, NOT schema)
-    // can return a Statistics computed earlier against the narrower inferred schema. Merging a
-    // cached narrow Statistics against a freshly-computed widened one fails planning with
-    // "Cannot merge statistics with different number of columns". Dropping stats for widened
-    // tables avoids the merge entirely; non-widened (single-index) scans keep full stats.
-    //
-    // TODO: re-enable stats for widened scans once the upstream fix lands. The proper fix is in
-    // DataFusion: Statistics::try_merge (datafusion-common) rejects a column-count delta outright;
-    // it should tolerate it by treating columns absent from one side as unknown. Tracked upstream
-    // (file a datafusion issue). Until then we drop stats here, which costs the planner
-    // cardinality/pruning hints on alias/pattern queries but is otherwise correct. An in-repo
-    // alternative (schema-fingerprinting our CustomStatisticsCache key so a narrow cached entry
-    // isn't served to a widened read) is possible but invasive — the cache's get(&Path) has no
-    // schema parameter — so we prefer the upstream route.
+    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
+    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
+
+    // If widening added columns, disable stat collection: the global stats cache is keyed by
+    // path (not schema), so a narrow cached Statistics can be merged against the widened one,
+    // failing with "Cannot merge statistics with different number of columns". Non-widened
+    // (single-index) scans keep full stats.
+    // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
     let listing_options = if resolved_schema.fields().len() != inferred_field_count {
         listing_options.with_collect_stat(false)
     } else {
@@ -497,6 +493,36 @@ mod tests {
         let result = widen_schema_from_plan(&ctx, &plan_bytes, "t", &inferred);
         // Must return inferred unchanged (Arc::clone, so pointer-equal).
         assert!(Arc::ptr_eq(&result, &inferred), "subset gate must short-circuit to inferred");
+    }
+
+    /// Empty-shard case: a shard with zero parquet files yields an empty inferred schema, but the
+    /// plan's base_schema still names columns. widen_schema_from_plan must append all of them as
+    /// nullable so the consumer can bind. (Downstream, the field-count delta — 0 vs N — also
+    /// disables stat collection, avoiding the cache's column-count merge failure.)
+    #[tokio::test]
+    async fn test_widen_schema_from_empty_inferred_adds_all_nullable() {
+        let ctx = SessionContext::new();
+        // base_schema for "t" = [a (Int64), b (Utf8)].
+        let registered_schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        let table = MemTable::try_new(Arc::clone(&registered_schema), vec![vec![]]).expect("memtable");
+        ctx.register_table("t", Arc::new(table)).expect("register");
+        let logical = ctx.sql("SELECT a, b FROM t").await.expect("sql").into_unoptimized_plan();
+        let plan = to_substrait_plan(&logical, &ctx.state()).expect("substrait plan");
+        let mut plan_bytes = Vec::new();
+        plan.encode(&mut plan_bytes).expect("encode");
+
+        // Empty shard → empty inferred schema (0 fields).
+        let inferred = Arc::new(Schema::empty());
+        let result = widen_schema_from_plan(&ctx, &plan_bytes, "t", &inferred);
+
+        assert_eq!(result.fields().len(), 2, "all base_schema columns must be appended");
+        for name in ["a", "b"] {
+            let f = result.field_with_name(name).expect("column present");
+            assert!(f.is_nullable(), "appended column {name} must be nullable");
+        }
     }
 
     async fn make_test_handle() -> (SessionContextHandle, Vec<u8>) {

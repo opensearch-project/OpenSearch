@@ -36,6 +36,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
+import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
@@ -80,7 +81,7 @@ public class PlannerImpl {
      * Package-private so planner rule tests can inspect the marked+optimized tree.
      */
     public static RelNode runAllOptimizations(RelNode rawRelNode, PlannerContext context) {
-        LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
+        LOGGER.debug("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
@@ -91,7 +92,7 @@ public class PlannerImpl {
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        LOGGER.info("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:
@@ -102,16 +103,21 @@ public class PlannerImpl {
         // Revisit once those are designed. The rule would also strip performance peers from
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
-        LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        LOGGER.debug("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
         Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
-            LOGGER.info("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+            LOGGER.debug("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
         }
         Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
         if (topK.isPresent()) {
             modifiedRelNode = topK.get();
-            LOGGER.info("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
+            LOGGER.debug("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
+        }
+        Optional<RelNode> sortPushdown = OpenSearchSortPushdownRewriter.rewrite(modifiedRelNode);
+        if (sortPushdown.isPresent()) {
+            modifiedRelNode = sortPushdown.get();
+            LOGGER.debug("After sort pushdown:\n{}", RelOptUtil.toString(modifiedRelNode));
         }
 
         if (listener != null) {
