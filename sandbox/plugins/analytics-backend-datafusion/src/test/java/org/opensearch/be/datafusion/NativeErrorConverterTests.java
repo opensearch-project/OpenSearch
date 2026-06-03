@@ -56,6 +56,23 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertSame(original, result.getCause());
     }
 
+    public void testCriticalPressureCancellationConvertsToCircuitBreakingException() {
+        String message = "Failed to allocate 65536 bytes for hash_agg (1048576 already reserved) "
+            + "— 0 available out of 4294967296 limit. "
+            + "Query cancelled: native memory RSS exceeds critical threshold (95% of pool limit).";
+        RuntimeException original = new RuntimeException(message);
+
+        Exception result = NativeErrorConverter.convert(original);
+
+        assertNotNull(result);
+        assertTrue(result instanceof CircuitBreakingException);
+        CircuitBreakingException cbe = (CircuitBreakingException) result;
+        assertEquals(65536L, cbe.getBytesWanted());
+        assertEquals(4294967296L, cbe.getByteLimit());
+        assertEquals(CircuitBreaker.Durability.TRANSIENT, cbe.getDurability());
+        assertSame(original, cbe.getCause());
+    }
+
     public void testUnrecognizedErrorPassedThrough() {
         RuntimeException original = new RuntimeException("Some unknown error from native code");
 
