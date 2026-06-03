@@ -44,7 +44,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-import org.opensearch.index.engine.dataformat.FieldCapabilityAssigner;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
@@ -52,6 +51,7 @@ import org.opensearch.script.ScriptService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -75,13 +75,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         private final Settings indexSettings;
         private final ContentPath contentPath;
         @Nullable
-        private final FieldCapabilityAssigner capabilityAssigner;
+        private final Consumer<MappedFieldType> capabilityAssigner;
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
-            this(indexSettings, contentPath, (FieldCapabilityAssigner) null);
+            this(indexSettings, contentPath, (Consumer<MappedFieldType>) null);
         }
 
-        public BuilderContext(Settings indexSettings, ContentPath contentPath, @Nullable FieldCapabilityAssigner capabilityAssigner) {
+        public BuilderContext(Settings indexSettings, ContentPath contentPath, @Nullable Consumer<MappedFieldType> capabilityAssigner) {
             Objects.requireNonNull(indexSettings, "indexSettings is required");
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
@@ -98,7 +98,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public void assignCapabilities(MappedFieldType fieldType) {
             if (capabilityAssigner != null) {
-                capabilityAssigner.assign(fieldType);
+                capabilityAssigner.accept(fieldType);
             }
         }
 

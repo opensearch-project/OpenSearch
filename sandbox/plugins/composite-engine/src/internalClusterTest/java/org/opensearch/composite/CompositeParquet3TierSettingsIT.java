@@ -428,7 +428,7 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
                 "col_boolean",
                 "type=boolean,index=false",
                 "col_binary",
-                "type=binary,doc_values=true",
+                "type=binary,store=true",
                 "col_timestamp",
                 "type=date"
             )

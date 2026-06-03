@@ -485,7 +485,7 @@ public abstract class MappedFieldType {
 
     /**
      * Sets the capability map.
-     * Called by {@link org.opensearch.index.engine.dataformat.FieldCapabilityAssigner} during mapping build.
+     * Called by {@link org.opensearch.index.engine.dataformat.DataFormatRegistry} during mapping build.
      *
      * @throws IllegalStateException if already set
      * @opensearch.experimental

@@ -54,7 +54,6 @@ import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
-import org.opensearch.index.engine.dataformat.FieldCapabilityAssigner;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.opensearch.index.query.NestedQueryBuilder;
@@ -67,6 +66,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -102,8 +102,8 @@ public class DocumentMapper implements ToXContentFragment {
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService, @Nullable DataFormatRegistry dataFormatRegistry) {
             final IndexSettings is = mapperService.getIndexSettings();
             final Settings indexSettings = is.getSettings();
-            final FieldCapabilityAssigner assigner = dataFormatRegistry != null
-                ? new FieldCapabilityAssigner(dataFormatRegistry.getConfiguredFormats(is))
+            final Consumer<MappedFieldType> assigner = dataFormatRegistry != null
+                ? fieldType -> dataFormatRegistry.assignCapabilities(fieldType, is)
                 : null;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), assigner);
             this.rootObjectMapper = builder.build(builderContext);
@@ -228,10 +228,9 @@ public class DocumentMapper implements ToXContentFragment {
         // Assign capabilities for dynamically merged mappers that bypass the Builder path.
         final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
         if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
-            final FieldCapabilityAssigner assigner = new FieldCapabilityAssigner(registry.getConfiguredFormats(indexSettings));
-            assignCapabilitiesRecursive(mapping.root(), assigner, indexSettings);
+            assignCapabilitiesRecursive(mapping.root(), registry, indexSettings);
             for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                assigner.assign(metadataMapper.fieldType());
+                registry.assignCapabilities(metadataMapper.fieldType(), indexSettings);
             }
         }
 
@@ -372,22 +371,20 @@ public class DocumentMapper implements ToXContentFragment {
     /**
      * Recursively walks the mapper tree and assigns capability maps to all field types.
      */
-    private void assignCapabilitiesRecursive(Mapper mapper, FieldCapabilityAssigner assigner, IndexSettings indexSettings) {
+    private void assignCapabilitiesRecursive(Mapper mapper, DataFormatRegistry registry, IndexSettings indexSettings) {
         if (mapper instanceof FieldMapper) {
-            assigner.assign(((FieldMapper) mapper).fieldType());
+            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings);
             // For derived source: keyword fields with ignore_above/normalizer use a separate
-            // sourceKeywordFieldType to store the raw value for source reconstruction.
+            // rawValueFieldType to store the raw value for source reconstruction.
             if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
                 KeywordFieldMapper.KeywordFieldType rawValueFieldType = keywordFieldMapper.getRawValueFieldType();
-                if (rawValueFieldType != null
-                    && !mappers().isMultiField(keywordFieldMapper.fieldType().name())
-                    && indexSettings.isPluggableDataFormatEnabled()) {
-                    assigner.assign(rawValueFieldType);
+                if (rawValueFieldType != null && !mappers().isMultiField(keywordFieldMapper.fieldType().name())) {
+                    registry.assignCapabilities(rawValueFieldType, indexSettings);
                 }
             }
         }
         for (Mapper child : mapper) {
-            assignCapabilitiesRecursive(child, assigner, indexSettings);
+            assignCapabilitiesRecursive(child, registry, indexSettings);
         }
     }
 
