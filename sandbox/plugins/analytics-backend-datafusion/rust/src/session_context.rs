@@ -138,7 +138,7 @@ pub async unsafe fn create_session_context(
     let shard_view = &*(shard_view_ptr as *const ShardView);
 
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool.clone());
+    let query_context = QueryTrackingContext::new(context_id, global_pool.clone(), crate::query_tracker::QueryType::Shard);
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn MemoryPool>);
@@ -238,17 +238,6 @@ pub async unsafe fn create_session_context(
         .with_file_extension(".parquet")
         .with_collect_stat(true);
 
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await
-        .map_err(|e| {
-            error!("create_session_context: failed to infer schema: {}", e);
-            e
-        })?;
-    // Substrait's type system is narrower than Arrow's; normalize the inferred
-    // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
-
     // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
     // which differs from table_name (the concrete shard index). Extract it from the plan and
     // register under that name so the Substrait consumer binds correctly. For single-index
@@ -262,8 +251,25 @@ pub async unsafe fn create_session_context(
         table_name.to_string()
     };
 
+    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
+    // below populates columns from the substrait base_schema.
+    let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
+        Arc::new(arrow::datatypes::Schema::empty())
+    } else {
+        let inferred = listing_options
+            .infer_schema(&ctx.state(), &shard_view.table_path)
+            .await
+            .map_err(|e| {
+                error!("create_session_context: failed to infer schema: {}", e);
+                e
+            })?;
+        // Substrait's type system is narrower than Arrow's; normalize the inferred
+        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
+        crate::schema_coerce::coerce_inferred_schema(inferred)
+    };
+
     // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
-    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &resolved_schema);
+    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
@@ -506,7 +512,7 @@ mod tests {
         let table_path = datafusion::datasource::listing::ListingTableUrl::parse("file:///tmp")
             .expect("table_path");
         let global_pool = ctx.runtime_env().memory_pool.clone();
-        let query_context = QueryTrackingContext::new(0, global_pool);
+        let query_context = QueryTrackingContext::new(0, global_pool, crate::query_tracker::QueryType::Shard);
 
         let handle = SessionContextHandle {
             ctx,

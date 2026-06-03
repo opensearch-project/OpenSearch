@@ -70,6 +70,8 @@ import java.util.Set;
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
 import io.substrait.proto.Plan;
+import io.substrait.proto.ReadRel;
+import io.substrait.proto.Rel;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -138,7 +140,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         LOGGER.info("[QTF-DUMP] QueryDAG (pre-conversion):\n{}", dag);
 
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
         LOGGER.info("[QTF-DUMP] QueryDAG (post-conversion, with backend-resolved fragments):\n{}", dag);
 
         // Walk every stage and dump its substrait Plan(s).
@@ -161,11 +163,25 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         byte[] bytes = scan.getPlanAlternatives().getFirst().convertedBytes();
         Plan plan = Plan.parseFrom(bytes);
 
-        List<String> baseSchemaNames = plan.getRelations(0).getRoot().getInput().getRead().getBaseSchema().getNamesList();
+        // The Read may be wrapped by the per-shard Sort/Fetch that sort pushdown inserts; find it.
+        List<String> baseSchemaNames = findRead(plan.getRelations(0).getRoot().getInput()).getBaseSchema().getNamesList();
         assertTrue(
             "Stage 0 base_schema must include __row_id__; got " + baseSchemaNames,
             baseSchemaNames.contains("__row_id__")
         );
+    }
+
+    /** Walks single-input Substrait rels (Fetch/Sort/Project/Filter/Aggregate) down to the ReadRel. */
+    private static ReadRel findRead(Rel rel) {
+        return switch (rel.getRelTypeCase()) {
+            case READ -> rel.getRead();
+            case FETCH -> findRead(rel.getFetch().getInput());
+            case SORT -> findRead(rel.getSort().getInput());
+            case PROJECT -> findRead(rel.getProject().getInput());
+            case FILTER -> findRead(rel.getFilter().getInput());
+            case AGGREGATE -> findRead(rel.getAggregate().getInput());
+            default -> throw new AssertionError("no ReadRel found, hit " + rel.getRelTypeCase());
+        };
     }
 
     /**
@@ -197,7 +213,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         RelNode cbo = PlannerImpl.runAllOptimizations(parsed, context);
         QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
         return dag;
     }
 
@@ -294,13 +310,11 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
             SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
             SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
             SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
-            SimpleExtension.ExtensionCollection roundingOverloads = SimpleExtension.load(List.of("/opensearch_rounding_overloads.yaml"));
             return DefaultExtensionCatalog.DEFAULT_COLLECTION
                 .merge(delegationExtensions)
                 .merge(scalarExtensions)
                 .merge(arrayExtensions)
-                .merge(aggregateExtensions)
-                .merge(roundingOverloads);
+                .merge(aggregateExtensions);
         } finally {
             t.setContextClassLoader(prev);
         }

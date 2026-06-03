@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Aggregation functions testing PPL integration test.
@@ -20,8 +19,13 @@ public class AggregationsPplIT extends BasePplIT {
         return AggregationsTestHelper.DATASET;
     }
 
-    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testAggregationsPplQueries() throws Exception {
         runPplQueries();
+    }
+
+    /** Queries that fail at 1 shard: distinct_count/percentile value mismatches (approx + HLL merge). Skipped so the rest run and are visible. */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(7, 8, 9, 10);
     }
 }

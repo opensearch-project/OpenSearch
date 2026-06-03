@@ -10,9 +10,12 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
-import org.opensearch.be.datafusion.action.DataFusionStatsAction;
+import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
+import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
+import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -22,6 +25,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -201,6 +205,20 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Number of partitions used by the coordinator-reduce DataFusion plan.
+     * More partitions = more parallelism = more memory (each partition holds its own hash table).
+     * Lower values reduce peak memory at the cost of slower single-query latency.
+     */
+    public static final Setting<Integer> DATAFUSION_REDUCE_TARGET_PARTITIONS = Setting.intSetting(
+        "datafusion.reduce.target_partitions",
+        4,
+        1,
+        32,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Admission threshold for the jemalloc memory guard (0.0–1.0).
      * When pool accounting rejects a phantom reservation but jemalloc reports
      * actual RSS below this fraction of the pool limit, the reservation proceeds
@@ -346,6 +364,8 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
         clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
+        clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
@@ -356,6 +376,7 @@ public class DataFusionPlugin extends Plugin
 
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
+        NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
         NativeBridge.setMemoryGuardThresholds(
             DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),
@@ -423,14 +444,6 @@ public class DataFusionPlugin extends Plugin
             SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
             SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
             SimpleExtension.ExtensionCollection windowExtensions = SimpleExtension.load(List.of("/opensearch_window_functions.yaml"));
-            // Standard substrait's functions_rounding.yaml only declares ceil/floor for fp;
-            // this supplemental file adds the i32 overloads (which return i32, preserving
-            // PPL's documented "same type as input" contract for ceil(int)/floor(int)). The
-            // transcendental math fns (exp, ln, log10, log2, power) take the
-            // NumericToDoubleAdapter route in DataFusionAnalyticsBackendPlugin instead — they
-            // already return fp64 per PPL docs so widening operands is safe and avoids
-            // proliferating yaml stanzas across every (function, type) pair.
-            SimpleExtension.ExtensionCollection roundingOverloads = SimpleExtension.load(List.of("/opensearch_rounding_overloads.yaml"));
             SimpleExtension.ExtensionCollection arithmeticOverloads = SimpleExtension.load(
                 List.of("/opensearch_arithmetic_overloads.yaml")
             );
@@ -439,7 +452,6 @@ public class DataFusionPlugin extends Plugin
                 .merge(arrayExtensions)
                 .merge(aggregateExtensions)
                 .merge(windowExtensions)
-                .merge(roundingOverloads)
                 .merge(arithmeticOverloads);
         } finally {
             t.setContextClassLoader(previous);
@@ -569,6 +581,11 @@ public class DataFusionPlugin extends Plugin
     }
 
     @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(new ActionHandler<>(DataFusionStatsActionType.INSTANCE, TransportDataFusionStatsAction.class));
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,
@@ -581,7 +598,7 @@ public class DataFusionPlugin extends Plugin
         if (dataFusionService == null) {
             return Collections.emptyList();
         }
-        return List.of(new DataFusionStatsAction(dataFusionService));
+        return List.of(new RestDataFusionStatsAction());
     }
 
     @Override

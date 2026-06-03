@@ -29,8 +29,10 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -145,15 +147,25 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
 
         RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        // Mirror DefaultPlanExecutor.executeInternal: forker → adapter → selector → convertor.
+        // preferMetadataDriver=false drops the Lucene alternative and forces the DataFusion
+        // peer; the surviving plan exercises the DF→Lucene filter delegation path, which is
+        // what this test is asserting on.
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
 
         // Find the leaf stage (shard scan with filter)
         Stage leaf = dag.rootStage();
         while (!leaf.getChildStages().isEmpty()) {
             leaf = leaf.getChildStages().getFirst();
         }
-        StagePlan plan = leaf.getPlanAlternatives().getFirst();
+        StagePlan plan = leaf.getPlanAlternatives()
+            .stream()
+            .filter(p -> "mock-parquet".equals(p.backendId()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No mock-parquet driver alternative found"));
 
         // Verify delegation happened
         assertFalse("delegatedExpressions should not be empty", plan.delegatedExpressions().isEmpty());
