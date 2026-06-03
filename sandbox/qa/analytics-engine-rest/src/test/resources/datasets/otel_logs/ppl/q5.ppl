@@ -1,0 +1,1 @@
+source=otel_logs | where severityText like 'ERROR' | stats count()
