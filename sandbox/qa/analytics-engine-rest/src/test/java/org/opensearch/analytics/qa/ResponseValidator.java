@@ -234,8 +234,39 @@ public final class ResponseValidator {
 
     /**
      * Compare two values with numeric tolerance for floating point.
+     *
+     * <p>Property-match sentinels: a query whose value is non-deterministic (wall-clock or random)
+     * can't assert an exact golden. The golden may instead use a sentinel that matches by <em>shape</em>:
+     * <ul>
+     *   <li>{@code "%%DATE%%"} — actual matches {@code yyyy-MM-dd}</li>
+     *   <li>{@code "%%TIME%%"} — actual matches {@code HH:mm:ss} (optional fractional seconds)</li>
+     *   <li>{@code "%%DATETIME%%"} — actual matches {@code yyyy-MM-dd HH:mm:ss} (optional fraction)</li>
+     *   <li>{@code "%%RAND%%"} — actual is a number in [0, 1)</li>
+     *   <li>{@code "%%ANY%%"} — actual is non-null (existence check)</li>
+     * </ul>
      */
     private static boolean valuesEqual(Object expected, Object actual) {
+        if (expected instanceof String) {
+            String sentinel = matchSentinel((String) expected, actual);
+            if (sentinel != null) {
+                return sentinel.equals("true");
+            }
+        }
+
+        // Multi-value cells (collection aggs like values()/list()) are an unordered multiset; the
+        // gather decides element order, so compare them order-insensitively.
+        if (expected instanceof List && actual instanceof List) {
+            List<?> e = new java.util.ArrayList<>((List<?>) expected);
+            List<?> a = new java.util.ArrayList<>((List<?>) actual);
+            if (e.size() != a.size()) {
+                return false;
+            }
+            java.util.Comparator<Object> byStr = java.util.Comparator.comparing(o -> o == null ? "" : o.toString());
+            e.sort(byStr);
+            a.sort(byStr);
+            return e.equals(a);
+        }
+
         if (Objects.equals(expected, actual)) {
             return true;
         }
@@ -248,5 +279,27 @@ public final class ResponseValidator {
         }
 
         return false;
+    }
+
+    /** Returns "true"/"false" if {@code expected} is a known property sentinel, else null. */
+    private static String matchSentinel(String expected, Object actual) {
+        switch (expected) {
+            case "%%DATE%%":
+                return String.valueOf(actual).matches("\\d{4}-\\d{2}-\\d{2}") ? "true" : "false";
+            case "%%TIME%%":
+                return String.valueOf(actual).matches("\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?") ? "true" : "false";
+            case "%%DATETIME%%":
+                return String.valueOf(actual).matches("\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?") ? "true" : "false";
+            case "%%RAND%%":
+                if (actual instanceof Number) {
+                    double d = ((Number) actual).doubleValue();
+                    return (d >= 0.0 && d < 1.0) ? "true" : "false";
+                }
+                return "false";
+            case "%%ANY%%":
+                return actual != null ? "true" : "false";
+            default:
+                return null;
+        }
     }
 }
