@@ -117,6 +117,7 @@ public class Sha2FunctionAdapterTests extends OpenSearchTestCase {
             () -> new Sha2FunctionAdapter().adapt(original, List.of(), cluster)
         );
         assertTrue("message should name the unsupported algorithm", e.getMessage().contains("128"));
+        assertTrue("message should list the supported bit lengths", e.getMessage().contains("224, 256, 384, 512"));
     }
 
     /** Non-literal bit-length operand (e.g. a column reference) can't be rewritten; pass through. */

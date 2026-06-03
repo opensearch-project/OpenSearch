@@ -103,7 +103,9 @@ class Sha2FunctionAdapter implements ScalarFunctionAdapter {
             // with a clear message rather than returning the original call — otherwise the raw
             // SHA2(string, i32) reaches Substrait conversion and surfaces the cryptic
             // "Unable to convert call SHA2(string, i32)" instead of a user-actionable error.
-            throw new IllegalArgumentException("Unsupported SHA2 algorithm [" + bitLen + "]");
+            throw new IllegalArgumentException(
+                "Unsupported SHA2 algorithm [" + bitLen + "]. Supported bit lengths are [224, 256, 384, 512]"
+            );
         }
 
         RexBuilder rexBuilder = cluster.getRexBuilder();

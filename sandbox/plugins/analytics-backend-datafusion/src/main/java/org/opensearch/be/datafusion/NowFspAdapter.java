@@ -40,14 +40,16 @@ class NowFspAdapter implements ScalarFunctionAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
-        RexBuilder rexBuilder = cluster.getRexBuilder();
         List<RexNode> operands = original.getOperands();
-        if (operands.isEmpty()) {
-            // No fsp arg — plain now(). Still route to the substrait-mapped local operator.
-            return rexBuilder.makeCall(original.getType(), DateTimeAdapters.LOCAL_NOW_OP, List.of());
+        // Only now() and now(fsp) are valid PPL shapes. For both, drop the optional fsp operand
+        // (intentionally ignored, matching the SQL-plugin reference) and emit the substrait-mapped
+        // niladic local now(). Any higher arity is not a shape this adapter should normalize — leave
+        // it untouched so the converter surfaces the real (invalid) call rather than inventing a
+        // valid one.
+        if (operands.size() > 1) {
+            return original;
         }
-        // Drop the fsp/precision operand(s); DataFusion now() is niladic and the value is
-        // intentionally ignored per the reference implementation.
+        RexBuilder rexBuilder = cluster.getRexBuilder();
         return rexBuilder.makeCall(original.getType(), DateTimeAdapters.LOCAL_NOW_OP, List.of());
     }
 }

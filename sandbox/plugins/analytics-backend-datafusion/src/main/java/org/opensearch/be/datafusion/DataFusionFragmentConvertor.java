@@ -511,16 +511,26 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
-    private byte[] convertToSubstrait(RelNode fragment) {
-        // TODO: move rewriters that don't touch substrait-specific classes up to the analytics-engine
-        // layer so other backends can reuse them.
-        RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+    /**
+     * Shared pre-Substrait rewrite pipeline. Both the top-level fragment path
+     * ({@link #convertToSubstrait}) and the wrapper/partial-aggregate path
+     * ({@link #convertStandalone}) must run the identical set of rewriters — otherwise a shape
+     * (e.g. {@code timestamp - timestamp}) that one path handles slips through unconverted on the
+     * other. Centralizing here keeps the two paths in lockstep as rewriters are added.
+     */
+    private static RelNode preprocessForSubstrait(RelNode rel) {
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
         preprocessed = TimestampSubtractRewriter.rewrite(preprocessed);
+        return preprocessed;
+    }
+
+    private byte[] convertToSubstrait(RelNode fragment) {
+        RelNode preprocessed = preprocessForSubstrait(fragment);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -547,12 +557,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Converts a single operator into a Substrait {@link Rel}; children are discarded and rewired by {@link #rewire}. */
     private Rel convertStandalone(RelNode operator) {
-        RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
-        preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
-        preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
-        preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
-        preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
-        preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
+        RelNode preprocessed = preprocessForSubstrait(operator);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }

@@ -56,14 +56,14 @@ public class RandSeedAdapterTests extends OpenSearchTestCase {
         assertTrue("no operands", call.getOperands().isEmpty());
     }
 
-    public void testSeedOperandDropped() {
+    public void testSeededRandRejectedWithClearError() {
         RexNode seed = rexBuilder.makeLiteral(42, typeFactory.createSqlType(SqlTypeName.INTEGER), false);
         RexCall original = (RexCall) rexBuilder.makeCall(doubleType, SqlStdOperatorTable.RAND, List.of(seed));
 
-        RexNode adapted = new RandSeedAdapter().adapt(original, List.of(), cluster);
-
-        RexCall call = (RexCall) adapted;
-        assertSame("operator stays RAND", SqlStdOperatorTable.RAND, call.getOperator());
-        assertTrue("seed dropped so niladic random() binds", call.getOperands().isEmpty());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RandSeedAdapter().adapt(original, List.of(), cluster)
+        );
+        assertTrue("error should explain seeded RAND is unsupported", e.getMessage().toLowerCase(java.util.Locale.ROOT).contains("seed"));
     }
 }

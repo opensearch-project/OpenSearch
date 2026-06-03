@@ -83,4 +83,15 @@ public class NowFspAdapterTests extends OpenSearchTestCase {
         assertSame("operator must be local now()", DateTimeAdapters.LOCAL_NOW_OP, call.getOperator());
         assertTrue("fsp operand must be dropped so DataFusion's niladic now() binds", call.getOperands().isEmpty());
     }
+
+    public void testUnexpectedArityLeftUntouched() {
+        // now() / now(fsp) are the only valid shapes; a 2-arg call must not be normalised into now().
+        RexNode a = rexBuilder.makeLiteral(1, typeFactory.createSqlType(SqlTypeName.INTEGER), false);
+        RexNode b = rexBuilder.makeLiteral(2, typeFactory.createSqlType(SqlTypeName.INTEGER), false);
+        RexCall original = (RexCall) rexBuilder.makeCall(timestampType, nowUdf, List.of(a, b));
+
+        RexNode adapted = new NowFspAdapter().adapt(original, List.of(), cluster);
+
+        assertSame("adapter must not invent a valid shape from a 2-arg call", original, adapted);
+    }
 }

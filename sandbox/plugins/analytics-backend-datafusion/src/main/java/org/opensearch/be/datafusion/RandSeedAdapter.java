@@ -19,21 +19,17 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import java.util.List;
 
 /**
- * Adapter for PPL {@code RAND([N])}. Maps to {@code SqlStdOperatorTable.RAND}, whose
- * {@code FunctionMappings.Sig} in {@link DataFusionFragmentConvertor} resolves to DataFusion's
- * niladic {@code random()} UDF — dropping the optional integer seed operand.
+ * Adapter for PPL {@code RAND([N])}. Niladic {@code rand()} maps to {@code SqlStdOperatorTable.RAND},
+ * whose {@code FunctionMappings.Sig} in {@link DataFusionFragmentConvertor} resolves to DataFusion's
+ * niladic {@code random()} UDF.
  *
- * <p><b>Why drop the seed.</b> DataFusion's {@code random()} takes no arguments, so a seeded
- * {@code RAND(N)} call (e.g. {@code rand(5)}) has no Substrait mapping and fails fragment
- * conversion with {@code IllegalArgumentException: Unable to convert call RAND(i32)}.
- *
- * <p><b>Semantics note.</b> PPL's reference {@code rand(N)} seeds the generator so identical
- * {@code N} yields identical values (deterministic). Dropping the seed loses that determinism —
- * {@code rand(5)} becomes equivalent to {@code rand()}. This is acceptable for the current test
- * surface: the only IT exercising {@code rand(5)}
- * ({@code MathematicalFunctionIT.testRand}) asserts only the result <em>schema</em> (a DOUBLE
- * column), not the value. If strict seeded reproducibility is required later, this must instead
- * route to a seeded {@code random} variant on the DataFusion side rather than dropping the seed.
+ * <p><b>Seeded form is rejected, not silently degraded.</b> PPL's reference {@code rand(N)} seeds the
+ * generator so identical {@code N} yields identical values — it is observably <em>deterministic</em>
+ * (see {@code MathematicalFunctions.rand}, which uses {@code new Random(N).nextFloat()}). DataFusion's
+ * {@code random()} is niladic and unseeded, so there is no faithful mapping. Dropping the seed would
+ * turn a deterministic call into a non-deterministic one — a silent semantic change. Until a seeded
+ * {@code random} is available on the DataFusion side, {@code rand(seed)} fails fast here with a clear,
+ * actionable error rather than returning subtly wrong (non-reproducible) results.
  *
  * @opensearch.internal
  */
@@ -41,9 +37,19 @@ class RandSeedAdapter implements ScalarFunctionAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
-        RexBuilder rexBuilder = cluster.getRexBuilder();
-        // Emit the niladic RAND form regardless of whether a seed operand was supplied; the
-        // SqlStdOperatorTable.RAND -> "random" sig handles the conversion to DataFusion.
-        return rexBuilder.makeCall(original.getType(), SqlStdOperatorTable.RAND, List.of());
+        List<RexNode> operands = original.getOperands();
+        if (operands.isEmpty()) {
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            return rexBuilder.makeCall(original.getType(), SqlStdOperatorTable.RAND, List.of());
+        }
+        if (operands.size() == 1) {
+            // Seeded rand(N): no faithful niladic mapping (would lose determinism). Fail clearly.
+            throw new IllegalArgumentException(
+                "Seeded RAND(seed) is not supported on the analytics-engine route yet; use RAND() without a seed"
+            );
+        }
+        // Unexpected arity — leave the call untouched so the converter surfaces the original shape
+        // rather than this adapter inventing a valid one.
+        return original;
     }
 }

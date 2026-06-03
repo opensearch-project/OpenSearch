@@ -176,7 +176,14 @@ class SpanAdapter implements ScalarFunctionAdapter {
             return null;
         }
         Long n = extractPositiveInteger(interval);
-        return n == null ? null : n * unitSeconds;
+        if (n == null) {
+            return null;
+        }
+        try {
+            return Math.multiplyExact(n, unitSeconds);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("SPAN interval is too large", e);
+        }
     }
 
     /** True when {@code d} is finite and integral. */
