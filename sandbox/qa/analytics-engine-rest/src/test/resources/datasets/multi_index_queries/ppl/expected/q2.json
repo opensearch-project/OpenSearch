@@ -9,7 +9,7 @@
       "type": "int"
     },
     {
-      "name": "latency_ms",
+      "name": "latency",
       "type": "int"
     }
   ],
