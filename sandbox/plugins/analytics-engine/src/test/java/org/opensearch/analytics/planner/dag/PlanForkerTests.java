@@ -12,12 +12,14 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
+import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
@@ -281,5 +283,54 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         // ReduceExpressionsRule folds 1=1 → TRUE, then filter on TRUE is removed.
         assertFalse("filter on constant true must be eliminated", result instanceof OpenSearchFilter);
         assertTrue("root must be the scan after filter elimination", result instanceof OpenSearchTableScan);
+    }
+
+    /**
+     * A {@code Union} that only one backend supports (DataFusion has {@code EngineCapability.UNION};
+     * Lucene does not) over dual-viable scans (both backends viable for the scan, Lucene listed first).
+     *
+     * <p>Regression for the multi-input forking bug: {@code resolve()} used to take each child's
+     * <em>first</em> alternative ({@code getFirst()}), which is the Lucene scan. The DataFusion-only
+     * Union then had {@code viableBackends ∩ {lucene} = ∅}, so it produced <b>zero</b> plan
+     * alternatives — later surfacing as a {@code NoSuchElementException} at execution. The forker must
+     * instead pick the child alternative whose backend the parent can use (DataFusion), so the Union
+     * resolves to exactly one DataFusion alternative.
+     */
+    public void testMultiInputForksChildToParentBackend() {
+        RelNode union = LogicalUnion.create(
+            List.of(stubScan(mockTable("test_index", "status", "size")), stubScan(mockTable("test_index", "status", "size"))),
+            /* all */ true
+        );
+        QueryDAG dag = buildAndForkUnionCapable(1, union);
+
+        List<StagePlan> alternatives = dag.rootStage().getPlanAlternatives();
+        assertFalse("Union over dual-viable scans must produce a resolvable plan, not an empty list", alternatives.isEmpty());
+        for (StagePlan plan : alternatives) {
+            assertEquals("Union resolves to the only backend that supports it", MockDataFusionBackend.NAME, plan.backendId());
+        }
+    }
+
+    /** Like {@link #buildAndFork} but the DataFusion backend opts into {@code EngineCapability.UNION}. */
+    private QueryDAG buildAndForkUnionCapable(int shardCount, RelNode logicalPlan) {
+        MockDataFusionBackend unionCapableDf = new MockDataFusionBackend() {
+            @Override
+            protected Set<EngineCapability> supportedEngineCapabilities() {
+                Set<EngineCapability> caps = new java.util.HashSet<>(super.supportedEngineCapabilities());
+                caps.add(EngineCapability.UNION);
+                return caps;
+            }
+        };
+        MockLuceneBackend luceneScan = new MockLuceneBackend() {
+            @Override
+            protected Set<ScanCapability> scanCapabilities() {
+                return Set.of(new ScanCapability.DocValues(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), SUPPORTED_TYPES));
+            }
+        };
+        var context = buildContextWithExplicitStorage(shardCount, duplicatedIntFields(), List.of(unionCapableDf, luceneScan));
+        RelNode cboOutput = runPlanner(logicalPlan, context);
+        LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        return dag;
     }
 }
