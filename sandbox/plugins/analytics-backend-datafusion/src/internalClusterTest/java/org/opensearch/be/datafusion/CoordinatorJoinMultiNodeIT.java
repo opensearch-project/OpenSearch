@@ -59,7 +59,7 @@ import java.util.function.IntUnaryOperator;
  * <ul>
  *   <li>Lock-free {@code feed(int inputIndex, batch)} contention from many
  *       concurrent shard responses fanning into the two input channels.</li>
- *   <li>{@link DatafusionReduceSink#closeUnderLock}'s in-flight-feeds barrier
+ *   <li>{@code DatafusionReduceSink#closeUnderLock}'s in-flight-feeds barrier
  *       under realistic shutdown timing.</li>
  *   <li>Asymmetric per-side cardinality + many-to-many fan-out on duplicates.</li>
  *   <li>Empty-side and no-overlap edge cases (build or probe side empty must

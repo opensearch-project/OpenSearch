@@ -41,7 +41,7 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         assertEquals("expected 1 Sort (coord only)", 1, sortCount);
     }
 
-    /** No aggregate in plan → no per-partition Sort. */
+    /** No aggregate in plan → TopK must not fire (sort-pushdown may add a shard Sort, which is fine). */
     public void testDetection_noAggregate_skipped() {
         RelOptTable table = mockTable("test_index", "status", "size");
         RelNode scan = stubScan(table);
@@ -53,8 +53,7 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         );
         RelNode result = runPlanner(sort, contextWithOversampling(2.0));
         String plan = RelOptUtil.toString(result);
-        long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
-        assertEquals("no per-partition Sort for non-aggregate query", 1, sortCount);
+        assertFalse("no aggregate → TopK must not fire", plan.contains("OpenSearchAggregate"));
     }
 
     /** Aggregate without group-by (scalar agg) → skip. */

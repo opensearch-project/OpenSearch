@@ -1,0 +1,12 @@
+{
+  "schema": [
+    {"name": "bad", "type": "bigint"},
+    {"name": "total", "type": "bigint"},
+    {"name": "error_rate", "type": "double"}
+  ],
+  "datarows": [
+    [15, 100, 15.0]
+  ],
+  "total": 1,
+  "size": 1
+}
