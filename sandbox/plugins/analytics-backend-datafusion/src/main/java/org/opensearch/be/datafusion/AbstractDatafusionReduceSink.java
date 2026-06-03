@@ -163,7 +163,20 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
         try (CDataDictionaryProvider dictProvider = new CDataDictionaryProvider()) {
             DatafusionResultStream.BatchIterator it = new DatafusionResultStream.BatchIterator(outStream, alloc, dictProvider);
             while (it.hasNext()) {
-                ctx.downstream().feed(it.next().getArrowRoot());
+                // next() transfers ownership of the imported VSR to us. feed() takes ownership only
+                // on success; if it throws (e.g. the downstream sink was torn down on a concurrent
+                // cancel), the imported batch would otherwise leak in the per-query allocator —
+                // close it ourselves on the failure path.
+                VectorSchemaRoot batch = it.next().getArrowRoot();
+                boolean fed = false;
+                try {
+                    ctx.downstream().feed(batch);
+                    fed = true;
+                } finally {
+                    if (!fed) {
+                        batch.close();
+                    }
+                }
             }
         }
     }

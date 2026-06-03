@@ -41,14 +41,19 @@ import org.opensearch.index.store.Store;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import org.jspecify.annotations.NonNull;
 
 /**
  * A composite {@link IndexingExecutionEngine} that orchestrates indexing across
@@ -73,6 +78,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final CompositeDataFormat compositeDataFormat;
     private final Committer committer;
     private final IndexSettings indexSettings;
+    private final CompositeMerger merger;
+    private volatile Map<String, Collection<String>> pendingDeletes = new ConcurrentHashMap<>();
 
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
@@ -143,6 +150,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
         this.indexSettings = indexSettings;
+        this.merger = new CompositeMerger(this, compositeDataFormat);
     }
 
     /**
@@ -193,7 +201,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     /** {@inheritDoc} Delegates to the primary engine's merger. */
     @Override
     public Merger getMerger() {
-        return new CompositeMerger(this, compositeDataFormat);
+        return merger;
     }
 
     /**
@@ -223,6 +231,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
+        tryDeletePendingFiles();
+
         // All per-format engines refresh normally (primary passes through, secondary does addIndexes)
         RefreshInput perFormatInput = new RefreshInput(refreshInput.existingSegments(), refreshInput.writerFiles());
         RefreshResult primary = primaryEngine.refresh(perFormatInput);
@@ -259,41 +269,19 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             if (onlyNew.size() > 1) {
                 try {
                     final long mergeStartNanos = System.nanoTime();
+                    MergeResult mergeResult = merger.merge(
+                        MergeInput.builder().segments(onlyNew).newWriterGeneration(refreshInput.nextAvailableGeneration()).build()
+                    );
 
-                    Merger primaryMerger = primaryEngine.getMerger();
-                    MergeInput primaryMergeInput = MergeInput.builder()
-                        .segments(onlyNew)
-                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
-                        .build();
-                    MergeResult primaryResult = primaryMerger.merge(primaryMergeInput);
-                    WriterFileSet primaryMerged = primaryResult.getMergedWriterFileSetForDataformat(primaryEngine.getDataFormat());
-
-                    if (primaryMerged != null) {
-                        Segment.Builder consolidated = Segment.builder(refreshInput.nextAvailableGeneration());
-                        consolidated.addSearchableFiles(primaryEngine.getDataFormat(), primaryMerged);
-
-                        primaryResult.rowIdMapping().ifPresent(rowIdMapping -> {
-                            for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-                                try {
-                                    Merger secMerger = engine.getMerger();
-                                    MergeInput secMergeInput = MergeInput.builder()
-                                        .segments(onlyNew)
-                                        .rowIdMapping(rowIdMapping)
-                                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
-                                        .build();
-                                    MergeResult secResult = secMerger.merge(secMergeInput);
-                                    WriterFileSet secMerged = secResult.getMergedWriterFileSetForDataformat(engine.getDataFormat());
-                                    if (secMerged != null) {
-                                        consolidated.addSearchableFiles(engine.getDataFormat(), secMerged);
-                                    }
-                                } catch (IOException e) {
-                                    throw new java.io.UncheckedIOException(e);
-                                }
-                            }
-                        });
-
+                    if (mergeResult != null) {
                         List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
-                        Segment mergedSegment = consolidated.build();
+                        Segment mergedSegment = new Segment(
+                            refreshInput.nextAvailableGeneration(),
+                            mergeResult.getMergedWriterFileSet()
+                                .entrySet()
+                                .stream()
+                                .collect(Collectors.toMap(e -> e.getKey().name(), Map.Entry::getValue))
+                        );
                         result.add(mergedSegment);
 
                         if (logger.isDebugEnabled()) {
@@ -317,6 +305,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                         assert result.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
                             : "refresh result segments must contain all configured formats";
 
+                        for (Map.Entry<String, Collection<String>> pendingDeletionPerFormat : deleteFiles(getFilesToDelete(onlyNew))
+                            .entrySet()) {
+                            pendingDeletes.computeIfAbsent(pendingDeletionPerFormat.getKey(), k -> new ArrayList<>())
+                                .addAll(pendingDeletionPerFormat.getValue());
+                        }
+
                         return new RefreshResult(List.copyOf(result));
                     }
                 } catch (Exception e) {
@@ -331,6 +325,31 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
             : "refresh result segments must contain all configured formats";
         return new RefreshResult(List.copyOf(newSegments));
+    }
+
+    private static @NonNull Map<String, Collection<String>> getFilesToDelete(List<Segment> segmentsToPurge) {
+        Map<String, Set<String>> filesToDelete = new HashMap<>();
+        for (Segment segment : segmentsToPurge) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                filesToDelete.compute(entry.getKey(), (k, v) -> {
+                    Set<String> files = v;
+                    if (v == null) {
+                        files = new HashSet<>();
+                    }
+                    files.addAll(entry.getValue().files());
+                    return files;
+                });
+            }
+        }
+        Map<String, Collection<String>> unmodifiable = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : filesToDelete.entrySet()) {
+            unmodifiable.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+        }
+        return unmodifiable;
+    }
+
+    private void tryDeletePendingFiles() throws IOException {
+        pendingDeletes = deleteFiles(pendingDeletes);
     }
 
     private boolean shouldMergeOnRefresh(List<Segment> writerFiles) {

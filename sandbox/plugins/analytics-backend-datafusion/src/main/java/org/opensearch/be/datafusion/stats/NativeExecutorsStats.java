@@ -59,13 +59,14 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
     /**
      * Construct from individual components.
      *
-     * @param ioRuntime    the IO runtime metrics (must not be null)
+     * @param ioRuntime    the IO runtime metrics (nullable for filtered stats)
      * @param cpuRuntime   the CPU runtime metrics (nullable)
      * @param taskMonitors per-operation task monitor metrics
      */
     // cpuRuntime is nullable — zeroed when absent (workers_count == 0), omitted from XContent when null
+    // ioRuntime is nullable when constructing filtered stats (omitted from XContent when null)
     public NativeExecutorsStats(RuntimeMetrics ioRuntime, RuntimeMetrics cpuRuntime, Map<String, TaskMonitorStats> taskMonitors) {
-        this.ioRuntime = Objects.requireNonNull(ioRuntime);
+        this.ioRuntime = ioRuntime;
         this.cpuRuntime = cpuRuntime;
         this.taskMonitors = Objects.requireNonNull(taskMonitors);
     }
@@ -77,34 +78,41 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
      * @throws IOException if deserialization fails
      */
     public NativeExecutorsStats(StreamInput in) throws IOException {
-        this.ioRuntime = new RuntimeMetrics(in);
+        this.ioRuntime = in.readOptionalWriteable(RuntimeMetrics::new);
         this.cpuRuntime = in.readBoolean() ? new RuntimeMetrics(in) : null;
 
-        this.taskMonitors = new LinkedHashMap<>();
-        for (OperationType opType : OperationType.values()) {
-            this.taskMonitors.put(opType.key(), new TaskMonitorStats(in));
+        int monitorCount = in.readVInt();
+        this.taskMonitors = new LinkedHashMap<>(monitorCount);
+        for (int i = 0; i < monitorCount; i++) {
+            String key = in.readString();
+            this.taskMonitors.put(key, new TaskMonitorStats(in));
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ioRuntime.writeTo(out);
+        out.writeOptionalWriteable(ioRuntime);
         if (cpuRuntime != null) {
             out.writeBoolean(true);
             cpuRuntime.writeTo(out);
         } else {
             out.writeBoolean(false);
         }
-        for (OperationType opType : OperationType.values()) {
-            taskMonitors.get(opType.key()).writeTo(out);
+        // Write the number of task monitors followed by each entry
+        out.writeVInt(taskMonitors.size());
+        for (Map.Entry<String, TaskMonitorStats> entry : taskMonitors.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("io_runtime");
-        ioRuntime.toXContent(builder);
-        builder.endObject();
+        if (ioRuntime != null) {
+            builder.startObject("io_runtime");
+            ioRuntime.toXContent(builder);
+            builder.endObject();
+        }
 
         if (cpuRuntime != null) {
             builder.startObject("cpu_runtime");
