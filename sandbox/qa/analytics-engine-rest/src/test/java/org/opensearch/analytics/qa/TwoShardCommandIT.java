@@ -24,18 +24,14 @@ public class TwoShardCommandIT extends TwoShardReduceTestCase {
 
     @Override
     protected Map<String, String> knownIssues() {
-        // The search/append/regex/multisearch commands carry a residual filter that routes through the
-        // DataFusion indexed executor, which at 2 shards SIGSEGVs the data node on the Arrow view C-data
-        // export (upcallLinker.cpp:137) — so they MUST be skipped, not run (a crash breaks other tests).
-        String crash = "residual filter -> indexed-executor SIGSEGV at 2 shards (crashes the data node)";
+        // append/multisearch/regex/appendpipe previously failed: these union/multi-input shapes had an
+        // arm that resolved to lucene while the union stayed datafusion, and PlanForker couldn't
+        // reconcile the per-arm backends (the union got zero plan alternatives). Fixed — they now pass
+        // at 2 shards. The rest stay muted for unrelated reasons:
         Map<String, String> m = new LinkedHashMap<>();
-        m.put("cmd_search", crash);
-        m.put("cmd_append", crash);
-        m.put("cmd_regex", crash);
-        m.put("cmd_multisearch", crash);
+        m.put("cmd_search", "search numeric comparison lowers to a Lucene query_string that matches zero docs on numeric fields (wrong result)");
         m.put("cmd_appendcols", "not in the PPL grammar (SyntaxCheckException)");
-        m.put("cmd_timechart", "requires an @timestamp field");
-        m.put("cmd_appendpipe", "lowers to OpenSearchUnion with a lucene branch vs datafusion main (#21867)");
+        m.put("cmd_timechart", "requires an @timestamp default field");
         return m;
     }
 }
