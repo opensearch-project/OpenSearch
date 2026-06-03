@@ -97,4 +97,14 @@ public interface FragmentConvertor {
     default byte[] convertSchemaOnlyRead(int childStageId, RelDataType rowType) {
         throw new UnsupportedOperationException("convertSchemaOnlyRead not implemented for this backend");
     }
+
+    /**
+     * Wire-format contract for the bytes {@link #convertFragment} produces. The reducer
+     * consults this when deriving a child stage's partition schema. Default
+     * {@link WireFormat#SELF_DESCRIBING}; backends with a custom wire format return
+     * {@link WireFormat#OPAQUE} and MUST also override {@link #convertSchemaOnlyRead}.
+     */
+    default WireFormat wireFormat() {
+        return WireFormat.SELF_DESCRIBING;
+    }
 }

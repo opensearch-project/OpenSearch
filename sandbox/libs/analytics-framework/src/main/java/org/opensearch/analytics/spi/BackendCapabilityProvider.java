@@ -86,6 +86,19 @@ public interface BackendCapabilityProvider {
     }
 
     /**
+     * Per-shard preference scorer. The planner consults this when the same fragment has
+     * multiple viable backends, so this backend can declare a preference score for the
+     * resolved fragment given shard-local context. Default {@code null} = "no opinion in
+     * any case"; the selector treats this backend as a generic alternative.
+     *
+     * <p>See {@link BackendShardPreference} for the contract and the long-term migration
+     * path away from coordinator-side preference flags toward true shard-local routing.
+     */
+    default BackendShardPreference shardPreference() {
+        return null;
+    }
+
+    /**
      * Per-function adapters for transforming backend-agnostic scalar function RexCalls
      * into backend-compatible forms before fragment conversion. Keyed by {@link ScalarFunction}.
      * Applied regardless of operator context (filter, project, aggregate expression).
