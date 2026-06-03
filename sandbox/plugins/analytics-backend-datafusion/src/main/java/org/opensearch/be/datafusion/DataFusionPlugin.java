@@ -10,9 +10,12 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
-import org.opensearch.be.datafusion.action.DataFusionStatsAction;
+import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
+import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
+import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -22,6 +25,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -577,6 +581,11 @@ public class DataFusionPlugin extends Plugin
     }
 
     @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(new ActionHandler<>(DataFusionStatsActionType.INSTANCE, TransportDataFusionStatsAction.class));
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,
@@ -589,7 +598,7 @@ public class DataFusionPlugin extends Plugin
         if (dataFusionService == null) {
             return Collections.emptyList();
         }
-        return List.of(new DataFusionStatsAction(dataFusionService));
+        return List.of(new RestDataFusionStatsAction());
     }
 
     @Override
