@@ -303,6 +303,7 @@ public class WarmIndexBasicIT extends RemoteStoreBaseIntegTestCase {
 
         // ensuring cluster is green after performing force-merge
         ensureGreen();
+        waitForReplication(INDEX_NAME);
 
         SearchResponse searchResponse = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         // Asserting that search returns same number of docs as ingested
@@ -317,6 +318,7 @@ public class WarmIndexBasicIT extends RemoteStoreBaseIntegTestCase {
         flushAndRefresh(INDEX_NAME);
 
         ensureGreen();
+        waitForReplication(INDEX_NAME);
         searchResponse = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
         // verify again after force merge search response return same no of docs as ingested
         assertHitCount(searchResponse, 2 * NUM_DOCS_IN_BULK);
