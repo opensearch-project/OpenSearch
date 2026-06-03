@@ -251,12 +251,8 @@ pub async unsafe fn create_session_context(
         table_name.to_string()
     };
 
-    // Empty-shard branch starts from `Schema::empty()`: parquet `infer_schema` errors with
-    // "No parquet files provided" on zero files, but `widen_schema_from_plan` populates the
-    // schema from the substrait plan's `base_schema` and `ListingTable::try_new` does not
-    // probe files at construction (file listing happens at scan time). The matching guard in
-    // `query_executor::execute_with_context` short-circuits before any scan, so the table is
-    // only used for name binding by `from_substrait_plan`.
+    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
+    // below populates columns from the substrait base_schema.
     let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
         Arc::new(arrow::datatypes::Schema::empty())
     } else {

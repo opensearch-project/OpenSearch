@@ -277,12 +277,8 @@ pub async fn execute_with_context(
         let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
 
-        // Empty-shard short-circuit: when no on-disk segments exist, skip physical
-        // planning (parquet `execute_stream` errors with "No parquet files provided"
-        // for plan shapes such as Filter ← TableScan). Emit an empty stream with the
-        // logical plan's output schema — DataFusion's canonical zero-row operator,
-        // already used for the empty-after-pruning case at
-        // `indexed_table/table_provider.rs:455-457`.
+        // Empty shard: skip physical planning (ParquetExec errors on zero files)
+        // and emit an EmptyExec stream with the logical plan's output schema.
         if handle.object_metas.is_empty() {
             use datafusion::physical_plan::empty::EmptyExec;
             use datafusion::physical_plan::ExecutionPlan;

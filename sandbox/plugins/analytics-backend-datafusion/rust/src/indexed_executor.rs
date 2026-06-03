@@ -456,12 +456,8 @@ async unsafe fn execute_indexed_with_context_inner(
     // spawning on the CPU runtime, so the Java search thread blocks at the
     // gate when it is full — creating backpressure at the Java threadpool level.
 
-    // Empty-shard short-circuit: when no on-disk segments exist,
-    // `build_segments` (called below) errors with "No parquet files provided".
-    // Skip indexed planning entirely. The substrait consumer can still bind
-    // column references because `create_session_context` registered the
-    // table with a widened schema from the substrait `base_schema`. Mirror of
-    // the guard in `query_executor::execute_with_context`.
+    // Empty shard: skip build_segments (errors on zero files) and emit an
+    // empty stream. Mirrors the guard in query_executor::execute_with_context.
     if handle.object_metas.is_empty() {
         use datafusion::physical_plan::empty::EmptyExec;
         use datafusion::physical_plan::ExecutionPlan;
