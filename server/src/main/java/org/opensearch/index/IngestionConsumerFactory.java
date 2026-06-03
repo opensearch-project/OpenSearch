@@ -89,7 +89,6 @@ public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P ex
      */
     @SuppressWarnings("deprecation")
     default T createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
-        initialize(indexMetadata.getIngestionSource());
-        return createShardConsumer(clientId, shardId);
+        return createShardConsumer(clientId, shardId, indexMetadata.getIngestionSource());
     }
 }
