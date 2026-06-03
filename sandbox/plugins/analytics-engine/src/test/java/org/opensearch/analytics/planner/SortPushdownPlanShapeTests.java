@@ -13,6 +13,7 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 
@@ -98,6 +99,23 @@ public class SortPushdownPlanShapeTests extends PlanShapeTestBase {
         assertFalse("shard Sort must not carry an offset", p.substring(widenedIdx).contains("offset="));
     }
 
+    /** UNION ALL: the collated sort is pushed below each arm's ER (split at each point). */
+    public void testUnionAll_2shard_pushedIntoBothArms() {
+        RelNode union = LogicalUnion.create(
+            List.of(stubScan(mockTable("test_index", "status", "size")), stubScan(mockTable("test_index", "status", "size"))),
+            true
+        );
+        String p = RelOptUtil.toString(runPlanner(fetchLiteralSort(union, 10), unionContext("test_index", 2)));
+        assertEquals("coordinator + one Sort per arm, plan:\n" + p, 3, p.lines().filter(l -> l.contains("OpenSearchSort")).count());
+        assertEquals("one ER per arm, plan:\n" + p, 2, p.lines().filter(l -> l.contains("ExchangeReducer")).count());
+        String[] lines = p.split("\n", -1);
+        for (int i = 0; i + 1 < lines.length; i++) {
+            if (lines[i].contains("ExchangeReducer")) {
+                assertTrue("a Sort must be pushed below each arm ER, plan:\n" + p, lines[i + 1].contains("OpenSearchSort"));
+            }
+        }
+    }
+
     /** Collated Sort with no fetch → no transport bound → not pushed. */
     public void testNoFetch_notPushed() {
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
@@ -131,5 +149,26 @@ public class SortPushdownPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(fetchLiteralSort(agg, 10), multiShardContext());
         // Only the coordinator Sort — no per-partition Sort from this rewriter (oversampling default 0 disables TopK too).
         assertEquals(1, RelOptUtil.toString(result).lines().filter(l -> l.contains("OpenSearchSort")).count());
+    }
+
+    /** Context whose DataFusion backend declares EngineCapability.UNION (mirrors PlanShapeTests). */
+    private PlannerContext unionContext(String indexName, int shardCount) {
+        return buildContextPerIndex(
+            "parquet",
+            java.util.Map.of(indexName, shardCount),
+            intFields(),
+            List.of(new UnionCapableBackend(), LUCENE)
+        );
+    }
+
+    private static final class UnionCapableBackend extends MockDataFusionBackend {
+        @Override
+        protected java.util.Set<org.opensearch.analytics.spi.EngineCapability> supportedEngineCapabilities() {
+            java.util.Set<org.opensearch.analytics.spi.EngineCapability> caps = new java.util.HashSet<>(
+                super.supportedEngineCapabilities()
+            );
+            caps.add(org.opensearch.analytics.spi.EngineCapability.UNION);
+            return caps;
+        }
     }
 }

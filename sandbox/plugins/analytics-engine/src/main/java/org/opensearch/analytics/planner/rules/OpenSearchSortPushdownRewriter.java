@@ -16,21 +16,27 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
+import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
  * Post-CBO rewriter for non-aggregate TopK. Copies the bottom-most collated
- * {@link OpenSearchSort} to just below the {@link OpenSearchExchangeReducer} so each shard
- * ships only its local top-N sorted rows; the coordinator Sort still merges and applies the
- * final offset/limit. Exact (no oversampling): a row in the global window is within its own
- * shard's top-{@code (offset+fetch)}.
+ * {@link OpenSearchSort} to just below the exchange so each shard ships only its local top-N
+ * sorted rows; the coordinator Sort still merges and applies the final offset/limit. Exact
+ * (no oversampling): a row in the global window is within its own shard's top-{@code (offset+fetch)}.
+ *
+ * <p>Targets a collated Sort sitting directly above either an {@link OpenSearchExchangeReducer}
+ * (scan case) or an {@code UNION ALL} {@link OpenSearchUnion} whose arms are each gathered by an
+ * ER — in which case the Sort is pushed below <em>every</em> arm's ER (arm row types match the
+ * union output, so the collation maps 1:1). Offset is not pushed: the shard fetch widens to
+ * {@code offset+fetch} and the offset stays on the coordinator.
  *
  * <p>Handles {@code Sort(collation,[offset,]fetch)} (SQL) and {@code Sort(fetch) → Sort(collation)}
- * (PPL {@code sort | head}). Offset is not pushed — the shard fetch widens to {@code offset+fetch}
- * and the offset stays on the coordinator. Walks only the single-input coordinator spine and skips
- * the aggregate path (ER feeding a PARTIAL aggregate, owned by {@link OpenSearchTopKRewriter}).
+ * (PPL {@code sort | head}). Walks only the single-input coordinator spine and skips the aggregate
+ * path (ER feeding a PARTIAL aggregate, owned by {@link OpenSearchTopKRewriter}).
  *
  * @opensearch.internal
  */
@@ -41,25 +47,15 @@ public final class OpenSearchSortPushdownRewriter {
     public static Optional<RelNode> rewrite(RelNode root) {
         Match m = find(root, null);
         if (m == null) return Optional.empty();
-
-        RelNode erInput = m.er.getInput();
-        OpenSearchSort shardSort = new OpenSearchSort(
-            m.collated.getCluster(),
-            erInput.getTraitSet(),
-            erInput,
-            m.collated.getCollation(),
-            null,
-            shardFetch(m.bound),
-            m.collated.getViableBackends()
-        );
-        RelNode newER = m.er.copy(m.er.getTraitSet(), List.of(shardSort));
-        return Optional.of(replaceInTree(root, m.er, newER));
+        RelNode replacement = rewriteTarget(m.below, m.collated, shardFetch(m.bound));
+        return replacement == null ? Optional.empty() : Optional.of(replaceInTree(root, m.below, replacement));
     }
 
     /**
-     * Walks the single-input coordinator spine for the bottom-most collated Sort directly above an
-     * ER, bounded by a fetch. {@code fetchSortAbove} is an immediately-enclosing pure-fetch Sort
-     * (carries the limit for the two-node PPL shape). Stops at multi-input ops (Join/Union) and leaves.
+     * Walks the single-input coordinator spine for the bottom-most collated Sort directly above a
+     * push target (an ER or UNION ALL), bounded by a fetch. {@code fetchSortAbove} is an
+     * immediately-enclosing pure-fetch Sort (carries the limit for the two-node PPL shape). Stops at
+     * multi-input ops (other than a matched UNION ALL) and leaves.
      */
     private static Match find(RelNode node, OpenSearchSort fetchSortAbove) {
         if (node instanceof OpenSearchSort sort) {
@@ -69,18 +65,63 @@ public final class OpenSearchSortPushdownRewriter {
                 // only when this Sort has no offset of its own (which the enclosing one can't honor).
                 OpenSearchSort bound = sort.fetch != null ? sort : (sort.offset == null ? fetchSortAbove : null);
                 RelNode below = sort.getInput();
-                if (bound != null
-                    && canComputeShardFetch(bound)
-                    && below instanceof OpenSearchExchangeReducer er
-                    && isAggregatePath(er) == false
-                    && (er.getInput() instanceof OpenSearchSort) == false) {
-                    return new Match(sort, bound, er);
+                if (bound != null && canComputeShardFetch(bound) && isPushTarget(below)) {
+                    return new Match(sort, bound, below);
                 }
             }
             OpenSearchSort carry = (collated == false && sort.fetch != null) ? sort : null;
             return find(sort.getInput(), carry);
         }
         return node.getInputs().size() == 1 ? find(node.getInputs().get(0), null) : null;
+    }
+
+    /** A node we can push a Sort below: an eligible ER, or a UNION ALL with at least one eligible ER arm. */
+    private static boolean isPushTarget(RelNode below) {
+        if (below instanceof OpenSearchExchangeReducer er) return eligibleER(er);
+        if (below instanceof OpenSearchUnion union && union.all) {
+            for (RelNode arm : union.getInputs()) {
+                if (arm instanceof OpenSearchExchangeReducer er && eligibleER(er)) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Rebuilds the target with the shard Sort pushed below the ER (scan case) or below each arm's ER (union). */
+    private static RelNode rewriteTarget(RelNode below, OpenSearchSort collated, RexNode fetch) {
+        if (below instanceof OpenSearchExchangeReducer er) {
+            return pushBelow(er, collated, fetch);
+        }
+        OpenSearchUnion union = (OpenSearchUnion) below;
+        List<RelNode> arms = new ArrayList<>(union.getInputs().size());
+        boolean pushed = false;
+        for (RelNode arm : union.getInputs()) {
+            if (arm instanceof OpenSearchExchangeReducer er && eligibleER(er)) {
+                arms.add(pushBelow(er, collated, fetch));
+                pushed = true;
+            } else {
+                arms.add(arm);
+            }
+        }
+        return pushed ? union.copy(union.getTraitSet(), arms, union.all) : null;
+    }
+
+    /** ER with the shard Sort inserted between it and its input. */
+    private static RelNode pushBelow(OpenSearchExchangeReducer er, OpenSearchSort collated, RexNode fetch) {
+        RelNode erInput = er.getInput();
+        OpenSearchSort shardSort = new OpenSearchSort(
+            collated.getCluster(),
+            erInput.getTraitSet(),
+            erInput,
+            collated.getCollation(),
+            null,
+            fetch,
+            collated.getViableBackends()
+        );
+        return er.copy(er.getTraitSet(), List.of(shardSort));
+    }
+
+    private static boolean eligibleER(OpenSearchExchangeReducer er) {
+        return isAggregatePath(er) == false && (er.getInput() instanceof OpenSearchSort) == false;
     }
 
     /** True when the shard fetch is computable: no offset, or offset and fetch are both literals to sum. */
@@ -114,6 +155,6 @@ public final class OpenSearchSortPushdownRewriter {
         return changed ? root.copy(root.getTraitSet(), List.of(newChildren)) : root;
     }
 
-    private record Match(OpenSearchSort collated, OpenSearchSort bound, OpenSearchExchangeReducer er) {
+    private record Match(OpenSearchSort collated, OpenSearchSort bound, RelNode below) {
     }
 }

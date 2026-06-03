@@ -113,6 +113,27 @@ public class SortPushdownIT extends AnalyticsRestTestCase {
         assertTrue("a Sort must sit below the exchange (pushed down), plan:\n" + plan, er >= 0 && plan.indexOf("OpenSearchSort", er) > er);
     }
 
+    /** UNION ALL ({@code | append}): result is the global top-N, and the Sort is pushed below each arm's exchange. */
+    @SuppressWarnings("unchecked")
+    public void testUnionAll_sortPushedIntoEachArm() throws Exception {
+        ensureProvisioned();
+        String union = "source = " + INDEX + " | append [ source = " + INDEX + " ] | sort - " + COL + " | head 10";
+
+        List<List<Object>> rows = datarows(executePpl(union + " | fields " + COL));
+        assertEquals(10, rows.size());
+        assertMonotonic(rows, false);
+        assertEquals("top row must equal global max (union of index with itself)", globalAgg("max", null), num(rows.get(0).get(0)), 0.0);
+
+        String plan = String.join("\n", (List<String>) ((Map<String, Object>) executeExplain(union).get("profile")).get("full_plan"));
+        String[] lines = plan.split("\n", -1);
+        assertTrue("two arm exchanges, plan:\n" + plan, plan.lines().filter(l -> l.contains("ExchangeReducer")).count() >= 2);
+        for (int i = 0; i + 1 < lines.length; i++) {
+            if (lines[i].contains("ExchangeReducer")) {
+                assertTrue("a Sort must be pushed below each arm exchange, plan:\n" + plan, lines[i + 1].contains("OpenSearchSort"));
+            }
+        }
+    }
+
     /** {@code fn} is count/min/max; {@code where} is an optional leading filter clause (may be null). */
     private double globalAgg(String fn, String where) throws Exception {
         String filter = where == null ? "" : where + " | ";
