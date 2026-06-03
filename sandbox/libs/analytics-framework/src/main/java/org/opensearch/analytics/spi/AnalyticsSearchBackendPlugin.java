@@ -157,7 +157,13 @@ public interface AnalyticsSearchBackendPlugin {
      * @param allocator Arrow buffer allocator for result import
      * @return a result stream containing the requested rows
      */
-    default EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
+    default EngineResultStream fetchByRowIds(
+        Reader reader,
+        BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator,
+        long contextId
+    ) {
         throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
     }
 

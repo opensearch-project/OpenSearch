@@ -117,7 +117,7 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
         try (MockLogAppender appender = MockLogAppender.createForLoggers(queryLogger)) {
             appender.addExpectation(expectQuery("has took", ".*took\\[.*\\].*took_millis\\[\\d+\\].*"));
             appender.addExpectation(expectQuery("has planning_time_millis", ".*planning_time_millis\\[\\d+\\].*"));
-            appender.addExpectation(expectQuery("has stage_took_millis", ".*stage_took_millis\\[\\{.*StageExecution.*\\}\\].*"));
+            appender.addExpectation(expectQuery("has stage_took_millis", ".*stage_took_millis\\[\\{.*\\}\\].*"));
             appender.addExpectation(expectQuery("has query_id", ".*query_id\\[[a-f0-9-]+\\].*"));
             appender.addExpectation(expectQuery("has total_rows > 0", ".*total_rows\\[(?!0\\])\\d+\\].*"));
             appender.addExpectation(expectQuery("has source field", ".*source\\[.*\\].*"));

@@ -518,7 +518,7 @@ public final class NativeBridge {
         );
 
         // i64 df_fetch_by_row_ids(shard_view_ptr, row_ids_buf_ptr, row_ids_count,
-        // col_names_ptr, col_names_len_ptr, col_names_count, runtime_ptr)
+        // col_names_ptr, col_names_len_ptr, col_names_count, runtime_ptr, context_id)
         FETCH_BY_ROW_IDS = linker.downcallHandle(
             lib.find("df_fetch_by_row_ids").orElseThrow(),
             FunctionDescriptor.of(
@@ -528,6 +528,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
@@ -1357,7 +1358,14 @@ public final class NativeBridge {
      * @param runtimePtr pointer to the DataFusion runtime
      * @return opaque stream pointer
      */
-    public static long fetchByRowIds(long readerPtr, long rowIdsBufAddr, int rowIdsCount, String[] columns, long runtimePtr) {
+    public static long fetchByRowIds(
+        long readerPtr,
+        long rowIdsBufAddr,
+        int rowIdsCount,
+        String[] columns,
+        long runtimePtr,
+        long contextId
+    ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         if (rowIdsBufAddr == 0) {
@@ -1373,7 +1381,8 @@ public final class NativeBridge {
                 colNames.ptrs(),
                 colNames.lens(),
                 colNames.count(),
-                runtimePtr
+                runtimePtr,
+                contextId
             );
         }
     }
