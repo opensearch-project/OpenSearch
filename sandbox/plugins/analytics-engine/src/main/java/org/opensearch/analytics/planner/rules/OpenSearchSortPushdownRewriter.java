@@ -39,6 +39,10 @@ import java.util.Optional;
  * (PPL {@code sort | head}). Walks only the single-input coordinator spine and skips the aggregate
  * path (ER feeding a PARTIAL aggregate, owned by {@link OpenSearchTopKRewriter}).
  *
+ * <p>TODO: this is a temporary workaround. The correct approach is proper trait propagation in
+ * Calcite's Volcano planner (collation/limit pushdown through the exchange); replace this rewrite
+ * once that is in place.
+ *
  * @opensearch.internal
  */
 public final class OpenSearchSortPushdownRewriter {
@@ -46,7 +50,7 @@ public final class OpenSearchSortPushdownRewriter {
     private OpenSearchSortPushdownRewriter() {}
 
     public static Optional<RelNode> rewrite(RelNode root) {
-        Match m = find(root, null);
+        RewriteContext m = find(root, null);
         if (m == null) return Optional.empty();
         RelNode replacement = rewriteTarget(m.below, m.collated, shardFetch(m.bound));
         return replacement == null ? Optional.empty() : Optional.of(replaceInTree(root, m.below, replacement));
@@ -58,7 +62,7 @@ public final class OpenSearchSortPushdownRewriter {
      * immediately-enclosing pure-fetch Sort (carries the limit for the two-node PPL shape). Stops at
      * multi-input ops (other than a matched UNION ALL) and leaves.
      */
-    private static Match find(RelNode node, OpenSearchSort fetchSortAbove) {
+    private static RewriteContext find(RelNode node, OpenSearchSort fetchSortAbove) {
         if (node instanceof OpenSearchSort sort) {
             boolean collated = sort.getCollation().getFieldCollations().isEmpty() == false;
             if (collated) {
@@ -67,12 +71,15 @@ public final class OpenSearchSortPushdownRewriter {
                 OpenSearchSort bound = sort.fetch != null ? sort : (sort.offset == null ? fetchSortAbove : null);
                 RelNode below = sort.getInput();
                 if (bound != null && canComputeShardFetch(bound) && isPushTarget(below)) {
-                    return new Match(sort, bound, below);
+                    return new RewriteContext(sort, bound, below);
                 }
             }
             OpenSearchSort carry = (collated == false && sort.fetch != null) ? sort : null;
             return find(sort.getInput(), carry);
         }
+        // Follow only the single-input coordinator spine. Multi-input ops (Join) are intentionally
+        // not traversed — pushing a sort into one join branch is unsafe; UNION ALL is instead matched
+        // directly as a push target above (see isPushTarget).
         return node.getInputs().size() == 1 ? find(node.getInputs().get(0), null) : null;
     }
 
@@ -130,7 +137,10 @@ public final class OpenSearchSortPushdownRewriter {
         return isAggregatePath(er) == false && (input instanceof OpenSearchSort) == false && (input instanceof OpenSearchJoin) == false;
     }
 
-    /** True when the shard fetch is computable: no offset, or offset and fetch are both literals to sum. */
+    /**
+     * True when the shard fetch is computable: no offset, or offset and fetch are both literals to sum.
+     * TODO: support non-literal (complex expression) offset/fetch by summing as a RexNode — out of scope for now.
+     */
     private static boolean canComputeShardFetch(OpenSearchSort bound) {
         return bound.offset == null || (bound.offset instanceof RexLiteral && bound.fetch instanceof RexLiteral);
     }
@@ -161,6 +171,7 @@ public final class OpenSearchSortPushdownRewriter {
         return changed ? root.copy(root.getTraitSet(), List.of(newChildren)) : root;
     }
 
-    private record Match(OpenSearchSort collated, OpenSearchSort bound, RelNode below) {
+    /** Carries the matched collated Sort, the fetch-bounding Sort, and the target node to rewrite. */
+    private record RewriteContext(OpenSearchSort collated, OpenSearchSort bound, RelNode below) {
     }
 }
