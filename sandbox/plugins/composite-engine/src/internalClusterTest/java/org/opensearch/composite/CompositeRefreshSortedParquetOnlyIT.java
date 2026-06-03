@@ -135,4 +135,8 @@ public class CompositeRefreshSortedParquetOnlyIT extends AbstractSortedRefreshIT
             .build();
     }
 
+    @Override
+    protected String[] getMapping() {
+        return new String[] { "name", "type=keyword,index=false", "age", "type=integer", "tag", "type=keyword,index=false" };
+    }
 }

@@ -67,13 +67,12 @@ public class AbstractSortedRefreshIT extends OpenSearchIntegTestCase {
     }
 
     protected void createIndex(Settings settings) {
-        client().admin()
-            .indices()
-            .prepareCreate(INDEX_NAME)
-            .setSettings(settings)
-            .setMapping("name", "type=keyword", "age", "type=integer", "tag", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(settings).setMapping(getMapping()).get();
         ensureGreen(INDEX_NAME);
+    }
+
+    protected String[] getMapping() {
+        return new String[] { "name", "type=keyword", "age", "type=integer", "tag", "type=keyword" };
     }
 
     protected void indexDoc(String name, int age) {

@@ -10,8 +10,8 @@ package org.opensearch.be.lucene;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -25,8 +25,6 @@ import org.opensearch.index.mapper.TextFieldMapper;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE;
 
 /**
  * Registry of {@link LuceneFieldFactory} instances keyed by OpenSearch field type name.
@@ -46,6 +44,8 @@ public final class LuceneFieldFactoryRegistry {
         ID_FIELD_TYPE.setTokenized(false);
         ID_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         ID_FIELD_TYPE.setOmitNorms(true);
+        ID_FIELD_TYPE.setStored(false);
+        ID_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
         ID_FIELD_TYPE.freeze();
     }
 
@@ -62,16 +62,12 @@ public final class LuceneFieldFactoryRegistry {
         doc.add(new Field(ft.name(), value.toString(), lft));
     };
 
-    private static final FieldType ID_FIELD_TYPE = buildIdFieldType();
-
     private static final LuceneFieldFactory ID_FIELD_FACTORY = (doc, ft, value, lft) -> {
         doc.add(new Field(ft.name(), new BytesRef((byte[]) value), ID_FIELD_TYPE));
     };
 
     private static final LuceneFieldFactory SEQ_NO_FIELD_FACTORY = (doc, ft, value, lft) -> {
-        if (ft.getCapabilityMap().get(LucenePlugin.DATA_FORMAT).contains(POINT_RANGE)) {
-            doc.add(new LongPoint(ft.name(), (long) value));
-        }
+        // do nothing for now since we don't want to index seq no indexing without soft deletes enabled.
     };
 
     // ── Registry ──
@@ -123,12 +119,5 @@ public final class LuceneFieldFactoryRegistry {
      */
     public Set<String> supportedTypes() {
         return Set.copyOf(factories.keySet());
-    }
-
-    private static FieldType buildIdFieldType() {
-        FieldType ft = new FieldType(IdFieldMapper.Defaults.FIELD_TYPE);
-        ft.setStored(false);
-        ft.freeze();
-        return ft;
     }
 }

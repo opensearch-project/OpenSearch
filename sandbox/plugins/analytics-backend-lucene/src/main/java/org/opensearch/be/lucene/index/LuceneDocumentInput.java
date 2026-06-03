@@ -119,8 +119,6 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
             }
             luceneFieldType.setStored(false);
             luceneFieldType.setOmitNorms(true);
-        } else {
-            luceneFieldType = null;
         }
         return luceneFieldType;
     }

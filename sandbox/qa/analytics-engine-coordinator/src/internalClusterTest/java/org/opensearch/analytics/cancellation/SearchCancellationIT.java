@@ -28,7 +28,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -36,6 +35,7 @@ import org.opensearch.ppl.action.PPLRequest;
 import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.UnifiedPPLExecuteAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
@@ -95,7 +95,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
