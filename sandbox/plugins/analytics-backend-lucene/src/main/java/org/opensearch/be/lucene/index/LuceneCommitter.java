@@ -379,10 +379,15 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
         // Open a temp IndexWriter at the target commit and re-commit. The default deletion policy
         // (KeepOnlyLastCommitDeletionPolicy) discards all other segments_N files, cleaning up
-        // both unsafe commits and orphan non-CatalogSnapshot commits as well, if any
+        // both unsafe commits and orphan non-CatalogSnapshot commits as well, if any.
+        // Pin the merge policy to NoMergePolicy: this writer's only job is to re-anchor the
+        // commit point. The default TieredMergePolicy would otherwise merge segments without
+        // honoring the engine's index sort, producing an unsorted merged segment that the
+        // subsequent (sorted) MergeIndexWriter cannot open.
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND)
             .setCommitOnClose(false)
-            .setIndexCommit(targetCommit);
+            .setIndexCommit(targetCommit)
+            .setMergePolicy(NoMergePolicy.INSTANCE);
         try (IndexWriter tempWriter = new IndexWriter(store.directory(), iwc)) {
             tempWriter.setLiveCommitData(targetCommit.getUserData().entrySet());
             tempWriter.commit();
