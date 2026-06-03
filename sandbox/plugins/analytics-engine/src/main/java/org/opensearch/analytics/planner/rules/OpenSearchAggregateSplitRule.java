@@ -56,13 +56,15 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     /** Skip the PARTIAL/FINAL split when it would emit a row type that fails Volcano's typeMatchesInferred. */
     private static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
-            // DISTINCT aggregates (e.g. COUNT(DISTINCT x)) can't be decomposed into per-shard
-            // partials reduced additively: summing per-shard distinct counts double-counts any
-            // value present on more than one shard. Gather to the coordinator and aggregate once.
-            if (aggCall.isDistinct()) {
+            // Aggregates that don't decompose additively across shards: APPROXIMATE
+            // (APPROX_COUNT_DISTINCT), STATE_EXPANDING (TAKE/FIRST/LAST/LIST/VALUES/
+            // PERCENTILE_APPROX/PATTERN), and any residual DISTINCT (e.g. multi-arg
+            // COUNT(DISTINCT a, b) that survived rewriting). Gather and aggregate once.
+            AggregateFunction.Type type = aggregateType(aggCall.getAggregation());
+            if (type == AggregateFunction.Type.STATE_EXPANDING || type == AggregateFunction.Type.APPROXIMATE) {
                 return true;
             }
-            if (isStateExpanding(aggCall.getAggregation())) {
+            if (aggCall.isDistinct()) {
                 return true;
             }
         }
@@ -90,11 +92,11 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return false;
     }
 
-    private static boolean isStateExpanding(SqlAggFunction op) {
+    private static AggregateFunction.Type aggregateType(SqlAggFunction op) {
         try {
-            return AggregateFunction.fromSqlAggFunction(op).getType() == AggregateFunction.Type.STATE_EXPANDING;
+            return AggregateFunction.fromSqlAggFunction(op).getType();
         } catch (IllegalStateException ignored) {
-            return false;
+            return null;
         }
     }
 
