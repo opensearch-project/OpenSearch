@@ -15,7 +15,9 @@ import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.analytics.exec.AnalyticsFragmentSlowLog;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
+import org.opensearch.analytics.exec.AnalyticsSearchSlowLog;
 import org.opensearch.analytics.exec.CoordinatorAllocatorHandle;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
@@ -107,6 +109,46 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     );
 
     /**
+     * When {@code true} (default), performance-delegated leaves (driver natively evaluable,
+     * peer also viable) fuse with their correctness-delegated siblings even under {@code OR}
+     * / {@code NOT}. The combiner ships the entire boolean structure as a single delegated
+     * expression rather than throwing the dual-viable leaves back to native.
+     *
+     * <p>Default {@code true} — Lucene's term-dictionary random access typically beats
+     * managing per-leaf bitsets in DataFusion, so fusing the OR/NOT into one peer call is
+     * the favorable choice for the common workload. Flip to {@code false} for A/B comparison
+     * or to roll back if a workload regresses (e.g. very wide OR over highly-selective
+     * leaves where the driver's column scan would short-circuit before Lucene completes).
+     */
+    public static final Setting<Boolean> DELEGATION_FUSE_DUAL_VIABLE = Setting.boolSetting(
+        "analytics.delegation.fuse_dual_viable",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Controls the metadata-only driver vs. value-producing peer choice when both are viable
+     * for a stage:
+     *
+     * <ul>
+     *   <li>{@code true} (default) — collapse to the metadata-only alternative (e.g. Lucene)
+     *       whenever it can run the stage end-to-end (today: count fast path). Stage ships
+     *       exactly one {@link org.opensearch.analytics.planner.dag.StagePlan}; convertor
+     *       runs once per stage; data node skips per-request alternative selection.</li>
+     *   <li>{@code false} — force the value-producing backend (DataFusion). All metadata-only
+     *       alternatives are dropped from every stage. A/B comparison knob and regression
+     *       escape hatch.</li>
+     * </ul>
+     */
+    public static final Setting<Boolean> PREFER_METADATA_DRIVER = Setting.boolSetting(
+        "analytics.planner.prefer_metadata_driver",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Creates a new analytics engine hub plugin.
      */
     public AnalyticsPlugin() {}
@@ -115,6 +157,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private AnalyticsSearchService searchService;
     private final MppStrategyMetrics mppStrategyMetrics = new MppStrategyMetrics();
     private final ShuffleBufferManager shuffleBufferManager = new ShuffleBufferManager();
+    private AnalyticsSearchSlowLog analyticsSearchSlowLog;
+    private AnalyticsFragmentSlowLog analyticsFragmentSlowLog;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
     private ReaderContextStore readerContextStore;
     private final AnalyticsStatsCollector statsCollector = new AnalyticsStatsCollector();
@@ -152,7 +196,15 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         readerContextStore = new ReaderContextStore(threadPool);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE, readerContextStore::setKeepAlive);
-        searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry, readerContextStore);
+        analyticsSearchSlowLog = new AnalyticsSearchSlowLog(clusterService);
+        analyticsFragmentSlowLog = new AnalyticsFragmentSlowLog();
+        searchService = new AnalyticsSearchService(
+            backEndsByName,
+            List.of(analyticsFragmentSlowLog),
+            nativeAllocator,
+            namedWriteableRegistry,
+            readerContextStore
+        );
         searchService.setShuffleBufferRegistry(shuffleBufferManager);
         searchService.setShuffleSenderDeps(client, threadPool, clusterService);
         DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
@@ -177,6 +229,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             mppStrategyMetrics,
             shuffleBufferManager,
             coordinatorAllocatorHandle,
+            analyticsSearchSlowLog,
             statsCollector
         );
     }
@@ -230,6 +283,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>(AnalyticsSettings.ALL_SETTINGS);
         settings.add(COORDINATOR_BUFFER_LIMIT);
+        settings.add(DELEGATION_FUSE_DUAL_VIABLE);
+        settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
         settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
         return List.copyOf(settings);

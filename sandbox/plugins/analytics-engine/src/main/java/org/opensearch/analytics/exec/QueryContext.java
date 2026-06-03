@@ -91,6 +91,26 @@ public class QueryContext {
         this(dag, threadPool, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, List.of(), allocator, ownsAllocator, new SharedState());
     }
 
+    public QueryContext(
+        QueryDAG dag,
+        ThreadPool threadPool,
+        AnalyticsQueryTask parentTask,
+        BufferAllocator allocator,
+        boolean ownsAllocator,
+        List<AnalyticsOperationListener> operationListeners
+    ) {
+        this(
+            dag,
+            threadPool,
+            parentTask,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            operationListeners,
+            allocator,
+            ownsAllocator,
+            new SharedState()
+        );
+    }
+
     /** Full-parameter constructor. Private; tests use {@link #forTest} factories. */
     private QueryContext(
         QueryDAG dag,

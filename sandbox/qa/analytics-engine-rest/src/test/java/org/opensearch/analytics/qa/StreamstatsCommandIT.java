@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -998,24 +997,25 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testWhereInWithStreamstatsSubquery. WHERE-IN with streamstats subquery — uses
      *  semi-join lowering inside the subquery. After PlannerImpl's subquery-remove phase the
-     *  RexSubQuery becomes a decorrelated correlate, but the streamstats-inside-correlate
-     *  shape is nondeterministic on multi-node execution: sometimes errors with
-     *  {@code Stage 0 sink feed failed: partition stream receiver dropped before send},
-     *  sometimes returns one row successfully. Neither a positive nor a broad-failure
-     *  assertion is stable across runs. Skipped until the downstream multi-node race is
-     *  fixed — re-enable by removing {@code @AwaitsFix}. */
-    @AwaitsFix(
-        bugUrl = "streamstats-inside-decorrelated-correlate has a nondeterministic multi-node"
-            + " execution race; needs a downstream analytics-engine fix before this test can"
-            + " assert a deterministic outcome"
-    )
+     *  RexSubQuery becomes a decorrelated correlate. This historically hit a nondeterministic
+     *  multi-node race ({@code Stage 0 sink feed failed: partition stream receiver dropped before
+     *  send}) so the assertion was the tolerant {@code assertErrorAny}. The decorrelated-correlate
+     *  execution path was fixed (multi-input backend selection in {@code PlanForker} and the
+     *  multi-leaf {@code OpenSearchStageInputScan} schema resolution in
+     *  {@code FragmentConversionDriver}); the query now executes deterministically.
+     *
+     *  <p>The subquery sorts by {@code key} before {@code streamstats count()} so the running
+     *  count is deterministic: rows with {@code cnt < 5} are the first four keys (key00..key03).
+     *  The outer query re-sorts by {@code key} so the IN-filtered result is pinned to an exact,
+     *  ordered row set — this asserts real content end-to-end, not just that the query ran. */
     public void testWhereInWithStreamstatsSubquery() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | where key in"
-                + " [ source=" + DATASET.indexName + " | streamstats count() as cnt"
+                + " [ source=" + DATASET.indexName + " | sort key | streamstats count() as cnt"
                 + " | where cnt < 5 | fields key ]"
-                + " | head 1"
+                + " | sort key | fields key"
         );
+        assertRowsEqual(response, row("key00"), row("key01"), row("key02"), row("key03"));
     }
 
     /** sql IT: testMultipleStreamstatsWithEval. Streamstats running cnt → eval x=cnt+1 →

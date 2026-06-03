@@ -73,39 +73,72 @@ public class PlanForker {
             return results;
         }
 
-        // Multi-input: take the first alternative from each child. With a single backend
-        // (pure DataFusion), each child has exactly one alternative anyway. For correctness
-        // we require all children to agree on the chosen backend — a multi-input operator
-        // cannot straddle backends within a single stage.
+        // Multi-input: all children must resolve to the SAME backend, and that backend must be
+        // one the operator itself can run on — a multi-input operator cannot straddle backends
+        // within a single stage. Naively taking childAlts.getFirst() is wrong when a child fans
+        // out into multiple per-backend alternatives (e.g. a scan over Lucene-indexable fields
+        // forks {lucene, datafusion} when prefer_metadata_driver is on): the first child
+        // alternative may be on a backend the operator is NOT viable for (e.g. an
+        // OpenSearchJoin marked datafusion-only over a lucene-first child), which would make
+        // resolveOperator return zero alternatives and leave the stage with an empty plan list.
+        // Instead, choose an agreed backend from the operator's own viable backends that every
+        // child can supply, preferring the operator's viable-backend order.
         // TODO: when multi-backend pipelines are added, fan out the Cartesian product of
         // child alternatives and prune by backend agreement.
+        String agreedBackend = chooseAgreedBackend(node, childAlternativeSets);
         List<RelNode> resolvedChildren = new ArrayList<>(childAlternativeSets.size());
-        String agreedBackend = null;
         for (List<Resolved> childAlts : childAlternativeSets) {
             if (childAlts.isEmpty()) {
                 throw new IllegalStateException(
                     "Multi-input child of [" + node.getClass().getSimpleName() + "] produced no plan alternatives"
                 );
             }
-            Resolved childAlt = childAlts.getFirst();
-            resolvedChildren.add(childAlt.node);
-            if (agreedBackend == null) {
-                agreedBackend = childAlt.chosenBackend;
-            } else if (childAlt.chosenBackend != null
-                && !childAlt.chosenBackend.isEmpty()
-                && !childAlt.chosenBackend.equals(agreedBackend)) {
-                    throw new IllegalStateException(
-                        "Multi-input operator ["
-                            + node.getClass().getSimpleName()
-                            + "] requires all children to share a backend; got ["
-                            + agreedBackend
-                            + "] vs ["
-                            + childAlt.chosenBackend
-                            + "]"
-                    );
-                }
+            resolvedChildren.add(selectForBackend(childAlts, agreedBackend).node);
         }
         return resolveOperator(node, resolvedChildren, agreedBackend);
+    }
+
+    /**
+     * Picks a backend that (1) the operator is viable for, when it is an {@link OpenSearchRelNode},
+     * and (2) every child can supply an alternative on. Operator viable-backend order is the
+     * preference; ties fall back to the first child's first alternative backend. Returning a
+     * backend that some child lacks would make {@link #selectForBackend} fall back to that
+     * child's first alternative, so the agreement is best-effort but always non-empty.
+     */
+    private static String chooseAgreedBackend(RelNode node, List<List<Resolved>> childAlternativeSets) {
+        // Candidate backends in preference order: the operator's own viable backends if it is an
+        // OpenSearchRelNode (so the operator can actually run on the chosen backend), otherwise
+        // the first child's alternative backends (infrastructure nodes pass through).
+        List<String> preferenceOrder = node instanceof OpenSearchRelNode osNode
+            ? osNode.getViableBackends()
+            : childAlternativeSets.getFirst().stream().map(Resolved::chosenBackend).toList();
+        for (String backend : preferenceOrder) {
+            boolean everyChildHasIt = true;
+            for (List<Resolved> childAlts : childAlternativeSets) {
+                if (childAlts.stream().noneMatch(alt -> backend.equals(alt.chosenBackend))) {
+                    everyChildHasIt = false;
+                    break;
+                }
+            }
+            if (everyChildHasIt) {
+                return backend;
+            }
+        }
+        // No backend the operator is viable for is shared by all children — fall back to the
+        // first child's first alternative backend. resolveOperator then naturally yields zero
+        // alternatives if the operator can't run on it, surfacing a real planning gap rather
+        // than masking it.
+        return childAlternativeSets.getFirst().getFirst().chosenBackend;
+    }
+
+    /** First child alternative on {@code backend}, or the child's first alternative if none match. */
+    private static Resolved selectForBackend(List<Resolved> childAlts, String backend) {
+        for (Resolved alt : childAlts) {
+            if (backend != null && backend.equals(alt.chosenBackend)) {
+                return alt;
+            }
+        }
+        return childAlts.getFirst();
     }
 
     private static List<Resolved> resolveOperator(RelNode node, List<RelNode> children, String childBackend) {

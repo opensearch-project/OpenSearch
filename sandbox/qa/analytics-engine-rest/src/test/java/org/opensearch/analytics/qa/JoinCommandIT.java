@@ -45,9 +45,6 @@ import java.util.Map;
  * keep CBO on coord-centric anyway). The same expected count is asserted under
  * both modes — that guards both code paths against regressions on these shapes
  * regardless of whether MPP fires.
- *
- * <p>All join / lookup tests pass end-to-end. {@code testAppendcol} is
- * {@code @AwaitsFix} — see task #113.
  */
 public class JoinCommandIT extends AnalyticsRestTestCase {
 

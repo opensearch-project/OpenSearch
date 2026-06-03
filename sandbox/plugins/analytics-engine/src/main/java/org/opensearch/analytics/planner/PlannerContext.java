@@ -44,23 +44,24 @@ public class PlannerContext {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OpenSearchDistributionTraitDef distributionTraitDef;
     private final boolean profilingEnabled;
+    private final boolean preferMetadataDriver;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
-        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, null, false);
+        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, null, false, true);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, boolean profilingEnabled) {
-        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, null, profilingEnabled);
+        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, null, profilingEnabled, true);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings) {
-        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, null, false);
+        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, null, false, true);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings, boolean profilingEnabled) {
-        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, null, profilingEnabled);
+        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, null, profilingEnabled, true);
     }
 
     public PlannerContext(
@@ -69,7 +70,33 @@ public class PlannerContext {
         @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
         boolean profilingEnabled
     ) {
-        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, indexNameExpressionResolver, profilingEnabled);
+        this(
+            capabilityRegistry,
+            clusterState,
+            Settings.EMPTY,
+            DEFAULT_TABLE_ROW_COUNTS,
+            indexNameExpressionResolver,
+            profilingEnabled,
+            true
+        );
+    }
+
+    public PlannerContext(
+        CapabilityRegistry capabilityRegistry,
+        ClusterState clusterState,
+        @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean profilingEnabled,
+        boolean preferMetadataDriver
+    ) {
+        this(
+            capabilityRegistry,
+            clusterState,
+            Settings.EMPTY,
+            DEFAULT_TABLE_ROW_COUNTS,
+            indexNameExpressionResolver,
+            profilingEnabled,
+            preferMetadataDriver
+        );
     }
 
     public PlannerContext(
@@ -79,7 +106,7 @@ public class PlannerContext {
         ToLongFunction<String> tableRowCounts,
         boolean profilingEnabled
     ) {
-        this(capabilityRegistry, clusterState, settings, tableRowCounts, null, profilingEnabled);
+        this(capabilityRegistry, clusterState, settings, tableRowCounts, null, profilingEnabled, true);
     }
 
     public PlannerContext(
@@ -89,6 +116,18 @@ public class PlannerContext {
         ToLongFunction<String> tableRowCounts,
         @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
         boolean profilingEnabled
+    ) {
+        this(capabilityRegistry, clusterState, settings, tableRowCounts, indexNameExpressionResolver, profilingEnabled, true);
+    }
+
+    public PlannerContext(
+        CapabilityRegistry capabilityRegistry,
+        ClusterState clusterState,
+        Settings settings,
+        ToLongFunction<String> tableRowCounts,
+        @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean profilingEnabled,
+        boolean preferMetadataDriver
     ) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
@@ -97,6 +136,7 @@ public class PlannerContext {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
         this.profilingEnabled = profilingEnabled;
+        this.preferMetadataDriver = preferMetadataDriver;
         this.annotationIdCounter = 0;
     }
 
@@ -153,5 +193,16 @@ public class PlannerContext {
 
     public OpenSearchDistributionTraitDef getDistributionTraitDef() {
         return distributionTraitDef;
+    }
+
+    /**
+     * Mirrors the {@code analytics.planner.prefer_metadata_driver} cluster setting at planning
+     * time. When {@code false}, {@code OpenSearchTableScanRule} skips the permissive
+     * metadata-only-driver gate, so the metadata backend (Lucene today) is never admitted as a
+     * scan alternative — value-producing peers handle every shape, no late-stage alternative
+     * pruning needed.
+     */
+    public boolean preferMetadataDriver() {
+        return preferMetadataDriver;
     }
 }

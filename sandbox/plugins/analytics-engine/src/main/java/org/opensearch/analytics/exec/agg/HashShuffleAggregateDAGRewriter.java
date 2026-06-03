@@ -68,7 +68,8 @@ public final class HashShuffleAggregateDAGRewriter {
         Stage consumer,
         Stage producer,
         List<String> targetWorkerNodeIds,
-        CapabilityRegistry registry
+        CapabilityRegistry registry,
+        boolean fuseDualViable
     ) {
         RelNode consumerFragment = consumer.getFragment();
         OpenSearchAggregate finalAgg = findFinalAggregate(consumerFragment);
@@ -134,7 +135,7 @@ public final class HashShuffleAggregateDAGRewriter {
         // the aggregate path does. forkAll → adaptAll → convertAll mirrors DefaultPlanExecutor.
         PlanForker.forkAll(rewrittenDag, registry);
         BackendPlanAdapter.adaptAll(rewrittenDag, registry);
-        FragmentConversionDriver.convertAll(rewrittenDag, registry);
+        FragmentConversionDriver.convertAll(rewrittenDag, registry, fuseDualViable);
 
         return new Rewritten(rewrittenDag, newRoot, worker, rewrittenConsumer);
     }

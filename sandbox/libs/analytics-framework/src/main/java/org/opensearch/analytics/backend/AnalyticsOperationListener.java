@@ -10,6 +10,7 @@ package org.opensearch.analytics.backend;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.index.IndexSettings;
 
 import java.util.List;
 
@@ -60,6 +61,26 @@ public interface AnalyticsOperationListener {
      */
     default void onQueryFailure(String queryId, Exception cause) {}
 
+    /**
+     * Called when query planning completes on the coordinator (Calcite CBO, DAG build,
+     * fragment conversion). Fired before execution stages begin.
+     *
+     * @param queryId the unique query identifier
+     * @param tookInNanos wall-clock time for the planning phase
+     */
+    default void onPlanningComplete(String queryId, long tookInNanos) {}
+
+    /**
+     * Called when the entire query request completes, including result materialization.
+     * This is the terminal event for the full request lifecycle — analogous to
+     * {@code SearchRequestOperationsListener.onRequestEnd()} in the default search path.
+     *
+     * @param queryId the unique query identifier
+     * @param totalTookInNanos wall-clock time from query submission to completion (includes planning + execution + materialization)
+     * @param totalRows total rows in the materialized result set
+     */
+    default void onQueryComplete(String queryId, long totalTookInNanos, long totalRows) {}
+
     // ─── Coordinator-side: stage lifecycle ──────────────────────────────
 
     /**
@@ -79,7 +100,7 @@ public interface AnalyticsOperationListener {
      * @param tookInNanos wall-clock time from stage start to completion
      * @param rowsProcessed number of rows processed by this stage
      */
-    default void onStageSuccess(String queryId, int stageId, long tookInNanos, long rowsProcessed) {}
+    default void onStageSuccess(String queryId, int stageId, String stageType, long tookInNanos, long rowsProcessed) {}
 
     /**
      * Called when a stage transitions to FAILED.
@@ -117,9 +138,17 @@ public interface AnalyticsOperationListener {
      * @param stageId the stage this fragment belongs to
      * @param shardId the shard that was queried
      * @param tookInNanos wall-clock time for the fragment execution
-     * @param rowsProduced number of rows produced by this fragment
+     * @param indexSettings the index settings for per-index slow log threshold lookup
+     * @param stats execution stats including rows produced, delegation info, and task headers
      */
-    default void onFragmentSuccess(String queryId, int stageId, String shardId, long tookInNanos, long rowsProduced) {}
+    default void onFragmentSuccess(
+        String queryId,
+        int stageId,
+        String shardId,
+        long tookInNanos,
+        IndexSettings indexSettings,
+        FragmentExecutionStats stats
+    ) {}
 
     /**
      * Called when a plan fragment fails on a data node.
@@ -152,6 +181,28 @@ public interface AnalyticsOperationListener {
                     l.onQueryStart(queryId, stageCount);
                 } catch (Exception e) {
                     warn("onQueryStart", e);
+                }
+            }
+        }
+
+        @Override
+        public void onPlanningComplete(String queryId, long tookInNanos) {
+            for (AnalyticsOperationListener l : delegates) {
+                try {
+                    l.onPlanningComplete(queryId, tookInNanos);
+                } catch (Exception e) {
+                    warn("onPlanningComplete", e);
+                }
+            }
+        }
+
+        @Override
+        public void onQueryComplete(String queryId, long totalTookInNanos, long totalRows) {
+            for (AnalyticsOperationListener l : delegates) {
+                try {
+                    l.onQueryComplete(queryId, totalTookInNanos, totalRows);
+                } catch (Exception e) {
+                    warn("onQueryComplete", e);
                 }
             }
         }
@@ -190,10 +241,10 @@ public interface AnalyticsOperationListener {
         }
 
         @Override
-        public void onStageSuccess(String queryId, int stageId, long tookInNanos, long rowsProcessed) {
+        public void onStageSuccess(String queryId, int stageId, String stageType, long tookInNanos, long rowsProcessed) {
             for (AnalyticsOperationListener l : delegates) {
                 try {
-                    l.onStageSuccess(queryId, stageId, tookInNanos, rowsProcessed);
+                    l.onStageSuccess(queryId, stageId, stageType, tookInNanos, rowsProcessed);
                 } catch (Exception e) {
                     warn("onStageSuccess", e);
                 }
@@ -234,10 +285,17 @@ public interface AnalyticsOperationListener {
         }
 
         @Override
-        public void onFragmentSuccess(String queryId, int stageId, String shardId, long tookInNanos, long rowsProduced) {
+        public void onFragmentSuccess(
+            String queryId,
+            int stageId,
+            String shardId,
+            long tookInNanos,
+            IndexSettings indexSettings,
+            FragmentExecutionStats stats
+        ) {
             for (AnalyticsOperationListener l : delegates) {
                 try {
-                    l.onFragmentSuccess(queryId, stageId, shardId, tookInNanos, rowsProduced);
+                    l.onFragmentSuccess(queryId, stageId, shardId, tookInNanos, indexSettings, stats);
                 } catch (Exception e) {
                     warn("onFragmentSuccess", e);
                 }

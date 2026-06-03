@@ -112,7 +112,8 @@ public final class HashShuffleAggregateDispatch {
             consumer,
             producer,
             targetWorkerNodeIds,
-            capabilityRegistry
+            capabilityRegistry,
+            org.opensearch.analytics.AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE.get(clusterService.getSettings())
         );
         Stage workerStage = rewritten.worker();
 

@@ -173,6 +173,29 @@ public class RelNodeUtils {
     }
 
     /**
+     * Collects every node of {@code type} reachable from {@code node}, searching ALL inputs
+     * (unlike {@link #findNode}, which only walks the first-input chain). Needed for multi-input
+     * fragments — e.g. a {@code Join} or {@code Union} over two {@code OpenSearchStageInputScan}
+     * leaves, where each child stage corresponds to a distinct leaf and the first-input-only walk
+     * would miss every leaf but the first. Returns an empty list if none are present.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> java.util.List<T> findNodes(RelNode node, Class<T> type) {
+        java.util.List<T> out = new java.util.ArrayList<>();
+        collectNodes(node, type, out);
+        return out;
+    }
+
+    private static <T extends RelNode> void collectNodes(RelNode node, Class<T> type, java.util.List<T> out) {
+        if (type.isInstance(node)) {
+            out.add((T) node);
+        }
+        for (RelNode input : node.getInputs()) {
+            collectNodes(input, type, out);
+        }
+    }
+
+    /**
      * Qualified name of the first {@link OpenSearchTableScan} reachable from {@code node},
      * searching all inputs. Returns {@code null} if none is present.
      */

@@ -19,8 +19,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.Randomness;
@@ -50,6 +52,7 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         dir = newDirectory();
         w = new IndexWriter(dir, newIndexWriterConfig());
         reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
     }
 
     @After
@@ -121,6 +124,59 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
         assertEquals(queryValues, actual);
     }
 
+    public void testScorerSupplierGetIsRepeatable() throws IOException {
+        addDoc(1L);
+        addDoc(2L);
+        addDoc(4L);
+
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.add(1L);
+        bitmap.add(4L);
+
+        Bitmap64IndexQuery query = new Bitmap64IndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        List<Long> firstPassMatches = new ArrayList<>();
+        List<Long> secondPassMatches = new ArrayList<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            ScorerSupplier supplier1 = weight.scorerSupplier(leaf);
+            ScorerSupplier supplier2 = weight.scorerSupplier(leaf);
+            if (supplier1 == null || supplier2 == null) {
+                continue;
+            }
+
+            Scorer scorer1 = supplier1.get(supplier1.cost());
+            Scorer scorer2 = supplier2.get(supplier2.cost());
+            firstPassMatches.addAll(getMatchingValues(scorer1, leaf));
+            secondPassMatches.addAll(getMatchingValues(scorer2, leaf));
+        }
+
+        Collections.sort(firstPassMatches);
+        Collections.sort(secondPassMatches);
+        assertEquals(List.of(1L, 4L), firstPassMatches);
+        assertEquals(firstPassMatches, secondPassMatches);
+    }
+
+    public void testScoreNoMatchingDocs() throws IOException {
+        addDoc(5L);
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.add(99L);
+        Bitmap64IndexQuery query = new Bitmap64IndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        assertTrue(getMatchingValues(weight, reader).isEmpty());
+    }
+
+    public void testRewrite() throws IOException {
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        Bitmap64IndexQuery query = new Bitmap64IndexQuery("product_id", bitmap);
+        assertEquals(new MatchNoDocsQuery(), query.rewrite(searcher));
+    }
+
     // ---------------- Helpers ----------------
 
     private void addDoc(long... values) throws IOException {
@@ -157,6 +213,21 @@ public class Bitmap64IndexQueryTests extends OpenSearchTestCase {
             }
         }
         Collections.sort(actual);
+        return actual;
+    }
+
+    private static List<Long> getMatchingValues(Scorer scorer, LeafReaderContext leaf) throws IOException {
+        List<Long> actual = new ArrayList<>();
+        SortedNumericDocValues dv = DocValues.getSortedNumeric(leaf.reader(), "product_id");
+        DocIdSetIterator it = scorer.iterator();
+        int docId;
+        while ((docId = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (dv.advanceExact(docId)) {
+                for (int i = 0; i < dv.docValueCount(); i++) {
+                    actual.add(dv.nextValue());
+                }
+            }
+        }
         return actual;
     }
 }
