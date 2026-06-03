@@ -165,30 +165,31 @@ public class RegexpReplaceAdapterTests extends OpenSearchTestCase {
         assertEquals("Java \\Q…\\E rewritten to plain regex", "^BUSINESS(.*?)$", ((RexLiteral) newPatternNode).getValueAs(String.class));
     }
 
-    public void testAdaptPassesThroughWhenNoQuoteBlock() {
-        // Pattern doesn't contain \Q — adapter must return the call unchanged (identity).
+    public void testAdaptAppendsGlobalFlagFor3Arg() {
         RexNode field = rexBuilder.makeInputRef(varcharType, 0);
         RexNode pattern = rexBuilder.makeLiteral("^OFFICE.*$");
         RexNode replacement = rexBuilder.makeLiteral("OFC");
         RexCall original = (RexCall) rexBuilder.makeCall(SqlLibraryOperators.REGEXP_REPLACE_3, List.of(field, pattern, replacement));
 
-        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
 
-        assertSame("identity — no rewrite when pattern has no \\Q", original, adapted);
+        assertSame("operator switched to PG_4", SqlLibraryOperators.REGEXP_REPLACE_PG_4, adapted.getOperator());
+        assertEquals("4 operands after append", 4, adapted.getOperands().size());
+        assertTrue("trailing operand is a literal", adapted.getOperands().get(3) instanceof RexLiteral);
+        assertEquals("trailing flag is \"g\"", "g", ((RexLiteral) adapted.getOperands().get(3)).getValueAs(String.class));
     }
 
-    public void testAdaptPassesThroughNonLiteralPattern() {
-        // Pattern is a column reference (not a literal) — adapter cannot rewrite at planning
-        // time; pass through and let DataFusion error at runtime if the value is incompatible.
-        // Replacement is a plain literal with no $, so neither transform fires.
+    public void testAdaptAppendsGlobalFlagForNonLiteralPattern() {
         RexNode field = rexBuilder.makeInputRef(varcharType, 0);
         RexNode patternRef = rexBuilder.makeInputRef(varcharType, 1);
         RexNode replacement = rexBuilder.makeLiteral("X");
         RexCall original = (RexCall) rexBuilder.makeCall(SqlLibraryOperators.REGEXP_REPLACE_3, List.of(field, patternRef, replacement));
 
-        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
 
-        assertSame("non-literal pattern must pass through", original, adapted);
+        assertSame("operator switched to PG_4", SqlLibraryOperators.REGEXP_REPLACE_PG_4, adapted.getOperator());
+        assertEquals("pattern reference preserved", patternRef, adapted.getOperands().get(1));
+        assertEquals("4 operands", 4, adapted.getOperands().size());
     }
 
     public void testAdaptRewritesReplacementOnly() {

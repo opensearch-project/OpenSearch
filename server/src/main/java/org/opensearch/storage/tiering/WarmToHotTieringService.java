@@ -10,6 +10,8 @@ package org.opensearch.storage.tiering;
 
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
@@ -20,6 +22,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.storage.common.tiering.TieringUtils;
 
 import java.util.Set;
 
@@ -91,21 +94,51 @@ public class WarmToHotTieringService extends TieringService {
     }
 
     @Override
-    protected Settings getTieringStartSettingsToAdd() {
-        return Settings.builder()
+    protected Settings getTieringStartSettingsToAdd(IndexMetadata indexMetadata) {
+        Settings.Builder builder = Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), false)
             .put(INDEX_TIERING_STATE.getKey(), WARM_TO_HOT)
-            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default")
-            .build();
+            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), "default");
+        if (TieringUtils.isDfaIndex(indexMetadata)) {
+            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
+        }
+        return builder.build();
     }
 
     @Override
-    protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
-        return Settings.builder()
+    protected Settings getIndexTierSettingsToRestoreAfterCancellation(IndexMetadata indexMetadata) {
+        Settings.Builder builder = Settings.builder()
             .put(IS_WARM_INDEX_SETTING.getKey(), true)
             .put(INDEX_TIERING_STATE.getKey(), WARM)
-            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), TIERED_COMPOSITE_INDEX_TYPE)
-            .build();
+            .put(INDEX_COMPOSITE_STORE_TYPE_SETTING.getKey(), TIERED_COMPOSITE_INDEX_TYPE);
+        if (TieringUtils.isDfaIndex(indexMetadata)) {
+            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true);
+        }
+        return builder.build();
+    }
+
+    @Override
+    protected ClusterBlocks.Builder getTieringStartClusterBlocksToAdd(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
+        return blocksBuilder.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
+    }
+
+    @Override
+    protected ClusterBlocks.Builder getIndexTierClusterBlocksToRestoreAfterCancellation(
+        ClusterBlocks.Builder blocksBuilder,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        if (TieringUtils.isDfaIndex(indexMetadata) == false) {
+            return blocksBuilder;
+        }
+        return blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
     }
 
     @Override

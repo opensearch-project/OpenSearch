@@ -34,17 +34,20 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
 
     private final int childStageId;
     private final List<String> viableBackends;
+    private final List<FieldStorageInfo> outputFieldStorage;
 
     public OpenSearchStageInputScan(
         RelOptCluster cluster,
         RelTraitSet traitSet,
         int childStageId,
         RelDataType rowType,
-        List<String> viableBackends
+        List<String> viableBackends,
+        List<FieldStorageInfo> outputFieldStorage
     ) {
         super(cluster, traitSet);
         this.childStageId = childStageId;
         this.viableBackends = viableBackends;
+        this.outputFieldStorage = outputFieldStorage;
         this.rowType = rowType;
     }
 
@@ -59,12 +62,12 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
 
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        return List.of();
+        return outputFieldStorage;
     }
 
     @Override
     public OpenSearchStageInputScan copy(RelTraitSet traitSet, java.util.List<org.apache.calcite.rel.RelNode> inputs) {
-        return new OpenSearchStageInputScan(getCluster(), traitSet, childStageId, rowType, viableBackends);
+        return new OpenSearchStageInputScan(getCluster(), traitSet, childStageId, rowType, viableBackends, outputFieldStorage);
     }
 
     @Override
@@ -79,7 +82,7 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
 
     @Override
     public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchStageInputScan(getCluster(), getTraitSet(), childStageId, rowType, List.of(backend));
+        return new OpenSearchStageInputScan(getCluster(), getTraitSet(), childStageId, rowType, List.of(backend), outputFieldStorage);
     }
 
     @Override

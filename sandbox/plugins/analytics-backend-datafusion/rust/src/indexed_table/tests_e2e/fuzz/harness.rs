@@ -104,6 +104,7 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
         });
         global_first_row += seg_rows as i64;
     }
@@ -289,6 +290,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();
@@ -385,7 +387,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         Arc::new(move |segment, _chunk, stream_metrics| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
-                Arc::clone(&collector),
+                Some(Arc::clone(&collector)),
                 pruner,
                 residual_pp.clone(),
                 residual_physical.clone(),
@@ -396,6 +398,10 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 ),
                 stream_metrics.ffm_collector_calls.clone(),
                 call_strategy,
+                std::sync::Arc::new(std::collections::HashMap::new()),
+                segment.writer_generation,
+                std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                0,
             ));
             let _ = segment;
             Ok(eval)
@@ -465,6 +471,7 @@ async fn run_single_collector_query(
         pushdown_predicate,
         query_config: Arc::new(qc),
         predicate_columns: pred_cols,
+        emit_row_ids: false,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -622,6 +629,7 @@ fn bool_to_logical(node: &BoolNode) -> Option<datafusion::logical_expr::Expr> {
         }
         BoolNode::Collector { .. } => None,
         BoolNode::Predicate(expr) => lift_phys_to_logical(expr),
+        BoolNode::DelegationPossible { original_expr, .. } => lift_phys_to_logical(original_expr),
     }
 }
 
@@ -671,7 +679,8 @@ async fn run_with_factory_plan(
         evaluator_factory: factory,
         pushdown_predicate,
         query_config: Arc::new(qc),
-        predicate_columns: vec![], // run_with_factory_plan is low-level; caller controls projection
+        predicate_columns: vec![],
+        emit_row_ids: false,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -715,6 +724,7 @@ fn collect_predicate_exprs_harness(
         BoolNode::Not(inner) => collect_predicate_exprs_harness(inner, out),
         BoolNode::Collector { .. } => {}
         BoolNode::Predicate(expr) => out.push(Arc::clone(expr)),
+        BoolNode::DelegationPossible { original_expr, .. } => out.push(Arc::clone(original_expr)),
     }
 }
 

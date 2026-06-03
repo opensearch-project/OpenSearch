@@ -1,0 +1,1 @@
+source=test_data | eval subbed = date_sub(timestamp, interval 1 hour) | fields timestamp, subbed | head 3

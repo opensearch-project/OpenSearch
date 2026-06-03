@@ -21,7 +21,7 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
     // ── CACHE_SIZE_SETTING ────────────────────────────────────────────────────
 
     public void testCacheSizeDefault() {
-        assertEquals("25%", FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(Settings.EMPTY));
+        assertEquals("50%", FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(Settings.EMPTY));
     }
 
     public void testCacheSizeAcceptsPercentage() {
@@ -156,47 +156,45 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    // ── DATA_TO_CACHE_RATIO_SETTING ───────────────────────────────────────────
+    // ── KEY_INDEX_SWEEP_THRESHOLD_SETTING ─────────────────────────────────────
 
-    public void testDataToCacheRatioDefault() {
-        assertEquals(5.0, FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(Settings.EMPTY), 0.0);
+    public void testSweepThresholdDefaultIs0dot70() {
+        assertEquals(0.70, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(Settings.EMPTY), 0.001);
     }
 
-    public void testDataToCacheRatioAcceptsOne() {
-        assertEquals(
-            1.0,
-            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "1.0").build()
-            ),
-            0.0
-        );
+    public void testSweepThresholdZeroCanBeSetExplicitly() {
+        // 0.0 = always sweep (no threshold guard)
+        Settings s = Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 0.0).build();
+        assertEquals(0.0, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(s), 0.0);
     }
 
-    public void testDataToCacheRatioAcceptsLargeValue() {
-        assertEquals(
-            100.0,
-            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "100.0").build()
-            ),
-            0.0
-        );
+    public void testSweepThresholdAccepts0dot5() {
+        Settings s = Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 0.5).build();
+        assertEquals(0.5, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(s), 0.001);
     }
 
-    public void testDataToCacheRatioRejectsBelowOne() {
+    public void testSweepThresholdAccepts1dot0() {
+        // 1.0 = only sweep when cache is 100% full; valid boundary
+        Settings s = Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 1.0).build();
+        assertEquals(1.0, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(s), 0.0);
+    }
+
+    public void testSweepThresholdRejectsNegative() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "0.5").build()
+            () -> FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(
+                Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", -0.01).build()
             )
         );
     }
 
-    public void testDataToCacheRatioRejectsZero() {
+    public void testSweepThresholdRejectsAboveOne() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "0.0").build()
+            () -> FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(
+                Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 1.01).build()
             )
         );
     }
+
 }

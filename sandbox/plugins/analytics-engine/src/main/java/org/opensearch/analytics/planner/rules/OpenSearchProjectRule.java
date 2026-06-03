@@ -84,10 +84,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             ? computeProjectViableBackends(annotatedExprs, childViableBackends)
             : childViableBackends;
 
-        // Window functions (RexOver): PPL `eventstats` / `appendcol` emit window calls inline
-        // on the projection. Narrow viable backends to those whose WindowCapability declares
-        // every required function. PARTITION BY is rejected up front — no shuffle exchange
-        // exists today.
+        // Narrow viable backends to those whose WindowCapability declares every RexOver function used.
         Set<WindowFunction> requiredWindowFns = collectWindowFunctions(project.getProjects());
         if (!requiredWindowFns.isEmpty()) {
             viableBackends = narrowByWindowCapability(viableBackends, requiredWindowFns);
@@ -283,21 +280,16 @@ public class OpenSearchProjectRule extends RelOptRule {
         return context.getCapabilityRegistry().isOpaqueOperation(funcName);
     }
 
-    /** Walks project expressions and collects the {@link WindowFunction}s used by any {@link RexOver}.
-     *  PARTITION BY is rejected — no shuffle exchange exists today. Unrecognized window SqlKinds
-     *  (LAG, LEAD, NTILE, etc.) also fail here. */
+    /** Collects {@link WindowFunction}s used by any {@link RexOver} in {@code exprs}.
+     *  Unrecognized window SqlKinds (LAG, LEAD, NTILE, etc.) fail here. The SINGLETON cost gate
+     *  on RexOver-bearing projects guarantees PARTITION BY / ORDER BY see fully-gathered input. */
     private static Set<WindowFunction> collectWindowFunctions(List<? extends RexNode> exprs) {
         Set<WindowFunction> fns = new LinkedHashSet<>();
         for (RexNode expr : exprs) {
             expr.accept(new org.apache.calcite.rex.RexShuttle() {
                 @Override
                 public RexNode visitOver(RexOver over) {
-                    if (!over.getWindow().partitionKeys.isEmpty()) {
-                        throw new IllegalStateException(
-                            "Window OVER (PARTITION BY ...) is not supported — no shuffle exchange available yet"
-                        );
-                    }
-                    WindowFunction fn = WindowFunction.fromSqlKind(over.getAggOperator().getKind());
+                    WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
                     if (fn == null) {
                         throw new IllegalStateException("Window function [" + over.getAggOperator().getName() + "] is not supported");
                     }

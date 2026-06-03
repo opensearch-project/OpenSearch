@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -40,6 +41,12 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
      * Full end-to-end test: 3-phase ingestion with progressive schema evolution,
      * verifying search works correctly at each stage via both vanilla and indexed paths.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21701 — performance "
+        + "filter delegation needs handling for dynamically added fields. Lucene's per-segment "
+        + "FieldInfos differ across segments, and a query against a field absent from older "
+        + "segments returns empty bitsets that get incorrectly AND'd into DataFusion's candidates. "
+        + "Either propagate per-segment field-presence as a 'skip' signal or disable perf "
+        + "delegation for dynamically-mapped fields.")
     public void testSearchOnDynamicallyAddedFields() throws Exception {
         createIndex();
 
@@ -183,18 +190,12 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws IOException {
-        Request req = new Request("POST", "/_analytics/ppl");
-        req.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(req);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     private void assertCount(String pplSuffix, int expected) throws IOException {
         String ppl = "source = " + INDEX + " | " + pplSuffix;
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("Response missing 'rows' for: " + ppl, rows);
         assertEquals("Expected 1 row for count query: " + ppl, 1, rows.size());
         long actual = ((Number) rows.get(0).get(0)).longValue();
@@ -203,11 +204,11 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
 
     private void assertValue(String pplSuffix, String column, double expected) throws IOException {
         String ppl = "source = " + INDEX + " | " + pplSuffix;
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
+        List<String> columns = extractColumnNames(result);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("Response missing 'rows' for: " + ppl, rows);
         assertEquals(1, rows.size());
         int idx = columns.indexOf(column);

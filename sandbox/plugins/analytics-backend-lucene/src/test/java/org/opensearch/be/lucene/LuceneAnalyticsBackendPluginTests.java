@@ -29,8 +29,10 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -55,6 +57,7 @@ import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -62,6 +65,7 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -88,6 +92,9 @@ import static org.mockito.Mockito.when;
  * {@link LuceneAnalyticsBackendPlugin} serializer, producing valid MatchQueryBuilder bytes.
  */
 public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
+
+    /** Default resolver for DAGBuilder in tests; production injects core's resolver. */
+    private static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     private static final SqlFunction MATCH_FUNCTION = new SqlFunction(
         "MATCH",
@@ -137,16 +144,26 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         }, condition);
 
         RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        // Mirror DefaultPlanExecutor.executeInternal: forker → adapter → selector → convertor.
+        // preferMetadataDriver=false drops the Lucene alternative and forces the DataFusion
+        // peer; the surviving plan exercises the DF→Lucene filter delegation path, which is
+        // what this test is asserting on.
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
 
         // Find the leaf stage (shard scan with filter)
         Stage leaf = dag.rootStage();
         while (!leaf.getChildStages().isEmpty()) {
             leaf = leaf.getChildStages().getFirst();
         }
-        StagePlan plan = leaf.getPlanAlternatives().getFirst();
+        StagePlan plan = leaf.getPlanAlternatives()
+            .stream()
+            .filter(p -> "mock-parquet".equals(p.backendId()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No mock-parquet driver alternative found"));
 
         // Verify delegation happened
         assertFalse("delegatedExpressions should not be empty", plan.delegatedExpressions().isEmpty());
@@ -176,7 +193,12 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
 
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
-        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.composite.primary_data_format", primaryFormat).build());
+        when(indexMetadata.getSettings()).thenReturn(
+            Settings.builder()
+                .put("index.composite.primary_data_format", primaryFormat)
+                .putList("index.composite.secondary_data_formats", "lucene")
+                .build()
+        );
         when(indexMetadata.mapping()).thenReturn(mappingMetadata);
         when(indexMetadata.getNumberOfShards()).thenReturn(2);
 
@@ -291,8 +313,8 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
             return new FragmentInstructionHandlerFactory() {
                 @Override
-                public Optional<InstructionNode> createShardScanNode() {
-                    return Optional.of(new ShardScanInstructionNode());
+                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
+                    return Optional.of(new ShardScanInstructionNode(requestsRowIds));
                 }
 
                 @Override
@@ -305,8 +327,12 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+                public Optional<InstructionNode> createShardScanWithDelegationNode(
+                    FilterTreeShape treeShape,
+                    int delegatedPredicateCount,
+                    boolean requestsRowIds
+                ) {
+                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
                 }
 
                 @Override

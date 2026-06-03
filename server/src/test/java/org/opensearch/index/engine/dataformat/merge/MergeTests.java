@@ -150,6 +150,7 @@ public class MergeTests extends OpenSearchTestCase {
         return new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mergeResult, oneMerge) -> {},
+            () -> {},
             SHARD_ID,
             idxSettings,
             mockThreadPool()
@@ -168,8 +169,8 @@ public class MergeTests extends OpenSearchTestCase {
     public void testOneMergeAggregatesDocCounts() {
         Path dir = createTempDir();
         MockDataFormat format = new MockDataFormat();
-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
+        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, 0L);
+        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, 0L);
 
         Segment seg1 = Segment.builder(1L).addSearchableFiles(format, fs1).build();
         Segment seg2 = Segment.builder(2L).addSearchableFiles(format, fs2).build();
@@ -300,10 +301,10 @@ public class MergeTests extends OpenSearchTestCase {
     public void testDoMergeReturnsResult() throws IOException {
         Path dir = createTempDir();
         MockDataFormat format = new MockDataFormat();
-        WriterFileSet inputWfs = new WriterFileSet(dir.toString(), 1L, Set.of("input.dat"), 10);
+        WriterFileSet inputWfs = new WriterFileSet(dir.toString(), 1L, Set.of("input.dat"), 10, 0L);
         Segment seg = Segment.builder(1L).addSearchableFiles(format, inputWfs).build();
 
-        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10);
+        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10, 0L);
         MergeResult expectedResult = new MergeResult(Map.of(format, mergedWfs));
         Merger merger = mergeInput -> expectedResult;
 
@@ -371,6 +372,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mr, om) -> {},
+            () -> {},
             SHARD_ID,
             idxSettings,
             mockThreadPool()
@@ -384,7 +386,7 @@ public class MergeTests extends OpenSearchTestCase {
     public void testTriggerMergesExecutesMergeThread() throws Exception {
         List<Segment> segments = createSegments(15);
         MockDataFormat format = new MockDataFormat();
-        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 15);
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 15, 0L);
         MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -398,6 +400,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(
             handler,
             (mr, om) -> captured.set(mr),
+            () -> {},
             SHARD_ID,
             mergeSchedulerSettings(),
             mockThreadPool()
@@ -419,7 +422,14 @@ public class MergeTests extends OpenSearchTestCase {
         };
         MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
 
-        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            () -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
 
         scheduler.triggerMerges();
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -429,7 +439,7 @@ public class MergeTests extends OpenSearchTestCase {
     public void testForceMergeExecutesMerges() throws Exception {
         List<Segment> segments = createSegments(3);
         MockDataFormat format = new MockDataFormat();
-        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3);
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3, 0L);
         MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -440,7 +450,7 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {
             captured.set(mr);
             latch.countDown();
-        }, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        }, () -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
 
         scheduler.forceMerge(1);
         assertTrue(latch.await(5, TimeUnit.SECONDS));

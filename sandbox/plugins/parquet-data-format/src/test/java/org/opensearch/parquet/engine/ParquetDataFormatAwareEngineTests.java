@@ -115,12 +115,24 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
     };
 
     private Schema schema;
+    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        nativeAllocator = new org.opensearch.arrow.allocator.ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
         schema = buildSchema();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
+        super.tearDown();
     }
 
     @Override
@@ -183,7 +195,8 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
                     () -> 1L,
                     engineConfig.indexSettings(),
                     threadPool,
-                    new PrecomputedChecksumStrategy()
+                    new PrecomputedChecksumStrategy(),
+                    nativeAllocator
                 );
             }
         };
@@ -230,7 +243,7 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
 
     private static final String BYTE_FIELD_NAME = "byte_field";
     private static final String SHORT_FIELD_NAME = "short_field";
-    private static final String INT_FIELD_NAME = "int_field";
+    private static final String INT_FIELD_NAME = "integer_field";
     private static final String LONG_FIELD_NAME = "long_field";
     private static final String FLOAT_FIELD_NAME = "float_field";
     private static final String DOUBLE_FIELD_NAME = "double_field";
@@ -261,9 +274,7 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
         for (Map.Entry<String, ParquetField> dataField : new CoreDataFieldPlugin().getParquetFields().entrySet()) {
             fields.add(new Field(dataField.getKey() + "_field", dataField.getValue().getFieldType(), null));
         }
-        // Metadata fields (long, not nullable)
         fields.addAll(metadataFields());
-        // Row ID field (long) — added by RowIdAwareWriter
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, FieldType.notNullable(new ArrowType.Int(64, true)), null));
         return new Schema(fields);
     }

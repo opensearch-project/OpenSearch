@@ -41,10 +41,11 @@ public final class ArrowSchemaBuilder {
      * TODO - Get the mapping version while creating the schema
      */
     public static Schema getSchema(MapperService mapperService) {
+
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
         List<Field> fields = new ArrayList<>();
         if (mapperService.documentMapper() != null) {
-            for (Mapper mapper : mapperService.documentMapper().mappers()) {
+            for (Mapper mapper : mapperService.documentMapperWithAutoCreate().getDocumentMapper().mappers()) {
                 if (isUnsupportedMetadataField(mapper)) {
                     logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                     continue;

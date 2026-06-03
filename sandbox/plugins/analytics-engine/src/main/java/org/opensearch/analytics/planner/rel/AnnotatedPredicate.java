@@ -47,12 +47,41 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
     private final RexNode original;
     private final List<String> viableBackends;
     private final int annotationId;
+    /**
+     * Peer backends that could have evaluated this predicate but lost the narrow.
+     * Empty when the predicate is single-viable (no peer to consult) or hasn't
+     * been narrowed yet. Non-empty when the predicate was dual-viable AND was
+     * narrowed onto one of its viable backends — the listed backends are valid
+     * peers for opportunistic consultation at runtime.
+     *
+     * <p>FragmentConversion uses this list (a) to detect performance-delegation
+     * candidates ({@code !isEmpty()}) and (b) to pick the peer to serialize the
+     * predicate for. The driving backend wraps with
+     * {@code delegation_possible(original, id)} so the peer may be consulted
+     * per-RG when the driving backend's own pruning isn't selective enough.
+     *
+     * <p>NOTE: temp workaround — derived in {@link #narrowTo(String)} from the
+     * original viableBackends. Cleaner long-term shape is a typed Resolver
+     * returning the decision. Needs revisiting.
+     */
+    private final List<String> performanceDelegationBackends;
 
     public AnnotatedPredicate(RelDataType type, RexNode original, List<String> viableBackends, int annotationId) {
+        this(type, original, viableBackends, annotationId, List.of());
+    }
+
+    private AnnotatedPredicate(
+        RelDataType type,
+        RexNode original,
+        List<String> viableBackends,
+        int annotationId,
+        List<String> performanceDelegationBackends
+    ) {
         super(type, ANNOTATED_PREDICATE_OP, List.of(original));
         this.original = original;
         this.viableBackends = viableBackends;
         this.annotationId = annotationId;
+        this.performanceDelegationBackends = performanceDelegationBackends;
     }
 
     public RexNode getOriginal() {
@@ -69,9 +98,20 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
         return annotationId;
     }
 
+    /**
+     * Peer backends valid for opportunistic consultation. Empty unless this predicate
+     * was dual-viable and was narrowed onto one of its viable backends.
+     */
+    public List<String> getPerformanceDelegationBackends() {
+        return performanceDelegationBackends;
+    }
+
     @Override
     public OperatorAnnotation narrowTo(String backend) {
-        return new AnnotatedPredicate(type, original, List.of(backend), annotationId);
+        List<String> peers = (viableBackends.size() > 1 && viableBackends.contains(backend))
+            ? viableBackends.stream().filter(b -> !b.equals(backend)).toList()
+            : List.of();
+        return new AnnotatedPredicate(type, original, List.of(backend), annotationId, peers);
     }
 
     @Override
@@ -81,7 +121,7 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
 
     @Override
     public RexNode withAdaptedOriginal(RexNode adaptedOriginal) {
-        return new AnnotatedPredicate(type, adaptedOriginal, viableBackends, annotationId);
+        return new AnnotatedPredicate(type, adaptedOriginal, viableBackends, annotationId, performanceDelegationBackends);
     }
 
     @Override
@@ -89,8 +129,35 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
         return DelegatedPredicateFunction.makeCall(rexBuilder, annotationId);
     }
 
+    /**
+     * Override {@link RexCall#clone(RelDataType, List)} so that {@link org.apache.calcite.rex.RexShuttle}-based
+     * walks (e.g. {@code IndexRemapShuttle} during the QTF rewriter's narrowed-Scan rebuild)
+     * preserve the {@code AnnotatedPredicate} subclass when an operand is remapped. Without
+     * this override, {@code RexCall.clone} returns a plain {@code RexCall} carrying only the
+     * {@code ANNOTATED_PREDICATE} operator name — the {@code annotationId} / {@code viableBackends}
+     * / {@code performanceDelegationBackends} fields are lost, and {@code FragmentConversionDriver.strip}'s
+     * {@code instanceof AnnotatedPredicate} check fails to unwrap it, leaving the operator in
+     * the plan when it reaches the Substrait visitor.
+     */
+    @Override
+    public RexCall clone(RelDataType type, List<RexNode> operands) {
+        if (operands.size() != 1) {
+            throw new IllegalArgumentException(
+                "AnnotatedPredicate must wrap exactly one operand (the original predicate); got " + operands.size()
+            );
+        }
+        return new AnnotatedPredicate(type, operands.get(0), viableBackends, annotationId, performanceDelegationBackends);
+    }
+
     @Override
     protected String computeDigest(boolean withType) {
-        return "ANNOTATED_PREDICATE(id=" + annotationId + ", backends=" + viableBackends + ", " + original + ")";
+        return "ANNOTATED_PREDICATE(id="
+            + annotationId
+            + ", backends="
+            + viableBackends
+            + (performanceDelegationBackends.isEmpty() ? "" : ", peers=" + performanceDelegationBackends)
+            + ", "
+            + original
+            + ")";
     }
 }

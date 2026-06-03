@@ -37,7 +37,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     private static final Logger logger = LogManager.getLogger(DatafusionReaderManager.class);
 
-    private final Map<CatalogSnapshot, DatafusionReader> readers = new HashMap<>();
+    private final Map<Long, DatafusionReader> readers = new HashMap<>();
     private final DataFormat dataFormat;
     private final String directoryPath;
     private final DataFusionService dataFusionService;
@@ -66,15 +66,19 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public DatafusionReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        if (readers.containsKey(catalogSnapshot)) {
-            return readers.get(catalogSnapshot);
+        if (catalogSnapshot == null) {
+            throw new IllegalArgumentException("catalogSnapshot must not be null");
         }
-        throw new IOException("No DataFusion reader available");
+        DatafusionReader reader = readers.get(catalogSnapshot.getId());
+        if (reader == null) {
+            throw new IOException("No DataFusion reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
+        }
+        return reader;
     }
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        DatafusionReader removed = readers.remove(catalogSnapshot);
+        DatafusionReader removed = readers.remove(catalogSnapshot.getId());
         if (removed != null) {
             removed.close();
         }
@@ -98,13 +102,13 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
         if (didRefresh == false) return;
-        if (readers.containsKey(catalogSnapshot)) return;
+        if (readers.containsKey(catalogSnapshot.getId())) return;
         DatafusionReader reader = new DatafusionReader(
             directoryPath,
             catalogSnapshot.getSearchableFiles(dataFormat.name()),
             dataformatAwareStoreHandle
         );
-        readers.put(catalogSnapshot, reader);
+        readers.put(catalogSnapshot.getId(), reader);
     }
 
     private Collection<String> toAbsolutePaths(Collection<String> fileNames) {

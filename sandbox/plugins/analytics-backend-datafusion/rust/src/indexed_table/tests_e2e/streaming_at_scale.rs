@@ -293,6 +293,7 @@ fn wire_large_rec(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>
             out.push(large_collector_for(tag));
         }
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -405,6 +406,7 @@ async fn run_large(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     let tree = Arc::new(tree);
@@ -451,6 +453,7 @@ async fn run_large(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();
@@ -855,6 +858,7 @@ async fn run_large_partitioned(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     let tree = Arc::new(tree);
@@ -900,6 +904,7 @@ async fn run_large_partitioned(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

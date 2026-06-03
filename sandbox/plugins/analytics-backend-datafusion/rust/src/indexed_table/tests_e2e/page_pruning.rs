@@ -216,6 +216,7 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
         parquet_size: size,
         row_groups: rgs,
         metadata: parquet_meta,
+            global_base: 0,
     };
     (seg, schema)
 }
@@ -253,6 +254,7 @@ fn collect_pred_exprs(node: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>) {
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| collect_pred_exprs(c, out)),
         BoolNode::Not(c) => collect_pred_exprs(c, out),
         BoolNode::Collector { .. } => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -279,6 +281,7 @@ fn wire_collectors_dfs(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollec
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| wire_collectors_dfs(c, out)),
         BoolNode::Not(c) => wire_collectors_dfs(c, out),
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -348,13 +351,17 @@ async fn run_single_collector(
         Arc::new(move |segment, _chunk, sm| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
-                collector_for_tag(collector_tag),
+                Some(collector_for_tag(collector_tag)),
                 pruner,
                 residual_pp.clone(),
                 Some(Arc::clone(&residual_expr)),
                 Some(crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(sm)),
                 sm.ffm_collector_calls.clone(),
                 strategy,
+                std::sync::Arc::new(std::collections::HashMap::new()),
+                segment.writer_generation,
+                std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                0,
             ));
             Ok(eval)
         })
@@ -385,6 +392,7 @@ async fn execute_and_collect(
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();

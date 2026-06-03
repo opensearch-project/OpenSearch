@@ -125,6 +125,14 @@ public class OpenSearchFilterRule extends RelOptRule {
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
         List<String> viableBackends = resolveViableBackends(rexCall, fieldStorageInfos, childViableBackends);
+        // TODO: viableBackends here is computed from each backend's declared FilterCapability
+        // (see resolveViableBackends below). Today a backend can advertise a function as
+        // filter-capable without actually shipping a DelegatedPredicateSerializer for it; the
+        // mismatch only surfaces when FragmentConversion tries to delegate (correctness) or
+        // wrap as performance-delegation. CapabilityRegistry should validate at startup that
+        // every declared FilterCapability has a matching serializer registered, and reject
+        // the plugin otherwise — fail-fast at boot rather than at first dual-viable query.
+        // Needs revisiting.
         return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
     }
 
@@ -139,8 +147,11 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<FieldStorageInfo> fieldStorageInfos,
         List<String> childViableBackends
     ) {
-        Set<Integer> fieldIndices = new HashSet<>();
-        collectFieldIndices(predicate, fieldIndices);
+        PredicateContents contents = new PredicateContents(new HashSet<>(), new ArrayList<>());
+        for (RexNode operand : predicate.getOperands()) {
+            collect(operand, contents);
+        }
+        Set<Integer> fieldIndices = contents.fieldIndices();
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
@@ -158,11 +169,9 @@ public class OpenSearchFilterRule extends RelOptRule {
             if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
                 return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
             }
-            throw new UnsupportedOperationException(
-                "Constant predicate with no field references reached the filter rule: ["
-                    + predicate
-                    + "]. ReduceExpressionsRule in PlannerImpl should have eliminated it."
-            );
+            // No field reference (non-deterministic, or an unfoldable constant like
+            // mktime('...') > N): let any child-viable backend evaluate it.
+            return new ArrayList<>(childViableBackends);
         }
 
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
@@ -193,6 +202,57 @@ public class OpenSearchFilterRule extends RelOptRule {
             viableSet.retainAll(fieldViable);
         }
 
+        // Every nested scalar function in the predicate must also be evaluable by a candidate backend
+        for (RexCall scalarFunctionCall : contents.scalarFunctionCalls()) {
+            // Calcite-internal value constructors (named-parameter MAP/ARRAY/ROW used by full-text
+            // operators like match() to pass `field`, `query`, etc.) aren't real scalar functions
+            // they're parameter-passing scaffolding. Skip them
+            SqlKind kind = scalarFunctionCall.getKind();
+            if (kind == SqlKind.MAP_VALUE_CONSTRUCTOR || kind == SqlKind.ARRAY_VALUE_CONSTRUCTOR || kind == SqlKind.ROW) {
+                continue;
+            }
+            ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(scalarFunctionCall.getOperator());
+            if (scalarFunc == null) {
+                throw new IllegalStateException(
+                    "Unrecognized scalar function ["
+                        + scalarFunctionCall.getOperator().getName()
+                        + "] in call ["
+                        + scalarFunctionCall
+                        + "] within filter predicate ["
+                        + predicate
+                        + "]"
+                );
+            }
+            FieldType returnType = FieldType.fromSqlTypeName(scalarFunctionCall.getType().getSqlTypeName());
+            // Polymorphic UDF fallback (e.g. SCALAR_MAX/MIN return SqlTypeName.ANY): infer
+            // FieldType from the first concrete operand. Backend capabilities for these UDFs
+            // are declared over operand types, so this preserves correct dispatch — see
+            // OpenSearchProjectRule.resolveScalarViableBackends for the parallel fallback.
+            if (returnType == null) {
+                for (RexNode operand : scalarFunctionCall.getOperands()) {
+                    FieldType operandType = FieldType.fromSqlTypeName(operand.getType().getSqlTypeName());
+                    if (operandType != null) {
+                        returnType = operandType;
+                        break;
+                    }
+                }
+                if (returnType == null) {
+                    throw new IllegalStateException(
+                        "Unmapped return type ["
+                            + scalarFunctionCall.getType().getSqlTypeName()
+                            + "] for scalar function ["
+                            + scalarFunc
+                            + "] in call ["
+                            + scalarFunctionCall
+                            + "] within filter predicate ["
+                            + predicate
+                            + "]"
+                    );
+                }
+            }
+            viableSet.retainAll(registry.scalarBackendsAnyFormat(scalarFunc, returnType));
+        }
+
         if (viableSet.isEmpty()) {
             throw new IllegalStateException(
                 "No backend can evaluate filter predicate ["
@@ -207,13 +267,27 @@ public class OpenSearchFilterRule extends RelOptRule {
         return new ArrayList<>(viableSet);
     }
 
-    /** Extracts all field indices referenced by RexInputRef nodes in the expression. */
-    private void collectFieldIndices(RexNode node, Set<Integer> result) {
+    /**
+     * Result of a single walk over a predicate's operand subtree.
+     *
+     * <p>{@code fieldIndices} — RexInputRef indices feeding the field-storage intersection.
+     * <p>{@code scalarFunctionCalls} — nested RexCalls feeding the scalar-function capability intersection.
+     *
+     * <p>TODO: ensure that the code for tagging and checking the scalar function of a predicate
+     * remains the same as the code for tagging and checking its nested inner expressions as much
+     * as possible.
+     */
+    private record PredicateContents(Set<Integer> fieldIndices, List<RexCall> scalarFunctionCalls) {
+    }
+
+    /** Recurses the operand subtree, populating {@code contents} in-place. */
+    private void collect(RexNode node, PredicateContents contents) {
         if (node instanceof RexInputRef inputRef) {
-            result.add(inputRef.getIndex());
+            contents.fieldIndices().add(inputRef.getIndex());
         } else if (node instanceof RexCall rexCall) {
+            contents.scalarFunctionCalls().add(rexCall);
             for (RexNode operand : rexCall.getOperands()) {
-                collectFieldIndices(operand, result);
+                collect(operand, contents);
             }
         }
     }

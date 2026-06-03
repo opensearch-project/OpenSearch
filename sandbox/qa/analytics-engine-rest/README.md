@@ -24,6 +24,8 @@ ClickBenchTestHelper            ← ClickBench dataset constants
 
 To add a new dataset, create a directory under `src/test/resources/datasets/{name}/` with this structure:
 
+### Single-Index Dataset
+
 ```
 datasets/
   {name}/
@@ -41,7 +43,37 @@ Then declare the dataset in Java:
 Dataset myDataset = new Dataset("myDatasetName", "my_index_name");
 ```
 
-`DatasetProvisioner.provision(client, myDataset)` creates the index with parquet data format and ingests the bulk data. `DatasetQueryRunner.discoverQueryNumbers(myDataset, "dsl")` auto-discovers all query files.
+### Multi-Index Dataset
+
+For datasets with multiple indexes (e.g., for joins, unions):
+
+```
+datasets/
+  {name}/
+    mapping_index1.json       # mapping for first index
+    bulk_index1.json          # bulk data for first index
+    mapping_index2.json       # mapping for second index
+    bulk_index2.json          # bulk data for second index
+    ppl/q1.ppl ... qN.ppl     # queries using multiple indexes
+    ppl/expected/q1.json ...  # expected responses (optional)
+```
+
+Then declare the dataset in Java:
+
+```java
+// Using varargs
+Dataset myDataset = new Dataset("myDatasetName", "index1", "index2", "index3");
+
+// Using list
+List<String> indexes = Arrays.asList("index1", "index2", "index3");
+Dataset myDataset = new Dataset("myDatasetName", indexes);
+```
+
+**Resource Naming Convention:**
+- Single index: `mapping.json`, `bulk.json`
+- Multi-index: `mapping_{indexName}.json`, `bulk_{indexName}.json`
+
+`DatasetProvisioner.provision(client, myDataset)` creates all indexes with parquet data format and ingests the bulk data. `DatasetQueryRunner.discoverQueryNumbers(myDataset, "dsl")` auto-discovers all query files.
 
 ## Expected Response Validation
 

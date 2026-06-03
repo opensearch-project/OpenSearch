@@ -85,8 +85,9 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
         repos.maven(repo -> {
             repo.setName("Maven Cache");
             repo.setUrl("https://ci.opensearch.org/maven2/");
+            repo.content(descriptor -> descriptor.excludeGroupByRegex("adoptium.*|adoptopenjdk.*|openjdk.*"));
         });
-        repos.mavenCentral();
+        repos.mavenCentral(repo -> { repo.content(descriptor -> descriptor.excludeGroupByRegex("adoptium.*|adoptopenjdk.*|openjdk.*")); });
 
         String luceneVersion = VersionProperties.getLucene();
         if (luceneVersion.contains("-snapshot")) {

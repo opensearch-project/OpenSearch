@@ -1,0 +1,1 @@
+source=api_metrics | where flow_direction = 'OUT' | eval response_time = coalesce(request_mediation_latency, latency) | stats avg(response_time) as avg_latency by endpoint

@@ -138,9 +138,23 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
 
     @Override
     protected Set<WindowCapability> windowCapabilities() {
+        // Mirrors DataFusionAnalyticsBackendPlugin.windowCapabilities — the *PPL form*
+        // of dc/earliest/latest is advertised; the actual rewrite to FIRST_VALUE /
+        // LAST_VALUE / COUNT(DISTINCT) happens in BackendPlanAdapter before substrait
+        // emission.
         return Set.of(
             new WindowCapability(
-                Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                Set.of(
+                    WindowFunction.SUM,
+                    WindowFunction.AVG,
+                    WindowFunction.COUNT,
+                    WindowFunction.MIN,
+                    WindowFunction.MAX,
+                    WindowFunction.ARG_MIN,
+                    WindowFunction.ARG_MAX,
+                    WindowFunction.DISTINCT_COUNT_APPROX,
+                    WindowFunction.ROW_NUMBER
+                ),
                 Set.of(PARQUET_DATA_FORMAT)
             )
         );
@@ -174,7 +188,12 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         // Logical connectives (projection-side composition: `case(a and b, …)`)
         ScalarFunction.AND,
         ScalarFunction.OR,
-        ScalarFunction.NOT
+        ScalarFunction.NOT,
+        // String — used by QTF plan-shape tests covering composite expressions / dedup.
+        ScalarFunction.CONCAT,
+        ScalarFunction.UPPER,
+        ScalarFunction.SIN,
+        ScalarFunction.ABS
     );
 
     private static final Set<ProjectCapability> PROJECT_CAPS;

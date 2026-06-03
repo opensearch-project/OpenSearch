@@ -46,6 +46,8 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.node.NodeResourceUsageStats;
+import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
@@ -210,7 +212,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null, // nativeAllocator
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -242,7 +249,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null, // nativeAllocator
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -274,7 +286,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null, // nativeAllocator
+                null,
+                -1L  // totalEstimatedNativeBytes
             )
         );
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
@@ -337,7 +354,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null, // nativeAllocator
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -369,7 +391,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null, // nativeAllocator
+                null,
+                -1L  // totalEstimatedNativeBytes
             ),
             new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -401,7 +428,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null, // nativeAllocator
+                null,
+                -1L  // totalEstimatedNativeBytes
             )
         );
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
@@ -419,6 +451,88 @@ public class DiskUsageTests extends OpenSearchTestCase {
         DiskUsage mostNode_3 = newMostAvailableUsages.get("node_3");
         assertDiskUsage(leastNode_3, node3FSInfo[1]);
         assertDiskUsage(mostNode_3, node3FSInfo[0]);
+    }
+
+    public void testFillNodeResourceUsageStatsPerNode() {
+        final Map<String, NodeResourceUsageStats> newNodeResourceUsageStats = new HashMap<>();
+
+        DiscoveryNode discoveryNode1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+
+        NodeResourceUsageStats node1Stats = new NodeResourceUsageStats(
+            discoveryNode1.getId(),
+            System.currentTimeMillis(),
+            50.0,
+            25.0,
+            null,
+            10.0
+        );
+        Map<String, NodeResourceUsageStats> node1Map = new HashMap<>();
+        node1Map.put(discoveryNode1.getId(), node1Stats);
+        NodesResourceUsageStats node1NodesStats = new NodesResourceUsageStats(node1Map);
+
+        // node_2 has a NodesResourceUsageStats object but the inner map does NOT contain its own nodeId
+        // (this exercises the else-branch which logs a debug message).
+        Map<String, NodeResourceUsageStats> node2Map = new HashMap<>();
+        NodesResourceUsageStats node2NodesStats = new NodesResourceUsageStats(node2Map);
+
+        List<NodeStats> nodeStats = Arrays.asList(
+            makeNodeStatsWithResourceUsage(discoveryNode1, node1NodesStats),
+            makeNodeStatsWithResourceUsage(discoveryNode2, node2NodesStats),
+            // node_3 has null resource usage stats (covers the warn-branch)
+            makeNodeStatsWithResourceUsage(discoveryNode3, null)
+        );
+
+        InternalClusterInfoService.fillNodeResourceUsageStatsPerNode(logger, nodeStats, newNodeResourceUsageStats);
+
+        assertEquals(1, newNodeResourceUsageStats.size());
+        assertTrue(newNodeResourceUsageStats.containsKey("node_1"));
+        assertSame(node1Stats, newNodeResourceUsageStats.get("node_1"));
+        assertFalse(newNodeResourceUsageStats.containsKey("node_2"));
+        assertFalse(newNodeResourceUsageStats.containsKey("node_3"));
+    }
+
+    private NodeStats makeNodeStatsWithResourceUsage(DiscoveryNode node, NodesResourceUsageStats resourceUsageStats) {
+        return new NodeStats(
+
+            node,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resourceUsageStats,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null /* fileCacheOnlyStats */,
+            null /* blockCacheOnlyStats */,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            -1L
+
+        );
     }
 
     private void assertDiskUsage(DiskUsage usage, FsInfo.Path path) {

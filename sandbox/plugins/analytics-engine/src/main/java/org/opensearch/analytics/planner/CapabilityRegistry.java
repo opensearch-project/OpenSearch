@@ -259,6 +259,21 @@ public class CapabilityRegistry {
         return result;
     }
 
+    /**
+     * All backends that can scan this field's inverted index across all its formats. A backend
+     * is returned only if it declares an {@link ScanCapability.Index} cap whose
+     * {@code supportedFieldTypes} includes the field's type — so e.g. Lucene appears for
+     * keyword/text fields but not numeric fields, even when both have {@code indexFormats=[lucene]}.
+     */
+    public List<String> indexScanBackendsForField(FieldStorageInfo field) {
+        FieldType fieldType = field.getFieldType();
+        List<String> result = new ArrayList<>();
+        for (String format : field.getIndexFormats()) {
+            result.addAll(scanBackends(ScanCapability.Index.class, fieldType, format));
+        }
+        return result;
+    }
+
     // ---- Any-format lookups ----
 
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
@@ -317,6 +332,23 @@ public class CapabilityRegistry {
 
     public FieldStorageResolver resolveFieldStorage(IndexMetadata indexMetadata) {
         return fieldStorageFactory.apply(indexMetadata);
+    }
+
+    /**
+     * Resolves field storage across all backing indices of a table (alias or index pattern),
+     * unioning their field sets. A singleton list resolves exactly as the single-index overload.
+     * Backing indices with differing field sets are expected — the scan's row type is the union —
+     * so each requested field is served by whichever index declares it.
+     */
+    public FieldStorageResolver resolveFieldStorage(List<IndexMetadata> indices) {
+        if (indices.size() == 1) {
+            return resolveFieldStorage(indices.get(0));
+        }
+        List<FieldStorageResolver> perIndex = new ArrayList<>(indices.size());
+        for (IndexMetadata index : indices) {
+            perIndex.add(resolveFieldStorage(index));
+        }
+        return FieldStorageResolver.merged(perIndex);
     }
 
     // ---- Helpers ----
