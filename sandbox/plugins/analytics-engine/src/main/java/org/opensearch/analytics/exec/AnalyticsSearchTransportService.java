@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -54,6 +56,8 @@ import java.io.IOException;
  */
 @Singleton
 public class AnalyticsSearchTransportService {
+    private static final Logger logger = LogManager.getLogger(AnalyticsSearchTransportService.class);
+
     private final StreamTransportService transportService;
     private final ClusterService clusterService;
 
@@ -377,25 +381,34 @@ public class AnalyticsSearchTransportService {
             @Override
             public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
                 try {
-                    FragmentExecutionArrowResponse current;
-                    FragmentExecutionArrowResponse last = null;
-                    while ((current = stream.nextResponse()) != null) {
-                        if (last != null) {
-                            listener.onStreamResponse(last, false);
-                        }
-                        last = current;
-                    }
-                    if (last != null) {
-                        listener.onStreamResponse(last, true);
-                    } else {
-                        // Hash-shuffle producer fragments stream zero responses (their output
-                        // goes peer-to-peer via AnalyticsShuffleDataAction). Synthesize a final
-                        // null-payload isLast=true so the stage's response listener still fires
-                        // onResponse(null) and the producer stage transitions to SUCCEEDED.
+                    FragmentExecutionArrowResponse last = stream.nextResponse();
+                    if (last == null) {
+                        // Hash-shuffle producer / worker fragments stream zero responses (their
+                        // output goes peer-to-peer via AnalyticsShuffleDataAction, or is fully
+                        // consumed by the coord-reduce sink rather than streamed back). Synthesize
+                        // a final null-payload isLast=true so the stage's response listener still
+                        // fires onResponse(null) and the producer stage transitions to SUCCEEDED.
                         listener.onStreamResponse(
                             new FragmentExecutionArrowResponse((org.apache.arrow.vector.VectorSchemaRoot) null),
                             true
                         );
+                        return;
+                    }
+                    while (last != null) {
+                        FragmentExecutionArrowResponse next = stream.nextResponse();
+                        boolean isLast = next == null;
+                        boolean keepReading = listener.onStreamResponse(last, isLast);
+                        if (!keepReading) {
+                            if (next != null) {
+                                if (next.getRoot() != null) {
+                                    next.getRoot().close();
+                                }
+                                logger.debug("[early-term] cancelling shard stream: reduce input satisfied (downstream consumer finished)");
+                                stream.cancel("reduce input satisfied (downstream consumer finished)", null);
+                            }
+                            return;
+                        }
+                        last = next;
                     }
                 } catch (Exception e) {
                     listener.onFailure(e);

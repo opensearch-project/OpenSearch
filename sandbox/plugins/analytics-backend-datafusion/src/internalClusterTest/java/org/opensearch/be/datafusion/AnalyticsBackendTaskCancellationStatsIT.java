@@ -26,7 +26,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
-import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.tasks.TaskCancellationStats;
@@ -118,12 +117,17 @@ public class AnalyticsBackendTaskCancellationStatsIT extends OpenSearchIntegTest
         TaskCancellationStats taskCancellationStats = nodeStats.getTaskCancellationStats();
         assertNotNull("task_cancellation stats should be present", taskCancellationStats);
 
-        AnalyticsBackendTaskCancellationStats analyticsStats = taskCancellationStats.getNativeStats();
-        assertNotNull("analytics backend stats should be present when DataFusion plugin is loaded", analyticsStats);
-        assertThat(analyticsStats.getSearchTaskCurrent(), greaterThanOrEqualTo(0L));
-        assertThat(analyticsStats.getSearchTaskTotal(), greaterThanOrEqualTo(0L));
-        assertThat(analyticsStats.getSearchShardTaskCurrent(), greaterThanOrEqualTo(0L));
-        assertThat(analyticsStats.getSearchShardTaskTotal(), greaterThanOrEqualTo(0L));
+        // Verify native stats are present via XContent serialization (getNativeStats() is protected)
+        XContentBuilder xBuilder = JsonXContent.contentBuilder();
+        xBuilder.startObject();
+        taskCancellationStats.toXContent(xBuilder, ToXContent.EMPTY_PARAMS);
+        xBuilder.endObject();
+        Map<String, Object> statsMap = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), xBuilder.toString(), false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> taskCancellation = (Map<String, Object>) statsMap.get("task_cancellation");
+        assertNotNull("task_cancellation key should exist", taskCancellation);
+        assertNotNull("analytics_search_task should be present", taskCancellation.get("analytics_search_task"));
+        assertNotNull("analytics_search_shard_task should be present", taskCancellation.get("analytics_search_shard_task"));
     }
 
     public void testNativeMemoryStatsAvailable() throws Exception {

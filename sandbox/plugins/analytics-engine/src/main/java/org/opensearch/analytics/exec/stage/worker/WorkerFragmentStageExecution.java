@@ -121,15 +121,15 @@ public class WorkerFragmentStageExecution extends AbstractStageExecution impleme
     StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ActionListener<Void> listener) {
         return new StreamingResponseListener<>() {
             @Override
-            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+            public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
                 VectorSchemaRoot vsr = response.getRoot();
                 if (getState().isTerminal()) {
                     if (vsr != null) vsr.close();
-                    return;
+                    return false; // stage already settled — stop draining, let the caller cancel the stream
                 }
                 if (vsr == null) {
                     if (isLast) listener.onResponse(null);
-                    return;
+                    return true;
                 }
                 try {
                     outputSink.feed(vsr);
@@ -141,10 +141,11 @@ public class WorkerFragmentStageExecution extends AbstractStageExecution impleme
                         wrapped.addSuppressed(closeFailure);
                     }
                     listener.onFailure(wrapped);
-                    return;
+                    return false;
                 }
                 metrics.addRowsProcessed(vsr.getRowCount());
                 if (isLast) listener.onResponse(null);
+                return true;
             }
 
             @Override
