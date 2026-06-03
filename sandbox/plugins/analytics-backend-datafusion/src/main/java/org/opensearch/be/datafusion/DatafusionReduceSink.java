@@ -87,15 +87,18 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle, DataFusionReduceState preparedState) {
         super(ctx, runtimeHandle, preparedState);
+        logger.debug(
+            "[reduce-sink] OPEN taskId={} hasPreparedState={} sessionPtr={}",
+            ctx.taskId(),
+            preparedState != null,
+            session != null ? session.getPointer() : 0
+        );
         Map<Integer, DatafusionPartitionSender> senders = new LinkedHashMap<>(childInputs.size());
         long streamPtr = 0;
         StreamHandle outStreamLocal = null;
         boolean success = false;
         try {
             if (preparedState != null) {
-                // Plan was already prepared by FinalAggregateInstructionHandler. The handler
-                // registered senders + captured per-input schemas in ctx.childInputs()
-                // iteration order; re-index them by childStageId here for lookup during feed().
                 int i = 0;
                 for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
                     senders.put(child.getKey(), preparedState.senders().get(i));
@@ -103,12 +106,8 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                     i++;
                 }
                 streamPtr = NativeBridge.executeLocalPreparedPlan(session.getPointer(), ctx.taskId());
+                logger.debug("[reduce-sink] ALLOC preparedPlan stream taskId={} streamPtr={}", ctx.taskId(), streamPtr);
             } else {
-                // Legacy path (non-aggregate reduce): register partitions and execute the
-                // fragment bytes directly. Used when no prior instruction prepared a plan.
-                //
-                // ctx.fragmentBytes() references each partition by its "input-<stageId>" name
-                // (DataFusionFragmentConvertor names them this way during plan conversion).
                 for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
                     int childStageId = child.getKey();
                     byte[] producerPlanBytes = child.getValue();
@@ -118,9 +117,16 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                         producerPlanBytes
                     );
                     senders.put(childStageId, new DatafusionPartitionSender(registered.pointer()));
+                    logger.debug(
+                        "[reduce-sink] ALLOC sender taskId={} childStageId={} senderPtr={}",
+                        ctx.taskId(),
+                        childStageId,
+                        registered.pointer()
+                    );
                     childSchemas.put(childStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
                 }
                 streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes(), ctx.taskId());
+                logger.debug("[reduce-sink] ALLOC localPlan stream taskId={} streamPtr={}", ctx.taskId(), streamPtr);
             }
             outStreamLocal = new StreamHandle(streamPtr, runtimeHandle);
             success = true;
@@ -162,6 +168,19 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         feedToSender(sendersByChildStageId.values().iterator().next(), batch, childSchemas.values().iterator().next());
     }
 
+    /**
+     * Single-input path only: true once the sole input's consumer dropped its receiver (e.g. a
+     * LimitExec satisfied its fetch). Multi-input shapes (join/union) feed via {@link #sinkForChild}
+     * and each producer observes early-termination on its own per-child wrapper
+     * ({@link ChildSink#isConsumerDone()}) — a single top-level answer can't be correct there (one
+     * dropped join side ≠ whole reduce done), so this conservatively returns false unless there is
+     * exactly one registered sender.
+     */
+    @Override
+    public boolean isConsumerDone() {
+        return sendersByChildStageId.size() == 1 && sendersByChildStageId.values().iterator().next().isReceiverDropped();
+    }
+
     @Override
     public ExchangeSink sinkForChild(int childStageId) {
         DatafusionPartitionSender sender = sendersByChildStageId.get(childStageId);
@@ -177,13 +196,17 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
      * Lock-free per-sender feed. Exports the batch via Arrow C Data outside any lock
      * (the allocator is thread-safe; multiple shard handlers can export concurrently),
      * then sends it through the supplied sender. The Rust mpsc::Sender is thread-safe,
-     * so multiple producers feeding the same sender is safe. If close() raced and
-     * already ran senderClose, the native side returns an error ("receiver dropped")
-     * which we catch and discard.
+     * so multiple producers feeding the same sender is safe.
+     *
+     * <p>Two teardown signals are handled distinctly, and neither fails the query: a benign
+     * receiver-drop (the consumer finished early) returns the {@link NativeBridge#SENDER_SEND_RECEIVER_DROPPED}
+     * code, while a concurrent {@link #close()} surfaces as an IllegalStateException from
+     * {@code getPointer()} before the native call. Both discard the batch.
      */
     private void feedToSender(DatafusionPartitionSender sender, VectorSchemaRoot batch, Schema declaredSchema) {
-        // Best-effort fast path — skip export work if already closed.
-        if (closed) {
+        // Best-effort fast path — skip the export if the sink is closed or this input's consumer
+        // already dropped its receiver (nothing downstream will read another batch on it).
+        if (closed || sender.isReceiverDropped()) {
             batch.close();
             return;
         }
@@ -211,14 +234,24 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             // close — see DatafusionPartitionSender. Throws IllegalStateException via
             // NativeHandle.getPointer() if the sender was closed (the close-race path).
             try {
-                sender.send(array.memoryAddress(), arrowSchema.memoryAddress());
+                long rc = sender.send(array.memoryAddress(), arrowSchema.memoryAddress());
+                if (rc == NativeBridge.SENDER_SEND_RECEIVER_DROPPED) {
+                    // Consumer finished first (e.g. a LimitExec satisfied its fetch) and dropped the
+                    // receiver while shards were still feeding. api::sender_send already consumed the
+                    // FFI structs via from_raw, so the buffers are Rust's to drop — do NOT release()
+                    // here (double-free). The sender latched the drop (see DatafusionPartitionSender),
+                    // so subsequent feeds for this input short-circuit and the producer stream is
+                    // cancelled by the shard listener via isConsumerDone().
+                    logger.debug("[ReduceSink] receiver dropped before send (consumer finished), discarding batch");
+                    return;
+                }
                 feedCount.incrementAndGet();
             } catch (IllegalStateException e) {
-                // Sender close raced our send — Rust didn't take ownership, so the FFI
-                // structs' release callbacks are still set. Invoke them explicitly to free
-                // the exported buffers back to the Java allocator. (ArrowArray.close /
-                // ArrowSchema.close in the finally below frees the wrapper but does NOT
-                // invoke the C release callback.)
+                // Sender close raced our send — getPointer() threw BEFORE the native call,
+                // so Rust never took ownership and the FFI structs' release callbacks are
+                // still set. Invoke them explicitly to free the exported buffers back to the
+                // Java allocator. (ArrowArray.close / ArrowSchema.close in the finally below
+                // frees the wrapper but does NOT invoke the C release callback.)
                 array.release();
                 arrowSchema.release();
                 if (closed) {
@@ -282,6 +315,11 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         }
 
         @Override
+        public boolean isConsumerDone() {
+            return sender.isReceiverDropped();
+        }
+
+        @Override
         public void close() {
             if (childClosed) {
                 return;
@@ -330,41 +368,32 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             return null;
         }
         Exception failure = null;
-        // 1. Signal EOF on every sender (ChildSink may have closed some already; idempotent).
-        for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
-            try {
-                sender.close();
-            } catch (Exception t) {
-                failure = accumulate(failure, t);
-            }
-        }
         try {
+            // Close outStream first: drops the native receiver, which unblocks any sender
+            // parked in send_blocking (waiting for channel capacity). This releases the
+            // sender's read lock so session.close() can acquire the write lock without deadlock.
             outStream.close();
         } catch (Exception t) {
             failure = accumulate(failure, t);
         }
-        if (preparedState == null) {
-            try {
+        try {
+            if (preparedState != null) {
+                preparedState.close();
+            } else {
                 session.close();
-            } catch (Exception t) {
-                failure = accumulate(failure, t);
             }
+        } catch (Exception t) {
+            failure = accumulate(failure, t);
         }
         return failure;
     }
 
     /** Test seam: overridden to count invocations without static mocking. */
     void fireCancelQuery() {
+        logger.debug("[reduce-sink] fireCancelQuery: taskId={}", ctx.taskId());
         NativeBridge.cancelQuery(ctx.taskId());
     }
 
-    /**
-     * Drains inline on the caller (the reduce stage's task, on a virtual thread).
-     * Drain terminates on input EOF (all per-child wrappers closed via
-     * {@link #sinkForChild}) or on cancel-Err (an external {@link #close()} fired
-     * {@code cancel_query}). The {@code finally} runs {@code super.close()} so cleanup
-     * happens on the same thread as the drain — no race with concurrent close.
-     */
     @Override
     public void reduce(ActionListener<Void> listener) {
         SinkState before = state.compareAndExchange(SinkState.READY, SinkState.REDUCING);
@@ -392,6 +421,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         if (failure == null) {
             listener.onResponse(null);
         } else {
+            logger.debug("[reduce-sink] reduce failed: taskId={} error={}", ctx.taskId(), failure.getMessage());
             listener.onFailure(failure);
         }
     }

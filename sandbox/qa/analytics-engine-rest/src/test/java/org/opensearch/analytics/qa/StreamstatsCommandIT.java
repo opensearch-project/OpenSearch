@@ -922,19 +922,24 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testWhereInWithStreamstatsSubquery. WHERE-IN with streamstats subquery — uses
-     *  semi-join lowering inside the subquery. After PlannerImpl's subquery-remove phase the
-     *  RexSubQuery becomes a decorrelated correlate. This historically had a nondeterministic
-     *  multi-node race ({@code Stage 0 sink feed failed: partition stream receiver dropped before
-     *  send}); the assertion is now the tolerant {@link #assertErrorAny} (any error is accepted),
-     *  which is stable, so the test runs unmuted. */
+    /** sql IT: testWhereInWithStreamstatsSubquery. WHERE-IN with streamstats subquery — a multi-input
+     *  (semi-join) shape: the subquery decorrelates to a correlate after PlannerImpl's subquery-remove
+     *  phase. Previously errored because PlanForker couldn't reconcile the multi-input arms' backends;
+     *  now supported. The result is nondeterministic by construction — the inner
+     *  {@code streamstats count() | where cnt < 5} captures an arbitrary 5-row subset (streamstats sees
+     *  rows in arrival order, which varies across shards), so {@code head 1} can return any matching
+     *  key. Assert the invariant that holds regardless of which subset is captured: exactly one row. */
     public void testWhereInWithStreamstatsSubquery() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | where key in"
                 + " [ source=" + DATASET.indexName + " | streamstats count() as cnt"
                 + " | where cnt < 5 | fields key ]"
                 + " | head 1"
         );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("expected datarows for where-in streamstats subquery", rows);
+        assertEquals("head 1 over a non-empty match set must return exactly one row", 1, rows.size());
     }
 
     /** sql IT: testMultipleStreamstatsWithEval. Streamstats running cnt → eval x=cnt+1 →
