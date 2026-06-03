@@ -175,7 +175,27 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── TIMESTAMP / DATE subtraction → MinusAdapter ──────────────────────────────
 
+    public void testTimestampMinusTimestampLiterals() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = timestamp('1999-12-31 15:42:13') - timestamp('1961-04-12 09:07:00') | fields v",
+            "2008-09-20 06:35:13"
+        );
+    }
+
+    public void testTimestampMinusTimestampColumn() throws IOException {
+        // datetime0 at key00 == the literal → diff is epoch.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = timestamp(datetime0) - timestamp('2004-07-09 10:17:35') | fields v",
+            "1970-01-01 00:00:00"
+        );
+    }
+
+    public void testDateMinusDateLiterals() throws IOException {
+        // DATE-DATE returns integer day-count.
+        assertFirstRowLong(oneRow("key00") + "| eval v = date('2024-01-15') - date('2024-01-10') | fields v", 5L);
+    }
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {
         Object cell = firstRowFirstCell(ppl);
