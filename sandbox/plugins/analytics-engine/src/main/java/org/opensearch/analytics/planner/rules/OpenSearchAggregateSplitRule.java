@@ -56,6 +56,12 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     /** Skip the PARTIAL/FINAL split when it would emit a row type that fails Volcano's typeMatchesInferred. */
     private static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
+            // DISTINCT aggregates (e.g. COUNT(DISTINCT x)) can't be decomposed into per-shard
+            // partials reduced additively: summing per-shard distinct counts double-counts any
+            // value present on more than one shard. Gather to the coordinator and aggregate once.
+            if (aggCall.isDistinct()) {
+                return true;
+            }
             if (isStateExpanding(aggCall.getAggregation())) {
                 return true;
             }
