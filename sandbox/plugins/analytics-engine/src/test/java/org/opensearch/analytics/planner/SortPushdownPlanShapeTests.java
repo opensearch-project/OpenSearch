@@ -14,6 +14,7 @@ import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 
@@ -114,6 +115,27 @@ public class SortPushdownPlanShapeTests extends PlanShapeTestBase {
                 assertTrue("a Sort must be pushed below each arm ER, plan:\n" + p, lines[i + 1].contains("OpenSearchSort"));
             }
         }
+    }
+
+    /** Sort over a Join is not pushed — joins are explicitly out of scope. */
+    public void testJoin_notPushed() {
+        RexNode cond = rexBuilder.makeCall(
+            org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 2)
+        );
+        RelNode join = org.apache.calcite.rel.logical.LogicalJoin.create(
+            stubScan(mockTable("left_idx", "status", "size")),
+            stubScan(mockTable("right_idx", "status", "size")),
+            List.of(),
+            cond,
+            java.util.Set.of(),
+            org.apache.calcite.rel.core.JoinRelType.INNER
+        );
+        String p = RelOptUtil.toString(
+            runPlanner(fetchLiteralSort(join, 10), perIndexContext(java.util.Map.of("left_idx", 1, "right_idx", 1)))
+        );
+        assertEquals("no Sort pushed below a join, plan:\n" + p, 1, p.lines().filter(l -> l.contains("OpenSearchSort")).count());
     }
 
     /** Collated Sort with no fetch → no transport bound → not pushed. */

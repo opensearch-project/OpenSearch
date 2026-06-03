@@ -15,6 +15,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 
@@ -120,8 +121,13 @@ public final class OpenSearchSortPushdownRewriter {
         return er.copy(er.getTraitSet(), List.of(shardSort));
     }
 
+    /**
+     * Eligible to push a Sort below: not the aggregate path, not already pushed, and not gathering a
+     * Join — joins are explicitly out of scope (a LIMIT cannot be safely pushed below a join).
+     */
     private static boolean eligibleER(OpenSearchExchangeReducer er) {
-        return isAggregatePath(er) == false && (er.getInput() instanceof OpenSearchSort) == false;
+        RelNode input = er.getInput();
+        return isAggregatePath(er) == false && (input instanceof OpenSearchSort) == false && (input instanceof OpenSearchJoin) == false;
     }
 
     /** True when the shard fetch is computable: no offset, or offset and fetch are both literals to sum. */
