@@ -351,6 +351,27 @@ scalar_functions:
           - { value: string, name: "pattern" }
           - { value: string, name: "method" }
         return: "map<string, string>"
+  - name: "grok"
+    description: >-
+      PPL `grok <field> '<grok-pattern>'` — the grok-syntax sibling of `parse`.
+      Extracts named groups into a `map<varchar, varchar>` whose keys are the
+      grok field names (`%{HOSTNAME:host}` → key `host`) in pattern definition
+      order. Unlike `parse`, the pattern is grok syntax, not a raw regex: the
+      Rust UDF carries the 108-line default grok dictionary and recursively
+      resolves `%{NAME:field}` references before matching (the SQL plugin's grok
+      library is not on OpenSearch core's classpath). The resolved regex relies
+      on lookbehind / atomic groups (e.g. `BASE10NUM`), so matching uses
+      `fancy-regex` and is unanchored — mirroring Java grok's `Matcher.find()`
+      (substring match), in contrast to `parse`'s anchored `^…$`. Method literal
+      must be `grok`; pattern + method operands are validated as non-null string
+      literals at plan time by `GrokAdapter`. Pairs with `ITEM` downstream
+      (PPL `grok` chains `ITEM(grok(...), 'field')` per named group).
+    impls:
+      - args:
+          - { value: string, name: "input" }
+          - { value: string, name: "pattern" }
+          - { value: string, name: "method" }
+        return: "map<string, string>"
   - name: "item"
     description: >-
       Map element accessor — extracts a value by key from a `map<string, string>`.
