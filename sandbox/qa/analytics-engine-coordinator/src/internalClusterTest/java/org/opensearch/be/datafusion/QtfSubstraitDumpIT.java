@@ -67,6 +67,8 @@ import java.util.Properties;
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
 import io.substrait.proto.Plan;
+import io.substrait.proto.ReadRel;
+import io.substrait.proto.Rel;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -158,11 +160,25 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         byte[] bytes = scan.getPlanAlternatives().getFirst().convertedBytes();
         Plan plan = Plan.parseFrom(bytes);
 
-        List<String> baseSchemaNames = plan.getRelations(0).getRoot().getInput().getRead().getBaseSchema().getNamesList();
+        // The Read may be wrapped by the per-shard Sort/Fetch that sort pushdown inserts; find it.
+        List<String> baseSchemaNames = findRead(plan.getRelations(0).getRoot().getInput()).getBaseSchema().getNamesList();
         assertTrue(
             "Stage 0 base_schema must include __row_id__; got " + baseSchemaNames,
             baseSchemaNames.contains("__row_id__")
         );
+    }
+
+    /** Walks single-input Substrait rels (Fetch/Sort/Project/Filter/Aggregate) down to the ReadRel. */
+    private static ReadRel findRead(Rel rel) {
+        return switch (rel.getRelTypeCase()) {
+            case READ -> rel.getRead();
+            case FETCH -> findRead(rel.getFetch().getInput());
+            case SORT -> findRead(rel.getSort().getInput());
+            case PROJECT -> findRead(rel.getProject().getInput());
+            case FILTER -> findRead(rel.getFilter().getInput());
+            case AGGREGATE -> findRead(rel.getAggregate().getInput());
+            default -> throw new AssertionError("no ReadRel found, hit " + rel.getRelTypeCase());
+        };
     }
 
     /**
