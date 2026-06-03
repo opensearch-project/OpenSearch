@@ -16,12 +16,16 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexWindowBounds;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -124,5 +128,114 @@ public class WidthBucketAdapterTests extends OpenSearchTestCase {
             original.getType(),
             adapted.getType()
         );
+    }
+
+    /**
+     * Timestamp branch builds {@code from_unixtime(((to_unixtime(ts) - to_unixtime(min))
+     * / stride) * stride + to_unixtime(min))} with {@code stride = (max - min) / N}.
+     * The {@code RexOver(MIN)} identity must be reused so substrait CSE can dedup it.
+     */
+    public void testWidthBucketRewritesTimestampToDataAwareBucket() {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner planner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(planner, rexBuilder);
+
+        RelDataType timestampNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
+        RelDataType varchar2000Nullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR, 2000), true);
+        SqlFunction widthBucketOp = new SqlFunction(
+            "WIDTH_BUCKET",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(varchar2000Nullable),
+            null,
+            OperandTypes.family(SqlTypeFamily.ANY, SqlTypeFamily.NUMERIC, SqlTypeFamily.ANY, SqlTypeFamily.ANY),
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+
+        RexNode ts = rexBuilder.makeInputRef(timestampNullable, 0);
+        RexNode binsLit = rexBuilder.makeLiteral(20, typeFactory.createSqlType(SqlTypeName.INTEGER), false);
+        RexNode maxOver = makeOverEmpty(rexBuilder, SqlStdOperatorTable.MAX, ts, timestampNullable);
+        RexNode minOver = makeOverEmpty(rexBuilder, SqlStdOperatorTable.MIN, ts, timestampNullable);
+        RexNode rangeExpr = rexBuilder.makeCall(timestampNullable, SqlStdOperatorTable.MINUS, List.of(maxOver, minOver));
+        RexCall original = (RexCall) rexBuilder.makeCall(widthBucketOp, List.of(ts, binsLit, rangeExpr, maxOver));
+
+        RexCall outerCast = (RexCall) new WidthBucketAdapter().adapt(original, List.of(), cluster);
+        assertEquals(SqlKind.CAST, outerCast.getKind());
+        assertEquals(original.getType(), outerCast.getType());
+
+        RexCall fromUnixtimeCall = (RexCall) outerCast.getOperands().get(0);
+        assertSame(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, fromUnixtimeCall.getOperator());
+
+        RexCall toDoubleCast = (RexCall) fromUnixtimeCall.getOperands().get(0);
+        assertEquals(SqlKind.CAST, toDoubleCast.getKind());
+        assertEquals(SqlTypeName.DOUBLE, toDoubleCast.getType().getSqlTypeName());
+
+        // PLUS(MULTIPLY(DIVIDE(MINUS(to_unixtime(ts), to_unixtime(min)), stride), stride), to_unixtime(min))
+        RexCall plus = (RexCall) toDoubleCast.getOperands().get(0);
+        assertEquals(SqlKind.PLUS, plus.getKind());
+        RexCall multiply = (RexCall) plus.getOperands().get(0);
+        assertEquals(SqlKind.TIMES, multiply.getKind());
+
+        // CSE prerequisite: origin's to_unixtime arg is the same RexOver(MIN) used in stride math.
+        RexCall outerMinUnixtime = (RexCall) plus.getOperands().get(1);
+        assertSame(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, outerMinUnixtime.getOperator());
+        assertSame(minOver, outerMinUnixtime.getOperands().get(0));
+
+        RexCall stride = (RexCall) multiply.getOperands().get(1);
+        assertEquals(SqlKind.DIVIDE, stride.getKind());
+        assertEquals(SqlKind.MINUS, ((RexCall) stride.getOperands().get(0)).getKind());
+        assertEquals(20L, ((Number) ((RexLiteral) stride.getOperands().get(1)).getValue()).longValue());
+    }
+
+    /** Build {@code agg(arg) OVER ()} with the standard unbounded frame. */
+    private static RexNode makeOverEmpty(
+        RexBuilder rexBuilder,
+        org.apache.calcite.sql.SqlAggFunction agg,
+        RexNode arg,
+        RelDataType returnType
+    ) {
+        return rexBuilder.makeOver(
+            returnType,
+            agg,
+            List.of(arg),
+            List.of(),
+            com.google.common.collect.ImmutableList.of(),
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.UNBOUNDED_FOLLOWING,
+            org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_NO_OTHER,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+    }
+
+    /** Pattern-match miss returns the call unchanged so substrait surfaces its own error. */
+    public void testTimestampPatternMismatchReturnsCallUnchanged() {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner planner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(planner, rexBuilder);
+
+        RelDataType timestampNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
+        RelDataType varchar2000Nullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR, 2000), true);
+        SqlFunction widthBucketOp = new SqlFunction(
+            "WIDTH_BUCKET",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(varchar2000Nullable),
+            null,
+            OperandTypes.family(SqlTypeFamily.ANY, SqlTypeFamily.NUMERIC, SqlTypeFamily.ANY, SqlTypeFamily.ANY),
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+        // Build WIDTH_BUCKET(ts, 20, range_ref, max_ref) — operands 2/3 are plain InputRefs,
+        // not the MINUS(MAX OVER (), MIN OVER ()) / MAX OVER () shape the SQL plugin emits.
+        RexNode ts = rexBuilder.makeInputRef(timestampNullable, 0);
+        RexNode binsLit = rexBuilder.makeLiteral(20, typeFactory.createSqlType(SqlTypeName.INTEGER), false);
+        RexNode rangeRef = rexBuilder.makeInputRef(timestampNullable, 1);
+        RexNode maxRef = rexBuilder.makeInputRef(timestampNullable, 2);
+        RexCall original = (RexCall) rexBuilder.makeCall(widthBucketOp, List.of(ts, binsLit, rangeRef, maxRef));
+
+        assertSame(original, new WidthBucketAdapter().adapt(original, List.of(), cluster));
     }
 }
