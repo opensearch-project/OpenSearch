@@ -85,10 +85,10 @@ public final class OpenSearchSortPushdownRewriter {
 
     /** A node we can push a Sort below: an eligible ER, or a UNION ALL with at least one eligible ER arm. */
     private static boolean isPushTarget(RelNode below) {
-        if (below instanceof OpenSearchExchangeReducer er) return eligibleER(er);
+        if (below instanceof OpenSearchExchangeReducer er) return eligibleChildBelowER(er);
         if (below instanceof OpenSearchUnion union && union.all) {
             for (RelNode arm : union.getInputs()) {
-                if (arm instanceof OpenSearchExchangeReducer er && eligibleER(er)) return true;
+                if (arm instanceof OpenSearchExchangeReducer er && eligibleChildBelowER(er)) return true;
             }
         }
         return false;
@@ -103,7 +103,7 @@ public final class OpenSearchSortPushdownRewriter {
         List<RelNode> arms = new ArrayList<>(union.getInputs().size());
         boolean pushed = false;
         for (RelNode arm : union.getInputs()) {
-            if (arm instanceof OpenSearchExchangeReducer er && eligibleER(er)) {
+            if (arm instanceof OpenSearchExchangeReducer er && eligibleChildBelowER(er)) {
                 arms.add(pushBelow(er, collated, fetch));
                 pushed = true;
             } else {
@@ -132,7 +132,7 @@ public final class OpenSearchSortPushdownRewriter {
      * Eligible to push a Sort below: not the aggregate path, not already pushed, and not gathering a
      * Join — joins are explicitly out of scope (a LIMIT cannot be safely pushed below a join).
      */
-    private static boolean eligibleER(OpenSearchExchangeReducer er) {
+    private static boolean eligibleChildBelowER(OpenSearchExchangeReducer er) {
         RelNode input = er.getInput();
         return isAggregatePath(er) == false && (input instanceof OpenSearchSort) == false && (input instanceof OpenSearchJoin) == false;
     }
