@@ -88,7 +88,16 @@ public class QueryContext {
         int maxShardsPerQuery,
         List<AnalyticsOperationListener> operationListeners
     ) {
-        this(dag, threadPool, parentTask, maxConcurrentShardRequestsPerNode, maxShardsPerQuery, operationListeners, allocator, ownsAllocator);
+        this(
+            dag,
+            threadPool,
+            parentTask,
+            maxConcurrentShardRequestsPerNode,
+            maxShardsPerQuery,
+            operationListeners,
+            allocator,
+            ownsAllocator
+        );
     }
 
     /** Full-parameter constructor. Private; tests use {@link #forTest} factories. */
