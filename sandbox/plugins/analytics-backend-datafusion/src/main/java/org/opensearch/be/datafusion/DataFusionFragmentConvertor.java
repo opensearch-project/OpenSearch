@@ -520,6 +520,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
+        preprocessed = TimestampSubtractRewriter.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;

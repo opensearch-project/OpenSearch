@@ -102,14 +102,21 @@ public class Sha2FunctionAdapterTests extends OpenSearchTestCase {
         assertEquals(original.getType(), rewritten.getType());
     }
 
-    /** Unsupported bit lengths fall through unchanged so the planner raises a clear error. */
-    public void testUnsupportedBitLengthPassesThrough() {
+    /**
+     * A concrete, unsupported literal bit length (e.g. SHA2(x, 128)) is rejected here with a
+     * clear, user-actionable error rather than passed through — otherwise the raw
+     * SHA2(string, i32) reaches Substrait conversion and surfaces the cryptic
+     * "Unable to convert call SHA2(string, i32)".
+     */
+    public void testUnsupportedBitLengthThrowsClearError() {
         RelOptCluster cluster = cluster();
         RexCall original = sha2(cluster, 128); // not in {224, 256, 384, 512}
 
-        RexNode rewritten = new Sha2FunctionAdapter().adapt(original, List.of(), cluster);
-
-        assertSame(original, rewritten);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Sha2FunctionAdapter().adapt(original, List.of(), cluster)
+        );
+        assertTrue("message should name the unsupported algorithm", e.getMessage().contains("128"));
     }
 
     /** Non-literal bit-length operand (e.g. a column reference) can't be rewritten; pass through. */

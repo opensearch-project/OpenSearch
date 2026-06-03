@@ -652,7 +652,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DatePartAdapters minute = DatePartAdapters.minute();
                 // WEEK/WEEK_OF_YEAR follow MySQL mode 0 (Sunday-first), not ISO; date_part('week') is ISO-only
                 RustUdfDateTimeAdapters.OsWeekAdapter week = new RustUdfDateTimeAdapters.OsWeekAdapter();
-                DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
+                // NowFspAdapter (not the plain NowAdapter) so the optional fractional-seconds
+                // precision arg — now(fsp) / current_timestamp(fsp) — is dropped before Substrait
+                // conversion; DataFusion now() is niladic and fsp is intentionally ignored
+                // (matches the SQL-plugin reference). Covers NOW, CURRENT_TIMESTAMP, SYSDATE.
+                ScalarFunctionAdapter now = new NowFspAdapter();
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
                 DayOfWeekAdapter dayOfWeek = new DayOfWeekAdapter();
@@ -679,6 +683,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.ATAN, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN)),
                     Map.entry(ScalarFunction.ATAN2, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN2)),
                     Map.entry(ScalarFunction.RADIANS, new NumericToDoubleAdapter(SqlStdOperatorTable.RADIANS)),
+                    // RAND([N]): drop the optional seed so it maps to DataFusion's niladic random()
+                    // (the SqlStdOperatorTable.RAND -> "random" sig). Seeded RAND(N) otherwise fails
+                    // Substrait conversion ("Unable to convert call RAND(i32)").
+                    Map.entry(ScalarFunction.RAND, new RandSeedAdapter()),
                     Map.entry(ScalarFunction.DEGREES, new NumericToDoubleAdapter(SqlStdOperatorTable.DEGREES)),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
                     Map.entry(ScalarFunction.CAST, ipBinaryCast),

@@ -137,10 +137,21 @@ public enum AggregateFunction {
         return null;
     }
 
-    /** Case-insensitive name lookup; throws if not recognized. */
+    /**
+     * Case-insensitive name lookup; throws if not recognized. Recognizes a small set of
+     * aliases for PPL aggregate names that don't match the enum constant spelling.
+     */
     public static AggregateFunction fromNameOrError(String name) {
+        String upper = name.toUpperCase(java.util.Locale.ROOT);
+        // PPL emits DISTINCT_COUNT_APPROX (dc/distinct_count_approx); it is the same approximate
+        // distinct-count as the enum's APPROX_COUNT_DISTINCT (DataFusion approx_distinct), just a
+        // different spelling. Map it to the existing constant so the proven sketch state +
+        // substrait mapping are reused.
+        if (upper.equals("DISTINCT_COUNT_APPROX")) {
+            return APPROX_COUNT_DISTINCT;
+        }
         try {
-            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
+            return valueOf(upper);
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }

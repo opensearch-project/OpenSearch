@@ -23,6 +23,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.ArrayList;
@@ -155,6 +156,11 @@ final class PplAggregateCallRewriter {
                     call.getName()
                 );
             }
+            // PPL `dc`/`distinct_count_approx` lowers to a UDAF named DISTINCT_COUNT_APPROX whose
+            // operator identity has no substrait sig. Remap to Calcite's stock
+            // APPROX_COUNT_DISTINCT, which ADDITIONAL_AGGREGATE_SIGS binds to DataFusion's native
+            // `approx_distinct` (same single-arg expr → bigint shape).
+            case "DISTINCT_COUNT_APPROX" -> targetOp = SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
             case "LIST", "VALUES" -> {
                 // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
                 if (call.getArgList().isEmpty()) {
