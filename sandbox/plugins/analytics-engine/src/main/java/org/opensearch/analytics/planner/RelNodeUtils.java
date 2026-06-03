@@ -170,7 +170,7 @@ public class RelNodeUtils {
     @SuppressWarnings("unchecked")
     public static <T extends RelNode> List<T> findAllNodes(RelNode node, Class<T> type) {
         List<T> matches = new ArrayList<>();
-        for (RelNode current = node; current != null; ) {
+        for (RelNode current = node; current != null;) {
             if (type.isInstance(current)) {
                 matches.add((T) current);
             }
