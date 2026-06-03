@@ -1,0 +1,12 @@
+{
+  "schema": [
+    {"name": "services", "type": "bigint"},
+    {"name": "hosts", "type": "bigint"},
+    {"name": "pods", "type": "bigint"}
+  ],
+  "datarows": [
+    [5, 6, 25]
+  ],
+  "total": 1,
+  "size": 1
+}
