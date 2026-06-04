@@ -11,6 +11,7 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.common.Nullable;
@@ -228,9 +229,6 @@ public class Stage {
         if (fragment == null) {
             return false;
         }
-        return org.opensearch.analytics.planner.RelNodeUtils.findNode(
-            fragment,
-            org.opensearch.analytics.planner.rel.OpenSearchValues.class
-        ) != null;
+        return RelNodeUtils.findNode(fragment, OpenSearchValues.class) != null;
     }
 }

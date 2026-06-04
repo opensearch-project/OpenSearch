@@ -28,6 +28,7 @@ import org.opensearch.core.action.ActionListener;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -79,7 +80,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     final AtomicReference<SinkState> state = new AtomicReference<>(SinkState.READY);
 
     /** Guards the teardown body so concurrent + sequential close paths don't run it twice. */
-    final java.util.concurrent.atomic.AtomicBoolean torndown = new java.util.concurrent.atomic.AtomicBoolean();
+    final AtomicBoolean torndown = new AtomicBoolean();
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         this(ctx, runtimeHandle, null);

@@ -12,6 +12,7 @@ import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.spi.ExchangeSink;
 
 /**
  * Holds the per-fragment resources (reader context, engine, result stream) kept alive for
@@ -30,7 +31,7 @@ public final class FragmentResources implements AutoCloseable {
     private final SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine;
     private final EngineResultStream stream;
     private final Runnable onClose;
-    private final org.opensearch.analytics.spi.ExchangeSink partitionedSink;
+    private final ExchangeSink partitionedSink;
     private final ShardScanExecutionContext executionContext;
     /**
      * Off-heap rowId buffer kept alive across the fetch stream's lifetime. Non-null only
@@ -77,7 +78,7 @@ public final class FragmentResources implements AutoCloseable {
         EngineResultStream stream,
         Runnable onClose,
         BigIntVector rowIdVector,
-        org.opensearch.analytics.spi.ExchangeSink partitionedSink,
+        ExchangeSink partitionedSink,
         ShardScanExecutionContext executionContext
     ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
@@ -103,7 +104,7 @@ public final class FragmentResources implements AutoCloseable {
 
     /** Non-null iff this fragment is a hash-shuffle producer; the stream's batches must be fed
      *  into the sink instead of being returned to the originating coordinator. */
-    public org.opensearch.analytics.spi.ExchangeSink partitionedSink() {
+    public ExchangeSink partitionedSink() {
         return partitionedSink;
     }
 

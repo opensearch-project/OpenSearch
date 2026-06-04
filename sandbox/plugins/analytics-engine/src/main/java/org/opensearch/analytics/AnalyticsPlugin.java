@@ -25,12 +25,16 @@ import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.ReaderContextStore;
 import org.opensearch.analytics.exec.Scheduler;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
+import org.opensearch.analytics.exec.action.AnalyticsShuffleDataAction;
+import org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.rest.RestMppStrategyStatsAction;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.stats.AnalyticsStats;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
@@ -272,10 +276,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
-            new ActionHandler<>(
-                org.opensearch.analytics.exec.action.AnalyticsShuffleDataAction.INSTANCE,
-                org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction.class
-            )
+            new ActionHandler<>(AnalyticsShuffleDataAction.INSTANCE, TransportAnalyticsShuffleDataAction.class)
         );
     }
 
@@ -286,8 +287,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         settings.add(DELEGATION_FUSE_DUAL_VIABLE);
         settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
-        settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
-        settings.addAll(org.opensearch.analytics.settings.AnalyticsQuerySettings.all());
+        settings.addAll(AnalyticsApproximationSettings.all());
+        settings.addAll(AnalyticsQuerySettings.all());
         return List.copyOf(settings);
     }
 

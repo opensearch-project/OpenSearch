@@ -32,6 +32,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegatedExpression;
@@ -428,7 +429,7 @@ public class FragmentConversionDriver {
             return convertReduceFragment(resolvedFragment, convertor, delegationBytes);
         }
 
-        if (leaf instanceof org.opensearch.analytics.planner.rel.OpenSearchValues) {
+        if (leaf instanceof OpenSearchValues) {
             // Coord-only literal source — convert the whole fragment via the same isthmus
             // path as reduce fragments. isthmus emits ReadRel.VirtualTable for the Values
             // leaf; DataFusion executes it locally without any input partitions.

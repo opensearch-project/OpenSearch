@@ -10,6 +10,9 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
@@ -21,15 +24,22 @@ import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.WorkerFragmentRequest;
+import org.opensearch.analytics.exec.shuffle.ShuffleSenderImpl;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationDescriptor;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
+import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.InstructionType;
+import org.opensearch.analytics.spi.ShuffleBufferRegistry;
+import org.opensearch.analytics.spi.ShuffleProducerOutputState;
+import org.opensearch.analytics.spi.ShuffleSender;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -76,7 +86,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     /** Cross-phase reader cache for QTF — query phase stores, fetch phase acquires. */
     private final ReaderContextStore readerContextStore;
     private TaskResourceTrackingService taskResourceTrackingService;
-    private org.opensearch.analytics.spi.ShuffleBufferRegistry shuffleBufferRegistry;
+    private ShuffleBufferRegistry shuffleBufferRegistry;
     private org.opensearch.transport.client.Client client;
     private org.opensearch.threadpool.ThreadPool threadPool;
     private org.opensearch.cluster.service.ClusterService clusterService;
@@ -135,7 +145,7 @@ public class AnalyticsSearchService implements AutoCloseable {
      * plugin startup; null until then, in which case hash-shuffle handlers see a null registry
      * and fail-fast with a typed error rather than null-deref.
      */
-    public void setShuffleBufferRegistry(org.opensearch.analytics.spi.ShuffleBufferRegistry registry) {
+    public void setShuffleBufferRegistry(ShuffleBufferRegistry registry) {
         this.shuffleBufferRegistry = registry;
     }
 
@@ -240,7 +250,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                     boolean hasPartialAggregate = resolved.plan()
                         .getInstructions()
                         .stream()
-                        .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE);
+                        .anyMatch(n -> n.type() == InstructionType.SETUP_PARTIAL_AGGREGATE);
                     FragmentExecutionStats stats = new FragmentExecutionStats(
                         rowsProduced,
                         usedSecondaryIndex,
@@ -279,13 +289,13 @@ public class AnalyticsSearchService implements AutoCloseable {
      * empty schema so the response carries a recognizable Arrow Flight frame.
      */
     private void drainAndEmitHeader(FragmentResources ctx, StreamingFragmentResponseHandler responseHandler) throws Exception {
-        org.opensearch.analytics.spi.ExchangeSink sink = ctx.partitionedSink();
+        ExchangeSink sink = ctx.partitionedSink();
         int count = 0;
-        org.apache.arrow.vector.types.pojo.Schema capturedSchema = null;
+        Schema capturedSchema = null;
         try {
             Iterator<EngineResultBatch> it = ctx.stream().iterator();
             while (it.hasNext()) {
-                org.apache.arrow.vector.VectorSchemaRoot batch = it.next().getArrowRoot();
+                VectorSchemaRoot batch = it.next().getArrowRoot();
                 if (capturedSchema == null) {
                     capturedSchema = batch.getSchema();
                 }
@@ -305,23 +315,21 @@ public class AnalyticsSearchService implements AutoCloseable {
         // same as any other batch, decrements the partial-task counter, and the stage
         // transitions to SUCCEEDED on isLast=true.
         if (capturedSchema == null) {
-            capturedSchema = new org.apache.arrow.vector.types.pojo.Schema(java.util.List.of());
+            capturedSchema = new Schema(List.of());
         }
-        try (
-            org.apache.arrow.vector.VectorSchemaRoot headerRoot = org.apache.arrow.vector.VectorSchemaRoot.create(capturedSchema, allocator)
-        ) {
+        try (VectorSchemaRoot headerRoot = VectorSchemaRoot.create(capturedSchema, allocator)) {
             headerRoot.setRowCount(0);
-            final org.apache.arrow.vector.VectorSchemaRoot vsrRef = headerRoot;
-            final org.apache.arrow.vector.types.pojo.Schema schemaRef = capturedSchema;
+            final VectorSchemaRoot vsrRef = headerRoot;
+            final Schema schemaRef = capturedSchema;
             responseHandler.onBatch(new EngineResultBatch() {
                 @Override
-                public org.apache.arrow.vector.VectorSchemaRoot getArrowRoot() {
+                public VectorSchemaRoot getArrowRoot() {
                     return vsrRef;
                 }
 
                 @Override
-                public java.util.List<String> getFieldNames() {
-                    return schemaRef.getFields().stream().map(org.apache.arrow.vector.types.pojo.Field::getName).toList();
+                public List<String> getFieldNames() {
+                    return schemaRef.getFields().stream().map(Field::getName).toList();
                 }
 
                 @Override
@@ -350,7 +358,7 @@ public class AnalyticsSearchService implements AutoCloseable {
      */
     public void executeWorkerFragmentStreamingAsync(
         WorkerFragmentRequest request,
-        org.opensearch.analytics.exec.task.AnalyticsShardTask task,
+        AnalyticsShardTask task,
         StreamingFragmentResponseHandler responseHandler,
         Executor executor
     ) {
@@ -632,8 +640,8 @@ public class AnalyticsSearchService implements AutoCloseable {
             // partitioned sink, and unwrap the carrier so the engine factory sees the upstream
             // session state (not the carrier). The drain into the sink happens later in
             // executeFragmentStreamingAsync; we just attach the sink to FragmentResources here.
-            org.opensearch.analytics.spi.ExchangeSink partitionedSink = null;
-            if (backendContext instanceof org.opensearch.analytics.spi.ShuffleProducerOutputState producerState) {
+            ExchangeSink partitionedSink = null;
+            if (backendContext instanceof ShuffleProducerOutputState producerState) {
                 if (client == null || threadPool == null || clusterService == null) {
                     throw new IllegalStateException(
                         "AnalyticsSearchService: shuffle sender deps not plumbed; "
@@ -683,13 +691,13 @@ public class AnalyticsSearchService implements AutoCloseable {
      * with {@code (queryId, targetStageId, side)} from {@code producerState}, then hands it to
      * the backend's {@code createPartitionedSink}. The backend never sees transport types.
      */
-    private org.opensearch.analytics.spi.ExchangeSink buildPartitionedSink(
+    private ExchangeSink buildPartitionedSink(
         AnalyticsSearchBackendPlugin backend,
-        org.opensearch.analytics.spi.ShuffleProducerOutputState producerState,
+        ShuffleProducerOutputState producerState,
         ShardScanExecutionContext ctx,
         ResolvedFragment resolved
     ) {
-        org.opensearch.analytics.spi.ShuffleSender sender = new org.opensearch.analytics.exec.shuffle.ShuffleSenderImpl(
+        ShuffleSender sender = new ShuffleSenderImpl(
             client,
             threadPool,
             clusterService,
@@ -701,13 +709,13 @@ public class AnalyticsSearchService implements AutoCloseable {
         // no downstream sink (the partitioned sink ships out-of-band via the ShuffleSender, not
         // into another in-process sink). fragmentBytes is left empty for the same reason — the
         // partitioning operates on the engine's terminal output, not on a plan.
-        org.opensearch.analytics.spi.ExchangeSinkContext sinkCtx = new org.opensearch.analytics.spi.ExchangeSinkContext(
+        ExchangeSinkContext sinkCtx = new ExchangeSinkContext(
             resolved.queryId,
             resolved.stageId,
             ctx.getTask() == null ? 0L : ctx.getTask().getId(),
             new byte[0],
             ctx.getAllocator(),
-            java.util.List.of(),
+            List.of(),
             /* downstream */ null
         );
         return backend.getExchangeSinkProvider()

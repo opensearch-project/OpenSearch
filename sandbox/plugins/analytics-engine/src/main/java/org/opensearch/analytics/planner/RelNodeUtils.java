@@ -34,6 +34,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -180,13 +181,13 @@ public class RelNodeUtils {
      * would miss every leaf but the first. Returns an empty list if none are present.
      */
     @SuppressWarnings("unchecked")
-    public static <T extends RelNode> java.util.List<T> findNodes(RelNode node, Class<T> type) {
-        java.util.List<T> out = new java.util.ArrayList<>();
+    public static <T extends RelNode> List<T> findNodes(RelNode node, Class<T> type) {
+        List<T> out = new ArrayList<>();
         collectNodes(node, type, out);
         return out;
     }
 
-    private static <T extends RelNode> void collectNodes(RelNode node, Class<T> type, java.util.List<T> out) {
+    private static <T extends RelNode> void collectNodes(RelNode node, Class<T> type, List<T> out) {
         if (type.isInstance(node)) {
             out.add((T) node);
         }
@@ -224,19 +225,19 @@ public class RelNodeUtils {
      * @throws IllegalStateException if the plan exceeds the maximum depth
      */
     public static String[] extractIndices(RelNode plan) {
-        java.util.Set<String> indices = new java.util.LinkedHashSet<>();
+        Set<String> indices = new LinkedHashSet<>();
         if (!collectIndices(plan, indices, 0)) {
             throw new IllegalStateException("Query plan exceeds maximum depth (" + MAX_EXTRACT_INDICES_DEPTH + ") for index extraction");
         }
         return indices.toArray(String[]::new);
     }
 
-    private static boolean collectIndices(RelNode node, java.util.Set<String> indices, int depth) {
+    private static boolean collectIndices(RelNode node, Set<String> indices, int depth) {
         if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
             return false;
         }
         if (node instanceof TableScan scan) {
-            java.util.List<String> names = scan.getTable().getQualifiedName();
+            List<String> names = scan.getTable().getQualifiedName();
             indices.add(names.get(names.size() - 1));
         }
         for (RelNode input : node.getInputs()) {

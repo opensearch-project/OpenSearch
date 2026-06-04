@@ -19,10 +19,12 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 
 import java.util.List;
 
@@ -195,8 +197,8 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
             if (best == null || best == rel) return false;
             return isPureShardScanShape(best);
         }
-        if (rel instanceof org.opensearch.analytics.planner.rel.OpenSearchTableScan) return true;
-        if (rel instanceof org.opensearch.analytics.planner.rel.OpenSearchAggregate) return false;
+        if (rel instanceof OpenSearchTableScan) return true;
+        if (rel instanceof OpenSearchAggregate) return false;
         if (rel instanceof OpenSearchJoin) return false;
         for (RelNode input : rel.getInputs()) {
             if (!isPureShardScanShape(input)) return false;

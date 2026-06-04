@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultBatch;
@@ -272,10 +273,7 @@ public class AnalyticsSearchTransportService {
                         // Synthesize a final null-payload, isLast=true response so the
                         // coordinator's stage-execution listener fires onResponse(null) and the
                         // stage transitions to SUCCEEDED.
-                        listener.onStreamResponse(
-                            new FragmentExecutionArrowResponse((org.apache.arrow.vector.VectorSchemaRoot) null),
-                            true
-                        );
+                        listener.onStreamResponse(new FragmentExecutionArrowResponse((VectorSchemaRoot) null), true);
                     }
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -388,10 +386,7 @@ public class AnalyticsSearchTransportService {
                         // consumed by the coord-reduce sink rather than streamed back). Synthesize
                         // a final null-payload isLast=true so the stage's response listener still
                         // fires onResponse(null) and the producer stage transitions to SUCCEEDED.
-                        listener.onStreamResponse(
-                            new FragmentExecutionArrowResponse((org.apache.arrow.vector.VectorSchemaRoot) null),
-                            true
-                        );
+                        listener.onStreamResponse(new FragmentExecutionArrowResponse((VectorSchemaRoot) null), true);
                         return;
                     }
                     while (last != null) {

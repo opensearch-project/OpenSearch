@@ -27,13 +27,17 @@ import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
+import org.opensearch.analytics.exec.agg.AggregateStrategyAdvisor;
+import org.opensearch.analytics.exec.agg.HashShuffleAggregateDispatch;
 import org.opensearch.analytics.exec.join.BroadcastDispatch;
+import org.opensearch.analytics.exec.join.HashShuffleDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.join.MppStrategy;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
+import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
@@ -47,6 +51,7 @@ import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
@@ -65,6 +70,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.ToLongFunction;
 
@@ -96,7 +102,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final NodeClient client;
     private final MppStrategyMetrics mppStrategyMetrics;
     private final EngineContextProvider contextProvider;
-    private final org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager;
+    private final ShuffleBufferManager shuffleBufferManager;
     private final AnalyticsStatsCollector statsCollector;
     // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
@@ -125,7 +131,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         AnalyticsStatsCollector statsCollector,
         // Feature-branch (MPP) additions — appended last so upstream constructor extensions don't collide.
         MppStrategyMetrics mppStrategyMetrics,
-        org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager
+        ShuffleBufferManager shuffleBufferManager
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
@@ -301,7 +307,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         final Stage broadcastProbe = JoinStrategyAdvisor.findBroadcastProbe(dag);
         final Stage shuffleLeft = JoinStrategyAdvisor.findShuffleScanLeft(dag);
         final Stage shuffleRight = JoinStrategyAdvisor.findShuffleScanRight(dag);
-        final Stage shuffleAggProducer = org.opensearch.analytics.exec.agg.AggregateStrategyAdvisor.findAggregateShuffleProducer(dag);
+        final Stage shuffleAggProducer = AggregateStrategyAdvisor.findAggregateShuffleProducer(dag);
         final boolean isQueryScheduler = scheduler instanceof QueryScheduler;
         final boolean dispatchBroadcast = joinStrategy == MppStrategy.BROADCAST
             && broadcastBuild != null
@@ -323,7 +329,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 routedStrategy = MppStrategy.COORDINATOR_CENTRIC;
             }
             mppStrategyMetrics.recordDispatch(routedStrategy);
-        } else if (org.opensearch.analytics.exec.agg.AggregateStrategyAdvisor.containsFinalAggregate(dag)) {
+        } else if (AggregateStrategyAdvisor.containsFinalAggregate(dag)) {
             // Agg-shaped query (FINAL aggregate present, no join): record the dispatch shape so
             // /_analytics/_strategies surfaces whether the M3 worker tier actually fired vs.
             // fell back to coord-centric (e.g. when the SHUFFLE_SCAN_AGG producer is absent
@@ -339,7 +345,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry, fuseDualViable);
         final long planningTimeNanos = System.nanoTime() - planStartNanos;
-        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
+        final long planningTimeMs = profile ? TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         if (joinStrategy == MppStrategy.HASH_SHUFFLE && !dispatchHashShuffle) {
@@ -506,7 +512,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // sink provider lookup.
         List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
             capabilityRegistry,
-            ((org.opensearch.analytics.planner.rel.OpenSearchRelNode) root.getFragment()).getViableBackends()
+            ((OpenSearchRelNode) root.getFragment()).getViableBackends()
         );
         if (reduceViable.isEmpty()) {
             throw new IllegalStateException("No reduce-capable backend for broadcast capture sink");
@@ -568,8 +574,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             );
         }
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new org.opensearch.analytics.exec.join.HashShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry)
-            .run(context, dag, leftProducer, rightProducer, consumer, execRef::set, terminal);
+        new HashShuffleDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry).run(
+            context,
+            dag,
+            leftProducer,
+            rightProducer,
+            consumer,
+            execRef::set,
+            terminal
+        );
     }
 
     /**
@@ -594,12 +607,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             );
         }
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        new org.opensearch.analytics.exec.agg.HashShuffleAggregateDispatch(
-            qscheduler,
-            clusterService,
-            shuffleBufferManager,
-            capabilityRegistry
-        ).run(context, dag, producer, consumer, execRef::set, terminal);
+        new HashShuffleAggregateDispatch(qscheduler, clusterService, shuffleBufferManager, capabilityRegistry).run(
+            context,
+            dag,
+            producer,
+            consumer,
+            execRef::set,
+            terminal
+        );
     }
 
     /** Walks {@code stage}'s subtree looking for the parent of {@code producer}. */
@@ -656,7 +671,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             QueryProfile qp = includeProfileInResponse
                 ? (graph != null
                     ? QueryProfileBuilder.snapshot(graph, context, fullPlan, planningTimeMs)
-                    : new QueryProfile(context.queryId(), java.util.List.of(), planningTimeMs, 0L, java.util.List.of()))
+                    : new QueryProfile(context.queryId(), List.of(), planningTimeMs, 0L, List.of()))
                 : null;
             listener.onResponse(new ProfiledResult(rows, null, qp));
         }, e -> {
@@ -666,7 +681,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             QueryProfile qp = includeProfileInResponse
                 ? (graph != null
                     ? QueryProfileBuilder.snapshot(graph, context, fullPlan, planningTimeMs)
-                    : new QueryProfile(context.queryId(), java.util.List.of(), planningTimeMs, 0L, java.util.List.of()))
+                    : new QueryProfile(context.queryId(), List.of(), planningTimeMs, 0L, List.of()))
                 : null;
             listener.onResponse(new ProfiledResult(null, e, qp));
         });

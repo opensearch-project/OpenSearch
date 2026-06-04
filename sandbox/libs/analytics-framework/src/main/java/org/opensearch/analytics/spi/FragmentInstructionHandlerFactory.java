@@ -101,9 +101,9 @@ public interface FragmentInstructionHandlerFactory {
      * and ships each partition to the corresponding worker via the framework's shuffle transport.
      */
     default Optional<InstructionNode> createShuffleProducerNode(
-        java.util.List<Integer> hashKeyChannels,
+        List<Integer> hashKeyChannels,
         int partitionCount,
-        java.util.List<String> targetWorkerNodeIds,
+        List<String> targetWorkerNodeIds,
         String queryId,
         int targetStageId,
         String side

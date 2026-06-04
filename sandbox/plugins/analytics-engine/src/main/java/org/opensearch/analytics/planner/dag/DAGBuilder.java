@@ -13,9 +13,11 @@ import org.opensearch.analytics.exec.OrdinalAppendingSink;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
@@ -386,13 +388,13 @@ public class DAGBuilder {
         // HashShuffleDispatch reads this to assemble the {@code side="left"|"right"} label on
         // each producer's ShuffleProducerInstructionNode and to compose the worker fragment's
         // two NamedScans (one per side).
-        if (parent instanceof org.opensearch.analytics.planner.rel.OpenSearchJoin) {
+        if (parent instanceof OpenSearchJoin) {
             if (parentInputIndex == 0) {
                 childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_LEFT);
             } else if (parentInputIndex == 1) {
                 childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_RIGHT);
             }
-        } else if (parent instanceof org.opensearch.analytics.planner.rel.OpenSearchAggregate) {
+        } else if (parent instanceof OpenSearchAggregate) {
             // M3 hash-shuffle aggregate: single producer feeding a FINAL aggregate worker.
             // No left/right semantics — just one input stream per partition. The agg dispatcher
             // reads this role to lift the FINAL into a worker stage and attach a single

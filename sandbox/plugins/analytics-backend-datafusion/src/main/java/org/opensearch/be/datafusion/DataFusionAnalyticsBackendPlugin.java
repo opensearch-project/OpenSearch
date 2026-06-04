@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -45,6 +46,7 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
+import org.opensearch.analytics.spi.ShuffleSender;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
@@ -58,6 +60,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -761,7 +764,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * base cannot be instantiated directly.
      */
     private static AbstractNameMappingAdapter nameMapping(SqlOperator target) {
-        return new AbstractNameMappingAdapter(target, java.util.List.of(), java.util.List.of()) {
+        return new AbstractNameMappingAdapter(target, List.of(), List.of()) {
         };
     }
 
@@ -817,14 +820,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     public ExchangeSinkProvider getExchangeSinkProvider() {
         return new ExchangeSinkProvider() {
             @Override
-            public org.opensearch.analytics.spi.ExchangeSink createBroadcastCaptureSink(
-                org.apache.arrow.memory.BufferAllocator allocator,
+            public ExchangeSink createBroadcastCaptureSink(
+                BufferAllocator allocator,
                 org.apache.calcite.rel.type.RelDataType buildRowType,
                 long maxBytes
             ) {
-                org.apache.arrow.vector.types.pojo.Schema fallback = buildRowType == null
-                    ? null
-                    : CalciteToArrowSchema.convert(buildRowType);
+                Schema fallback = buildRowType == null ? null : CalciteToArrowSchema.convert(buildRowType);
                 return new BroadcastCaptureSink(allocator, fallback, maxBytes);
             }
 
@@ -835,10 +836,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public ExchangeSink createPartitionedSink(
-                java.util.List<Integer> hashKeyChannels,
+                List<Integer> hashKeyChannels,
                 int partitionCount,
-                java.util.List<String> targetWorkerNodeIds,
-                org.opensearch.analytics.spi.ShuffleSender sender,
+                List<String> targetWorkerNodeIds,
+                ShuffleSender sender,
                 ExchangeSinkContext context
             ) {
                 // queryId+stageId+side are stamped onto the framework-provided sender; the sink
@@ -857,10 +858,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         };
     }
 
-    private org.opensearch.analytics.spi.ExchangeSink buildReduceSink(
-        org.opensearch.analytics.spi.ExchangeSinkContext ctx,
-        org.opensearch.analytics.spi.BackendExecutionContext backendContext
-    ) {
+    private ExchangeSink buildReduceSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
         DataFusionService svc = plugin.getDataFusionService();
         if (svc == null) {
             throw new IllegalStateException("DataFusionService not initialized");

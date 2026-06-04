@@ -8,6 +8,10 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.memory.BufferAllocator;
+
+import java.util.List;
+
 /**
  * Factory for creating a coordinator-side {@link ExchangeSink}.
  *
@@ -66,9 +70,9 @@ public interface ExchangeSinkProvider {
      * @param context             the standard sink context (allocator, child inputs, etc.)
      */
     default ExchangeSink createPartitionedSink(
-        java.util.List<Integer> hashKeyChannels,
+        List<Integer> hashKeyChannels,
         int partitionCount,
-        java.util.List<String> targetWorkerNodeIds,
+        List<String> targetWorkerNodeIds,
         ShuffleSender sender,
         ExchangeSinkContext context
     ) {
@@ -100,7 +104,7 @@ public interface ExchangeSinkProvider {
      * participate as the coordinator-side broadcast build collector do not need to opt in.
      */
     default ExchangeSink createBroadcastCaptureSink(
-        org.apache.arrow.memory.BufferAllocator allocator,
+        BufferAllocator allocator,
         org.apache.calcite.rel.type.RelDataType buildRowType,
         long maxBytes
     ) {
