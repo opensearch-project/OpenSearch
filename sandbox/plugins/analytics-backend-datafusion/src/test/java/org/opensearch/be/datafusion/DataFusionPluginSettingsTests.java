@@ -139,19 +139,22 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         // startup; changing the directory at runtime would orphan in-flight spill files.
         assertFalse("datafusion.spill_directory must NOT be dynamic", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.isDynamic());
         assertTrue("datafusion.spill_directory must have node scope", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.hasNodeScope());
+        assertTrue("datafusion.spill_directory must be Final", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.isFinal());
     }
 
     public void testSpillDirectoryDefaultIsEmpty() {
-        // Empty default is the sentinel for "fall back to data[0]/../tmp"; preserves backward
-        // compatibility for self-managed clusters that never configured this setting.
-        Settings s = Settings.EMPTY;
-        assertEquals("", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(s));
+        // Empty default is the sentinel for "spill disabled" — DataFusion will build the
+        // runtime in DiskManagerMode::Disabled. Setting the value to a real path opts back
+        // into spill. This preserves a sensible default for self-managed clusters that
+        // never configured the setting.
+        assertEquals("", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(Settings.EMPTY));
     }
 
-    public void testSpillDirectoryEmptyValidatesSuccessfully() {
-        // Empty is the documented sentinel; validator must accept it without filesystem checks.
-        DataFusionPlugin.validateSpillDirectory("");
-        DataFusionPlugin.validateSpillDirectory(null);
+    public void testSpillDirectoryAcceptsEmptyValue() {
+        // Explicitly setting the value to empty must also pass validation — same effect as
+        // leaving it unset (spill disabled).
+        Settings s = Settings.builder().put("datafusion.spill_directory", "").build();
+        assertEquals("", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(s));
     }
 
     public void testSpillDirectoryAcceptsValidExistingPath() throws Exception {
@@ -160,10 +163,10 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         assertEquals(tmp.toString(), DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(s));
     }
 
-    public void testSpillDirectoryAcceptsPathWhereOnlyAncestorExists() throws Exception {
+    public void testSpillDirectoryAcceptsPathThatDoesNotYetExist() throws Exception {
         // The leaf directory may not exist yet at plugin-startup time (host-fleet boot script
-        // could still be mounting the volume). Validator must walk up to an existing ancestor
-        // and only check writability there.
+        // could still be mounting the volume). Validator accepts on syntactic grounds only;
+        // runtime spill writes surface any permission/mount issues.
         Path existingParent = createTempDir();
         Path nonExistentLeaf = existingParent.resolve("spill-not-yet-mounted");
         assertTrue(Files.notExists(nonExistentLeaf));
@@ -179,15 +182,6 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         assertTrue(
             "error message should reference the setting key, got: " + e.getMessage(),
             e.getMessage().contains("datafusion.spill_directory")
-        );
-    }
-
-    public void testSpillDirectoryIsRejectedAtClusterScope() {
-        // Cluster-level updates (PUT _cluster/settings) must be rejected because the setting
-        // is NodeScope-only.
-        assertFalse(
-            "datafusion.spill_directory must NOT have cluster (dynamic) scope",
-            DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.isDynamic()
         );
     }
 

@@ -122,9 +122,11 @@ ${path.logs}
 #
 #opensearch.experimental.optimization.datetime_formatter_caching.enabled: false
 #
-# Path to the spill directory. Empty string (default) falls back to a tmp/ sibling of
-# path.data[0]. AOS optimized domain set this to /mnt/analytics/backend/spill so
-# spill traffic lands on a dedicated EBS volume rather than contending with the data path.
-# NodeScope, Final — Rust DiskManager directories are built once at runtime startup.
+# Path to the spill directory used by the analytics-backend-datafusion plugin. When
+# unset (default), spill is disabled and queries that exceed
+# datafusion.memory_pool_limit_bytes will fail with a "DiskManager is disabled" error.
+# Set this to a directory on a dedicated filesystem to enable spill — the directory
+# should not contend with the data path. NodeScope, Final — DataFusion's DiskManager
+# is built once at runtime startup.
 #
 #datafusion.spill_directory:

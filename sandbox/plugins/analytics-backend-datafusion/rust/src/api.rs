@@ -306,18 +306,26 @@ pub fn create_global_runtime(
         )));
     }
 
-    let effective_spill_limit = if spill_limit == 0 {
-        resolve_dynamic_spill_limit(spill_dir)
+    // Empty spill_dir is the "disabled" sentinel from Java. Build the runtime with
+    // DiskManagerMode::Disabled — operators that need to spill will fail with a clear
+    // "DiskManager is disabled" error instead of writing to an unintended path.
+    let disk_manager = if spill_dir.is_empty() {
+        log::info!("DataFusion spill disabled (datafusion.spill_directory not set)");
+        DiskManagerBuilder::default().with_mode(DiskManagerMode::Disabled)
     } else {
-        spill_limit as u64
+        let effective_spill_limit = if spill_limit == 0 {
+            resolve_dynamic_spill_limit(spill_dir)
+        } else {
+            spill_limit as u64
+        };
+
+        // Register spill directory for per-query disk pressure checks
+        crate::memory_guard::set_spill_dir(spill_dir);
+
+        DiskManagerBuilder::default()
+            .with_max_temp_directory_size(effective_spill_limit)
+            .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]))
     };
-
-    // Register spill directory for per-query disk pressure checks
-    crate::memory_guard::set_spill_dir(spill_dir);
-
-    let disk_manager = DiskManagerBuilder::default()
-        .with_max_temp_directory_size(effective_spill_limit)
-        .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
     let (dynamic_pool, dynamic_limit_handle) = DynamicLimitPool::new(memory_pool_limit as usize);
     let memory_pool = Arc::new(TrackConsumersPool::new(
@@ -1556,6 +1564,39 @@ mod tests {
     use super::*;
     use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
     use arrow_schema::{Field, Schema};
+
+    #[test]
+    fn create_global_runtime_with_empty_spill_dir_disables_disk_manager() {
+        // Empty spill_dir is the "disabled" sentinel from Java. The runtime must build
+        // successfully and the DiskManager must report tmp_files_enabled() == false so
+        // any spill attempt surfaces the upstream "DiskManager is disabled" error
+        // instead of writing to an unintended path.
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
+        assert!(ptr > 0);
+        let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
+        assert!(
+            !runtime.runtime_env.disk_manager.tmp_files_enabled(),
+            "expected DiskManagerMode::Disabled when spill_dir is empty"
+        );
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    #[test]
+    fn create_global_runtime_with_spill_dir_enables_disk_manager() {
+        // Non-empty spill_dir takes the Directories(...) path. tmp_files_enabled() must
+        // be true so spill attempts succeed. Passing spill_limit=0 also exercises the
+        // dynamic-limit resolver (resolve_dynamic_spill_limit + set_spill_dir).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().to_str().expect("utf-8 path");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        assert!(ptr > 0);
+        let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
+        assert!(
+            runtime.runtime_env.disk_manager.tmp_files_enabled(),
+            "expected DiskManagerMode::Directories when spill_dir is set"
+        );
+        unsafe { close_global_runtime(ptr) };
+    }
 
     #[test]
     fn stringview_gc_compacts_sliced_buffers() {
