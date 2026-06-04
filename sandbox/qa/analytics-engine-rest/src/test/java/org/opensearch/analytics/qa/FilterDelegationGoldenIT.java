@@ -19,53 +19,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Comprehensive filter-delegation matrix IT.
+ * Filter-delegation matrix IT. Walks every enabled {@link Shape} through the
+ * {@code (prefer_metadata_driver × fuse_dual_viable)} 4-cell matrix, asserts response
+ * equality (against {@code ppl/expected/q{N}.json}) and per-cell {@code chosen_backend} /
+ * {@code tree_shape} on the SHARD_FRAGMENT profile.
  *
- * <p>Each tree shape is a {@code ppl/q{N}.ppl} file with a matching
- * {@code ppl/expected/q{N}.json}. A single driver method walks every enabled
- * {@link Shape}, runs the {@code (prefer_metadata_driver × fuse_dual_viable)} 4-cell
- * setting matrix per shape, and asserts:
- * <ol>
- *   <li>The response equals the expected response (shape-level oracle, identical
- *       across all 4 cells — see {@link ResponseValidator#compareData}, unordered and
- *       numeric-tolerant).</li>
- *   <li>The SHARD_FRAGMENT {@code chosen_backend} and {@code tree_shape} match the
- *       per-cell {@link ChosenBackendandTreeShape} declared on the {@link Shape} enum.</li>
- * </ol>
+ * <p>Leaf vocabulary: <b>Dual</b> (DataFusion + Lucene, e.g. keyword EQUALS),
+ * <b>Native</b> (DataFusion only, e.g. long EQUALS), <b>Delegated</b> (Lucene only,
+ * e.g. {@code match()} on text).
  *
- * <p>TODO: assert Lucene was actually consulted on the data node for performance/correctness
- * delegation cells (count + chosen_backend + tree_shape can all match even if Lucene was never
- * called — DataFusion would evaluate everything natively and produce the same answer). Add a
- * per-cell {@code ConsultExpectation} (MUST_CONSULT / IGNORE) on {@link Shape} and assert against
- * {@code profile.stages[*].tasks[*].data_node_metrics.ffm_collector_calls} once #21972 lands
- * (which exposes DataFusion's per-shard metrics in the explain JSON via Arrow Flight app-metadata).
- *
- * <p>Vocabulary — leaves are classified by where they can be evaluated:
- * <ul>
- *   <li><b>Dual</b> — DataFusion + Lucene both viable. EQUALS on keyword.</li>
- *   <li><b>Native</b> — DataFusion only (Lucene declares no predicate function for
- *       the field type). EQUALS on long.</li>
- *   <li><b>Delegated</b> — Lucene only. {@code match(field, value)} on text.</li>
- * </ul>
- *
- * <p>Field roles in the dataset's {@code mapping.json}:
- * <ul>
- *   <li>{@code id} (long) — unique row id, used for {@code sort id} + projection.</li>
- *   <li>{@code service_name} (keyword) — Dual.</li>
- *   <li>{@code host} (keyword) — Dual.</li>
- *   <li>{@code log_level} (keyword) — Dual.</li>
- *   <li>{@code status} (long) — Native.</li>
- *   <li>{@code message} (text + .keyword) — Delegated via {@code match(message, ...)}.</li>
- * </ul>
- *
- * <p>To exclude a shape from the run (work-in-progress query files, known bug, etc.),
- * add it to {@link #SKIP_SHAPES}. The driver logs the skipped set at the start of the
- * run so a green build doesn't silently mask missing coverage.
- *
- * <p>Each cell hits {@code POST /_plugins/_ppl} with {@code profile=true} once — the
- * response carries rows and the analytics-engine profile in a single call.
- * {@code tree_shape == null} asserts no delegation instruction was emitted (Lucene-as-driver,
- * or pure-Native plan).
+ * <p>TODO: also assert Lucene was actually consulted on the data node — count +
+ * chosen_backend + tree_shape can all match even when DataFusion evaluated everything
+ * natively. Hook into {@code profile.stages[*].tasks[*].data_node_metrics.ffm_collector_calls}
+ * once #21972 lands.
  */
 public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
 
@@ -329,16 +295,6 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
         boolean isPlaceholder() { return chosenBackend == null; }
     }
 
-    /**
-     * One-shot capture mode. Set to {@code true} and run the IT to log
-     * {@code CAPTURE shape=… prefer=… fuse=… chosen_backend=… tree_shape=…} per cell —
-     * grep the test output, lift values into the {@link Shape} enum constructors,
-     * then flip back to {@code false}.
-     *
-     * <p>FIXME [RemoveBeforeMerge]: Always check this is {@code false} before pushing.
-     */
-    private static final boolean CAPTURE_STAGES = false;
-
     private void runShape(Shape shape) throws Exception {
         int queryNumber = shape.queryNumber;
         String ppl = DatasetProvisioner.loadResource(DATASET.queryResourcePath("ppl", "ppl", queryNumber)).trim();
@@ -346,46 +302,46 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
 
         for (Map.Entry<SettingCombination, ChosenBackendandTreeShape> entry : shape.cells.entrySet()) {
             SettingCombination key = entry.getKey();
-            ChosenBackendandTreeShape want = entry.getValue();
+            ChosenBackendandTreeShape expected = entry.getValue();
             setPreferMetadataDriver(key.prefer());
             setFuseDualViable(key.fuse());
 
             String label = shape + " prefer=" + key.prefer() + ",fuse=" + key.fuse();
 
-            Map<String, Object> response = executePplWithProfile(ppl);
-            String validationError = ResponseValidator.validate(DATASET, "ppl", queryNumber, response, STRATEGY);
-            if (validationError != null) {
-                fail(label + " — " + validationError);
+            // Profile=false path — guards against any profile-only-induced behavior change masking a regression.
+            Map<String, Object> bareResponse = executePpl(ppl, false);
+            String bareValidationError = ResponseValidator.validate(DATASET, "ppl", queryNumber, bareResponse, STRATEGY);
+            if (bareValidationError != null) {
+                fail(label + " (profile=false) — " + bareValidationError);
             }
 
-            Map<String, Object> stage = shardFragmentStage(response);
-            if (CAPTURE_STAGES) {
-                logger.info(
-                    "CAPTURE shape={} prefer={} fuse={} chosen_backend={} tree_shape={}",
-                    shape, key.prefer(), key.fuse(),
-                    stage.get("chosen_backend"), stage.get("tree_shape")
-                );
-            } else if (want.isPlaceholder() == false) {
-                assertEquals(label + " — chosen_backend", want.chosenBackend(), stage.get("chosen_backend"));
-                assertEquals(label + " — tree_shape", want.treeShape(), stage.get("tree_shape"));
+            // Profile=true path — same execution path, additionally carries SHARD_FRAGMENT profile.
+            Map<String, Object> response = executePpl(ppl, true);
+            String validationError = ResponseValidator.validate(DATASET, "ppl", queryNumber, response, STRATEGY);
+            if (validationError != null) {
+                fail(label + " (profile=true) — " + validationError);
+            }
+
+            if (expected.isPlaceholder() == false) {
+                Map<String, Object> stage = shardFragmentStage(response);
+                assertEquals(label + " — chosen_backend", expected.chosenBackend(), stage.get("chosen_backend"));
+                assertEquals(label + " — tree_shape", expected.treeShape(), stage.get("tree_shape"));
             }
         }
     }
 
     /**
-     * Executes a PPL query against the real SQL-plugin endpoint with {@code profile=true}.
-     * The response carries both rows and the analytics-engine {@code profile} block in a
-     * single call. Mirrors {@code rows} ↔ {@code datarows} so {@link ResponseValidator} works.
+     * Executes a PPL query against the real SQL-plugin endpoint. When {@code profile=true},
+     * the response additionally carries the analytics-engine {@code profile} block.
+     * Mirrors {@code rows} ↔ {@code datarows} so {@link ResponseValidator} works.
      */
-    private Map<String, Object> executePplWithProfile(String ppl) throws Exception {
+    private Map<String, Object> executePpl(String ppl, boolean profile) throws Exception {
         Request request = new Request("POST", "/_plugins/_ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\", \"profile\": true}");
-        // FIXME [RemoveBeforeMerge] dump the full response so the consolidated path can be verified.
-        org.opensearch.client.Response raw = client().performRequest(request);
-        String body = new String(raw.getEntity().getContent().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        logger.info("PPL [{}]: {}", ppl, body);
-        Map<String, Object> parsed = org.opensearch.common.xcontent.XContentHelper.convertToMap(
-            org.opensearch.common.xcontent.XContentType.JSON.xContent(), body, false);
+        String body = profile
+            ? "{\"query\": \"" + escapeJson(ppl) + "\", \"profile\": true}"
+            : "{\"query\": \"" + escapeJson(ppl) + "\"}";
+        request.setJsonEntity(body);
+        Map<String, Object> parsed = assertOkAndParse(client().performRequest(request), "PPL: " + ppl);
         if (parsed.containsKey("datarows") && parsed.containsKey("rows") == false) {
             parsed.put("rows", parsed.get("datarows"));
         }
