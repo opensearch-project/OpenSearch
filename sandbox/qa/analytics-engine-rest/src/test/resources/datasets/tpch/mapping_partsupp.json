@@ -1,0 +1,25 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "ps_partkey": {
+        "type": "long"
+      },
+      "ps_suppkey": {
+        "type": "long"
+      },
+      "ps_availqty": {
+        "type": "integer"
+      },
+      "ps_supplycost": {
+        "type": "double"
+      },
+      "ps_comment": {
+        "type": "text"
+      }
+    }
+  }
+}

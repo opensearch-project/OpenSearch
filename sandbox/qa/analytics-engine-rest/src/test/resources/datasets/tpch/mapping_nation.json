@@ -1,0 +1,22 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "n_nationkey": {
+        "type": "long"
+      },
+      "n_name": {
+        "type": "keyword"
+      },
+      "n_regionkey": {
+        "type": "long"
+      },
+      "n_comment": {
+        "type": "text"
+      }
+    }
+  }
+}

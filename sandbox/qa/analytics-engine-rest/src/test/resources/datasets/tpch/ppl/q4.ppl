@@ -1,0 +1,1 @@
+source = orders | where o_orderdate >= date('1993-07-01') and o_orderdate < date_add(date('1993-07-01'), interval 3 month) and exists [ source = lineitem | where l_orderkey = o_orderkey and l_commitdate < l_receiptdate ] | stats count() as order_count by o_orderpriority | fields o_orderpriority, order_count | sort o_orderpriority
