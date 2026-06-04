@@ -13,15 +13,9 @@ import java.util.Map;
 
 /**
  * 2-shard reduce correctness for aggregations: exact tier {@code agg/} (count/sum/avg/min/max,
- * stddev/var, span, values/list, earliest/latest) and approximate tier {@code approx/}
- * (distinct_count/dc/percentile/median).
- *
- * <p>{@code distinct_count}/{@code dc} are correct cross-shard: DISTINCT aggregates skip the additive
- * PARTIAL/FINAL split ({@link org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule})
- * and are computed once at the coordinator, so per-shard distinct counts are never summed.
- *
- * <p>{@code earliest(value, ts)}/{@code latest(value, ts)} lower to ARG_MIN/ARG_MAX, rewritten to
- * DataFusion {@code first_value}/{@code last_value(value ORDER BY ts)} by PplAggregateCallRewriter.
+ * stddev/var, span, values/list) and approximate tier {@code approx/} (distinct_count/dc/percentile/
+ * median). {@code distinct_count}/{@code dc} are rewritten to {@code APPROX_COUNT_DISTINCT} and
+ * computed once at the coordinator, so per-shard distinct counts are never summed.
  */
 public class TwoShardAggregationIT extends TwoShardReduceTestCase {
 
