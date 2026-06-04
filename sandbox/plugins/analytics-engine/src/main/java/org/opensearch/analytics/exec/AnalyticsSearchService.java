@@ -318,6 +318,11 @@ public class AnalyticsSearchService implements AutoCloseable {
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
             resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
+        } catch (OpenSearchException e) {
+            if (rowIdVector != null) rowIdVector.close();
+            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            responseHandler.onFailure(e);
+            return;
         } catch (Exception e) {
             if (rowIdVector != null) rowIdVector.close();
             readerContextStore.releaseContext(request.getQueryId(), shard.shardId());

@@ -70,6 +70,27 @@ public class MemoryGuardRestIT extends AnalyticsRestTestCase {
         }
     }
 
+    public void testPoolLimitExhausted_multiShard_returns429() throws Exception {
+        createIndex(3);
+        ingestData();
+
+        setPoolLimit(1L);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> executePpl("source = " + INDEX + " | stats count() by url")
+            );
+            int statusCode = ex.getResponse().getStatusLine().getStatusCode();
+            assertEquals(
+                "Expected HTTP 429 for multi-shard pool-limit exhaustion, got " + statusCode + ": " + ex.getMessage(),
+                429,
+                statusCode
+            );
+        } finally {
+            resetPoolLimit();
+        }
+    }
+
     public void testNormalQuery_succeedsAfterPoolReset() throws Exception {
         createIndex();
         ingestData();
@@ -110,13 +131,17 @@ public class MemoryGuardRestIT extends AnalyticsRestTestCase {
     // ── Index setup ────────────────────────────────────────────────────────
 
     private void createIndex() throws Exception {
+        createIndex(1);
+    }
+
+    private void createIndex(int numberOfShards) throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX));
         } catch (Exception ignored) {}
 
         String body = "{"
             + "\"settings\": {"
-            + "  \"number_of_shards\": 1,"
+            + "  \"number_of_shards\": " + numberOfShards + ","
             + "  \"number_of_replicas\": 0,"
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","

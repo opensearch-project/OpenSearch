@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
+import org.opensearch.be.datafusion.NativeErrorConverter;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
@@ -56,6 +57,29 @@ import java.util.Map;
 public final class NativeBridge {
 
     private static final Logger logger = LogManager.getLogger(NativeBridge.class);
+
+    /**
+     * Converts a Throwable from the FFM boundary into an appropriate Exception, applying
+     * {@link NativeErrorConverter} to translate known native error patterns into OpenSearch
+     * exception types (e.g. CircuitBreakingException, OpenSearchStatusException).
+     */
+    private static Exception convertNativeError(Throwable t) {
+        Exception ex = t instanceof Exception e ? e : new RuntimeException(t);
+        return NativeErrorConverter.convert(ex);
+    }
+
+    /**
+     * For synchronous FFM methods: converts and rethrows as RuntimeException.
+     * NativeErrorConverter only returns RuntimeException subtypes when it matches,
+     * so this preserves the unchecked throw semantics of the original call site.
+     */
+    private static RuntimeException rethrowConverted(RuntimeException e) {
+        Exception converted = NativeErrorConverter.convert(e);
+        if (converted instanceof RuntimeException rte) {
+            return rte;
+        }
+        return e;
+    }
 
     private static final MethodHandle INIT_RUNTIME_MANAGER;
     private static final MethodHandle SHUTDOWN_RUNTIME_MANAGER;
@@ -836,7 +860,7 @@ public final class NativeBridge {
             );
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -848,7 +872,7 @@ public final class NativeBridge {
             long result = NativeLibraryLoader.checkResult((long) STREAM_GET_SCHEMA.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -858,7 +882,7 @@ public final class NativeBridge {
             long result = NativeLibraryLoader.checkResult((long) STREAM_NEXT.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -1073,6 +1097,8 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length, contextId);
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
@@ -1289,7 +1315,7 @@ public final class NativeBridge {
             }
             listener.onResponse(result);
         } catch (Throwable throwable) {
-            listener.onFailure(throwable instanceof Exception ? (Exception) throwable : new RuntimeException(throwable));
+            listener.onFailure(convertNativeError(throwable));
         }
     }
 
@@ -1343,6 +1369,8 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr, contextId);
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
@@ -1375,6 +1403,8 @@ public final class NativeBridge {
                 colNames.count(),
                 runtimePtr
             );
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
