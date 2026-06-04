@@ -66,10 +66,6 @@ tasks.named('forbiddenApisTest').configure {
   bundledSignatures += 'jdk-internal'
 }
 
-// JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:opensearch-core
-jarHell.enabled = false
-
 testingConventions {
   naming.clear()
   naming {
@@ -131,13 +127,6 @@ thirdPartyAudit {
       'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
       'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
    )
-}
-
-tasks.withType(JavaCompile) {
-  // Suppressing '[options] target value 8 is obsolete and will be removed in a future release'
-  configure(options) {
-    options.compilerArgs << '-Xlint:-options'
-  }
 }
 
 tasks.named("missingJavadoc").configure {
