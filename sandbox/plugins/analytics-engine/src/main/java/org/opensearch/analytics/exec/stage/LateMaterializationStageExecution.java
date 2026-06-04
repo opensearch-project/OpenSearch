@@ -391,7 +391,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
             // blocking dispatches to other nodes.
             PendingExecutions pending = pendingByNodeId.computeIfAbsent(
                 target.node().getId(),
-                n -> new PendingExecutions(config.maxConcurrentShardRequests())
+                n -> new PendingExecutions(config.maxConcurrentShardRequestsPerNode())
             );
             transport.dispatchFetchByRowIds(request, target.node(), new GatherListener(stitcher, plan), config.parentTask(), pending);
         }

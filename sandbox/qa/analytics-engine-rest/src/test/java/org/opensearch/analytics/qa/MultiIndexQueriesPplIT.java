@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-
 /**
  * Multi-Index Queries PPL integration test (multi-index). Tests fields, rename, top, rare, span commands.
  * Uses existing indexes from other datasets: security_logs, api_metrics, performance_metrics, exception_logs.

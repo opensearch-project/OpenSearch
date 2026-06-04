@@ -22,12 +22,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -956,6 +958,98 @@ public class CompositeConcurrentIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         verifyIndex(indexName, 1, totalDocs);
+        client().admin().indices().prepareDelete(indexName).get();
+    }
+
+    /**
+     * Verifies that merge-on-refresh does not leave orphan per-writer Parquet files on disk.
+     * After inline merge, only the merged file should remain — the source per-writer files
+     * must be deleted. Without proper cleanup, each merge-on-refresh would leak N-1 files.
+     */
+    public void testMergeOnRefreshDeletesSourceFiles() throws Exception {
+        String indexName = "merge-no-orphans";
+        int numThreads = 3;
+        int docsPerThread = 10;
+        int totalDocs = numThreads * docsPerThread;
+
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(mergeOnRefreshSettings())
+            .setMapping("name", "type=keyword", "value", "type=integer")
+            .get();
+        ensureGreen(indexName);
+
+        CyclicBarrier barrier = new CyclicBarrier(numThreads);
+        AtomicInteger failures = new AtomicInteger(0);
+        Thread[] threads = new Thread[numThreads];
+
+        for (int t = 0; t < numThreads; t++) {
+            int threadId = t;
+            threads[t] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int d = 0; d < docsPerThread; d++) {
+                        client().prepareIndex()
+                            .setIndex(indexName)
+                            .setSource("name", "t" + threadId + "_d" + d, "value", threadId * 100 + d)
+                            .get();
+                    }
+                } catch (Exception e) {
+                    failures.incrementAndGet();
+                }
+            }, "orphan-test-indexer-" + t);
+            threads[t].start();
+        }
+        for (Thread t : threads) {
+            t.join(30_000);
+            assertFalse("Thread did not finish in time: " + t.getName(), t.isAlive());
+        }
+        assertEquals(0, failures.get());
+
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+
+        // Verify data correctness
+        verifyIndex(indexName, 1, totalDocs);
+
+        // Get the primary shard's parquet directory directly via IndexShard
+        String nodeName = getClusterState().routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        String nodeNameResolved = getClusterState().nodes().get(nodeName).getName();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeNameResolved);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        IndexShard shard = indexService.getShard(0);
+        java.nio.file.Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+
+        assertTrue("Parquet directory must exist: " + parquetDir, java.nio.file.Files.isDirectory(parquetDir));
+
+        // Count actual parquet files on disk
+        Set<String> diskFiles;
+        try (var stream = java.nio.file.Files.list(parquetDir)) {
+            diskFiles = stream.filter(p -> p.toString().endsWith(".parquet"))
+                .map(p -> p.getFileName().toString())
+                .collect(java.util.stream.Collectors.toSet());
+        }
+        assertFalse("Expected parquet files on disk", diskFiles.isEmpty());
+
+        // Collect all parquet files referenced by the catalog
+        try (GatedCloseable<CatalogSnapshot> gated = shard.getCatalogSnapshot()) {
+            DataformatAwareCatalogSnapshot snapshot = (DataformatAwareCatalogSnapshot) gated.get();
+            Set<String> catalogFiles = new HashSet<>();
+            for (Segment seg : snapshot.getSegments()) {
+                WriterFileSet wfs = seg.dfGroupedSearchableFiles().get("parquet");
+                if (wfs != null) {
+                    catalogFiles.addAll(wfs.files());
+                }
+            }
+            assertFalse("Catalog must reference at least one parquet file", catalogFiles.isEmpty());
+
+            // Every file on disk must be referenced by the catalog (no orphans)
+            Set<String> orphans = new HashSet<>(diskFiles);
+            orphans.removeAll(catalogFiles);
+            assertTrue("Orphan parquet files on disk not referenced by catalog: " + orphans, orphans.isEmpty());
+        }
+
         client().admin().indices().prepareDelete(indexName).get();
     }
 

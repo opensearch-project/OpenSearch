@@ -63,6 +63,9 @@ public final class WorkerTaskRunner implements TaskRunner<WorkerStageTask> {
     }
 
     private PendingExecutions pendingFor(WorkerExecutionTarget target) {
-        return pendingPerNode.computeIfAbsent(target.node().getId(), n -> new PendingExecutions(config.maxConcurrentShardRequests()));
+        return pendingPerNode.computeIfAbsent(
+            target.node().getId(),
+            n -> new PendingExecutions(config.maxConcurrentShardRequestsPerNode())
+        );
     }
 }

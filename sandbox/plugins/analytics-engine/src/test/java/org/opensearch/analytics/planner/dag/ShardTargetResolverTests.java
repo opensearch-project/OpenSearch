@@ -20,7 +20,10 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -31,11 +34,16 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -133,6 +141,8 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         when(iterB.nextOrNull()).thenReturn(routingB);
 
         ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting routing = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(eq(stateA), eq(new String[] { "idx_a" }), any(), any())).thenReturn(
@@ -157,6 +167,226 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         assertEquals(1, targetsB.size());
         assertSame("second resolve must surface state-B's node", nodeB, targetsB.get(0).node());
         assertEquals("second resolve must surface state-B's shard", shardB, ((ShardExecutionTarget) targetsB.get(0)).shardId());
+    }
+
+    /**
+     * When an alias resolves to multiple indices and the total shard count exceeds the limit,
+     * resolve() must throw an {@link IllegalArgumentException} with the alias name in the message.
+     */
+    public void testResolveRejectsAliasExceedingMaxShardsPerQuery() {
+        int limit = 3;
+
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+
+        // Set up alias in the indices lookup so IndexResolution takes the alias path.
+        IndexMetadata imdA = mock(IndexMetadata.class);
+        IndexMetadata imdB = mock(IndexMetadata.class);
+        when(imdA.getIndex()).thenReturn(new Index("idx_a", "uuid-a"));
+        when(imdB.getIndex()).thenReturn(new Index("idx_b", "uuid-b"));
+        when(imdA.getState()).thenReturn(IndexMetadata.State.OPEN);
+        when(imdB.getState()).thenReturn(IndexMetadata.State.OPEN);
+        AliasMetadata aliasMd = mock(AliasMetadata.class);
+        when(aliasMd.filteringRequired()).thenReturn(false);
+        when(imdA.getAliases()).thenReturn(Map.of("my_alias", aliasMd));
+        when(imdB.getAliases()).thenReturn(Map.of("my_alias", aliasMd));
+
+        IndexAbstraction aliasAbstraction = mock(IndexAbstraction.class);
+        when(aliasAbstraction.getType()).thenReturn(IndexAbstraction.Type.ALIAS);
+        when(aliasAbstraction.getIndices()).thenReturn(List.of(imdA, imdB));
+        TreeMap<String, IndexAbstraction> lookup = new TreeMap<>();
+        lookup.put("my_alias", aliasAbstraction);
+        when(metadata.getIndicesLookup()).thenReturn(lookup);
+
+        when(metadata.index("idx_a")).thenReturn(imdA);
+        when(metadata.index("idx_b")).thenReturn(imdB);
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(nodes);
+
+        // 5 total shards across the two indices.
+        int shardCount = 5;
+        List<ShardIterator> iterators = new ArrayList<>();
+        for (int i = 0; i < shardCount; i++) {
+            DiscoveryNode node = mock(DiscoveryNode.class);
+            when(node.getId()).thenReturn("node-" + i);
+            when(nodes.get("node-" + i)).thenReturn(node);
+            ShardRouting routing = mock(ShardRouting.class);
+            when(routing.currentNodeId()).thenReturn("node-" + i);
+            String idx = i < 3 ? "idx_a" : "idx_b";
+            String uuid = i < 3 ? "uuid-a" : "uuid-b";
+            when(routing.shardId()).thenReturn(new ShardId(new Index(idx, uuid), i % 3));
+            ShardIterator iter = mock(ShardIterator.class);
+            when(iter.nextOrNull()).thenReturn(routing);
+            iterators.add(iter);
+        }
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(
+            resolver.concreteIndexNames(
+                eq(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "idx_a", "idx_b" });
+
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        OperationRouting opRouting = mock(OperationRouting.class);
+        when(clusterService.operationRouting()).thenReturn(opRouting);
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "idx_a", "idx_b" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
+
+        RelNode fragment = stubScanForAlias("my_alias");
+        ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
+        resolverUnderTest.setMaxShardsPerQuery(limit);
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> resolverUnderTest.resolve(clusterState, null));
+        assertTrue(ex.getMessage().contains("alias [my_alias]"));
+        assertTrue(ex.getMessage().contains("[" + shardCount + "] shards"));
+        assertTrue(ex.getMessage().contains("[" + limit + "]"));
+        assertTrue(ex.getMessage().contains("analytics.query.max_shards_per_query"));
+    }
+
+    /**
+     * A single concrete index with many shards must NOT be rejected even if shard count
+     * exceeds the limit — the limit only applies to multi-index queries.
+     */
+    public void testResolveAllowsSingleIndexExceedingLimit() {
+        int shardCount = 5;
+        int limit = 3;
+
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.getIndicesLookup()).thenReturn(new TreeMap<>());
+        IndexMetadata imd = mock(IndexMetadata.class);
+        when(imd.getIndex()).thenReturn(new Index("big_index", "uuid-big"));
+        when(metadata.index("big_index")).thenReturn(imd);
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(nodes);
+
+        List<ShardIterator> iterators = new ArrayList<>();
+        for (int i = 0; i < shardCount; i++) {
+            DiscoveryNode node = mock(DiscoveryNode.class);
+            when(node.getId()).thenReturn("node-" + i);
+            when(nodes.get("node-" + i)).thenReturn(node);
+            ShardRouting routing = mock(ShardRouting.class);
+            when(routing.currentNodeId()).thenReturn("node-" + i);
+            when(routing.shardId()).thenReturn(new ShardId(new Index("big_index", "uuid-big"), i));
+            ShardIterator iter = mock(ShardIterator.class);
+            when(iter.nextOrNull()).thenReturn(routing);
+            iterators.add(iter);
+        }
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(
+            resolver.concreteIndexNames(
+                eq(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "big_index" });
+
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        OperationRouting opRouting = mock(OperationRouting.class);
+        when(clusterService.operationRouting()).thenReturn(opRouting);
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "big_index" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
+
+        RelNode fragment = stubScanForAlias("big_index");
+        ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
+        resolverUnderTest.setMaxShardsPerQuery(limit);
+
+        List<ExecutionTarget> targets = resolverUnderTest.resolve(clusterState, null);
+        assertEquals(shardCount, targets.size());
+    }
+
+    /**
+     * When the resolved shard count is exactly at the limit for a multi-index query,
+     * resolve() must succeed.
+     */
+    public void testResolveSucceedsAtExactLimitForAlias() {
+        int limit = 3;
+
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+
+        IndexMetadata imdA = mock(IndexMetadata.class);
+        IndexMetadata imdB = mock(IndexMetadata.class);
+        when(imdA.getIndex()).thenReturn(new Index("idx_a", "uuid-a"));
+        when(imdB.getIndex()).thenReturn(new Index("idx_b", "uuid-b"));
+        when(imdA.getState()).thenReturn(IndexMetadata.State.OPEN);
+        when(imdB.getState()).thenReturn(IndexMetadata.State.OPEN);
+        AliasMetadata aliasMd = mock(AliasMetadata.class);
+        when(aliasMd.filteringRequired()).thenReturn(false);
+        when(imdA.getAliases()).thenReturn(Map.of("my_alias", aliasMd));
+        when(imdB.getAliases()).thenReturn(Map.of("my_alias", aliasMd));
+
+        IndexAbstraction aliasAbstraction = mock(IndexAbstraction.class);
+        when(aliasAbstraction.getType()).thenReturn(IndexAbstraction.Type.ALIAS);
+        when(aliasAbstraction.getIndices()).thenReturn(List.of(imdA, imdB));
+        TreeMap<String, IndexAbstraction> lookup = new TreeMap<>();
+        lookup.put("my_alias", aliasAbstraction);
+        when(metadata.getIndicesLookup()).thenReturn(lookup);
+
+        when(metadata.index("idx_a")).thenReturn(imdA);
+        when(metadata.index("idx_b")).thenReturn(imdB);
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(nodes);
+
+        // Exactly 3 shards across 2 indices — at the limit.
+        List<ShardIterator> iterators = new ArrayList<>();
+        for (int i = 0; i < limit; i++) {
+            DiscoveryNode node = mock(DiscoveryNode.class);
+            when(node.getId()).thenReturn("node-" + i);
+            when(nodes.get("node-" + i)).thenReturn(node);
+            ShardRouting routing = mock(ShardRouting.class);
+            when(routing.currentNodeId()).thenReturn("node-" + i);
+            String idx = i < 2 ? "idx_a" : "idx_b";
+            String uuid = i < 2 ? "uuid-a" : "uuid-b";
+            when(routing.shardId()).thenReturn(new ShardId(new Index(idx, uuid), i % 2));
+            ShardIterator iter = mock(ShardIterator.class);
+            when(iter.nextOrNull()).thenReturn(routing);
+            iterators.add(iter);
+        }
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(
+            resolver.concreteIndexNames(
+                eq(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "idx_a", "idx_b" });
+
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        OperationRouting opRouting = mock(OperationRouting.class);
+        when(clusterService.operationRouting()).thenReturn(opRouting);
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "idx_a", "idx_b" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
+
+        RelNode fragment = stubScanForAlias("my_alias");
+        ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
+        resolverUnderTest.setMaxShardsPerQuery(limit);
+
+        List<ExecutionTarget> targets = resolverUnderTest.resolve(clusterState, null);
+        assertEquals(limit, targets.size());
     }
 
     /** Minimal table scan referencing {@code aliasName} so {@code findTableName} surfaces it. */

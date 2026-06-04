@@ -15,6 +15,8 @@ import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -37,13 +39,16 @@ import java.util.concurrent.Executors;
  */
 public class QueryContext {
 
-    // TODO: make configurable via cluster setting (like search.max_concurrent_shard_requests)
-    private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
+    /** Setting defaults for {@code analytics.query.*}; used by test contexts and as the baseline. */
+    private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE
+        .get(Settings.EMPTY);
+    private static final int DEFAULT_MAX_SHARDS_PER_QUERY = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(Settings.EMPTY);
 
     private final QueryDAG dag;
     private final ThreadPool threadPool;
     private final AnalyticsQueryTask parentTask;
-    private final int maxConcurrentShardRequests;
+    private final int maxConcurrentShardRequestsPerNode;
+    private final int maxShardsPerQuery;
     private final List<AnalyticsOperationListener> operationListeners;
     private final BufferAllocator allocator;
     private final boolean ownsAllocator;
@@ -86,9 +91,21 @@ public class QueryContext {
         ThreadPool threadPool,
         AnalyticsQueryTask parentTask,
         BufferAllocator allocator,
-        boolean ownsAllocator
+        boolean ownsAllocator,
+        int maxConcurrentShardRequestsPerNode,
+        int maxShardsPerQuery
     ) {
-        this(dag, threadPool, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, List.of(), allocator, ownsAllocator, new SharedState());
+        this(
+            dag,
+            threadPool,
+            parentTask,
+            maxConcurrentShardRequestsPerNode,
+            maxShardsPerQuery,
+            List.of(),
+            allocator,
+            ownsAllocator,
+            new SharedState()
+        );
     }
 
     public QueryContext(
@@ -97,13 +114,16 @@ public class QueryContext {
         AnalyticsQueryTask parentTask,
         BufferAllocator allocator,
         boolean ownsAllocator,
+        int maxConcurrentShardRequestsPerNode,
+        int maxShardsPerQuery,
         List<AnalyticsOperationListener> operationListeners
     ) {
         this(
             dag,
             threadPool,
             parentTask,
-            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            maxConcurrentShardRequestsPerNode,
+            maxShardsPerQuery,
             operationListeners,
             allocator,
             ownsAllocator,
@@ -116,7 +136,8 @@ public class QueryContext {
         QueryDAG dag,
         ThreadPool threadPool,
         AnalyticsQueryTask parentTask,
-        int maxConcurrentShardRequests,
+        int maxConcurrentShardRequestsPerNode,
+        int maxShardsPerQuery,
         List<AnalyticsOperationListener> operationListeners,
         BufferAllocator allocator,
         boolean ownsAllocator,
@@ -125,7 +146,8 @@ public class QueryContext {
         this.dag = dag;
         this.threadPool = threadPool;
         this.parentTask = parentTask;
-        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+        this.maxConcurrentShardRequestsPerNode = maxConcurrentShardRequestsPerNode;
+        this.maxShardsPerQuery = maxShardsPerQuery;
         this.operationListeners = operationListeners;
         this.allocator = allocator;
         this.ownsAllocator = ownsAllocator;
@@ -148,7 +170,8 @@ public class QueryContext {
             newDag,
             threadPool,
             parentTask,
-            maxConcurrentShardRequests,
+            maxConcurrentShardRequestsPerNode,
+            maxShardsPerQuery,
             operationListeners,
             allocator,
             /* ownsAllocator */ false,
@@ -180,8 +203,19 @@ public class QueryContext {
         return dag.queryId();
     }
 
-    public int maxConcurrentShardRequests() {
-        return maxConcurrentShardRequests;
+    /** Max in-flight shard fragment requests the coordinator dispatches to any single data node. */
+    public int maxConcurrentShardRequestsPerNode() {
+        return maxConcurrentShardRequestsPerNode;
+    }
+
+    /**
+     * Max shards a multi-index (alias / pattern / comma-list) query may fan out to before it is
+     * rejected. Snapshotted from {@code analytics.query.max_shards_per_query} at query start by
+     * {@link DefaultPlanExecutor} (which owns the settings-update consumer), so the value is
+     * stable for this query and readable from any stage via the context.
+     */
+    public int maxShardsPerQuery() {
+        return maxShardsPerQuery;
     }
 
     /** Returns the operation listeners for this query. */
@@ -302,7 +336,8 @@ public class QueryContext {
             dag,
             null,
             parentTask,
-            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
+            DEFAULT_MAX_SHARDS_PER_QUERY,
             operationListeners,
             testAllocator,
             true,

@@ -306,6 +306,32 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             assertTrue("Annotation must contain backend " + backend, annotation.getViableBackends().contains(backend));
     }
 
+    // ---- Operator resolution ----
+
+    /**
+     * Exact {@code COUNT(DISTINCT x)} is rewritten to {@code APPROX_COUNT_DISTINCT(x)} on the
+     * analytics-engine route — the resulting aggregate uses the standard approximate operator and
+     * is no longer marked {@code isDistinct}, so it routes through the APPROXIMATE
+     * single-stage gather path rather than the additive partial/final split.
+     */
+    public void testCountDistinctRewrittenToApproxCountDistinct() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        AggregateCall countDistinct = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            true,
+            List.of(1),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+        OpenSearchAggregate agg = runAggregate(1, countDistinct);
+        assertEquals(1, agg.getAggCallList().size());
+        AggregateCall rebuilt = agg.getAggCallList().get(0);
+        assertSame(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, rebuilt.getAggregation());
+        assertFalse("isDistinct must be cleared on the rewritten APPROX_COUNT_DISTINCT call", rebuilt.isDistinct());
+    }
+
     private OpenSearchAggregate runAggregate(int shardCount, AggregateCall aggCall) {
         RelNode result = runPlanner(makeAggregate(aggCall), defaultContext(shardCount));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
