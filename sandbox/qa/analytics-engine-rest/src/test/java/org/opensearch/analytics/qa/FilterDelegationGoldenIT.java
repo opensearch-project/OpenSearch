@@ -33,6 +33,13 @@ import java.util.Set;
  *       per-cell {@link ChosenBackendandTreeShape} declared on the {@link Shape} enum.</li>
  * </ol>
  *
+ * <p>TODO: assert Lucene was actually consulted on the data node for performance/correctness
+ * delegation cells (count + chosen_backend + tree_shape can all match even if Lucene was never
+ * called — DataFusion would evaluate everything natively and produce the same answer). Add a
+ * per-cell {@code ConsultExpectation} (MUST_CONSULT / IGNORE) on {@link Shape} and assert against
+ * {@code profile.stages[*].tasks[*].data_node_metrics.ffm_collector_calls} once #21972 lands
+ * (which exposes DataFusion's per-shard metrics in the explain JSON via Arrow Flight app-metadata).
+ *
  * <p>Vocabulary — leaves are classified by where they can be evaluated:
  * <ul>
  *   <li><b>Dual</b> — DataFusion + Lucene both viable. EQUALS on keyword.</li>
@@ -55,9 +62,10 @@ import java.util.Set;
  * add it to {@link #SKIP_SHAPES}. The driver logs the skipped set at the start of the
  * run so a green build doesn't silently mask missing coverage.
  *
- * <p>Per-cell stage values come from a {@link #CAPTURE_STAGES} pass against the embedded
- * cluster's {@code /_analytics/ppl/_explain} (test-ppl-frontend route). {@code tree_shape == null}
- * asserts no delegation instruction was emitted (Lucene-as-driver, or pure-Native plan).
+ * <p>Each cell hits {@code POST /_plugins/_ppl} with {@code profile=true} once — the
+ * response carries rows and the analytics-engine profile in a single call.
+ * {@code tree_shape == null} asserts no delegation instruction was emitted (Lucene-as-driver,
+ * or pure-Native plan).
  */
 public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
 
@@ -344,33 +352,52 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
 
             String label = shape + " prefer=" + key.prefer() + ",fuse=" + key.fuse();
 
-            Map<String, Object> response = executePpl(ppl);
+            Map<String, Object> response = executePplWithProfile(ppl);
             String validationError = ResponseValidator.validate(DATASET, "ppl", queryNumber, response, STRATEGY);
             if (validationError != null) {
                 fail(label + " — " + validationError);
             }
 
+            Map<String, Object> stage = shardFragmentStage(response);
             if (CAPTURE_STAGES) {
-                Map<String, Object> stage = shardFragmentStage(ppl);
                 logger.info(
                     "CAPTURE shape={} prefer={} fuse={} chosen_backend={} tree_shape={}",
                     shape, key.prefer(), key.fuse(),
                     stage.get("chosen_backend"), stage.get("tree_shape")
                 );
             } else if (want.isPlaceholder() == false) {
-                Map<String, Object> stage = shardFragmentStage(ppl);
                 assertEquals(label + " — chosen_backend", want.chosenBackend(), stage.get("chosen_backend"));
                 assertEquals(label + " — tree_shape", want.treeShape(), stage.get("tree_shape"));
             }
         }
     }
 
-    private Map<String, Object> shardFragmentStage(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl/_explain");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Map<String, Object> explain = assertOkAndParse(client().performRequest(request), "EXPLAIN: " + ppl);
+    /**
+     * Executes a PPL query against the real SQL-plugin endpoint with {@code profile=true}.
+     * The response carries both rows and the analytics-engine {@code profile} block in a
+     * single call. Mirrors {@code rows} ↔ {@code datarows} so {@link ResponseValidator} works.
+     */
+    private Map<String, Object> executePplWithProfile(String ppl) throws Exception {
+        Request request = new Request("POST", "/_plugins/_ppl");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\", \"profile\": true}");
+        // FIXME [RemoveBeforeMerge] dump the full response so the consolidated path can be verified.
+        org.opensearch.client.Response raw = client().performRequest(request);
+        String body = new String(raw.getEntity().getContent().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        logger.info("PPL [{}]: {}", ppl, body);
+        Map<String, Object> parsed = org.opensearch.common.xcontent.XContentHelper.convertToMap(
+            org.opensearch.common.xcontent.XContentType.JSON.xContent(), body, false);
+        if (parsed.containsKey("datarows") && parsed.containsKey("rows") == false) {
+            parsed.put("rows", parsed.get("datarows"));
+        }
+        return parsed;
+    }
+
+    private Map<String, Object> shardFragmentStage(Map<String, Object> response) {
         @SuppressWarnings("unchecked")
-        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        Map<String, Object> profile = (Map<String, Object>) response.get("profile");
+        if (profile == null) {
+            throw new AssertionError("No 'profile' block in response — request must set profile=true");
+        }
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
         for (Map<String, Object> stage : stages) {
