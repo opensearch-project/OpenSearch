@@ -254,6 +254,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
         settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
+        settings.addAll(org.opensearch.analytics.settings.AnalyticsQuerySettings.all());
         return List.copyOf(settings);
     }
 

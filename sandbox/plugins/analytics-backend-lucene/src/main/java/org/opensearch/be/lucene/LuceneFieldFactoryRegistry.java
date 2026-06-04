@@ -9,6 +9,7 @@
 package org.opensearch.be.lucene;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -47,8 +48,10 @@ public final class LuceneFieldFactoryRegistry {
         doc.add(new Field(ft.name(), value.toString(), lft));
     };
 
+    private static final FieldType ID_FIELD_TYPE = buildIdFieldType();
+
     private static final LuceneFieldFactory ID_FIELD_FACTORY = (doc, ft, value, lft) -> {
-        doc.add(new Field(ft.name(), new BytesRef((byte[]) value), IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(ft.name(), new BytesRef((byte[]) value), ID_FIELD_TYPE));
     };
 
     private static final LuceneFieldFactory SEQ_NO_FIELD_FACTORY = (doc, ft, value, lft) -> {
@@ -97,5 +100,12 @@ public final class LuceneFieldFactoryRegistry {
      */
     public Set<String> supportedTypes() {
         return Set.copyOf(factories.keySet());
+    }
+
+    private static FieldType buildIdFieldType() {
+        FieldType ft = new FieldType(IdFieldMapper.Defaults.FIELD_TYPE);
+        ft.setStored(false);
+        ft.freeze();
+        return ft;
     }
 }

@@ -157,6 +157,15 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
 
     /**
+     * Set the maximum number of HTTP/2 concurrent streams
+     */
+    public static final Setting<Long> SETTING_H2_MAX_CONCURRENT_STREAMS = Setting.longSetting(
+        "h2.max_concurrent_streams",
+        100L,
+        Property.NodeScope
+    );
+
+    /**
      * The maximum number of composite components for request accumulation
      */
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
@@ -203,6 +212,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     private volatile DisposableServer disposableServer;
     private volatile Scheduler scheduler;
     private final Map<Channel, HostChannel> hostChannels = new ConcurrentHashMap<>();
+    private final long h2MaxConcurrentStreams;
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
@@ -277,6 +287,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.h2cMaxContentLength = SETTING_H2C_MAX_CONTENT_LENGTH.get(settings);
+        this.h2MaxConcurrentStreams = SETTING_H2_MAX_CONCURRENT_STREAMS.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
     }
@@ -296,7 +307,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .runOn(sharedGroup.getLowLevelGroup())
                 .bindAddress(() -> socketAddress)
                 .compress(true)
-                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()))
+                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()).maxConcurrentStreams(h2MaxConcurrentStreams))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                         .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
