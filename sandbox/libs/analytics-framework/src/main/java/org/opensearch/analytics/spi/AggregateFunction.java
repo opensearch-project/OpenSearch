@@ -42,6 +42,9 @@ public enum AggregateFunction {
     TAKE(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("take_state", IntermediateTypeResolver.passThroughArg0(), null))),
     FIRST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("first_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LAST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("last_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    // earliest(value, ts) / latest(value, ts); rewritten to first_value/last_value by PplAggregateCallRewriter.
+    ARG_MIN(Type.STATE_EXPANDING, SqlKind.ARG_MIN, fields(IF("arg_min_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    ARG_MAX(Type.STATE_EXPANDING, SqlKind.ARG_MAX, fields(IF("arg_max_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LIST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("list_state", IntermediateTypeResolver.passThroughArg0(), null))),
     VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null))),
     PATTERN(Type.STATE_EXPANDING, SqlKind.OTHER);

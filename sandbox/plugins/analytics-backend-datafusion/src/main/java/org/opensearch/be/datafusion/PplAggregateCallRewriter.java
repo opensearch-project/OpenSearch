@@ -8,6 +8,9 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
@@ -125,6 +128,37 @@ final class PplAggregateCallRewriter {
             case "TAKE" -> targetOp = DataFusionFragmentConvertor.LOCAL_TAKE_OP;
             case "FIRST" -> targetOp = DataFusionFragmentConvertor.LOCAL_FIRST_OP;
             case "LAST" -> targetOp = DataFusionFragmentConvertor.LOCAL_LAST_OP;
+            case "ARG_MIN", "ARG_MAX" -> {
+                // ARG_MIN/ARG_MAX(value, ts) -> first_value/last_value(value) with ts as the agg
+                // ORDER BY key (DataFusion 53 has no arg_min/max UDAF; first/last_value take ordering).
+                if (call.getArgList().size() != 2) {
+                    return call;
+                }
+                boolean isMin = "ARG_MIN".equalsIgnoreCase(aggregation.getName());
+                SqlAggFunction op = isMin ? DataFusionFragmentConvertor.LOCAL_FIRST_OP : DataFusionFragmentConvertor.LOCAL_LAST_OP;
+                int valueArg = call.getArgList().get(0);
+                int timeArg = call.getArgList().get(1);
+                RelCollation collation = RelCollations.of(
+                    new RelFieldCollation(timeArg, RelFieldCollation.Direction.ASCENDING, RelFieldCollation.NullDirection.LAST)
+                );
+                RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(valueArg).getType();
+                RelDataType nullableArg0 = agg.getCluster().getTypeFactory().createTypeWithNullability(arg0Type, true);
+                return AggregateCall.create(
+                    op,
+                    targetDistinct,
+                    call.isApproximate(),
+                    call.ignoreNulls(),
+                    call.rexList,
+                    List.of(valueArg),
+                    call.filterArg,
+                    call.distinctKeys,
+                    collation,
+                    agg.getGroupCount(),
+                    agg.getInput(),
+                    nullableArg0,
+                    call.getName()
+                );
+            }
             case "LIST", "VALUES" -> {
                 // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
                 if (call.getArgList().isEmpty()) {
