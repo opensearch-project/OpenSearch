@@ -86,7 +86,15 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         assert luceneReader != null : "luceneReader must not be null";
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = luceneReader.directoryReader();
-        this.searcher = queryShardContext.searcher();
+        // Build the searcher over the SAME directoryReader whose leaves we score against in
+        // createCollector (weight.scorer(leaf)). Using queryShardContext.searcher() instead would
+        // create the Weight against a DIFFERENT reader, and its IndicesQueryCache wrapper asserts
+        // the scored leaf's top-reader matches the Weight's — a mismatch throws the intermittent
+        // "top-reader used to create Weight is not the same as the current reader's top-reader"
+        // AssertionError (under -ea, fatal). A plain IndexSearcher over directoryReader also skips
+        // the shard query cache, which is correct: these are internal leaf-bitset scorers for
+        // delegated predicates, not cacheable user queries.
+        this.searcher = new IndexSearcher(directoryReader);
         this.leaves = directoryReader.leaves();
         this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
