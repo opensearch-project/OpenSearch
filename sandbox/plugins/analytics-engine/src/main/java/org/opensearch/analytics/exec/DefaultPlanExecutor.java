@@ -119,12 +119,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         EngineContextProvider contextProvider,
         NodeClient client,
         Scheduler scheduler,
-        MppStrategyMetrics mppStrategyMetrics,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle,
-        org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager,
         IndexNameExpressionResolver indexNameExpressionResolver,
         AnalyticsSearchSlowLog analyticsSearchSlowLog,
-        AnalyticsStatsCollector statsCollector
+        AnalyticsStatsCollector statsCollector,
+        // Feature-branch (MPP) additions — appended last so upstream constructor extensions don't collide.
+        MppStrategyMetrics mppStrategyMetrics,
+        org.opensearch.analytics.exec.shuffle.ShuffleBufferManager shuffleBufferManager
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
@@ -270,11 +271,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             new PlannerContext(
                 capabilityRegistry,
                 planningState,
-                perQuerySettings,
-                tableRowCounts,
                 indexNameExpressionResolver,
                 false,
-                preferMetadataDriver
+                preferMetadataDriver,
+                perQuerySettings,
+                tableRowCounts
             )
         );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;

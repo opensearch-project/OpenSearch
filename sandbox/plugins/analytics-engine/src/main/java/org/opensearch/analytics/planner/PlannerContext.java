@@ -49,19 +49,19 @@ public class PlannerContext {
     private RuleProfilingListener.PlannerProfile lastProfile;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
-        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, null, false, true);
+        this(capabilityRegistry, clusterState, null, false, true, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, boolean profilingEnabled) {
-        this(capabilityRegistry, clusterState, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS, null, profilingEnabled, true);
+        this(capabilityRegistry, clusterState, null, profilingEnabled, true, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings) {
-        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, null, false, true);
+        this(capabilityRegistry, clusterState, null, false, true, settings, DEFAULT_TABLE_ROW_COUNTS);
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings, boolean profilingEnabled) {
-        this(capabilityRegistry, clusterState, settings, DEFAULT_TABLE_ROW_COUNTS, null, profilingEnabled, true);
+        this(capabilityRegistry, clusterState, null, profilingEnabled, true, settings, DEFAULT_TABLE_ROW_COUNTS);
     }
 
     public PlannerContext(
@@ -73,11 +73,11 @@ public class PlannerContext {
         this(
             capabilityRegistry,
             clusterState,
-            Settings.EMPTY,
-            DEFAULT_TABLE_ROW_COUNTS,
             indexNameExpressionResolver,
             profilingEnabled,
-            true
+            true,
+            Settings.EMPTY,
+            DEFAULT_TABLE_ROW_COUNTS
         );
     }
 
@@ -91,11 +91,11 @@ public class PlannerContext {
         this(
             capabilityRegistry,
             clusterState,
-            Settings.EMPTY,
-            DEFAULT_TABLE_ROW_COUNTS,
             indexNameExpressionResolver,
             profilingEnabled,
-            preferMetadataDriver
+            preferMetadataDriver,
+            Settings.EMPTY,
+            DEFAULT_TABLE_ROW_COUNTS
         );
     }
 
@@ -106,7 +106,7 @@ public class PlannerContext {
         ToLongFunction<String> tableRowCounts,
         boolean profilingEnabled
     ) {
-        this(capabilityRegistry, clusterState, settings, tableRowCounts, null, profilingEnabled, true);
+        this(capabilityRegistry, clusterState, null, profilingEnabled, true, settings, tableRowCounts);
     }
 
     public PlannerContext(
@@ -117,17 +117,21 @@ public class PlannerContext {
         @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
         boolean profilingEnabled
     ) {
-        this(capabilityRegistry, clusterState, settings, tableRowCounts, indexNameExpressionResolver, profilingEnabled, true);
+        this(capabilityRegistry, clusterState, indexNameExpressionResolver, profilingEnabled, true, settings, tableRowCounts);
     }
 
+    // Canonical constructor. Parameters that exist on upstream's PlannerContext
+    // (indexNameExpressionResolver, profilingEnabled, preferMetadataDriver) come first, in
+    // upstream's order; our feature-branch additions (settings, tableRowCounts) are appended last
+    // so a future upstream merge that extends this constructor doesn't collide with our params.
     public PlannerContext(
         CapabilityRegistry capabilityRegistry,
         ClusterState clusterState,
-        Settings settings,
-        ToLongFunction<String> tableRowCounts,
         @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
         boolean profilingEnabled,
-        boolean preferMetadataDriver
+        boolean preferMetadataDriver,
+        Settings settings,
+        ToLongFunction<String> tableRowCounts
     ) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;

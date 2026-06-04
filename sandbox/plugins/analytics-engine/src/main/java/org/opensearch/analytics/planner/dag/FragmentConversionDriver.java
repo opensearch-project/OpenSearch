@@ -256,10 +256,10 @@ public class FragmentConversionDriver {
             boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createShardScanWithDelegationNode(logicalTableName, treeShape, delegated.size(), requestsRowIds)
+                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds, logicalTableName)
                     .ifPresent(instructions::add);
             } else {
-                factory.createShardScanNode(logicalTableName, requestsRowIds).ifPresent(instructions::add);
+                factory.createShardScanNode(requestsRowIds, logicalTableName).ifPresent(instructions::add);
             }
         }
         return instructions;

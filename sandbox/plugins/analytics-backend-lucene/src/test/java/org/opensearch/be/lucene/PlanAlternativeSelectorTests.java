@@ -536,7 +536,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
             return new FragmentInstructionHandlerFactory() {
                 @Override
-                public Optional<InstructionNode> createShardScanNode(String logicalTableName, boolean requestsRowIds) {
+                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, String logicalTableName) {
                     return Optional.of(new ShardScanInstructionNode(logicalTableName, requestsRowIds));
                 }
 
@@ -551,10 +551,10 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
                 @Override
                 public Optional<InstructionNode> createShardScanWithDelegationNode(
-                    String logicalTableName,
                     FilterTreeShape treeShape,
                     int delegatedPredicateCount,
-                    boolean requestsRowIds
+                    boolean requestsRowIds,
+                    String logicalTableName
                 ) {
                     return Optional.of(
                         new ShardScanWithDelegationInstructionNode(logicalTableName, treeShape, delegatedPredicateCount, requestsRowIds)
