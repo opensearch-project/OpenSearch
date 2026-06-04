@@ -42,6 +42,9 @@ use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties};
 use datafusion_common::DataFusionError;
 
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use futures::StreamExt;
+
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
 use super::partitioning::{compute_assignments, PartitionAssignment, SegmentChunk, SegmentLayout};
@@ -395,8 +398,14 @@ impl ExecutionPlan for QueryShardExec {
         let stream_metrics =
             pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
 
-        // Build one IndexedExec per SegmentChunk, chain via UnionExec-style concatenation.
-        let mut execs: Vec<Arc<dyn ExecutionPlan>> = Vec::with_capacity(assignment.chunks.len());
+        // Build one IndexedExec per SegmentChunk and execute it immediately,
+        // collecting per-chunk streams. We then chain them sequentially into
+        // a single stream for this partition. This avoids the
+        // UnionExec + CoalescePartitionsExec wrapping (which would re-shape
+        // partitioning and add an extra coalesce hop) — chunks here are
+        // already serialized within one partition assignment.
+        let mut streams: Vec<SendableRecordBatchStream> =
+            Vec::with_capacity(assignment.chunks.len());
         for chunk in &assignment.chunks {
             let segment = self.config.segments.get(chunk.segment_idx).ok_or_else(|| {
                 DataFusionError::Internal(format!("segment_idx {} out of range", chunk.segment_idx))
@@ -447,28 +456,23 @@ impl ExecutionPlan for QueryShardExec {
                 emit_row_ids: self.config.emit_row_ids,
                 row_id_output_index: self.row_id_output_index,
             };
-            execs.push(Arc::new(exec));
+            streams.push(exec.execute(0, Arc::clone(&context))?);
         }
 
-        if execs.is_empty() {
-            // No work — empty stream
-            let empty =
-                datafusion::physical_plan::empty::EmptyExec::new(self.projected_schema.clone());
-            return empty.execute(0, context);
+        match streams.len() {
+            0 => {
+                let empty = datafusion::physical_plan::empty::EmptyExec::new(
+                    self.projected_schema.clone(),
+                );
+                empty.execute(0, context)
+            }
+            1 => Ok(streams.into_iter().next().unwrap()),
+            _ => {
+                let schema = self.projected_schema.clone();
+                let chained = futures::stream::iter(streams).flatten();
+                Ok(Box::pin(RecordBatchStreamAdapter::new(schema, chained)))
+            }
         }
-
-        if execs.len() == 1 {
-            return execs.remove(0).execute(0, context);
-        }
-
-        // Multiple chunks in one partition — concatenate via UnionExec
-        let union: Arc<dyn ExecutionPlan> =
-            datafusion::physical_plan::union::UnionExec::try_new(execs)?;
-        // UnionExec exposes sum-of-partitions; we want exactly one stream per our partition,
-        // so wrap in CoalescePartitionsExec.
-        let coalesced =
-            datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec::new(union);
-        coalesced.execute(0, context)
     }
 }
 
