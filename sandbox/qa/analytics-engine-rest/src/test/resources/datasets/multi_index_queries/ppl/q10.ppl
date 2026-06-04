@@ -1,1 +1,1 @@
-source=api_metrics | where status_code >= 500 and latency_ms > 1000 | stats count() as error_count by endpoint | sort - error_count
+source=api_metrics | where status_code >= 500 and latency > 1000 | stats count() as error_count by endpoint | sort - error_count

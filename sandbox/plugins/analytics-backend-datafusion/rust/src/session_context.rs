@@ -72,7 +72,7 @@ pub struct IndexedExecutionConfig {
 /// Uses the `datafusion-substrait` consumer's `from_substrait_named_struct` for type conversion
 /// (which already marks all fields nullable). The consumer is built from the session's existing
 /// state — no throwaway SessionState needed.
-fn widen_schema_from_plan(
+pub(crate) fn widen_schema_from_plan(
     ctx: &SessionContext,
     plan_bytes: &[u8],
     table_name: &str,
@@ -238,17 +238,6 @@ pub async unsafe fn create_session_context(
         .with_file_extension(".parquet")
         .with_collect_stat(true);
 
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await
-        .map_err(|e| {
-            error!("create_session_context: failed to infer schema: {}", e);
-            e
-        })?;
-    // Substrait's type system is narrower than Arrow's; normalize the inferred
-    // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
-
     // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
     // which differs from table_name (the concrete shard index). Extract it from the plan and
     // register under that name so the Substrait consumer binds correctly. For single-index
@@ -262,8 +251,40 @@ pub async unsafe fn create_session_context(
         table_name.to_string()
     };
 
-    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
-    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &resolved_schema);
+    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
+    // below populates columns from the substrait base_schema.
+    let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
+        Arc::new(arrow::datatypes::Schema::empty())
+    } else {
+        let inferred = listing_options
+            .infer_schema(&ctx.state(), &shard_view.table_path)
+            .await
+            .map_err(|e| {
+                error!("create_session_context: failed to infer schema: {}", e);
+                e
+            })?;
+        // Substrait's type system is narrower than Arrow's; normalize the inferred
+        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
+        crate::schema_coerce::coerce_inferred_schema(inferred)
+    };
+    // Pre-widening field count — compared below to detect whether widening added columns.
+    let inferred_field_count = inferred.fields().len();
+
+    // Widen to the plan's base_schema if this shard's parquet is missing columns the plan
+    // expects (multi-index unions, or single-index cross-shard drift). No-op when the shard
+    // already covers every base_schema column.
+    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
+
+    // If widening added columns, disable stat collection: the global stats cache is keyed by
+    // path (not schema), so a narrow cached Statistics can be merged against the widened one,
+    // failing with "Cannot merge statistics with different number of columns". Non-widened
+    // (single-index) scans keep full stats.
+    // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
+    let listing_options = if resolved_schema.fields().len() != inferred_field_count {
+        listing_options.with_collect_stat(false)
+    } else {
+        listing_options
+    };
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
@@ -476,6 +497,36 @@ mod tests {
         assert!(Arc::ptr_eq(&result, &inferred), "subset gate must short-circuit to inferred");
     }
 
+    /// Empty-shard case: a shard with zero parquet files yields an empty inferred schema, but the
+    /// plan's base_schema still names columns. widen_schema_from_plan must append all of them as
+    /// nullable so the consumer can bind. (Downstream, the field-count delta — 0 vs N — also
+    /// disables stat collection, avoiding the cache's column-count merge failure.)
+    #[tokio::test]
+    async fn test_widen_schema_from_empty_inferred_adds_all_nullable() {
+        let ctx = SessionContext::new();
+        // base_schema for "t" = [a (Int64), b (Utf8)].
+        let registered_schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        let table = MemTable::try_new(Arc::clone(&registered_schema), vec![vec![]]).expect("memtable");
+        ctx.register_table("t", Arc::new(table)).expect("register");
+        let logical = ctx.sql("SELECT a, b FROM t").await.expect("sql").into_unoptimized_plan();
+        let plan = to_substrait_plan(&logical, &ctx.state()).expect("substrait plan");
+        let mut plan_bytes = Vec::new();
+        plan.encode(&mut plan_bytes).expect("encode");
+
+        // Empty shard → empty inferred schema (0 fields).
+        let inferred = Arc::new(Schema::empty());
+        let result = widen_schema_from_plan(&ctx, &plan_bytes, "t", &inferred);
+
+        assert_eq!(result.fields().len(), 2, "all base_schema columns must be appended");
+        for name in ["a", "b"] {
+            let f = result.field_with_name(name).expect("column present");
+            assert!(f.is_nullable(), "appended column {name} must be nullable");
+        }
+    }
+
     async fn make_test_handle() -> (SessionContextHandle, Vec<u8>) {
         let runtime_env = RuntimeEnvBuilder::new().build().expect("runtime env");
         let state = SessionStateBuilder::new()
@@ -537,5 +588,87 @@ mod tests {
 
         assert_eq!(handle.aggregate_mode, Mode::Partial);
         assert!(handle.prepared_plan.is_some());
+    }
+
+    /// Regression: a shard whose parquet files have FEWER columns than the widened (alias/pattern
+    /// union) table schema must not fail planning with "Cannot merge statistics with different
+    /// number of columns". The runtime-global file statistics cache is keyed by path+size+mtime
+    /// (NOT schema), so a Statistics cached during an earlier NARROW read is returned for a later
+    /// WIDENED read; merging the cached narrow stats against freshly-computed widened stats blows
+    /// up. We avoid this by disabling stat collection when widening changed the schema; this test
+    /// reproduces the straddle (narrow read seeds the cache, widened read reuses it) and asserts
+    /// the widened scan plans + executes.
+    #[tokio::test]
+    async fn widened_scan_over_narrower_files_does_not_fail_stats_merge() {
+        use arrow_array::StringArray;
+        use datafusion::arrow::datatypes::SchemaRef;
+        use datafusion::datasource::file_format::parquet::ParquetFormat;
+        use datafusion::datasource::listing::{
+            ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+        };
+        use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
+        use datafusion::parquet::arrow::ArrowWriter;
+
+        fn write_parquet(dir: &std::path::Path, name: &str, schema: SchemaRef, cols: Vec<Arc<dyn arrow::array::Array>>) {
+            let file = std::fs::File::create(dir.join(name)).unwrap();
+            let batch = RecordBatch::try_new(Arc::clone(&schema), cols).unwrap();
+            let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+            writer.write(&batch).unwrap();
+            writer.close().unwrap();
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        // One file with the narrow schema (column "a" only), one with the widened schema (a + b).
+        let narrow: SchemaRef = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
+        let wide: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        write_parquet(dir.path(), "narrow.parquet", Arc::clone(&narrow), vec![Arc::new(Int64Array::from(vec![1i64]))]);
+        write_parquet(
+            dir.path(),
+            "wide.parquet",
+            Arc::clone(&wide),
+            vec![Arc::new(Int64Array::from(vec![2i64])), Arc::new(StringArray::from(vec!["x"]))],
+        );
+
+        let table_url = ListingTableUrl::parse(format!("file://{}", dir.path().to_str().unwrap())).unwrap();
+        // Shared, runtime-global stats cache — the crux of the bug.
+        let stats_cache = Arc::new(DefaultFileStatisticsCache::default());
+
+        // 1. NARROW read first: registers the table at the narrow (1-col) schema and, with
+        //    collect_stat(true), seeds the shared cache with a 1-column Statistics for narrow.parquet.
+        let ctx = SessionContext::new();
+        let narrow_opts = ListingOptions::new(Arc::new(ParquetFormat::default()))
+            .with_file_extension(".parquet")
+            .with_collect_stat(true);
+        let narrow_cfg = ListingTableConfig::new(table_url.clone())
+            .with_listing_options(narrow_opts)
+            .with_schema(Arc::clone(&narrow));
+        let narrow_tbl = Arc::new(ListingTable::try_new(narrow_cfg).unwrap().with_cache(Some(stats_cache.clone())));
+        ctx.register_table("t_narrow", narrow_tbl).unwrap();
+        let _ = ctx.sql("SELECT a FROM t_narrow").await.unwrap().collect().await.unwrap();
+
+        // 2. WIDENED read reusing the SAME cache. This is what create_session_context does after
+        //    widen_schema_from_plan. The fix sets collect_stat(false) because the schema was widened;
+        //    without it, merging the cached 1-col Statistics against a 2-col one fails planning.
+        let widened_opts = ListingOptions::new(Arc::new(ParquetFormat::default()))
+            .with_file_extension(".parquet")
+            .with_collect_stat(false); // mirrors the fix in create_session_context for widened tables
+        let widened_cfg = ListingTableConfig::new(table_url)
+            .with_listing_options(widened_opts)
+            .with_schema(Arc::clone(&wide));
+        let widened_tbl = Arc::new(ListingTable::try_new(widened_cfg).unwrap().with_cache(Some(stats_cache)));
+        ctx.register_table("t_wide", widened_tbl).unwrap();
+
+        let rows = ctx
+            .sql("SELECT a, b FROM t_wide ORDER BY a")
+            .await
+            .expect("widened query plans")
+            .collect()
+            .await
+            .expect("widened query executes without stats-merge failure");
+        let total: usize = rows.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(total, 2, "widened scan must read both files");
     }
 }

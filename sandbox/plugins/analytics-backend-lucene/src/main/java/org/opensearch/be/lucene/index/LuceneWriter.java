@@ -751,6 +751,19 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     }
 
     /**
+     * Deletes the temporary directory created by this writer. Called externally by the
+     * engine after {@code addIndexes} has hardlinked the segment files into the shared
+     * writer's directory, making the originals safe to remove.
+     */
+    public void cleanupTempDirectory() {
+        try {
+            IOUtils.rm(tempDirectory);
+        } catch (IOException e) {
+            logger.warn("Failed to delete lucene temp directory [{}]: {}", tempDirectory, e.getMessage());
+        }
+    }
+
+    /**
      * Deletes all documents containing the given term from this writer's {@link IndexWriter}.
      *
      * @param deleteInput the {@code _id} term identifying the document(s) to delete

@@ -456,6 +456,38 @@ async unsafe fn execute_indexed_with_context_inner(
     // spawning on the CPU runtime, so the Java search thread blocks at the
     // gate when it is full — creating backpressure at the Java threadpool level.
 
+    // Empty shard: skip build_segments (errors on zero files) and emit an
+    // empty stream. Mirrors the guard in query_executor::execute_with_context.
+    if handle.object_metas.is_empty() {
+        use datafusion::physical_plan::empty::EmptyExec;
+        use datafusion::physical_plan::ExecutionPlan;
+        let context_id_early = handle.query_context.context_id();
+        let plan = Plan::decode(substrait_bytes.as_slice())
+            .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+        let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+        let plan_schema: arrow::datatypes::SchemaRef =
+            Arc::new(logical_plan.schema().as_arrow().clone());
+        let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
+        let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
+        let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
+        let (cross_rt_stream, abort_handle) =
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+        if let Some(h) = abort_handle {
+            crate::query_tracker::set_abort_handle(context_id_early, h);
+        }
+        let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+            cross_rt_stream.schema(),
+            cross_rt_stream,
+        );
+        let stream_handle = crate::api::QueryStreamHandle::with_session_context(
+            wrapped,
+            handle.query_context,
+            handle.ctx,
+            Some(permit),
+        );
+        return Ok(Box::into_raw(Box::new(stream_handle)) as i64);
+    }
+
     // Java-side QTF signal: scan must emit __row_id__. Captured before consuming indexed_config below.
     let requests_row_ids = handle.indexed_config.as_ref().is_some_and(|c| c.requests_row_ids);
     let classification_override = handle.indexed_config.map(|config| {
@@ -503,6 +535,8 @@ async unsafe fn execute_indexed_with_context_inner(
     .await
     .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
+    // Widen to the plan's base_schema so columns absent from this shard's parquet (cross-shard drift) are null-filled at read time.
+    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &table_name, &schema);
 
     let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
         schema: schema.clone(),

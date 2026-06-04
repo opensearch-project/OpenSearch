@@ -33,6 +33,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
@@ -123,7 +124,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
         Store store = new Store(
             shardId,
             indexSettings,
-            new NIOFSDirectory(indexDir),
+            new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
             new DummyShardLock(shardId),
             Store.OnClose.EMPTY,
             shardPath
@@ -505,7 +506,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
@@ -580,7 +581,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
@@ -647,7 +648,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
@@ -703,7 +704,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
