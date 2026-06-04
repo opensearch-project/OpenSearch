@@ -514,9 +514,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /**
      * Shared pre-Substrait rewrite pipeline. Both the top-level fragment path
      * ({@link #convertToSubstrait}) and the wrapper/partial-aggregate path
-     * ({@link #convertStandalone}) must run the identical set of rewriters — otherwise a shape
-     * (e.g. {@code timestamp - timestamp}) that one path handles slips through unconverted on the
-     * other. Centralizing here keeps the two paths in lockstep as rewriters are added.
+     * ({@link #convertStandalone}) must run the identical set of rewriters so a shape handled on
+     * one path is not missed on the other. Centralizing here keeps the two paths in lockstep as
+     * rewriters are added.
      */
     private static RelNode preprocessForSubstrait(RelNode rel) {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);
@@ -525,7 +525,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
-        preprocessed = TimestampSubtractRewriter.rewrite(preprocessed);
         return preprocessed;
     }
 
