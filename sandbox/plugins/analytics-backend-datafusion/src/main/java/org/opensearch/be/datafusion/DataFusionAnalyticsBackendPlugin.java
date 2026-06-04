@@ -356,7 +356,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // TIMESTAMPADD('MINUTE', 1, @timestamp)))}. Both PPL UDFs are unknown to isthmus's
         // default catalog, so adapters rewrite to DF-native interval arithmetic.
         ScalarFunction.TIMESTAMPDIFF,
-        ScalarFunction.TIMESTAMPADD
+        ScalarFunction.TIMESTAMPADD,
+        // PPL `DATE_ADD(t, INTERVAL n unit)` / `DATE_SUB(t, INTERVAL n unit)` — shift a temporal
+        // value by an interval. Neither is bound by isthmus's default catalog (surfaces as
+        // "Unrecognized scalar function [DATE_ADD]"), so DateAddSubAdapter rewrites them to
+        // DATETIME_PLUS(base, ±interval), the same substrait-native add the timestamp adapters use.
+        ScalarFunction.DATE_ADD,
+        ScalarFunction.DATE_SUB
     );
 
     /**
@@ -635,6 +641,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CURTIME, currentTime),
                     Map.entry(ScalarFunction.DATE, new DateTimeAdapters.DateAdapter()),
                     Map.entry(ScalarFunction.DATETIME, new DateTimeAdapters.DatetimeAdapter()),
+                    Map.entry(ScalarFunction.DATE_ADD, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.DATE_SUB, new DateAddSubAdapter(false)),
                     Map.entry(ScalarFunction.DATE_FORMAT, new RustUdfDateTimeAdapters.DateFormatAdapter()),
                     Map.entry(ScalarFunction.DAY, day),
                     Map.entry(ScalarFunction.DAYOFMONTH, day),
