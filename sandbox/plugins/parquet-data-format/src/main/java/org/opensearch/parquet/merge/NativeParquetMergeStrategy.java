@@ -118,6 +118,10 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
             stats.addMergeTimeMillis(elapsed);
             stats.addMergeInputFilesTotal(filePaths.size());
             stats.addMergeOutputRowsTotal(mergeMetadata.numRows());
+            // Per-shard merge metrics forwarded from native: chunk count + time + row_id max.
+            stats.addFlushAndSortChunkTotal(merged.flushAndSortChunkCount());
+            stats.addFlushAndSortChunkTimeMillis(merged.flushAndSortChunkTimeMs());
+            stats.updateRowIdMappingMax(merged.rowIdMappingMax());
 
             return new MergeResult(mergedWriterFileSetMap, rowIdMapping);
 

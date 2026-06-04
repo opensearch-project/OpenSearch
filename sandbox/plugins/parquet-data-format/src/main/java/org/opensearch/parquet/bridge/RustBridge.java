@@ -216,7 +216,10 @@ public class RustBridge {
                 ValueLayout.ADDRESS,    // out_gen_keys_ptr
                 ValueLayout.ADDRESS,    // out_gen_offsets_ptr
                 ValueLayout.ADDRESS,    // out_gen_sizes_ptr
-                ValueLayout.ADDRESS     // out_gen_count
+                ValueLayout.ADDRESS,    // out_gen_count
+                ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_count
+                ValueLayout.ADDRESS,    // out_flush_and_sort_chunk_time_millis
+                ValueLayout.ADDRESS     // out_row_id_mapping_max
             )
         );
         FREE_MERGE_RESULT = linker.downcallHandle(
@@ -535,6 +538,10 @@ public class RustBridge {
             var outGenOffsetsPtr = call.longOut();
             var outGenSizesPtr = call.longOut();
             var outGenCount = call.longOut();
+            // Out-pointers for per-merge stats forwarded to the per-shard tracker.
+            var outFlushChunkCount = call.longOut();
+            var outFlushChunkTimeMillis = call.longOut();
+            var outRowIdMappingMax = call.longOut();
 
             call.invokeIO(
                 MERGE_FILES,
@@ -557,7 +564,10 @@ public class RustBridge {
                 outGenKeysPtr,
                 outGenOffsetsPtr,
                 outGenSizesPtr,
-                outGenCount
+                outGenCount,
+                outFlushChunkCount,
+                outFlushChunkTimeMillis,
+                outRowIdMappingMax
             );
 
             int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);
@@ -580,7 +590,11 @@ public class RustBridge {
                 outGenCount
             );
 
-            return new MergeFilesResult(rowIdMapping, metadata);
+            long flushChunkCount = outFlushChunkCount.get(ValueLayout.JAVA_LONG, 0);
+            long flushChunkTimeMillis = outFlushChunkTimeMillis.get(ValueLayout.JAVA_LONG, 0);
+            long rowIdMappingMax = outRowIdMappingMax.get(ValueLayout.JAVA_LONG, 0);
+
+            return new MergeFilesResult(rowIdMapping, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
         }

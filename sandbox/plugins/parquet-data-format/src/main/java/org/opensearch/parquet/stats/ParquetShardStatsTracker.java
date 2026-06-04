@@ -10,6 +10,7 @@ package org.opensearch.parquet.stats;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -46,6 +47,11 @@ public class ParquetShardStatsTracker {
     private final LongAdder mergeFailures = new LongAdder();
     private final LongAdder mergeInputFilesTotal = new LongAdder();
     private final LongAdder mergeOutputRowsTotal = new LongAdder();
+    // Per-merge: cumulative count + millis for the flush+sort+chunk pass that runs inside each merge.
+    private final LongAdder flushAndSortChunkTotal = new LongAdder();
+    private final LongAdder flushAndSortChunkTimeMillis = new LongAdder();
+    // Highest row_id assigned across all merges of this shard.
+    private final LongAccumulator rowIdMappingMax = new LongAccumulator(Long::max, 0L);
 
     // Background Write counters
     private final LongAdder backgroundWriteTotal = new LongAdder();
@@ -75,6 +81,9 @@ public class ParquetShardStatsTracker {
             mergeFailures.sum(),
             mergeInputFilesTotal.sum(),
             mergeOutputRowsTotal.sum(),
+            flushAndSortChunkTotal.sum(),
+            flushAndSortChunkTimeMillis.sum(),
+            rowIdMappingMax.get(),
             backgroundWriteTotal.sum(),
             backgroundWriteWaitMillis.sum(),
             backgroundWriteTimeouts.sum(),
@@ -156,6 +165,18 @@ public class ParquetShardStatsTracker {
 
     public void addMergeOutputRowsTotal(long n) {
         mergeOutputRowsTotal.add(n);
+    }
+
+    public void addFlushAndSortChunkTotal(long n) {
+        flushAndSortChunkTotal.add(n);
+    }
+
+    public void addFlushAndSortChunkTimeMillis(long ms) {
+        flushAndSortChunkTimeMillis.add(ms);
+    }
+
+    public void updateRowIdMappingMax(long value) {
+        rowIdMappingMax.accumulate(value);
     }
 
     // --- Background Write methods ---

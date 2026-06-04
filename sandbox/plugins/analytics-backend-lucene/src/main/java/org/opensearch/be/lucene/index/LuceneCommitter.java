@@ -140,6 +140,11 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
      * all referenced data files are fsync'd before the commit point to ensure crash
      * consistency (write-ahead ordering).
      *
+     * <p>Stats: {@code commit_time_millis} accumulates wall time for every attempt
+     * (success or failure). {@code commit_total} increments only on successful return.
+     * {@code commit_failures} increments only on a thrown exception. Therefore
+     * {@code commit_total + commit_failures = total attempts}.
+     *
      * @param commitData the key-value pairs to store as live commit data
      * @throws IOException if the commit fails
      * @throws IllegalStateException if this committer is closed
@@ -148,6 +153,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     public synchronized CommitResult commit(CommitInput commitData) throws IOException {
         ensureOpen();
         long start = System.nanoTime();
+        boolean threw = false;
         try {
             indexWriter.setLiveCommitData(commitData.userData());
             // Write-ahead fsync: data files durable before the commit point that references them.
@@ -159,10 +165,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             indexWriter.commit();
             SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
             this.lastCommittedSegmentInfos = committed;
-
             // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
             long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
             return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
+        } catch (Throwable t) {
+            threw = true;
+            throw t;
         } finally {
             LuceneStatsProvider provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
                 LuceneStatsProvider.FORMAT_NAME
@@ -170,8 +178,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             if (provider != null) {
                 LuceneShardStatsTracker tracker = provider.getTracker(store.shardId());
                 if (tracker != null) {
-                    tracker.incCommitTotal();
                     tracker.addCommitTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                    if (threw) {
+                        tracker.incCommitFailures();
+                    } else {
+                        tracker.incCommitTotal();
+                    }
                 }
             }
         }

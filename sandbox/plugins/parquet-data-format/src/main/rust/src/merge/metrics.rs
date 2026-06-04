@@ -30,7 +30,9 @@ use super::error::MergeError;
 // =============================================================================
 
 static RAYON_SUBMITTED: AtomicU64 = AtomicU64::new(0);
+static RAYON_STARTED: AtomicU64 = AtomicU64::new(0);
 static RAYON_COMPLETED: AtomicU64 = AtomicU64::new(0);
+static RAYON_FAILED: AtomicU64 = AtomicU64::new(0);
 static RAYON_PANICKED: AtomicU64 = AtomicU64::new(0);
 static RAYON_MERGE_WALL_MILLIS: AtomicU64 = AtomicU64::new(0);
 
@@ -42,13 +44,19 @@ static RAYON_MERGE_WALL_MILLIS: AtomicU64 = AtomicU64::new(0);
 pub struct NativeRuntimeStats {
     pub rayon_configured_threads: i64,
     pub rayon_merge_tasks_submitted: i64,
+    pub rayon_merge_tasks_started: i64,
     pub rayon_merge_tasks_completed: i64,
+    pub rayon_merge_tasks_failed: i64,
     pub rayon_merge_tasks_panicked: i64,
     pub rayon_merge_wall_millis: i64,
     pub tokio_num_workers: i64,
     pub tokio_num_blocking_threads: i64,
     pub tokio_active_tasks: i64,
     pub tokio_global_queue_depth: i64,
+    pub tokio_blocking_queue_depth: i64,
+    pub tokio_local_queue_depth_total: i64,
+    pub tokio_polls_count_total: i64,
+    pub tokio_overflow_count_total: i64,
     pub tokio_spawned_tasks_total: i64,
     pub tokio_workers_busy_millis_total: i64,
 }
@@ -62,7 +70,9 @@ pub fn collect() -> NativeRuntimeStats {
     if let Some(pool) = super::io_task::MERGE_POOL.get() {
         s.rayon_configured_threads = pool.current_num_threads() as i64;
         s.rayon_merge_tasks_submitted = RAYON_SUBMITTED.load(Ordering::Relaxed) as i64;
+        s.rayon_merge_tasks_started = RAYON_STARTED.load(Ordering::Relaxed) as i64;
         s.rayon_merge_tasks_completed = RAYON_COMPLETED.load(Ordering::Relaxed) as i64;
+        s.rayon_merge_tasks_failed = RAYON_FAILED.load(Ordering::Relaxed) as i64;
         s.rayon_merge_tasks_panicked = RAYON_PANICKED.load(Ordering::Relaxed) as i64;
         s.rayon_merge_wall_millis = RAYON_MERGE_WALL_MILLIS.load(Ordering::Relaxed) as i64;
     }
@@ -74,11 +84,24 @@ pub fn collect() -> NativeRuntimeStats {
         s.tokio_num_blocking_threads = m.num_blocking_threads() as i64;
         s.tokio_active_tasks = m.num_alive_tasks() as i64;
         s.tokio_global_queue_depth = m.global_queue_depth() as i64;
+        s.tokio_blocking_queue_depth = m.blocking_queue_depth() as i64;
         s.tokio_spawned_tasks_total = m.spawned_tasks_count() as i64;
-        let busy_millis: i64 = (0..m.num_workers())
-            .map(|i| m.worker_total_busy_duration(i).as_millis() as i64)
-            .sum();
+        // Per-worker fan-out: sum across all workers for runtime-wide totals.
+        let n = m.num_workers();
+        let mut busy_millis: i64 = 0;
+        let mut local_queue_depth_total: i64 = 0;
+        let mut polls_count_total: i64 = 0;
+        let mut overflow_count_total: i64 = 0;
+        for i in 0..n {
+            busy_millis += m.worker_total_busy_duration(i).as_millis() as i64;
+            local_queue_depth_total += m.worker_local_queue_depth(i) as i64;
+            polls_count_total += m.worker_poll_count(i) as i64;
+            overflow_count_total += m.worker_overflow_count(i) as i64;
+        }
         s.tokio_workers_busy_millis_total = busy_millis;
+        s.tokio_local_queue_depth_total = local_queue_depth_total;
+        s.tokio_polls_count_total = polls_count_total;
+        s.tokio_overflow_count_total = overflow_count_total;
     }
 
     s
@@ -102,7 +125,12 @@ where
     let start = Instant::now();
     // catch_unwind so a panic increments RAYON_PANICKED before being re-raised. AssertUnwindSafe
     // is acceptable here because the only state we touch in the closure is local to it.
-    let result = catch_unwind(AssertUnwindSafe(f));
+    // RAYON_STARTED is bumped inside the closure so it reflects when rayon actually picked up
+    // the work — `submitted - started` ≈ queued tasks waiting for a worker.
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        RAYON_STARTED.fetch_add(1, Ordering::Relaxed);
+        f()
+    }));
     let elapsed_ms = start.elapsed().as_millis() as u64;
     RAYON_MERGE_WALL_MILLIS.fetch_add(elapsed_ms, Ordering::Relaxed);
 
@@ -111,7 +139,10 @@ where
             RAYON_COMPLETED.fetch_add(1, Ordering::Relaxed);
             Ok(r)
         }
-        Ok(Err(e)) => Err(e),
+        Ok(Err(e)) => {
+            RAYON_FAILED.fetch_add(1, Ordering::Relaxed);
+            Err(e)
+        }
         Err(panic_payload) => {
             RAYON_PANICKED.fetch_add(1, Ordering::Relaxed);
             std::panic::resume_unwind(panic_payload);

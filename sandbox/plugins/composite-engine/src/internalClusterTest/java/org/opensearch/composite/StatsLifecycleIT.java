@@ -73,6 +73,8 @@ public class StatsLifecycleIT extends BaseStatsIT {
         Map<String, Object> l3 = luceneIndexStats("lifecycle-idx");
         assertCounterAtLeast("stage 3 lucene flush", l3, "indices.lifecycle-idx.flush.flush_total", 1L);
         assertCounterAtLeast("stage 3 lucene commit", l3, "indices.lifecycle-idx.commit.commit_total", 1L);
+        // commit_failures must stay 0 in the happy path.
+        assertCounter("stage 3 lucene commit_failures", l3, "indices.lifecycle-idx.commit.commit_failures", 0L);
 
         // Stage 4 — index 4 more batches with refresh between each, to produce 5 parquet files total.
         // Multiple parquet files are needed for force_merge to actually invoke a parquet merge:
@@ -95,6 +97,27 @@ public class StatsLifecycleIT extends BaseStatsIT {
             assertCounterAtLeast("stage 5 parquet merge_total", r5, "indices.lifecycle-idx.merge.merge_total", 1L);
             assertCounterAtLeast("stage 5 parquet merge_input_files", r5, "indices.lifecycle-idx.merge.merge_input_files_total", 2L);
             assertCounter("stage 5 parquet merge_failures", r5, "indices.lifecycle-idx.merge.merge_failures", 0L);
+            // per-shard merge metrics — must populate after force_merge runs at least one merge.
+            assertCounterAtLeast(
+                "stage 5 parquet flush_and_sort_chunk_total",
+                r5,
+                "indices.lifecycle-idx.merge.flush_and_sort_chunk_total",
+                1L
+            );
+            assertCounterAtLeast(
+                "stage 5 parquet flush_and_sort_chunk_time_millis",
+                r5,
+                "indices.lifecycle-idx.merge.flush_and_sort_chunk_time_millis",
+                0L
+            );
+            // row_id_mapping_max equals the largest merge output's row count for this shard;
+            // after merging 5 batches of 40 docs (=260 total) on a single-shard index, max is 260.
+            assertCounter(
+                "stage 5 parquet row_id_mapping_max equals merged row count",
+                r5,
+                "indices.lifecycle-idx.merge.row_id_mapping_max",
+                260L
+            );
             Map<String, Object> l5 = luceneIndexStats("lifecycle-idx");
             // Note: lucene.merge.merge_total stays 0 in the composite-engine flow because the
             // lucene secondary uses flush+addIndexes (not standalone IndexWriter.maybeMerge()).

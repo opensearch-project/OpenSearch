@@ -49,6 +49,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
     // Commit
     private final long commitTotal;
     private final long commitTimeMillis;
+    private final long commitFailures;
 
     // Delete
     private final long deleteTotal;
@@ -59,7 +60,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
      * Used by transport actions when a shard does not have a Lucene secondary delegate.
      */
     public static LuceneShardStats empty() {
-        return new LuceneShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return new LuceneShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     /**
@@ -81,6 +82,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
         long mergeFailures,
         long commitTotal,
         long commitTimeMillis,
+        long commitFailures,
         long deleteTotal,
         long deleteTimeMillis
     ) {
@@ -99,6 +101,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
         this.mergeFailures = mergeFailures;
         this.commitTotal = commitTotal;
         this.commitTimeMillis = commitTimeMillis;
+        this.commitFailures = commitFailures;
         this.deleteTotal = deleteTotal;
         this.deleteTimeMillis = deleteTimeMillis;
     }
@@ -128,6 +131,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
         // Commit
         this.commitTotal = in.readVLong();
         this.commitTimeMillis = in.readVLong();
+        this.commitFailures = in.readVLong();
 
         // Delete
         this.deleteTotal = in.readVLong();
@@ -160,6 +164,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
         // Commit
         out.writeVLong(commitTotal);
         out.writeVLong(commitTimeMillis);
+        out.writeVLong(commitFailures);
 
         // Delete
         out.writeVLong(deleteTotal);
@@ -201,6 +206,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
         builder.startObject("commit");
         builder.field("commit_total", commitTotal);
         builder.field("commit_time_millis", commitTimeMillis);
+        builder.field("commit_failures", commitFailures);
         builder.endObject();
 
         // Delete
@@ -234,6 +240,7 @@ public class LuceneShardStats implements DataFormatShardStats<LuceneShardStats> 
             this.mergeFailures + other.mergeFailures,
             this.commitTotal + other.commitTotal,
             this.commitTimeMillis + other.commitTimeMillis,
+            this.commitFailures + other.commitFailures,
             this.deleteTotal + other.deleteTotal,
             this.deleteTimeMillis + other.deleteTimeMillis
         );

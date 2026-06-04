@@ -148,6 +148,17 @@ public class StatsManualValidationIT extends BaseStatsIT {
             "parquet.merge.merge_output_rows_total == 260",
             getCounter(p5, "indices." + idx + ".merge.merge_output_rows_total") == 260L
         );
+        // — per-shard flush_and_sort_chunk and row_id_mapping_max
+        printAssertion(
+            "parquet.merge.flush_and_sort_chunk_total >= 1",
+            getCounter(p5, "indices." + idx + ".merge.flush_and_sort_chunk_total") >= 1L
+        );
+        printAssertion(
+            "parquet.merge.flush_and_sort_chunk_time_millis >= 0",
+            getCounter(p5, "indices." + idx + ".merge.flush_and_sort_chunk_time_millis") >= 0L
+        );
+        printAssertion("parquet.merge.row_id_mapping_max == 260", getCounter(p5, "indices." + idx + ".merge.row_id_mapping_max") == 260L);
+        printAssertion("lucene.commit.commit_failures == 0", getCounter(l5, "indices." + idx + ".commit.commit_failures") == 0L);
         printAssertion("parquet.merge.merge_failures == 0", getCounter(p5, "indices." + idx + ".merge.merge_failures") == 0L);
         // Note: lucene.merge.merge_total stays 0 in composite-engine flow because the
         // lucene secondary uses flush+addIndexes (not standalone IndexWriter.maybeMerge).
@@ -168,8 +179,8 @@ public class StatsManualValidationIT extends BaseStatsIT {
         Map<String, Object> firstNode = (Map<String, Object>) nodes.values().iterator().next();
         printAssertion("native_runtime block present at node level", firstNode.containsKey("native_runtime"));
         Map<String, Object> nativeRuntime = (Map<String, Object>) firstNode.get("native_runtime");
-        Map<String, Object> rayon = (Map<String, Object>) nativeRuntime.get("rayon");
-        Map<String, Object> tokio = (Map<String, Object>) nativeRuntime.get("tokio");
+        Map<String, Object> rayon = (Map<String, Object>) nativeRuntime.get("parquet_merge");
+        Map<String, Object> tokio = (Map<String, Object>) nativeRuntime.get("parquet_io");
         printAssertion("rayon.configured_threads > 0", ((Number) rayon.get("configured_threads")).longValue() > 0);
         printAssertion("rayon.merge_tasks_submitted >= 1", ((Number) rayon.get("merge_tasks_submitted")).longValue() >= 1);
         printAssertion("rayon.merge_tasks_completed >= 1", ((Number) rayon.get("merge_tasks_completed")).longValue() >= 1);

@@ -53,6 +53,11 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
     private final long mergeFailures;
     private final long mergeInputFilesTotal;
     private final long mergeOutputRowsTotal;
+    // Per-merge: cumulative count + millis for the flush+sort+chunk pass that runs inside each merge.
+    private final long flushAndSortChunkTotal;
+    private final long flushAndSortChunkTimeMillis;
+    // Highest row_id assigned during any merge of this shard (max-of-maxes when cross-aggregated).
+    private final long rowIdMappingMax;
 
     // Background Write
     private final long backgroundWriteTotal;
@@ -69,7 +74,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
      * Used by transport actions when a shard does not have a Parquet primary delegate.
      */
     public static ParquetShardStats empty() {
-        return new ParquetShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return new ParquetShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     /**
@@ -93,6 +98,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long mergeFailures,
         long mergeInputFilesTotal,
         long mergeOutputRowsTotal,
+        long flushAndSortChunkTotal,
+        long flushAndSortChunkTimeMillis,
+        long rowIdMappingMax,
         long backgroundWriteTotal,
         long backgroundWriteWaitMillis,
         long backgroundWriteTimeouts,
@@ -116,6 +124,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             mergeFailures,
             mergeInputFilesTotal,
             mergeOutputRowsTotal,
+            flushAndSortChunkTotal,
+            flushAndSortChunkTimeMillis,
+            rowIdMappingMax,
             backgroundWriteTotal,
             backgroundWriteWaitMillis,
             backgroundWriteTimeouts,
@@ -145,6 +156,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long mergeFailures,
         long mergeInputFilesTotal,
         long mergeOutputRowsTotal,
+        long flushAndSortChunkTotal,
+        long flushAndSortChunkTimeMillis,
+        long rowIdMappingMax,
         long backgroundWriteTotal,
         long backgroundWriteWaitMillis,
         long backgroundWriteTimeouts,
@@ -168,6 +182,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.mergeFailures = mergeFailures;
         this.mergeInputFilesTotal = mergeInputFilesTotal;
         this.mergeOutputRowsTotal = mergeOutputRowsTotal;
+        this.flushAndSortChunkTotal = flushAndSortChunkTotal;
+        this.flushAndSortChunkTimeMillis = flushAndSortChunkTimeMillis;
+        this.rowIdMappingMax = rowIdMappingMax;
         this.backgroundWriteTotal = backgroundWriteTotal;
         this.backgroundWriteWaitMillis = backgroundWriteWaitMillis;
         this.backgroundWriteTimeouts = backgroundWriteTimeouts;
@@ -200,6 +217,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.mergeFailures = in.readVLong();
         this.mergeInputFilesTotal = in.readVLong();
         this.mergeOutputRowsTotal = in.readVLong();
+        this.flushAndSortChunkTotal = in.readVLong();
+        this.flushAndSortChunkTimeMillis = in.readVLong();
+        this.rowIdMappingMax = in.readVLong();
 
         // Background Write
         this.backgroundWriteTotal = in.readVLong();
@@ -237,6 +257,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         out.writeVLong(mergeFailures);
         out.writeVLong(mergeInputFilesTotal);
         out.writeVLong(mergeOutputRowsTotal);
+        out.writeVLong(flushAndSortChunkTotal);
+        out.writeVLong(flushAndSortChunkTimeMillis);
+        out.writeVLong(rowIdMappingMax);
 
         // Background Write
         out.writeVLong(backgroundWriteTotal);
@@ -281,6 +304,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         builder.field("merge_failures", mergeFailures);
         builder.field("merge_input_files_total", mergeInputFilesTotal);
         builder.field("merge_output_rows_total", mergeOutputRowsTotal);
+        builder.field("flush_and_sort_chunk_total", flushAndSortChunkTotal);
+        builder.field("flush_and_sort_chunk_time_millis", flushAndSortChunkTimeMillis);
+        builder.field("row_id_mapping_max", rowIdMappingMax);
         builder.endObject();
 
         // Background Write
@@ -323,6 +349,10 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             this.mergeFailures + other.mergeFailures,
             this.mergeInputFilesTotal + other.mergeInputFilesTotal,
             this.mergeOutputRowsTotal + other.mergeOutputRowsTotal,
+            this.flushAndSortChunkTotal + other.flushAndSortChunkTotal,
+            this.flushAndSortChunkTimeMillis + other.flushAndSortChunkTimeMillis,
+            // row_id_mapping_max composes as max-of-maxes (sum is meaningless for a max).
+            Math.max(this.rowIdMappingMax, other.rowIdMappingMax),
             this.backgroundWriteTotal + other.backgroundWriteTotal,
             this.backgroundWriteWaitMillis + other.backgroundWriteWaitMillis,
             this.backgroundWriteTimeouts + other.backgroundWriteTimeouts,
@@ -354,6 +384,9 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             mergeFailures,
             mergeInputFilesTotal,
             mergeOutputRowsTotal,
+            flushAndSortChunkTotal,
+            flushAndSortChunkTimeMillis,
+            rowIdMappingMax,
             backgroundWriteTotal,
             backgroundWriteWaitMillis,
             backgroundWriteTimeouts,

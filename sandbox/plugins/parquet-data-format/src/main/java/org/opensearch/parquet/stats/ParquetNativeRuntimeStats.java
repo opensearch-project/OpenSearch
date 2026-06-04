@@ -33,12 +33,14 @@ import java.io.IOException;
 public final class ParquetNativeRuntimeStats implements Writeable, ToXContentFragment {
 
     /** Number of long values in the FFM array returned by {@code RustBridge.collectRuntimeMetrics()}. */
-    public static final int FIELD_COUNT = 11;
+    public static final int FIELD_COUNT = 17;
 
     // Rayon merge pool state
     private final long rayonConfiguredThreads;
     private final long rayonMergeTasksSubmitted;
+    private final long rayonMergeTasksStarted;
     private final long rayonMergeTasksCompleted;
+    private final long rayonMergeTasksFailed;
     private final long rayonMergeTasksPanicked;
     private final long rayonMergeWallMillis;
 
@@ -47,31 +49,47 @@ public final class ParquetNativeRuntimeStats implements Writeable, ToXContentFra
     private final long tokioNumBlockingThreads;
     private final long tokioActiveTasks;
     private final long tokioGlobalQueueDepth;
+    private final long tokioBlockingQueueDepth;
+    private final long tokioLocalQueueDepthTotal;
+    private final long tokioPollsCountTotal;
+    private final long tokioOverflowCountTotal;
     private final long tokioSpawnedTasksTotal;
     private final long tokioWorkersBusyMillisTotal;
 
     public ParquetNativeRuntimeStats(
         long rayonConfiguredThreads,
         long rayonMergeTasksSubmitted,
+        long rayonMergeTasksStarted,
         long rayonMergeTasksCompleted,
+        long rayonMergeTasksFailed,
         long rayonMergeTasksPanicked,
         long rayonMergeWallMillis,
         long tokioNumWorkers,
         long tokioNumBlockingThreads,
         long tokioActiveTasks,
         long tokioGlobalQueueDepth,
+        long tokioBlockingQueueDepth,
+        long tokioLocalQueueDepthTotal,
+        long tokioPollsCountTotal,
+        long tokioOverflowCountTotal,
         long tokioSpawnedTasksTotal,
         long tokioWorkersBusyMillisTotal
     ) {
         this.rayonConfiguredThreads = rayonConfiguredThreads;
         this.rayonMergeTasksSubmitted = rayonMergeTasksSubmitted;
+        this.rayonMergeTasksStarted = rayonMergeTasksStarted;
         this.rayonMergeTasksCompleted = rayonMergeTasksCompleted;
+        this.rayonMergeTasksFailed = rayonMergeTasksFailed;
         this.rayonMergeTasksPanicked = rayonMergeTasksPanicked;
         this.rayonMergeWallMillis = rayonMergeWallMillis;
         this.tokioNumWorkers = tokioNumWorkers;
         this.tokioNumBlockingThreads = tokioNumBlockingThreads;
         this.tokioActiveTasks = tokioActiveTasks;
         this.tokioGlobalQueueDepth = tokioGlobalQueueDepth;
+        this.tokioBlockingQueueDepth = tokioBlockingQueueDepth;
+        this.tokioLocalQueueDepthTotal = tokioLocalQueueDepthTotal;
+        this.tokioPollsCountTotal = tokioPollsCountTotal;
+        this.tokioOverflowCountTotal = tokioOverflowCountTotal;
         this.tokioSpawnedTasksTotal = tokioSpawnedTasksTotal;
         this.tokioWorkersBusyMillisTotal = tokioWorkersBusyMillisTotal;
     }
@@ -79,13 +97,19 @@ public final class ParquetNativeRuntimeStats implements Writeable, ToXContentFra
     public ParquetNativeRuntimeStats(StreamInput in) throws IOException {
         this.rayonConfiguredThreads = in.readVLong();
         this.rayonMergeTasksSubmitted = in.readVLong();
+        this.rayonMergeTasksStarted = in.readVLong();
         this.rayonMergeTasksCompleted = in.readVLong();
+        this.rayonMergeTasksFailed = in.readVLong();
         this.rayonMergeTasksPanicked = in.readVLong();
         this.rayonMergeWallMillis = in.readVLong();
         this.tokioNumWorkers = in.readVLong();
         this.tokioNumBlockingThreads = in.readVLong();
         this.tokioActiveTasks = in.readVLong();
         this.tokioGlobalQueueDepth = in.readVLong();
+        this.tokioBlockingQueueDepth = in.readVLong();
+        this.tokioLocalQueueDepthTotal = in.readVLong();
+        this.tokioPollsCountTotal = in.readVLong();
+        this.tokioOverflowCountTotal = in.readVLong();
         this.tokioSpawnedTasksTotal = in.readVLong();
         this.tokioWorkersBusyMillisTotal = in.readVLong();
     }
@@ -94,13 +118,19 @@ public final class ParquetNativeRuntimeStats implements Writeable, ToXContentFra
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(rayonConfiguredThreads);
         out.writeVLong(rayonMergeTasksSubmitted);
+        out.writeVLong(rayonMergeTasksStarted);
         out.writeVLong(rayonMergeTasksCompleted);
+        out.writeVLong(rayonMergeTasksFailed);
         out.writeVLong(rayonMergeTasksPanicked);
         out.writeVLong(rayonMergeWallMillis);
         out.writeVLong(tokioNumWorkers);
         out.writeVLong(tokioNumBlockingThreads);
         out.writeVLong(tokioActiveTasks);
         out.writeVLong(tokioGlobalQueueDepth);
+        out.writeVLong(tokioBlockingQueueDepth);
+        out.writeVLong(tokioLocalQueueDepthTotal);
+        out.writeVLong(tokioPollsCountTotal);
+        out.writeVLong(tokioOverflowCountTotal);
         out.writeVLong(tokioSpawnedTasksTotal);
         out.writeVLong(tokioWorkersBusyMillisTotal);
     }
@@ -108,18 +138,32 @@ public final class ParquetNativeRuntimeStats implements Writeable, ToXContentFra
     @Override
     public XContentBuilder toXContent(XContentBuilder b, Params p) throws IOException {
         b.startObject("native_runtime");
-        b.startObject("rayon");
+        b.startObject("parquet_merge");
         b.field("configured_threads", rayonConfiguredThreads);
         b.field("merge_tasks_submitted", rayonMergeTasksSubmitted);
+        b.field("merge_tasks_started", rayonMergeTasksStarted);
         b.field("merge_tasks_completed", rayonMergeTasksCompleted);
+        b.field("merge_tasks_failed", rayonMergeTasksFailed);
         b.field("merge_tasks_panicked", rayonMergeTasksPanicked);
         b.field("merge_wall_millis", rayonMergeWallMillis);
+        // Derived: tasks queued but not yet picked up by a worker.
+        // Clamped to 0 to handle racy reads where started briefly exceeds submitted.
+        b.field("merge_tasks_queue_depth", Math.max(0L, rayonMergeTasksSubmitted - rayonMergeTasksStarted));
+        // Derived: tasks currently executing (started but not yet completed/failed/panicked).
+        b.field(
+            "merge_tasks_in_flight",
+            Math.max(0L, rayonMergeTasksStarted - rayonMergeTasksCompleted - rayonMergeTasksFailed - rayonMergeTasksPanicked)
+        );
         b.endObject();
-        b.startObject("tokio");
+        b.startObject("parquet_io");
         b.field("num_workers", tokioNumWorkers);
         b.field("num_blocking_threads", tokioNumBlockingThreads);
         b.field("active_tasks", tokioActiveTasks);
         b.field("global_queue_depth", tokioGlobalQueueDepth);
+        b.field("blocking_queue_depth", tokioBlockingQueueDepth);
+        b.field("local_queue_depth_total", tokioLocalQueueDepthTotal);
+        b.field("polls_count_total", tokioPollsCountTotal);
+        b.field("overflow_count_total", tokioOverflowCountTotal);
         b.field("spawned_tasks_total", tokioSpawnedTasksTotal);
         b.field("workers_busy_millis_total", tokioWorkersBusyMillisTotal);
         b.endObject();
@@ -133,15 +177,21 @@ public final class ParquetNativeRuntimeStats implements Writeable, ToXContentFra
      * <pre>
      *   [0]  rayon_configured_threads
      *   [1]  rayon_merge_tasks_submitted
-     *   [2]  rayon_merge_tasks_completed
-     *   [3]  rayon_merge_tasks_panicked
-     *   [4]  rayon_merge_wall_millis
-     *   [5]  tokio_num_workers
-     *   [6]  tokio_num_blocking_threads
-     *   [7]  tokio_active_tasks
-     *   [8]  tokio_global_queue_depth
-     *   [9]  tokio_spawned_tasks_total
-     *   [10] tokio_workers_busy_millis_total
+     *   [2]  rayon_merge_tasks_started
+     *   [3]  rayon_merge_tasks_completed
+     *   [4]  rayon_merge_tasks_failed
+     *   [5]  rayon_merge_tasks_panicked
+     *   [6]  rayon_merge_wall_millis
+     *   [7]  tokio_num_workers
+     *   [8]  tokio_num_blocking_threads
+     *   [9]  tokio_active_tasks
+     *   [10] tokio_global_queue_depth
+     *   [11] tokio_blocking_queue_depth
+     *   [12] tokio_local_queue_depth_total
+     *   [13] tokio_polls_count_total
+     *   [14] tokio_overflow_count_total
+     *   [15] tokio_spawned_tasks_total
+     *   [16] tokio_workers_busy_millis_total
      * </pre>
      */
     public static ParquetNativeRuntimeStats fromArray(long[] arr) {
@@ -153,7 +203,25 @@ public final class ParquetNativeRuntimeStats implements Writeable, ToXContentFra
                     + (arr == null ? "null" : Integer.toString(arr.length))
             );
         }
-        return new ParquetNativeRuntimeStats(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7], arr[8], arr[9], arr[10]);
+        return new ParquetNativeRuntimeStats(
+            arr[0],
+            arr[1],
+            arr[2],
+            arr[3],
+            arr[4],
+            arr[5],
+            arr[6],
+            arr[7],
+            arr[8],
+            arr[9],
+            arr[10],
+            arr[11],
+            arr[12],
+            arr[13],
+            arr[14],
+            arr[15],
+            arr[16]
+        );
     }
 
 }

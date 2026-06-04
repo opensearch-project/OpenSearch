@@ -487,6 +487,10 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_gen_offsets_ptr: *mut i64,
     out_gen_sizes_ptr: *mut i64,
     out_gen_count: *mut i64,
+    // Per-merge stats forwarded to the per-shard ParquetShardStatsTracker on the Java side.
+    out_flush_and_sort_chunk_count: *mut i64,
+    out_flush_and_sort_chunk_time_millis: *mut i64,
+    out_row_id_mapping_max: *mut i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -559,6 +563,11 @@ pub unsafe extern "C" fn parquet_merge_files(
     *out_gen_keys_ptr = Box::into_raw(keys) as *mut i64 as i64;
     *out_gen_offsets_ptr = Box::into_raw(offsets) as *mut i32 as i64;
     *out_gen_sizes_ptr = Box::into_raw(sizes) as *mut i32 as i64;
+
+    // Per-merge stats out-pointers — callers always pass valid pointers (matches existing convention).
+    *out_flush_and_sort_chunk_count = result.flush_and_sort_chunk_count;
+    *out_flush_and_sort_chunk_time_millis = result.flush_and_sort_chunk_time_millis;
+    *out_row_id_mapping_max = result.row_id_mapping_max;
 
     Ok(0)
 }
@@ -703,26 +712,32 @@ pub unsafe extern "C" fn parquet_collect_runtime_metrics(
     if out_buf.is_null() {
         return Err("parquet_collect_runtime_metrics: null out_buf".to_string());
     }
-    if out_len < 11 {
+    if out_len < 17 {
         return Err(format!(
-            "parquet_collect_runtime_metrics: out_len {} < 11",
+            "parquet_collect_runtime_metrics: out_len {} < 17",
             out_len
         ));
     }
     let s = crate::merge::metrics::collect();
-    let arr: [i64; 11] = [
+    let arr: [i64; 17] = [
         s.rayon_configured_threads,
         s.rayon_merge_tasks_submitted,
+        s.rayon_merge_tasks_started,
         s.rayon_merge_tasks_completed,
+        s.rayon_merge_tasks_failed,
         s.rayon_merge_tasks_panicked,
         s.rayon_merge_wall_millis,
         s.tokio_num_workers,
         s.tokio_num_blocking_threads,
         s.tokio_active_tasks,
         s.tokio_global_queue_depth,
+        s.tokio_blocking_queue_depth,
+        s.tokio_local_queue_depth_total,
+        s.tokio_polls_count_total,
+        s.tokio_overflow_count_total,
         s.tokio_spawned_tasks_total,
         s.tokio_workers_busy_millis_total,
     ];
-    std::ptr::copy_nonoverlapping(arr.as_ptr(), out_buf, 11);
+    std::ptr::copy_nonoverlapping(arr.as_ptr(), out_buf, 17);
     Ok(0)
 }

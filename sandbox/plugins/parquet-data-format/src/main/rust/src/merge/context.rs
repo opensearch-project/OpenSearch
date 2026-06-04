@@ -45,6 +45,10 @@ pub struct MergeContext {
     next_row_id: i64,
     total_rows_written: usize,
     rayon_threads: Option<usize>,
+    // Per-merge counters returned via `finish()` and forwarded to the per-shard tracker on the
+    // Java side (see NativeParquetMergeStrategy + ParquetShardStatsTracker).
+    flush_and_sort_chunk_count: i64,
+    flush_and_sort_chunk_time_millis: i64,
 }
 
 impl MergeContext {
@@ -121,6 +125,8 @@ impl MergeContext {
             next_row_id: 0,
             total_rows_written: 0,
             rayon_threads,
+            flush_and_sort_chunk_count: 0,
+            flush_and_sort_chunk_time_millis: 0,
         })
     }
 
@@ -145,6 +151,7 @@ impl MergeContext {
         if self.output_chunks.is_empty() {
             return Ok(());
         }
+        let flush_start = std::time::Instant::now();
 
         let merged = if self.output_chunks.len() == 1 {
             self.output_chunks.pop().unwrap()
@@ -208,6 +215,8 @@ impl MergeContext {
             self.total_rows_written
         );
 
+        self.flush_and_sort_chunk_count += 1;
+        self.flush_and_sort_chunk_time_millis += flush_start.elapsed().as_millis() as i64;
         Ok(())
     }
 
@@ -243,9 +252,14 @@ impl MergeContext {
         Ok(paired)
     }
 
-    /// Final flush + close the IO task. Returns Parquet metadata and CRC32.
-    pub fn finish(mut self) -> MergeResult<(parquet::file::metadata::ParquetMetaData, u32)> {
+    /// Final flush + close the IO task. Returns Parquet metadata, CRC32, and per-merge stats
+    /// to be forwarded to the per-shard tracker on the Java side.
+    pub fn finish(mut self) -> MergeResult<MergeFinishStats> {
         self.flush()?;
+        // Capture the per-merge counters BEFORE moving `self` into the IO send below.
+        let final_row_id_max = self.next_row_id;
+        let flush_count = self.flush_and_sort_chunk_count;
+        let flush_time_millis = self.flush_and_sort_chunk_time_millis;
 
         let (reply_tx, reply_rx) =
             oneshot::channel::<MergeResult<(parquet::file::metadata::ParquetMetaData, u32)>>();
@@ -256,8 +270,27 @@ impl MergeContext {
 
         drop(self.io_tx);
 
-        reply_rx
+        let (metadata, crc32) = reply_rx
             .blocking_recv()
-            .map_err(|_| MergeError::Logic("IO task terminated during close".into()))?
+            .map_err(|_| MergeError::Logic("IO task terminated during close".into()))??;
+
+        Ok(MergeFinishStats {
+            metadata,
+            crc32,
+            flush_and_sort_chunk_count: flush_count,
+            flush_and_sort_chunk_time_millis: flush_time_millis,
+            row_id_mapping_max: final_row_id_max,
+        })
     }
+}
+
+/// Result returned from `MergeContext::finish()`.
+/// Carries the parquet metadata + CRC plus per-merge stat counters that the caller
+/// forwards to the per-shard `ParquetShardStatsTracker`.
+pub struct MergeFinishStats {
+    pub metadata: parquet::file::metadata::ParquetMetaData,
+    pub crc32: u32,
+    pub flush_and_sort_chunk_count: i64,
+    pub flush_and_sort_chunk_time_millis: i64,
+    pub row_id_mapping_max: i64,
 }
