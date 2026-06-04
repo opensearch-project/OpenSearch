@@ -11,12 +11,9 @@ package org.opensearch.analytics.qa;
 import org.opensearch.client.Request;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Filter-delegation matrix IT. Walks every enabled {@link Shape} through the
@@ -43,31 +40,6 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
      */
     private static final ExpectedResponseStrategy STRATEGY = ExpectedResponseStrategy.FAIL_ON_MISSING;
 
-    /**
-     * Shapes intentionally not exercised in the current run. Logged at the start of the
-     * driver.
-     *
-     * <p>The 4 shapes that hit the {@code ClassCastException} at
-     * {@code DelegatedPredicateCombiner.makePlaceholder:294} are temporarily skipped here
-     * so the IT goes green end-to-end. Re-enable them by removing from this set once the
-     * combiner bug is fixed (or sooner if you want CI to mark the bug as load-bearing).
-     *
-     * <p>Currently red:
-     * <ul>
-     *   <li>{@link Shape#AND_DUAL_DUAL} (q4) — fails on {@code prefer=false,fuse=false}.</li>
-     *   <li>{@link Shape#AND_DUAL_DUAL_DUAL} (q16) — same.</li>
-     *   <li>{@link Shape#MIXED_OR_OF_ANDS_OF_DUALS} (q33) — same; canonical Bug-2 marker.</li>
-     *   <li>{@link Shape#MIXED_OR_OF_AND_OF_DUALS_AND_NATIVE} (q37) — fails on BOTH
-     *       {@code fuse=false} cells regardless of {@code prefer}.</li>
-     * </ul>
-     */
-    private static final Set<Shape> SKIP_SHAPES = EnumSet.of(
-        Shape.AND_DUAL_DUAL,
-        Shape.AND_DUAL_DUAL_DUAL,
-        Shape.MIXED_OR_OF_ANDS_OF_DUALS,
-        Shape.MIXED_OR_OF_AND_OF_DUALS_AND_NATIVE
-    );
-
     private static boolean dataProvisioned = false;
 
     @Override
@@ -78,37 +50,67 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
         }
     }
 
-    /**
-     * Single driver — runs every {@link Shape} not in {@link #SKIP_SHAPES}, accumulates
-     * failures, and reports them all at the end so one bad shape doesn't hide the
-     * rest. Skipped shapes are logged at the start.
-     */
-    public void testFilterDelegationMatrix() throws Exception {
-        if (SKIP_SHAPES.isEmpty() == false) {
-            logger.warn("Skipping {} shape(s) via SKIP_SHAPES: {}", SKIP_SHAPES.size(), SKIP_SHAPES);
-        }
-
-        List<String> failures = new ArrayList<>();
+    @Override
+    public void tearDown() throws Exception {
+        // Restore defaults so a test that toggled {prefer,fuse} doesn't leak into the next.
         try {
-            for (Shape shape : Shape.values()) {
-                if (SKIP_SHAPES.contains(shape)) continue;
-                try {
-                    runShape(shape);
-                } catch (AssertionError e) {
-                    failures.add("[" + shape + "] " + e.getMessage());
-                } catch (Exception e) {
-                    failures.add("[" + shape + "] threw " + e.getClass().getSimpleName() + ": " + e.getMessage());
-                }
-            }
-        } finally {
-            setFuseDualViable(true);
             setPreferMetadataDriver(true);
-        }
-
-        if (failures.isEmpty() == false) {
-            fail("Filter delegation matrix had " + failures.size() + " failure(s):\n  " + String.join("\n  ", failures));
+            setFuseDualViable(true);
+        } finally {
+            super.tearDown();
         }
     }
+
+    /**
+     * One JUnit method per {@link Shape}. JUnit reports each independently, so a single
+     * failure doesn't hide the rest, and any one shape can be targeted with gradle's
+     * built-in {@code --tests "*FilterDelegationGoldenIT.testAndDualDual"} — no system
+     * properties or harness plumbing needed.
+     */
+    public void testSingleDual() throws Exception { runShape(Shape.SINGLE_DUAL); }
+    public void testSingleNative() throws Exception { runShape(Shape.SINGLE_NATIVE); }
+    public void testSingleDelegated() throws Exception { runShape(Shape.SINGLE_DELEGATED); }
+
+    public void testAndDualDual() throws Exception { runShape(Shape.AND_DUAL_DUAL); }
+    public void testAndNativeNative() throws Exception { runShape(Shape.AND_NATIVE_NATIVE); }
+    public void testAndDelegatedDelegated() throws Exception { runShape(Shape.AND_DELEGATED_DELEGATED); }
+    public void testAndDualNative() throws Exception { runShape(Shape.AND_DUAL_NATIVE); }
+    public void testAndDualDelegated() throws Exception { runShape(Shape.AND_DUAL_DELEGATED); }
+    public void testAndNativeDelegated() throws Exception { runShape(Shape.AND_NATIVE_DELEGATED); }
+
+    public void testOrDualDual() throws Exception { runShape(Shape.OR_DUAL_DUAL); }
+    public void testOrNativeNative() throws Exception { runShape(Shape.OR_NATIVE_NATIVE); }
+    public void testOrDelegatedDelegated() throws Exception { runShape(Shape.OR_DELEGATED_DELEGATED); }
+    public void testOrDualNative() throws Exception { runShape(Shape.OR_DUAL_NATIVE); }
+    public void testOrDualDelegated() throws Exception { runShape(Shape.OR_DUAL_DELEGATED); }
+    public void testOrNativeDelegated() throws Exception { runShape(Shape.OR_NATIVE_DELEGATED); }
+
+    public void testAndDualDualDual() throws Exception { runShape(Shape.AND_DUAL_DUAL_DUAL); }
+    public void testAndNativeNativeNative() throws Exception { runShape(Shape.AND_NATIVE_NATIVE_NATIVE); }
+    public void testAndDelegatedDelegatedDelegated() throws Exception { runShape(Shape.AND_DELEGATED_DELEGATED_DELEGATED); }
+    public void testAndDualDualDelegated() throws Exception { runShape(Shape.AND_DUAL_DUAL_DELEGATED); }
+    public void testAndDualDualNative() throws Exception { runShape(Shape.AND_DUAL_DUAL_NATIVE); }
+    public void testAndDelegatedDelegatedNative() throws Exception { runShape(Shape.AND_DELEGATED_DELEGATED_NATIVE); }
+    public void testAndDualDelegatedNative() throws Exception { runShape(Shape.AND_DUAL_DELEGATED_NATIVE); }
+
+    public void testOrDualDualDual() throws Exception { runShape(Shape.OR_DUAL_DUAL_DUAL); }
+    public void testOrNativeNativeNative() throws Exception { runShape(Shape.OR_NATIVE_NATIVE_NATIVE); }
+    public void testOrDelegatedDelegatedDelegated() throws Exception { runShape(Shape.OR_DELEGATED_DELEGATED_DELEGATED); }
+    public void testOrDualDualDelegated() throws Exception { runShape(Shape.OR_DUAL_DUAL_DELEGATED); }
+    public void testOrDualDualNative() throws Exception { runShape(Shape.OR_DUAL_DUAL_NATIVE); }
+    public void testOrDelegatedDelegatedNative() throws Exception { runShape(Shape.OR_DELEGATED_DELEGATED_NATIVE); }
+    public void testOrDualDelegatedNative() throws Exception { runShape(Shape.OR_DUAL_DELEGATED_NATIVE); }
+
+    public void testNotDual() throws Exception { runShape(Shape.NOT_DUAL); }
+    public void testNotNative() throws Exception { runShape(Shape.NOT_NATIVE); }
+    public void testNotDelegated() throws Exception { runShape(Shape.NOT_DELEGATED); }
+
+    public void testMixedOrOfAndsOfDuals() throws Exception { runShape(Shape.MIXED_OR_OF_ANDS_OF_DUALS); }
+    public void testMixedOrOfAndsOfDelegated() throws Exception { runShape(Shape.MIXED_OR_OF_ANDS_OF_DELEGATED); }
+    public void testMixedOrOfDualDelegatedAnds() throws Exception { runShape(Shape.MIXED_OR_OF_DUAL_DELEGATED_ANDS); }
+    public void testMixedAndOfDualDelegatedOrs() throws Exception { runShape(Shape.MIXED_AND_OF_DUAL_DELEGATED_ORS); }
+    public void testMixedOrOfAndOfDualsAndNative() throws Exception { runShape(Shape.MIXED_OR_OF_AND_OF_DUALS_AND_NATIVE); }
+    public void testMixedNotOfAndOfDuals() throws Exception { runShape(Shape.MIXED_NOT_OF_AND_OF_DUALS); }
 
     // =====================================================================
     // Shape catalogue — owns query number, per-cell ShardStage, and oracle
@@ -139,10 +141,9 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
             new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
 
         // Two-leaf AND (6)
-        // q4 — currently red on cell prefer=false,fuse=false (skipped). Other 3 cells captured.
         AND_DUAL_DUAL(4,
             new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            ChosenBackendandTreeShape.placeholder(), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
+            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
         AND_NATIVE_NATIVE(5,
             new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
             new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
@@ -180,10 +181,9 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
             new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
 
         // Three-leaf AND (7)
-        // q16 — currently red on cell prefer=false,fuse=false (skipped). Other 3 cells captured.
         AND_DUAL_DUAL_DUAL(16,
             new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            ChosenBackendandTreeShape.placeholder(), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
+            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
         AND_NATIVE_NATIVE_NATIVE(17,
             new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
             new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
@@ -238,12 +238,9 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
             new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
 
         // Mixed connectors, depth 2 (6)
-        /** Bug-2 marker: {@code OR(AND-of-Dual-leaves, AND-of-Dual-leaves)} threw
-         *  ClassCastException at {@code DelegatedPredicateCombiner.combine:136} when
-         *  {@code fuse_dual_viable=false}. Cell prefer=false,fuse=false skipped. */
         MIXED_OR_OF_ANDS_OF_DUALS(33,
             new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            ChosenBackendandTreeShape.placeholder(), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
+            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
         MIXED_OR_OF_ANDS_OF_DELEGATED(34,
             new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
             new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
@@ -253,10 +250,9 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
         MIXED_AND_OF_DUAL_DELEGATED_ORS(36,
             new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
             new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        // q37 — red on BOTH fuse=false cells. Both placeholder; fuse=true cells captured.
         MIXED_OR_OF_AND_OF_DUALS_AND_NATIVE(37,
-            ChosenBackendandTreeShape.placeholder(), ChosenBackendandTreeShape.placeholder(),
-            ChosenBackendandTreeShape.placeholder(), ChosenBackendandTreeShape.placeholder()),
+            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
+            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
         MIXED_NOT_OF_AND_OF_DUALS(38,
             new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
             new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null));
