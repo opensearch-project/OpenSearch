@@ -301,7 +301,7 @@ pub async fn execute_with_context(
                 cross_rt_stream.schema(),
                 cross_rt_stream,
             );
-            return Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64);
+            return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>((Box::into_raw(Box::new(wrapped)) as i64, None));
         }
 
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
@@ -312,7 +312,7 @@ pub async fn execute_with_context(
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
         log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
-        let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+        let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
             error!("execute_with_context: failed to create stream: {}", e);
             e
         })?;
@@ -329,10 +329,10 @@ pub async fn execute_with_context(
             cross_rt_stream,
         );
 
-        Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64)
+        Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>((Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)))
     };
 
-    let stream_ptr = crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
+    let (stream_ptr, physical_plan) = crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
         .await
         .map_err(|e| DataFusionError::Execution(e))?;
 
@@ -340,7 +340,10 @@ pub async fn execute_with_context(
     let stream = unsafe { *Box::from_raw(stream_ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<CrossRtStream>) };
     // Permit is held until the QueryStreamHandle is dropped (query complete).
     // If cancellation fires → stream drops → handle drops → permit drops → gate releases.
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit));
+    let stream_handle = match physical_plan {
+        Some(plan) => crate::api::QueryStreamHandle::with_physical_plan(stream, handle.query_context, handle.ctx, Some(permit), plan),
+        None => crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit)),
+    };
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }
 
