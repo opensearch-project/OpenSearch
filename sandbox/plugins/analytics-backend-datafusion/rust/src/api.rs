@@ -311,6 +311,10 @@ pub fn create_global_runtime(
     // "DiskManager is disabled" error instead of writing to an unintended path.
     let disk_manager = if spill_dir.is_empty() {
         log::info!("DataFusion spill disabled (datafusion.spill_directory not set)");
+        // Mark spill explicitly disabled so per_query_spill_budget short-circuits
+        // before touching SPILL_DIR. Without this, an unset OnceLock would surface
+        // as a phantom "disk pressure" signal and clamp every query to 1 partition.
+        crate::memory_guard::mark_spill_disabled();
         DiskManagerBuilder::default().with_mode(DiskManagerMode::Disabled)
     } else {
         let effective_spill_limit = if spill_limit == 0 {
@@ -528,14 +532,14 @@ pub async unsafe fn execute_query(
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
-    // Check disk pressure: if spill space is critically low, reduce parallelism
-    // to minimize spill volume per query. One statvfs call (~1µs).
-    let disk_budget = crate::memory_guard::per_query_spill_budget();
-    let disk_capped_partitions = if disk_budget.is_none() {
-        // Critically low disk — minimize parallelism to reduce spill
-        1
-    } else {
-        query_config.target_partitions
+    // Check disk pressure: when spill is on and disk is dangerously low, reduce
+    // parallelism so each query produces less spill volume. When spill is off, disk
+    // health is irrelevant — there is no spill to throttle, so parallelism stays at
+    // the configured value. One statvfs call (~1µs) only on the enabled path.
+    let disk_capped_partitions = match crate::memory_guard::per_query_spill_budget() {
+        crate::memory_guard::SpillBudget::Critical => 1,
+        crate::memory_guard::SpillBudget::Disabled
+        | crate::memory_guard::SpillBudget::Available(_) => query_config.target_partitions,
     };
 
     // Acquire memory budget: reserve phantom for untracked memory.
@@ -1565,18 +1569,32 @@ mod tests {
     use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
     use arrow_schema::{Field, Schema};
 
+    /// Shared lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR
+    /// or that observe the global runtime state from `create_global_runtime`. cargo test
+    /// runs tests in parallel by default; without serialization, two runtime-construction
+    /// tests would race on these globals and produce flaky assertions.
+    static SPILL_GLOBALS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn create_global_runtime_with_empty_spill_dir_disables_disk_manager() {
         // Empty spill_dir is the "disabled" sentinel from Java. The runtime must build
         // successfully and the DiskManager must report tmp_files_enabled() == false so
         // any spill attempt surfaces the upstream "DiskManager is disabled" error
-        // instead of writing to an unintended path.
+        // instead of writing to an unintended path. Construction must also flip the
+        // memory_guard SPILL_ENABLED flag off so per_query_spill_budget returns
+        // Disabled (not Critical) — preventing the 1-partition clamp.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
         assert!(
             !runtime.runtime_env.disk_manager.tmp_files_enabled(),
             "expected DiskManagerMode::Disabled when spill_dir is empty"
+        );
+        assert_eq!(
+            crate::memory_guard::per_query_spill_budget(),
+            crate::memory_guard::SpillBudget::Disabled,
+            "spill-disabled runtime must surface SpillBudget::Disabled (not Critical) so the caller does not clamp parallelism"
         );
         unsafe { close_global_runtime(ptr) };
     }
@@ -1585,7 +1603,11 @@ mod tests {
     fn create_global_runtime_with_spill_dir_enables_disk_manager() {
         // Non-empty spill_dir takes the Directories(...) path. tmp_files_enabled() must
         // be true so spill attempts succeed. Passing spill_limit=0 also exercises the
-        // dynamic-limit resolver (resolve_dynamic_spill_limit + set_spill_dir).
+        // dynamic-limit resolver (resolve_dynamic_spill_limit + set_spill_dir). The
+        // budget must NOT be Disabled — set_spill_dir flips SPILL_ENABLED on. Whether
+        // it's Available or Critical depends on the test host's free disk; both prove
+        // the enabled-path branch is taken.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
@@ -1594,6 +1616,11 @@ mod tests {
         assert!(
             runtime.runtime_env.disk_manager.tmp_files_enabled(),
             "expected DiskManagerMode::Directories when spill_dir is set"
+        );
+        assert_ne!(
+            crate::memory_guard::per_query_spill_budget(),
+            crate::memory_guard::SpillBudget::Disabled,
+            "spill-enabled runtime must NOT surface SpillBudget::Disabled"
         );
         unsafe { close_global_runtime(ptr) };
     }
