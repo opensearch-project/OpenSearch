@@ -123,6 +123,23 @@ fn widen_schema_from_plan(
         .unwrap_or_else(|| Arc::clone(inferred))
 }
 
+/// Resolves the name to register the shard's table under so the Substrait plan's `NamedTable`
+/// binds against it.
+///
+/// ALWAYS the planner's logical table name (alias / index pattern / index), which the coordinator
+/// captured from the plan's table-scan leaf and ships explicitly as `logicalTableName` on the
+/// shard-scan instruction node (see `ShardScanWithDelegationHandler`).
+///
+/// `plan_bytes` is intentionally IGNORED. Reverse-engineering the name from the plan (the removed
+/// `crate::api::first_named_table_name` approach upstream's #21822 originally used) is unreliable:
+/// a fragment's first `NamedTable` read can be a stage placeholder (`input-7`, `broadcast-N`)
+/// rather than the real index, so it would register the shard table under the wrong name. The
+/// parameter is kept so this stays the single decision point — a future upstream merge that tries
+/// to reintroduce plan-bytes extraction must change THIS function, tripping
+/// `register_name_uses_logical_table_not_plan_placeholder`.
+fn resolve_register_name(table_name: &str, _plan_bytes: &[u8]) -> String {
+    table_name.to_string()
+}
 
 /// Creates a SessionContext with per-query RuntimeEnv and registers the default
 /// ListingTable provider for parquet scans.
@@ -238,26 +255,31 @@ pub async unsafe fn create_session_context(
         .with_file_extension(".parquet")
         .with_collect_stat(true);
 
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await
-        .map_err(|e| {
-            error!("create_session_context: failed to infer schema: {}", e);
-            e
-        })?;
-    // Substrait's type system is narrower than Arrow's; normalize the inferred
-    // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
+    // Register under the planner's logical table name (alias / index pattern / index), shipped
+    // explicitly as logicalTableName on the shard-scan instruction node. See
+    // resolve_register_name for why we do NOT reverse-engineer this from the plan bytes. The
+    // empty-shard-aware schema inference + plan widening happens just below; no infer_schema here.
+    let register_name = resolve_register_name(table_name, plan_bytes);
 
-    // `table_name` is the planner's logical name (alias / index pattern / index): the coordinator
-    // captured it from the plan's table-scan leaf and shipped it on the shard-scan instruction node
-    // (see ShardScanInstructionHandler). It already matches the Substrait plan's NamedTable, so we
-    // register under it directly — no need to reverse-engineer which read is the real table from the
-    // plan bytes (which could never reliably tell a real `input-7` index from a stage placeholder).
-    let register_name = table_name.to_string();
+    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
+    // below populates columns from the substrait base_schema.
+    let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
+        Arc::new(arrow::datatypes::Schema::empty())
+    } else {
+        let inferred = listing_options
+            .infer_schema(&ctx.state(), &shard_view.table_path)
+            .await
+            .map_err(|e| {
+                error!("create_session_context: failed to infer schema: {}", e);
+                e
+            })?;
+        // Substrait's type system is narrower than Arrow's; normalize the inferred
+        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
+        crate::schema_coerce::coerce_inferred_schema(inferred)
+    };
 
     // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
-    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &resolved_schema);
+    let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
@@ -596,5 +618,35 @@ mod tests {
 
         assert_eq!(handle.aggregate_mode, Mode::Partial);
         assert!(handle.prepared_plan.is_some());
+    }
+
+    /// Regression guard for the merge-resolution of #21822's multi-index `register_name` logic:
+    /// the shard's table MUST register under the planner's logical name, never under whatever the
+    /// plan's first `NamedTable` happens to be. Builds a plan whose only `NamedTable` is a stage
+    /// placeholder (`input-7`) — the exact case where reverse-engineering the name from plan bytes
+    /// (the removed `first_named_table_name` approach) would pick the wrong name — and asserts
+    /// `resolve_register_name` still returns the logical table name. A future upstream merge that
+    /// reintroduces plan-bytes extraction must change `resolve_register_name` and trip this.
+    #[tokio::test]
+    async fn register_name_uses_logical_table_not_plan_placeholder() {
+        let ctx = SessionContext::new();
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, true)]));
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(Int64Array::from(vec![1i64]))])
+            .expect("batch");
+        // The plan names a STAGE PLACEHOLDER, not the shard's real index.
+        ctx.register_table(
+            "input-7",
+            Arc::new(MemTable::try_new(Arc::clone(&schema), vec![vec![batch]]).expect("memtable")),
+        )
+        .expect("register");
+        let df = ctx.sql("SELECT x FROM \"input-7\"").await.expect("sql");
+        let substrait = to_substrait_plan(&df.logical_plan().clone(), &ctx.state()).expect("to_substrait");
+        let mut plan_bytes = Vec::new();
+        substrait.encode(&mut plan_bytes).expect("encode");
+
+        // Even though the plan's NamedTable is "input-7", the logical table name must win.
+        assert_eq!(resolve_register_name("my_index", &plan_bytes), "my_index");
+        // And for single-index queries with empty plan bytes, the logical name is used directly.
+        assert_eq!(resolve_register_name("my_index", &[]), "my_index");
     }
 }
