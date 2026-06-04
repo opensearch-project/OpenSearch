@@ -37,6 +37,7 @@ use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner};
 use crate::indexed_table::row_selection::{
     bitmap_to_packed_bits, packed_bits_to_boolean_array, row_selection_to_bitmap, PositionMap,
 };
+use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_optimizer::pruning::PruningPredicate;
 use std::time::Instant;
 
@@ -174,6 +175,19 @@ pub struct SingleCollectorEvaluator {
     /// Per-query context identifier passed through every FFM upcall so Java can route
     /// each callback to the correct per-query `FilterDelegationHandle` and tracker.
     context_id: i64,
+    /// Bloom filter pruning config. None = disabled.
+    bloom_config: Option<BloomConfig>,
+}
+
+/// Resources needed for per-RG bloom filter pruning.
+pub struct BloomConfig {
+    pub store: Arc<dyn object_store::ObjectStore>,
+    pub object_path: object_store::path::Path,
+    pub metadata: Arc<ParquetMetaData>,
+    pub arrow_schema: Arc<datafusion::arrow::datatypes::Schema>,
+    pub io_handle: tokio::runtime::Handle,
+    pub rg_bloom_pruned: Option<datafusion::physical_plan::metrics::Count>,
+    pub bloom_filter_eval_time: Option<datafusion::physical_plan::metrics::Time>,
 }
 
 impl SingleCollectorEvaluator {
@@ -189,6 +203,7 @@ impl SingleCollectorEvaluator {
         writer_generation: i64,
         delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
         context_id: i64,
+        bloom_config: Option<BloomConfig>,
     ) -> Self {
         Self {
             collector,
@@ -202,6 +217,7 @@ impl SingleCollectorEvaluator {
             writer_generation,
             delegated_backend_collector_factory,
             context_id,
+            bloom_config,
         }
     }
 }
@@ -262,6 +278,36 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                     ranges
                 })
         });
+
+        // All pages pruned by stats → skip bloom + collector entirely.
+        if let Some(ref ranges) = page_ranges {
+            if ranges.is_empty() {
+                return Ok(None);
+            }
+        }
+
+        // Bloom filter pruning: runs after page pruning (free) but before
+        // the expensive FFM collector call. Uses the IO runtime handle from
+        // the RuntimeManager to drive the async object-store read.
+        if let (Some(bloom), Some(pp)) = (&self.bloom_config, &self.pruning_predicate) {
+            let _timer = bloom.bloom_filter_eval_time.as_ref().map(|t| t.timer());
+            let pruned = bloom.io_handle.block_on(
+                crate::indexed_table::bloom_pruner::bloom_prune_rg(
+                    &*bloom.store,
+                    &bloom.object_path,
+                    &bloom.metadata,
+                    &bloom.arrow_schema,
+                    rg.index,
+                    pp.as_ref(),
+                )
+            );
+            if pruned {
+                if let Some(ref c) = bloom.rg_bloom_pruned {
+                    c.add(1);
+                }
+                return Ok(None);
+            }
+        }
 
         // Build candidates either from the always-call correctness collector OR, when
         // the query is performance-only (no Collector leaves), from the page-pruned
@@ -644,7 +690,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
 
         let rg = RowGroupInfo {
             index: 0,
@@ -660,7 +706,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -688,7 +734,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
         assert!(eval.needs_row_mask());
     }
 
@@ -696,7 +742,7 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -716,7 +762,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
 
         let rg = RowGroupInfo {
             index: 0,
