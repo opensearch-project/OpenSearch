@@ -535,6 +535,8 @@ async unsafe fn execute_indexed_with_context_inner(
     .await
     .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
+    // Widen to the plan's base_schema so columns absent from this shard's parquet (cross-shard drift) are null-filled at read time.
+    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &table_name, &schema);
 
     let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
         schema: schema.clone(),

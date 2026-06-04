@@ -72,7 +72,7 @@ pub struct IndexedExecutionConfig {
 /// Uses the `datafusion-substrait` consumer's `from_substrait_named_struct` for type conversion
 /// (which already marks all fields nullable). The consumer is built from the session's existing
 /// state — no throwaway SessionState needed.
-fn widen_schema_from_plan(
+pub(crate) fn widen_schema_from_plan(
     ctx: &SessionContext,
     plan_bytes: &[u8],
     table_name: &str,
@@ -270,7 +270,9 @@ pub async unsafe fn create_session_context(
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
 
-    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
+    // Widen to the plan's base_schema if this shard's parquet is missing columns the plan
+    // expects (multi-index unions, or single-index cross-shard drift). No-op when the shard
+    // already covers every base_schema column.
     let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
 
     // If widening added columns, disable stat collection: the global stats cache is keyed by
