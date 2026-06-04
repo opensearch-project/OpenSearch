@@ -62,8 +62,8 @@ public class MemoryGuardRestIT extends AnalyticsRestTestCase {
             );
             String body = entityAsString(ex.getResponse());
             assertTrue(
-                "Response body should mention circuit_breaking_exception, got: " + body,
-                body.contains("circuit_breaking_exception")
+                "Response body should mention CircuitBreakingException, got: " + body,
+                body.contains("CircuitBreakingException")
             );
         } finally {
             resetPoolLimit();
