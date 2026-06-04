@@ -1,0 +1,38 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.info.BuildParams
+
+// Subprojects aren't published so do not assemble
+gradle.projectsEvaluated {
+  subprojects {
+    Task assemble = project.tasks.findByName('assemble')
+    if (assemble) {
+      assemble.enabled = false
+    }
+
+    // Disable example project testing with FIPS JVM
+    tasks.withType(Test) {
+      onlyIf {
+        BuildParams.isInFipsJvm() == false
+      }
+    }
+  }
+}
+
+configure(project('painless-allowlist')) {
+  configurations.all {
+    resolutionStrategy.dependencySubstitution {
+      substitute module('org.opensearch.plugin:opensearch-scripting-painless-spi') using project(':modules:lang-painless:spi')
+      substitute module('org.opensearch.test:logger-usage') using project(':test:logger-usage')
+    }
+  }
+}

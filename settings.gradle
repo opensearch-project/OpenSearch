@@ -1,0 +1,179 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+pluginManagement {
+  repositories {
+    maven {
+      url = uri("https://ci.opensearch.org/maven2/")
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    gradlePluginPortal {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    mavenCentral {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+  }
+}
+
+ext.disableBuildCache = hasProperty('DISABLE_BUILD_CACHE') || System.getenv().containsKey('DISABLE_BUILD_CACHE')
+
+buildCache {
+  local {
+    enabled = !disableBuildCache
+  }
+}
+
+rootProject.name = "OpenSearch"
+
+include 'doc-tools'
+includeBuild("doc-tools/missing-doclet")
+
+List projects = [
+  'build-tools',
+  'build-tools:reaper',
+  'rest-api-spec',
+  'docs',
+  'client:rest',
+  'client:rest-high-level',
+  'client:sniffer',
+  'client:test',
+  'client:client-benchmark-noop-api-plugin',
+  'client:benchmark',
+  'benchmarks',
+  'distribution:archives:integ-test-zip',
+  'distribution:archives:windows-zip',
+  'distribution:archives:no-jdk-windows-zip',
+  'distribution:archives:darwin-tar',
+  'distribution:archives:darwin-arm64-tar',
+  'distribution:archives:no-jdk-darwin-arm64-tar',
+  'distribution:archives:no-jdk-darwin-tar',
+  'distribution:archives:freebsd-tar',
+  'distribution:archives:no-jdk-freebsd-tar',
+  'distribution:archives:linux-arm64-tar',
+  'distribution:archives:no-jdk-linux-arm64-tar',
+  'distribution:archives:linux-s390x-tar',
+  'distribution:archives:linux-ppc64le-tar',
+  'distribution:archives:no-jdk-linux-ppc64le-tar',
+  'distribution:archives:linux-riscv64-tar',
+  'distribution:archives:no-jdk-linux-riscv64-tar',
+  'distribution:archives:linux-tar',
+  'distribution:archives:no-jdk-linux-tar',
+  'distribution:archives:jre-linux-tar',
+  'distribution:docker',
+  'distribution:docker:docker-arm64-build-context',
+  'distribution:docker:docker-arm64-export',
+  'distribution:docker:docker-s390x-export',
+  'distribution:docker:docker-ppc64le-export',
+  'distribution:docker:docker-riscv64-export',
+  'distribution:docker:docker-build-context',
+  'distribution:docker:docker-export',
+  'distribution:packages:arm64-deb',
+  'distribution:packages:no-jdk-arm64-deb',
+  'distribution:packages:deb',
+  'distribution:packages:no-jdk-deb',
+  'distribution:packages:arm64-rpm',
+  'distribution:packages:no-jdk-arm64-rpm',
+  'distribution:packages:rpm',
+  'distribution:packages:no-jdk-rpm',
+  'distribution:bwc:bugfix',
+  'distribution:bwc:maintenance',
+  'distribution:bwc:minor',
+  'distribution:bwc:staged',
+  'distribution:tools:fips-demo-installer-cli',
+  'distribution:tools:java-version-checker',
+  'distribution:tools:launchers',
+  'distribution:tools:plugin-cli',
+  'distribution:tools:keystore-cli',
+  'distribution:tools:heap-prof-cli',
+  'server',
+  'server:cli',
+  'test:framework',
+  'test:fixtures:azure-fixture',
+  'test:fixtures:gcs-fixture',
+  'test:fixtures:hdfs-fixture',
+  'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:minio-fixture',
+  'test:fixtures:s3-fixture',
+  'test:logger-usage',
+  'test:telemetry'
+]
+
+/**
+ * Iterates over sub directories, looking for build.gradle, and adds a project if found
+ * for that dir with the given path prefix. Note that this requires each level
+ * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
+ * all files/directories in the source tree to find all projects.
+ */
+void addSubProjects(String path, File dir) {
+  if (dir.isDirectory() == false) return;
+  if (dir.name == 'buildSrc') return;
+  if (new File(dir, 'build.gradle').exists() == false) return;
+  if (findProject(dir) != null) return;
+
+  final String projectName = "${path}:${dir.name}"
+  include projectName
+  if (path.isEmpty() || path.startsWith(':example-plugins')) {
+    project(projectName).projectDir = dir
+  }
+  for (File subdir : dir.listFiles()) {
+    addSubProjects(projectName, subdir)
+  }
+}
+
+
+// include example plugins first, so adding plugin dirs below won't muck with :example-plugins
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  addSubProjects(':example-plugins', example)
+}
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
+
+addSubProjects('', new File(rootProject.projectDir, 'libs'))
+addSubProjects('', new File(rootProject.projectDir, 'modules'))
+addSubProjects('', new File(rootProject.projectDir, 'plugins'))
+// Sandbox modules require JDK 25+. Include only when explicitly enabled via -Dsandbox.enabled=true.
+if (System.getProperty('sandbox.enabled', 'false') == 'true') {
+  addSubProjects('', new File(rootProject.projectDir, 'sandbox'))
+}
+addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
+
+List startTasks = gradle.startParameter.taskNames
+
+include projects.toArray(new String[0])
+
+project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
+
+project(":libs").children.each { libsProject ->
+  libsProject.name = "opensearch-${libsProject.name}"
+}
+
+project(":test:external-modules").children.each { testProject ->
+  testProject.name = "test-${testProject.name}"
+}
+
+// look for extra plugins for opensearch
+File extraProjects = new File(rootProject.projectDir.parentFile, "${rootProject.projectDir.name}-extra")
+if (extraProjects.exists()) {
+  for (File extraProjectDir : extraProjects.listFiles()) {
+    addSubProjects('', extraProjectDir)
+  }
+}

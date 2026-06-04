@@ -1,0 +1,21 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  name = "rule-framework"
+  description = 'OpenSearch Rule Framework plugin'
+  classname = 'org.opensearch.rule.RuleFrameworkPlugin'
+}
+
+dependencies {
+  api project("spi")
+  api project("common")
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.opensearch', module: 'opensearch-core'
+  }
+}

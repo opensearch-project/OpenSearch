@@ -1,0 +1,18 @@
+codecov:
+  require_ci_to_pass: yes
+
+ignore:
+  - "test"
+  - "benchmarks"
+  - "**/benchmarks/**"
+  - "plugins/arrow-flight-rpc/**/org/apache/arrow/flight/**"
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  status:
+    project:
+      default:
+        target: 70%    # the required coverage value
+        threshold: 1%  # the leniency in hitting the target

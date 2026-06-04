@@ -1,0 +1,100 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.test.fixtures'
+apply plugin: 'opensearch.internal-distribution-download'
+
+testFixtures.useFixture()
+
+dependencies {
+  testImplementation project(':client:rest-high-level')
+}
+
+opensearch_distributions {
+  docker {
+    type = 'docker'
+    architecture = Architecture.current()
+    version = VersionProperties.getOpenSearch()
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
+  }
+}
+
+tasks.named("preProcessFixture").configure {
+  dependsOn opensearch_distributions.docker
+  // always run the task, otherwise the folders won't be created
+  outputs.upToDateWhen { 
+    false 
+  }
+  doLast {
+    // tests expect to have an empty repo
+    delete(
+      "${buildDir}/repo"
+    )
+    createAndSetWritable(
+      "${buildDir}/repo",
+      "${buildDir}/logs/1",
+      "${buildDir}/logs/2"
+    )
+  }
+}
+
+dockerCompose {
+  tcpPortsToIgnoreWhenWaiting = [9600, 9601]
+  def composeFiles = ['docker-compose.yml']
+  if (BuildParams.isInFipsJvm()) {
+    composeFiles.add('docker-compose.fips.yml')
+  }
+  useComposeFiles = composeFiles
+}
+
+def createAndSetWritable(Object... locations) {
+  locations.each { location ->
+    File file = file(location)
+    file.mkdirs()
+    file.setWritable(true, false)
+  }
+}
+
+tasks.register("integTest", Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  maxParallelForks = '1'
+  include '**/*IT.class'
+}
+
+tasks.named("check").configure { dependsOn "integTest" }
+
+tasks.named("composeUp").configure {
+  dependsOn preProcessFixture
+}

@@ -1,0 +1,98 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.test-with-dependencies'
+apply plugin: 'opensearch.jdk-download'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.java-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
+
+opensearchplugin {
+  description = 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
+  classname = 'org.opensearch.index.reindex.ReindexModulePlugin'
+  hasClientJar = true
+}
+
+testClusters.all {
+  // Modules who's integration is explicitly tested in integration tests
+  module ':modules:parent-join'
+  module ':modules:lang-painless'
+  // Allowlist reindexing from the local node so we can test reindex-from-remote.
+  setting 'reindex.remote.allowlist', '127.0.0.1:*'
+}
+
+test {
+  /*
+   * We have to disable setting the number of available processors as tests in the
+   * same JVM randomize processors and will step on each other if we allow them to
+   * set the number of available processors as it's set-once in Netty.
+   */
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+}
+
+dependencies {
+  api project(":client:rest")
+  api project(":libs:opensearch-ssl-config")
+  // for http - testing reindex from remote
+  testImplementation project(':modules:transport-netty4')
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  // for parent/child testing
+  testImplementation project(':modules:parent-join')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
+                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'
+  }
+}
+
+thirdPartyAudit.ignoreMissingClasses(
+  // Commons logging
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+)
+
+tasks.named("bundlePlugin").configure {
+  dependsOn("copyParentJoinMetadata")
+  dependsOn("copyTransportNetty4Metadata")
+}

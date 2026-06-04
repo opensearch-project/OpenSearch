@@ -1,0 +1,391 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.cluster.metadata;
+
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.wlm.MutableWorkloadGroupFragment;
+import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
+import org.joda.time.Instant;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGroup> {
+
+    private static final List<ResiliencyMode> allowedModes = List.of(ResiliencyMode.SOFT, ResiliencyMode.ENFORCED, ResiliencyMode.MONITOR);
+    public static final Settings TEST_WLM_SEARCH_SETTINGS = Settings.builder().put("search.default_search_timeout", "30s").build();
+
+    static WorkloadGroup createRandomWorkloadGroup(String _id) {
+        String name = randomAlphaOfLength(10);
+        Map<ResourceType, Double> resourceLimit = new HashMap<>();
+        resourceLimit.put(ResourceType.MEMORY, randomDoubleBetween(0.0, 0.80, false));
+        return new WorkloadGroup(name, _id, new MutableWorkloadGroupFragment(randomMode(), resourceLimit), Instant.now().getMillis());
+    }
+
+    private static ResiliencyMode randomMode() {
+        return allowedModes.get(randomIntBetween(0, allowedModes.size() - 1));
+    }
+
+    /**
+     * Parses to a new instance using the provided {@link XContentParser}
+     *
+     * @param parser the XContentParser
+     */
+    @Override
+    protected WorkloadGroup doParseInstance(XContentParser parser) throws IOException {
+        return WorkloadGroup.fromXContent(parser);
+    }
+
+    /**
+     * Returns a {@link Writeable.Reader} that can be used to de-serialize the instance
+     */
+    @Override
+    protected Writeable.Reader<WorkloadGroup> instanceReader() {
+        return WorkloadGroup::new;
+    }
+
+    /**
+     * Creates a random test instance to use in the tests. This method will be
+     * called multiple times during test execution and should return a different
+     * random instance each time it is called.
+     */
+    @Override
+    protected WorkloadGroup createTestInstance() {
+        return createRandomWorkloadGroup("1232sfraeradf_");
+    }
+
+    public void testNullName() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new WorkloadGroup(
+                null,
+                "_id",
+                new MutableWorkloadGroupFragment(randomMode(), Collections.emptyMap()),
+                Instant.now().getMillis()
+            )
+        );
+    }
+
+    public void testNullId() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new WorkloadGroup(
+                "Dummy",
+                null,
+                new MutableWorkloadGroupFragment(randomMode(), Collections.emptyMap()),
+                Instant.now().getMillis()
+            )
+        );
+    }
+
+    public void testNullResourceLimits() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new WorkloadGroup("analytics", "_id", new MutableWorkloadGroupFragment(randomMode(), null), Instant.now().getMillis())
+        );
+    }
+
+    public void testEmptyResourceLimits() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new WorkloadGroup(
+                "analytics",
+                "_id",
+                new MutableWorkloadGroupFragment(randomMode(), Collections.emptyMap()),
+                Instant.now().getMillis()
+            )
+        );
+    }
+
+    public void testIllegalWorkloadGroupMode() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new WorkloadGroup(
+                "analytics",
+                "_id",
+                new MutableWorkloadGroupFragment(null, Map.of(ResourceType.MEMORY, 0.4)),
+                Instant.now().getMillis()
+            )
+        );
+    }
+
+    public void testWorkloadGroupInitiation() {
+        WorkloadGroup workloadGroup = new WorkloadGroup(
+            "analytics",
+            new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, 0.4), TEST_WLM_SEARCH_SETTINGS)
+        );
+        assertNotNull(workloadGroup.getName());
+        assertNotNull(workloadGroup.get_id());
+        assertNotNull(workloadGroup.getResourceLimits());
+        assertFalse(workloadGroup.getResourceLimits().isEmpty());
+        assertEquals(1, workloadGroup.getResourceLimits().size());
+        assertTrue(allowedModes.contains(workloadGroup.getResiliencyMode()));
+        assertTrue(workloadGroup.getUpdatedAtInMillis() != 0);
+        assertNotNull(workloadGroup.getSettings());
+        assertEquals(TEST_WLM_SEARCH_SETTINGS, workloadGroup.getSettings());
+    }
+
+    public void testIllegalWorkloadGroupName() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new WorkloadGroup("a".repeat(51), "_id", new MutableWorkloadGroupFragment(), Instant.now().getMillis())
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new WorkloadGroup("", "_id", new MutableWorkloadGroupFragment(), Instant.now().getMillis())
+        );
+
+    }
+
+    public void testInvalidResourceLimitWhenInvalidSystemResourceValueIsGiven() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new WorkloadGroup(
+                "analytics",
+                "_id",
+                new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(1.1, 1.8, false))),
+                Instant.now().getMillis()
+            )
+        );
+    }
+
+    public void testValidWorkloadGroup() {
+        WorkloadGroup workloadGroup = new WorkloadGroup(
+            "analytics",
+            "_id",
+            new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+            Instant.ofEpochMilli(1717187289).getMillis()
+        );
+
+        assertNotNull(workloadGroup.getName());
+        assertEquals("analytics", workloadGroup.getName());
+        assertNotNull(workloadGroup.getResourceLimits());
+        assertFalse(workloadGroup.getResourceLimits().isEmpty());
+        assertEquals(1, workloadGroup.getResourceLimits().size());
+        assertTrue(allowedModes.contains(workloadGroup.getResiliencyMode()));
+        assertEquals(1717187289, workloadGroup.getUpdatedAtInMillis());
+    }
+
+    public void testUpdatedAtAllowsCurrentTimestamp() {
+        long currentTimestamp = Instant.now().getMillis();
+        WorkloadGroup workloadGroup = new WorkloadGroup(
+            "analytics",
+            "_id",
+            new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+            currentTimestamp
+        );
+
+        assertEquals(currentTimestamp, workloadGroup.getUpdatedAtInMillis());
+    }
+
+    public void testUpdatedAtAllowsJitterAroundNow() {
+        long now = Instant.now().getMillis();
+        long[] timestamps = new long[] { Math.max(0L, now - 20L), now + 20L };
+
+        for (long timestamp : timestamps) {
+            WorkloadGroup workloadGroup = new WorkloadGroup(
+                "analytics",
+                "_id",
+                new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+                timestamp
+            );
+            assertEquals(timestamp, workloadGroup.getUpdatedAtInMillis());
+        }
+    }
+
+    public void testUpdatedAtRejectsNegativeTimestamp() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new WorkloadGroup(
+                "analytics",
+                "_id",
+                new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+                -1L
+            )
+        );
+    }
+
+    public void testToXContent() throws IOException {
+        long currentTimeInMillis = Instant.now().getMillis();
+        String workloadGroupId = UUIDs.randomBase64UUID();
+        WorkloadGroup workloadGroup = new WorkloadGroup(
+            "TestWorkloadGroup",
+            workloadGroupId,
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.CPU, 0.30, ResourceType.MEMORY, 0.40),
+                TEST_WLM_SEARCH_SETTINGS
+            ),
+            currentTimeInMillis
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        workloadGroup.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String expected = String.format(
+            Locale.ROOT,
+            "{\"_id\":\"%s\",\"name\":\"TestWorkloadGroup\",\"resiliency_mode\":\"enforced\","
+                + "\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4},"
+                + "\"settings\":{\"search.default_search_timeout\":\"30s\"},"
+                + "\"updated_at\":%d}",
+            workloadGroupId,
+            currentTimeInMillis
+        );
+        assertEquals(expected, builder.toString());
+    }
+
+    public void testLegacySearchSettingsFieldRejected() throws IOException {
+        String json = "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
+            + "\"resource_limits\":{\"memory\":0.5},"
+            + "\"search_settings\":{\"timeout\":\"30s\"},"
+            + "\"updated_at\":1720047207}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> WorkloadGroup.fromXContent(parser));
+        assertTrue(exception.getMessage().contains("search_settings"));
+    }
+
+    public void testUpdateWithEmptySettingsClearsExisting() {
+        WorkloadGroup existing = new WorkloadGroup(
+            "test",
+            "test_id",
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.MEMORY, 0.5),
+                Settings.builder().put("search.default_search_timeout", "30s").build()
+            ),
+            System.currentTimeMillis()
+        );
+
+        // Empty settings should clear all search settings
+        MutableWorkloadGroupFragment updateFragment = new MutableWorkloadGroupFragment(null, Map.of(), Settings.EMPTY);
+
+        WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(existing, updateFragment);
+        // All settings should be cleared
+        assertTrue(updated.getSettings().isEmpty());
+    }
+
+    public void testUpdateMergesSettings() {
+        WorkloadGroup existing = new WorkloadGroup(
+            "test",
+            "test_id",
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.MEMORY, 0.5),
+                Settings.builder().put("search.default_search_timeout", "30s").put("search.max_concurrent_shard_requests", "5").build()
+            ),
+            System.currentTimeMillis()
+        );
+
+        // Update only timeout — max_concurrent_shard_requests should persist
+        MutableWorkloadGroupFragment updateFragment = new MutableWorkloadGroupFragment(
+            null,
+            Map.of(),
+            Settings.builder().put("search.default_search_timeout", "1m").build()
+        );
+
+        WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(existing, updateFragment);
+        assertEquals("1m", updated.getSettings().get("search.default_search_timeout"));
+        assertEquals("5", updated.getSettings().get("search.max_concurrent_shard_requests"));
+    }
+
+    public void testUpdateWithNullValueRemovesSetting() {
+        WorkloadGroup existing = new WorkloadGroup(
+            "test",
+            "test_id",
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.MEMORY, 0.5),
+                Settings.builder().put("search.default_search_timeout", "30s").put("search.max_concurrent_shard_requests", "5").build()
+            ),
+            System.currentTimeMillis()
+        );
+
+        // Send null for timeout — should remove it, keep max_concurrent
+        MutableWorkloadGroupFragment updateFragment = new MutableWorkloadGroupFragment(
+            null,
+            Map.of(),
+            Settings.builder().putNull("search.default_search_timeout").build()
+        );
+
+        WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(existing, updateFragment);
+        assertNull(updated.getSettings().get("search.default_search_timeout"));
+        assertEquals("5", updated.getSettings().get("search.max_concurrent_shard_requests"));
+    }
+
+    public void testUpdateWithNullFragmentSettingsKeepsExisting() throws IOException {
+        WorkloadGroup existing = new WorkloadGroup(
+            "test",
+            "test_id",
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.MEMORY, 0.5),
+                Settings.builder().put("search.default_search_timeout", "30s").build()
+            ),
+            System.currentTimeMillis()
+        );
+
+        // Parse an update request that doesn't include "settings" key
+        String json = "{\"resiliency_mode\":\"soft\",\"resource_limits\":{\"memory\":0.6}}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        WorkloadGroup.Builder builder = WorkloadGroup.Builder.fromXContent(parser);
+        MutableWorkloadGroupFragment updateFragment = builder.getMutableWorkloadGroupFragment();
+
+        WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(existing, updateFragment);
+        // Settings should be preserved
+        assertEquals("30s", updated.getSettings().get("search.default_search_timeout"));
+        assertEquals(ResiliencyMode.SOFT, updated.getResiliencyMode());
+    }
+
+    public void testUpdateOverrideRequestValuesPersistsThroughMerge() {
+        WorkloadGroup existing = new WorkloadGroup(
+            "test",
+            "test_id",
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.MEMORY, 0.5),
+                Settings.builder().put("search.default_search_timeout", "30s").put("override_request_values", "true").build()
+            ),
+            System.currentTimeMillis()
+        );
+
+        // Update only timeout — override_request_values should persist as "true"
+        MutableWorkloadGroupFragment updateFragment = new MutableWorkloadGroupFragment(
+            null,
+            Map.of(),
+            Settings.builder().put("search.default_search_timeout", "1m").build()
+        );
+
+        WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(existing, updateFragment);
+        assertEquals("1m", updated.getSettings().get("search.default_search_timeout"));
+        assertEquals("true", updated.getSettings().get("override_request_values"));
+    }
+
+    public void testSettingsNullFromXContentClearsSettings() throws IOException {
+        // Simulate parsing {"settings": null} via XContent
+        String json = "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
+            + "\"resource_limits\":{\"memory\":0.5},"
+            + "\"settings\":null,"
+            + "\"updated_at\":1720047207}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        WorkloadGroup.Builder builder = WorkloadGroup.Builder.fromXContent(parser);
+        MutableWorkloadGroupFragment fragment = builder.getMutableWorkloadGroupFragment();
+        // Settings should be empty (cleared)
+        assertTrue(fragment.getSettings().isEmpty());
+    }
+}

@@ -1,0 +1,43 @@
+---
+setup:
+  - do:
+      indices.delete_template:
+        name: test
+        ignore: [404]
+---
+"Test indices.exists_template":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      indices.exists_template:
+        name: test
+
+  - is_false: ''
+
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: ['test-*']
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.exists_template:
+        name: test
+        master_timeout: 1m
+
+  - is_true: ''
+
+---
+"Test indices.exists_template with local flag":
+  - do:
+      indices.exists_template:
+        name: test
+        local: true
+
+  - is_false: ''

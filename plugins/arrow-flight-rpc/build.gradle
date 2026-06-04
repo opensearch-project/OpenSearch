@@ -1,0 +1,220 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
+
+opensearchplugin {
+  description = 'Arrow Flight transport implementation built on top of arrow-base.'
+  classname = 'org.opensearch.arrow.flight.transport.FlightStreamPlugin'
+  extendedPlugins = ['arrow-base']
+}
+
+dependencies {
+  // arrow-base exposes Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
+  // as api deps, so a compileOnly project dep pulls them onto the compile classpath
+  // while keeping them out of the bundled plugin zip (arrow-base ships them at runtime).
+  // The framework also ships the SPI types this plugin calls into (NativeAllocatorPoolConfig).
+  compileOnly project(':libs:opensearch-arrow-spi')
+  compileOnly project(':plugins:arrow-base')
+
+  // Netty codec libs used directly by grpc-netty / flight-core.
+  api "io.netty:netty-codec-base:${versions.netty}"
+  api "io.netty:netty-codec-compression:${versions.netty}"
+
+  compileOnly 'org.checkerframework:checker-qual:3.44.0'
+
+  // arrow flight dependencies.
+  implementation "org.apache.arrow:flight-core:${versions.arrow}"
+
+  implementation "io.netty:netty-codec:${versions.netty}"
+  implementation "io.netty:netty-codec-http:${versions.netty}"
+  implementation "io.netty:netty-codec-http2:${versions.netty}"
+  implementation "io.netty:netty-handler:${versions.netty}"
+  implementation "io.netty:netty-resolver:${versions.netty}"
+  implementation "io.netty:netty-transport:${versions.netty}"
+  implementation "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  implementation "io.netty:netty-transport-classes-epoll:${versions.netty}"
+  implementation "io.netty:netty-tcnative-classes:2.0.66.Final"
+
+  implementation "io.grpc:grpc-api:${versions.grpc}"
+  runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
+  implementation "io.grpc:grpc-stub:${versions.grpc}"
+  implementation "io.grpc:grpc-netty:${versions.grpc}"
+
+  runtimeOnly "com.google.code.findbugs:jsr305:3.0.2"
+  annotationProcessor 'org.immutables:value:2.10.1'
+
+  runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
+  runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
+  runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+  runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
+
+  runtimeOnly "com.google.guava:failureaccess:1.0.2"
+  runtimeOnly('com.google.guava:guava:33.3.1-jre') {
+    attributes {
+      attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
+    }
+  }
+
+  // Javassist for bytecode injection chaos testing
+  internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
+  internalClusterTestImplementation project(':plugins:arrow-base')
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+}
+
+tasks.named('test').configure {
+  jacoco {
+    excludes = ['org/apache/arrow/flight/**']
+  }
+}
+
+test {
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+}
+
+internalClusterTest {
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+}
+
+spotless {
+  java {
+    // Files to exclude from formatting
+    targetExclude 'src/main/java/org/apache/arrow/flight/**/*.java'
+  }
+}
+
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /grpc-.*/, to: 'grpc'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+
+  excludes = [
+    'org/apache/arrow/flight/OSFlightServer$Builder.class',
+    'org/apache/arrow/flight/OSFlightClient$Builder.class',
+    'org/opensearch/flight/bootstrap/server/ServerConfig$Netty4Configs.class',
+    'org/opensearch/flight/bootstrap/server/ServerConfig.class',
+    'org/opensearch/flight/bootstrap/tls/DefaultSslContextProvider.class',
+    'org/apache/arrow/flight/OpenSearchFlightClient$Builder.class'
+  ]
+}
+
+
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    'com.google.gson.stream.JsonReader',
+    'com.google.gson.stream.JsonToken',
+    'org.apache.parquet.schema.GroupType',
+    'com.google.rpc.Status',
+    'com.google.rpc.Status$Builder',
+    // Parquet Schema classes
+    'org.apache.parquet.schema.LogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$DateLogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$DecimalLogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$IntLogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$IntervalLogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$ListLogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$LogicalTypeAnnotationVisitor',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$StringLogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$TimeLogicalTypeAnnotation',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$TimeUnit',
+    'org.apache.parquet.schema.LogicalTypeAnnotation$TimestampLogicalTypeAnnotation',
+    'org.apache.parquet.schema.MessageType',
+    'org.apache.parquet.schema.OriginalType',
+    'org.apache.parquet.schema.PrimitiveType',
+    'org.apache.parquet.schema.PrimitiveType$PrimitiveTypeName',
+    'org.apache.parquet.schema.PrimitiveType$PrimitiveTypeNameConverter',
+    'org.apache.parquet.schema.Type',
+    'org.apache.parquet.schema.Type$Repetition',
+    'org.apache.parquet.schema.Types',
+    'org.apache.parquet.schema.Types$BaseListBuilder',
+    'org.apache.parquet.schema.Types$GroupBuilder',
+    'org.apache.parquet.schema.Types$ListBuilder',
+    'org.apache.parquet.schema.Types$PrimitiveBuilder',
+
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+    // classes are missing
+
+    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
+
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+    'lzma.sdk.lzma.Encoder',
+    'net.jpountz.lz4.LZ4Compressor',
+    'net.jpountz.lz4.LZ4Factory',
+    'net.jpountz.lz4.LZ4FastDecompressor',
+    'net.jpountz.xxhash.XXHash32',
+    'net.jpountz.xxhash.XXHashFactory',
+
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+
+    'io.netty.pkitesting.CertificateBuilder',
+    'io.netty.pkitesting.CertificateBuilder$Algorithm',
+    'io.netty.pkitesting.X509Bundle',
+
+    'io.netty.internal.tcnative.SSLCredential',
+
+    'com.google.protobuf.util.Timestamps'
+  )
+  ignoreViolations(
+    // Guava internal classes
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
+}

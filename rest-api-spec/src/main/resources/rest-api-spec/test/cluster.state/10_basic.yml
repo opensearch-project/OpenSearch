@@ -1,0 +1,26 @@
+---
+"get cluster state":
+  - do:
+      cluster.state: {}
+
+  - is_true: master_node
+
+---
+"get cluster state returns cluster_uuid at the top level":
+  - do:
+      cluster.state:
+        human: true
+
+  - is_true: cluster_uuid
+  - is_true: master_node
+
+---
+"Get cluster state returns cluster_manager_node":
+  - do:
+      cluster.state: {}
+
+  - set:
+      cluster_manager_node: node_id
+
+  - match: {master_node: $node_id}
+  - match: {cluster_manager_node: $node_id}

@@ -1,0 +1,44 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+grant {
+  // needed because of problems in ClientConfiguration
+  // TODO: get these fixed in aws sdk
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "setContextClassLoader";
+  // Needed because of problems in kms client
+  // When no region is set on a kms client instance, the
+  // AWS SDK loads all known partitions from a JSON file and
+  // uses a Jackson's ObjectMapper for that: this one, in
+  // version 2.5.3 with the default binding options, tries
+  // to suppress access checks of ctor/field/method and thus
+  // requires this special permission. AWS must be fixed to
+  // uses Jackson correctly and have the correct modifiers
+  // on binded classes.
+  // TODO: get these fixed in aws sdk
+  // See https://github.com/aws/aws-sdk-java/issues/766
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  permission java.lang.RuntimePermission "getClassLoader";
+
+  // kms client opens socket connections for to kms
+  permission java.net.SocketPermission "*", "connect,resolve";
+
+  // kms client set Authenticator for proxy username/password
+  permission java.net.NetPermission "setDefaultAuthenticator";
+
+  permission java.util.PropertyPermission "aws.sharedCredentialsFile", "read,write";
+  permission java.util.PropertyPermission "aws.configFile", "read,write";
+  permission java.util.PropertyPermission "aws.region", "read,write";
+  permission java.util.PropertyPermission "aws.accessKeyId", "read,write";
+  permission java.util.PropertyPermission "aws.secretAccessKey", "read,write";
+  permission java.util.PropertyPermission "opensearch.path.conf", "read,write";
+
+  permission java.io.FilePermission "config", "read";
+};

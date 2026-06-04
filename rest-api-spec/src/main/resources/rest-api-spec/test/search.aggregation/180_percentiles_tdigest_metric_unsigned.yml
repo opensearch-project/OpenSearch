@@ -1,0 +1,588 @@
+setup:
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                unsigned_field:
+                   type : unsigned_long
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    1
+           - unsigned_field: 1
+             double_field: 1.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    2
+           - unsigned_field: 51
+             double_field: 51.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    3
+           - unsigned_field: 1101
+             double_field: 1101.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    4
+           - unsigned_field: 10223372036854778000
+             double_field: 10223372036854778000.0
+             string_field: foo
+
+---
+"Basic 2.x test":
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "- 2.99.99"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+            percentiles_double:
+              percentiles:
+                field: double_field
+
+  - match:  { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 576.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 5111686018427390000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 576.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 5111686018427390000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Basic 3.x test":
+  - skip:
+      version: "- 2.99.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+            percentiles_double:
+              percentiles:
+                field: double_field
+
+  - match:  { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Compression 2.x test":
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "- 2.99.99"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+                tdigest:
+                  compression: 200
+            percentiles_double:
+              percentiles:
+                field: double_field
+                tdigest:
+                  compression: 200
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 576.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 5111686018427390000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 576.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 5111686018427390000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Compression 3.x test":
+  - skip:
+      version: "- 2.99.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+                tdigest:
+                  compression: 200
+            percentiles_double:
+              percentiles:
+                field: double_field
+                tdigest:
+                  compression: 200
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Only aggs 2.x test":
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "- 2.99.99"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+            percentiles_double:
+              percentiles:
+                field: double_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 576.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 5111686018427390000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 576.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 5111686018427390000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Only aggs 3.x test":
+  - skip:
+      version: "- 2.99.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+            percentiles_double:
+              percentiles:
+                field: double_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Filtered 2.x test":
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "- 2.99.99"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            constant_score:
+              filter:
+                range:
+                  unsigned_field:
+                    gte: 50
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+            percentiles_double:
+              percentiles:
+                field: double_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 313.5 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 7667529027641084000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 313.5 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 7667529027641084000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Filtered 3.x test":
+  - skip:
+      version: "- 2.99.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            constant_score:
+              filter:
+                range:
+                  unsigned_field:
+                    gte: 50
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+            percentiles_double:
+              percentiles:
+                field: double_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 10223372036854778000.0 }
+
+---
+"Metadata 2.x test":
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "- 2.99.99"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              meta:
+                foo: bar
+              percentiles:
+                field: unsigned_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.percentiles_unsigned.meta.foo: "bar" }
+
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 576.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 5111686018427390000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+---
+"Metadata 3.x test":
+  - skip:
+      version: "- 2.99.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              meta:
+                foo: bar
+              percentiles:
+                field: unsigned_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.percentiles_unsigned.meta.foo: "bar" }
+
+
+  - match:  { aggregations.percentiles_unsigned.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.25\.0: 51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.50\.0: 1101.0 }
+  - match:  { aggregations.percentiles_unsigned.values.75\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.95\.0: 10223372036854778000.0 }
+  - match:  { aggregations.percentiles_unsigned.values.99\.0: 10223372036854778000.0 }
+
+---
+"Explicit Percents 2.x test":
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "- 2.99.99"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+                percents: [5.0, 25.0, 50.0]
+            percentiles_double:
+              percentiles:
+                field: double_field
+                percents: [5.0, 25.0, 50.0]
+
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match: { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_unsigned.values.25\.0: 26.0 }
+  - match: { aggregations.percentiles_unsigned.values.50\.0: 576.0 }
+
+  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 576.0 }
+
+---
+"Explicit Percents 3.x test":
+  - skip:
+      version: "- 2.99.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+                percents: [5.0, 25.0, 50.0]
+            percentiles_double:
+              percentiles:
+                field: double_field
+                percents: [5.0, 25.0, 50.0]
+
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match: { aggregations.percentiles_unsigned.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_unsigned.values.25\.0: 51.0 }
+  - match: { aggregations.percentiles_unsigned.values.50\.0: 1101.0 }
+
+  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 1101.0 }
+
+---
+"Non-keyed 2.x test":
+  - skip:
+      version: "3.0.0 -"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "- 2.99.99"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+                percents: [5.0, 25.0, 50.0]
+                keyed: false
+
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match:  { aggregations.percentiles_unsigned.values.0.key:  5.0 }
+  - match:  { aggregations.percentiles_unsigned.values.0.value:  1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.1.key:  25.0 }
+  - match:  { aggregations.percentiles_unsigned.values.1.value:  26.0 }
+  - match:  { aggregations.percentiles_unsigned.values.2.key:  50.0 }
+  - match:  { aggregations.percentiles_unsigned.values.2.value:  576.0 }
+
+---
+"Non-keyed 3.x test":
+  - skip:
+      version: "- 2.99.99"
+      features: node_selector
+      reason:  "t-digest 3.2 was interpolating leading to incorrect percentiles"
+
+  - do:
+      node_selector:
+        version: "3.0.0 -"
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_unsigned:
+              percentiles:
+                field: unsigned_field
+                percents: [5.0, 25.0, 50.0]
+                keyed: false
+
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - match:  { aggregations.percentiles_unsigned.values.0.key:  5.0 }
+  - match:  { aggregations.percentiles_unsigned.values.0.value:  1.0 }
+  - match:  { aggregations.percentiles_unsigned.values.1.key:  25.0 }
+  - match:  { aggregations.percentiles_unsigned.values.1.value:  51.0 }
+  - match:  { aggregations.percentiles_unsigned.values.2.key:  50.0 }
+  - match:  { aggregations.percentiles_unsigned.values.2.value:  1101.0 }

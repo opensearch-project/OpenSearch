@@ -1,0 +1,709 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+
+import org.apache.tools.ant.filters.FixCrLfFilter
+import org.opensearch.gradle.ConcatFilesTask
+import org.opensearch.gradle.DependenciesInfoTask
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.NoticeTask
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.JavaPackageType
+
+import java.nio.file.Files
+import java.nio.file.Path
+
+plugins {
+  id 'base'
+}
+
+
+/*****************************************************************************
+ *                  Third party dependencies report                          *
+ *****************************************************************************/
+
+// Concatenates the dependencies CSV files into a single file
+tasks.register("generateDependenciesReport", ConcatFilesTask) {
+  dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
+  files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
+  headerLine = "name,version,url,license,sourceURL"
+  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/opensearch-dependencies.csv")
+
+  // explicitly add our dependency on the JDK
+  String jdkVersion = VersionProperties.versions.get('bundled_jdk')
+  String jdkMajorVersion = jdkVersion.split('[+.]')[0]
+  String sourceUrl = "https://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
+
+}
+
+/*****************************************************************************
+ *                                Notice file                                *
+ *****************************************************************************/
+
+// integ test zip only uses server, so a different notice file is needed there
+def buildServerNoticeTaskProvider = tasks.register("buildServerNotice", NoticeTask)
+
+def buildNoticeTaskProvider = tasks.register("buildNotice", NoticeTask) {
+  licensesDir new File(project(':distribution').projectDir, 'licenses')
+}
+
+def buildNoJdkNoticeTaskProvider = tasks.register("buildNoJdkNotice", NoticeTask)
+
+// The :server and :libs projects belong to all distributions
+tasks.withType(NoticeTask).configureEach {
+  licensesDir project(':server').file('licenses')
+  source project(':server').file('src/main/java')
+  project(':libs').subprojects.each { Project lib ->
+    licensesDir lib.file('licenses')
+    source lib.file('src/main/java')
+  }
+}
+
+/*****************************************************************************
+ *                                  Modules                                  *
+ *****************************************************************************/
+String distOutputs = 'build/outputs/dist'
+String systemdOutputs = 'build/outputs/systemd'
+String integTestOutputs = 'build/outputs/integ-test'
+String externalTestOutputs = 'build/outputs/external-test'
+
+def processOutputsTaskProvider = tasks.register("processOutputs", Sync) {
+  into distOutputs
+}
+
+def processSystemdOutputsTaskProvider = tasks.register("processSystemdOutputs", Sync) {
+  into systemdOutputs
+}
+
+def processExternalTestOutputsTaskProvider = tasks.register("processExternalTestOutputs", Sync) {
+  into externalTestOutputs
+}
+
+// Copy all modules to integ test build to ensure integ test and min distro behavior is the same since modules are mandatory
+def processIntegTestModulesOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
+  into integTestOutputs
+}
+
+// these are dummy tasks that can be used to depend on the relevant sub output dir
+def buildModulesTaskProvider = tasks.register("buildModules") {
+  dependsOn processOutputsTaskProvider
+  outputs.dir "${distOutputs}/modules"
+}
+tasks.register("buildBin") {
+  dependsOn "processOutputs"
+  outputs.dir "${distOutputs}/bin"
+}
+tasks.register("buildConfig") {
+  dependsOn "processOutputs"
+  outputs.dir "${distOutputs}/config"
+}
+def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
+  dependsOn "processSystemdOutputs"
+  outputs.dir "${systemdOutputs}/modules"
+}
+def buildIntegTestModulesTaskProvider = tasks.register("buildIntegTestModules") {
+  dependsOn processIntegTestModulesOutputsTaskProvider
+  outputs.dir "${integTestOutputs}/modules"
+}
+def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
+  dependsOn "processExternalTestOutputs"
+  outputs.dir "${externalTestOutputs}/modules"
+}
+
+Configuration moduleZip(Project module) {
+  Dependency dep = project.dependencies.project(path: module.path, configuration: 'zip')
+  Configuration config = project.configurations.detachedConfiguration(dep)
+  return config
+}
+
+void copyModule(TaskProvider<Sync> copyTask, Project module) {
+  copyTask.configure {
+    Configuration moduleConfig = moduleZip(module)
+
+    dependsOn moduleConfig
+    from({ zipTree(moduleConfig.singleFile) }) {
+      includeEmptyDirs = false
+
+      // these are handled separately in the log4j config tasks below
+      exclude '*/config/log4j2.properties'
+      exclude 'config/log4j2.properties'
+
+      eachFile { details ->
+        String name = module.plugins.hasPlugin('opensearch.opensearchplugin') ? module.opensearchplugin.name : module.opensearch_meta_plugin.name
+        // Copy all non config/bin files
+        // Note these might be unde a subdirectory in the case of a meta plugin
+        if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
+          details.relativePath = details.relativePath.prepend('modules', name)
+        } else if ((details.relativePath.pathString ==~ /([^\/]+\/)(config|bin)\/.*/)) {
+          // this is the meta plugin case, in which we need to remove the intermediate dir
+          String[] segments = details.relativePath.segments
+          details.relativePath = new RelativePath(true, segments.takeRight(segments.length - 1))
+        }
+      }
+    }
+  }
+}
+
+// log4j config could be contained in modules, so we must join it together using these tasks
+def buildLog4jConfigTaskProvider = tasks.register("buildLog4jConfig") {
+  dependsOn "processOutputs"
+  ext.contents = []
+  ext.log4jFile = file("${distOutputs}/log4j2.properties")
+  outputs.file log4jFile
+}
+
+Closure writeLog4jProperties = {
+  String mainLog4jProperties = file('src/config/log4j2.properties').getText('UTF-8')
+  it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
+  for (String moduleLog4jProperties : it.contents.reverse()) {
+    it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
+  }
+}
+buildLog4jConfigTaskProvider.configure {
+  doLast(writeLog4jProperties)
+}
+
+// copy log4j2.properties from modules that have it
+void copyLog4jProperties(TaskProvider buildTask, Project module) {
+  buildTask.configure {
+    Configuration moduleConfig = moduleZip(module)
+
+    dependsOn moduleConfig
+    doFirst {
+      FileTree tree = zipTree(moduleConfig.singleFile)
+      FileTree filtered = tree.matching {
+        include 'config/log4j2.properties'
+        include '*/config/log4j2.properties' // could be in a bundled plugin
+      }
+      if (filtered.isEmpty() == false) {
+        contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
+      }
+    }
+  }
+
+}
+
+ext.restTestExpansions = [
+  'expected.modules.count': 0,
+]
+// we create the buildModules task above but fill it here so we can do a single
+// loop over modules to also setup cross task dependencies and increment our modules counter
+project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
+  if (module.name == 'systemd') {
+    // the systemd module is only included in the package distributions or in linux and freebsd archives
+    return
+  }
+  File licenses = new File(module.projectDir, 'licenses')
+  if (licenses.exists()) {
+    buildNotice.configure {
+      licensesDir licenses
+      source module.file('src/main/java')
+    }
+  }
+
+  copyModule(processOutputsTaskProvider, module)
+  copyModule(processIntegTestModulesOutputsTaskProvider, module)
+
+  copyLog4jProperties(buildLog4jConfigTaskProvider, module)
+
+  restTestExpansions['expected.modules.count'] += 1
+}
+
+// copy all sandbox modules if the distribution is a snapshot
+if (VersionProperties.isOpenSearchSnapshot()) {
+  Properties sysProps = System.getProperties();
+  // setting this property to true will include the sandbox modules in the distribution
+  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "false");
+  if(sysProps != null && enableSandbox == "true") {
+    tasks.withType(NoticeTask).configureEach {
+      project(':sandbox:libs').subprojects.each { Project lib ->
+        licensesDir lib.file('licenses')
+        source lib.file('src/main/java')
+      }
+    }
+    project.rootProject.subprojects.findAll { it.parent.path == ':sandbox:modules' }.each { Project module ->
+      File licenses = new File(module.projectDir, 'licenses')
+      if (licenses.exists()) {
+        buildNotice.configure {
+          licensesDir licenses
+          source module.file('src/main/java')
+        }
+      }
+
+      copyModule(processOutputsTaskProvider, module)
+      copyLog4jProperties(buildLog4jConfigTaskProvider, module)
+      restTestExpansions['expected.modules.count'] += 1
+    }
+  }
+}
+
+copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
+
+project(':test:external-modules').subprojects.each { Project testModule ->
+  copyModule(processExternalTestOutputsTaskProvider, testModule)
+}
+
+configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
+
+  apply plugin: 'opensearch.jdk-download'
+  apply plugin: 'opensearch.jre-download'
+  apply plugin: 'opensearch.repositories'
+
+  // Setup all required JDKs
+  project.jdks {
+    ['darwin', 'linux', 'windows'].each { platform ->
+      (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64', 's390x', 'ppc64le', 'riscv64'] : ['x64']).each { architecture ->
+        "bundled_jdk_${platform}_${architecture}" {
+          it.platform = platform
+          it.version = VersionProperties.getBundledJdk(platform, architecture)
+          it.vendor = VersionProperties.bundledJdkVendor
+          it.architecture = architecture
+        }
+      }
+    }
+  }
+
+  // Setup all required JREs
+  project.jres {
+    ['darwin', 'linux', 'windows'].each { platform ->
+      (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64', 's390x', 'ppc64le', 'riscv64'] : ['x64']).each { architecture ->
+        "bundled_jre_${platform}_${architecture}" {
+          it.platform = platform
+          it.version = VersionProperties.getBundledJre(platform, architecture)
+          it.vendor = VersionProperties.bundledJdkVendor
+          it.architecture = architecture
+        }
+      }
+    }
+  }
+
+  // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
+  /*****************************************************************************
+   *             Properties to expand when copying packaging files             *
+   *****************************************************************************/
+  configurations {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsFipsInstallerCli', 'libsHeapProfCli', 'bcFips'].each {
+      create(it) {
+        canBeConsumed = false
+        canBeResolved = true
+        attributes {
+          attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+          attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+          attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        }
+      }
+    }
+    create('agent') {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-dist'))
+      }
+    }
+  }
+
+  dependencies {
+    libs project(':server')
+    libs project(':libs:opensearch-plugin-classloader')
+    libs project(':distribution:tools:java-version-checker')
+    libs project(':distribution:tools:launchers')
+
+    libsPluginCli project(':distribution:tools:plugin-cli')
+    libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
+    libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
+    libsHeapProfCli project(path: ':distribution:tools:heap-prof-cli')
+
+    bcFips libs.bundles.bouncycastle
+
+    agent project(path: ':libs:agent-sm:agent', configuration: 'agentDist')
+  }
+
+  project.ext {
+
+    /*****************************************************************************
+     *                   Common files in all distributions                       *
+     *****************************************************************************/
+    libFiles = {
+      copySpec {
+        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        from(configurations.libs)
+        if ( BuildParams.isInFipsJvm() ) {
+          from(configurations.bcFips)
+        }
+        into('tools/plugin-cli') {
+          from(configurations.libsPluginCli)
+        }
+        into('tools/keystore-cli') {
+          from(configurations.libsKeystoreCli)
+        }
+        // Add FIPS installer CLI
+        into('tools/fips-demo-installer-cli') {
+          from(configurations.libsFipsInstallerCli)
+        }
+        into('tools/heap-prof-cli') {
+          from(configurations.libsHeapProfCli)
+        }
+      }
+    }
+
+    agentFiles = {
+      copySpec {
+        from(configurations.agent) {
+          include '**/*.jar'
+          exclude '**/*-javadoc.jar'
+          exclude '**/*-sources.jar'
+          // strip the version since jvm.options is using agent without version
+          rename("opensearch-agent-${project.version}.jar", "opensearch-agent.jar")
+        }
+      }
+    }
+
+    modulesFiles = { platform ->
+      copySpec {
+        eachFile {
+          if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x64' || platform == 'darwin-arm64') && it.relativePath.segments[-2] == 'MacOS')) {
+            // bin files, wherever they are within modules (eg platform specific) should be executable
+            // and MacOS is an alternative to bin on macOS
+            it.permissions(perm -> perm.unix(0755))
+          } else {
+            it.permissions(perm -> perm.unix(0644))
+          }
+        }
+        def buildModules = buildModulesTaskProvider
+        List excludePlatforms = ['darwin-x64', 'freebsd-x64', 'linux-x64', 'linux-arm64', 'linux-s390x', 'linux-ppc64le', 'linux-riscv64', 'windows-x64', 'darwin-arm64']
+        if (platform != null) {
+          excludePlatforms.remove(excludePlatforms.indexOf(platform))
+        } else {
+          excludePlatforms = []
+        }
+        from(buildModules) {
+          for (String excludePlatform : excludePlatforms) {
+            exclude "**/platform/${excludePlatform}/**"
+          }
+        }
+        if (BuildParams.isSnapshotBuild()) {
+          from(buildExternalTestModulesTaskProvider)
+        }
+        if (project.path.startsWith(':distribution:packages') || ['freebsd-x64','linux-x64', 'linux-arm64', 'linux-riscv64'].contains(platform)) {
+          from(buildSystemdModuleTaskProvider)
+        }
+      }
+    }
+
+    integTestModulesFiles = copySpec {
+      from buildIntegTestModulesTaskProvider
+    }
+
+    configFiles = { distributionType, java ->
+      copySpec {
+        with copySpec {
+          // main config files, processed with distribution specific substitutions
+          from '../src/config'
+          exclude 'log4j2.properties' // this is handled separately below
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, java))
+        }
+        from project(':distribution').buildLog4jConfig
+        from project(':distribution').buildConfig
+      }
+    }
+
+    binFiles = { distributionType, java ->
+      copySpec {
+        // non-windows files, for all distributions
+        with copySpec {
+          from '../src/bin'
+          exclude '*.exe'
+          exclude '*.bat'
+          eachFile { it.permissions(perm -> perm.unix(0755)) }
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, java))
+        }
+        // windows files, only for zip
+        if (distributionType == 'zip') {
+          with copySpec {
+            from '../src/bin'
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, java))
+          }
+          with copySpec {
+            from '../src/bin'
+            include '*.exe'
+          }
+        }
+        // module provided bin files
+        with copySpec {
+          eachFile { it.permissions(perm -> perm.unix(0755)) }
+          from project(':distribution').buildBin
+          if (distributionType != 'zip') {
+            exclude '*.bat'
+          }
+        }
+      }
+    }
+
+    noticeFile = { java ->
+      copySpec {
+        if (project.name == 'integ-test-zip') {
+          from buildServerNoticeTaskProvider
+        } else {
+          if (java != JavaPackageType.NONE) {
+            from buildNoticeTaskProvider
+          } else {
+            from buildNoJdkNoticeTaskProvider
+          }
+        }
+      }
+    }
+
+    jdkFiles = { Project project, String platform, String architecture ->
+      return copySpec {
+        /*
+         * Jdk uses aarch64 from ARM. Translating from arm64 to aarch64 which Jdk understands.
+         */
+        if ("arm64".equals(architecture)) {
+          architecture = "aarch64"
+        }
+        from project.jdks."bundled_jdk_${platform}_${architecture}"
+        exclude "demo/**"
+        /*
+         * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
+         * it from the build.
+         */
+        if ("darwin".equals(platform)) {
+          exclude "Contents/MacOS"
+        }
+        eachFile { FileCopyDetails details ->
+          if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
+            details.permissions(perm -> perm.unix(0755))
+          }
+          if (details.name == 'src.zip') {
+            details.exclude()
+          }
+        }
+      }
+    }
+
+    jreFiles = { Project project, String platform, String architecture ->
+      return copySpec {
+        /*
+         * Jdk uses aarch64 from ARM. Translating from arm64 to aarch64 which Jdk understands.
+         */
+        if ("arm64".equals(architecture)) {
+          architecture = "aarch64"
+        }
+        from project.jres."bundled_jre_${platform}_${architecture}"
+        exclude "demo/**"
+        /*
+         * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
+         * it from the build.
+         */
+        if ("darwin".equals(platform)) {
+          exclude "Contents/MacOS"
+        }
+        eachFile { FileCopyDetails details ->
+          if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
+            details.permissions(perm -> perm.unix(0755))
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Build some variables that are replaced in the packages. This includes both
+ * scripts like bin/opensearch and bin/opensearch-plugin that a user might run and also
+ * scripts like postinst which are run as part of the installation.
+ *
+ * <dl>
+ *  <dt>package.name</dt>
+ *  <dd>The name of the project. Its sprinkled throughout the scripts.</dd>
+ *  <dt>package.version</dt>
+ *  <dd>The version of the project. Its mostly used to find the exact jar name.
+ *    </dt>
+ *  <dt>path.conf</dt>
+ *  <dd>The default directory from which to load configuration. This is used in
+ *    the packaging scripts, but in that context it is always
+ *    /etc/opensearch. Its also used in bin/opensearch-plugin, where it is
+ *    /etc/opensearch for the os packages but $OPENSEARCH_HOME/config otherwise.</dd>
+ *  <dt>path.env</dt>
+ *  <dd>The env file sourced before bin/opensearch to set environment
+ *    variables. Think /etc/defaults/opensearch.</dd>
+ *  <dt>heap.min and heap.max</dt>
+ *  <dd>Default min and max heap</dd>
+ *  <dt>scripts.footer</dt>
+ *  <dd>Footer appended to control scripts embedded in the distribution that is
+ *    (almost) entirely there for cosmetic reasons.</dd>
+ *  <dt>stopping.timeout</dt>
+ *  <dd>RPM's init script needs to wait for opensearch to stop before
+ *    returning from stop and it needs a maximum time to wait. This is it. One
+ *    day. DEB retries forever.</dd>
+ * </dl>
+ */
+subprojects {
+  ext.expansionsForDistribution = { distributionType, jdk ->
+    final String defaultHeapSize = "1g"
+    final String packagingPathData = "path.data: /var/lib/opensearch"
+    final String pathLogs = "/var/log/opensearch"
+    final String packagingPathLogs = "path.logs: ${pathLogs}"
+    final String packagingLoggc = "${pathLogs}/gc.log"
+
+    String licenseText = rootProject.file('licenses/APACHE-LICENSE-2.0.txt').getText('UTF-8')
+    // license text needs to be indented with a single space
+    licenseText = ' ' + licenseText.replace('\n', '\n ')
+
+    String footer = "# Built for ${project.name}-${project.version} " +
+      "(${distributionType})"
+    Map<String, Object> expansions = [
+      'project.name': project.name,
+      'project.version': version,
+
+      'path.conf': [
+        'deb': '/etc/opensearch',
+        'rpm': '/etc/opensearch',
+        'def': '"$OPENSEARCH_HOME"/config'
+      ],
+      'path.data': [
+        'deb': packagingPathData,
+        'rpm': packagingPathData,
+        'def': '#path.data: /path/to/data'
+      ],
+      'path.env': [
+        'deb': '/etc/default/opensearch',
+        'rpm': '/etc/sysconfig/opensearch',
+        /* There isn't one of these files for tar or zip but its important to
+          make an empty string here so the script can properly skip it. */
+        'def': 'if [ -z "$OPENSEARCH_PATH_CONF" ]; then OPENSEARCH_PATH_CONF="$OPENSEARCH_HOME"/config; done',
+      ],
+      'source.path.env': [
+        'deb': 'source /etc/default/opensearch',
+        'rpm': 'source /etc/sysconfig/opensearch',
+        'def': 'if [ -z "$OPENSEARCH_PATH_CONF" ]; then OPENSEARCH_PATH_CONF="$OPENSEARCH_HOME"/config; fi',
+      ],
+      'path.logs': [
+        'deb': packagingPathLogs,
+        'rpm': packagingPathLogs,
+        'def': '#path.logs: /path/to/logs'
+      ],
+      'loggc': [
+        'deb': packagingLoggc,
+        'rpm': packagingLoggc,
+        'def': 'logs/gc.log'
+      ],
+
+      'heap.min': defaultHeapSize,
+      'heap.max': defaultHeapSize,
+
+      'heap.dump.path': [
+        'deb': "-XX:HeapDumpPath=/var/lib/opensearch",
+        'rpm': "-XX:HeapDumpPath=/var/lib/opensearch",
+        'def': "-XX:HeapDumpPath=data"
+      ],
+
+      'error.file': [
+        'deb': "-XX:ErrorFile=/var/log/opensearch/hs_err_pid%p.log",
+        'rpm': "-XX:ErrorFile=/var/log/opensearch/hs_err_pid%p.log",
+        'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
+      ],
+
+      'stopping.timeout': [
+        'rpm': 86400,
+      ],
+
+      'scripts.footer': [
+        /* Debian needs exit 0 on these scripts so we add it here and preserve
+          the pretty footer. */
+        'deb': "exit 0\n${footer}",
+        'def': footer
+      ],
+
+      'opensearch.distribution.type': [
+        'deb': 'deb',
+        'rpm': 'rpm',
+        'tar': 'tar',
+        'zip': 'zip'
+      ],
+
+      'opensearch.bundled_jdk': [
+        'def': jdk != JavaPackageType.NONE ? true : false
+      ],
+
+      'license.name': [
+        'deb': 'ASL-2.0'
+      ],
+
+      'license.text': [
+        'deb': licenseText,
+      ],
+    ]
+    Map<String, String> result = [:]
+    expansions = expansions.each { key, value ->
+      if (value instanceof Map) {
+        // 'def' is for default but its three characters like 'rpm' and 'deb'
+        value = value[distributionType] ?: value['def']
+        if (value == null) {
+          return
+        }
+      }
+      result[key] = value
+    }
+    return result
+  }
+
+  ext.assertLinesInFile = { Path path, List<String> expectedLines ->
+    final List<String> actualLines = Files.readAllLines(path)
+    int line = 0
+    for (final String expectedLine : expectedLines) {
+      final String actualLine = actualLines.get(line)
+      if (expectedLine != actualLine) {
+        throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
+      }
+      line++
+    }
+  }
+}
+
+['archives:darwin-tar',
+ 'archives:darwin-arm64-tar',
+ 'archives:integ-test-zip',
+ 'archives:linux-arm64-tar',
+ 'archives:linux-tar',
+ 'archives:windows-zip',
+ 'packages:arm64-rpm', 'packages:arm64-deb',
+ 'packages:rpm', 'packages:deb'
+].forEach { subName ->
+  Project subproject = project("${project.path}:${subName}")
+  Configuration configuration = configurations.create(subproject.name)
+  dependencies {
+    "${configuration.name}" project(path: subproject.path, configuration:'default')
+  }
+}

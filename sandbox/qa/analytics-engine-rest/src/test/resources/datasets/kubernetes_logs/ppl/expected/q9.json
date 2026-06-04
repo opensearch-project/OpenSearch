@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "unique_pods",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster.name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      7,
+      "fdas-staging"
+    ],
+    [
+      7,
+      "fdas-prod"
+    ],
+    [
+      6,
+      "prod-cluster"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

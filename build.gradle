@@ -1,0 +1,749 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+
+import com.avast.gradle.dockercompose.tasks.ComposePull
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.opensearch.gradle.BuildPlugin
+import org.opensearch.gradle.Version
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.plugin.PluginBuildPlugin
+import org.opensearch.gradle.tar.SymbolicLinkPreservingTar
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.EclipseJdt
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.gradle.api.Project;
+import org.gradle.process.ExecResult;
+import org.opensearch.gradle.CheckCompatibilityTask
+import groovy.xml.XmlParser;
+
+import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
+
+plugins {
+  id 'lifecycle-base'
+  id 'opensearch.docker-support'
+  id 'opensearch.global-build-info'
+  id "com.diffplug.spotless" version "8.4.0" apply false
+  id "org.gradle.test-retry" version "1.6.2" apply false
+  id "test-report-aggregation"
+  id 'jacoco-report-aggregation'
+}
+
+apply from: 'gradle/build-complete.gradle'
+apply from: 'gradle/runtime-jdk-provision.gradle'
+apply from: 'gradle/ide.gradle'
+apply from: 'gradle/forbidden-dependencies.gradle'
+apply from: 'gradle/formatting.gradle'
+apply from: 'gradle/local-distribution.gradle'
+apply from: 'gradle/run.gradle'
+apply from: 'gradle/missing-javadoc.gradle'
+apply from: 'gradle/code-coverage.gradle'
+
+// Apply security setup if opensearch-security is in installedPlugins
+if (project.hasProperty('installedPlugins') &&
+    project.property('installedPlugins').toString().contains('opensearch-security')) {
+  apply from: 'gradle/security-setup.gradle'
+}
+
+// Apply FIPS configuration to all projects
+allprojects {
+  apply from: "$rootDir/gradle/fips.gradle"
+}
+
+// common maven publishing configuration
+allprojects {
+  group = 'org.opensearch'
+  version = VersionProperties.getOpenSearch()
+  description = "OpenSearch subproject ${project.path}"
+}
+
+configure(allprojects - project(':distribution:archives:integ-test-zip')) {
+  project.pluginManager.withPlugin('nebula.maven-base-publish') {
+    if (project.pluginManager.hasPlugin('opensearch.build') == false) {
+      throw new GradleException("Project ${path} publishes a pom but doesn't apply the build plugin.")
+    }
+  }
+}
+
+subprojects {
+  // Default to the apache license
+  project.ext.licenseName = 'The Apache Software License, Version 2.0'
+  project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+
+  // we only use maven publish to add tasks for pom generation
+  plugins.withType(MavenPublishPlugin).whenPluginAdded {
+    publishing {
+      publications {
+        // add license information to generated poms
+        all {
+          pom.withXml { XmlProvider xml ->
+            Node node = xml.asNode()
+            node.appendNode('inceptionYear', '2021')
+
+            Node license = node.appendNode('licenses').appendNode('license')
+            license.appendNode('name', project.licenseName)
+            license.appendNode('url', project.licenseUrl)
+            license.appendNode('distribution', 'repo')
+
+            Node developer = node.appendNode('developers').appendNode('developer')
+            developer.appendNode('name', 'OpenSearch')
+            developer.appendNode('url', 'https://github.com/opensearch-project/OpenSearch')
+          }
+        }
+      }
+      repositories {
+        maven {
+          name = 'test'
+          url = "${rootProject.buildDir}/local-test-repo"
+        }
+        maven {
+          name = 'Snapshots'
+          url = System.getenv("MAVEN_SNAPSHOTS_S3_REPO")
+          credentials(AwsCredentials) {
+            accessKey = System.getenv("AWS_ACCESS_KEY_ID")
+            secretKey = System.getenv("AWS_SECRET_ACCESS_KEY")
+            sessionToken = System.getenv("AWS_SESSION_TOKEN")
+          }
+        }
+      }
+    }
+  }
+
+  plugins.withType(BuildPlugin).whenPluginAdded {
+    project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+    project.noticeFile = project.rootProject.file('NOTICE.txt')
+  }
+}
+
+tasks.register("updateCIBwcVersions") {
+  doLast {
+    File yml = file(".ci/bwcVersions")
+    yml.text = ""
+    yml << "BWC_VERSION:\n"
+    BuildParams.bwcVersions.indexCompatible.each {
+      yml << "  - \"$it\"\n"
+    }
+  }
+}
+
+// build metadata from previous build, contains eg hashes for bwc builds
+String buildMetadataValue = System.getenv('BUILD_METADATA')
+if (buildMetadataValue == null) {
+  buildMetadataValue = ''
+}
+Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
+  def (String key, String value) = it.split('=')
+  return [key, value]
+}
+
+// See please https://docs.gradle.org/8.11/userguide/service_injection.html#execoperations
+interface InjectedExecOps {
+  @Inject ExecOperations getExecOps()
+}
+
+/**
+ * Using 'git' command line (if available), tries to fetch the commit date of the current revision
+ * @return commit date of the current revision or 0 if it is not available
+ */
+long gitRevisionDate = {
+  def execOps = project.objects.newInstance(InjectedExecOps)
+  // Try to get last commit date as Unix timestamp
+  try (ByteArrayOutputStream stdout = new ByteArrayOutputStream()) {
+     ExecResult result = execOps.execOps.exec(spec -> {
+        spec.setIgnoreExitValue(true);
+        spec.setStandardOutput(stdout);
+        spec.commandLine("git", "log", "-1", "--format=%ct");
+     });
+
+    if (result.getExitValue() == 0) {
+      return Long.parseLong(stdout.toString(StandardCharsets.UTF_8).replaceAll("\\s", "")) * 1000; /* seconds to millis */
+    }
+  } catch (IOException | GradleException | NumberFormatException ex) {
+    /* fall back to default Unix epoch timestamp */
+  }
+
+  return 0;
+}()
+
+
+// injecting groovy property variables into all projects
+allprojects {
+  project.ext {
+    // for ide hacks...
+    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
+      System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+      gradle.startParameter.taskNames.contains('cleanEclipse')
+
+    buildMetadata = buildMetadataMap
+  }
+}
+
+tasks.register("verifyVersions") {
+  doLast {
+    if (gradle.startParameter.isOffline()) {
+      throw new GradleException("Must run in online mode to verify versions")
+    }
+    // Read the list from maven central.
+    // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
+    // rather than bwcVersion ( VersionCollection ).
+    new URL('https://ci.opensearch.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+      BuildParams.bwcVersions.compareToAuthoritative(
+        new XmlParser().parse(s)
+          .versioning.versions.version
+          .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+          .collect { Version.fromString(it) }
+      )
+    }
+    String ciYml = file(".ci/bwcVersions").text
+    BuildParams.bwcVersions.indexCompatible.each {
+      if (ciYml.contains("\"$it\"\n") == false) {
+        throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
+      }
+    }
+  }
+}
+
+/*
+ * When adding backcompat behavior that spans major versions, temporarily
+ * disabling the backcompat tests is necessary. This flag controls
+ * the enabled state of every bwc task. It should be set back to true
+ * after the backport of the backcompat code is complete.
+ */
+
+boolean bwc_tests_enabled = true
+
+if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run in it's own check
+  bwc_tests_enabled = false
+}
+
+subprojects {
+  ext.bwc_tests_enabled = bwc_tests_enabled
+}
+
+tasks.register("verifyBwcTestsEnabled") {
+  doLast {
+    if (bwc_tests_enabled == false) {
+      throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
+    }
+  }
+}
+
+tasks.register("branchConsistency") {
+  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  group 'Verification'
+  dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
+}
+
+allprojects {
+  // configure compiler options
+  tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
+    options.fork = true
+
+    configure(options.forkOptions) {
+      memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
+    }
+
+    compile.options.compilerArgs << '-Werror'
+    compile.options.compilerArgs << '-Xlint:auxiliaryclass'
+    compile.options.compilerArgs << '-Xlint:cast'
+    compile.options.compilerArgs << '-Xlint:classfile'
+    compile.options.compilerArgs << '-Xlint:dep-ann'
+    compile.options.compilerArgs << '-Xlint:divzero'
+    compile.options.compilerArgs << '-Xlint:empty'
+    compile.options.compilerArgs << '-Xlint:exports'
+    compile.options.compilerArgs << '-Xlint:fallthrough'
+    compile.options.compilerArgs << '-Xlint:finally'
+    compile.options.compilerArgs << '-Xlint:module'
+    compile.options.compilerArgs << '-Xlint:opens'
+    compile.options.compilerArgs << '-Xlint:overloads'
+    compile.options.compilerArgs << '-Xlint:overrides'
+    compile.options.compilerArgs << '-Xlint:-processing'
+    compile.options.compilerArgs << '-Xlint:rawtypes'
+    compile.options.compilerArgs << '-Xlint:removal'
+    compile.options.compilerArgs << '-Xlint:requires-automatic'
+    compile.options.compilerArgs << '-Xlint:requires-transitive-automatic'
+    compile.options.compilerArgs << '-Xlint:static'
+    compile.options.compilerArgs << '-Xlint:unchecked'
+    compile.options.compilerArgs << '-Xlint:varargs'
+    compile.options.compilerArgs << '-Xlint:preview'
+    // TODO: disabled warnings: path, serial, options, deprecation, try
+    // -path because gradle will send in paths that don't always exist.
+    // -missing because we have tons of missing @returns and @param.
+    // -serial because we don't use java serialization.
+    compile.options.compilerArgs << '-Xdoclint:accessibility'
+    compile.options.compilerArgs << '-Xdoclint:html'
+    compile.options.compilerArgs << '-Xdoclint:reference'
+    compile.options.compilerArgs << '-Xdoclint:syntax'
+  }
+
+  // ignore missing javadocs
+  tasks.withType(Javadoc).configureEach { Javadoc javadoc ->
+    // the -quiet here is because of a bug in gradle, in that adding a string option
+    // by itself is not added to the options. By adding quiet, both this option and
+    // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+    // command already adds -quiet, so we are just duplicating it
+    // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+    javadoc.options.encoding = 'UTF8'
+    javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    boolean failOnJavadocWarning = project.ext.has('failOnJavadocWarning') ? project.ext.get('failOnJavadocWarning') : true
+    if (failOnJavadocWarning) {
+      javadoc.options.addStringOption('Xwerror', '-quiet')
+    }
+    javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
+    javadoc.options.addStringOption("-release", java.targetCompatibility.majorVersion)
+  }
+
+  // support for reproducible builds
+  tasks.withType(AbstractArchiveTask).configureEach { task ->
+    // ignore file timestamps
+    // be consistent in archive file order
+    task.preserveFileTimestamps = false
+    task.reproducibleFileOrder = true
+    if (task instanceof SymbolicLinkPreservingTar) {
+      // Replace file timestamps with latest Git revision date (if available)
+      task.lastModifiedTimestamp = gitRevisionDate
+    }
+  }
+
+  project.afterEvaluate {
+    // Handle javadoc dependencies across projects. Order matters: the linksOffline for
+    // org.opensearch:opensearch must be the last one or all the links for the
+    // other packages (e.g org.opensearch.client) will point to server rather than
+    // their own artifacts.
+    if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
+      String artifactsHost = VersionProperties.getOpenSearch().endsWith("-SNAPSHOT")
+        ? "https://artifacts.opensearch.org/snapshots/"
+        : "https://artifacts.opensearch.org/releases/"
+      Closure sortClosure = { a, b -> b.group <=> a.group }
+      Closure depJavadocClosure = { shadowed, dep ->
+        if ((dep instanceof ProjectDependency) == false) {
+          return
+        }
+        Project upstreamProject = project.project(dep.path)
+        if (upstreamProject == null) {
+          return
+        }
+        if (shadowed) {
+          /*
+           * Include the source of shadowed upstream projects so we don't
+           * have to publish their javadoc.
+           */
+          project.evaluationDependsOn(upstreamProject.path)
+          project.javadoc.source += upstreamProject.javadoc.source
+          /*
+           * Instead we need the upstream project's javadoc classpath so
+           * we don't barf on the classes that it references.
+           */
+          project.javadoc.classpath += upstreamProject.javadoc.classpath
+        } else {
+          // Link to non-shadowed dependant projects
+          project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
+          String externalLinkName = upstreamProject.base.archivesName
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
+          String projectRelativePath = project.relativePath(upstreamProject.buildDir)
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
+        }
+      }
+      boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
+      project.configurations.implementation.dependencies
+        .findAll()
+        .toSorted(sortClosure)
+        .each({ c -> depJavadocClosure(hasShadow, c) })
+      project.configurations.compileOnly.dependencies
+        .findAll()
+        .toSorted(sortClosure)
+        .each({ c -> depJavadocClosure(false, c) })
+      if (hasShadow) {
+        // include any dependencies for shadow JAR projects that are *not* bundled in the shadow JAR
+        project.configurations.shadow.dependencies
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(false, c) })
+      }
+    }
+  }
+}
+
+// Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
+// important because, while dependencies.all will pickup future dependencies,
+// it is not necessarily true that the task exists in both projects at the time
+// the dependency is added.
+gradle.projectsEvaluated {
+  allprojects {
+    project.tasks.withType(JavaForkOptions) {
+      maxHeapSize = project.property('options.forkOptions.memoryMaximumSize')
+    }
+
+    if (project.path == ':test:framework') {
+      // :test:framework:test cannot run before and after :server:test
+      return
+    }
+    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
+      integTest.mustRunAfter test
+    }
+
+    project.tasks.withType(Test) { task ->
+      if (task != null) {
+        task.jvmArgs += [
+            "--add-modules=jdk.incubator.vector",
+            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
+            "--enable-native-access=ALL-UNNAMED",
+            // Disable ByteBuddy's Unsafe-based class injection path to avoid
+            // "sun.misc.Unsafe::objectFieldOffset has been called by ByteBuddy" JVM warnings on JDK 21+.
+            // ByteBuddy still falls back to Lookup/Reflection injection strategies.
+            "-Dnet.bytebuddy.safe=true"
+        ]
+
+        // Add Java Agent for security sandboxing
+        if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {
+          dependsOn(project(':libs:agent-sm:agent').tasks.named('prepareAgent'))
+          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').tasks.named('jar').get().archiveFile.get()]
+        }
+        if (BuildParams.isInFipsJvm()) {
+          def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
+          task.jvmArgs += [
+              "-Dorg.bouncycastle.fips.approved_only=true",
+              "-Djava.security.properties=${fipsSecurityFile}"
+          ]
+        }
+      }
+    }
+
+    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
+      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
+        Project upstreamProject = project.project(dep.path)
+        if (upstreamProject != null) {
+          if (project.path == upstreamProject.path) {
+            // TODO: distribution integ tests depend on themselves (!), fix that
+            return
+          }
+          for (String taskName : ['test', 'integTest']) {
+            Task task = project.tasks.findByName(taskName)
+            Task upstreamTask = upstreamProject.tasks.findByName(taskName)
+            if (task != null && upstreamTask != null) {
+              task.shouldRunAfter(upstreamTask)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  dependencies {
+    subprojects.findAll { it.pluginManager.hasPlugin('java') }.forEach {
+      testReportAggregation it
+    }
+    subprojects.findAll { it.pluginManager.hasPlugin('jacoco') }.forEach {
+      jacocoAggregation it
+    }
+  }
+}
+
+// test retry configuration
+subprojects {
+  apply plugin: "org.gradle.test-retry"
+  tasks.withType(Test).configureEach {
+    retry {
+      if (BuildParams.isCi()) {
+        maxRetries = 3
+        maxFailures = 10
+      }
+      failOnPassedAfterRetry = false
+      filter {
+        includeClasses.add("org.opensearch.action.admin.cluster.node.tasks.ResourceAwareTasksTests")
+        includeClasses.add("org.opensearch.action.admin.cluster.tasks.PendingTasksBlocksIT")
+        includeClasses.add("org.opensearch.action.admin.indices.create.CreateIndexIT")
+        includeClasses.add("org.opensearch.action.admin.indices.create.ShrinkIndexIT")
+        includeClasses.add("org.opensearch.aliases.IndexAliasesIT")
+        includeClasses.add("org.opensearch.backwards.MixedClusterClientYamlTestSuiteIT")
+        includeClasses.add("org.opensearch.blocks.SimpleBlocksIT")
+        includeClasses.add("org.opensearch.client.PitIT")
+        includeClasses.add("org.opensearch.client.ReindexIT")
+        includeClasses.add("org.opensearch.cluster.ClusterHealthIT")
+        includeClasses.add("org.opensearch.cluster.allocation.AwarenessAllocationIT")
+        includeClasses.add("org.opensearch.cluster.allocation.ClusterRerouteIT")
+        includeClasses.add("org.opensearch.cluster.coordination.AwarenessAttributeDecommissionIT")
+        includeClasses.add("org.opensearch.cluster.metadata.IndexGraveyardTests")
+        includeClasses.add("org.opensearch.cluster.routing.MovePrimaryFirstTests")
+        includeClasses.add("org.opensearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT")
+        includeClasses.add("org.opensearch.common.util.concurrent.QueueResizableOpenSearchThreadPoolExecutorTests")
+        includeClasses.add("org.opensearch.gateway.RecoveryFromGatewayIT")
+        includeClasses.add("org.opensearch.gateway.ReplicaShardAllocatorIT")
+        includeClasses.add("org.opensearch.http.SearchRestCancellationIT")
+        includeClasses.add("org.opensearch.http.netty4.Netty4HttpServerTransportTests")
+        includeClasses.add("org.opensearch.index.IndexServiceTests")
+        includeClasses.add("org.opensearch.index.IndexSettingsTests")
+        includeClasses.add("org.opensearch.index.SegmentReplicationPressureIT")
+        includeClasses.add("org.opensearch.index.ShardIndexingPressureIT")
+        includeClasses.add("org.opensearch.index.ShardIndexingPressureSettingsIT")
+        includeClasses.add("org.opensearch.index.reindex.BulkByScrollResponseTests")
+        includeClasses.add("org.opensearch.index.reindex.DeleteByQueryBasicTests")
+        includeClasses.add("org.opensearch.index.reindex.UpdateByQueryBasicTests")
+        includeClasses.add("org.opensearch.index.shard.IndexShardIT")
+        includeClasses.add("org.opensearch.index.shard.RemoteIndexShardTests")
+        includeClasses.add("org.opensearch.index.shard.RemoteStoreRefreshListenerTests")
+        includeClasses.add("org.opensearch.index.translog.RemoteFSTranslogTests")
+        includeClasses.add("org.opensearch.indices.DateMathIndexExpressionsIntegrationIT")
+        includeClasses.add("org.opensearch.indices.replication.RemoteStoreReplicationSourceTests")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationAllocationIT")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationIT")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationRelocationIT")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationTargetServiceTests")
+        includeClasses.add("org.opensearch.indices.state.CloseWhileRelocatingShardsIT")
+        includeClasses.add("org.opensearch.monitor.fs.FsHealthServiceTests")
+        includeClasses.add("org.opensearch.recovery.ReplicationCollectionTests")
+        includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexClusterDefaultDocRep")
+        includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexIT")
+        includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexTranslogDisabledIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreBackpressureIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreRefreshListenerIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreStatsIT")
+        includeClasses.add("org.opensearch.remotestore.SegmentReplicationRemoteStoreIT")
+        includeClasses.add("org.opensearch.remotestore.SegmentReplicationUsingRemoteStoreIT")
+        includeClasses.add("org.opensearch.remotestore.multipart.RemoteStoreMultipartIT")
+        includeClasses.add("org.opensearch.repositories.azure.AzureBlobContainerRetriesTests")
+        includeClasses.add("org.opensearch.repositories.azure.AzureBlobStoreRepositoryTests")
+        includeClasses.add("org.opensearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests")
+        includeClasses.add("org.opensearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests")
+        includeClasses.add("org.opensearch.repositories.s3.S3BlobStoreRepositoryTests")
+        includeClasses.add("org.opensearch.search.ConcurrentSegmentSearchTimeoutIT")
+        includeClasses.add("org.opensearch.search.SearchTimeoutIT")
+        includeClasses.add("org.opensearch.search.SearchWeightedRoutingIT")
+        includeClasses.add("org.opensearch.search.aggregations.bucket.DoubleTermsIT")
+        includeClasses.add("org.opensearch.search.aggregations.bucket.terms.StringTermsIT")
+        includeClasses.add("org.opensearch.search.aggregations.metrics.CardinalityIT")
+        includeClasses.add("org.opensearch.search.backpressure.SearchBackpressureIT")
+        includeClasses.add("org.opensearch.search.basic.SearchWithRandomIOExceptionsIT")
+        includeClasses.add("org.opensearch.search.pit.DeletePitMultiNodeIT")
+        includeClasses.add("org.opensearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT")
+        includeClasses.add("org.opensearch.snapshots.CloneSnapshotIT")
+        includeClasses.add("org.opensearch.snapshots.DedicatedClusterSnapshotRestoreIT")
+        includeClasses.add("org.opensearch.snapshots.RestoreSnapshotIT")
+        includeClasses.add("org.opensearch.snapshots.SnapshotStatusApisIT")
+        includeClasses.add("org.opensearch.test.rest.ClientYamlTestSuiteIT")
+        includeClasses.add("org.opensearch.upgrade.DetectEsInstallationTaskTests")
+      }
+    }
+  }
+}
+
+// eclipse configuration
+allprojects {
+  apply plugin: 'eclipse'
+
+  // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
+  if (path != ':') {
+    eclipse.project.name = path
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+      eclipse.project.name = eclipse.project.name.replace(':', '_')
+    }
+  }
+
+  plugins.withType(JavaBasePlugin) {
+    eclipse.classpath.defaultOutputDir = file('build-eclipse')
+    eclipse.classpath.file.whenMerged { classpath ->
+      // give each source folder a unique corresponding output folder
+      int i = 0;
+      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
+        i++;
+        folder.output = "build-eclipse/" + i
+      }
+    }
+  }
+  /*
+   * Allow accessing com/sun/net/httpserver in projects that have
+   * configured forbidden apis to allow it.
+   */
+  plugins.withType(ForbiddenApisPlugin) {
+    eclipse.classpath.file.whenMerged { classpath ->
+      if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
+        classpath.entries
+          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
+          .each {
+            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
+          }
+      }
+    }
+  }
+
+  File licenseHeaderFile
+  licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/license-header.txt')
+
+  String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
+  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
+  tasks.register('copyEclipseSettings', Copy) {
+    mustRunAfter 'wipeEclipseSettings'
+    // TODO: "package this up" for external builds
+    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    into '.settings'
+    filter { it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader) }
+  }
+  // otherwise .settings is not nuked entirely
+  tasks.register('wipeEclipseSettings', Delete) {
+    delete '.settings'
+  }
+  tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
+  // otherwise the eclipse merging is *super confusing*
+  tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
+
+  afterEvaluate {
+    tasks.findByName("eclipseJdt")?.configure {
+      dependsOn 'copyEclipseSettings'
+    }
+  }
+}
+
+wrapper {
+  distributionType = 'ALL'
+  doLast {
+    def sha256Sum = new String(new URL(getDistributionUrl() + ".sha256").bytes)
+    propertiesFile << "distributionSha256Sum=${sha256Sum}\n"
+    println "Added checksum to wrapper properties"
+    // Update build-tools to reflect the Gradle upgrade
+    // TODO: we can remove this once we have tests to make sure older versions work.
+    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion + "\n"
+    println "Updated minimum Gradle Version"
+  }
+}
+
+gradle.projectsEvaluated {
+  subprojects {
+    /*
+     * Remove assemble/dependenciesInfo on all qa projects because we don't
+     * need to publish artifacts for them.
+     */
+    if (project.name.equals('qa') || project.path.contains(':qa:')) {
+      maybeConfigure(project.tasks, 'assemble') {
+        it.enabled = false
+      }
+      maybeConfigure(project.tasks, 'dependenciesInfo') {
+        it.enabled = false
+      }
+    }
+  }
+  // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
+  // dependencies leading to hard to debug failures. Run a check across all project to prevent this from happening.
+  // see: https://github.com/gradle/gradle/issues/847
+  Map coordsToProject = [:]
+  project.allprojects.forEach { p ->
+    String coords = "${p.group}:${p.name}"
+    if (false == coordsToProject.putIfAbsent(coords, p)) {
+      throw new GradleException(
+        "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
+          "have the same name and group: ${coords}. " +
+          "This doesn't currently work correctly in Gradle, see: " +
+          "https://github.com/gradle/gradle/issues/847"
+      )
+    }
+  }
+}
+
+allprojects {
+  tasks.register('resolveAllDependencies', org.opensearch.gradle.ResolveAllDependencies) {
+    configs = project.configurations
+    if (project.path.contains("fixture")) {
+      dependsOn tasks.withType(ComposePull)
+    }
+  }
+
+  // helper task to print direct dependencies of a single task
+  project.tasks.addRule("Pattern: <taskName>Dependencies") { String taskName ->
+    if (taskName.endsWith("Dependencies") == false) {
+      return
+    }
+    if (project.tasks.findByName(taskName) != null) {
+      return
+    }
+    String realTaskName = taskName.substring(0, taskName.length() - "Dependencies".length())
+    Task realTask = project.tasks.findByName(realTaskName)
+    if (realTask == null) {
+      return
+    }
+    project.tasks.register(taskName) {
+      doLast {
+        println("${realTask.path} dependencies:")
+        for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {
+          println("  - ${dep.path}")
+        }
+      }
+    }
+  }
+
+  def checkPart1 = tasks.register('checkPart1')
+  def checkPart2 = tasks.register('checkPart2')
+  plugins.withId('lifecycle-base') {
+    checkPart1.configure { dependsOn 'check' }
+  }
+}
+
+subprojects {
+  project.ext.disableTasks = { String... tasknames ->
+    for (String taskname : tasknames) {
+      project.tasks.named(taskname).configure { onlyIf { false } }
+    }
+  }
+}
+
+reporting {
+  reports {
+    testAggregateTestReport(AggregateTestReport) {
+      testSuiteName = "test"
+     }
+  }
+}
+
+// Enable XML test reports for Jenkins integration
+tasks.withType(TestTaskReports).configureEach {
+  junitXml.enabled = true
+}
+
+tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
+  dependsOn tasks.named('testAggregateTestReport', TestReport)
+}
+
+tasks.register('checkCompatibility', CheckCompatibilityTask) {
+  description = 'Checks the compatibility with child components'
+}
+
+allprojects { project ->
+  project.afterEvaluate {
+    if (project.tasks.findByName('publishToMavenLocal')) {
+      checkCompatibility.dependsOn(project.tasks.publishToMavenLocal)
+    }
+  }
+}

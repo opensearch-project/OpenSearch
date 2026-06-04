@@ -1,0 +1,22 @@
+plugins {
+    id 'java'
+}
+
+base {
+  group = 'org.opensearch'
+  version = '1.0.0-SNAPSHOT'
+}
+
+repositories {
+    maven {
+        url = uri("https://ci.opensearch.org/maven2/")
+        content {
+            excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+        }
+    }
+    mavenCentral {
+        content {
+            excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+        }
+    }
+}

@@ -1,0 +1,69 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.opensearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-test'
+apply plugin: 'opensearch.rest-resources'
+
+dependencies {
+  testImplementation project(":client:rest-high-level")
+}
+
+task 'remote-cluster'(type: RestIntegTestTask) {
+  mustRunAfter(precommit)
+  systemProperty 'tests.rest.suite', 'remote_cluster'
+}
+
+testClusters.'remote-cluster' {
+  numberOfNodes = 2
+  setting 'node.roles', '[data,ingest,cluster_manager]'
+}
+
+task mixedClusterTest(type: RestIntegTestTask) {
+    useCluster project, testClusters.'remote-cluster'
+    dependsOn 'remote-cluster'
+    systemProperty 'tests.rest.suite', 'multi_cluster'
+}
+
+testClusters.mixedClusterTest {
+  setting 'cluster.remote.my_remote_cluster.seeds',
+    { "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\"" }
+  setting 'cluster.remote.connections_per_cluster', '1'
+}
+
+tasks.register("integTest") {
+  dependsOn "mixedClusterTest"
+}
+
+tasks.named("test").configure { enabled = false }// no unit tests for multi-cluster-search, only integration tests
+
+tasks.named("check").configure { dependsOn("integTest") }

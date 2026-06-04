@@ -1,0 +1,56 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:window_functions
+window_functions:
+  - name: internal_pattern
+    description: >-
+      PPL `patterns ... method=BRAIN mode=label`. Window form of
+      {@code internal_pattern}: for each row in the partition, emits the
+      BRAIN-derived wildcard pattern string that best matches the row's source
+      value. The partition's full corpus is fed into BrainLogParser at evaluate
+      time, then per-row matching uses the same find_best_candidate logic the
+      aggregate {@code eval_agg} path uses. Custom Rust window UDF in
+      {@code rust/src/udwf/internal_pattern.rs}.
+    impls:
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+        decomposable: NONE
+        return: string?
+        window_type: PARTITION
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+          - name: threshold_percentage
+            value: any5
+        decomposable: NONE
+        return: string?
+        window_type: PARTITION
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+          - name: threshold_percentage
+            value: any5
+          - name: variable_count_threshold
+            value: any6
+        decomposable: NONE
+        return: string?
+        window_type: PARTITION

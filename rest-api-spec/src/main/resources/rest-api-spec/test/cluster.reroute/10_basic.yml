@@ -1,0 +1,15 @@
+---
+"Basic sanity check":
+  - do:
+      cluster.reroute: {}
+
+---
+"Cluster reroute returns cluster_manager_node":
+  - do:
+      cluster.reroute: {}
+
+  - set:
+      state.cluster_manager_node: node_id
+
+  - match: {state.master_node: $node_id}
+  - match: {state.cluster_manager_node: $node_id}

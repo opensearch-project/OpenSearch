@@ -1,0 +1,122 @@
+---
+"Help - before 2.0.0":
+  - skip:
+      version: " - 7.10.99 , 2.0.0 - "
+      reason: "discovered_master added in OpenSearch 1.0.0, and renamed to discovered_cluster_manager in 2.0.0"
+      features: node_selector
+  - do:
+      cat.health:
+        help: true
+      node_selector:
+        # Only send request to nodes in <2.0 versions, especially during ':qa:mixed-cluster:v1.x.x#mixedClusterTest'.
+        # Because YAML REST test takes the minimum OpenSearch version in the cluster to apply the filter in 'skip' section,
+        # see OpenSearchClientYamlSuiteTestCase#initAndResetContext() for detail.
+        # During 'mixedClusterTest', the cluster can be mixed with nodes in 1.x and 2.x versions,
+        # so node_selector is required, and only filtering version in 'skip' is not enough.
+        version: "1.0.0 - 1.4.99"
+
+  - match:
+      $body: |
+               /^  epoch         .+ \n
+                   timestamp     .+ \n
+                   cluster       .+ \n
+                   status        .+ \n
+                   node.total    .+ \n
+                   node.data     .+ \n
+                   discovered_master .+ \n
+                   shards        .+ \n
+                   pri           .+ \n
+                   relo          .+ \n
+                   init          .+ \n
+                   unassign      .+ \n
+                   pending_tasks .+ \n
+                   max_task_wait_time .+ \n
+                   active_shards_percent .+ \n
+
+               $/
+
+---
+"Help":
+  - do:
+      cat.health:
+        help: true
+
+  - match:
+      $body: |
+               /^  epoch         .+ \n
+                   timestamp     .+ \n
+                   cluster       .+ \n
+                   status        .+ \n
+                   node.total    .+ \n
+                   node.data     .+ \n
+                   discovered_cluster_manager .+ \n
+                   shards        .+ \n
+                   pri           .+ \n
+                   relo          .+ \n
+                   init          .+ \n
+                   unassign      .+ \n
+                   pending_tasks .+ \n
+                   max_task_wait_time .+ \n
+                   active_shards_percent .+ \n
+
+               $/
+
+---
+"Empty cluster":
+  - skip:
+      version: " - 7.10.99"
+      reason: "discovered_master added in OpenSearch 1.0.0"
+  - do:
+      cat.health: {}
+
+  - match:
+      $body: |
+            /^
+              ( \d+            \s+ # epoch
+                \d\d:\d\d:\d\d \s+ # timestamp
+                \S+            \s+ # cluster
+                \w+            \s+ # status
+                \d+            \s+ # node.total
+                \d+            \s+ # node.data
+                \w+            \s+ # discovered_master
+                \d+            \s+ # shards
+                \d+            \s+ # pri
+                \d+            \s+ # relo
+                \d+            \s+ # init
+                \d+            \s+ # unassign
+                \d+            \s+ # pending_tasks
+                (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
+                \d+\.\d+%             # active shards percent
+                \n
+              )+
+            $/
+
+
+---
+"With ts parameter":
+  - skip:
+      version: " - 7.10.99"
+      reason: "discovered_master added in OpenSearch 1.0.0"
+  - do:
+      cat.health:
+        ts: false
+
+  - match:
+      $body: |
+            /^
+              ( \S+            \s+ # cluster
+                \w+            \s+ # status
+                \d+            \s+ # node.total
+                \d+            \s+ # node.data
+                \w+            \s+ # discovered_master
+                \d+            \s+ # shards
+                \d+            \s+ # pri
+                \d+            \s+ # relo
+                \d+            \s+ # init
+                \d+            \s+ # unassign
+                \d+            \s+ # pending_tasks
+                (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
+                \d+\.\d+%             # active shards percent
+                \n
+              )+
+            $/

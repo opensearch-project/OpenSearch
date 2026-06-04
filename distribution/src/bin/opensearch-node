@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -e -o pipefail
+
+OPENSEARCH_MAIN_CLASS=org.opensearch.cluster.coordination.NodeToolCli \
+  "`dirname "$0"`"/opensearch-cli \
+  "$@"

@@ -1,0 +1,1 @@
+source=test_data | eval appended = json_append(json_data, '$.tags', 'new') | fields json_data, appended | head 3

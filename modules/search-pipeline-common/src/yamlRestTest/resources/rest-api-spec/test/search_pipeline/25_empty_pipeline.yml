@@ -1,0 +1,47 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test explicitly empty pipeline is no-op":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description"
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "field" : "foo"
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "field": "value"
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        index: test
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+  - match: { hits.total.value: 2 }

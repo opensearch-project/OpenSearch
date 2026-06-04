@@ -1,0 +1,20 @@
+{
+  "get_script_languages":{
+    "documentation":{
+      "url": "https://opensearch.org/docs/latest/api-reference/script-apis/get-script-language/",
+      "description":"Returns available script types, languages and contexts"
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_script_language",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

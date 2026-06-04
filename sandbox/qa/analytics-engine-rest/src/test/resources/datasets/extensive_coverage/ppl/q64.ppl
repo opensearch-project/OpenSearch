@@ -1,0 +1,1 @@
+source=test_data | eval sha2_hash = sha2(id, 256) | fields id, sha2_hash | head 3

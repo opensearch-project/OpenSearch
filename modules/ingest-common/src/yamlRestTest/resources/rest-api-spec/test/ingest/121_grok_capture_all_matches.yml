@@ -1,0 +1,173 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test Grok Pipeline with capture_all_matches disabled (default)":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "patterns" : ["%{IP:ipAddress} %{IP:ipAddress} %{IP:ipAddress}"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "192.168.1.1 10.0.0.1 172.16.0.1"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.ipAddress: "192.168.1.1" }
+
+---
+"Test Grok Pipeline with capture_all_matches enabled":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "patterns" : ["%{IP:ipAddress} %{IP:ipAddress} %{IP:ipAddress}"],
+                  "capture_all_matches": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "192.168.1.1 10.0.0.1 172.16.0.1"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - length: { _source.ipAddress: 3 }
+  - match: { _source.ipAddress.0: "192.168.1.1" }
+  - match: { _source.ipAddress.1: "10.0.0.1" }
+  - match: { _source.ipAddress.2: "172.16.0.1" }
+
+
+---
+"Test Grok Pipeline with capture_all_matches and multiple patterns":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "patterns" : [
+                    "User %{WORD:username} logged in from %{IP:ipAddress}",
+                    "IP: %{IP:ipAddress}"
+                  ],
+                  "capture_all_matches": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "User john logged in from 192.168.1.1"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.username: "john" }
+  - match: { _source.ipAddress: "192.168.1.1" }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        pipeline: "my_pipeline"
+        body: {field1: "IP: 10.0.0.1"}
+
+  - do:
+      get:
+        index: test
+        id: 2
+  - match: { _source.ipAddress: "10.0.0.1" }
+
+---
+"Test Grok Pipeline with capture_all_matches and custom pattern":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "patterns" : ["Tags: %{TAGS:tag}, %{TAGS:tag}, %{TAGS:tag}"],
+                  "pattern_definitions" : {
+                    "TAGS" : "[a-z0-9]+"
+                  },
+                  "capture_all_matches": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "Tags: foo, bar, baz"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.tag.0: "foo" }
+  - match: { _source.tag.1: "bar" }
+  - match: { _source.tag.2: "baz" }
+  - length: { _source.tag: 3 }

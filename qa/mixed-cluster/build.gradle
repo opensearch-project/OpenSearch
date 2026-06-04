@@ -1,0 +1,97 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.opensearch.gradle.Version
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'opensearch.rest-resources'
+
+dependencies {
+  testImplementation project(":client:rest-high-level")
+}
+
+restResources {
+  restTests {
+    includeCore '*'
+  }
+}
+
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
+  if (bwcVersion == VersionProperties.getOpenSearchVersion()) {
+    // Not really a mixed cluster
+    continue;
+  }
+
+  String baseName = "v${bwcVersion}"
+  String bwcVersionStr = "${bwcVersion}"
+
+  /* This project runs the core REST tests against a 4 node cluster where two of
+     the nodes has a different minor.  */
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 4
+
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    }
+  }
+
+  tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+    useCluster project, testClusters."${baseName}"
+    mustRunAfter(precommit)
+    doFirst {
+      delete("${buildDir}/cluster/shared/repo/${baseName}")
+      // Getting the endpoints causes a wait for the cluster
+      println "Test cluster endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrading one node to create a mixed cluster"
+      testClusters."${baseName}".nextNodeToNextVersion()
+      // Getting the endpoints causes a wait for the cluster
+      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrading another node to create a mixed cluster"
+      testClusters."${baseName}".nextNodeToNextVersion()
+      println "Upgrading complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    }
+    systemProperty 'tests.upgrade_from_version', bwcVersionStr
+    systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    onlyIf { project.bwc_tests_enabled }
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#mixedClusterTest"
+  }
+}

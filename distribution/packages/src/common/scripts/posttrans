@@ -1,0 +1,22 @@
+# source the default env file
+if [ -f "${path.env}" ]; then
+    . "${path.env}"
+fi
+
+export OPENSEARCH_PATH_CONF=${OPENSEARCH_PATH_CONF:-${path.conf}}
+
+if [ ! -f "${OPENSEARCH_PATH_CONF}"/opensearch.keystore ]; then
+    /usr/share/opensearch/bin/opensearch-keystore create
+    chown root:opensearch "${OPENSEARCH_PATH_CONF}"/opensearch.keystore
+    chmod 660 "${OPENSEARCH_PATH_CONF}"/opensearch.keystore
+    md5sum "${OPENSEARCH_PATH_CONF}"/opensearch.keystore > "${OPENSEARCH_PATH_CONF}"/.opensearch.keystore.initial_md5sum
+else
+    if /usr/share/opensearch/bin/opensearch-keystore has-passwd --silent ; then
+      echo "### Warning: unable to upgrade encrypted keystore" 1>&2
+      echo " Please run opensearch-keystore upgrade and enter password" 1>&2
+    else
+      /usr/share/opensearch/bin/opensearch-keystore upgrade
+    fi
+fi
+
+${scripts.footer}

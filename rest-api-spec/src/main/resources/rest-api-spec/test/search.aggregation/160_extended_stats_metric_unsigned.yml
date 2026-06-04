@@ -1,0 +1,276 @@
+setup:
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                unsigned_field:
+                   type : unsigned_long
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    1
+           - unsigned_field: 1
+             double_field: 1.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    2
+           - unsigned_field: 51
+             double_field: 51.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    3
+           - unsigned_field: 10223372036854778000
+             double_field: 10223372036854778000.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    4
+           - unsigned_field: 1101
+             double_field: 1101.0
+             string_field: foo
+
+---
+"Basic test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_unsigned_extended_stats:
+              extended_stats:
+                field: unsigned_field
+            the_double_extended_stats:
+              extended_stats:
+                field: double_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_unsigned_extended_stats.count: 4 }
+  - match: { aggregations.the_unsigned_extended_stats.min: 1.0 }
+  - match: { aggregations.the_unsigned_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation:  4426849948127849000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.upper: 11409542905469393000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.lower: -6297856887042003000.0 }
+  - match: { aggregations.the_double_extended_stats.count: 4 }
+  - match: { aggregations.the_double_extended_stats.min: 1.0 }
+  - match: { aggregations.the_double_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_double_extended_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_double_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_double_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation: 4426849948127849000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.upper: 11409542905469393000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.lower: -6297856887042003000.0 }
+
+---
+"Only aggs test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_unsigned_extended_stats:
+              extended_stats:
+                field: unsigned_field
+            the_double_extended_stats:
+              extended_stats:
+                field: double_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+  - match: { aggregations.the_unsigned_extended_stats.count: 4 }
+  - match: { aggregations.the_unsigned_extended_stats.min: 1.0 }
+  - match: { aggregations.the_unsigned_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation: 4426849948127849000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.variance: 19597000463239538000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.upper: 11409542905469393000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.lower: -6297856887042003000.0 }
+  - match: { aggregations.the_double_extended_stats.count: 4 }
+  - match: { aggregations.the_double_extended_stats.min: 1.0 }
+  - match: { aggregations.the_double_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_double_extended_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_double_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_double_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation: 4426849948127849000.0 }
+  - match: { aggregations.the_double_extended_stats.variance: 19597000463239538000000000000000000000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.upper: 11409542905469393000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.lower: -6297856887042003000.0 }
+
+---
+"Filtered test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            constant_score:
+              filter:
+                range:
+                  unsigned_field:
+                    gte: 50
+          aggs:
+            the_unsigned_extended_stats:
+              extended_stats:
+                field: unsigned_field
+            the_double_extended_stats:
+              extended_stats:
+                field: double_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.the_unsigned_extended_stats.count: 3 }
+  - match: { aggregations.the_unsigned_extended_stats.min: 51.0 }
+  - match: { aggregations.the_unsigned_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.avg: 3407790678951593500.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.variance: 23226074623098710000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation: 4819343795901959000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.upper: 13046478270755512000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.lower: -6230896912852324000.0 }
+  - match: { aggregations.the_double_extended_stats.count: 3 }
+  - match: { aggregations.the_double_extended_stats.min: 51.0 }
+  - match: { aggregations.the_double_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_double_extended_stats.avg: 3407790678951593500.0 }
+  - match: { aggregations.the_double_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_double_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_double_extended_stats.variance: 23226074623098710000000000000000000000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation: 4819343795901959000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.upper: 13046478270755512000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.lower: -6230896912852324000.0 }
+
+
+---
+"Missing field with missing param":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_missing_extended_stats:
+              extended_stats:
+                field: foo
+                missing: 1
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_missing_extended_stats.count: 4 }
+  - match: { aggregations.the_missing_extended_stats.min: 1.0 }
+  - match: { aggregations.the_missing_extended_stats.max: 1.0 }
+  - match: { aggregations.the_missing_extended_stats.avg: 1.0 }
+  - match: { aggregations.the_missing_extended_stats.sum: 4.0 }
+  - match: { aggregations.the_missing_extended_stats.sum_of_squares: 4.0 }
+  - match: { aggregations.the_missing_extended_stats.variance: 0.0 }
+  - match: { aggregations.the_missing_extended_stats.std_deviation: 0.0 }
+  - match: { aggregations.the_missing_extended_stats.std_deviation_bounds.upper: 1.0 }
+  - match: { aggregations.the_missing_extended_stats.std_deviation_bounds.lower: 1.0 }
+
+---
+"Missing field without missing param":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_missing_extended_stats:
+              extended_stats:
+                field: foo
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - is_false: aggregations.the_missing_extended_stats.value
+
+---
+"Metadata test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_unsigned_extended_stats:
+              meta:
+                foo: bar
+              extended_stats:
+                field: unsigned_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_unsigned_extended_stats.count: 4 }
+  - match: { aggregations.the_unsigned_extended_stats.min: 1.0 }
+  - match: { aggregations.the_unsigned_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation: 4426849948127849000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.upper: 11409542905469393000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.lower: -6297856887042003000.0 }
+
+---
+"Sigma test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_unsigned_extended_stats:
+              extended_stats:
+                field: unsigned_field
+                sigma: 3
+            the_double_extended_stats:
+              extended_stats:
+                field: double_field
+                sigma: 3
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_unsigned_extended_stats.count: 4 }
+  - match: { aggregations.the_unsigned_extended_stats.min: 1.0 }
+  - match: { aggregations.the_unsigned_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.variance: 19597000463239537000000000000000000000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation: 4426849948127849000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.upper: 15836392853597241000.0 }
+  - match: { aggregations.the_unsigned_extended_stats.std_deviation_bounds.lower: -10724706835169853000.0 }
+  - match: { aggregations.the_double_extended_stats.count: 4 }
+  - match: { aggregations.the_double_extended_stats.min: 1.0 }
+  - match: { aggregations.the_double_extended_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_double_extended_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_double_extended_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_double_extended_stats.sum_of_squares: 104517335803944210000000000000000000000.0 }
+  - match: { aggregations.the_double_extended_stats.variance: 19597000463239537000000000000000000000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation: 4426849948127849000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.upper: 15836392853597241000.0 }
+  - match: { aggregations.the_double_extended_stats.std_deviation_bounds.lower: -10724706835169853000.0 }

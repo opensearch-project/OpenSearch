@@ -1,0 +1,469 @@
+---
+"Update a document using update_by_query":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index:   twitter
+        refresh: true
+        body:
+          script:
+            lang: painless
+            source: ctx._source.user = "not" + ctx._source.user
+  - match: {updated: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              user: notfoobar
+  - match: { hits.total: 1 }
+
+---
+"Update document using short `script` form":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+        indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index:   twitter
+        refresh: true
+        body:    { "script": "ctx._source.user = \"not\" + ctx._source.user" }
+  - match: {updated: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              user: notfoobar
+  - match: { hits.total: 1 }
+
+---
+"Noop one doc":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.user == "foobar") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
+  - match: {updated: 1}
+  - match: {noops: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              user: notfoobar
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              user: notfoo
+  - match: { hits.total: 0 }
+
+---
+"Noop all docs":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: ctx.op = "noop"
+  - match: {updated: 0}
+  - match: {noops: 2}
+  - match: {batches: 1}
+
+---
+"Setting bogus context is an error":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /Invalid fields added to context \[junk\]/
+      update_by_query:
+        index: twitter
+        body:
+          script:
+            lang: painless
+            source: ctx.junk = "stuff"
+
+---
+"Can't change _id":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /Modifying \[_id\] not allowed/
+      update_by_query:
+        index: twitter
+        body:
+          script:
+            lang: painless
+            source: ctx._id = "stuff"
+
+---
+"Update all docs with one doc deletion":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     3
+        body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     4
+        body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.level != 11) {ctx._source.last_updated = "2016-01-02T00:00:00Z"} else {ctx.op = "delete"}
+  - match: {updated: 3}
+  - match: {deleted: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-02T00:00:00Z"
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            term:
+              level: 11
+  - match: { hits.total: 0 }
+
+  - do:
+      count:
+        index: twitter
+  - match: {count: 3}
+
+---
+"Update all docs with one deletion and one noop":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     3
+        body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     4
+        body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: |
+              int choice = ctx._source.level % 3;
+              if (choice == 0) {
+                ctx._source.last_updated = "2016-01-02T00:00:00Z";
+              } else if (choice == 1) {
+                ctx.op = "noop";
+              } else {
+                ctx.op = "delete";
+              }
+  - match: {updated: 2}
+  - match: {deleted: 1}
+  - match: {noops: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-02T00:00:00Z"
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-01T12:10:30Z"
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            term:
+              level: 11
+  - match: { hits.total: 0 }
+
+---
+"Set unsupported operation type":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.user == "foobar") {ctx.op = "index"} else {ctx.op = "junk"}
+
+  - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }
+
+---
+"Update all docs with one deletion and one noop using a stored script":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     3
+        body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        id:     4
+        body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      indices.refresh: {}
+  - do:
+      put_script:
+        id: "my_update_script"
+        body: { "script": {"lang": "painless",
+                "source": "int choice = ctx._source.level % 3;
+                               if (choice == 0) {
+                                   ctx._source.last_updated = '2016-01-02T00:00:00Z';
+                               } else if (choice == 1) {
+                                   ctx.op = 'noop';
+                               } else {
+                                   ctx.op = 'delete';
+                               }" } }
+  - match: { acknowledged: true }
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+             id: "my_update_script"
+
+  - match: {updated: 2}
+  - match: {deleted: 1}
+  - match: {noops: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-02T00:00:00Z"
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-01T12:10:30Z"
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: twitter
+        body:
+          query:
+            term:
+              level: 11
+  - match: { hits.total: 0 }
+
+---
+"Totally broken scripts report the error properly":
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      update_by_query:
+        index:   twitter
+        refresh: true
+        body:
+          script:
+            lang: painless
+            source: syntax errors are fun!
+  - match: {error.reason: 'compile error'}
+
+# script in update_by_query supports java.lang.String.sha1() and java.lang.String.sha256() methods
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/16423
+---
+"Script supports sha1() and sha256() method for strings":
+  - skip:
+      version: " - 2.18.99"
+      reason: "introduced in 2.19.0"
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index:   twitter
+        refresh: true
+        body:
+          script:
+            lang: painless
+            source: ctx._source.user_sha1 = ctx._source.user.sha1();ctx._source.user_sha256 = ctx._source.user.sha256()
+  - match: {updated: 1}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index:  twitter
+        id:     1
+
+  - match: { _source.user:        foobar }
+  - match: { _source.user_sha1:      "8843d7f92416211de9ebb963ff4ce28125932878"   }
+  - match: { _source.user_sha256:      "c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2"   }

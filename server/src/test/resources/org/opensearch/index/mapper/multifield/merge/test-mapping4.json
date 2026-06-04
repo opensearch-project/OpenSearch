@@ -1,0 +1,17 @@
+{
+    "_doc":{
+        "properties":{
+            "name":{
+                "type": "text",
+                "store":true,
+                "fields":{
+                    "not_indexed3":{
+                        "type": "text",
+                        "index":false,
+                        "store":true
+                    }
+                }
+            }
+        }
+    }
+}

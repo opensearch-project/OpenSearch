@@ -1,0 +1,157 @@
+---
+"Put index template":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      indices.get_index_template:
+        name: test
+
+  - match: {index_templates.0.name: "test"}
+  - match: {index_templates.0.index_template.index_patterns: ["test-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+  - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: keyword}}}}
+
+---
+"Put multiple index templates":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*, test2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: [test-*, test2-*]
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: text
+            aliases:
+              test_alias: {}
+              test_blias: { routing: b }
+              test_clias: { filter: { term: { user: foobar }}}
+
+  - do:
+      indices.get_index_template:
+        name: test
+
+  - match: {index_templates.0.index_template.index_patterns: ["test-*", "test2-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+  - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: text}}}}
+  - length: {index_templates.0.index_template.template.aliases: 3}
+  - is_true: index_templates.0.index_template.template.aliases.test_alias
+  - match: {index_templates.0.index_template.template.aliases.test_blias.index_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_blias.search_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_clias.filter.term.user: "foobar" }
+
+---
+"Put index template with 'create' flag":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test2] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test2
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      indices.get_index_template:
+        name: test2
+
+  - match: {index_templates.0.index_template.index_patterns: ["test-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test2
+        create: true
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+---
+"Put distinguishable multi-wildcard templates at the same priority":
+  - skip:
+      features: allowed_warnings
+      version: " - 3.5.99"
+      reason: "template overlap check was relaxed in 3.6"
+
+  - do:
+      allowed_warnings:
+        - "index template [app-test-some] has index patterns [app-test-*-some-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [app-test-some] will take precedence during new index creation"
+      indices.put_index_template:
+        name: app-test-some
+        body:
+          index_patterns: ["app-test-*-some-*"]
+          priority: 0
+
+  # The second template has a literal segment after the first wildcard that differs from the first
+  # template (-some_other- vs -some-), so the two patterns do not practically overlap and both
+  # templates should be accepted at the same priority.
+  - do:
+      allowed_warnings:
+        - "index template [app-test-some-other] has index patterns [app-test-*-some_other-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [app-test-some-other] will take precedence during new index creation"
+      indices.put_index_template:
+        name: app-test-some-other
+        body:
+          index_patterns: ["app-test-*-some_other-*"]
+          priority: 0
+
+  - do:
+      indices.get_index_template:
+        name: app-test-some
+  - match: {index_templates.0.index_template.index_patterns: ["app-test-*-some-*"]}
+
+  - do:
+      indices.get_index_template:
+        name: app-test-some-other
+  - match: {index_templates.0.index_template.index_patterns: ["app-test-*-some_other-*"]}
+
+  - do:
+      indices.delete_index_template:
+        name: app-test-some
+  - do:
+      indices.delete_index_template:
+        name: app-test-some-other
+
+---
+"Put index template without index_patterns":
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test
+        body: {}

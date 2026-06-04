@@ -1,0 +1,5 @@
+# allowlist for annotation tests with unknown annotation containing options
+
+class org.opensearch.painless.AnnotationTestObject @no_import {
+  void unknownAnnotationMethod() @unknownAnootationWithMessage[arg="arg value"]
+}

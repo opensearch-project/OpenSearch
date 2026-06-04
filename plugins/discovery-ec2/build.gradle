@@ -1,0 +1,176 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
+
+opensearchplugin {
+  description = 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
+  classname = 'org.opensearch.discovery.ec2.Ec2DiscoveryPlugin'
+}
+
+dependencies {
+  api "software.amazon.awssdk:sdk-core:${versions.aws}"
+  api "software.amazon.awssdk:aws-core:${versions.aws}"
+  api "software.amazon.awssdk:utils:${versions.aws}"
+  api "software.amazon.awssdk:auth:${versions.aws}"
+  api "software.amazon.awssdk:identity-spi:${versions.aws}"
+  api "software.amazon.awssdk:checksums:${versions.aws}"
+  api "software.amazon.awssdk:checksums-spi:${versions.aws}"
+  api "software.amazon.awssdk.crt:aws-crt:${versions.awscrt}"
+  api "software.amazon.awssdk:http-auth:${versions.aws}"
+  api "software.amazon.awssdk:http-auth-aws:${versions.aws}"
+  api "software.amazon.awssdk:http-auth-spi:${versions.aws}"
+  api "software.amazon.awssdk:retries:${versions.aws}"
+  api "software.amazon.awssdk:retries-spi:${versions.aws}"
+  api "software.amazon.awssdk:ec2:${versions.aws}"
+  api "software.amazon.awssdk:http-client-spi:${versions.aws}"
+  api "software.amazon.awssdk:apache-client:${versions.aws}"
+  api "software.amazon.awssdk:regions:${versions.aws}"
+  api "software.amazon.awssdk:profiles:${versions.aws}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.aws}"
+  api "software.amazon.awssdk:annotations:${versions.aws}"
+  api "software.amazon.awssdk:metrics-spi:${versions.aws}"
+  api "software.amazon.awssdk:json-utils:${versions.aws}"
+  api "software.amazon.awssdk:protocol-core:${versions.aws}"
+  api "software.amazon.awssdk:aws-query-protocol:${versions.aws}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.aws}"
+  api "software.amazon.awssdk:third-party-jackson-core:${versions.aws}"
+  api "software.amazon.awssdk:imds:${versions.aws}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /software.amazon.awssdk-.*/, to: 'software.amazon.awssdk'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+tasks.named("bundlePlugin").configure {
+  from('config/discovery-ec2') {
+    into 'config'
+  }
+}
+
+tasks.register("writeTestJavaPolicy") {
+  doLast {
+    final File tmp = file("${buildDir}/tmp")
+    if (tmp.exists() == false && tmp.mkdirs() == false) {
+      throw new GradleException("failed to create temporary directory [${tmp}]")
+    }
+    final File javaPolicy = file("${tmp}/java.policy")
+    if (BuildParams.isInFipsJvm()) {
+      javaPolicy.write(
+        [
+          "grant {",
+          "  permission java.security.SecurityPermission \"putProviderProperty.BCFIPS\";",
+          "  permission java.security.SecurityPermission \"putProviderProperty.BCJSSE\";",
+          "  permission java.lang.RuntimePermission \"getProtectionDomain\";",
+          "  permission java.util.PropertyPermission \"java.runtime.name\", \"read\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"tlsAlgorithmsEnabled\";",
+          "  permission java.lang.RuntimePermission \"accessClassInPackage.sun.security.internal.spec\";",
+          "  permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
+          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"read\";",
+          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"write\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
+          "  permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
+          "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
+          "  permission java.io.FilePermission \"config\", \"read\";",
+          "};"
+        ].join("\n")
+      )
+    } else {
+      javaPolicy.write(
+        [
+          "grant {",
+          "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
+          "  permission java.io.FilePermission \"config\", \"read\";",
+          "};"
+        ].join("\n"))
+    }
+  }
+}
+
+tasks.named("test").configure {
+  dependsOn "writeTestJavaPolicy"
+  // this is needed for insecure plugins, remove if possible!
+  systemProperty 'tests.artifact', project.name
+
+  // Setting a custom policy to manipulate aws.ec2MetadataServiceEndpoint system property
+  // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
+  if (BuildParams.isInFipsJvm()) {
+    // Using the key==value format to override default JVM security settings and policy
+    // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
+    systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
+  } else {
+    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+  }
+}
+
+tasks.named("check").configure {
+  // also execute the QA tests when testing the plugin
+  dependsOn 'qa:amazon-ec2:check'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'javax.jms.Message',
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'software.amazon.eventstream.HeaderValue',
+    'software.amazon.eventstream.Message',
+    'software.amazon.eventstream.MessageDecoder',
+    'org.graalvm.nativeimage.hosted.Feature',
+    'org.graalvm.nativeimage.hosted.Feature$AfterImageWriteAccess'
+  )
+}

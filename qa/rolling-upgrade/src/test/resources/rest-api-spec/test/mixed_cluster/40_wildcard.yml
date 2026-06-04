@@ -1,0 +1,200 @@
+# refactored from rest-api-spec/src/main/resources/rest-api-spec/test/search/270_wildcard_fieldtype_queries.yml
+---
+"search on mixed state":
+  # "term query matches exact value"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field: "AbCd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field.doc_values: "AbCd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  # term query matches lowercase-normalized value
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field.lower: "abcd"
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "7" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field.lower: "ABCD"
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "7" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field: "abcd"
+  - match: { hits.total.value: 0 }
+
+  # wildcard query matches
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*Node*Exception*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # wildcard query matches lowercase-normalized field
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field.lower:
+                value: "*node*exception*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field.lower:
+                value: "*NODE*EXCEPTION*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*node*exception*"
+  - match: { hits.total.value: 0 }
+
+  # prefix query matches
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              my_field:
+                value: "[2024-06-08T"
+  - match: { hits.total.value: 3 }
+
+  # regexp query matches
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: ".*06-08.*cluster-manager node.*"
+  - match: { hits.total.value: 2 }
+
+  # regexp query matches lowercase-normalized field
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field.lower:
+                value: ".*06-08.*Cluster-Manager Node.*"
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: ".*06-08.*Cluster-Manager Node.*"
+  - match: { hits.total.value: 0 }
+
+  # wildcard match-all works
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*"
+  - match: { hits.total.value: 6 }
+
+  # regexp match-all works
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: ".*"
+  - match: { hits.total.value: 6 }
+
+  # terms query on wildcard field matches
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            terms: { my_field: [ "AbCd" ] }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  # case insensitive query on wildcard field
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "AbCd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "AbCd"
+                case_insensitive: true
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "7" }

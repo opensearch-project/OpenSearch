@@ -1,0 +1,199 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+package org.opensearch.action.search;
+
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Main exception thrown when there is an error in the search phase
+ *
+ * @opensearch.internal
+ */
+public class SearchPhaseExecutionException extends OpenSearchException {
+    private final String phaseName;
+    private final ShardSearchFailure[] shardFailures;
+
+    public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
+        this(phaseName, msg, null, shardFailures);
+    }
+
+    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
+        super(msg, getEffectiveCause(cause, shardFailures));
+        this.phaseName = phaseName;
+        this.shardFailures = shardFailures;
+    }
+
+    /**
+     * Determines the effective cause for this exception. If an explicit cause is provided and not
+     * duplicated in shard failures, use it. Otherwise, use the first shard failure's cause.
+     */
+    private static Throwable getEffectiveCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+        if (shardFailures == null) {
+            throw new IllegalArgumentException("shardSearchFailures must not be null");
+        }
+        // If explicit cause provided and not duplicated in shard failures, use it
+        if (cause != null) {
+            for (ShardSearchFailure failure : shardFailures) {
+                if (failure.getCause() == cause) {
+                    // Cause is duplicated, but still return it to properly wire the chain
+                    return cause;
+                }
+            }
+            return cause;
+        }
+        // No explicit cause - use first shard failure's cause if available
+        if (shardFailures.length > 0 && shardFailures[0].getCause() != null) {
+            return shardFailures[0].getCause();
+        }
+        return null;
+    }
+
+    public SearchPhaseExecutionException(StreamInput in) throws IOException {
+        super(in);
+        phaseName = in.readOptionalString();
+        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(phaseName);
+        out.writeArray(shardFailures);
+    }
+
+    @Override
+    public RestStatus status() {
+        if (shardFailures.length == 0) {
+            // if no successful shards, the failure can be due to OpenSearchRejectedExecutionException during fetch phase
+            // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
+            return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
+        }
+        RestStatus status = shardFailures[0].status();
+        if (shardFailures.length > 1) {
+            for (int i = 1; i < shardFailures.length; i++) {
+                if (shardFailures[i].status().getStatus() >= 500) {
+                    status = shardFailures[i].status();
+                }
+            }
+        }
+        return status;
+    }
+
+    public ShardSearchFailure[] shardFailures() {
+        return shardFailures;
+    }
+
+    private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Failed to execute phase [").append(phaseName).append("], ").append(msg);
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
+            sb.append("; shardFailures ");
+            for (ShardSearchFailure shardFailure : shardFailures) {
+                if (shardFailure.shard() != null) {
+                    sb.append("{").append(shardFailure.shard()).append(": ").append(shardFailure.reason()).append("}");
+                } else {
+                    sb.append("{").append(shardFailure.reason()).append("}");
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    @Override
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("phase", phaseName);
+        builder.field("grouped", true); // notify that it's grouped
+        builder.field("failed_shards");
+        builder.startArray();
+        ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
+        for (ShardOperationFailedException failure : failures) {
+            failure.toXContent(builder, params);
+        }
+        builder.endArray();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Throwable ex = ExceptionsHelper.unwrapCause(this);
+        if (ex != this) {
+            OpenSearchException.generateThrowableXContent(builder, params, this);
+        } else {
+            // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
+            // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
+            // be rendered twice (one in the "cause" field, one in "failed_shards")
+            OpenSearchException.innerToXContent(
+                builder,
+                params,
+                this,
+                getExceptionName(),
+                getMessage(),
+                getHeaders(),
+                getMetadata(),
+                super.getCause()
+            );
+        }
+        return builder;
+    }
+
+    @Override
+    public OpenSearchException[] guessRootCauses() {
+        ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
+        List<OpenSearchException> rootCauses = new ArrayList<>(failures.length);
+        for (ShardOperationFailedException failure : failures) {
+            OpenSearchException[] guessRootCauses = OpenSearchException.guessRootCauses(failure.getCause());
+            rootCauses.addAll(Arrays.asList(guessRootCauses));
+        }
+        return rootCauses.toArray(new OpenSearchException[0]);
+    }
+
+    @Override
+    public String toString() {
+        return buildMessage(phaseName, getMessage(), shardFailures);
+    }
+
+    public String getPhaseName() {
+        return phaseName;
+    }
+}

@@ -1,0 +1,4 @@
+/*
+SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0;
+*/
+source=hits | where AdvEngineID!=0 | stats count()

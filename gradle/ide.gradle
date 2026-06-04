@@ -1,0 +1,134 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.info.BuildParams
+import org.jetbrains.gradle.ext.Remote
+import org.jetbrains.gradle.ext.JUnit
+import groovy.xml.XmlNodePrinter
+import groovy.xml.XmlParser
+
+buildscript {
+  repositories {
+    maven {
+      url = "https://ci.opensearch.org/maven2/"
+    }
+    maven {
+      url = "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7"
+  }
+}
+
+allprojects {
+  apply plugin: 'idea'
+
+  tasks.named('idea').configure {
+    doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see DEVELOPER_GUIDE.md.") }
+  }
+}
+
+// Applying this stuff, particularly the idea-ext plugin, has a cost so avoid it unless we're running in the IDE
+if (System.getProperty('idea.active') == 'true') {
+  apply plugin: org.jetbrains.gradle.ext.IdeaExtPlugin
+
+  tasks.register('configureIdeaGradleJvm') {
+    group = 'ide'
+    description = 'Configures the appropriate JVM for Gradle'
+
+    doLast {
+      modifyXml('.idea/gradle.xml') { xml ->
+        def gradleSettings = xml.component.find { it.'@name' == 'GradleSettings' }.option[0].GradleProjectSettings
+        // Remove configured JVM option to force IntelliJ to use the project JDK for Gradle
+        gradleSettings.option.findAll { it.'@name' == 'gradleJvm' }.each { it.parent().remove(it) }
+      }
+    }
+  }
+
+  idea {
+    project {
+      vcs = 'Git'
+      jdkName = BuildParams.minimumCompilerVersion.majorVersion
+
+      settings {
+        delegateActions {
+          delegateBuildRunToGradle = false
+          testRunner = 'choose_per_test'
+        }
+        taskTriggers {
+          afterSync tasks.named('configureIdeaGradleJvm')
+        }
+        codeStyle {
+          java {
+            classCountToUseImportOnDemand = 999
+          }
+        }
+        encodings {
+          encoding = 'UTF-8'
+        }
+        compiler {
+          parallelCompilation = true
+          processHeapSize = 2048
+          addNotNullAssertions = false
+          javac {
+            generateDeprecationWarnings = false
+            preferTargetJDKCompiler = false
+          }
+        }
+        runConfigurations {
+          defaults(JUnit) {
+            project(':libs:agent-sm:agent').afterEvaluate { agentProject ->
+              vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
+              def jarName = "${agentProject.base.archivesName.get()}-${project.version}.jar"
+              vmParameters += ' -javaagent:' + agentProject.layout.buildDirectory
+                .dir('distributions')
+                .map { it.file(jarName) }
+                .get()
+            }
+          }
+        }
+        copyright {
+          useDefault = 'Apache'
+          profiles {
+            Apache {
+              keyword = 'SPDX-License-Identifier: Apache-2.0'
+              notice = '''\
+               SPDX-License-Identifier: Apache-2.0
+
+               The OpenSearch Contributors require contributions made to
+               this file be licensed under the Apache-2.0 license or a
+               compatible open source license.'''.stripIndent()
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
+ *
+ * @param path Path to existing XML file
+ * @param action Action to perform on parsed XML document
+ */
+void modifyXml(Object path, Action<? super Node> action) {
+  File xmlFile = project.file(path)
+  if (xmlFile.exists()) {
+    Node xml = new XmlParser().parse(xmlFile)
+    action.execute(xml)
+
+    xmlFile.withPrintWriter { writer ->
+      new XmlNodePrinter(writer).print(xml)
+    }
+  }
+}

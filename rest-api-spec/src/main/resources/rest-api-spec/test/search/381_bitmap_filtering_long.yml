@@ -1,0 +1,99 @@
+---
+setup:
+  - skip:
+      version: " - 3.5.99"
+      reason: Bitmap filtering for long fields is available in 3.6 and later.
+
+  - do:
+      indices.create:
+        index: employees
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              employee_id:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "employees", "_id": "1" } }
+          - { "name": "Alice Smith", "employee_id": 1000000000001 }
+          - { "index": { "_index": "employees", "_id": "2" } }
+          - { "name": "Bob Johnson", "employee_id": 2000000000002 }
+          - { "index": { "_index": "employees", "_id": "3" } }
+          - { "name": "Charlie Brown", "employee_id": 3000000000003 }
+
+  - do:
+      indices.create:
+        index: departments
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              members:
+                type: binary
+                store: true
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "departments", "_id": "201" } }
+          - { "members": "AgAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACIA==" }
+          - { "index": { "_index": "departments", "_id": "202" } }
+          - { "members": "AQAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ" }
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Terms lookup on a binary field with bitmap (long)":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: employees
+        body: {
+          "query": {
+            "terms": {
+              "employee_id": {
+                "index": "departments",
+                "id": "201",
+                "path": "members",
+                "store": true
+              },
+              "value_type": "bitmap"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.name: Alice Smith }
+  - match: { hits.hits.0._source.employee_id: 1000000000001 }
+  - match: { hits.hits.1._source.name: Bob Johnson }
+  - match: { hits.hits.1._source.employee_id: 2000000000002 }
+
+---
+"Terms query accepting bitmap as value (long)":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: employees
+        body: {
+          "query": {
+            "terms": {
+              "employee_id": ["AgAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACIA=="],
+              "value_type": "bitmap"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.name: Alice Smith }
+  - match: { hits.hits.0._source.employee_id: 1000000000001 }
+  - match: { hits.hits.1._source.name: Bob Johnson }
+  - match: { hits.hits.1._source.employee_id: 2000000000002 }

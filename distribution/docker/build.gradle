@@ -1,0 +1,305 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.DockerBase
+import org.opensearch.gradle.LoggedExec
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.docker.DockerBuildTask
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.testfixtures.TestFixturesPlugin
+import org.gradle.internal.os.OperatingSystem
+
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.test.fixtures'
+apply plugin: 'opensearch.internal-distribution-download'
+apply plugin: 'opensearch.rest-resources'
+
+testFixtures.useFixture()
+
+configurations {
+  arm64DockerSource
+  s390xDockerSource
+  ppc64leDockerSource
+  riscv64DockerSource
+  dockerSource
+}
+
+dependencies {
+  arm64DockerSource project(path: ":distribution:archives:darwin-arm64-tar", configuration:"default")
+  arm64DockerSource project(path: ":distribution:archives:linux-arm64-tar", configuration:"default")
+  s390xDockerSource project(path: ":distribution:archives:linux-s390x-tar", configuration:"default")
+  ppc64leDockerSource project(path: ":distribution:archives:linux-ppc64le-tar", configuration:"default")
+  riscv64DockerSource project(path: ":distribution:archives:linux-riscv64-tar", configuration:"default")
+  dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
+}
+
+ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
+  String classifier
+  if (local) {
+    if (architecture == Architecture.ARM64) {
+      classifier = "linux-arm64"
+    } else if (architecture == Architecture.X64) {
+      classifier = "linux-x64"
+    } else if (architecture == Architecture.S390X) {
+      classifier = "linux-s390x"
+    } else if (architecture == Architecture.PPC64LE) {
+      classifier = "linux-ppc64le"
+    } else if (architecture == Architecture.RISCV64) {
+      classifier = "linux-riscv64"
+    } else {
+      throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
+    }
+  } else {
+    /* When sourcing the OpenSearch build remotely, the same Dockerfile needs
+     * to be able to fetch the artifact for any supported platform. We can't make
+     * the decision here. Bash will interpolate the `arch` command for us. */
+    classifier = "linux-\$(arch)"
+  }
+
+  final String opensearch = "opensearch-min-${VersionProperties.getOpenSearch()}-${classifier}.tar.gz"
+
+  /* Both the following Dockerfile commands put the resulting artifact at
+   * the same location, regardless of classifier, so that the commands that
+   * follow in the Dockerfile don't have to know about the runtime
+   * architecture. */
+  String sourceOpenSearch
+  if (local) {
+    sourceOpenSearch = "COPY $opensearch /opt/opensearch.tar.gz"
+  } else {
+    //TODO - replace the URL for OpenSearch when available
+    sourceOpenSearch = """
+RUN curl --retry 8 -S -L \\
+      --output /opt/opensearch.tar.gz \\
+      <artifacts_link_placeholder>
+"""
+  }
+
+  return [
+    'base_image'          : base.getImage(),
+    'build_date'          : BuildParams.buildDate,
+    'git_revision'        : BuildParams.gitRevision,
+    'license'             : 'Apache-2.0',
+    'package_manager'     : 'yum',
+    'source_opensearch'   : sourceOpenSearch,
+    'docker_base'         : base.name().toLowerCase(),
+    'version'             : VersionProperties.getOpenSearch()
+  ]
+}
+
+private static String buildPath(Architecture architecture, DockerBase base) {
+  return 'build/' +
+    (architecture == Architecture.ARM64 ? 'arm64-' : '') +
+    (architecture == Architecture.S390X ? 's390x-' : '') +
+    (architecture == Architecture.PPC64LE ? 'ppc64le-' : '') +
+    (architecture == Architecture.RISCV64 ? 'riscv64-' : '') +
+    'docker'
+}
+
+private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
+  return prefix +
+    (architecture == Architecture.ARM64 ? 'Arm64' : '') +
+    (architecture == Architecture.S390X ? 'S390x' : '') +
+    (architecture == Architecture.PPC64LE ? 'Ppc64le' : '') +
+    (architecture == Architecture.RISCV64 ? 'Riscv64' : '') +
+    suffix
+}
+
+project.ext {
+  dockerBuildContext = { Architecture architecture, DockerBase base, boolean local ->
+    copySpec {
+      into('bin') {
+        from project.projectDir.toPath().resolve("src/docker/bin")
+      }
+
+      into('config') {
+        from project.projectDir.toPath().resolve("src/docker/config")
+      }
+
+      from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
+        expand(expansions(architecture, base, local))
+      }
+    }
+  }
+}
+
+void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
+  if (base != DockerBase.ALMALINUX) {
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
+  }
+
+  tasks.register(taskName("copy", architecture, base, "DockerContext"), Sync) {
+    expansions(architecture, base, true).findAll { it.key != 'build_date' }.each { k, v ->
+      inputs.property(k, { v.toString() })
+    }
+    into buildPath(architecture, base)
+
+    with dockerBuildContext(architecture, base, true)
+
+    if (architecture == Architecture.ARM64) {
+      from configurations.arm64DockerSource
+    } else if (architecture == Architecture.S390X) {
+      from configurations.s390xDockerSource
+    } else if (architecture == Architecture.PPC64LE) {
+      from configurations.ppc64leDockerSource
+    } else if (architecture == Architecture.RISCV64) {
+      from configurations.riscv64DockerSource
+    } else {
+      from configurations.dockerSource
+    }
+  }
+}
+
+def createAndSetWritable(Object... locations) {
+  locations.each { location ->
+    File file = file(location)
+    file.mkdirs()
+    file.setWritable(true, false)
+  }
+}
+
+
+opensearch_distributions {
+  Architecture.values().each { eachArchitecture ->
+    "docker${ eachArchitecture == Architecture.ARM64 ? '_arm64' : '' }" {
+      architecture = eachArchitecture
+      type = 'docker'
+      version = VersionProperties.getOpenSearch()
+      failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
+    }
+  }
+}
+
+tasks.named("preProcessFixture").configure {
+  dependsOn opensearch_distributions.docker
+  // always run the task, otherwise the folders won't be created
+  outputs.upToDateWhen {
+    false
+  }
+  doLast {
+    // tests expect to have an empty repo
+    delete(
+      "${buildDir}/repo"
+    )
+    createAndSetWritable(
+      "${buildDir}/repo",
+      "${buildDir}/logs/1",
+      "${buildDir}/logs/2"
+    )
+  }
+}
+
+tasks.register("integTest", Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  maxParallelForks = '1'
+  include '**/*IT.class'
+}
+
+tasks.named("check").configure {
+  dependsOn "integTest"
+}
+
+void addBuildDockerImage(Architecture architecture, DockerBase base) {
+  if (base != DockerBase.ALMALINUX) {
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
+  }
+
+  final TaskProvider<DockerBuildTask> buildDockerImageTask =
+          tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
+    onlyIf { Architecture.current() == architecture && !OperatingSystem.current().isWindows() }
+    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, base, "DockerContext"))
+    dependsOn(copyContextTask)
+    dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
+    baseImages = [ base.getImage() ]
+
+    String version = VersionProperties.getOpenSearch()
+      tags = [
+        "docker.opensearch.org/opensearch:${version}",
+        "opensearch:test"
+      ]
+  }
+  tasks.named("assemble").configure {
+    dependsOn(buildDockerImageTask)
+  }
+}
+
+for (final Architecture architecture : Architecture.values()) {
+  // We only create Docker images for the distribution on AlmaLinux.
+  for (final DockerBase base : DockerBase.values()) {
+    if (base == DockerBase.ALMALINUX) {
+      addCopyDockerContextTask(architecture, base)
+      addBuildDockerImage(architecture, base)
+    }
+  }
+}
+
+// We build the images used in compose locally, but the pull command insists on using a repository
+// thus we must disable it to prevent it from doing so.
+// Everything will still be pulled since we will build the local images on a pull
+if (tasks.findByName("composePull")) {
+  tasks.composePull.enabled = false
+}
+
+/*
+ * The export subprojects write out the generated Docker images to disk, so
+ * that they can be easily reloaded, for example into a VM for distribution testing
+ */
+subprojects { Project subProject ->
+  if (subProject.name.endsWith('-export')) {
+    apply plugin: 'distribution'
+
+    final Architecture architecture = subProject.name.contains('arm64-') ? Architecture.ARM64 : Architecture.X64
+    final DockerBase base = DockerBase.ALMALINUX
+
+    final String arch = architecture == Architecture.ARM64 ? '-arm64' : ''
+    final String extension = 'docker.tar'
+    final String artifactName = "opensearch${arch}_test"
+
+    final String exportTaskName = taskName("export", architecture, base, "DockerImage")
+    final String buildTaskName = taskName("build", architecture, base, "DockerImage")
+    final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.getOpenSearch()}.${extension}"
+
+    tasks.register(exportTaskName, LoggedExec) {
+      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
+      executable 'docker'
+      outputs.file(tarFile)
+      args "save",
+        "-o",
+        tarFile,
+        "opensearch:test"
+
+      dependsOn(parent.path + ":" + buildTaskName)
+      onlyIf { Architecture.current() == architecture && !OperatingSystem.current().isWindows()}
+    }
+
+    artifacts.add('default', file(tarFile)) {
+      type = 'tar'
+      name = artifactName
+      builtBy exportTaskName
+    }
+
+    tasks.named("assemble").configure {
+      dependsOn(exportTaskName)
+    }
+  }
+}
+
+tasks.named("composeUp").configure {
+  dependsOn preProcessFixture
+}
+
+dockerCompose {
+  useComposeFiles = ['docker-compose.yml']
+  if (BuildParams.isInFipsJvm()) {
+    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+    environment.put("FIPS_GENERATE_TRUSTSTORE", "true")
+  }
+}

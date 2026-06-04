@@ -1,0 +1,129 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+package org.opensearch.script.mustache;
+
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.script.ScriptType;
+import org.opensearch.search.RandomSearchRequestGenerator;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<SearchTemplateRequest> {
+
+    @Override
+    protected SearchTemplateRequest createTestInstance() {
+        return createRandomRequest();
+    }
+
+    @Override
+    protected Writeable.Reader<SearchTemplateRequest> instanceReader() {
+        return SearchTemplateRequest::new;
+    }
+
+    @Override
+    protected SearchTemplateRequest mutateInstance(SearchTemplateRequest instance) throws IOException {
+        List<Consumer<SearchTemplateRequest>> mutators = new ArrayList<>();
+
+        mutators.add(
+            request -> request.setScriptType(randomValueOtherThan(request.getScriptType(), () -> randomFrom(ScriptType.values())))
+        );
+        mutators.add(request -> request.setScript(randomValueOtherThan(request.getScript(), () -> randomAlphaOfLength(50))));
+
+        mutators.add(request -> {
+            Map<String, Object> mutatedScriptParams = new HashMap<>(request.getScriptParams());
+            String newField = randomValueOtherThanMany(mutatedScriptParams::containsKey, () -> randomAlphaOfLength(5));
+            mutatedScriptParams.put(newField, randomAlphaOfLength(10));
+            request.setScriptParams(mutatedScriptParams);
+        });
+
+        mutators.add(request -> request.setProfile(!request.isProfile()));
+        mutators.add(request -> request.setExplain(!request.isExplain()));
+        mutators.add(request -> request.setSimulate(!request.isSimulate()));
+
+        mutators.add(
+            request -> request.setRequest(
+                randomValueOtherThan(
+                    request.getRequest(),
+                    () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource)
+                )
+            )
+        );
+
+        SearchTemplateRequest mutatedInstance = copyInstance(instance);
+        Consumer<SearchTemplateRequest> mutator = randomFrom(mutators);
+        mutator.accept(mutatedInstance);
+        return mutatedInstance;
+    }
+
+    public static SearchTemplateRequest createRandomRequest() {
+        SearchTemplateRequest request = new SearchTemplateRequest();
+        request.setScriptType(randomFrom(ScriptType.values()));
+        request.setScript(randomAlphaOfLength(50));
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        for (int i = 0; i < randomInt(10); i++) {
+            scriptParams.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+        }
+        request.setScriptParams(scriptParams);
+
+        request.setExplain(randomBoolean());
+        request.setProfile(randomBoolean());
+        request.setSimulate(randomBoolean());
+
+        request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource));
+        return request;
+    }
+
+    public void testSimulatedSearchTemplateRequest() {
+        SearchTemplateRequest request = new SearchTemplateRequest();
+        request.setSimulate(true);
+
+        assertEquals(0, request.indices().length);
+        assertEquals(SearchRequest.DEFAULT_INDICES_OPTIONS, request.indicesOptions());
+        assertEquals(2, request.indices("index1", "index2").indices().length);
+
+        SearchTemplateRequest randomRequest = createRandomRequest();
+        int expectedIndicesLength = randomRequest.indices().length;
+        request.setSimulate(true);
+
+        assertEquals(expectedIndicesLength, randomRequest.indices().length);
+    }
+}

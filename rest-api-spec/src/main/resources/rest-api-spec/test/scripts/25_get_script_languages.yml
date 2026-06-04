@@ -1,0 +1,7 @@
+"Action to get script languages":
+
+  - do:
+      get_script_languages: {}
+
+  - match: { types_allowed.0: "inline" }
+  - match: { types_allowed.1: "stored" }

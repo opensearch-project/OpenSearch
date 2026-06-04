@@ -1,0 +1,794 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+package org.opensearch.index.mapper;
+
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+
+public class DynamicMappingTests extends MapperServiceTestCase {
+
+    private XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
+        throws IOException {
+        return topMapping(b -> {
+            b.field("dynamic", dynamicValue);
+            b.startObject("properties");
+            buildFields.accept(b);
+            b.endObject();
+        });
+    }
+
+    public void testDynamicPropertiesNoMappingUpdate() throws IOException {
+        // When a field matches a dynamic_property pattern, it is indexed without a cluster state mapping update
+        DocumentMapper mapper = createDocumentMapper(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("*_s")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("count_i", 42).field("name_s", "foo")));
+        assertThat(doc.rootDoc().get("count_i"), equalTo("42"));
+        // keyword fields are often represented as binary term values, not stringValue(); see Document#get
+        assertThat(doc.rootDoc().getBinaryValue("name_s").utf8ToString(), equalTo("foo"));
+        assertNull("dynamic_property match must not trigger mapping update", doc.dynamicMappingsUpdate());
+    }
+
+    public void testDynamicPropertiesFieldTypeLookup() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("*_s")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        assertNotNull(mapperService.fieldType("count_i"));
+        assertThat(mapperService.fieldType("count_i").typeName(), equalTo("long"));
+        assertNotNull(mapperService.fieldType("name_s"));
+        assertThat(mapperService.fieldType("name_s").typeName(), equalTo("keyword"));
+    }
+
+    /**
+     * {@link MappingLookup#fromMapping(Mapping, org.apache.lucene.analysis.Analyzer)} without a
+     * {@link DocumentMapperParser} does not install {@link DynamicPropertyFieldTypeResolver}, so
+     * pattern-only fields have no query-time type.
+     */
+    public void testMappingLookupFromMappingWithoutParserSkipsDynamicPropertyTypes() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        Mapping mapping = mapperService.documentMapper().mapping();
+        MappingLookup lookup = MappingLookup.fromMapping(mapping, new StandardAnalyzer());
+        assertNull(lookup.fieldTypes().get("count_i"));
+        assertNotNull(mapperService.fieldType("count_i"));
+    }
+
+    /** Second {@link MapperService#fieldType} for the same name hits the resolver LRU cache. */
+    public void testDynamicPropertiesFieldTypeLookupUsesResolverCache() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        MappedFieldType first = mapperService.fieldType("cache_hit_i");
+        MappedFieldType second = mapperService.fieldType("cache_hit_i");
+        assertNotNull(first);
+        assertSame(first, second);
+    }
+
+    /** {@link DynamicPropertyFieldTypeResolver} returns null when no pattern matches the field name. */
+    public void testDynamicPropertiesFieldTypeLookupUnmatchedReturnsNull() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        assertNull(mapperService.fieldType("no_pattern_match"));
+    }
+
+    /**
+     * Object mappers are not {@link FieldMapper}s; resolver returns null so {@link MapperService#fieldType}
+     * does not synthesize a {@link MappedFieldType} for dynamic_property rules that map to {@code object}.
+     */
+    public void testDynamicPropertiesObjectMappingYieldsNoFieldType() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_o")
+                    .field("type", "object")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        assertNull(mapperService.fieldType("foo_o"));
+    }
+
+    /** Pattern matches full dotted path; nested dynamic field resolves for query-time lookup. */
+    public void testDynamicPropertiesNestedPathFieldTypeLookup() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .startObject("obj")
+                    .field("type", "object")
+                    .field("dynamic", true)
+                    .endObject()
+                    .endObject()
+            )
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("obj").field("nested_i", 7L).endObject()));
+        assertThat(doc.rootDoc().get("obj.nested_i"), equalTo("7"));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(mapperService.fieldType("obj.nested_i"));
+        assertThat(mapperService.fieldType("obj.nested_i").typeName(), equalTo("long"));
+    }
+
+    /** Second document with the same dynamic field exercises per-parse {@link ParseContext} mapper cache. */
+    public void testDynamicPropertiesRepeatedFieldUsesParseCache() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        ).documentMapper();
+        ParsedDocument first = mapper.parse(source(b -> b.field("count_i", 1L)));
+        ParsedDocument second = mapper.parse(source(b -> b.field("count_i", 2L)));
+        assertNull(first.dynamicMappingsUpdate());
+        assertNull(second.dynamicMappingsUpdate());
+        assertThat(first.rootDoc().get("count_i"), equalTo("1"));
+        assertThat(second.rootDoc().get("count_i"), equalTo("2"));
+    }
+
+    /**
+     * Stresses {@link DynamicPropertyFieldTypeResolver}: many threads resolve distinct field names
+     * (more than the resolver LRU size) so {@link java.util.LinkedHashMap} eviction runs under the
+     * synchronized {@code resolve} path without corruption or wrong types.
+     */
+    public void testDynamicPropertyFieldTypeLookupConcurrent() throws Exception {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        final int threads = 16;
+        final int iterations = 400;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        AtomicInteger bad = new AtomicInteger(0);
+        for (int t = 0; t < threads; t++) {
+            final int tid = t;
+            pool.submit(() -> {
+                try {
+                    start.await();
+                    for (int i = 0; i < iterations; i++) {
+                        String field = "t" + tid + "_" + i + "_i";
+                        MappedFieldType ft = mapperService.fieldType(field);
+                        if (ft == null || ft.typeName().equals("long") == false) {
+                            bad.incrementAndGet();
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    bad.incrementAndGet();
+                } catch (RuntimeException e) {
+                    bad.incrementAndGet();
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        start.countDown();
+        assertTrue(done.await(120, TimeUnit.SECONDS));
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(60, TimeUnit.SECONDS));
+        assertEquals(0, bad.get());
+    }
+
+    public void testDynamicTrue() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("true", b -> b.startObject("field1").field("type", "text").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("field1", "value1");
+            b.field("field2", "value2");
+        }));
+
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
+    }
+
+    public void testDynamicFalse() throws IOException {
+
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("false", b -> b.startObject("field1").field("type", "text").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("field1", "value1");
+            b.field("field2", "value2");
+        }));
+
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("field2"), nullValue());
+
+        // Verify that field2 is still present in _source even though it's not indexed
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(doc.source(), false, doc.getMediaType()).v2();
+        assertThat(sourceMap.get("field1"), equalTo("value1"));
+        assertThat(sourceMap.get("field2"), equalTo("value2"));
+    }
+
+    public void testDynamicFalseAllowTemplates() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("dates");
+                    b.field("match", "date_*");
+                    b.startObject("mapping");
+                    b.field("type", "date");
+                    b.endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            {
+                b.startObject("url");
+                b.field("type", "text");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("url", "https://example.com/");
+            b.field("date_timestamp", "2024-01-01T00:00:00Z");
+            b.field("date_timezone", "2024-01-02T00:00:00Z");
+        }));
+
+        assertThat(doc.rootDoc().get("url"), equalTo("https://example.com/"));
+        assertThat(doc.rootDoc().get("date_timestamp"), equalTo("1704067200000"));
+        assertThat(doc.rootDoc().get("date_timezone"), equalTo("1704153600000"));
+
+        ParsedDocument doc2 = defaultMapper.parse(source(b -> {
+            b.field("url", "https://example.com/");
+            b.field("date_timestamp", "2024-01-01T00:00:00Z");
+            b.field("date_timezone", "2024-01-02T00:00:00Z");
+            b.field("author", "John Doe");
+        }));
+
+        assertThat(doc2.rootDoc().get("url"), equalTo("https://example.com/"));
+        assertThat(doc2.rootDoc().get("date_timestamp"), equalTo("1704067200000"));
+        assertThat(doc2.rootDoc().get("date_timezone"), equalTo("1704153600000"));
+        assertThat(doc2.rootDoc().get("author"), nullValue());
+
+        // Verify that author is still present in _source even though it's not indexed
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(doc2.source(), false, doc2.getMediaType()).v2();
+        assertThat(sourceMap.get("author"), equalTo("John Doe"));
+        assertThat(sourceMap.get("url"), equalTo("https://example.com/"));
+        assertThat(sourceMap.get("date_timestamp"), equalTo("2024-01-01T00:00:00Z"));
+        assertThat(sourceMap.get("date_timezone"), equalTo("2024-01-02T00:00:00Z"));
+    }
+
+    public void testDynamicStrict() throws IOException {
+
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("strict", b -> b.startObject("field1").field("type", "text").endObject())
+        );
+
+        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+            b.field("field1", "value1");
+            b.field("field2", "value2");
+        })));
+        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
+
+        e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+            b.field("field1", "value1");
+            b.nullField("field2");
+        })));
+        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
+    }
+
+    public void testDynamicFalseWithInnerObjectButDynamicSetOnRoot() throws IOException {
+
+        DocumentMapper defaultMapper = createDocumentMapper(dynamicMapping("false", b -> {
+            b.startObject("obj1");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("field1").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.startObject("obj1");
+            {
+                b.field("field1", "value1");
+                b.field("field2", "value2");
+            }
+            b.endObject();
+        }));
+
+        assertThat(doc.rootDoc().get("obj1.field1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("obj1.field2"), nullValue());
+    }
+
+    public void testDynamicStrictWithInnerObjectButDynamicSetOnRoot() throws IOException {
+
+        DocumentMapper defaultMapper = createDocumentMapper(dynamicMapping("strict", b -> {
+            b.startObject("obj1");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("field1").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+            b.startObject("obj1");
+            {
+                b.field("field1", "value1");
+                b.field("field2", "value2");
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [obj1] is not allowed"));
+    }
+
+    public void testDynamicMappingOnEmptyString() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("empty_field", "")));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        MappedFieldType fieldType = mapperService.fieldType("empty_field");
+        assertNotNull(fieldType);
+    }
+
+    public void testDynamicMappingsNotNeeded() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "bar")));
+        // field is already defined in mappings
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testField() throws Exception {
+
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "bar")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        assertEquals(
+            "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":"
+                + "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate())
+        );
+    }
+
+    public void testIncremental() throws Exception {
+
+        // Make sure that mapping updates are incremental, this is important for performance otherwise
+        // every new field introduction runs in linear time with the total number of fields
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("field", "bar");
+            b.field("bar", "baz");
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("{\"bar\":"));
+        // field is NOT in the update
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), not(containsString("{\"field\":")));
+    }
+
+    public void testIntroduceTwoFields() throws Exception {
+
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("foo", "bar");
+            b.field("bar", "baz");
+        }));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("\"foo\":{"));
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("\"bar\":{"));
+    }
+
+    public void testObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.startObject("bar").field("baz", "foo").endObject();
+            }
+            b.endObject();
+        }));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertThat(
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()),
+            containsString("{\"foo\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\"")
+        );
+    }
+
+    public void testArray() throws Exception {
+
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("bar").value("baz").endArray()));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("{\"foo\":{\"type\":\"text\""));
+    }
+
+    public void testInnerDynamicMapping() throws Exception {
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "object")));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("field");
+            {
+                b.startObject("bar").field("baz", "foo").endObject();
+            }
+            b.endObject();
+        }));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertThat(
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()),
+            containsString("{\"field\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\"")
+        );
+    }
+
+    public void testComplexArray() throws Exception {
+
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("foo");
+            {
+                b.startObject().field("bar", "baz").endObject();
+                b.startObject().field("baz", 3).endObject();
+            }
+            b.endArray();
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertEquals(
+            "{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\":\"text\",\"fields\":{"
+                + "\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}},\"baz\":{\"type\":\"long\"}}}}}}",
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate())
+        );
+    }
+
+    public void testReuseExistingMappings() throws Exception {
+
+        // Even if the dynamic type of our new field is long, we already have a mapping for the same field
+        // of type string so it should be mapped as a string
+        DocumentMapper newMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("my_field1").field("type", "text").field("store", "true").endObject();
+            b.startObject("my_field2").field("type", "integer").field("store", "false").endObject();
+            b.startObject("my_field3").field("type", "long").field("doc_values", "false").endObject();
+            b.startObject("my_field4").field("type", "float").field("index", "false").endObject();
+            b.startObject("my_field5").field("type", "double").field("store", "true").endObject();
+            b.startObject("my_field6").field("type", "date").field("doc_values", "false").endObject();
+            b.startObject("my_field7").field("type", "boolean").field("doc_values", "false").endObject();
+        }));
+
+        ParsedDocument doc = newMapper.parse(source(b -> {
+            b.field("my_field1", 42);
+            b.field("my_field2", 43);
+            b.field("my_field3", 44);
+            b.field("my_field4", 45);
+            b.field("my_field5", 46);
+            b.field("my_field6", Instant.now().toEpochMilli());
+            b.field("my_field7", true);
+        }));
+        assertNull(doc.dynamicMappingsUpdate());
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> newMapper.parse(source(b -> b.field("my_field2", "foobar")))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [my_field2] of type [integer]"));
+    }
+
+    public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("template1");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "text");
+                            b.startObject("fields");
+                            {
+                                b.startObject("raw").field("type", "keyword").endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertNull(mapperService.documentMapper().mappers().getMapper("field.raw"));
+
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
+        assertNotNull(parsed.dynamicMappingsUpdate());
+
+        merge(mapperService, dynamicMapping(parsed.dynamicMappingsUpdate()));
+        assertNotNull(mapperService.documentMapper().mappers().getMapper("field.raw"));
+        parsed = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
+        assertNull(parsed.dynamicMappingsUpdate());
+    }
+
+    public void testDefaultFloatingPointMappings() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.jsonBuilder());
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.yamlBuilder());
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.smileBuilder());
+        doTestDefaultFloatingPointMappings(mapper, XContentFactory.cborBuilder());
+    }
+
+    private void doTestDefaultFloatingPointMappings(DocumentMapper mapper, XContentBuilder builder) throws IOException {
+        BytesReference source = BytesReference.bytes(
+            builder.startObject()
+                .field("foo", 3.2f) // float
+                .field("bar", 3.2d) // double
+                .field("baz", (double) 3.2f) // double that can be accurately represented as a float
+                .field("quux", "3.2") // float detected through numeric detection
+                .endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("index", "id", source, builder.contentType()));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.root().getMapper("foo")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.root().getMapper("bar")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.root().getMapper("baz")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.root().getMapper("quux")).fieldType().typeName(), equalTo("float"));
+    }
+
+    public void testNumericDetectionEnabled() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("numeric_detection", true)));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("s_long", "100");
+            b.field("s_double", "100.0");
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        Mapper mapper = mapperService.documentMapper().mappers().getMapper("s_long");
+        assertThat(mapper.typeName(), equalTo("long"));
+
+        mapper = mapperService.documentMapper().mappers().getMapper("s_double");
+        assertThat(mapper.typeName(), equalTo("float"));
+    }
+
+    public void testNumericDetectionDefault() throws Exception {
+
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("s_long", "100");
+            b.field("s_double", "100.0");
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        Mapper mapper = mapperService.documentMapper().mappers().getMapper("s_long");
+        assertThat(mapper, instanceOf(TextFieldMapper.class));
+
+        mapper = mapperService.documentMapper().mappers().getMapper("s_double");
+        assertThat(mapper, instanceOf(TextFieldMapper.class));
+    }
+
+    public void testDateDetectionInheritsFormat() throws Exception {
+
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_date_formats").value("yyyy-MM-dd").endArray();
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("dates");
+                    {
+                        b.field("match_mapping_type", "date");
+                        b.field("match", "*2");
+                        b.startObject("mapping").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("dates");
+                    {
+                        b.field("match_mapping_type", "date");
+                        b.field("match", "*3");
+                        b.startObject("mapping").field("format", "yyyy-MM-dd||epoch_millis").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("date1", "2016-11-20");
+            b.field("date2", "2016-11-20");
+            b.field("date3", "2016-11-20");
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        DateFieldMapper dateMapper1 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date1");
+        DateFieldMapper dateMapper2 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date2");
+        DateFieldMapper dateMapper3 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date3");
+        // inherited from dynamic date format
+        assertEquals("yyyy-MM-dd", dateMapper1.fieldType().dateTimeFormatter().pattern());
+        // inherited from dynamic date format since the mapping in the template did not specify a format
+        assertEquals("yyyy-MM-dd", dateMapper2.fieldType().dateTimeFormatter().pattern());
+        // not inherited from the dynamic date format since the template defined an explicit format
+        assertEquals("yyyy-MM-dd||epoch_millis", dateMapper3.fieldType().dateTimeFormatter().pattern());
+    }
+
+    public void testDynamicTemplateOrder() throws IOException {
+        // https://github.com/elastic/elasticsearch/issues/18625
+        // elasticsearch used to apply templates that do not have a match_mapping_type first
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("type-based");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("path-based");
+                    {
+                        b.field("path_match", "foo");
+                        b.startObject("mapping").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("foo", "abc")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertThat(mapperService.fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+    }
+
+}

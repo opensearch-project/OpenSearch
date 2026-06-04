@@ -1,0 +1,33 @@
+---
+"Create index with java style index in 6":
+  - do:
+      indices.create:
+        index: java_for_range
+        body:
+          settings:
+            index:
+              number_of_replicas: 2
+          mappings:
+            "properties":
+              "time_frame":
+                "type": "date_range"
+                "format": "8yyyy-MM-dd'T'HH:mmXXX"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "java_for_range"}}'
+          - '{"time_frame": {"gte": "2019-01-01T00:00+01:00", "lte" : "2019-03-01T00:00+01:00"}}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: java_for_range
+        body:
+          query:
+            range:
+              time_frame:
+                gte: "2019-02-01T00:00+01:00"
+                lte: "2019-02-01T00:00+01:00"
+  - match: { hits.total: 1 }

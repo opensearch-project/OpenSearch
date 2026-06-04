@@ -1,0 +1,1 @@
+source=test_data | eval tag_pos = mvfind(split(tags, ','), 'tag2') | fields tags, tag_pos | head 3

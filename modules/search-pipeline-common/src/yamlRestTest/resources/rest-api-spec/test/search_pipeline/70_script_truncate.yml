@@ -1,0 +1,70 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test state propagating from script request to truncate_hits processor":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "script" : {
+                  "source" : "ctx.request_context['foo.original_size'] = 2"
+                }
+              }
+            ],
+            "response_processors": [
+              {
+                "truncate_hits" : {
+                  "context_prefix" : "foo"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {}
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {}
+  - do:
+      index:
+        index: test
+        id: 3
+        body: {}
+  - do:
+      index:
+        index: test
+        id: 4
+        body: {}
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        body: {
+        }
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+
+  - do:
+      search:
+        search_pipeline: my_pipeline
+        body: {
+        }
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 2 }

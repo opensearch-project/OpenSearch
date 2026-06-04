@@ -1,0 +1,48 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.jdk-download'
+
+if (BuildParams.getIsRuntimeJavaHomeSet()) {
+  configure(allprojects - project(':build-tools')) {
+    project.tasks.withType(Test).configureEach { Test test ->
+      if (BuildParams.getIsRuntimeJavaHomeSet()) {
+        if (OS.current() == OS.WINDOWS) {
+          test.executable = "${BuildParams.runtimeJavaHome}/bin/java.exe"
+        } else {
+          test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+        }
+      }
+    }
+  }
+} else {
+  jdks {
+    provisioned_runtime {
+      vendor = VersionProperties.bundledJdkVendor
+      version = VersionProperties.getBundledJdk(OS.current().name().toLowerCase(), Architecture.current().name().toLowerCase())
+      platform = OS.current().name().toLowerCase()
+      architecture = Architecture.current().name().toLowerCase()
+    }
+  }
+
+  configure(allprojects - project(':build-tools')) {
+    project.tasks.withType(Test).configureEach { Test test ->
+      test.dependsOn(rootProject.jdks.provisioned_runtime)
+      test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+    }
+  }
+}
+// if neither condition above is executed, tests will use the gradle jvm

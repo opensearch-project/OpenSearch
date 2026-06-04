@@ -1,0 +1,1 @@
+source=kubernetes_logs | where message like '%Health check%' or message like '%ready%' | stats count() by `cluster.name`

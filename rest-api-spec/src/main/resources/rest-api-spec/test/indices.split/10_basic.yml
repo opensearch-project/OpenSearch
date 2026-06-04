@@ -1,0 +1,320 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 2
+            index.number_of_replicas: 0
+            index.number_of_routing_shards: 4
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: source
+        id:    "2"
+        body:  { "foo": "hello world 2" }
+
+  - do:
+      index:
+        index: source
+        id:    "3"
+        body:  { "foo": "hello world 3" }
+
+---
+"Split index via API":
+  - skip:
+      features: allowed_warnings
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # now we do the actual split
+  - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "2"
+
+  - match: { _index:   target }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world 2" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "3"
+
+  - match: { _index:   target }
+  - match: { _id:      "3"     }
+  - match: { _source:  { foo: "hello world 3" } }
+
+
+---
+"Split from 1 to N":
+  - skip:
+      features: allowed_warnings
+  - do:
+      indices.create:
+        index: source_one_shard
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+  - do:
+      index:
+        index: source_one_shard
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: source_one_shard
+        id:    "2"
+        body:  { "foo": "hello world 2" }
+
+  - do:
+      index:
+        index: source_one_shard
+        id:    "3"
+        body:  { "foo": "hello world 3" }
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source_one_shard
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source_one_shard
+
+  # now we do the actual split from 1 to 5
+  - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.split:
+        index: "source_one_shard"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 5
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "2"
+
+  - match: { _index:   target }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world 2" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "3"
+
+  - match: { _index:   target }
+  - match: { _id:      "3"     }
+  - match: { _source:  { foo: "hello world 3" } }
+
+---
+"Create illegal split indices":
+  - skip:
+      features: allowed_warnings
+
+  # try to do an illegal split with number_of_routing_shards set
+  - do:
+      catch: /illegal_argument_exception/
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.number_of_routing_shards: 8
+
+  # try to do an illegal split with illegal number_of_shards
+  - do:
+      catch: /illegal_state_exception/
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 6
+
+# Related issue: https://github.com/opensearch-project/OpenSearch/issues/4845
+---
+"Returns error if target index's metadata write is blocked":
+  - skip:
+      version: " - 2.7.99"
+      reason: "the bug was fixed in 2.8.0"
+
+  # block source index's write operations
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # set `index.blocks.read_only` to `true` for target index
+  - do:
+      catch: /action_request_validation_exception/
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.blocks.read_only: true
+
+  # set `index.blocks.metadata` to `true` for target index
+  - do:
+      catch: /action_request_validation_exception/
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.blocks.metadata: true
+
+  # set source index's setting `index.blocks.read_only` to `true`
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.read_only: true
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+
+  # overwrite the source index's setting, everything is fine
+  - do:
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.blocks.read_only: null
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: new_split_index
+        id:    "1"
+
+  - match: { _index:   new_split_index }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # clear the source index's read_only blocks because it will block deleting index
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.read_only: null

@@ -1,0 +1,278 @@
+[versions]
+opensearch        = "3.7.0"
+lucene            = "10.4.0"
+
+bundled_jdk_vendor = "adoptium"
+bundled_jdk = "25.0.3+9"
+
+# optional dependencies
+spatial4j               = "0.7"
+jts                     = "1.15.0"
+jackson_annotations     = "2.21"
+jackson                 = "2.21.3"
+jackson_databind        = "2.21.3"
+jackson3                = "3.1.3"
+jackson3_databind       = "3.1.3"
+snakeyaml               = "2.6"
+snakeyaml_engine        = "3.0.1"
+icu4j                   = "77.1"
+supercsv                = "2.4.0"
+log4j                   = "2.25.4"
+error_prone_annotations = "2.45.0"
+slf4j                   = "2.0.17"
+asm                     = "9.10.1"
+jettison                = "1.5.4"
+woodstox                = "6.4.0"
+kotlin                  = "1.7.10"
+antlr4                  = "4.13.1"
+guava                   = "33.2.1-jre"
+gson                    = "2.13.2"
+opensearchprotobufs     = "1.4.0"
+protobuf                = "3.25.8"
+jakarta_annotation      = "1.3.5"
+google_http_client      = "1.44.1"
+google_auth             = "1.29.0"
+tdigest                 = "3.3" # Warning: Before updating tdigest, ensure its serialization code for MergingDigest hasn't changed
+hdrhistogram            = "2.2.2"
+grpc                    = "1.75.0"
+json_smart              = "2.5.2"
+
+# when updating the JNA version, also update the version in buildSrc/build.gradle
+jna               = "5.16.0"
+
+netty             = "4.2.15.Final"
+joda              = "2.12.7"
+roaringbitmap     = "1.3.0"
+
+# project reactor
+reactor_netty     = "1.3.5"
+reactor           = "3.8.5"
+
+# client dependencies
+httpclient5       = "5.6.1"
+httpcore5         = "5.4"
+httpclient        = "4.5.14"
+httpcore          = "4.4.16"
+httpasyncclient   = "4.1.5"
+commonslogging    = "1.3.5"
+commonscodec      = "1.18.0"
+commonslang       = "3.18.0"
+commonscompress   = "1.28.0"
+commonsio         = "2.16.0"
+commonscollections4 = "4.5.0"
+# plugin dependencies
+aws               = "2.32.29"
+awscrt            = "0.35.0"
+reactivestreams   = "1.0.4"
+hadoop3           = "3.4.2"
+
+# when updating this version, you need to ensure compatibility with:
+#  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
+#  - distribution/tools/plugin-cli
+bouncycastle_jce  = "2.1.2"
+bouncycastle_tls  = "2.1.20"
+bouncycastle_pkix = "2.1.9"
+bouncycastle_pg   = "2.1.11"
+bouncycastle_util = "2.1.4"
+password4j        = "1.8.3"
+picocli           = "4.7.7"
+
+# test dependencies
+randomizedrunner  = "2.7.1"
+junit             = "4.13.2"
+junit5            = "6.0.0"
+hamcrest          = "2.1"
+mockito           = "5.23.0"
+objenesis         = "3.3"
+bytebuddy         = "1.18.8"
+
+# benchmark dependencies
+jmh               = "1.35"
+
+# compression
+zstd              = "1.5.6-1"
+
+jzlib             = "1.1.3"
+
+resteasy          = "6.2.4.Final"
+
+# opentelemetry dependencies
+opentelemetry         = "1.62.0"
+opentelemetrysemconv  = "1.41.0"
+
+# arrow dependencies
+arrow                 = "18.1.0"
+flatbuffers           = "2.0.0"
+
+# calcite is locally patched and published to OpenSearch maven snapshots; see .github/workflows/calcite-snapshots.yml.
+# Published as org.apache.calcite:calcite-core:${calcite}-opensearch-${calcite_os_rev}.
+calcite               = "1.41.0"
+calcite_os_rev        = "1"
+
+# property-based testing
+[libraries]
+antlr4-runtime = { group = "org.antlr", name = "antlr4-runtime", version.ref = "antlr4" }
+asm-analysis = { group = "org.ow2.asm", name = "asm-analysis", version.ref = "asm" }
+asm-commons = { group = "org.ow2.asm", name = "asm-commons", version.ref = "asm" }
+asm-core = { group = "org.ow2.asm", name = "asm", version.ref = "asm" }
+asm-tree = { group = "org.ow2.asm", name = "asm-tree", version.ref = "asm" }
+asm-util = { group = "org.ow2.asm", name = "asm-util", version.ref = "asm" }
+bouncycastle-jce = { group = "org.bouncycastle", name = "bc-fips", version.ref = "bouncycastle_jce"}
+bouncycastle-tls = { group = "org.bouncycastle", name = "bctls-fips", version.ref = "bouncycastle_tls"}
+bouncycastle-pkix = { group = "org.bouncycastle", name = "bcpkix-fips", version.ref = "bouncycastle_pkix"}
+bouncycastle-pg = { group = "org.bouncycastle", name = "bcpg-fips", version.ref = "bouncycastle_pg"}
+bouncycastle-util = { group = "org.bouncycastle", name = "bcutil-fips", version.ref = "bouncycastle_util"}
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+hamcrest = { group = "org.hamcrest", name = "hamcrest", version.ref = "hamcrest" }
+hdrhistogram = { group = "org.hdrhistogram", name = "HdrHistogram", version.ref = "hdrhistogram" }
+jackson-annotation = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "jackson_annotations" }
+jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "jackson" }
+jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson_databind" }
+jackson-dataformat-smile = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-smile", version.ref = "jackson" }
+jackson-dataformat-yaml = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-yaml", version.ref = "jackson" }
+jackson-dataformat-cbor = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-cbor", version.ref = "jackson" }
+jackson-datatype-jsr310 = { group = "com.fasterxml.jackson.datatype", name = "jackson-datatype-jsr310", version.ref = "jackson" }
+jackson3-core = { group = "tools.jackson.core", name = "jackson-core", version.ref = "jackson3" }
+jackson3-databind = { group = "tools.jackson.core", name = "jackson-databind", version.ref = "jackson3_databind" }
+jackson3-dataformat-smile = { group = "tools.jackson.dataformat", name = "jackson-dataformat-smile", version.ref = "jackson3" }
+jackson3-dataformat-yaml = { group = "tools.jackson.dataformat", name = "jackson-dataformat-yaml", version.ref = "jackson3" }
+jackson3-dataformat-cbor = { group = "tools.jackson.dataformat", name = "jackson-dataformat-cbor", version.ref = "jackson3" }
+jakartaannotation = { group = "jakarta.annotation", name = "jakarta.annotation-api", version.ref = "jakarta_annotation" }
+jodatime = { group = "joda-time", name = "joda-time", version.ref = "joda" }
+jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
+jtscore = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+jzlib = { group = "com.jcraft", name = "jzlib", version.ref = "jzlib" }
+log4japi = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
+log4jjul = { group = "org.apache.logging.log4j", name = "log4j-jul", version.ref = "log4j" }
+log4jcore = { group = "org.apache.logging.log4j", name = "log4j-core", version.ref = "log4j" }
+log4jslf4jimpl = { group = "org.apache.logging.log4j", name = "log4j-slf4j-impl", version.ref = "log4j" }
+lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
+lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
+lucene-backward-codecs = { group = "org.apache.lucene", name = "lucene-backward-codecs", version.ref = "lucene" }
+lucene-grouping = { group = "org.apache.lucene", name = "lucene-grouping", version.ref = "lucene" }
+lucene-highlighter = { group = "org.apache.lucene", name = "lucene-highlighter", version.ref = "lucene" }
+lucene-join = { group = "org.apache.lucene", name = "lucene-join", version.ref = "lucene" }
+lucene-memory = { group = "org.apache.lucene", name = "lucene-memory", version.ref = "lucene" }
+lucene-misc = { group = "org.apache.lucene", name = "lucene-misc", version.ref = "lucene" }
+lucene-queries = { group = "org.apache.lucene", name = "lucene-queries", version.ref = "lucene" }
+lucene-queryparser = { group = "org.apache.lucene", name = "lucene-queryparser", version.ref = "lucene" }
+lucene-sandbox = { group = "org.apache.lucene", name = "lucene-sandbox", version.ref = "lucene" }
+lucene-spatial-extras = { group = "org.apache.lucene", name = "lucene-spatial-extras", version.ref = "lucene" }
+lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
+lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
+netty-buffer = { group = "io.netty", name = "netty-buffer", version.ref = "netty" }
+netty-codec = { group = "io.netty", name = "netty-codec", version.ref = "netty" }
+netty-codec-base = { group = "io.netty", name = "netty-codec-base", version.ref = "netty" }
+netty-codec-compression = { group = "io.netty", name = "netty-codec-compression", version.ref = "netty" }
+netty-codec-dns = { group = "io.netty", name = "netty-codec-dns", version.ref = "netty" }
+netty-codec-http = { group = "io.netty", name = "netty-codec-http", version.ref = "netty" }
+netty-codec-http2 = { group = "io.netty", name = "netty-codec-http2", version.ref = "netty" }
+netty-codec-http3 = { group = "io.netty", name = "netty-codec-http3", version.ref = "netty" }
+netty-codec-native-quic = { group = "io.netty", name = "netty-codec-native-quic", version.ref = "netty" }
+netty-codec-classes-quic = { group = "io.netty", name = "netty-codec-classes-quic", version.ref = "netty" }
+netty-common = { group = "io.netty", name = "netty-common", version.ref = "netty" }
+netty-handler = { group = "io.netty", name = "netty-handler", version.ref = "netty" }
+netty-resolver-dns = { group = "io.netty", name = "netty-resolver-dns", version.ref = "netty" }
+netty-resolver = { group = "io.netty", name = "netty-resolver", version.ref = "netty" }
+netty-transport = { group = "io.netty", name = "netty-transport", version.ref = "netty" }
+netty-transport-native-unix-common = { group = "io.netty", name = "netty-transport-native-unix-common", version.ref = "netty" }
+netty-pkitesting = { group = "io.netty", name = "netty-pkitesting", version.ref = "netty" }
+protobuf = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+reactivestreams = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactivestreams" }
+reactor-core = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactor" }
+reactor-test = { group = "io.projectreactor", name = "reactor-test", version.ref = "reactor" }
+reactor-netty-core = { group = "io.projectreactor.netty", name = "reactor-netty-core", version.ref = "reactor_netty" }
+reactor-netty-http = { group = "io.projectreactor.netty", name = "reactor-netty-http", version.ref = "reactor_netty" }
+
+roaringbitmap = { group = "org.roaringbitmap", name = "RoaringBitmap", version.ref = "roaringbitmap" }
+spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
+tdigest = { group = "com.tdunning", name = "t-digest", version.ref = "tdigest" }
+
+# OpenTelemetry libraries
+opentelemetry-api = { group = "io.opentelemetry", name = "opentelemetry-api", version.ref = "opentelemetry" }
+opentelemetry-common = { group = "io.opentelemetry", name = "opentelemetry-common", version.ref = "opentelemetry" }
+opentelemetry-context = { group = "io.opentelemetry", name = "opentelemetry-context", version.ref = "opentelemetry" }
+opentelemetry-sdk = { group = "io.opentelemetry", name = "opentelemetry-sdk", version.ref = "opentelemetry" }
+opentelemetry-sdk-common = { group = "io.opentelemetry", name = "opentelemetry-sdk-common", version.ref = "opentelemetry" }
+opentelemetry-sdk-trace = { group = "io.opentelemetry", name = "opentelemetry-sdk-trace", version.ref = "opentelemetry" }
+opentelemetry-sdk-metrics = { group = "io.opentelemetry", name = "opentelemetry-sdk-metrics", version.ref = "opentelemetry" }
+opentelemetry-sdk-logs = { group = "io.opentelemetry", name = "opentelemetry-sdk-logs", version.ref = "opentelemetry" }
+opentelemetry-exporter-logging = { group = "io.opentelemetry", name = "opentelemetry-exporter-logging", version.ref = "opentelemetry" }
+opentelemetry-exporter-otlp = { group = "io.opentelemetry", name = "opentelemetry-exporter-otlp", version.ref = "opentelemetry" }
+opentelemetry-exporter-common = { group = "io.opentelemetry", name = "opentelemetry-exporter-common", version.ref = "opentelemetry" }
+opentelemetry-exporter-otlp-common = { group = "io.opentelemetry", name = "opentelemetry-exporter-otlp-common", version.ref = "opentelemetry" }
+opentelemetry-exporter-sender-okhttp = { group = "io.opentelemetry", name = "opentelemetry-exporter-sender-okhttp", version.ref = "opentelemetry" }
+opentelemetry-semconv = { group = "io.opentelemetry.semconv", name = "opentelemetry-semconv", version.ref = "opentelemetrysemconv" }
+opentelemetry-sdk-testing = { group = "io.opentelemetry", name = "opentelemetry-sdk-testing", version.ref = "opentelemetry" }
+kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
+
+[bundles]
+asm = [
+    "asm-analysis",
+    "asm-commons",
+    "asm-core",
+    "asm-tree",
+    "asm-util"
+]
+lucene = [
+    "lucene-core",
+    "lucene-analysis-common",
+    "lucene-backward-codecs",
+    "lucene-grouping",
+    "lucene-highlighter",
+    "lucene-join",
+    "lucene-memory",
+    "lucene-misc",
+    "lucene-queries",
+    "lucene-queryparser",
+    "lucene-sandbox",
+    "lucene-spatial-extras",
+    "lucene-spatial3d",
+    "lucene-suggest"
+]
+
+netty = [
+    "netty-buffer",
+    "netty-codec-base",
+    "netty-codec",
+    "netty-codec-compression",
+    "netty-codec-dns",
+    "netty-codec-http",
+    "netty-codec-http2",
+    "netty-common",
+    "netty-handler",
+    "netty-resolver-dns",
+    "netty-resolver",
+    "netty-transport",
+    "netty-transport-native-unix-common"
+]
+
+reactornetty = [
+    "reactor-netty-core",
+    "reactor-netty-http"
+]
+
+bouncycastle = [
+    "bouncycastle-jce",
+    "bouncycastle-tls",
+    "bouncycastle-pkix",
+    "bouncycastle-pg",
+    "bouncycastle-util"
+]
+
+opentelemetry = [
+    "opentelemetry-api",
+    "opentelemetry-common",
+    "opentelemetry-context",
+    "opentelemetry-sdk",
+    "opentelemetry-sdk-common",
+    "opentelemetry-sdk-trace",
+    "opentelemetry-sdk-metrics",
+    "opentelemetry-sdk-logs",
+    "opentelemetry-exporter-logging",
+    "opentelemetry-exporter-otlp",
+    "opentelemetry-exporter-common",
+    "opentelemetry-exporter-otlp-common",
+    "opentelemetry-semconv"
+]

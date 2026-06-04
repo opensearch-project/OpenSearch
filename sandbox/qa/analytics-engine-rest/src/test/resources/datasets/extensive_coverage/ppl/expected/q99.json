@@ -1,0 +1,37 @@
+{
+  "schema": [
+    {
+      "name": "tags",
+      "type": "string"
+    },
+    {
+      "name": "filtered",
+      "type": "array"
+    }
+  ],
+  "datarows": [
+    [
+      "tag1,tag2,tag3",
+      [
+        "tag1",
+        "tag3"
+      ]
+    ],
+    [
+      "tag2,tag4",
+      [
+        "tag4"
+      ]
+    ],
+    [
+      "tag1,tag3,tag5",
+      [
+        "tag1",
+        "tag3",
+        "tag5"
+      ]
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

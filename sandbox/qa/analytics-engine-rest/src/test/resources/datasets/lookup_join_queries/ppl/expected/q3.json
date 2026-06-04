@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "transaction_count",
+      "type": "bigint"
+    },
+    {
+      "name": "total_sales",
+      "type": "double"
+    },
+    {
+      "name": "department",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      45,
+      188113.5,
+      "Engineering"
+    ],
+    [
+      81,
+      107484.75,
+      "Sales"
+    ],
+    [
+      36,
+      86411.25,
+      "Marketing"
+    ],
+    [
+      18,
+      24300.0,
+      "Unknown"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

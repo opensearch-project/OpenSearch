@@ -1,0 +1,386 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.InternalClusterTestPlugin
+
+import static org.opensearch.gradle.PropertyNormalization.DEFAULT
+import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description = 'The Azure Repository plugin adds support for Azure storage repositories.'
+  classname = 'org.opensearch.repositories.azure.AzureRepositoryPlugin'
+}
+
+dependencies {
+  api 'com.azure:azure-core:1.56.0'
+  api 'com.azure:azure-json:1.5.0'
+  api 'com.azure:azure-xml:1.2.0'
+  api 'com.azure:azure-storage-common:12.30.3'
+  api 'com.azure:azure-core-http-netty:1.16.2'
+  api "io.netty:netty-codec-base:${versions.netty}"
+  api "io.netty:netty-codec-dns:${versions.netty}"
+  api "io.netty:netty-codec-socks:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-handler-proxy:${versions.netty}"
+  api "io.netty:netty-resolver-dns:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  implementation project(':modules:transport-netty4')
+  api 'com.azure:azure-storage-blob:12.31.2'
+  api 'com.azure:azure-identity:1.18.0'
+  // Start of transitive dependencies for azure-identity
+  api 'com.microsoft.azure:msal4j-persistence-extension:1.3.0'
+  api "net.java.dev.jna:jna-platform:${versions.jna}"
+  api 'com.microsoft.azure:msal4j:1.23.1'
+  api 'com.nimbusds:oauth2-oidc-sdk:11.29.2'
+  api 'com.nimbusds:nimbus-jose-jwt:10.5'
+  api 'com.nimbusds:content-type:2.3'
+  api 'com.nimbusds:lang-tag:1.7'
+  // Both msal4j:1.14.3 and oauth2-oidc-sdk:11.9.1 has compile dependency on different versions of json-smart,
+  // selected the higher version
+  api "net.minidev:json-smart:${versions.json_smart}"
+  api "net.minidev:accessors-smart:${versions.json_smart}"
+  api "org.ow2.asm:asm:${versions.asm}"
+  // End of transitive dependencies for azure-identity
+  api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
+  api "io.projectreactor.netty:reactor-netty-http:${versions.reactor_netty}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
+  api 'org.codehaus.woodstox:stax2-api:4.2.2'
+  implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  api "org.apache.commons:commons-lang3:${versions.commonslang}"
+  testImplementation project(':test:fixtures:azure-fixture')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jersey-.*/, to: 'jersey'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /stax-.*/, to: 'stax'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /reactor-.*/, to: 'reactor'
+}
+
+thirdPartyAudit {
+  ignoreMissingClasses(
+    // Optional and not enabled by Elasticsearch
+    'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
+    'com.google.common.util.concurrent.internal.InternalFutures',
+    'com.azure.storage.internal.avro.implementation.AvroObject',
+    'com.azure.storage.internal.avro.implementation.AvroReader',
+    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
+    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
+    'io.micrometer.context.ContextAccessor',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.netty.channel.epoll.Epoll',
+    'io.netty.channel.epoll.EpollDatagramChannel',
+    'io.netty.channel.epoll.EpollServerSocketChannel',
+    'io.netty.channel.epoll.EpollSocketChannel',
+    'io.netty.channel.kqueue.KQueue',
+    'io.netty.channel.kqueue.KQueueDatagramChannel',
+    'io.netty.channel.kqueue.KQueueServerSocketChannel',
+    'io.netty.channel.kqueue.KQueueSocketChannel',
+    'io.netty.channel.epoll.EpollIoHandle',
+    'io.netty.channel.epoll.EpollIoHandler',
+    'io.netty.channel.kqueue.KQueueIoHandle',
+    'io.netty.channel.kqueue.KQueueIoHandler',
+    'io.netty.channel.uring.IoUring',
+    'io.netty.channel.uring.IoUringDatagramChannel',
+    'io.netty.channel.uring.IoUringIoHandle',
+    'io.netty.channel.uring.IoUringIoHandler',
+    'io.netty.channel.uring.IoUringServerSocketChannel',
+    'io.netty.channel.uring.IoUringSocketChannel',
+    'io.netty.handler.codec.haproxy.HAProxyMessage',
+    'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+    'javax.activation.DataHandler',
+    'javax.activation.DataSource',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.annotation.XmlAccessOrder',
+    'javax.xml.bind.annotation.XmlAccessType',
+    'javax.xml.bind.annotation.XmlAccessorOrder',
+    'javax.xml.bind.annotation.XmlAccessorType',
+    'javax.xml.bind.annotation.XmlAttribute',
+    'javax.xml.bind.annotation.XmlElement',
+    'javax.xml.bind.annotation.XmlElement$DEFAULT',
+    'javax.xml.bind.annotation.XmlElementRef',
+    'javax.xml.bind.annotation.XmlElementRefs',
+    'javax.xml.bind.annotation.XmlElementWrapper',
+    'javax.xml.bind.annotation.XmlElements',
+    'javax.xml.bind.annotation.XmlEnum',
+    'javax.xml.bind.annotation.XmlEnumValue',
+    'javax.xml.bind.annotation.XmlID',
+    'javax.xml.bind.annotation.XmlIDREF',
+    'javax.xml.bind.annotation.XmlRootElement',
+    'javax.xml.bind.annotation.XmlSeeAlso',
+    'javax.xml.bind.annotation.XmlTransient',
+    'javax.xml.bind.annotation.XmlType',
+    'javax.xml.bind.annotation.XmlValue',
+    'javax.xml.bind.annotation.adapters.XmlAdapter',
+    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
+    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
+    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+    'io.micrometer.common.KeyValue',
+    'io.micrometer.common.KeyValues',
+    'io.micrometer.common.docs.KeyName',
+    'io.micrometer.core.instrument.Meter$Type',
+    'io.micrometer.core.instrument.docs.MeterDocumentation',
+    'io.micrometer.observation.Observation',
+    'io.micrometer.observation.Observation$Context',
+    'io.micrometer.observation.docs.ObservationDocumentation',
+    'io.micrometer.observation.transport.ReceiverContext',
+    'io.micrometer.observation.transport.RequestReplyReceiverContext',
+    'io.micrometer.observation.transport.RequestReplySenderContext',
+    'io.micrometer.observation.transport.SenderContext',
+    'io.micrometer.tracing.Span',
+    'io.micrometer.tracing.Tracer',
+    'io.micrometer.tracing.docs.SpanDocumentation',
+    'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
+    'io.micrometer.tracing.propagation.Propagator',
+    'io.micrometer.core.instrument.observation.MeterObservationHandler',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.observation.ObservationHandler',
+    'io.micrometer.observation.ObservationRegistry',
+    'io.micrometer.observation.ObservationRegistry$ObservationConfig',
+    'io.micrometer.tracing.handler.DefaultTracingObservationHandler',
+    // Start of the list of classes from the optional compile/provided dependencies used in "com.nimbusds:oauth2-oidc-sdk".
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
+    'jakarta.servlet.ServletRequest',
+    'jakarta.servlet.http.HttpServletRequest',
+    'jakarta.servlet.http.HttpServletResponse',
+    'javax.servlet.ServletRequest',
+    'javax.servlet.http.HttpServletRequest',
+    'javax.servlet.http.HttpServletResponse',
+    // net.shibboleth.utilities:java-support.* is declared as optional in the plugin `bnd-maven-plugin` used in "com.nimbusds:oauth2-oidc-sdk"
+    // Worth nothing that, the latest dependency "net.shibboleth.utilities:java-support:8.0.0" has many vulnerabilities.
+    // Hence ignored.
+    'net.shibboleth.utilities.java.support.xml.SerializeSupport',
+    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+    'org.bouncycastle.cert.X509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.openssl.PEMKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.cryptomator.siv.SivMode',
+    'org.opensaml.core.config.InitializationException',
+    'org.opensaml.core.config.InitializationService',
+    'org.opensaml.core.xml.XMLObject',
+    'org.opensaml.core.xml.XMLObjectBuilder',
+    'org.opensaml.core.xml.XMLObjectBuilderFactory',
+    'org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport',
+    'org.opensaml.core.xml.io.Marshaller',
+    'org.opensaml.core.xml.io.MarshallerFactory',
+    'org.opensaml.core.xml.io.MarshallingException',
+    'org.opensaml.core.xml.io.Unmarshaller',
+    'org.opensaml.core.xml.io.UnmarshallerFactory',
+    'org.opensaml.core.xml.schema.XSString',
+    'org.opensaml.core.xml.schema.impl.XSStringBuilder',
+    'org.opensaml.saml.saml2.core.Assertion',
+    'org.opensaml.saml.saml2.core.Attribute',
+    'org.opensaml.saml.saml2.core.AttributeStatement',
+    'org.opensaml.saml.saml2.core.AttributeValue',
+    'org.opensaml.saml.saml2.core.Audience',
+    'org.opensaml.saml.saml2.core.AudienceRestriction',
+    'org.opensaml.saml.saml2.core.AuthnContext',
+    'org.opensaml.saml.saml2.core.AuthnContextClassRef',
+    'org.opensaml.saml.saml2.core.AuthnStatement',
+    'org.opensaml.saml.saml2.core.Conditions',
+    'org.opensaml.saml.saml2.core.Issuer',
+    'org.opensaml.saml.saml2.core.NameID',
+    'org.opensaml.saml.saml2.core.Subject',
+    'org.opensaml.saml.saml2.core.SubjectConfirmation',
+    'org.opensaml.saml.saml2.core.SubjectConfirmationData',
+    'org.opensaml.saml.security.impl.SAMLSignatureProfileValidator',
+    'org.opensaml.security.credential.BasicCredential',
+    'org.opensaml.security.credential.Credential',
+    'org.opensaml.security.credential.UsageType',
+    'org.opensaml.xmlsec.signature.Signature',
+    'org.opensaml.xmlsec.signature.support.SignatureException',
+    'org.opensaml.xmlsec.signature.support.SignatureValidator',
+    'org.opensaml.xmlsec.signature.support.Signer'
+    // End of the list of classes from the optional compile/provided dependencies used in "com.nimbusds:oauth2-oidc-sdk".
+  )
+
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+  )
+}
+
+boolean useFixture = false
+
+def azureAddress = {
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(':test:fixtures:azure-fixture').postProcessFixture.ext."test.fixtures.azure-fixture.tcp.8091"
+  assert ephemeralPort > 0
+  return 'ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:' + ephemeralPort + '/'
+}
+
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
+
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  useFixture = true
+
+  apply plugin: 'opensearch.test.fixtures'
+  testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
+}
+
+Map<String, Object> expansions = [
+  'container': azureContainer,
+  'base_path': azureBasePath + "_integration_tests"
+]
+
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false }
+}
+
+processYamlRestTestResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
+}
+
+internalClusterTest {
+  // this is tested explicitly in a separate test task
+  exclude '**/AzureStorageCleanupThirdPartyTests.class'
+}
+
+testClusters {
+  yamlRestTest {
+    keystore 'azure.client.integration_test.account', azureAccount
+    if (azureKey != null && azureKey.isEmpty() == false) {
+      keystore 'azure.client.integration_test.key', azureKey
+    }
+    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+      keystore 'azure.client.integration_test.sas_token', azureSasToken
+    }
+    if (useFixture) {
+      setting 'azure.client.integration_test.endpoint_suffix', azureAddress
+      String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
+      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+    }
+  }
+}
+
+task azureThirdPartyTest(type: Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  dependsOn tasks.internalClusterTest
+  include '**/AzureStorageCleanupThirdPartyTests.class'
+  systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
+  systemProperty 'test.azure.key', azureKey ? azureKey : ""
+  systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
+  systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
+  systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + BuildParams.testSeed
+  if (useFixture) {
+    nonInputProperties.systemProperty 'test.azure.endpoint_suffix', "${-> azureAddress.call() }"
+  }
+}
+
+task azureThirdPartyDefaultXmlTest(type: Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  dependsOn tasks.internalClusterTest
+  include '**/AzureStorageCleanupThirdPartyTests.class'
+  systemProperty 'javax.xml.stream.XMLInputFactory', "com.sun.xml.internal.stream.XMLInputFactoryImpl"
+  systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
+  systemProperty 'test.azure.key', azureKey ? azureKey : ""
+  systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
+  systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
+  systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + BuildParams.testSeed
+  if (useFixture) {
+    nonInputProperties.systemProperty 'test.azure.endpoint_suffix', "${-> azureAddress.call() }"
+  }
+}
+
+check.dependsOn(azureThirdPartyTest, azureThirdPartyDefaultXmlTest)

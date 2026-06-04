@@ -1,0 +1,9 @@
+/*
+SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*)
+FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
+*/
+source=hits
+| eval m = extract(minute from EventTime)
+| stats bucket_nullable=false count() by UserID, m, SearchPhrase
+| sort - `count()`
+| head 10

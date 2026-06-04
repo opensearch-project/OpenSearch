@@ -1,0 +1,77 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description = 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
+  classname = 'org.opensearch.ingest.geoip.IngestGeoIpModulePlugin'
+}
+
+dependencies {
+  api('com.maxmind.geoip2:geoip2:4.4.0')
+  // geoip2 dependencies:
+  api('com.maxmind.db:maxmind-db:3.2.0')
+  api(libs.jackson.annotation)
+  api(libs.jackson.databind)
+  api(libs.jackson.datatype.jsr310)
+
+  testImplementation 'org.elasticsearch:geolite2-databases:20191119'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {
+  from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
+  into "${project.buildDir}/ingest-geoip"
+  include "*.mmdb"
+}
+
+tasks.named("bundlePlugin").configure {
+  dependsOn("copyDefaultGeoIp2DatabaseFiles")
+  from("${project.buildDir}/ingest-geoip") {
+    into '/'
+  }
+}
+
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  tasks.named("test").configure {
+    // Windows cannot cleanup database files properly unless it loads everything on heap.
+    // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
+    systemProperty 'opensearch.geoip.load_db_on_heap', 'true'
+  }
+}

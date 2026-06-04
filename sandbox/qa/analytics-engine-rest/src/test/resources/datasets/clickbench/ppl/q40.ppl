@@ -1,0 +1,1 @@
+source = clickbench | where CounterID = 62 and EventDate >= '2013-07-01 00:00:00' and EventDate <= '2013-07-31 00:00:00' and IsRefresh = 0 | eval Src=case(SearchEngineID = 0 and AdvEngineID = 0, Referer else ''), Dst=URL | stats count() as PageViews by TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | sort - PageViews | head 10 from 1000

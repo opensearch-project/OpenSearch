@@ -1,0 +1,114 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'jacoco'
+
+repositories {
+  maven {
+    url = uri("https://ci.opensearch.org/maven2/")
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  mavenCentral {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  gradlePluginPortal {
+    content {
+      excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+    }
+  }
+  // TODO: Find the way to use the repositories from RepositoriesSetupPlugin
+  maven {
+    url = "https://ci.opensearch.org/ci/dbc/snapshots/lucene/"
+  }
+}
+
+allprojects {
+  plugins.withId('jacoco') {
+    jacoco.toolVersion = '0.8.14'
+  }
+}
+
+tasks.withType(JacocoReport).configureEach {
+  group = JavaBasePlugin.VERIFICATION_GROUP
+
+  reports {
+    // Code coverage report in HTML and CSV formats are on demand, in case they take extra disk space.
+    xml.required = System.getProperty('tests.coverage.report.xml', 'true').toBoolean()
+    html.required = System.getProperty('tests.coverage.report.html', 'false').toBoolean()
+    csv.required = System.getProperty('tests.coverage.report.csv', 'false').toBoolean()
+  }
+}
+
+// Enhance jacocoTestReport task to include all test types
+allprojects {
+  plugins.withId('jacoco') {
+    tasks.matching { it.name == 'jacocoTestReport' }.configureEach {
+      def executionDataFiles = []
+      def sourceSetsList = []
+      if (tasks.findByName('test')) {
+        executionDataFiles.add("$buildDir/jacoco/test.exec")
+        sourceSetsList.add(sourceSets.test)
+      }
+      if (tasks.findByName('internalClusterTest')) {
+        executionDataFiles.add("$buildDir/jacoco/internalClusterTest.exec")
+        sourceSetsList.add(sourceSets.internalClusterTest)
+      }
+      if (tasks.findByName('javaRestTest')) {
+        executionDataFiles.add("$buildDir/jacoco/javaRestTest.exec")
+        sourceSetsList.add(sourceSets.javaRestTest)
+      }
+      if (tasks.findByName('yamlRestTest')) {
+        executionDataFiles.add("$buildDir/jacoco/yamlRestTest.exec")
+        sourceSetsList.add(sourceSets.yamlRestTest)
+      }
+      if (!executionDataFiles.isEmpty()) {
+        executionData.setFrom(files(executionDataFiles).filter { it.exists() })
+        sourceSets(*sourceSetsList)
+      }
+      onlyIf {
+        file("$buildDir/jacoco/test.exec").exists() ||
+          file("$buildDir/jacoco/internalClusterTest.exec").exists() ||
+          file("$buildDir/jacoco/javaRestTest.exec").exists() ||
+          file("$buildDir/jacoco/yamlRestTest.exec").exists()
+      }
+    }
+  }
+}
+
+if (System.getProperty("tests.coverage")) {
+  reporting {
+    reports {
+      testCodeCoverageReport(JacocoCoverageReport) {
+        testSuiteName = "test"
+      }
+      testCodeCoverageReportInternalClusterTest(JacocoCoverageReport) {
+        testSuiteName = "internalClusterTest"
+      }
+      testCodeCoverageReportJavaRestTest(JacocoCoverageReport) {
+        testSuiteName = "javaRestTest"
+      }
+      testCodeCoverageReportYamlRestTest(JacocoCoverageReport) {
+        testSuiteName = "yamlRestTest"
+      }
+    }
+  }
+
+  // Attach code coverage report task to Gradle check task
+  project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
+    dependsOn(
+      tasks.named('testCodeCoverageReport', JacocoReport),
+      tasks.named('testCodeCoverageReportInternalClusterTest', JacocoReport),
+      tasks.named('testCodeCoverageReportJavaRestTest', JacocoReport),
+      tasks.named('testCodeCoverageReportYamlRestTest', JacocoReport)
+    )
+  }
+}
