@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Security Logs PPL integration test. Runs PPL queries against security_logs data.
@@ -20,8 +19,13 @@ public class SecurityLogsPplIT extends BasePplIT {
         return SecurityLogsTestHelper.DATASET;
     }
 
-    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testSecurityLogsPplQueries() throws Exception {
         runPplQueries();
+    }
+
+    /** Queries that fail at 1 shard: unsupported operations / value mismatch. Skipped so the rest run and are visible. */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(1, 2, 3, 4, 5, 7, 8);
     }
 }

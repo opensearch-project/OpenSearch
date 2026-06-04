@@ -64,6 +64,44 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
         assertNotSame("tasks on different nodes get distinct queues", captured.get(0), captured.get(1));
     }
 
+    /**
+     * The per-node admission queue is built from {@code maxConcurrentShardRequestsPerNode}, and that
+     * queue enforces the limit: with a value of 2, a third same-node task is held until a permit
+     * frees. Proves the configured setting value actually gates per-node concurrency (the behavioral
+     * permit enforcement of {@link PendingExecutions} is covered directly in PendingExecutionsTests).
+     */
+    public void testRespectsConfiguredPerNodeConcurrencyLimit() {
+        List<PendingExecutions> captured = new ArrayList<>();
+        ShardFragmentStageExecution stage = mock(ShardFragmentStageExecution.class);
+        QueryContext config = mock(QueryContext.class);
+        when(config.maxConcurrentShardRequestsPerNode()).thenReturn(2);
+        when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
+
+        // Real gating lives in the transport (it calls pending.tryRun). Emulate that here so the
+        // captured queue's permit count is actually exercised: run the work through pending.tryRun
+        // and hold the permit (never finish) so we can observe the limit.
+        AnalyticsSearchTransportService transport = mock(AnalyticsSearchTransportService.class);
+        doAnswer(inv -> {
+            PendingExecutions pending = inv.getArgument(4);
+            pending.tryRun(() -> captured.add(pending)); // holds a permit; never finished
+            return null;
+        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any());
+
+        Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = t -> mock(FragmentExecutionRequest.class);
+        ShardTaskRunner runner = new ShardTaskRunner(stage, config, transport, requestBuilder);
+
+        // Three tasks on the same node share one queue (limit 2) — the third is held in the queue.
+        runner.run(shardTask(0, "node-A"), noopHandle());
+        runner.run(shardTask(1, "node-A"), noopHandle());
+        runner.run(shardTask(2, "node-A"), noopHandle());
+
+        assertEquals("only 2 of 3 same-node tasks run while at the per-node limit", 2, captured.size());
+
+        // Release one permit → the queued third task runs.
+        captured.get(0).finishAndRunNext();
+        assertEquals("third task runs once a permit frees", 3, captured.size());
+    }
+
     public void testPendingQueueIsLazilyCreatedAndCached() {
         List<PendingExecutions> captured = new ArrayList<>();
         ShardTaskRunner runner = newRunner(captured);
@@ -85,7 +123,7 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
     private ShardTaskRunner newRunner(List<PendingExecutions> capturedQueues) {
         ShardFragmentStageExecution stage = mock(ShardFragmentStageExecution.class);
         QueryContext config = mock(QueryContext.class);
-        when(config.maxConcurrentShardRequests()).thenReturn(5);
+        when(config.maxConcurrentShardRequestsPerNode()).thenReturn(5);
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
 
         AnalyticsSearchTransportService transport = mock(AnalyticsSearchTransportService.class);

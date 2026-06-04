@@ -1,0 +1,1 @@
+source=%INDEX% | left join left=a, right=b ON a.id = b.id [ source=%INDEX% | where amount > 5 ] | stats count() as cnt

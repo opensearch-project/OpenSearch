@@ -126,15 +126,15 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
     StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(int sourceOrdinal, ActionListener<Void> listener) {
         return new StreamingResponseListener<>() {
             @Override
-            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+            public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
                 VectorSchemaRoot vsr = response.getRoot();
                 if (getState().isTerminal()) {
                     if (vsr != null) vsr.close();
-                    return;
+                    return false; // stage already settled — stop draining, let the caller cancel the stream
                 }
                 if (vsr == null) {
                     if (isLast) listener.onResponse(null);
-                    return;
+                    return true;
                 }
                 try {
                     outputSink.feed(vsr, sourceOrdinal);
@@ -147,10 +147,19 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                         wrapped.addSuppressed(closeFailure);
                     }
                     listener.onFailure(wrapped);
-                    return;
+                    return false;
                 }
                 metrics.addRowsProcessed(vsr.getRowCount());
+                // Downstream consumer satisfied (e.g. a LimitExec above the reduce finished and dropped
+                // this input's receiver). Settle this task as success and tell the caller to cancel the
+                // stream so this shard stops scanning instead of feeding batches that will be discarded.
+                // Each input reacts independently on its own stream.
+                if (outputSink.isConsumerDone()) {
+                    listener.onResponse(null);
+                    return false;
+                }
                 if (isLast) listener.onResponse(null);
+                return true;
             }
 
             @Override

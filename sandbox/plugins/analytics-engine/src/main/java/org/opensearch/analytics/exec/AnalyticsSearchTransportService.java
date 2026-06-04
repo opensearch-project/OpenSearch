@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -50,6 +52,8 @@ import java.io.IOException;
  */
 @Singleton
 public class AnalyticsSearchTransportService {
+    private static final Logger logger = LogManager.getLogger(AnalyticsSearchTransportService.class);
+
     private final StreamTransportService transportService;
     private final ClusterService clusterService;
 
@@ -234,16 +238,22 @@ public class AnalyticsSearchTransportService {
             @Override
             public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
                 try {
-                    FragmentExecutionArrowResponse current;
-                    FragmentExecutionArrowResponse last = null;
-                    while ((current = stream.nextResponse()) != null) {
-                        if (last != null) {
-                            listener.onStreamResponse(last, false);
+                    FragmentExecutionArrowResponse last = stream.nextResponse();
+                    while (last != null) {
+                        FragmentExecutionArrowResponse next = stream.nextResponse();
+                        boolean isLast = next == null;
+                        boolean keepReading = listener.onStreamResponse(last, isLast);
+                        if (!keepReading) {
+                            if (next != null) {
+                                if (next.getRoot() != null) {
+                                    next.getRoot().close();
+                                }
+                                logger.debug("[early-term] cancelling shard stream: reduce input satisfied (downstream consumer finished)");
+                                stream.cancel("reduce input satisfied (downstream consumer finished)", null);
+                            }
+                            return;
                         }
-                        last = current;
-                    }
-                    if (last != null) {
-                        listener.onStreamResponse(last, true);
+                        last = next;
                     }
                 } catch (Exception e) {
                     listener.onFailure(e);

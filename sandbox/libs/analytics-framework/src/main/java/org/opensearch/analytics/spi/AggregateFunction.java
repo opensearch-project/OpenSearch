@@ -24,7 +24,20 @@ public enum AggregateFunction {
     SUM0(Type.SIMPLE, SqlKind.SUM0),
     MIN(Type.SIMPLE, SqlKind.MIN),
     MAX(Type.SIMPLE, SqlKind.MAX),
-    COUNT(Type.SIMPLE, SqlKind.COUNT, fields(IF("count", new ArrowType.Int(64, true), SUM))),
+    COUNT(Type.SIMPLE, SqlKind.COUNT, fields(IF("count", new ArrowType.Int(64, true), SUM))) {
+        /**
+         * Single-arg {@code COUNT(DISTINCT x)} collapses onto {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT}.
+         * Distinctness is global and cannot be reduced additively across shards;
+         * {@link #APPROX_COUNT_DISTINCT} (Type.APPROXIMATE) carries the cross-shard merge.
+         */
+        @Override
+        public SqlAggFunction resolveOperator(SqlAggFunction op, boolean isDistinct, int argCount) {
+            if (isDistinct && argCount == 1) {
+                return SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
+            }
+            return op;
+        }
+    },
     AVG(Type.SIMPLE, SqlKind.AVG),
 
     STDDEV_POP(Type.STATISTICAL, SqlKind.STDDEV_POP),
@@ -42,6 +55,9 @@ public enum AggregateFunction {
     TAKE(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("take_state", IntermediateTypeResolver.passThroughArg0(), null))),
     FIRST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("first_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LAST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("last_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    // earliest(value, ts) / latest(value, ts); rewritten to first_value/last_value by PplAggregateCallRewriter.
+    ARG_MIN(Type.STATE_EXPANDING, SqlKind.ARG_MIN, fields(IF("arg_min_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    ARG_MAX(Type.STATE_EXPANDING, SqlKind.ARG_MAX, fields(IF("arg_max_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LIST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("list_state", IntermediateTypeResolver.passThroughArg0(), null))),
     VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null))),
     PATTERN(Type.STATE_EXPANDING, SqlKind.OTHER);
@@ -127,6 +143,14 @@ public enum AggregateFunction {
             }
         }
         return null;
+    }
+
+    /**
+     * Resolves an aggregate call shape (operator + flags) onto a standard {@link SqlAggFunction}.
+     * Default returns {@code op} unchanged; override per enum value to encode rewrites.
+     */
+    public SqlAggFunction resolveOperator(SqlAggFunction op, boolean isDistinct, int argCount) {
+        return op;
     }
 
     /** Case-insensitive name lookup; throws if not recognized. */

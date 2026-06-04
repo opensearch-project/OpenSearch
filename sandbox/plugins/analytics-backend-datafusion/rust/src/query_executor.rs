@@ -276,6 +276,34 @@ pub async fn execute_with_context(
         // Union schema widening was applied at table registration (session_context::widen_to_union_schema).
         let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
+
+        // Empty shard: skip physical planning (ParquetExec errors on zero files)
+        // and emit an EmptyExec stream with the logical plan's output schema.
+        if handle.object_metas.is_empty() {
+            use datafusion::physical_plan::empty::EmptyExec;
+            use datafusion::physical_plan::ExecutionPlan;
+            let plan_schema: arrow::datatypes::SchemaRef =
+                Arc::new(logical_plan.schema().as_arrow().clone());
+            let plan_schema =
+                crate::schema_coerce::coerce_inferred_schema(plan_schema);
+            let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
+            let df_stream = empty_exec.execute(0, handle.ctx.task_ctx()).map_err(|e| {
+                error!("execute_with_context: failed to create empty stream: {}", e);
+                e
+            })?;
+
+            let (cross_rt_stream, abort_handle) =
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+            if let Some(h) = abort_handle {
+                crate::query_tracker::set_abort_handle(context_id, h);
+            }
+            let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+                cross_rt_stream.schema(),
+                cross_rt_stream,
+            );
+            return Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64);
+        }
+
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
         // create_physical_plan runs all registered physical optimizer rules including
         // ProjectRowIdOptimizer (registered in session_context when strategy=ListingTable).

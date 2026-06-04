@@ -422,7 +422,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.LAST,
         AggregateFunction.LIST,
         AggregateFunction.VALUES,
-        AggregateFunction.PATTERN
+        AggregateFunction.PATTERN,
+        AggregateFunction.ARG_MIN,
+        AggregateFunction.ARG_MAX
     );
 
     private final DataFusionPlugin plugin;
@@ -676,6 +678,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
+                    Map.entry(ScalarFunction.MINUS, new MinusAdapter()),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
                     Map.entry(ScalarFunction.MONTH, month),
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
