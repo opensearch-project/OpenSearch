@@ -12,22 +12,30 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.QueryContext;
+import org.opensearch.analytics.exec.QueryExecution;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
+import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.spi.BroadcastInjectionInstructionNode;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskCancelledException;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -103,7 +111,7 @@ public final class BroadcastDispatch {
         Stage probeStage,
         Stage rootStage,
         Function<Stage, ExchangeSink> captureSinkFactory,
-        java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
+        Consumer<QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         assert buildStage.getRole() == Stage.StageRole.BROADCAST_BUILD : "BroadcastDispatch: buildStage role must be BROADCAST_BUILD";
@@ -118,7 +126,7 @@ public final class BroadcastDispatch {
 
         // Captured in the state listener for the cancel-after-success race guard. Cancel-callback
         // installation happens lower down (and must — see the comment on setOnCancelCallback below).
-        final org.opensearch.analytics.exec.task.AnalyticsQueryTask parentTask = ctx.parentTask();
+        final AnalyticsQueryTask parentTask = ctx.parentTask();
 
         // Listener MUST be installed before setOnCancelCallback. setOnCancelCallback replays
         // synchronously when the task is already cancelled (see AnalyticsQueryTask:95-107) — if
@@ -157,7 +165,7 @@ public final class BroadcastDispatch {
                     if (parentTask != null && parentTask.isCancelled()) {
                         String reason = parentTask.getReasonCancelled() != null ? parentTask.getReasonCancelled() : "unknown";
                         LOGGER.debug("[BroadcastDispatch] task cancelled after build SUCCEEDED, reason={}; aborting pass 2", reason);
-                        terminal.onFailure(new org.opensearch.core.tasks.TaskCancelledException("query cancelled: " + reason));
+                        terminal.onFailure(new TaskCancelledException("query cancelled: " + reason));
                         return;
                     }
 
@@ -258,8 +266,8 @@ public final class BroadcastDispatch {
      */
     @SuppressWarnings("unchecked")
     private byte[] extractIpcBytes(ExchangeSink captureSink) throws Exception {
-        java.lang.reflect.Method m = captureSink.getClass().getMethod("ipcBytesFuture");
-        java.util.concurrent.CompletableFuture<byte[]> fut = (java.util.concurrent.CompletableFuture<byte[]>) m.invoke(captureSink);
+        Method m = captureSink.getClass().getMethod("ipcBytesFuture");
+        CompletableFuture<byte[]> fut = (CompletableFuture<byte[]>) m.invoke(captureSink);
         try {
             return fut.get(EXTRACT_IPC_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (TimeoutException te) {
@@ -292,7 +300,7 @@ public final class BroadcastDispatch {
         Stage rootStage,
         byte[] ipcBytes,
         Function<Stage, ExchangeSink> captureSinkFactory,
-        java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
+        Consumer<QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         int buildSideIndex = deriveBuildSideIndex(rootStage, buildStage);
@@ -337,7 +345,7 @@ public final class BroadcastDispatch {
         }
 
         LOGGER.debug("[BroadcastDispatch] starting pass 2 (probe {} + root {})", probeStage.getStageId(), rootStage.getStageId());
-        org.opensearch.analytics.exec.QueryExecution exec = scheduler.execute(pass2Ctx, terminal);
+        QueryExecution exec = scheduler.execute(pass2Ctx, terminal);
         if (queryExecutionSink != null) {
             queryExecutionSink.accept(exec);
         }
@@ -351,10 +359,9 @@ public final class BroadcastDispatch {
      */
     private static Stage findProbeForBuild(Stage stage, int buildStageId) {
         if (stage.getRole() == Stage.StageRole.BROADCAST_PROBE
-            && org.opensearch.analytics.planner.RelNodeUtils.findNodes(
-                stage.getFragment(),
-                org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan.class
-            ).stream().anyMatch(scan -> scan.getBuildStageId() == buildStageId)) {
+            && RelNodeUtils.findNodes(stage.getFragment(), OpenSearchBroadcastScan.class)
+                .stream()
+                .anyMatch(scan -> scan.getBuildStageId() == buildStageId)) {
             return stage;
         }
         for (Stage child : stage.getChildStages()) {

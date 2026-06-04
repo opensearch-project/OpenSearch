@@ -8,10 +8,12 @@
 
 package org.opensearch.analytics.exec.join;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
+import org.opensearch.analytics.exec.stage.StageMetrics;
 import org.opensearch.analytics.exec.stage.StageStateListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
@@ -25,6 +27,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,7 +124,7 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
         Stage root = newRoleStage(/* stageId */ 3, Stage.StageRole.COORDINATOR_REDUCE);
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
-        ActionListener<Iterable<org.apache.arrow.vector.VectorSchemaRoot>> terminal = ActionListener.wrap(v -> {
+        ActionListener<Iterable<VectorSchemaRoot>> terminal = ActionListener.wrap(v -> {
             throw new AssertionError("expected onFailure, got onResponse");
         }, failure::set);
 
@@ -166,7 +169,7 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
      */
     private static final class FakeStageExecution implements StageExecution {
         private final int stageId;
-        private final java.util.List<StageStateListener> listeners = new java.util.ArrayList<>();
+        private final List<StageStateListener> listeners = new ArrayList<>();
         private volatile State state = State.CREATED;
         private volatile boolean startInvoked = false;
 
@@ -185,7 +188,7 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
         }
 
         @Override
-        public org.opensearch.analytics.exec.stage.StageMetrics getMetrics() {
+        public StageMetrics getMetrics() {
             return null;
         }
 

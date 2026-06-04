@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
@@ -59,6 +60,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchService;
@@ -249,7 +251,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // updates via PUT /_cluster/settings (e.g. analytics.mpp.enabled) are invisible to the
         // planner rules — they'd see the node-bootstrap default forever, defeating both the
         // operator kill switch and the IT framework's per-test setSetting calls.
-        final org.opensearch.common.settings.Settings perQuerySettings = org.opensearch.common.settings.Settings.builder()
+        final Settings perQuerySettings = Settings.builder()
             .put(clusterService.getSettings())
             .put(AnalyticsSettings.MPP_ENABLED.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED))
             .put(
@@ -284,7 +286,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 tableRowCounts
             )
         );
-        final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
+        final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
 
         // Join strategy resolution under the CBO-driven model:
