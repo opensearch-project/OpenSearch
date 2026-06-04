@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Application log analysis PPL integration test.
@@ -19,6 +20,7 @@ public class AppLogsPplIT extends BasePplIT {
         return AppLogsTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testAppLogsPplQueries() throws Exception {
         runPplQueries();
     }

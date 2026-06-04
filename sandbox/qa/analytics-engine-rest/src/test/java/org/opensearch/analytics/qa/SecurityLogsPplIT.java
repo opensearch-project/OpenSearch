@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Security Logs PPL integration test. Runs PPL queries against security_logs data.
@@ -19,6 +20,7 @@ public class SecurityLogsPplIT extends BasePplIT {
         return SecurityLogsTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testSecurityLogsPplQueries() throws Exception {
         runPplQueries();
     }

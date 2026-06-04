@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 /**
  * Performance metrics analysis PPL integration test.
  */
@@ -18,6 +20,7 @@ public class PerformanceMetricsPplIT extends BasePplIT {
         return PerformanceMetricsTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testPerformanceMetricsPplQueries() throws Exception {
         runPplQueries();
     }

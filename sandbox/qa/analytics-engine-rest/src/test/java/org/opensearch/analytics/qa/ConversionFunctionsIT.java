@@ -538,20 +538,24 @@ public class ConversionFunctionsIT extends AnalyticsRestTestCase {
     // 1066507633: > 1000000000 keeps the row, < 1000000000 drops it.
 
     public void testConvertMktimeThenWhereConstantPredicatePasses() throws IOException {
+        // head moved to the end so the two where clauses are not separated by a Sort,
+        // letting FILTER_PROJECT_TRANSPOSE + FILTER_MERGE collapse them into one filter.
         assertFirstRowDouble(
-            oneRow("key00")
-                + "| eval date_str = '10/18/2003 20:07:13' | convert mktime(date_str)"
-                + " | where date_str > 1000000000 | fields date_str",
+            "source=" + DATASET.indexName + " | where key='key00'"
+                + " | eval date_str = '10/18/2003 20:07:13' | convert mktime(date_str)"
+                + " | where date_str > 1000000000 | fields date_str | head 1",
             1_066_507_633.0,
             0.0
         );
     }
 
     public void testConvertMktimeThenWhereConstantPredicateFiltersOut() throws IOException {
+        // head moved to the end so the two where clauses are not separated by a Sort,
+        // letting FILTER_PROJECT_TRANSPOSE + FILTER_MERGE collapse them into one filter.
         Map<String, Object> response = executePpl(
-            oneRow("key00")
-                + "| eval date_str = '10/18/2003 20:07:13' | convert mktime(date_str)"
-                + " | where date_str < 1000000000 | fields date_str"
+            "source=" + DATASET.indexName + " | where key='key00'"
+                + " | eval date_str = '10/18/2003 20:07:13' | convert mktime(date_str)"
+                + " | where date_str < 1000000000 | fields date_str | head 1"
         );
         // An empty result may omit the data array entirely — treat absent as zero rows.
         Object data = response.containsKey("datarows") ? response.get("datarows") : response.get("rows");

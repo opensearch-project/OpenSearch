@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Kubernetes log analysis PPL integration test.
@@ -19,6 +20,7 @@ public class KubernetesLogsPplIT extends BasePplIT {
         return KubernetesLogsTestHelper.DATASET;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testKubernetesLogsPplQueries() throws Exception {
         runPplQueries();
     }

@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+
 import java.util.Set;
 
 /**
@@ -42,6 +44,7 @@ public class OtelLogsPplIT extends BasePplIT {
         return Set.of(32, 33);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testOtelLogsPplQueries() throws Exception {
         runPplQueries();
     }
