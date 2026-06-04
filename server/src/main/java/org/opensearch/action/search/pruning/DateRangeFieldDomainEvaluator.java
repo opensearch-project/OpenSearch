@@ -12,6 +12,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.mapper.DateFieldMapper;
 
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -41,11 +42,17 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
             return true;
         }
 
-        if (queryRange.get().isEmpty()) {
+        NormalizedRange index = indexRange.get();
+        if (index.isEmpty()) {
+            return true;
+        }
+
+        NormalizedRange query = queryRange.get();
+        if (query.isEmpty()) {
             return false;
         }
 
-        return indexRange.get().intersects(queryRange.get());
+        return index.intersects(query);
     }
 
     private static Optional<NormalizedRange> parseIndexRange(DateRangeFieldDomain domain) {
@@ -56,7 +63,7 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
                 return Optional.empty();
             }
             return Optional.of(new NormalizedRange(min, max));
-        } catch (RuntimeException e) {
+        } catch (NumberFormatException e) {
             return Optional.empty();
         }
     }
@@ -71,11 +78,23 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
             return Optional.empty();
         }
 
+        if (constraint.relation() != null) {
+            return Optional.empty();
+        }
+
         DateMathParser parser;
         try {
-            parser = domain.format() == null
+            String format = constraint.format() == null ? domain.format() : constraint.format();
+            parser = format == null
                 ? DateFieldMapper.getDefaultDateTimeFormatter().toDateMathParser()
-                : DateFormatter.forPattern(domain.format()).toDateMathParser();
+                : DateFormatter.forPattern(format).toDateMathParser();
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+
+        ZoneId timeZone;
+        try {
+            timeZone = constraint.timeZone() == null ? null : ZoneId.of(constraint.timeZone());
         } catch (RuntimeException e) {
             return Optional.empty();
         }
@@ -86,6 +105,7 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
             Optional<Long> parsed = parseDateValue(
                 constraint.lowerValue(),
                 constraint.includeLower() == false,
+                timeZone,
                 parser,
                 context,
                 resolution
@@ -105,7 +125,14 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
         long upperInclusive = Long.MAX_VALUE;
         if (constraint.hasUpperBound()) {
             // Match RangeQueryBuilder's date-bound rounding: inclusive upper bounds round up to the end of the parsed value.
-            Optional<Long> parsed = parseDateValue(constraint.upperValue(), constraint.includeUpper(), parser, context, resolution);
+            Optional<Long> parsed = parseDateValue(
+                constraint.upperValue(),
+                constraint.includeUpper(),
+                timeZone,
+                parser,
+                context,
+                resolution
+            );
             if (parsed.isEmpty()) {
                 return Optional.empty();
             }
@@ -128,13 +155,14 @@ public final class DateRangeFieldDomainEvaluator implements FieldDomainEvaluator
     private static Optional<Long> parseDateValue(
         Object value,
         boolean roundUp,
+        ZoneId zone,
         DateMathParser parser,
         FieldDomainEvaluationContext context,
         DateFieldMapper.Resolution resolution
     ) {
         try {
             return Optional.of(
-                DateFieldMapper.DateFieldType.parseToLong(value, roundUp, null, parser, context.nowInMillisSupplier(), resolution)
+                DateFieldMapper.DateFieldType.parseToLong(value, roundUp, zone, parser, context.nowInMillisSupplier(), resolution)
             );
         } catch (RuntimeException e) {
             return Optional.empty();

@@ -8,12 +8,16 @@
 
 package org.opensearch.action.search.pruning;
 
+import org.opensearch.common.geo.ShapeRelation;
+
 import java.util.Objects;
 
 /**
  * Generic query constraint extracted from a mandatory range query.
  *
- * This class intentionally models range-query structure only. Type-specific semantics such as date parsing,
+ * This class intentionally models range-query structure only. Its fields are an immutable snapshot of the normalized
+ * state exposed by {@link org.opensearch.index.query.RangeQueryBuilder}: lower/upper bounds, inclusivity, and optional
+ * range interpretation parameters such as format, time zone, and relation. Type-specific semantics such as date parsing,
  * numeric coercion, or geo interpretation are handled by field-domain evaluators.
  */
 public final class RangeQueryConstraint implements QueryConstraint {
@@ -22,17 +26,32 @@ public final class RangeQueryConstraint implements QueryConstraint {
     private final Object upperValue;
     private final boolean includeLower;
     private final boolean includeUpper;
+    private final String format;
+    private final String timeZone;
+    private final ShapeRelation relation;
 
     /**
-     * Creates a range query constraint.
+     * Creates a range query constraint with optional range-query interpretation parameters.
      *
      * @param field constrained field name
      * @param lowerValue lower bound value, or {@code null} for unbounded
      * @param upperValue upper bound value, or {@code null} for unbounded
      * @param includeLower whether the lower bound is inclusive
      * @param includeUpper whether the upper bound is inclusive
+     * @param format optional query-level format
+     * @param timeZone optional query-level time zone
+     * @param relation optional range relation
      */
-    public RangeQueryConstraint(String field, Object lowerValue, Object upperValue, boolean includeLower, boolean includeUpper) {
+    public RangeQueryConstraint(
+        String field,
+        Object lowerValue,
+        Object upperValue,
+        boolean includeLower,
+        boolean includeUpper,
+        String format,
+        String timeZone,
+        ShapeRelation relation
+    ) {
         this.field = Objects.requireNonNull(field, "field must not be null");
         if (field.isEmpty()) {
             throw new IllegalArgumentException("field must not be empty");
@@ -44,6 +63,9 @@ public final class RangeQueryConstraint implements QueryConstraint {
         this.upperValue = upperValue;
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
+        this.format = format;
+        this.timeZone = timeZone;
+        this.relation = relation;
     }
 
     @Override
@@ -77,6 +99,27 @@ public final class RangeQueryConstraint implements QueryConstraint {
      */
     public boolean includeUpper() {
         return includeUpper;
+    }
+
+    /**
+     * Optional query-level format as supplied by the range query builder.
+     */
+    public String format() {
+        return format;
+    }
+
+    /**
+     * Optional query-level time zone as supplied by the range query builder.
+     */
+    public String timeZone() {
+        return timeZone;
+    }
+
+    /**
+     * Optional range relation as supplied by the range query builder.
+     */
+    public ShapeRelation relation() {
+        return relation;
     }
 
     /**
