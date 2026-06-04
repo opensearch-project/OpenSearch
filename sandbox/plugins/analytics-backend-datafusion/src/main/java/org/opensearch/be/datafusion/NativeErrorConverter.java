@@ -50,12 +50,17 @@ public final class NativeErrorConverter {
     private record MatchedError(String message, Exception original) {
     }
 
+    private static final String ADMISSION_REJECTED_MSG = "Native query admission rejected: insufficient memory budget available";
+
     /**
      * Registered error patterns, checked in order. First match wins.
-     * Key phrases correspond to stable prefixes in Rust native_error.rs.
+     * Key phrases include both the Rust-originated messages (for data-node local conversion)
+     * and the controlled output messages (for coordinator-side conversion after transport).
      */
     private static final List<ErrorPattern> PATTERNS = List.of(
         new ErrorPattern("Cannot reserve untracked memory budget", NativeErrorConverter::convertAdmissionRejection),
+        new ErrorPattern(ADMISSION_REJECTED_MSG, NativeErrorConverter::convertAdmissionRejection),
+        new ErrorPattern("[analytics_backend_datafusion] Failed to allocate", NativeErrorConverter::convertPoolLimitFromControlled),
         new ErrorPattern("Failed to allocate", NativeErrorConverter::convertPoolLimitExceeded)
     );
 
@@ -93,20 +98,29 @@ public final class NativeErrorConverter {
         if (parsed == null) {
             return match.original();
         }
-        String message = match.message().contains("[analytics_backend_datafusion]")
-            ? match.message()
-            : "[analytics_backend_datafusion] " + match.message();
+        String message = "[analytics_backend_datafusion] Failed to allocate " + parsed[0] + " bytes (limit: " + parsed[1] + ")";
         CircuitBreakingException cbe = new CircuitBreakingException(message, parsed[0], parsed[1], CircuitBreaker.Durability.TRANSIENT);
         cbe.initCause(match.original());
         return cbe;
     }
 
-    private static Exception convertAdmissionRejection(MatchedError match) {
-        return new OpenSearchStatusException(
-            "Native query admission rejected: " + match.message(),
-            RestStatus.TOO_MANY_REQUESTS,
-            match.original()
+    private static Exception convertPoolLimitFromControlled(MatchedError match) {
+        long[] parsed = parseControlledPoolLimitBytes(match.message());
+        if (parsed == null) {
+            return match.original();
+        }
+        CircuitBreakingException cbe = new CircuitBreakingException(
+            match.message(),
+            parsed[0],
+            parsed[1],
+            CircuitBreaker.Durability.TRANSIENT
         );
+        cbe.initCause(match.original());
+        return cbe;
+    }
+
+    private static Exception convertAdmissionRejection(MatchedError match) {
+        return new OpenSearchStatusException(ADMISSION_REJECTED_MSG, RestStatus.TOO_MANY_REQUESTS, match.original());
     }
 
     // ─── Message parsing ────────────────────────────────────────────────────────
@@ -120,6 +134,14 @@ public final class NativeErrorConverter {
     );
 
     /**
+     * Matches the controlled pool limit message produced by this converter:
+     * "[analytics_backend_datafusion] Failed to allocate {N} bytes (limit: {L})"
+     */
+    private static final Pattern CONTROLLED_POOL_LIMIT_PATTERN = Pattern.compile(
+        "\\[analytics_backend_datafusion] Failed to allocate (\\d+) bytes \\(limit: (\\d+)\\)"
+    );
+
+    /**
      * Parses bytes_requested and limit from pool limit error message using regex.
      * Returns [bytesRequested, limit] or null if the message doesn't match the expected format.
      */
@@ -128,6 +150,18 @@ public final class NativeErrorConverter {
         if (m.find() == false) {
             return null;
         }
+        return parseLongPair(m);
+    }
+
+    private static long[] parseControlledPoolLimitBytes(String msg) {
+        Matcher m = CONTROLLED_POOL_LIMIT_PATTERN.matcher(msg);
+        if (m.find() == false) {
+            return null;
+        }
+        return parseLongPair(m);
+    }
+
+    private static long[] parseLongPair(Matcher m) {
         try {
             long bytesRequested = Long.parseLong(m.group(1));
             long limit = Long.parseLong(m.group(2));

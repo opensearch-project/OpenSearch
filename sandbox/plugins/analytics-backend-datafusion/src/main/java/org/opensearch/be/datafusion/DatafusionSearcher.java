@@ -73,7 +73,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         try {
             streamPtr = future.join();
         } catch (Exception exception) {
-            throw new IOException("Query execution with session context failed", exception);
+            throw convertOrWrap(exception, "Query execution with session context failed");
         }
         // NativeBridge#executeWithContextAsync has already marked the handle consumed (which
         // closes the Java wrapper) on both success and native-error paths; no explicit close
@@ -114,9 +114,25 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         try {
             streamPtr = future.join();
         } catch (Exception e) {
-            throw new IOException("Query execution failed", e);
+            throw convertOrWrap(e, "Query execution failed");
         }
         context.setStreamHandle(new StreamHandle(streamPtr, runtimeHandle));
+    }
+
+    /**
+     * Unwraps CompletionException, applies NativeErrorConverter, and either throws the
+     * converted exception directly (so its controlled message is the top-level message
+     * visible to the transport) or wraps unrecognized errors in IOException.
+     */
+    private static IOException convertOrWrap(Exception exception, String fallbackMessage) {
+        Throwable cause = exception instanceof java.util.concurrent.CompletionException ? exception.getCause() : exception;
+        if (cause instanceof Exception ex) {
+            Exception converted = NativeErrorConverter.convert(ex);
+            if (converted != ex) {
+                throw (RuntimeException) converted;
+            }
+        }
+        return new IOException(fallbackMessage, exception);
     }
 
     /**

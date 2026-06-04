@@ -29,18 +29,18 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertEquals(1048576L, cbe.getBytesWanted());
         assertEquals(4294967296L, cbe.getByteLimit());
         assertEquals(CircuitBreaker.Durability.TRANSIENT, cbe.getDurability());
+        assertEquals("[analytics_backend_datafusion] Failed to allocate 1048576 bytes (limit: 4294967296)", cbe.getMessage());
         assertSame(original, cbe.getCause());
     }
 
-    public void testPoolLimitExceededWithNativeRequestPrefix() {
-        String message = "[analytics_backend_datafusion] Failed to allocate 2048 bytes for sort (1024 already reserved) "
-            + "— 0 available out of 1073741824 limit";
+    public void testPoolLimitExceededUsesControlledMessage() {
+        String message = "Failed to allocate 2048 bytes for sort (1024 already reserved) " + "— 0 available out of 1073741824 limit";
         RuntimeException original = new RuntimeException(message);
 
         Exception result = NativeErrorConverter.convert(original);
 
         assertTrue(result instanceof CircuitBreakingException);
-        assertTrue(result.getMessage().contains("[analytics_backend_datafusion]"));
+        assertEquals("[analytics_backend_datafusion] Failed to allocate 2048 bytes (limit: 1073741824)", result.getMessage());
     }
 
     public void testAdmissionRejectionConvertsToStatusException() {
@@ -54,7 +54,7 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertTrue(result instanceof OpenSearchStatusException);
         OpenSearchStatusException statusEx = (OpenSearchStatusException) result;
         assertEquals(RestStatus.TOO_MANY_REQUESTS, statusEx.status());
-        assertTrue(result.getMessage().contains("Native query admission rejected"));
+        assertEquals("Native query admission rejected: insufficient memory budget available", result.getMessage());
         assertSame(original, result.getCause());
     }
 
@@ -145,5 +145,32 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         Exception result = NativeErrorConverter.convert(chain);
 
         assertTrue(result instanceof CircuitBreakingException);
+    }
+
+    public void testControlledAdmissionMessageConvertsOnCoordinator() {
+        // Simulates what the coordinator sees after Flight transport: StreamException wrapping
+        // the controlled message produced by the data node's NativeErrorConverter.
+        String controlledMessage = "Native query admission rejected: insufficient memory budget available";
+        RuntimeException transportException = new RuntimeException(controlledMessage);
+
+        Exception result = NativeErrorConverter.convert(transportException);
+
+        assertTrue(result instanceof OpenSearchStatusException);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ((OpenSearchStatusException) result).status());
+        assertEquals(controlledMessage, result.getMessage());
+    }
+
+    public void testControlledPoolLimitMessageConvertsOnCoordinator() {
+        // Simulates what the coordinator sees after Flight transport: the controlled
+        // pool limit message produced by the data node's NativeErrorConverter.
+        String controlledMessage = "[analytics_backend_datafusion] Failed to allocate 1048576 bytes (limit: 4294967296)";
+        RuntimeException transportException = new RuntimeException(controlledMessage);
+
+        Exception result = NativeErrorConverter.convert(transportException);
+
+        assertTrue(result instanceof CircuitBreakingException);
+        CircuitBreakingException cbe = (CircuitBreakingException) result;
+        assertEquals(1048576L, cbe.getBytesWanted());
+        assertEquals(4294967296L, cbe.getByteLimit());
     }
 }
