@@ -521,24 +521,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
         BroadcastDispatch dispatch = new BroadcastDispatch(qscheduler.getStageExecutionBuilder(), qscheduler);
 
-        // Pass the build's RelDataType so the backend can build a fallback Arrow schema for
-        // the IPC header. An all-empty build payload then registers a memtable with the real
-        // row type instead of a zero-column one, so the probe-side join's NamedScan still
-        // binds correctly and the join produces zero matches for INNER joins.
-        final org.apache.calcite.rel.type.RelDataType buildRowType = build.getFragment().getRowType();
         // Runtime byte cap from settings — the sink fails the dispatcher's terminal listener
         // when accumulated buffer size exceeds this, preventing runaway broadcast payloads
         // from blowing up coordinator memory.
         final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
+        // Per-build capture-sink factory: each broadcast build gets a sink built for ITS output
+        // rowType (multi-broadcast queries resolve several builds). The build's RelDataType lets
+        // the backend build a fallback Arrow schema for the IPC header so an all-empty build payload
+        // still registers a memtable with the real row type — the probe-side join's NamedScan binds
+        // correctly and INNER joins produce zero matches rather than failing.
         dispatch.run(
             context,
             dag,
             build,
             probe,
             root,
-            () -> capabilityRegistry.getBackend(captureBackendId)
+            buildStage -> capabilityRegistry.getBackend(captureBackendId)
                 .getExchangeSinkProvider()
-                .createBroadcastCaptureSink(context.bufferAllocator(), buildRowType, broadcastMaxBytes),
+                .createBroadcastCaptureSink(context.bufferAllocator(), buildStage.getFragment().getRowType(), broadcastMaxBytes),
             execRef::set,
             terminal
         );

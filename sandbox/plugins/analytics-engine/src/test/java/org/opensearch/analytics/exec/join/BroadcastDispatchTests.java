@@ -135,7 +135,7 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
             build,
             probe,
             root,
-            () -> mock(ExchangeSink.class),
+            buildStage -> mock(ExchangeSink.class),
             /* queryExecutionSink */ null,
             terminal
         );

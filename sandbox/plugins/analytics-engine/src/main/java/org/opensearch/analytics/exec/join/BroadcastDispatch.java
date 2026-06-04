@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Two-pass orchestrator for broadcast-join execution.
@@ -82,11 +82,12 @@ public final class BroadcastDispatch {
      * @param buildStage the build stage. Role must be {@link Stage.StageRole#BROADCAST_BUILD}.
      * @param probeStage the probe stage. Role must be {@link Stage.StageRole#BROADCAST_PROBE}.
      * @param rootStage the root stage of the DAG.
-     * @param captureSinkFactory creates the backend-specific IPC capture sink. Typically
-     *     {@code () -> new BroadcastCaptureSink(ctx.bufferAllocator())}. The factory returns an
+     * @param captureSinkFactory creates the backend-specific IPC capture sink for a given build
+     *     stage (its argument), built for that build's output rowType. The factory returns an
      *     {@link ExchangeSink} that additionally exposes a {@code CompletableFuture&lt;byte[]&gt;}
      *     via {@code ipcBytesFuture()}; the dispatcher retrieves IPC bytes via reflection on that
-     *     method to keep analytics-engine from depending on the DataFusion backend directly.
+     *     method to keep analytics-engine from depending on the DataFusion backend directly. Called
+     *     once per broadcast build (multi-broadcast queries resolve N builds, each with its own sink).
      * @param queryExecutionSink optional callback invoked with the pass-2
      *     {@link org.opensearch.analytics.exec.QueryExecution} once {@code scheduler.execute}
      *     returns — used by {@code DefaultPlanExecutor.executeWithProfile} to populate its
@@ -101,14 +102,16 @@ public final class BroadcastDispatch {
         Stage buildStage,
         Stage probeStage,
         Stage rootStage,
-        Supplier<ExchangeSink> captureSinkFactory,
+        Function<Stage, ExchangeSink> captureSinkFactory,
         java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
         assert buildStage.getRole() == Stage.StageRole.BROADCAST_BUILD : "BroadcastDispatch: buildStage role must be BROADCAST_BUILD";
         assert probeStage.getRole() == Stage.StageRole.BROADCAST_PROBE : "BroadcastDispatch: probeStage role must be BROADCAST_PROBE";
 
-        ExchangeSink captureSink = captureSinkFactory.get();
+        // Capture sink is built for THIS build stage's output rowType (multi-broadcast resolves
+        // each build with its own sink).
+        ExchangeSink captureSink = captureSinkFactory.apply(buildStage);
 
         // Pass 1: isolate the build stage, feed its output into captureSink.
         StageExecution buildExec = stageExecutionBuilder.buildWithSink(buildStage, captureSink, ctx);
@@ -159,7 +162,7 @@ public final class BroadcastDispatch {
                     }
 
                     try {
-                        startPass2(ctx, dag, buildStage, probeStage, rootStage, ipcBytes, queryExecutionSink, terminal);
+                        startPass2(ctx, dag, buildStage, probeStage, rootStage, ipcBytes, captureSinkFactory, queryExecutionSink, terminal);
                     } catch (Exception e) {
                         LOGGER.warn("[BroadcastDispatch] pass 2 failed to start", e);
                         terminal.onFailure(e);
@@ -288,6 +291,7 @@ public final class BroadcastDispatch {
         Stage probeStage,
         Stage rootStage,
         byte[] ipcBytes,
+        Function<Stage, ExchangeSink> captureSinkFactory,
         java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
@@ -310,11 +314,54 @@ public final class BroadcastDispatch {
         QueryDAG pass2Dag = new QueryDAG(dag.queryId(), pass2Root);
         QueryContext pass2Ctx = ctx.withDag(pass2Dag);
 
+        // Multi-broadcast: a query with several independent broadcast joins (e.g. TPC-H q2 with
+        // part⋈partsupp⋈supplier⋈nation⋈region) produces a DAG with N BROADCAST_BUILD stages. We
+        // resolve them one at a time — this iteration just stripped one build/probe pair; if the
+        // rebuilt DAG still contains a BROADCAST_BUILD, recurse to resolve the next before the
+        // final scheduler.execute. Each level captures its own build's IPC into a fresh sink.
+        Stage nextBuild = JoinStrategyAdvisor.findBroadcastBuild(pass2Dag);
+        if (nextBuild != null) {
+            Stage nextProbe = findProbeForBuild(pass2Root, nextBuild.getStageId());
+            if (nextProbe == null) {
+                throw new IllegalStateException(
+                    "BroadcastDispatch: no BROADCAST_PROBE found for residual build stage " + nextBuild.getStageId()
+                );
+            }
+            LOGGER.debug(
+                "[BroadcastDispatch] residual broadcast build {} (probe {}) — recursing for next pass",
+                nextBuild.getStageId(),
+                nextProbe.getStageId()
+            );
+            run(pass2Ctx, pass2Dag, nextBuild, nextProbe, pass2Root, captureSinkFactory, queryExecutionSink, terminal);
+            return;
+        }
+
         LOGGER.debug("[BroadcastDispatch] starting pass 2 (probe {} + root {})", probeStage.getStageId(), rootStage.getStageId());
         org.opensearch.analytics.exec.QueryExecution exec = scheduler.execute(pass2Ctx, terminal);
         if (queryExecutionSink != null) {
             queryExecutionSink.accept(exec);
         }
+    }
+
+    /**
+     * Finds the BROADCAST_PROBE stage paired with {@code buildStageId} — the stage whose fragment
+     * contains an {@link org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan} referencing
+     * that build. Pairing is by build-stage id (not role position), so independent broadcast joins
+     * in the same DAG resolve to the correct probe.
+     */
+    private static Stage findProbeForBuild(Stage stage, int buildStageId) {
+        if (stage.getRole() == Stage.StageRole.BROADCAST_PROBE
+            && org.opensearch.analytics.planner.RelNodeUtils.findNodes(
+                stage.getFragment(),
+                org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan.class
+            ).stream().anyMatch(scan -> scan.getBuildStageId() == buildStageId)) {
+            return stage;
+        }
+        for (Stage child : stage.getChildStages()) {
+            Stage found = findProbeForBuild(child, buildStageId);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     /**
