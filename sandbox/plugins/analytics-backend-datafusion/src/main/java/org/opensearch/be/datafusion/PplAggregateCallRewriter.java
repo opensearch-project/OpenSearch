@@ -176,7 +176,11 @@ final class PplAggregateCallRewriter {
                 } else {
                     targetOp = DataFusionFragmentConvertor.LOCAL_ARRAY_AGG_OP;
                     targetDistinct = isValues;
-                    explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
+                    // Match LOCAL_ARRAY_AGG_OP's nullable ARRAY inference; the 2-arg
+                    // createArrayType overload defaults to NOT NULL and trips Calcite's
+                    // typeMatchesInferred check.
+                    RelDataType arrayType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
+                    explicitReturnType = agg.getCluster().getTypeFactory().createTypeWithNullability(arrayType, true);
                 }
             }
             case "PATTERN" -> {
