@@ -128,8 +128,10 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         Throwable cause = exception instanceof java.util.concurrent.CompletionException ? exception.getCause() : exception;
         if (cause instanceof Exception ex) {
             Exception converted = NativeErrorConverter.convert(ex);
-            if (converted != ex) {
-                throw (RuntimeException) converted;
+            // NativeErrorConverter only returns OpenSearchStatusException or CircuitBreakingException,
+            // both of which extend RuntimeException via OpenSearchException.
+            if (converted instanceof RuntimeException rte && converted != ex) {
+                throw rte;
             }
         }
         return new IOException(fallbackMessage, exception);

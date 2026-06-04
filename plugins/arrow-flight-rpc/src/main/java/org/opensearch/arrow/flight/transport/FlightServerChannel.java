@@ -227,8 +227,9 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
             if (error instanceof FlightRuntimeException fre) {
                 flightExc = fre;
             } else {
-                String description = error.getMessage() != null ? error.getMessage() : "Stream error";
-                flightExc = CallStatus.INTERNAL.withCause(error).withDescription(description).toRuntimeException();
+                flightExc = CallStatus.INTERNAL.withCause(error)
+                    .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")
+                    .toRuntimeException();
             }
             middleware.setHeader(header);
             if (error instanceof OpenSearchException) {

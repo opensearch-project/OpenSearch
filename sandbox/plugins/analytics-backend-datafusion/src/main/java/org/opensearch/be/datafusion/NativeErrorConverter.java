@@ -56,6 +56,10 @@ public final class NativeErrorConverter {
      * Registered error patterns, checked in order. First match wins.
      * Key phrases include both the Rust-originated messages (for data-node local conversion)
      * and the controlled output messages (for coordinator-side conversion after transport).
+     *
+     * <p>Order matters: more-specific prefixes must precede less-specific ones.
+     * {@code "[analytics_backend_datafusion] Failed to allocate"} must come before bare
+     * {@code "Failed to allocate"}.
      */
     private static final List<ErrorPattern> PATTERNS = List.of(
         new ErrorPattern("Cannot reserve untracked memory budget", NativeErrorConverter::convertAdmissionRejection),
