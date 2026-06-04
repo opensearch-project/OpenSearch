@@ -68,10 +68,10 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
         }
     }
 
-
     /** Wires FsNativeObjectStorePlugin into "fs_metadata_supported_repository" repos. */
-    public static class NativeAwareMockFsMetadataSupportedRepositoryPlugin extends Plugin implements
-        org.opensearch.plugins.RepositoryPlugin {
+    public static class NativeAwareMockFsMetadataSupportedRepositoryPlugin extends Plugin
+        implements
+            org.opensearch.plugins.RepositoryPlugin {
 
         private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
 
@@ -85,15 +85,19 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
             return Collections.singletonMap(
                 MockFsMetadataSupportedRepositoryPlugin.TYPE_MD,
                 metadata -> new ReloadableFsRepository(
-                    metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    recoverySettings,
+                    nativeProvider
                 )
             );
         }
     }
 
     /** Wires FsNativeObjectStorePlugin into "fs_multipart_repository" repos. */
-    public static class NativeAwareMockFsRepositoryPlugin extends Plugin implements
-        org.opensearch.plugins.RepositoryPlugin {
+    public static class NativeAwareMockFsRepositoryPlugin extends Plugin implements org.opensearch.plugins.RepositoryPlugin {
 
         private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
 
@@ -106,9 +110,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
         ) {
             return Collections.singletonMap(
                 MockFsRepositoryPlugin.TYPE,
-                metadata -> new FsRepository(
-                    metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider
-                )
+                metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider)
             );
         }
     }
@@ -145,10 +147,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException("Failed to pre-create remote store repo directories", e);
         }
-        return Settings.builder()
-            .put(settings)
-            .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
-            .build();
+        return Settings.builder().put(settings).put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true).build();
     }
 
     protected Settings dfaIndexSettings(int replicaCount) {

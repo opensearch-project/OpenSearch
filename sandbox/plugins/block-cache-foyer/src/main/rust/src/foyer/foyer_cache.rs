@@ -278,6 +278,8 @@ impl FoyerCache {
         disk_bytes: usize,
         disk_dir: impl Into<PathBuf>,
         block_size_bytes: usize,
+        buffer_pool_size_bytes: usize,
+        submit_queue_size_threshold_bytes: usize,
         io_engine: &str,
         sweep_interval_secs: u64,
         sweep_threshold_ratio: f64,
@@ -312,12 +314,6 @@ impl FoyerCache {
                 .with_recover_mode(RecoverMode::Quiet)
                 .with_io_engine_config(build_io_engine_config(&io_engine))
                 .with_engine_config(
-                    // block_size is the disk I/O unit and the maximum size for a single entry.
-                    // Multiple smaller entries are packed together into one block by Foyer.
-                    // If an entry is larger than block_size it is silently dropped — put()
-                    // succeeds but the entry is never stored, causing a cache miss on the next read.
-                    // Set this to the largest expected entry size (e.g. 64 MB for Parquet row groups).
-                    // Configurable via block_cache.foyer.block_size (default: 64 MB).
                     BlockEngineConfig::new(
                         FsDeviceBuilder::new(dir_clone)
                             .with_capacity(disk_bytes)
@@ -325,6 +321,8 @@ impl FoyerCache {
                             .expect("[block-cache] FsDevice build failed")
                     )
                     .with_block_size(block_size_bytes)
+                    .with_buffer_pool_size(buffer_pool_size_bytes)
+                    .with_submit_queue_size_threshold(submit_queue_size_threshold_bytes)
                 )
                 .build()
                 .await
