@@ -36,14 +36,15 @@ public class ShardScanInstructionNode implements InstructionNode, Writeable {
     private final boolean requestsRowIds;
 
     public ShardScanInstructionNode() {
-        this(null, false);
+        this(false, null);
     }
 
     public ShardScanInstructionNode(boolean requestsRowIds) {
-        this(null, requestsRowIds);
+        this(requestsRowIds, null);
     }
 
-    public ShardScanInstructionNode(String logicalTableName, boolean requestsRowIds) {
+    // requestsRowIds is upstream's param; logicalTableName is our feature-branch addition, appended last.
+    public ShardScanInstructionNode(boolean requestsRowIds, String logicalTableName) {
         this.logicalTableName = logicalTableName;
         this.requestsRowIds = requestsRowIds;
     }

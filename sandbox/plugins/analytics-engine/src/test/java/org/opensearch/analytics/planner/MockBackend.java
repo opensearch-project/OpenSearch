@@ -179,7 +179,7 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
         return new FragmentInstructionHandlerFactory() {
             @Override
             public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, String logicalTableName) {
-                return Optional.of(new ShardScanInstructionNode(logicalTableName, requestsRowIds));
+                return Optional.of(new ShardScanInstructionNode(requestsRowIds, logicalTableName));
             }
 
             @Override
@@ -199,7 +199,7 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
                 String logicalTableName
             ) {
                 return Optional.of(
-                    new ShardScanWithDelegationInstructionNode(logicalTableName, treeShape, delegatedPredicateCount, requestsRowIds)
+                    new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds, logicalTableName)
                 );
             }
 

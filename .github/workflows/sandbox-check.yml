@@ -1,7 +1,11 @@
 name: Sandbox Check
 on:
   push:
+    paths:
+      - 'sandbox/**'
   pull_request:
+    paths:
+      - 'sandbox/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -32,6 +36,15 @@ jobs:
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('sandbox/**/Cargo.lock') }}
+      - name: Set Cargo build jobs
+        run: echo "CARGO_BUILD_JOBS=$(nproc)" >> $GITHUB_ENV
       - name: Run sandbox check
         run: ./gradlew check -p sandbox -Dsandbox.enabled=true -PrustDebug
       - name: Upload test results

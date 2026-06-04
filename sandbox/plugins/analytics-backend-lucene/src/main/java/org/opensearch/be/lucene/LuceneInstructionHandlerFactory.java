@@ -47,7 +47,7 @@ final class LuceneInstructionHandlerFactory implements FragmentInstructionHandle
         // alternative were ever paired with a row-id-requesting parent stage, reject here
         // so the framework picks DataFusion instead.
         if (requestsRowIds) return Optional.empty();
-        return Optional.of(new ShardScanInstructionNode(logicalTableName, requestsRowIds));
+        return Optional.of(new ShardScanInstructionNode(requestsRowIds, logicalTableName));
     }
 
     @Override
