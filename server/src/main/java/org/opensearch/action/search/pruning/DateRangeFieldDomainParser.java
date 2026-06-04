@@ -12,9 +12,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Parser and encoder for {@link DateRangeFieldDomain} custom metadata.
+ * Reader and writer for {@link DateRangeFieldDomain} custom metadata.
  */
-public final class DateRangeFieldDomainParser implements FieldDomainParser {
+public final class DateRangeFieldDomainParser implements FieldDomainParser<DateRangeFieldDomain> {
     private static final String KEY_MIN = "min";
     private static final String KEY_MAX = "max";
     private static final String KEY_FINALIZED = "finalized";
@@ -31,10 +31,10 @@ public final class DateRangeFieldDomainParser implements FieldDomainParser {
     }
 
     /**
-     * Parses one field's date range bounds from a flat custom metadata map.
+     * Reads one field's date range bounds from a flat custom metadata map.
      */
     @Override
-    public Optional<FieldDomain> parse(String field, Map<String, String> customData, String prefix) {
+    public Optional<DateRangeFieldDomain> fromCustomData(String field, Map<String, String> customData, String prefix) {
         String min = customData.get(prefix + KEY_MIN);
         String max = customData.get(prefix + KEY_MAX);
         String finalized = customData.get(prefix + KEY_FINALIZED);
@@ -59,27 +59,22 @@ public final class DateRangeFieldDomainParser implements FieldDomainParser {
     }
 
     /**
-     * Encodes date range bounds into a flat custom metadata map.
+     * Writes date range bounds into a flat custom metadata map.
      */
     @Override
-    public void encode(FieldDomain domain, Map<String, String> target, String prefix) {
-        if ((domain instanceof DateRangeFieldDomain) == false) {
-            throw new IllegalArgumentException("unsupported field domain type [" + domain.getClass().getName() + "]");
-        }
+    public void writeToCustomData(DateRangeFieldDomain domain, Map<String, String> targetCustomData, String prefix) {
+        targetCustomData.put(prefix + KEY_MIN, domain.min());
+        targetCustomData.put(prefix + KEY_MAX, domain.max());
+        targetCustomData.put(prefix + KEY_FINALIZED, Boolean.toString(domain.finalized()));
 
-        DateRangeFieldDomain dateRangeDomain = (DateRangeFieldDomain) domain;
-        target.put(prefix + KEY_MIN, dateRangeDomain.min());
-        target.put(prefix + KEY_MAX, dateRangeDomain.max());
-        target.put(prefix + KEY_FINALIZED, Boolean.toString(dateRangeDomain.finalized()));
-
-        if (dateRangeDomain.source() != null) {
-            target.put(prefix + KEY_SOURCE, dateRangeDomain.source());
+        if (domain.source() != null) {
+            targetCustomData.put(prefix + KEY_SOURCE, domain.source());
         }
-        if (dateRangeDomain.format() != null) {
-            target.put(prefix + KEY_FORMAT, dateRangeDomain.format());
+        if (domain.format() != null) {
+            targetCustomData.put(prefix + KEY_FORMAT, domain.format());
         }
-        if (dateRangeDomain.resolution() != null) {
-            target.put(prefix + KEY_RESOLUTION, dateRangeDomain.resolution());
+        if (domain.resolution() != null) {
+            targetCustomData.put(prefix + KEY_RESOLUTION, domain.resolution());
         }
     }
 

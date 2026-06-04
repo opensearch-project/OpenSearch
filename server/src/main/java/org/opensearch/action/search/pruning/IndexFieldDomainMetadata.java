@@ -67,7 +67,7 @@ public final class IndexFieldDomainMetadata {
             return Optional.empty();
         }
 
-        return parserRegistry.get(type).flatMap(parser -> parser.parse(field, customData, prefix));
+        return parserRegistry.fromCustomData(type, field, customData, prefix);
     }
 
     /**
@@ -76,13 +76,10 @@ public final class IndexFieldDomainMetadata {
     public Map<String, String> toCustomData(FieldDomain domain) {
         Objects.requireNonNull(domain, "domain must not be null");
 
-        FieldDomainParser parser = parserRegistry.get(domain.type())
-            .orElseThrow(() -> new IllegalArgumentException("unsupported field domain type [" + domain.type() + "]"));
-
         Map<String, String> customData = new HashMap<>();
         String prefix = fieldPrefix(domain.field());
-        customData.put(prefix + KEY_TYPE, parser.type());
-        parser.encode(domain, customData, prefix);
+        customData.put(prefix + KEY_TYPE, domain.type());
+        parserRegistry.writeToCustomData(domain, customData, prefix);
         return Map.copyOf(customData);
     }
 

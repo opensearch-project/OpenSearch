@@ -10,7 +10,9 @@ package org.opensearch.action.search.pruning;
 
 import org.opensearch.common.settings.Setting;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.opensearch.common.settings.Setting.Property.Dynamic;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
@@ -36,8 +38,8 @@ public final class SearchIndexPruningSettings {
      */
     public static final Setting<List<String>> FIELDS = Setting.listSetting(
         "search.index_pruning.fields",
-        List.of(),
-        s -> s,
+        Collections.emptyList(),
+        Function.identity(),
         Dynamic,
         NodeScope
     );

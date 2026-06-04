@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search.pruning;
 
+import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
@@ -68,6 +69,13 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
 
         assertTrue(evaluators.canMatch(bounds(0L, 9_000L, true), query, searchStartContext));
         assertFalse(evaluators.canMatch(bounds(11_000L, 12_000L, true), query, searchStartContext));
+    }
+
+    public void testCanMatchParsesQueryTimeZone() {
+        RangeQueryConstraint query = constraint("@timestamp", "1970-01-01", null, true, true, null, "+01:00", null);
+
+        assertTrue(evaluators.canMatch(bounds(-3_600_000L, -3_600_000L, true), query, context));
+        assertFalse(evaluators.canMatch(bounds(-3_600_001L, -3_600_001L, true), query, context));
     }
 
     public void testCanMatchParsesPartialDateRangeConstraints() {
@@ -151,6 +159,14 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
         );
     }
 
+    public void testCanMatchUsesQueryFormatOverMetadataFormat() {
+        RangeQueryConstraint query = constraint("@timestamp", "1970|01|01", null, true, true, "yyyy|MM|dd", null, null);
+
+        assertFalse(
+            evaluators.canMatch(new DateRangeFieldDomain("@timestamp", "-1", "-1", true, "test", "yyyy/MM/dd", null), query, context)
+        );
+    }
+
     public void testCanMatchReturnsTrueWhenEvaluationIsUnsupportedOrUnsafe() {
         assertTrue(evaluators.canMatch(bounds(100L, 200L, false), constraint(300L, 400L, true, true), context));
         assertTrue(evaluators.canMatch(bounds(100L, 200L, true), constraint("not-a-date", "1970-01-01T00:00:02Z", true, true), context));
@@ -186,6 +202,13 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
                 context
             )
         );
+        assertTrue(
+            evaluators.canMatch(
+                bounds(100L, 200L, true),
+                constraint("@timestamp", 300L, 400L, true, true, null, null, ShapeRelation.INTERSECTS),
+                context
+            )
+        );
     }
 
     private static DateRangeFieldDomain bounds(long min, long max, boolean finalized) {
@@ -197,7 +220,20 @@ public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
     }
 
     private static RangeQueryConstraint constraint(String field, Object lower, Object upper, boolean includeLower, boolean includeUpper) {
-        return new RangeQueryConstraint(field, lower, upper, includeLower, includeUpper);
+        return constraint(field, lower, upper, includeLower, includeUpper, null, null, null);
+    }
+
+    private static RangeQueryConstraint constraint(
+        String field,
+        Object lower,
+        Object upper,
+        boolean includeLower,
+        boolean includeUpper,
+        String format,
+        String timeZone,
+        ShapeRelation relation
+    ) {
+        return new RangeQueryConstraint(field, lower, upper, includeLower, includeUpper, format, timeZone, relation);
     }
 
     private static final class UnsupportedFieldDomain implements FieldDomain {

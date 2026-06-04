@@ -8,9 +8,9 @@
 
 package org.opensearch.action.search.pruning;
 
-import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.index.query.ConstantScoreQueryBuilder;
+import org.apache.lucene.search.BooleanClause;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
@@ -21,8 +21,9 @@ import java.util.Set;
 /**
  * Conservative query-tree walker that extracts constraints from mandatory query positions.
  *
- * Only clauses under {@code bool.filter}, {@code bool.must}, {@code constant_score}, and top-level range queries are
- * considered. Optional or negative clauses are ignored because they are not required for every matching document.
+ * The extractor relies on {@link QueryBuilder#visit(QueryBuilderVisitor)} to traverse the query tree. It only follows
+ * children visited as {@link BooleanClause.Occur#MUST} or {@link BooleanClause.Occur#FILTER}; optional or negative
+ * clauses are ignored because they are not required for every matching document.
  */
 public final class MandatoryQueryConstraintExtractor implements QueryConstraintExtractor {
     /**
@@ -34,33 +35,42 @@ public final class MandatoryQueryConstraintExtractor implements QueryConstraintE
             return List.of();
         }
 
-        List<QueryConstraint> constraints = new ArrayList<>();
-        visitMandatory(source.query(), pruningFields, constraints);
-        return List.copyOf(constraints);
+        MandatoryQueryConstraintVisitor visitor = new MandatoryQueryConstraintVisitor(pruningFields);
+        source.query().visit(visitor);
+        return visitor.constraints();
     }
 
-    private void visitMandatory(QueryBuilder query, Set<String> pruningFields, List<QueryConstraint> constraints) {
-        if (query == null) {
-            return;
+    private static final class MandatoryQueryConstraintVisitor implements QueryBuilderVisitor {
+        private final Set<String> pruningFields;
+        private final List<QueryConstraint> constraints = new ArrayList<>();
+
+        private MandatoryQueryConstraintVisitor(Set<String> pruningFields) {
+            this.pruningFields = pruningFields;
         }
 
-        if (query instanceof BoolQueryBuilder) {
-            BoolQueryBuilder bool = (BoolQueryBuilder) query;
-            bool.filter().forEach(child -> visitMandatory(child, pruningFields, constraints));
-            bool.must().forEach(child -> visitMandatory(child, pruningFields, constraints));
-            return;
-        }
-
-        if (query instanceof ConstantScoreQueryBuilder) {
-            visitMandatory(((ConstantScoreQueryBuilder) query).innerQuery(), pruningFields, constraints);
-            return;
-        }
-
-        if (query instanceof RangeQueryBuilder) {
-            RangeQueryConstraint constraint = buildRangeConstraint((RangeQueryBuilder) query, pruningFields);
-            if (constraint != null) {
-                constraints.add(constraint);
+        @Override
+        public void accept(QueryBuilder queryBuilder) {
+            if (queryBuilder instanceof RangeQueryBuilder) {
+                RangeQueryConstraint constraint = buildRangeConstraint((RangeQueryBuilder) queryBuilder, pruningFields);
+                if (constraint != null) {
+                    constraints.add(constraint);
+                }
             }
+        }
+
+        @Override
+        public QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur) {
+            switch (occur) {
+                case MUST:
+                case FILTER:
+                    return this;
+                default:
+                    return QueryBuilderVisitor.NO_OP_VISITOR;
+            }
+        }
+
+        private List<QueryConstraint> constraints() {
+            return List.copyOf(constraints);
         }
     }
 
@@ -74,16 +84,15 @@ public final class MandatoryQueryConstraintExtractor implements QueryConstraintE
             return null;
         }
 
-        /*
-         * format, time_zone, and relation change how a range query is interpreted.
-         * The generic range constraint intentionally carries only field/bounds/inclusion.
-         * Until a typed constraint models these options explicitly, skip them and keep
-         * pruning conservative.
-         */
-        if (range.format() != null || range.timeZone() != null || range.relation() != null) {
-            return null;
-        }
-
-        return new RangeQueryConstraint(field, range.from(), range.to(), range.includeLower(), range.includeUpper());
+        return new RangeQueryConstraint(
+            field,
+            range.from(),
+            range.to(),
+            range.includeLower(),
+            range.includeUpper(),
+            range.format(),
+            range.timeZone(),
+            range.relation()
+        );
     }
 }

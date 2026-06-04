@@ -18,27 +18,37 @@ import java.util.Optional;
  * Registry that maps field-domain metadata type names to parsers.
  */
 public final class FieldDomainParserRegistry {
-    private static final FieldDomainParserRegistry DEFAULT = new FieldDomainParserRegistry(List.of(new DateRangeFieldDomainParser()));
 
-    private final Map<String, FieldDomainParser> parsers;
+    private static final FieldDomainParserRegistry DEFAULT = new FieldDomainParserRegistry(
+        List.of(entry(DateRangeFieldDomain.class, new DateRangeFieldDomainParser()))
+    );
+
+    private final Map<String, Entry<? extends FieldDomain>> entries;
 
     /**
-     * Creates a registry from the supplied parsers.
+     * Creates a registry from the supplied parser entries.
      *
-     * @param parsers parsers keyed by their {@link FieldDomainParser#type()}
+     * @param entries parser entries keyed by their {@link FieldDomainParser#type()}
      */
-    public FieldDomainParserRegistry(List<FieldDomainParser> parsers) {
-        Objects.requireNonNull(parsers, "parsers must not be null");
+    public FieldDomainParserRegistry(List<Entry<? extends FieldDomain>> entries) {
+        Objects.requireNonNull(entries, "entries must not be null");
 
-        Map<String, FieldDomainParser> byType = new LinkedHashMap<>();
-        for (FieldDomainParser parser : parsers) {
-            Objects.requireNonNull(parser, "parser must not be null");
-            FieldDomainParser previous = byType.put(parser.type(), parser);
+        Map<String, Entry<? extends FieldDomain>> typeToParser = new LinkedHashMap<>();
+        for (Entry<? extends FieldDomain> entry : entries) {
+            Objects.requireNonNull(entry, "entry must not be null");
+            Entry<? extends FieldDomain> previous = typeToParser.put(entry.type(), entry);
             if (previous != null) {
-                throw new IllegalArgumentException("field domain parser [" + parser.type() + "] is already registered");
+                throw new IllegalArgumentException("field domain parser [" + entry.type() + "] is already registered");
             }
         }
-        this.parsers = Map.copyOf(byType);
+        this.entries = Map.copyOf(typeToParser);
+    }
+
+    /**
+     * Creates a typed parser entry for registration.
+     */
+    public static <T extends FieldDomain> Entry<T> entry(Class<T> domainClass, FieldDomainParser<T> parser) {
+        return new Entry<>(domainClass, parser);
     }
 
     /**
@@ -49,17 +59,75 @@ public final class FieldDomainParserRegistry {
     }
 
     /**
-     * Returns the parser registered for a metadata type.
+     * Returns whether a parser is registered for a metadata type.
      */
-    public Optional<FieldDomainParser> get(String type) {
-        return Optional.ofNullable(parsers.get(type));
+    public boolean contains(String type) {
+        return entries.containsKey(type);
+    }
+
+    /**
+     * Reads field-domain metadata with the parser registered for the supplied type.
+     */
+    public Optional<FieldDomain> fromCustomData(String type, String field, Map<String, String> customData, String prefix) {
+        Entry<? extends FieldDomain> entry = entries.get(type);
+        if (entry == null) {
+            return Optional.empty();
+        }
+        return entry.fromCustomData(field, customData, prefix);
+    }
+
+    /**
+     * Writes a field domain with the parser registered for its metadata type.
+     */
+    public void writeToCustomData(FieldDomain domain, Map<String, String> targetCustomData, String prefix) {
+        Objects.requireNonNull(domain, "domain must not be null");
+
+        Entry<? extends FieldDomain> entry = entries.get(domain.type());
+        if (entry == null) {
+            throw new IllegalArgumentException("unsupported field domain type [" + domain.type() + "]");
+        }
+        entry.writeToCustomData(domain, targetCustomData, prefix);
     }
 
     /**
      * Removes all known parser-owned keys for a field prefix.
      */
     public void removeFieldKeys(Map<String, String> target, String prefix) {
-        for (FieldDomainParser parser : parsers.values()) {
+        for (Entry<? extends FieldDomain> entry : entries.values()) {
+            entry.removeFieldKeys(target, prefix);
+        }
+    }
+
+    /**
+     * Typed parser registration entry.
+     */
+    public static final class Entry<T extends FieldDomain> {
+        private final Class<T> domainClass;
+        private final FieldDomainParser<T> parser;
+
+        private Entry(Class<T> domainClass, FieldDomainParser<T> parser) {
+            this.domainClass = Objects.requireNonNull(domainClass, "domainClass must not be null");
+            this.parser = Objects.requireNonNull(parser, "parser must not be null");
+        }
+
+        private String type() {
+            return parser.type();
+        }
+
+        private Optional<FieldDomain> fromCustomData(String field, Map<String, String> customData, String prefix) {
+            return parser.fromCustomData(field, customData, prefix).map(FieldDomain.class::cast);
+        }
+
+        private void writeToCustomData(FieldDomain domain, Map<String, String> targetCustomData, String prefix) {
+            if (domainClass.isInstance(domain) == false) {
+                throw new IllegalArgumentException(
+                    "field domain class [" + domain.getClass().getName() + "] is not supported by parser [" + type() + "]"
+                );
+            }
+            parser.writeToCustomData(domainClass.cast(domain), targetCustomData, prefix);
+        }
+
+        private void removeFieldKeys(Map<String, String> target, String prefix) {
             parser.removeFieldKeys(target, prefix);
         }
     }

@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search.pruning;
 
+import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -85,12 +86,24 @@ public class MandatoryQueryConstraintExtractorTests extends OpenSearchTestCase {
         assertTrue(extractor.extractMandatoryConstraints(source, Set.of("@timestamp")).isEmpty());
     }
 
-    public void testSkipsRangeOptionsNotRepresentedByGenericConstraint() {
+    public void testExtractsRangeQueryInterpretationOptions() {
         SearchSourceBuilder source = new SearchSourceBuilder().query(
-            QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01").format("strict_date_optional_time")
+            QueryBuilders.rangeQuery("@timestamp")
+                .gte("2024-01-01")
+                .format("strict_date_optional_time")
+                .timeZone("+01:00")
+                .relation("within")
         );
 
-        assertTrue(extractor.extractMandatoryConstraints(source, Set.of("@timestamp")).isEmpty());
+        List<QueryConstraint> constraints = extractor.extractMandatoryConstraints(source, Set.of("@timestamp"));
+
+        assertThat(constraints.size(), equalTo(1));
+        assertThat(constraints.get(0), instanceOf(RangeQueryConstraint.class));
+
+        RangeQueryConstraint constraint = (RangeQueryConstraint) constraints.get(0);
+        assertThat(constraint.format(), equalTo("strict_date_optional_time"));
+        assertThat(constraint.timeZone(), equalTo("+01:00"));
+        assertThat(constraint.relation(), equalTo(ShapeRelation.WITHIN));
     }
 
     public void testIgnoresUnconfiguredFields() {
