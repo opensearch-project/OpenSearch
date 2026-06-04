@@ -366,6 +366,7 @@ async fn run_two_segment_query_witness(
                     segment.writer_generation,
                     std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                     0,
+                    None,
                 ),
             );
             Ok(eval)
