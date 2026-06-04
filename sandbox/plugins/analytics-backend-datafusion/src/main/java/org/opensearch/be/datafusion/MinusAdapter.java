@@ -13,6 +13,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.FieldStorageInfo;
@@ -38,6 +39,11 @@ class MinusAdapter implements ScalarFunctionAdapter {
         RexNode left = original.getOperands().get(0);
         RexNode right = original.getOperands().get(1);
         if (!isDateOrTimestamp(left.getType()) || !isDateOrTimestamp(right.getType())) {
+            return original;
+        }
+        // Leave MINUS(MAX OVER (), MIN OVER ()) for WidthBucketAdapter — it pattern-matches
+        // that exact shape to lower `bin <ts> bins=N` into integer-seconds math.
+        if (left instanceof RexOver && right instanceof RexOver) {
             return original;
         }
 

@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
@@ -17,6 +18,9 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexWindowBounds;
+import org.apache.calcite.rex.RexWindowExclusion;
+import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -80,6 +84,35 @@ public class MinusAdapterTests extends OpenSearchTestCase {
         RelDataType i32 = typeFactory.createSqlType(SqlTypeName.INTEGER);
         RexCall unary = (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.UNARY_MINUS, rexBuilder.makeInputRef(i32, 0));
         assertSame(unary, adapter.adapt(unary, List.of(), cluster));
+    }
+
+    public void testMinusOfWindowAggsPassesThrough() {
+        // WidthBucketAdapter pattern-matches MINUS(MAX OVER (), MIN OVER ()) for `bin <ts> bins=N`.
+        // MinusAdapter must leave it intact so the downstream adapter still sees SqlKind.MINUS.
+        RelDataType ts = typeFactory.createSqlType(SqlTypeName.TIMESTAMP);
+        RexNode tsCol = rexBuilder.makeInputRef(ts, 0);
+        RexNode maxOver = makeOverEmpty(SqlStdOperatorTable.MAX, tsCol, ts);
+        RexNode minOver = makeOverEmpty(SqlStdOperatorTable.MIN, tsCol, ts);
+        RexCall minus = (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.MINUS, maxOver, minOver);
+        assertSame(minus, adapter.adapt(minus, List.of(), cluster));
+    }
+
+    private RexNode makeOverEmpty(SqlAggFunction agg, RexNode arg, RelDataType returnType) {
+        return rexBuilder.makeOver(
+            returnType,
+            agg,
+            List.of(arg),
+            List.of(),
+            ImmutableList.of(),
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.UNBOUNDED_FOLLOWING,
+            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
     }
 
     private RexCall minusOf(SqlTypeName left, SqlTypeName right) {
