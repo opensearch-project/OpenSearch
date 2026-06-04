@@ -1077,8 +1077,19 @@ public final class NativeBridge {
     }
 
     /**
+     * Positive sentinel returned by {@code df_sender_send} (via {@link #senderSend}) when the
+     * send was skipped because the consumer dropped the receiver before this batch could be sent
+     * — the benign "consumer finished first" case (e.g. a LimitExec satisfied its fetch). It
+     * rides the success half of the native return contract ({@code >= 0} success, {@code < 0}
+     * {@code -error_ptr}), so {@code checkResult} passes it through without throwing.
+     * MUST match {@code SENDER_SEND_RECEIVER_DROPPED} in {@code ffm.rs}.
+     */
+    public static final long SENDER_SEND_RECEIVER_DROPPED = 1L;
+
+    /**
      * Pushes one Arrow C Data-exported batch (array + schema addresses) into the sender. The
-     * native side takes ownership of both FFI structs.
+     * native side takes ownership of both FFI structs. Returns {@code 0} on a normal send or
+     * {@link #SENDER_SEND_RECEIVER_DROPPED} if the consumer already dropped the receiver.
      */
     public static long senderSend(long senderPtr, long arrayPtr, long schemaPtr) {
         NativeHandle.validatePointer(senderPtr, "sender");

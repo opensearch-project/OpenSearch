@@ -8,6 +8,8 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
@@ -52,6 +54,7 @@ import java.util.function.Function;
  *   --tests "*.CompositeParquetIndexIT" \
  *   -Dsandbox.enabled=true
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 

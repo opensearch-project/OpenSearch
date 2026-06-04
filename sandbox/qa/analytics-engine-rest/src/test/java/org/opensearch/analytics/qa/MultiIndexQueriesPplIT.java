@@ -8,8 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
-
 /**
  * Multi-Index Queries PPL integration test (multi-index). Tests fields, rename, top, rare, span commands.
  * Uses existing indexes from other datasets: security_logs, api_metrics, performance_metrics, exception_logs.
@@ -33,9 +31,14 @@ public class MultiIndexQueriesPplIT extends BasePplIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testMultiIndexQueriesPplQueries() throws Exception {
         ensureAdditionalDataProvisioned();
         runPplQueries();
+    }
+
+    /** Queries that fail at 1 shard: multi-index 'one concrete index' limit. Skipped so the rest run and are visible. */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(2, 7, 10);
     }
 }

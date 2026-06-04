@@ -88,6 +88,7 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
             luceneFieldType = new FieldType(fieldType.getTextSearchInfo().getLuceneFieldType());
             luceneFieldType.setDocValuesType(DocValuesType.NONE);
             luceneFieldType.setStored(false);
+            luceneFieldType.setOmitNorms(true);
         } else {
             luceneFieldType = null;
         }
