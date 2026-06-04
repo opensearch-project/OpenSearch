@@ -88,22 +88,38 @@ pub struct ExtractionResult {
     pub tree: BoolNode,
 }
 
-/// Extract the filter expression from a DataFusion logical plan.
+/// Extract the scan-adjacent WHERE filter — the one carrying delegation markers, lowered
+/// against the scan schema by [`expr_to_bool_tree`]. Returns `None` if there's no such filter.
 ///
-/// Walks down through Projection/SubqueryAlias/etc. nodes to find the first
-/// `Filter` node. Returns `None` if there's no filter.
+/// Skips a HAVING/qualify (a Filter above an `Aggregate`/`Window`): its predicate references
+/// the aggregate/window output, absent from the scan schema, so lowering it would fail with
+/// "No field named count(...)". The HAVING is applied by the `FilterExec` DataFusion leaves
+/// above the aggregate; here we recurse past it to the real WHERE below.
 pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
     match plan {
+        LogicalPlan::Filter(filter) if is_post_aggregate_filter(filter) => {
+            extract_filter_expr(filter.input.as_ref())
+        }
         LogicalPlan::Filter(filter) => Some(filter.predicate.clone()),
-        _ => {
-            for child in plan.inputs() {
-                if let Some(expr) = extract_filter_expr(child) {
-                    return Some(expr);
-                }
-            }
-            None
+        _ => plan.inputs().iter().find_map(|child| extract_filter_expr(child)),
+    }
+}
+
+/// Whether this Filter is a HAVING/qualify — its input reaches an `Aggregate`/`Window`
+/// (whose outputs aren't in the scan schema) through row-preserving operators.
+fn is_post_aggregate_filter(filter: &datafusion::logical_expr::Filter) -> bool {
+    fn schema_changes_below(plan: &LogicalPlan) -> bool {
+        match plan {
+            LogicalPlan::Aggregate(_) | LogicalPlan::Window(_) => true,
+            LogicalPlan::Projection(_)
+            | LogicalPlan::SubqueryAlias(_)
+            | LogicalPlan::Sort(_)
+            | LogicalPlan::Limit(_)
+            | LogicalPlan::Filter(_) => plan.inputs().iter().any(|c| schema_changes_below(c)),
+            _ => false,
         }
     }
+    schema_changes_below(filter.input.as_ref())
 }
 
 /// Convert a DataFusion filter `Expr` to a `BoolNode` tree.
@@ -483,6 +499,71 @@ mod tests {
     /// every `expr_to_bool_tree` call site repeats it.
     fn test_state() -> datafusion::execution::SessionState {
         SessionContext::new().state()
+    }
+
+    // ── extract_filter_expr ──────────────────────────────────────────
+
+    /// Plan a SQL string over a two-column memtable `t(k Utf8, qty Int32)`.
+    async fn plan_from_sql(sql: &str) -> LogicalPlan {
+        use datafusion::arrow::array::{Int32Array, StringArray};
+        use datafusion::arrow::record_batch::RecordBatch;
+        use datafusion::datasource::MemTable;
+        use datafusion::execution::context::SessionContext;
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("k", DataType::Utf8, false),
+            Field::new("qty", DataType::Int32, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec!["a", "a", "b"])),
+                Arc::new(Int32Array::from(vec![10, 20, 30])),
+            ],
+        )
+        .unwrap();
+        let ctx = SessionContext::new();
+        ctx.register_table("t", Arc::new(MemTable::try_new(schema, vec![vec![batch]]).unwrap()))
+            .unwrap();
+        ctx.sql(sql).await.unwrap().logical_plan().clone()
+    }
+
+    fn predicate_columns(expr: &Expr) -> std::collections::HashSet<String> {
+        expr.column_refs().into_iter().map(|c| c.name.clone()).collect()
+    }
+
+    /// With a HAVING present, `extract_filter_expr` returns the scan-adjacent WHERE (on `qty`),
+    /// not the HAVING (on the aggregate output `count(*)`). Returning the HAVING would make
+    /// `expr_to_bool_tree` lower `count(...)` against the scan schema → the single-shard 500.
+    #[tokio::test]
+    async fn extract_filter_skips_having_returns_where() {
+        let plan = plan_from_sql("SELECT k, count(*) AS c FROM t WHERE qty > 5 GROUP BY k HAVING count(*) > 3").await;
+        let cols = predicate_columns(&extract_filter_expr(&plan).expect("scan-adjacent WHERE"));
+        assert!(cols.contains("qty"), "expected WHERE on `qty`, got {:?}", cols);
+        assert!(!cols.iter().any(|c| c.contains("count")), "must not return the HAVING, got {:?}", cols);
+    }
+
+    /// A qualify on a window output (`... | where rn <= N`) sits above `Sort → Projection →
+    /// WindowAggr`; `extract_filter_expr` sees through them to skip it and return the WHERE.
+    #[tokio::test]
+    async fn extract_filter_skips_window_qualify_over_sort() {
+        let plan = plan_from_sql(
+            "SELECT k, rn FROM \
+               (SELECT k, qty, count(*) OVER (PARTITION BY k ORDER BY qty) AS rn FROM t WHERE qty > 5) \
+             WHERE rn <= 2 ORDER BY k",
+        )
+        .await;
+        let cols = predicate_columns(&extract_filter_expr(&plan).expect("scan-adjacent WHERE"));
+        assert!(cols.contains("qty"), "expected WHERE on `qty`, got {:?}", cols);
+        assert!(!cols.iter().any(|c| c.contains("count") || c == "rn"), "must not return the qualify, got {:?}", cols);
+    }
+
+    /// A HAVING with no WHERE below the aggregate yields no scan-side filter (the HAVING runs in
+    /// the FilterExec above the aggregate; returning it would crash lowering against the scan schema).
+    #[tokio::test]
+    async fn extract_filter_having_only_returns_none() {
+        let plan = plan_from_sql("SELECT k, count(*) AS c FROM t GROUP BY k HAVING count(*) > 3").await;
+        assert!(extract_filter_expr(&plan).is_none(), "a HAVING must not be a scan-side filter");
     }
 
     // ── expr_to_bool_tree ────────────────────────────────────────────

@@ -1,1 +1,1 @@
-{"mappings":{"properties":{"log_level":{"type":"keyword"},"part_mid":{"type":"keyword"},"realm":{"type":"keyword"}}}}
+{"settings":{"number_of_shards":1,"number_of_replicas":0},"mappings":{"properties":{"log_level":{"type":"keyword"},"part_mid":{"type":"keyword"},"realm":{"type":"keyword"}}}}

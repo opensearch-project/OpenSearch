@@ -163,6 +163,52 @@ public class RelNodeUtils {
     }
 
     /**
+     * Finds the scan-adjacent WHERE {@link OpenSearchFilter} — the one carrying delegation markers,
+     * lowered against the scan schema. Skips a HAVING/qualify (a filter above an aggregate or window),
+     * whose predicate references aggregate/window output absent from the scan. Mirrors the Rust-side
+     * {@code extract_filter_expr}. Returns {@code null} if there's no such filter.
+     */
+    public static OpenSearchFilter findScanAdjacentFilter(RelNode node) {
+        RelNode current = node;
+        while (current != null) {
+            if (current instanceof OpenSearchFilter filter && !hasAggregateBelow(filter.getInput())) {
+                return filter;
+            }
+            if (current.getInputs().isEmpty()) {
+                return null;
+            }
+            current = current.getInputs().getFirst();
+        }
+        return null;
+    }
+
+    /**
+     * Whether an {@link OpenSearchAggregate} or a window-bearing {@link OpenSearchProject}
+     * ({@code RexOver}) sits below {@code node}, reached through row-preserving Projects/Sorts.
+     * Such producers add columns absent from the scan schema, marking a Filter above them as
+     * a HAVING/qualify rather than a scan-adjacent WHERE.
+     */
+    private static boolean hasAggregateBelow(RelNode node) {
+        RelNode current = unwrapHep(node);
+        while (current != null) {
+            if (current instanceof OpenSearchAggregate) {
+                return true;
+            } else if (current instanceof OpenSearchProject project) {
+                if (project.containsOver()) {
+                    return true;
+                }
+            } else if (!(current instanceof OpenSearchSort)) {
+                return false;
+            }
+            if (current.getInputs().isEmpty()) {
+                return false;
+            }
+            current = unwrapHep(current.getInputs().getFirst());
+        }
+        return false;
+    }
+
+    /**
      * Qualified name of the first {@link OpenSearchTableScan} reachable from {@code node},
      * searching all inputs. Returns {@code null} if none is present.
      */

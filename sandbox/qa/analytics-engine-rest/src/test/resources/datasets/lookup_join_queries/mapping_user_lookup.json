@@ -1,1 +1,1 @@
-{"mappings":{"properties":{"user":{"type":"keyword"},"full_name":{"type":"text"},"manager":{"type":"keyword"},"department":{"type":"keyword"}}}}
+{"settings":{"number_of_shards":1,"number_of_replicas":0},"mappings":{"properties":{"user":{"type":"keyword"},"full_name":{"type":"text"},"manager":{"type":"keyword"},"department":{"type":"keyword"}}}}

@@ -26,6 +26,6 @@ public class FulltextWindowPplIT extends BasePplIT {
     /** Queries that fail at 1 shard: fulltext + window combinations unsupported. Skipped so the rest run and are visible. */
     @Override
     protected java.util.Set<Integer> getSkipQueries() {
-        return java.util.Set.of(1, 6, 8, 12, 13, 14, 15, 17, 19);
+        return java.util.Set.of(1, 6, 8, 12, 13, 14, 17);
     }
 }

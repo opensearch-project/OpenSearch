@@ -26,6 +26,6 @@ public class SecurityLogsPplIT extends BasePplIT {
     /** Queries that fail at 1 shard: unsupported operations / value mismatch. Skipped so the rest run and are visible. */
     @Override
     protected java.util.Set<Integer> getSkipQueries() {
-        return java.util.Set.of(1, 2, 3, 4, 5, 7, 8);
+        return java.util.Set.of(2, 8);
     }
 }

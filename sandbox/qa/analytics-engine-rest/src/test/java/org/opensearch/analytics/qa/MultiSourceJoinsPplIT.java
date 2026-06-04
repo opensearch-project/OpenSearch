@@ -26,6 +26,6 @@ public class MultiSourceJoinsPplIT extends BasePplIT {
     /** Queries that fail at 1 shard: multi-source join unsupported. Skipped so the rest run and are visible. */
     @Override
     protected java.util.Set<Integer> getSkipQueries() {
-        return java.util.Set.of(2, 4);
+        return java.util.Set.of(2);
     }
 }

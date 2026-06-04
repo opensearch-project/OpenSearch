@@ -20,6 +20,7 @@ import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
@@ -568,6 +569,47 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     }
 
     /**
+     * Builds {@code Filter(count(*) > 5) <- Aggregate(group=message, count) <- Filter(WHERE) <- Scan}
+     * — the single-shard HAVING-over-stats shape. The WHERE delegates to Lucene; the HAVING is a
+     * native predicate on the aggregate output.
+     */
+    private QueryDAG buildHavingOverDelegatedScanDag(
+        RexNode whereCondition,
+        RecordingConvertor dfConvertor,
+        RecordingSerializer serializer
+    ) {
+        var backends = delegationBackends(dfConvertor, serializer);
+        // Single shard: the whole plan (WHERE → Aggregate → HAVING) stays in one data-node fragment,
+        // so the HAVING sits directly above the WHERE's aggregate (it isn't split off to a coordinator).
+        var context = buildContext("parquet", 1, Map.of("message", Map.of("type", "keyword", "index", true)), backends);
+        RelNode scan = stubScan(mockTable("test_index", new String[] { "message" }, new SqlTypeName[] { SqlTypeName.VARCHAR }));
+        LogicalFilter where = LogicalFilter.create(scan, whereCondition);
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            where,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+        LogicalAggregate aggregate = LogicalAggregate.create(where, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+        // HAVING on the count output (field 1) — references the aggregate result, can't push below the agg.
+        RelDataType bigintType = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        RexNode havingCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(bigintType, 1),
+            rexBuilder.makeLiteral(5L, bigintType, true)
+        );
+        LogicalFilter having = LogicalFilter.create(aggregate, havingCond);
+        RelNode cboOutput = runPlanner(having, context);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        return dag;
+    }
+
+    /**
      * Three-field delegation helper:
      *   - field 0 = status   (integer, indexed). NOTE: prod Lucene only filters keyword/text/
      *     match_only_text; {@link MockLuceneBackend} declares EQUALS over numerics for test
@@ -711,6 +753,23 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         QueryDAG dag = buildSingleFieldDelegationDag(makeFullTextCall(MATCH_PHRASE_FUNCTION, 0, "hello world"), dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
         assertDelegationResult(plan, dfConvertor, serializer, 1, true, false, List.of("MATCH_PHRASE"), FilterTreeShape.CONJUNCTIVE);
+    }
+
+    /**
+     * Regression: HAVING over an Aggregate must not mask the scan-adjacent WHERE's delegation.
+     * Single-shard `... | where match_phrase(...) | stats count() by k | where count() > N`
+     * produces {@code Filter(HAVING) <- Aggregate <- Filter(WHERE) <- Scan}. The treeShape
+     * deriver must classify from the scan-adjacent WHERE (CONJUNCTIVE — it delegates to Lucene),
+     * not the topmost HAVING (which has no delegated predicates → NO_DELEGATION). A wrong
+     * NO_DELEGATION drops the delegated Collector at the data node, silently under-filtering.
+     */
+    public void testHavingOverAggregateDoesNotMaskWhereDelegation() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        QueryDAG dag = buildHavingOverDelegatedScanDag(makeFullTextCall(MATCH_PHRASE_FUNCTION, 0, "hello world"), dfConvertor, serializer);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertEquals("WHERE delegation must survive a HAVING above the aggregate", 1, plan.delegatedExpressions().size());
+        assertEquals("treeShape must come from the scan-adjacent WHERE, not the HAVING", FilterTreeShape.CONJUNCTIVE, treeShapeOf(plan));
     }
 
     /** Single native equals on a non-indexed field — single-viable to DataFusion, no delegation. */
