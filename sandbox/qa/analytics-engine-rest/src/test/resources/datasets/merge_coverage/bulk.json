@@ -1,60 +1,60 @@
 {"index": {"_id": "0"}}
-{"id": 0, "category": "A", "region": "east", "amount": 1, "price": 1.5, "label": "lbl1", "flag": false, "ts": "2024-01-01", "opt": 1, "payload": "{\"v\": 1}"}
+{"id": 0, "category": "A", "region": "east", "amount": 1, "price": 1.5, "label": "lbl1", "flag": false, "ts": "2024-01-01", "opt": 1, "payload": "{\"v\": 1}", "big_amount": 3000000000, "client_ip": "10.0.0.1", "opt_ts": "2024-01-01", "@timestamp": "2024-01-01"}
 {"index": {"_id": "1"}}
-{"id": 1, "category": "A", "region": "west", "amount": 2, "price": 3.0, "label": "lbl2", "flag": true, "ts": "2024-01-02", "payload": "{\"v\": 2}"}
+{"id": 1, "category": "A", "region": "west", "amount": 2, "price": 3.0, "label": "lbl2", "flag": true, "ts": "2024-01-02", "payload": "{\"v\": 2}", "big_amount": 6000000000, "@timestamp": "2024-01-02"}
 {"index": {"_id": "2"}}
-{"id": 2, "category": "A", "region": "east", "amount": 3, "price": 4.5, "label": "lbl3", "flag": false, "ts": "2024-01-03", "opt": 3, "payload": "{\"v\": 3}"}
+{"id": 2, "category": "A", "region": "east", "amount": 3, "price": 4.5, "label": "lbl3", "flag": false, "ts": "2024-01-03", "opt": 3, "payload": "{\"v\": 3}", "big_amount": 9000000000, "client_ip": "192.168.1.1", "opt_ts": "2024-01-03", "@timestamp": "2024-01-03"}
 {"index": {"_id": "3"}}
-{"id": 3, "category": "A", "region": "west", "amount": 4, "price": 6.0, "label": "lbl4", "flag": true, "ts": "2024-01-04", "payload": "{\"v\": 4}"}
+{"id": 3, "category": "A", "region": "west", "amount": 4, "price": 6.0, "label": "lbl4", "flag": true, "ts": "2024-01-04", "payload": "{\"v\": 4}", "big_amount": 12000000000, "@timestamp": "2024-01-04"}
 {"index": {"_id": "4"}}
-{"id": 4, "category": "A", "region": "east", "amount": 5, "price": 7.5, "label": "lbl0", "flag": false, "ts": "2024-01-05", "opt": 5, "payload": "{\"v\": 5}"}
+{"id": 4, "category": "A", "region": "east", "amount": 5, "price": 7.5, "label": "lbl0", "flag": false, "ts": "2024-01-05", "opt": 5, "payload": "{\"v\": 5}", "big_amount": 15000000000, "client_ip": "172.16.0.1", "opt_ts": "2024-01-05", "@timestamp": "2024-01-05"}
 {"index": {"_id": "5"}}
-{"id": 5, "category": "A", "region": "west", "amount": 6, "price": 9.0, "label": "lbl1", "flag": true, "ts": "2024-01-06", "payload": "{\"v\": 6}"}
+{"id": 5, "category": "A", "region": "west", "amount": 6, "price": 9.0, "label": "lbl1", "flag": true, "ts": "2024-01-06", "payload": "{\"v\": 6}", "big_amount": 18000000000, "@timestamp": "2024-01-06"}
 {"index": {"_id": "6"}}
-{"id": 6, "category": "A", "region": "east", "amount": 7, "price": 10.5, "label": "lbl2", "flag": false, "ts": "2024-01-07", "opt": 7, "payload": "{\"v\": 7}"}
+{"id": 6, "category": "A", "region": "east", "amount": 7, "price": 10.5, "label": "lbl2", "flag": false, "ts": "2024-01-07", "opt": 7, "payload": "{\"v\": 7}", "big_amount": 21000000000, "client_ip": "10.0.0.2", "opt_ts": "2024-01-07", "@timestamp": "2024-01-07"}
 {"index": {"_id": "7"}}
-{"id": 7, "category": "A", "region": "west", "amount": 8, "price": 12.0, "label": "lbl3", "flag": true, "ts": "2024-01-08", "payload": "{\"v\": 8}"}
+{"id": 7, "category": "A", "region": "west", "amount": 8, "price": 12.0, "label": "lbl3", "flag": true, "ts": "2024-01-08", "payload": "{\"v\": 8}", "big_amount": 24000000000, "@timestamp": "2024-01-08"}
 {"index": {"_id": "8"}}
-{"id": 8, "category": "A", "region": "east", "amount": 9, "price": 13.5, "label": "lbl4", "flag": false, "ts": "2024-01-09", "opt": 9, "payload": "{\"v\": 9}"}
+{"id": 8, "category": "A", "region": "east", "amount": 9, "price": 13.5, "label": "lbl4", "flag": false, "ts": "2024-01-09", "opt": 9, "payload": "{\"v\": 9}", "big_amount": 27000000000, "client_ip": "192.168.1.2", "opt_ts": "2024-01-09", "@timestamp": "2024-01-09"}
 {"index": {"_id": "9"}}
-{"id": 9, "category": "A", "region": "west", "amount": 10, "price": 15.0, "label": "lbl0", "flag": true, "ts": "2024-01-10", "payload": "{\"v\": 10}"}
+{"id": 9, "category": "A", "region": "west", "amount": 10, "price": 15.0, "label": "lbl0", "flag": true, "ts": "2024-01-10", "payload": "{\"v\": 10}", "big_amount": 30000000000, "@timestamp": "2024-01-10"}
 {"index": {"_id": "10"}}
-{"id": 10, "category": "B", "region": "east", "amount": 11, "price": 16.5, "label": "lbl1", "flag": false, "ts": "2024-01-11", "opt": 11, "payload": "{\"v\": 11}"}
+{"id": 10, "category": "B", "region": "east", "amount": 11, "price": 16.5, "label": "lbl1", "flag": false, "ts": "2024-01-11", "opt": 11, "payload": "{\"v\": 11}", "big_amount": 33000000000, "client_ip": "10.0.0.1", "opt_ts": "2024-01-11", "@timestamp": "2024-01-11"}
 {"index": {"_id": "11"}}
-{"id": 11, "category": "B", "region": "west", "amount": 12, "price": 18.0, "label": "lbl2", "flag": true, "ts": "2024-01-12", "payload": "{\"v\": 12}"}
+{"id": 11, "category": "B", "region": "west", "amount": 12, "price": 18.0, "label": "lbl2", "flag": true, "ts": "2024-01-12", "payload": "{\"v\": 12}", "big_amount": 36000000000, "@timestamp": "2024-01-12"}
 {"index": {"_id": "12"}}
-{"id": 12, "category": "B", "region": "east", "amount": 13, "price": 19.5, "label": "lbl3", "flag": false, "ts": "2024-01-13", "opt": 13, "payload": "{\"v\": 13}"}
+{"id": 12, "category": "B", "region": "east", "amount": 13, "price": 19.5, "label": "lbl3", "flag": false, "ts": "2024-01-13", "opt": 13, "payload": "{\"v\": 13}", "big_amount": 39000000000, "client_ip": "192.168.1.1", "opt_ts": "2024-01-13", "@timestamp": "2024-01-13"}
 {"index": {"_id": "13"}}
-{"id": 13, "category": "B", "region": "west", "amount": 14, "price": 21.0, "label": "lbl4", "flag": true, "ts": "2024-01-14", "payload": "{\"v\": 14}"}
+{"id": 13, "category": "B", "region": "west", "amount": 14, "price": 21.0, "label": "lbl4", "flag": true, "ts": "2024-01-14", "payload": "{\"v\": 14}", "big_amount": 42000000000, "@timestamp": "2024-01-14"}
 {"index": {"_id": "14"}}
-{"id": 14, "category": "B", "region": "east", "amount": 15, "price": 22.5, "label": "lbl0", "flag": false, "ts": "2024-01-15", "opt": 15, "payload": "{\"v\": 15}"}
+{"id": 14, "category": "B", "region": "east", "amount": 15, "price": 22.5, "label": "lbl0", "flag": false, "ts": "2024-01-15", "opt": 15, "payload": "{\"v\": 15}", "big_amount": 45000000000, "client_ip": "172.16.0.1", "opt_ts": "2024-01-15", "@timestamp": "2024-01-15"}
 {"index": {"_id": "15"}}
-{"id": 15, "category": "B", "region": "west", "amount": 16, "price": 24.0, "label": "lbl1", "flag": true, "ts": "2024-01-16", "payload": "{\"v\": 16}"}
+{"id": 15, "category": "B", "region": "west", "amount": 16, "price": 24.0, "label": "lbl1", "flag": true, "ts": "2024-01-16", "payload": "{\"v\": 16}", "big_amount": 48000000000, "@timestamp": "2024-01-16"}
 {"index": {"_id": "16"}}
-{"id": 16, "category": "B", "region": "east", "amount": 17, "price": 25.5, "label": "lbl2", "flag": false, "ts": "2024-01-17", "opt": 17, "payload": "{\"v\": 17}"}
+{"id": 16, "category": "B", "region": "east", "amount": 17, "price": 25.5, "label": "lbl2", "flag": false, "ts": "2024-01-17", "opt": 17, "payload": "{\"v\": 17}", "big_amount": 51000000000, "client_ip": "10.0.0.2", "opt_ts": "2024-01-17", "@timestamp": "2024-01-17"}
 {"index": {"_id": "17"}}
-{"id": 17, "category": "B", "region": "west", "amount": 18, "price": 27.0, "label": "lbl3", "flag": true, "ts": "2024-01-18", "payload": "{\"v\": 18}"}
+{"id": 17, "category": "B", "region": "west", "amount": 18, "price": 27.0, "label": "lbl3", "flag": true, "ts": "2024-01-18", "payload": "{\"v\": 18}", "big_amount": 54000000000, "@timestamp": "2024-01-18"}
 {"index": {"_id": "18"}}
-{"id": 18, "category": "B", "region": "east", "amount": 19, "price": 28.5, "label": "lbl4", "flag": false, "ts": "2024-01-19", "opt": 19, "payload": "{\"v\": 19}"}
+{"id": 18, "category": "B", "region": "east", "amount": 19, "price": 28.5, "label": "lbl4", "flag": false, "ts": "2024-01-19", "opt": 19, "payload": "{\"v\": 19}", "big_amount": 57000000000, "client_ip": "192.168.1.2", "opt_ts": "2024-01-19", "@timestamp": "2024-01-19"}
 {"index": {"_id": "19"}}
-{"id": 19, "category": "B", "region": "west", "amount": 20, "price": 30.0, "label": "lbl0", "flag": true, "ts": "2024-01-20", "payload": "{\"v\": 20}"}
+{"id": 19, "category": "B", "region": "west", "amount": 20, "price": 30.0, "label": "lbl0", "flag": true, "ts": "2024-01-20", "payload": "{\"v\": 20}", "big_amount": 60000000000, "@timestamp": "2024-01-20"}
 {"index": {"_id": "20"}}
-{"id": 20, "category": "C", "region": "east", "amount": 21, "price": 31.5, "label": "lbl1", "flag": false, "ts": "2024-01-21", "opt": 21, "payload": "{\"v\": 21}"}
+{"id": 20, "category": "C", "region": "east", "amount": 21, "price": 31.5, "label": "lbl1", "flag": false, "ts": "2024-01-21", "opt": 21, "payload": "{\"v\": 21}", "big_amount": 63000000000, "client_ip": "10.0.0.1", "opt_ts": "2024-01-21", "@timestamp": "2024-01-21"}
 {"index": {"_id": "21"}}
-{"id": 21, "category": "C", "region": "west", "amount": 22, "price": 33.0, "label": "lbl2", "flag": true, "ts": "2024-01-22", "payload": "{\"v\": 22}"}
+{"id": 21, "category": "C", "region": "west", "amount": 22, "price": 33.0, "label": "lbl2", "flag": true, "ts": "2024-01-22", "payload": "{\"v\": 22}", "big_amount": 66000000000, "@timestamp": "2024-01-22"}
 {"index": {"_id": "22"}}
-{"id": 22, "category": "C", "region": "east", "amount": 23, "price": 34.5, "label": "lbl3", "flag": false, "ts": "2024-01-23", "opt": 23, "payload": "{\"v\": 23}"}
+{"id": 22, "category": "C", "region": "east", "amount": 23, "price": 34.5, "label": "lbl3", "flag": false, "ts": "2024-01-23", "opt": 23, "payload": "{\"v\": 23}", "big_amount": 69000000000, "client_ip": "192.168.1.1", "opt_ts": "2024-01-23", "@timestamp": "2024-01-23"}
 {"index": {"_id": "23"}}
-{"id": 23, "category": "C", "region": "west", "amount": 24, "price": 36.0, "label": "lbl4", "flag": true, "ts": "2024-01-24", "payload": "{\"v\": 24}"}
+{"id": 23, "category": "C", "region": "west", "amount": 24, "price": 36.0, "label": "lbl4", "flag": true, "ts": "2024-01-24", "payload": "{\"v\": 24}", "big_amount": 72000000000, "@timestamp": "2024-01-24"}
 {"index": {"_id": "24"}}
-{"id": 24, "category": "C", "region": "east", "amount": 25, "price": 37.5, "label": "lbl0", "flag": false, "ts": "2024-01-25", "opt": 25, "payload": "{\"v\": 25}"}
+{"id": 24, "category": "C", "region": "east", "amount": 25, "price": 37.5, "label": "lbl0", "flag": false, "ts": "2024-01-25", "opt": 25, "payload": "{\"v\": 25}", "big_amount": 75000000000, "client_ip": "172.16.0.1", "opt_ts": "2024-01-25", "@timestamp": "2024-01-25"}
 {"index": {"_id": "25"}}
-{"id": 25, "category": "C", "region": "west", "amount": 26, "price": 39.0, "label": "lbl1", "flag": true, "ts": "2024-01-26", "payload": "{\"v\": 26}"}
+{"id": 25, "category": "C", "region": "west", "amount": 26, "price": 39.0, "label": "lbl1", "flag": true, "ts": "2024-01-26", "payload": "{\"v\": 26}", "big_amount": 78000000000, "@timestamp": "2024-01-26"}
 {"index": {"_id": "26"}}
-{"id": 26, "category": "C", "region": "east", "amount": 27, "price": 40.5, "label": "lbl2", "flag": false, "ts": "2024-01-27", "opt": 27, "payload": "{\"v\": 27}"}
+{"id": 26, "category": "C", "region": "east", "amount": 27, "price": 40.5, "label": "lbl2", "flag": false, "ts": "2024-01-27", "opt": 27, "payload": "{\"v\": 27}", "big_amount": 81000000000, "client_ip": "10.0.0.2", "opt_ts": "2024-01-27", "@timestamp": "2024-01-27"}
 {"index": {"_id": "27"}}
-{"id": 27, "category": "C", "region": "west", "amount": 28, "price": 42.0, "label": "lbl3", "flag": true, "ts": "2024-01-28", "payload": "{\"v\": 28}"}
+{"id": 27, "category": "C", "region": "west", "amount": 28, "price": 42.0, "label": "lbl3", "flag": true, "ts": "2024-01-28", "payload": "{\"v\": 28}", "big_amount": 84000000000, "@timestamp": "2024-01-28"}
 {"index": {"_id": "28"}}
-{"id": 28, "category": "C", "region": "east", "amount": 29, "price": 43.5, "label": "lbl4", "flag": false, "ts": "2024-01-29", "opt": 29, "payload": "{\"v\": 29}"}
+{"id": 28, "category": "C", "region": "east", "amount": 29, "price": 43.5, "label": "lbl4", "flag": false, "ts": "2024-01-29", "opt": 29, "payload": "{\"v\": 29}", "big_amount": 87000000000, "client_ip": "192.168.1.2", "opt_ts": "2024-01-29", "@timestamp": "2024-01-29"}
 {"index": {"_id": "29"}}
-{"id": 29, "category": "C", "region": "west", "amount": 30, "price": 45.0, "label": "lbl0", "flag": true, "ts": "2024-01-30", "payload": "{\"v\": 30}"}
+{"id": 29, "category": "C", "region": "west", "amount": 30, "price": 45.0, "label": "lbl0", "flag": true, "ts": "2024-01-30", "payload": "{\"v\": 30}", "big_amount": 90000000000, "@timestamp": "2024-01-30"}
