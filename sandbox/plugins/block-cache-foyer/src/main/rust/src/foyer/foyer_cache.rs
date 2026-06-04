@@ -338,7 +338,6 @@ impl FoyerCache {
             if persist_interval_secs == 0 { "disabled".to_string() } else { persist_interval_secs.to_string() },
             disk_dir.display()
         );
-
         // CancellationToken is Clone and Send — cheap to share with background tasks.
         let shutdown = CancellationToken::new();
 
@@ -387,38 +386,56 @@ impl FoyerCache {
                 native_bridge_common::log_info!(
                     "[block-cache] sweep task started: interval={}s", sweep_interval_secs
                 );
+                let mut restart_count = 0u32;
                 loop {
-                    // Read interval on each tick — allows live update without restart.
-                    let current_secs = sweep_interval_atomic_clone.load(Ordering::Relaxed);
-                    let interval = if current_secs == 0 {
-                        Duration::from_secs(3600) // effectively disabled: sleep 1 hour
-                    } else {
-                        Duration::from_secs(current_secs)
-                    };
-                    tokio::select! {
-                        _ = tokio::time::sleep(interval) => {
-                            if current_secs == 0 { continue; } // disabled
-                            let threshold = f64::from_bits(sweep_threshold_atomic_clone.load(Ordering::Relaxed));
-                            if threshold > 0.0 {
-                                let used = sweep_stats.used_bytes.load(Ordering::Relaxed).max(0) as usize;
-                                let ratio = used as f64 / sweep_disk_bytes as f64;
-                                if ratio < threshold {
+                    'inner: loop {
+                        // Read interval on each tick — allows live update without restart.
+                        let current_secs = sweep_interval_atomic_clone.load(Ordering::Relaxed);
+                        let interval = if current_secs == 0 {
+                            Duration::from_secs(3600) // effectively disabled: sleep 1 hour
+                        } else {
+                            Duration::from_secs(current_secs)
+                        };
+                        tokio::select! {
+                            _ = tokio::time::sleep(interval) => {
+                                if current_secs == 0 { continue 'inner; } // disabled
+                                let threshold = f64::from_bits(sweep_threshold_atomic_clone.load(Ordering::Relaxed));
+                                if threshold > 0.0 {
+                                    let used = sweep_stats.used_bytes.load(Ordering::Relaxed).max(0) as usize;
+                                    let ratio = used as f64 / sweep_disk_bytes as f64;
+                                    if ratio < threshold {
+                                        continue 'inner;
+                                    }
                                     native_bridge_common::log_debug!(
-                                        "[block-cache] sweep skipped: usage={:.1}% < threshold={:.1}%",
+                                        "[block-cache] sweep running: usage={:.2}% >= threshold={:.2}%",
                                         ratio * 100.0, threshold * 100.0
                                     );
-                                    continue;
+                                }
+                                // Panic safety: a panic in reconcile_key_index must not kill the task.
+                                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                    Self::reconcile_key_index(
+                                        &sweep_key_index, &sweep_inner, &sweep_stats, &sweep_cursor_clone,
+                                    )
+                                }));
+                                if let Err(_panic_payload) = result {
+                                    native_bridge_common::log_error!(
+                                        "[block-cache] sweep task: reconcile_key_index panicked — sweep continuing"
+                                    );
                                 }
                             }
-                            Self::reconcile_key_index(
-                                &sweep_key_index, &sweep_inner, &sweep_stats, &sweep_cursor_clone,
-                            );
-                        }
-                        _ = sweep_token.cancelled() => {
-                            native_bridge_common::log_info!("[block-cache] sweep task stopped");
-                            break;
+                            _ = sweep_token.cancelled() => {
+                                native_bridge_common::log_info!("[block-cache] sweep task stopped");
+                                return;
+                            }
                         }
                     }
+                    restart_count += 1;
+                    native_bridge_common::log_error!(
+                        "[block-cache] sweep task exited unexpectedly (restart #{})", restart_count
+                    );
+                    let backoff_secs = std::cmp::min(1u64 << restart_count.min(6), 60);
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    if sweep_token.is_cancelled() { return; }
                 }
             });
         }
@@ -440,32 +457,53 @@ impl FoyerCache {
                     "[block-cache] persist task started: interval={}s",
                     persist_interval_secs
                 );
-                // last_persisted tracks the last used_bytes value at the time of a
-                // successful persist. i64::MIN as a sentinel forces the first persist.
-                let mut last_persisted: i64 = i64::MIN;
+                let mut restart_count = 0u32;
                 loop {
-                    tokio::select! {
-                        _ = tokio::time::sleep(persist_interval) => {
-                            let current = persist_stats.used_bytes.load(Ordering::Relaxed);
-                            if current != last_persisted {
-                                match key_index_store::save(&persist_dir, &persist_key_index) {
-                                    Ok(()) => {
-                                        last_persisted = current;
-                                    }
-                                    Err(e) => {
-                                        // Do not update last_persisted — retry on the next tick.
-                                        native_bridge_common::log_info!(
-                                            "[block-cache] persist task FAILED: {}", e
-                                        );
+                    // Reset sentinel on each loop entry so the first tick always persists.
+                    let mut last_persisted: i64 = i64::MIN;
+                    'inner: loop {
+                        tokio::select! {
+                            _ = tokio::time::sleep(persist_interval) => {
+                                let current = persist_stats.used_bytes.load(Ordering::Relaxed);
+                                if current != last_persisted {
+                                    // Panic safety: a panic in save must not kill the task.
+                                    let dir_clone = persist_dir.clone();
+                                    let ki_clone = Arc::clone(&persist_key_index);
+                                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                        key_index_store::save(&dir_clone, &ki_clone)
+                                    }));
+                                    match result {
+                                        Ok(Ok(())) => {
+                                            last_persisted = current;
+                                        }
+                                        Ok(Err(e)) => {
+                                            // I/O error — do not update last_persisted, retry next tick.
+                                            native_bridge_common::log_info!(
+                                                "[block-cache] persist task FAILED: {}", e
+                                            );
+                                        }
+                                        Err(_panic_payload) => {
+                                            // Panic inside save — log error, continue loop.
+                                            native_bridge_common::log_error!(
+                                                "[block-cache] persist task: key_index_store::save panicked — persist continuing"
+                                            );
+                                        }
                                     }
                                 }
                             }
-                        }
-                        _ = persist_token.cancelled() => {
-                            native_bridge_common::log_info!("[block-cache] persist task stopped");
-                            break;
+                            _ = persist_token.cancelled() => {
+                                native_bridge_common::log_info!("[block-cache] persist task stopped");
+                                return;
+                            }
                         }
                     }
+                    restart_count += 1;
+                    native_bridge_common::log_error!(
+                        "[block-cache] persist task exited unexpectedly (restart #{})", restart_count
+                    );
+                    let backoff_secs = std::cmp::min(1u64 << restart_count.min(6), 60);
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    if persist_token.is_cancelled() { return; }
                 }
             });
         }

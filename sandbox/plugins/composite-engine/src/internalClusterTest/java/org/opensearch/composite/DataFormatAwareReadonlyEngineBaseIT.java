@@ -15,22 +15,37 @@ import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
+import org.opensearch.remotestore.mocks.MockFsMetadataSupportedRepositoryPlugin;
+import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
+import org.opensearch.repositories.fs.native_store.FsNativeObjectStorePlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,16 +68,81 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
         }
     }
 
+    /**
+     * Replaces {@code MockFsMetadataSupportedRepositoryPlugin} from the base test class with a
+     * version that wires {@link FsNativeObjectStorePlugin} as the native store provider.
+     * This allows warm parquet shards to obtain a live {@code NativeStoreRepository} from the
+     * {@code "fs_metadata_supported_repository"} repos used in remote-store integration tests.
+     */
+    public static class NativeAwareMockFsMetadataSupportedRepositoryPlugin extends Plugin
+        implements
+            org.opensearch.plugins.RepositoryPlugin {
+
+        private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                MockFsMetadataSupportedRepositoryPlugin.TYPE_MD,
+                metadata -> new ReloadableFsRepository(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    recoverySettings,
+                    nativeProvider
+                )
+            );
+        }
+    }
+
+    /**
+     * Replaces {@code MockFsRepositoryPlugin} from the base test class with a version that wires
+     * {@link FsNativeObjectStorePlugin} as the native store provider.
+     * This covers the {@code "fs_multipart_repository"} path, which is chosen when
+     * {@code metadataSupportedType == false} in {@code RemoteStoreBaseIntegTestCase}.
+     */
+    public static class NativeAwareMockFsRepositoryPlugin extends Plugin implements org.opensearch.plugins.RepositoryPlugin {
+
+        private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                MockFsRepositoryPlugin.TYPE,
+                metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider)
+            );
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // Replace both mock repo plugins (from super) with native-provider-aware versions so that
+        // warm Parquet shards can obtain a live NativeStoreRepository regardless of which repo type
+        // RemoteStoreBaseIntegTestCase randomly picks (metadataSupportedType = randomBoolean()).
         return Stream.concat(
-            super.nodePlugins().stream(),
-            Stream.of(
+            super.nodePlugins().stream()
+                .filter(p -> p != MockFsMetadataSupportedRepositoryPlugin.class)
+                .filter(p -> p != MockFsRepositoryPlugin.class),
+            Stream.<Class<? extends Plugin>>of(
                 ArrowBasePlugin.class,
                 ParquetDataFormatPlugin.class,
                 CompositeDataFormatPlugin.class,
                 LucenePlugin.class,
-                DataFusionPlugin.class
+                DataFusionPlugin.class,
+                FsNativeObjectStorePlugin.class,
+                NativeAwareMockFsMetadataSupportedRepositoryPlugin.class,
+                NativeAwareMockFsRepositoryPlugin.class
             )
         ).collect(Collectors.toList());
     }
@@ -82,8 +162,23 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        // super.nodeSettings() populates segmentRepoPath / translogRepoPath via randomRepoPath().
+        // Those paths are not yet created on disk. Pre-create them here so that
+        // FsNativeObjectStorePlugin (which calls fs_create_store → LocalFileSystem::new_with_prefix
+        // → canonicalize) can resolve the paths when repositories are registered at node startup.
+        final Settings settings = super.nodeSettings(nodeOrdinal);
+        try {
+            if (segmentRepoPath != null) {
+                Files.createDirectories(segmentRepoPath);
+            }
+            if (translogRepoPath != null) {
+                Files.createDirectories(translogRepoPath);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to pre-create remote store repo directories", e);
+        }
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(settings)
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(16, ByteSizeUnit.GB).toString())
             .build();
     }
