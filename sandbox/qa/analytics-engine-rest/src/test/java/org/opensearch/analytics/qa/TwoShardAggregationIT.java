@@ -14,11 +14,8 @@ import java.util.Map;
 /**
  * 2-shard reduce correctness for aggregations: exact tier {@code agg/} (count/sum/avg/min/max,
  * stddev/var, span, values/list) and approximate tier {@code approx/} (distinct_count/dc/percentile/
- * median).
- *
- * <p>{@code distinct_count}/{@code dc} are correct cross-shard: DISTINCT aggregates skip the additive
- * PARTIAL/FINAL split ({@link org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule})
- * and are computed once at the coordinator, so per-shard distinct counts are never summed.
+ * median). {@code distinct_count}/{@code dc} are rewritten to {@code APPROX_COUNT_DISTINCT} and
+ * computed once at the coordinator, so per-shard distinct counts are never summed.
  */
 public class TwoShardAggregationIT extends TwoShardReduceTestCase {
 
@@ -28,12 +25,5 @@ public class TwoShardAggregationIT extends TwoShardReduceTestCase {
         t.put("agg", false);       // exact
         t.put("approx", true);     // golden + tolerance
         return t;
-    }
-
-    @Override
-    protected Map<String, String> knownIssues() {
-        // No known issues: dc/distinct_count cross-shard over-counting (repeated keyword sets,
-        // label 5->9 at 2 shards) is fixed by skipping the additive split for DISTINCT aggregates.
-        return Map.of();
     }
 }
