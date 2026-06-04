@@ -8,9 +8,10 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.rest.RestStatus;
 
 import java.util.List;
 import java.util.function.Function;
@@ -65,7 +66,7 @@ public final class NativeErrorConverter {
      */
     public static Exception convert(Exception original) {
         // Don't re-convert if already a recognized exception type
-        if (original instanceof CircuitBreakingException || original instanceof OpenSearchRejectedExecutionException) {
+        if (original instanceof CircuitBreakingException || original instanceof OpenSearchStatusException) {
             return original;
         }
         Throwable current = original;
@@ -101,12 +102,11 @@ public final class NativeErrorConverter {
     }
 
     private static Exception convertAdmissionRejection(MatchedError match) {
-        OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException(
+        return new OpenSearchStatusException(
             "Native query admission rejected: " + match.message(),
-            true
+            RestStatus.TOO_MANY_REQUESTS,
+            match.original()
         );
-        rejection.initCause(match.original());
-        return rejection;
     }
 
     // ─── Message parsing ────────────────────────────────────────────────────────

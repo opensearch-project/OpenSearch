@@ -8,9 +8,10 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class NativeErrorConverterTests extends OpenSearchTestCase {
@@ -42,7 +43,7 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertTrue(result.getMessage().contains("[analytics_backend_datafusion]"));
     }
 
-    public void testAdmissionRejectionConvertsToRejectedExecution() {
+    public void testAdmissionRejectionConvertsToStatusException() {
         String message = "Cannot reserve untracked memory budget: 67108864 bytes required "
             + "at minimum parallelism (partitions=1, batch_size=1024). Pool capacity exhausted.";
         RuntimeException original = new RuntimeException(message);
@@ -50,9 +51,10 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         Exception result = NativeErrorConverter.convert(original);
 
         assertNotNull(result);
-        assertTrue(result instanceof OpenSearchRejectedExecutionException);
+        assertTrue(result instanceof OpenSearchStatusException);
+        OpenSearchStatusException statusEx = (OpenSearchStatusException) result;
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, statusEx.status());
         assertTrue(result.getMessage().contains("Native query admission rejected"));
-        assertTrue(((OpenSearchRejectedExecutionException) result).isExecutorShutdown());
         assertSame(original, result.getCause());
     }
 
@@ -89,12 +91,12 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertSame(cbe, result);
     }
 
-    public void testAlreadyConvertedRejectedExecutionNotReConverted() {
-        OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("already rejected", true);
+    public void testAlreadyConvertedStatusExceptionNotReConverted() {
+        OpenSearchStatusException statusEx = new OpenSearchStatusException("already rejected", RestStatus.TOO_MANY_REQUESTS);
 
-        Exception result = NativeErrorConverter.convert(rejection);
+        Exception result = NativeErrorConverter.convert(statusEx);
 
-        assertSame(rejection, result);
+        assertSame(statusEx, result);
     }
 
     public void testNestedCauseChainIsWalked() {

@@ -227,9 +227,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
             if (error instanceof FlightRuntimeException fre) {
                 flightExc = fre;
             } else {
-                flightExc = CallStatus.INTERNAL.withCause(error)
-                    .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")
-                    .toRuntimeException();
+                flightExc = CallStatus.INTERNAL.withCause(error).withDescription(buildCauseChainDescription(error)).toRuntimeException();
             }
             middleware.setHeader(header);
             if (error instanceof OpenSearchException) {
@@ -243,6 +241,30 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
             StreamErrorCode errorCode = flightExc != null ? mapFromCallStatus(flightExc) : StreamErrorCode.UNKNOWN;
             callTracker.recordCallEnd(errorCode.name());
         }
+    }
+
+    /**
+     * Builds a description that includes messages from the full cause chain, separated by
+     * "; caused by: ". gRPC/Flight only transmits the description string — not the Java
+     * exception cause chain — so downstream pattern matchers (like NativeErrorConverter)
+     * need the root-cause message present in the transmitted string.
+     */
+    private static String buildCauseChainDescription(Throwable error) {
+        StringBuilder sb = new StringBuilder();
+        Throwable current = error;
+        int depth = 0;
+        while (current != null && depth < 10) {
+            String msg = current.getMessage();
+            if (msg != null && !msg.isEmpty()) {
+                if (!sb.isEmpty()) {
+                    sb.append("; caused by: ");
+                }
+                sb.append(msg);
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return sb.isEmpty() ? "Stream error" : sb.toString();
     }
 
     @Override

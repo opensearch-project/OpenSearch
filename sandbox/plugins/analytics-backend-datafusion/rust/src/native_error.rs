@@ -80,7 +80,7 @@ pub fn critical_pressure_error(
 /// Produced when `acquire_budget` cannot reserve the phantom even at minimum
 /// parallelism. The query is rejected before any execution begins.
 ///
-/// Java conversion: `OpenSearchRejectedExecutionException` → HTTP 429
+/// Java conversion: `OpenSearchStatusException(TOO_MANY_REQUESTS)` → HTTP 429
 /// Key phrase: "Cannot reserve untracked memory budget"
 pub fn admission_rejected_error(
     bytes_required: usize,
