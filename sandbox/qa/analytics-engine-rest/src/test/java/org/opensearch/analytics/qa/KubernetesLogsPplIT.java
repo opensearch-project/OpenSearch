@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Kubernetes log analysis PPL integration test.
@@ -20,8 +19,13 @@ public class KubernetesLogsPplIT extends BasePplIT {
         return KubernetesLogsTestHelper.DATASET;
     }
 
-    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testKubernetesLogsPplQueries() throws Exception {
         runPplQueries();
+    }
+
+    /** Queries that fail at 1 shard: unsupported operation. Skipped so the rest run and are visible. */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(9);
     }
 }

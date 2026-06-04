@@ -36,6 +36,10 @@ pub struct StreamMetrics {
     pub min_skip_run_block_granular: Option<Count>,
     pub rg_processed: Option<Count>,
     pub rg_skipped: Option<Count>,
+    /// Row groups pruned by bloom filter (value proven absent).
+    pub rg_bloom_pruned: Option<Count>,
+    /// Time spent in bloom filter IO + evaluation across all RGs.
+    pub bloom_filter_eval_time: Option<Time>,
     /// Count of parquet pages the page-level pruner eliminated across
     /// all RGs in this partition.
     pub pages_pruned: Option<Count>,
@@ -114,6 +118,8 @@ impl StreamMetrics {
             min_skip_run_block_granular: None,
             rg_processed: None,
             rg_skipped: None,
+            rg_bloom_pruned: None,
+            bloom_filter_eval_time: None,
             pages_pruned: None,
             pages_total: None,
             page_pruning_unavailable: None,
@@ -150,6 +156,8 @@ pub struct PartitionMetrics {
     pub min_skip_run_block_granular: Count,
     pub row_groups_processed: Count,
     pub row_groups_skipped: Count,
+    pub rg_bloom_pruned: Count,
+    pub bloom_filter_eval_time: Time,
     pub pages_pruned: Count,
     pub pages_total: Count,
     pub page_pruning_unavailable: Count,
@@ -185,6 +193,8 @@ impl PartitionMetrics {
             min_skip_run_block_granular: counter("min_skip_run_block_granular"),
             row_groups_processed: counter("row_groups_processed"),
             row_groups_skipped: counter("row_groups_skipped"),
+            rg_bloom_pruned: counter("rg_bloom_pruned"),
+            bloom_filter_eval_time: MetricBuilder::new(metrics).subset_time("bloom_filter_eval_time", partition),
             pages_pruned: counter("pages_pruned"),
             pages_total: counter("pages_total"),
             page_pruning_unavailable: counter("page_pruning_unavailable"),
@@ -228,6 +238,8 @@ impl PartitionMetrics {
             min_skip_run_block_granular: Some(self.min_skip_run_block_granular),
             rg_processed: Some(self.row_groups_processed),
             rg_skipped: Some(self.row_groups_skipped),
+            rg_bloom_pruned: Some(self.rg_bloom_pruned),
+            bloom_filter_eval_time: Some(self.bloom_filter_eval_time),
             pages_pruned: Some(self.pages_pruned),
             pages_total: Some(self.pages_total),
             page_pruning_unavailable: Some(self.page_pruning_unavailable),

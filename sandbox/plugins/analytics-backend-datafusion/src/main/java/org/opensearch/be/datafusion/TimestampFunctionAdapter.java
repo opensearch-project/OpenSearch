@@ -95,7 +95,29 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
         if (folded != null) {
             return wrapWithCallType(folded, original, cluster);
         }
+        RexNode dateLifted = tryLiftDateOperand(original, cluster);
+        if (dateLifted != null) {
+            return dateLifted;
+        }
         return wrapWithCallType(DATETIME_ADAPTER.adapt(original, fieldStorage, cluster), original, cluster);
+    }
+
+    /**
+     * 1-arg {@code TIMESTAMP(<date>)} on a DATE column: emit a native CAST instead of
+     * letting it lower to {@code to_timestamp(date_col)}, which DataFusion's
+     * {@code to_timestamp} UDF rejects (Date32 is not in its accepted-type list).
+     * The CAST maps to arrow's Date32 → Timestamp(Nanosecond) kernel — midnight UTC,
+     * matching Shape B's literal fold. Returns {@code null} for non-DATE operands.
+     */
+    private static RexNode tryLiftDateOperand(RexCall original, RelOptCluster cluster) {
+        if (original.getOperands().size() != 1) {
+            return null;
+        }
+        RexNode operand = stripOperatorAnnotation(original.getOperands().get(0));
+        if (operand.getType().getSqlTypeName() != SqlTypeName.DATE) {
+            return null;
+        }
+        return cluster.getRexBuilder().makeAbstractCast(original.getType(), operand);
     }
 
     /**

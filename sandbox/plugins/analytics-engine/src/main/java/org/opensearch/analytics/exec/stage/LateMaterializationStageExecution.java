@@ -391,7 +391,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
             // blocking dispatches to other nodes.
             PendingExecutions pending = pendingByNodeId.computeIfAbsent(
                 target.node().getId(),
-                n -> new PendingExecutions(config.maxConcurrentShardRequests())
+                n -> new PendingExecutions(config.maxConcurrentShardRequestsPerNode())
             );
             transport.dispatchFetchByRowIds(request, target.node(), new GatherListener(stitcher, plan), config.parentTask(), pending);
         }
@@ -417,20 +417,21 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         }
 
         @Override
-        public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+        public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
             VectorSchemaRoot batch = response.getRoot();
             try {
                 stitcher.acceptBatch(batch, plan.positions(), rowsCopiedSoFar);
                 rowsCopiedSoFar += batch.getRowCount();
             } catch (Exception e) {
                 stitcher.shardFailed(e);
-                return;
+                return false;
             } finally {
                 // Stitcher.acceptBatch only reads + copyFromSafe; ownership of the response
                 // batch's query-allocator buffers stays with this listener.
                 if (batch != null) batch.close();
             }
             if (isLast) stitcher.shardComplete();
+            return true;
         }
 
         @Override

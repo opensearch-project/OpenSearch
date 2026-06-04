@@ -28,6 +28,7 @@ import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -43,7 +44,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -91,6 +91,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final LuceneMerger luceneMerger;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
     private final Set<LuceneWriter> activeWriters = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<Long, LuceneWriter> pendingCleanup = new ConcurrentHashMap<>();
 
     /**
      * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
@@ -121,13 +122,16 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
         this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
 
-        // Create the lucene subdirectory if it doesn't exist
+        // Create the lucene subdirectory if it doesn't exist, or clear stale contents
+        // from a prior engine lifecycle. Any data here is either already hardlinked into
+        // index/ (via addIndexes) or will be replayed from the translog on recovery.
+        if (Files.isDirectory(baseDirectory)) {
+            tryDeleteDirectory(baseDirectory);
+        }
         try {
             Files.createDirectories(baseDirectory);
-        } catch (FileAlreadyExistsException ex) {
-            logger.warn("Directory already exists: {}", baseDirectory);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
         }
     }
 
@@ -170,7 +174,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
             long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
-            return buildLuceneWriter(
+            LuceneWriter writer = buildLuceneWriter(
                 config.writerGeneration(),
                 mappingVersion,
                 dataFormat,
@@ -180,6 +184,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 getChildWriterSortConfiguration(),
                 activeWriters
             );
+            pendingCleanup.put(config.writerGeneration(), writer);
+            return writer;
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
@@ -344,6 +350,18 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 }
             }
             assert writerGenerations.isEmpty() : "Could not get segments from all writers";
+
+            // Clean up per-writer temp directories — addIndexes has hardlinked all files
+            // into the shared writer's directory, so the originals are no longer needed.
+            for (Segment segment : refreshInput.writerFiles()) {
+                WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+                if (wfs != null) {
+                    LuceneWriter writer = pendingCleanup.remove(wfs.writerGeneration());
+                    if (writer != null) {
+                        writer.cleanupTempDirectory();
+                    }
+                }
+            }
         }
 
         return new RefreshResult(List.copyOf(resultSegments));
@@ -389,6 +407,18 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     @Override
     public void close() throws IOException {
         // LuceneCommitter owns the shared IndexWriter lifecycle
+    }
+
+    /**
+     * Best-effort deletion of a directory tree. Logs a warning on failure rather than
+     * propagating — stale temp files will be cleaned on the next engine restart.
+     */
+    private static void tryDeleteDirectory(Path dir) {
+        try {
+            IOUtils.rm(dir);
+        } catch (IOException e) {
+            logger.warn("Failed to delete lucene temp directory [{}]: {}", dir, e.getMessage());
+        }
     }
 
     /**

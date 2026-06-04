@@ -991,8 +991,6 @@ fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
 pub unsafe fn stream_close(stream_ptr: i64) {
     if stream_ptr != 0 {
-        // Dropping the handle drops both the stream and the query context.
-        // The context's Drop impl marks the query completed in the registry.
         let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
     }
 }
@@ -1330,9 +1328,6 @@ pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &
 /// `create_global_runtime`.
 pub unsafe fn create_local_session(runtime_ptr: i64) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    // No phantom reservation at creation time — the schema isn't known yet.
-    // register_partition_stream acquires a schema-accurate phantom once the
-    // output schema is derived from the producer plan.
     let session = LocalSession::new(&runtime.runtime_env);
     Ok(Box::into_raw(Box::new(session)) as i64)
 }
@@ -1515,7 +1510,7 @@ pub unsafe fn sender_send(
     array_ptr: i64,
     schema_ptr: i64,
     io_handle: &tokio::runtime::Handle,
-) -> Result<(), DataFusionError> {
+) -> Result<crate::partition_stream::SendOutcome, DataFusionError> {
     let sender = &*(sender_ptr as *const PartitionStreamSender);
 
     // Take ownership of the Java-allocated FFI structs. `from_raw` reads
@@ -1538,7 +1533,7 @@ pub unsafe fn sender_send(
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);
 
-    sender.send_blocking(Ok(batch), io_handle)
+    Ok(sender.send_blocking(Ok(batch), io_handle))
 }
 
 /// Closes a partition stream sender. Dropping the sender closes the mpsc,

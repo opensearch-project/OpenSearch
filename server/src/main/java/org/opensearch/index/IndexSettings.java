@@ -938,7 +938,7 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    private final ReplicationType replicationType;
+    private volatile ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
     // For warm index we would partially store files in local.
     private final boolean isWarmIndex;
@@ -1699,6 +1699,7 @@ public final class IndexSettings {
             return false;
         }
         scopedSettings.applySettings(newSettings);
+        this.replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(newSettings);
         this.settings = newIndexSettings;
         return true;
     }

@@ -330,9 +330,8 @@ mod tests {
         let handle = Handle::current();
         let producer = std::thread::spawn(move || {
             for chunk in &[vec![1i64, 2, 3], vec![4, 5, 6], vec![7, 8, 9]] {
-                sender
-                    .send_blocking(Ok(i64_batch(&producer_schema, chunk)), &handle)
-                    .expect("send");
+                let outcome = sender.send_blocking(Ok(i64_batch(&producer_schema, chunk)), &handle);
+                assert!(matches!(outcome, crate::partition_stream::SendOutcome::Sent));
             }
             drop(sender); // EOF
         });
