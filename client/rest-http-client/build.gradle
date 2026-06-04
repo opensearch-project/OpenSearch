@@ -70,7 +70,7 @@ testingConventions {
   naming.clear()
   naming {
     Tests {
-      baseClass 'org.opensearch.httpclient.RestHttpClientTestCase'
+      baseClass 'org.opensearch.internal.httpclient.RestHttpClientTestCase'
     }
   }
 }
