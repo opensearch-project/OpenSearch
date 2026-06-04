@@ -148,6 +148,32 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     }
 
     /**
+     * When the downstream consumer is satisfied (e.g. a LimitExec above the reduce finished and
+     * dropped this input's receiver), the shard listener must stop reading: it feeds the in-hand
+     * batch, settles its task as success, and returns {@code false} so the transport drain loop
+     * cancels the stream instead of scanning to exhaustion. The non-last flag proves we stop early.
+     */
+    public void testStreamStopsAndTaskSucceedsWhenConsumerDone() {
+        AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> capturedListener = new AtomicReference<>();
+        CapturingSink sink = new CapturingSink();
+        sink.consumerDone = true; // consumer already satisfied before this batch arrives
+
+        ShardFragmentStageExecution exec = buildExecution(sink, capturedListener);
+        scheduleAndDispatch(exec);
+        assertNotNull("listener should have been captured by dispatch", capturedListener.get());
+
+        VectorSchemaRoot root = createTestBatch(3);
+        FragmentExecutionArrowResponse response = new FragmentExecutionArrowResponse(root);
+        // isLast=false: there are more batches upstream, but the consumer is done — we stop anyway.
+        boolean keepReading = capturedListener.get().onStreamResponse(response, false);
+
+        assertFalse("listener must signal stop when the consumer is done", keepReading);
+        assertEquals("the in-hand batch is still fed before stopping", 1, sink.fed.size());
+        assertEquals("task completes as SUCCESS (not cancelled/failed)", StageExecution.State.SUCCEEDED, exec.getState());
+        sink.close();
+    }
+
+    /**
      * Mirrors {@code QueryExecution.scheduleStage} for unit-test purposes — calls
      * start() to materialise + transition, then iterates the stage's tasks via its
      * dispatcher with a scheduler-side listener. The real QueryExecution does the
@@ -455,7 +481,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     private QueryContext mockQueryContext() {
         QueryContext config = mock(QueryContext.class);
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
-        when(config.maxConcurrentShardRequests()).thenReturn(5);
+        when(config.maxConcurrentShardRequestsPerNode()).thenReturn(5);
         when(config.bufferAllocator()).thenReturn(allocator);
         return config;
     }
@@ -469,10 +495,16 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     private static final class CapturingSink implements ExchangeSink {
         final List<VectorSchemaRoot> fed = new ArrayList<>();
         boolean closed = false;
+        volatile boolean consumerDone = false;
 
         @Override
         public void feed(VectorSchemaRoot batch) {
             fed.add(batch);
+        }
+
+        @Override
+        public boolean isConsumerDone() {
+            return consumerDone;
         }
 
         @Override

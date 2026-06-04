@@ -93,8 +93,22 @@ public final class ResponseValidator {
      * Compare expected and actual responses, focusing on data rows.
      * Rows are compared in an unordered fashion - both sets are sorted before comparison.
      */
-    @SuppressWarnings("unchecked")
     private static String compareResponses(Map<String, Object> expected, Map<String, Object> actual, String language, int queryNumber) {
+        String label = language.toUpperCase(java.util.Locale.ROOT) + " Q" + queryNumber;
+        return compareData(expected, actual, label);
+    }
+
+    /**
+     * Compare two response maps by their data rows, unordered and numeric-tolerant.
+     * Returns {@code null} when equal, otherwise a human-readable diff prefixed with
+     * {@code label}.
+     *
+     * <p>Exposed for name-keyed suites (e.g. the 2-shard reduce suite) that don't use the
+     * numeric {@code q{N}} scheme and for differential checks (comparing a 1-shard result
+     * against a 2-shard result rather than against a golden file).
+     */
+    @SuppressWarnings("unchecked")
+    public static String compareData(Map<String, Object> expected, Map<String, Object> actual, String label) {
         // Extract datarows from both responses
         List<List<Object>> expectedRows = extractDataRows(expected);
         List<List<Object>> actualRows = extractDataRows(actual);
@@ -104,21 +118,21 @@ public final class ResponseValidator {
         }
 
         if (expectedRows == null) {
-            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected empty response but got %d rows",
-                language.toUpperCase(java.util.Locale.ROOT), queryNumber, actualRows.size());
+            return String.format(java.util.Locale.ROOT, "%s: Expected empty response but got %d rows", label, actualRows.size());
         }
 
         if (actualRows == null) {
-            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected %d rows but got empty response",
-                language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedRows.size());
+            return String.format(java.util.Locale.ROOT, "%s: Expected %d rows but got empty response", label, expectedRows.size());
         }
 
         if (expectedRows.size() != actualRows.size()) {
-            return String.format(java.util.Locale.ROOT, "%s Q%d: Row count mismatch - expected %d, got %d",
-                language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedRows.size(), actualRows.size());
+            return String.format(java.util.Locale.ROOT, "%s: Row count mismatch - expected %d, got %d",
+                label, expectedRows.size(), actualRows.size());
         }
 
-        // Sort both row sets for unordered comparison
+        // Copy before sorting so we never reorder the caller's lists.
+        expectedRows = new java.util.ArrayList<>(expectedRows);
+        actualRows = new java.util.ArrayList<>(actualRows);
         expectedRows.sort(new RowComparator());
         actualRows.sort(new RowComparator());
 
@@ -128,14 +142,14 @@ public final class ResponseValidator {
             List<Object> actualRow = actualRows.get(i);
 
             if (expectedRow.size() != actualRow.size()) {
-                return String.format(java.util.Locale.ROOT, "%s Q%d row %d: Column count mismatch - expected %d, got %d",
-                    language.toUpperCase(java.util.Locale.ROOT), queryNumber, i, expectedRow.size(), actualRow.size());
+                return String.format(java.util.Locale.ROOT, "%s row %d: Column count mismatch - expected %d, got %d",
+                    label, i, expectedRow.size(), actualRow.size());
             }
 
             for (int j = 0; j < expectedRow.size(); j++) {
                 if (!valuesEqual(expectedRow.get(j), actualRow.get(j))) {
-                    return String.format(java.util.Locale.ROOT, "%s Q%d row %d col %d: Value mismatch - expected %s, got %s",
-                        language.toUpperCase(java.util.Locale.ROOT), queryNumber, i, j, expectedRow.get(j), actualRow.get(j));
+                    return String.format(java.util.Locale.ROOT, "%s row %d col %d: Value mismatch - expected %s, got %s",
+                        label, i, j, expectedRow.get(j), actualRow.get(j));
                 }
             }
         }
@@ -220,8 +234,39 @@ public final class ResponseValidator {
 
     /**
      * Compare two values with numeric tolerance for floating point.
+     *
+     * <p>Property-match sentinels: a query whose value is non-deterministic (wall-clock or random)
+     * can't assert an exact golden. The golden may instead use a sentinel that matches by <em>shape</em>:
+     * <ul>
+     *   <li>{@code "%%DATE%%"} — actual matches {@code yyyy-MM-dd}</li>
+     *   <li>{@code "%%TIME%%"} — actual matches {@code HH:mm:ss} (optional fractional seconds)</li>
+     *   <li>{@code "%%DATETIME%%"} — actual matches {@code yyyy-MM-dd HH:mm:ss} (optional fraction)</li>
+     *   <li>{@code "%%RAND%%"} — actual is a number in [0, 1)</li>
+     *   <li>{@code "%%ANY%%"} — actual is non-null (existence check)</li>
+     * </ul>
      */
     private static boolean valuesEqual(Object expected, Object actual) {
+        if (expected instanceof String) {
+            String sentinel = matchSentinel((String) expected, actual);
+            if (sentinel != null) {
+                return sentinel.equals("true");
+            }
+        }
+
+        // Multi-value cells (collection aggs like values()/list()) are an unordered multiset; the
+        // gather decides element order, so compare them order-insensitively.
+        if (expected instanceof List && actual instanceof List) {
+            List<?> e = new java.util.ArrayList<>((List<?>) expected);
+            List<?> a = new java.util.ArrayList<>((List<?>) actual);
+            if (e.size() != a.size()) {
+                return false;
+            }
+            java.util.Comparator<Object> byStr = java.util.Comparator.comparing(o -> o == null ? "" : o.toString());
+            e.sort(byStr);
+            a.sort(byStr);
+            return e.equals(a);
+        }
+
         if (Objects.equals(expected, actual)) {
             return true;
         }
@@ -234,5 +279,27 @@ public final class ResponseValidator {
         }
 
         return false;
+    }
+
+    /** Returns "true"/"false" if {@code expected} is a known property sentinel, else null. */
+    private static String matchSentinel(String expected, Object actual) {
+        switch (expected) {
+            case "%%DATE%%":
+                return String.valueOf(actual).matches("\\d{4}-\\d{2}-\\d{2}") ? "true" : "false";
+            case "%%TIME%%":
+                return String.valueOf(actual).matches("\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?") ? "true" : "false";
+            case "%%DATETIME%%":
+                return String.valueOf(actual).matches("\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?") ? "true" : "false";
+            case "%%RAND%%":
+                if (actual instanceof Number) {
+                    double d = ((Number) actual).doubleValue();
+                    return (d >= 0.0 && d < 1.0) ? "true" : "false";
+                }
+                return "false";
+            case "%%ANY%%":
+                return actual != null ? "true" : "false";
+            default:
+                return null;
+        }
     }
 }

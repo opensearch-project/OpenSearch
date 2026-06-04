@@ -48,7 +48,7 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
 
         KafkaSourceConfig config = new KafkaSourceConfig(100, params);
 
-        Assert.assertEquals("Default topic metadata fetch timeout should be 1000ms", 1000, config.getTopicMetadataFetchTimeoutMs());
+        Assert.assertEquals("Default topic metadata fetch timeout should be 30000ms", 30000, config.getTopicMetadataFetchTimeoutMs());
         Assert.assertFalse(
             "topic_metadata_fetch_timeout_ms should not be in consumer configurations",
             config.getConsumerConfigurations().containsKey("topic_metadata_fetch_timeout_ms")

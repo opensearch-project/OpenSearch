@@ -456,6 +456,38 @@ async unsafe fn execute_indexed_with_context_inner(
     // spawning on the CPU runtime, so the Java search thread blocks at the
     // gate when it is full — creating backpressure at the Java threadpool level.
 
+    // Empty shard: skip build_segments (errors on zero files) and emit an
+    // empty stream. Mirrors the guard in query_executor::execute_with_context.
+    if handle.object_metas.is_empty() {
+        use datafusion::physical_plan::empty::EmptyExec;
+        use datafusion::physical_plan::ExecutionPlan;
+        let context_id_early = handle.query_context.context_id();
+        let plan = Plan::decode(substrait_bytes.as_slice())
+            .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+        let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+        let plan_schema: arrow::datatypes::SchemaRef =
+            Arc::new(logical_plan.schema().as_arrow().clone());
+        let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
+        let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
+        let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
+        let (cross_rt_stream, abort_handle) =
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+        if let Some(h) = abort_handle {
+            crate::query_tracker::set_abort_handle(context_id_early, h);
+        }
+        let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+            cross_rt_stream.schema(),
+            cross_rt_stream,
+        );
+        let stream_handle = crate::api::QueryStreamHandle::with_session_context(
+            wrapped,
+            handle.query_context,
+            handle.ctx,
+            Some(permit),
+        );
+        return Ok(Box::into_raw(Box::new(stream_handle)) as i64);
+    }
+
     // Java-side QTF signal: scan must emit __row_id__. Captured before consuming indexed_config below.
     let requests_row_ids = handle.indexed_config.as_ref().is_some_and(|c| c.requests_row_ids);
     let classification_override = handle.indexed_config.map(|config| {
@@ -552,56 +584,49 @@ async unsafe fn execute_indexed_with_context_inner(
                 .as_ref()
                 .and_then(residual_bool_to_physical_expr)
         }),
-        FilterClass::None if emit_row_ids => {
-            // Predicate-only mode: no collectors, but there may be predicates.
-            // Convert the entire BoolNode tree to a PhysicalExpr for pushdown.
-            // If no predicates exist, this is None and we get a full scan.
+        FilterClass::None => {
+            // Predicate-only: push the whole tree (may be an unfoldable constant);
+            // None = no filter = full scan.
             extraction.as_ref().and_then(|e| {
                 residual_bool_to_physical_expr(&e.tree)
             })
         }
-        FilterClass::Tree | FilterClass::None => None,
+        FilterClass::Tree => None,
     };
 
     let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
 
     let factory: EvaluatorFactory = match classification {
         FilterClass::None => {
-            if emit_row_ids {
-                // Predicate-only mode with emit_row_ids: use SingleCollectorEvaluator
-                // with a no-op collector (returns all docs). The residual predicate
-                // handles filtering via page pruning + on_batch_mask.
-                // Row IDs are computed from position by IndexedStream.
-                let schema_for_pruner = schema.clone();
-                let residual_expr: Option<Arc<dyn PhysicalExpr>> = extraction.as_ref().and_then(|e| {
-                    residual_bool_to_physical_expr(&e.tree)
-                });
-                let residual_pruning_predicate: Option<Arc<PruningPredicate>> = residual_expr
-                    .as_ref()
-                    .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
-                let call_strategy = query_config.single_collector_strategy;
+            // Predicate-only scan: page-pruned universe, residual applied in
+            // on_batch_mask. Also covers an unfoldable constant (e.g. mktime('...') >
+            // N) — no index column, but every row scanned and the constant applied as
+            // residual (pushdown is Exact, so DataFusion drops the FilterExec).
+            // Previously errored here when emit_row_ids was false (indexed path only).
+            let schema_for_pruner = schema.clone();
+            let residual_expr: Option<Arc<dyn PhysicalExpr>> = extraction.as_ref().and_then(|e| {
+                residual_bool_to_physical_expr(&e.tree)
+            });
+            let residual_pruning_predicate: Option<Arc<PruningPredicate>> = residual_expr
+                .as_ref()
+                .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
-                Arc::new(
-                    move |segment: &SegmentFileInfo, _chunk, stream_metrics: &StreamMetrics| {
-                        let pruner = Arc::new(PagePruner::new(
-                            &schema_for_pruner,
-                            Arc::clone(&segment.metadata),
+            Arc::new(
+                move |segment: &SegmentFileInfo, _chunk, stream_metrics: &StreamMetrics| {
+                    let pruner = Arc::new(PagePruner::new(
+                        &schema_for_pruner,
+                        Arc::clone(&segment.metadata),
+                    ));
+                    let eval: Arc<dyn RowGroupBitsetSource> =
+                        Arc::new(crate::indexed_table::eval::predicate_evaluator::PredicateOnlyEvaluator::new(
+                            pruner,
+                            residual_pruning_predicate.clone(),
+                            residual_expr.clone(),
+                            Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
                         ));
-                        let eval: Arc<dyn RowGroupBitsetSource> =
-                            Arc::new(crate::indexed_table::eval::predicate_evaluator::PredicateOnlyEvaluator::new(
-                                pruner,
-                                residual_pruning_predicate.clone(),
-                                residual_expr.clone(),
-                                Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
-                            ));
-                        Ok(eval)
-                    },
-                )
-            } else {
-                return Err(DataFusionError::Execution(
-                    "execute_indexed_query called with no index_filter(...) in plan".into(),
-                ));
-            }
+                    Ok(eval)
+                },
+            )
         }
         FilterClass::SingleCollector => {
             let extraction = extraction.as_ref().ok_or_else(|| {
