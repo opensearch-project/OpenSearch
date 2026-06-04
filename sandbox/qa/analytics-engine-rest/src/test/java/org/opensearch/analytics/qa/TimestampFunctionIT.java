@@ -214,6 +214,22 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
         assertEquals("neq2 between adjacent-second TIMESTAMP literals must be true", Boolean.TRUE, cell);
     }
 
+    // ── Shape F-DATE: TIMESTAMP(<date column>) lifts via native CAST, not to_timestamp ──
+
+    public void testShapeFDateColumnLiftsToTimestamp() throws IOException {
+        // date0 at key00 → 2004-04-15; midnight UTC.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(timestamp(date0), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2004-04-15 00:00:00"
+        );
+    }
+
+    public void testTimeEqualsDateDoesNotCrash() throws IOException {
+        // Pre-fix this lowered to to_timestamp(Date32) which DataFusion rejected at runtime.
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = time('00:00:00') = date('2004-07-09') | fields v");
+        assertTrue("Expected boolean result, got: " + cell, cell instanceof Boolean);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {
