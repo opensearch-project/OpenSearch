@@ -132,6 +132,22 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
             return original;
         }
 
+        // All-literal short-circuit: when both start and end are VARCHAR
+        // timestamp literals, fold to a BIGINT literal at plan time. PPL
+        // `TIMESTAMPDIFF(unit, '<lit>', '<lit>')` has no substrait binding
+        // (neither isthmus default nor sandbox YAML), so the only way to
+        // lower this shape is to remove the call. Sub-second precision uses
+        // the same milliseconds-base math as the peephole's constantFold —
+        // see the {@code in_value * in_ms / out_ms} formula.
+        String startLit = stringLiteralValue(startArg);
+        String endLit = stringLiteralValue(endArg);
+        if (startLit != null && endLit != null) {
+            RexNode folded = tryFoldLiteralLiteral(outUnit, startLit, endLit, original, cluster.getRexBuilder());
+            if (folded != null) {
+                return folded;
+            }
+        }
+
         // The peephole only fires when end is TIMESTAMPADD(in_unit_literal, n_int_literal, start).
         // `start` here must be the *same* RexNode reference as the outer TIMESTAMPDIFF's start
         // (typically a RexInputRef into @timestamp). RexInputRef.equals compares by ordinal,
@@ -228,6 +244,66 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
             scaled = diffSeconds;  // out-unit SECOND
         }
         return rexBuilder.makeCast(resultType, scaled, true);
+    }
+
+    /**
+     * Fold {@code TIMESTAMPDIFF(out_unit, '<lit>', '<lit>')} when both endpoints
+     * are VARCHAR timestamp literals. Returns null when either literal can't be
+     * parsed or the unit isn't a recognised PPL IntervalUnit.
+     *
+     * <p>Variable-length units (MONTH/QUARTER/YEAR) are computed using
+     * {@link java.time.temporal.ChronoUnit}'s LocalDateTime arithmetic, which
+     * matches the calendar-aware semantics PPL expects (counts whole intervals
+     * between the two endpoints, not fixed-second arithmetic).
+     */
+    private static RexNode tryFoldLiteralLiteral(String outUnit, String startLit, String endLit, RexCall original, RexBuilder rexBuilder) {
+        java.time.LocalDateTime start = TimestampAddAdapter.parseTimestampLiteral(startLit);
+        java.time.LocalDateTime end = TimestampAddAdapter.parseTimestampLiteral(endLit);
+        if (start == null || end == null) {
+            return null;
+        }
+        java.time.temporal.TemporalUnit chronoUnit = mapToChronoUnit(outUnit);
+        if (chronoUnit == null) {
+            return null;
+        }
+        long diff;
+        if ("QUARTER".equalsIgnoreCase(outUnit)) {
+            // QUARTER = 3 MONTH; ChronoUnit.MONTHS.between then divide.
+            long months = java.time.temporal.ChronoUnit.MONTHS.between(start, end);
+            diff = months / 3L;
+        } else {
+            diff = chronoUnit.between(start, end);
+        }
+        RexNode literal = rexBuilder.makeBigintLiteral(BigDecimal.valueOf(diff));
+        // Pin to the call's declared return type to satisfy Project rowType cache.
+        return rexBuilder.makeCast(original.getType(), literal, true);
+    }
+
+    private static java.time.temporal.TemporalUnit mapToChronoUnit(String unit) {
+        switch (unit.toUpperCase(Locale.ROOT)) {
+            case "MICROSECOND":
+                return java.time.temporal.ChronoUnit.MICROS;
+            case "MILLISECOND":
+                return java.time.temporal.ChronoUnit.MILLIS;
+            case "SECOND":
+                return java.time.temporal.ChronoUnit.SECONDS;
+            case "MINUTE":
+                return java.time.temporal.ChronoUnit.MINUTES;
+            case "HOUR":
+                return java.time.temporal.ChronoUnit.HOURS;
+            case "DAY":
+                return java.time.temporal.ChronoUnit.DAYS;
+            case "WEEK":
+                return java.time.temporal.ChronoUnit.WEEKS;
+            case "MONTH":
+                return java.time.temporal.ChronoUnit.MONTHS;
+            case "QUARTER":
+                return java.time.temporal.ChronoUnit.MONTHS; // caller divides by 3
+            case "YEAR":
+                return java.time.temporal.ChronoUnit.YEARS;
+            default:
+                return null;
+        }
     }
 
     /**

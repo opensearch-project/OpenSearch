@@ -727,6 +727,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
                     // fall through unchanged — fully-general interval-aware support is a follow-up.
                     Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
+                    // PPL `TIMESTAMPADD(unit, n, t)` — see TimestampAddAdapter javadoc.
+                    // Plan-time fold for all-literal calls so the lowering target is a
+                    // typed TIMESTAMP literal rather than a TIMESTAMPADD call (no
+                    // substrait binding for this PPL UDF in either isthmus default
+                    // catalog or the YAML extension).
+                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.TRUNCATE, new IntegerRoundingCastAdapter(SqlStdOperatorTable.TRUNCATE)),

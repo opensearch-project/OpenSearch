@@ -99,7 +99,56 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
         if (dateLifted != null) {
             return dateLifted;
         }
+        // 2-arg column form `TIMESTAMP(<date_col>, <time_col>)` where both
+        // operands type as PRECISION_TIMESTAMP (OpenSearch maps both `date`
+        // and `time`-formatted fields as `date` mapping type; Calcite types
+        // both as precision_timestamp<0>?). Combine via:
+        // from_unixtime(to_unixtime(date) + to_unixtime(time))
+        // The `time` value is stored as 1970-01-01 + time-of-day so its
+        // to_unixtime is exactly time-of-day in seconds.
+        RexNode combined = tryCombineTimestampPlusTime(original, cluster);
+        if (combined != null) {
+            return wrapWithCallType(combined, original, cluster);
+        }
         return wrapWithCallType(DATETIME_ADAPTER.adapt(original, fieldStorage, cluster), original, cluster);
+    }
+
+    /**
+     * Rewrite {@code TIMESTAMP(<ts_col>, <ts_col>)} into
+     * {@code from_unixtime(to_unixtime(arg0) + to_unixtime(arg1))}. Returns
+     * null when the call shape doesn't match (operand count or types don't
+     * fit) — caller falls through.
+     *
+     * <p>The two operands must each be precision_timestamp / date / time (any
+     * temporal type accepted by {@code to_unixtime}). Mixed string / VARCHAR
+     * inputs are not handled here; the literal-fold path covers those.
+     */
+    private static RexNode tryCombineTimestampPlusTime(RexCall original, RelOptCluster cluster) {
+        if (original.getOperands().size() != 2) {
+            return null;
+        }
+        RexNode op0 = stripOperatorAnnotation(original.getOperands().get(0));
+        RexNode op1 = stripOperatorAnnotation(original.getOperands().get(1));
+        if (!isTemporal(op0) || !isTemporal(op1)) {
+            return null;
+        }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RexNode unix0 = rexBuilder.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, op0);
+        RexNode unix1 = rexBuilder.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, op1);
+        RexNode sum = rexBuilder.makeCall(org.apache.calcite.sql.fun.SqlStdOperatorTable.PLUS, unix0, unix1);
+        // Coerce the sum to FP64 for from_unixtime's accepted operand type.
+        org.apache.calcite.rel.type.RelDataType fp64 = rexBuilder.getTypeFactory()
+            .createTypeWithNullability(rexBuilder.getTypeFactory().createSqlType(SqlTypeName.DOUBLE), true);
+        RexNode sumFp = rexBuilder.makeCast(fp64, sum, true);
+        return rexBuilder.makeCall(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, sumFp);
+    }
+
+    private static boolean isTemporal(RexNode node) {
+        SqlTypeName tn = node.getType().getSqlTypeName();
+        return tn == SqlTypeName.TIMESTAMP
+            || tn == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE
+            || tn == SqlTypeName.DATE
+            || tn == SqlTypeName.TIME;
     }
 
     /**

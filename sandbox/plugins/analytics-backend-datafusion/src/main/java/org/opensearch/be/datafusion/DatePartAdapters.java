@@ -57,6 +57,20 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+        // Plan-time fold for TIME-literal operands. PPL `HOUR(TIME('17:30:00'))`
+        // arrives here as `HOUR(to_time('17:30:00'))` after TimeAdapter's bottom-up
+        // rewrite — neither the YAML extension nor isthmus's substrait-java
+        // (`ToTypeString` lacks an override for `ParameterizedType.PrecisionTime`)
+        // can emit a `(string, precision_time<P>)` signature, and DataFusion's
+        // CAST kernel rejects `Time64(ns) → Timestamp(s)`. Folding the whole
+        // call to a numeric literal at plan time avoids both pitfalls.
+        if (original.getOperands().size() == 1) {
+            RexNode operand = original.getOperands().get(0);
+            RexNode folded = tryFoldTimeLiteralOperand(operand, original, cluster);
+            if (folded != null) {
+                return folded;
+            }
+        }
         if (original.getOperands().stream().noneMatch(DatePartAdapters::isCharacterOperand)) {
             return super.adapt(original, fieldStorage, cluster);
         }
@@ -75,6 +89,91 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         args.add(rexBuilder.makeLiteral(unit, unitType, true));
         args.addAll(coerced);
         return rexBuilder.makeCall(original.getType(), SqlLibraryOperators.DATE_PART, args);
+    }
+
+    /**
+     * Fold {@code DATE_PART_FN(time-literal)} to a numeric literal at plan time.
+     * Recognises two operand shapes:
+     * <ul>
+     *   <li>A direct TIME {@link RexLiteral} (Calcite-folded inner call).</li>
+     *   <li>A {@code to_time('<lit>')} {@link RexCall} produced by
+     *       {@link DateTimeAdapters.TimeAdapter} for the {@code TIME(<lit>)} idiom.</li>
+     * </ul>
+     * Returns null when the shape doesn't match — caller falls through to the
+     * normal coercion path.
+     */
+    private RexNode tryFoldTimeLiteralOperand(RexNode operand, RexCall original, RelOptCluster cluster) {
+        // Peel any OperatorAnnotation wrappers (AnnotatedProjectExpression, etc.).
+        while (operand instanceof org.opensearch.analytics.planner.rel.OperatorAnnotation ann && ann.unwrap() != null) {
+            operand = ann.unwrap();
+        }
+        LocalTime time = extractTimeLiteral(operand);
+        if (time == null) {
+            return null;
+        }
+        Long part = extractFromTime(time);
+        if (part == null) {
+            return null;
+        }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RexNode lit = rexBuilder.makeBigintLiteral(java.math.BigDecimal.valueOf(part));
+        return rexBuilder.makeCast(original.getType(), lit, true);
+    }
+
+    private static LocalTime extractTimeLiteral(RexNode operand) {
+        // Direct TIME RexLiteral (Calcite-folded).
+        if (operand instanceof RexLiteral lit && lit.getType().getSqlTypeName() == SqlTypeName.TIME) {
+            // Try TimeString first (Calcite's canonical TIME literal repr).
+            org.apache.calcite.util.TimeString ts = lit.getValueAs(org.apache.calcite.util.TimeString.class);
+            if (ts != null) {
+                try {
+                    return LocalTime.parse(ts.toString());
+                } catch (DateTimeParseException ignored) {}
+            }
+            Integer millisOfDay = lit.getValueAs(Integer.class);
+            if (millisOfDay != null) {
+                return LocalTime.ofNanoOfDay(millisOfDay.longValue() * 1_000_000L);
+            }
+            return null;
+        }
+        // Any TIME-returning RexCall whose only operand is a VARCHAR literal —
+        // covers both adapter-rewritten `to_time('<lit>')` and the pre-rewrite
+        // PPL `TIME('<lit>')` shape (the order in which adapters fire on parent
+        // vs nested calls is implementation-detail).
+        if (operand instanceof RexCall call && call.getOperands().size() == 1 && call.getType().getSqlTypeName() == SqlTypeName.TIME) {
+            RexNode inner = call.getOperands().get(0);
+            while (inner instanceof org.opensearch.analytics.planner.rel.OperatorAnnotation a && a.unwrap() != null) {
+                inner = a.unwrap();
+            }
+            if (inner instanceof RexLiteral innerLit && SqlTypeFamily.CHARACTER.contains(innerLit.getType())) {
+                String value = innerLit.getValueAs(String.class);
+                if (value == null) return null;
+                try {
+                    return LocalTime.parse(value);
+                } catch (DateTimeParseException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Long extractFromTime(LocalTime time) {
+        switch (unit) {
+            case "hour":
+                return (long) time.getHour();
+            case "minute":
+                return (long) time.getMinute();
+            case "second":
+                return (long) time.getSecond();
+            case "microsecond":
+                return time.getNano() / 1_000L;
+            default:
+                // Date-portion units (year/month/day/week/quarter/doy) on a TIME
+                // value have no meaningful answer at plan time. Don't fold;
+                // signal to the caller that no fold applies.
+                return null;
+        }
     }
 
     private static boolean isCharacterOperand(RexNode operand) {

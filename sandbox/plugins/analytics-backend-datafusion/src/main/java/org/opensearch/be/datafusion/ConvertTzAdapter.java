@@ -20,12 +20,18 @@ import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.TimestampString;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.time.DateTimeException;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -101,9 +107,135 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
             return operands.get(0);
         }
 
+        // String-first variant: when slot 0 is a VARCHAR literal (PPL
+        // `convert_tz('<lit>', '<from>', '<to>')`), fold to a TIMESTAMP literal
+        // at plan time. The Rust UDF only accepts precision_timestamp inputs so
+        // a non-folded string-first call would fail isthmus's signature match
+        // ("Unable to convert call convert_tz(string, string, string)"). All-
+        // literal folds avoid both the missing YAML overload and a runtime cast.
+        if (fromLiteral != null && toLiteral != null) {
+            RexNode folded = tryFoldLiteralTimestampOperand(operands.get(0), fromLiteral, toLiteral, original, rexBuilder);
+            if (folded != null) {
+                return folded;
+            }
+        }
+
         // UDF fallback. Preserve the original call's return type — see
         // AbstractNameMappingAdapter for why (Project.isValid compatibleTypes check).
         return rexBuilder.makeCall(original.getType(), LOCAL_CONVERT_TZ_OP, operands);
+    }
+
+    /**
+     * If operand 0 is a VARCHAR literal (timestamp string) and both tz operands
+     * are canonical literals, parse + convert at plan time and return a TIMESTAMP
+     * literal. Returns null when slot 0 isn't a VARCHAR literal.
+     */
+    private static RexNode tryFoldLiteralTimestampOperand(
+        RexNode tsOperand,
+        String fromTz,
+        String toTz,
+        RexCall original,
+        RexBuilder rexBuilder
+    ) {
+        if (!(tsOperand instanceof RexLiteral lit)) return null;
+        SqlTypeName typeName = lit.getType().getSqlTypeName();
+        if (typeName != SqlTypeName.CHAR && typeName != SqlTypeName.VARCHAR) return null;
+        String tsValue = lit.getValueAs(String.class);
+        if (tsValue == null) return null;
+
+        ZoneId fromZone;
+        ZoneId toZone;
+        try {
+            fromZone = ZoneId.of(fromTz);
+            toZone = ZoneId.of(toTz);
+        } catch (DateTimeException e) {
+            return null;
+        }
+
+        ZonedDateTime resultZdt = parseToZoned(tsValue, fromZone, toZone);
+        if (resultZdt == null) {
+            return null;
+        }
+
+        LocalDateTime ldt = resultZdt.toLocalDateTime();
+        TimestampString tsStr = new TimestampString(
+            ldt.getYear(),
+            ldt.getMonthValue(),
+            ldt.getDayOfMonth(),
+            ldt.getHour(),
+            ldt.getMinute(),
+            ldt.getSecond()
+        );
+        if (ldt.getNano() > 0) {
+            tsStr = tsStr.withNanos(ldt.getNano());
+        }
+
+        // Use precision 3 (milliseconds) to match the rest of the adapter chain
+        // and avoid i64-ns overflow at far-future timestamps.
+        int precision = 3;
+        RexNode literal = rexBuilder.makeTimestampLiteral(tsStr, precision);
+        if (!literal.getType().equals(original.getType())) {
+            literal = rexBuilder.makeAbstractCast(original.getType(), literal);
+        }
+        return literal;
+    }
+
+    /**
+     * Parse a timestamp literal as in {@code fromZone}, then convert to
+     * {@code toZone}. Accepts:
+     * <ul>
+     *   <li>{@code yyyy-MM-dd HH:mm:ss[.frac]} (space-separated, naive)</li>
+     *   <li>ISO {@code yyyy-MM-ddTHH:mm:ss[.frac]} (naive)</li>
+     *   <li>any format with embedded offset (used in preference to {@code fromZone})</li>
+     * </ul>
+     * Returns null when no format matches.
+     */
+    private static ZonedDateTime parseToZoned(String input, ZoneId fromZone, ZoneId toZone) {
+        // Embedded offset takes precedence over the explicit fromZone.
+        try {
+            OffsetDateTime odt = OffsetDateTime.parse(input);
+            return odt.atZoneSameInstant(toZone);
+        } catch (DateTimeParseException ignored) {}
+        if (input.contains(" ") && !input.contains("T")) {
+            try {
+                OffsetDateTime odt = OffsetDateTime.parse(input.replace(' ', 'T'));
+                return odt.atZoneSameInstant(toZone);
+            } catch (DateTimeParseException ignored) {}
+        }
+
+        // Naive timestamp: parse as in fromZone.
+        try {
+            LocalDateTime ldt = LocalDateTime.parse(input, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT));
+            return inFromZoneTo(ldt, fromZone, toZone);
+        } catch (DateTimeParseException ignored) {}
+
+        try {
+            LocalDateTime ldt = LocalDateTime.parse(input);
+            return inFromZoneTo(ldt, fromZone, toZone);
+        } catch (DateTimeParseException ignored) {}
+
+        return null;
+    }
+
+    /**
+     * Resolve {@code ldt} as an instant in {@code fromZone} and convert to {@code toZone}.
+     * Uses {@link java.time.zone.ZoneRules#getValidOffsets} to pick a deterministic offset
+     * (the first valid one — for ambiguous DST fall-back times this is the pre-transition
+     * offset, matching java.time.LocalDateTime#atZone earlier-offset rule).
+     */
+    private static ZonedDateTime inFromZoneTo(LocalDateTime ldt, ZoneId fromZone, ZoneId toZone) {
+        java.util.List<java.time.ZoneOffset> offsets = fromZone.getRules().getValidOffsets(ldt);
+        java.time.ZoneOffset chosen;
+        if (!offsets.isEmpty()) {
+            chosen = offsets.get(0);
+        } else {
+            // Gap (DST spring-forward) — pick the offset after the transition.
+            java.time.zone.ZoneOffsetTransition transition = fromZone.getRules().getTransition(ldt);
+            chosen = transition.getOffsetAfter();
+            ldt = ldt.plus(transition.getDuration());
+        }
+        java.time.Instant instant = ldt.toInstant(chosen);
+        return instant.atZone(toZone);
     }
 
     /**
