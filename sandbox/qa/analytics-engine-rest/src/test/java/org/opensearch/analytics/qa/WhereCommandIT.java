@@ -165,6 +165,15 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /** Multiple {@code !=} conjuncts combined with {@code isnotnull}. */
+    public void testWhereMultipleNotEqualsAndIsNotNull() throws IOException {
+        // 13 non-null str2 values; excluding 'one' and 'two' leaves 11.
+        assertRowCount(
+            "source=" + DATASET.indexName + " | where str2 != 'one' and str2 != 'two' and isnotnull(str2) | fields str2",
+            11
+        );
+    }
+
     // ── IN / NOT IN ─────────────────────────────────────────────────────────
 
     public void testWhereInOnKeyword() throws IOException {
