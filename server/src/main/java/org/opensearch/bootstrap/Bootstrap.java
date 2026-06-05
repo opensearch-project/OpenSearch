@@ -118,17 +118,17 @@ final class Bootstrap {
     }
 
     /**
-     * Installs a process-wide serial filter factory that rejects all Java deserialization by default.
+     * Installs a process-wide serial filter that rejects all Java deserialization by default.
      * Plugins that legitimately require Java serialization (e.g., security plugin's user attribute caching)
      * can opt in by calling {@code ObjectInputStream.setObjectInputFilter()} on their specific stream,
-     * which the factory will respect.
+     * which overrides the JVM-wide filter for that stream.
      */
     static void initializeSerialFilter() {
         try {
-            ObjectInputFilter.Config.setSerialFilterFactory((current, requested) -> requested != null ? requested : REJECT_ALL_FILTER);
+            ObjectInputFilter.Config.setSerialFilter(REJECT_ALL_FILTER);
         } catch (IllegalStateException e) {
-            // Factory already set (e.g., in tests where multiple initializations may occur)
-            LogManager.getLogger(Bootstrap.class).debug("Serial filter factory already initialized", e);
+            // Filter already set (e.g., via -Djdk.serialFilter system property or in tests)
+            LogManager.getLogger(Bootstrap.class).debug("Serial filter already initialized", e);
         }
     }
 
