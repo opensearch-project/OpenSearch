@@ -30,6 +30,13 @@ public class FieldStorageInfo {
     private final List<String> storedFieldFormats;
     private final boolean derived;
     private final LinkedHashSet<String> dependsOnPhysicalCols;
+    /**
+     * For a {@code text} field that declares a {@code keyword} multifield, the subfield's name
+     * (e.g. {@code "keyword"}); {@code null} otherwise. Exact-equality predicates must target
+     * this subfield — a term query on the analyzed text field does not match (the analyzer
+     * lowercases/tokenizes the indexed value but a term query does not analyze its input).
+     */
+    private final String keywordSubfield;
 
     public FieldStorageInfo(
         String fieldName,
@@ -45,6 +52,30 @@ public class FieldStorageInfo {
         this(fieldName, mappingType, fieldType, docValueFormats, indexFormats, storedFieldFormats, derived, new LinkedHashSet<>());
     }
 
+    /** Physical-field ctor with an explicit keyword multifield name (or {@code null} if none). */
+    public FieldStorageInfo(
+        String fieldName,
+        String mappingType,
+        FieldType fieldType,
+        List<String> docValueFormats,
+        List<String> indexFormats,
+        List<String> storedFieldFormats,
+        boolean derived,
+        String keywordSubfield
+    ) {
+        this(
+            fieldName,
+            mappingType,
+            fieldType,
+            docValueFormats,
+            indexFormats,
+            storedFieldFormats,
+            derived,
+            new LinkedHashSet<>(),
+            keywordSubfield
+        );
+    }
+
     public FieldStorageInfo(
         String fieldName,
         String mappingType,
@@ -55,6 +86,20 @@ public class FieldStorageInfo {
         boolean derived,
         LinkedHashSet<String> dependsOnPhysicalCols
     ) {
+        this(fieldName, mappingType, fieldType, docValueFormats, indexFormats, storedFieldFormats, derived, dependsOnPhysicalCols, null);
+    }
+
+    public FieldStorageInfo(
+        String fieldName,
+        String mappingType,
+        FieldType fieldType,
+        List<String> docValueFormats,
+        List<String> indexFormats,
+        List<String> storedFieldFormats,
+        boolean derived,
+        LinkedHashSet<String> dependsOnPhysicalCols,
+        String keywordSubfield
+    ) {
         this.fieldName = fieldName;
         this.mappingType = mappingType;
         this.fieldType = fieldType;
@@ -63,6 +108,7 @@ public class FieldStorageInfo {
         this.storedFieldFormats = storedFieldFormats;
         this.derived = derived;
         this.dependsOnPhysicalCols = dependsOnPhysicalCols;
+        this.keywordSubfield = keywordSubfield;
     }
 
     /** Creates a derived column (agg result, expression) with no physical storage and no deps.
@@ -91,6 +137,11 @@ public class FieldStorageInfo {
 
     public String getFieldName() {
         return fieldName;
+    }
+
+    /** Name of this text field's {@code keyword} multifield (e.g. {@code "keyword"}), or {@code null}. */
+    public String getKeywordSubfield() {
+        return keywordSubfield;
     }
 
     public String getMappingType() {

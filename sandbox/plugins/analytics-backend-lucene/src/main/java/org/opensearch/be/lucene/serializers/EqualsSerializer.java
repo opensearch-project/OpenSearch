@@ -58,7 +58,14 @@ public class EqualsSerializer extends AbstractQuerySerializer {
             );
         }
 
-        String fieldName = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex()).getFieldName();
+        FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
+        // Exact equality on a text field must target its keyword multifield: a term query on the
+        // analyzed text field never matches (the analyzer lowercases/tokenizes the indexed value,
+        // but a term query does not analyze its input). Mirrors the SQL engine's convertTextToKeyword.
+        // Text fields without a keyword subfield fall back to the base name (analyzed term — same as SQL).
+        String fieldName = field.getKeywordSubfield() != null
+            ? field.getFieldName() + "." + field.getKeywordSubfield()
+            : field.getFieldName();
         // Calcite stores literals in canonical types (BigDecimal for ints, NlsString for
         // strings, etc.) that the OpenSearch Mapper can't parse directly. Convert at the
         // Calcite ↔ OpenSearch boundary so the mapper sees plain Java types.

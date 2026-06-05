@@ -393,6 +393,89 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         client().performRequest(req);
     }
 
+    private static final String KEYWORD_SUBFIELD_INDEX = "text_equals_keyword_subfield_e2e";
+
+    /**
+     * EQUALS on a {@code text} field that has a {@code .keyword} multifield must match the exact,
+     * case-sensitive value by routing the delegated term query to {@code <field>.keyword} — a term
+     * query does not analyze its input, so a term against the analyzed text field would compare the
+     * raw value (e.g. {@code "Engineer"}) to the lowercased indexed tokens ({@code "engineer"}) and
+     * match nothing. Before the fix this returned 0 rows; after, it matches via the keyword subfield.
+     */
+    public void testTextEqualsRoutesToKeywordSubfield() throws Exception {
+        createKeywordSubfieldIndex();
+
+        // 7 docs occupation="Engineer", 3 docs occupation="Doctor" (mixed case on purpose).
+        String exact = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'Engineer' | stats count() as c";
+        List<List<Object>> exactRows = rowsOf(executePplViaShim(exact));
+        assertEquals("scalar agg returns 1 row", 1, exactRows.size());
+        assertEquals("EQUALS on text field matches the exact (case-sensitive) keyword value", 7L,
+            ((Number) exactRows.get(0).get(0)).longValue());
+
+        // The lowercased form must NOT match: routing to .keyword is exact/case-sensitive, so
+        // 'engineer' != 'Engineer'. (A term query on the analyzed text field would wrongly match
+        // here — this asserts we are on the keyword path, not the analyzed-text path.)
+        String wrongCase = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'engineer' | stats count() as c";
+        List<List<Object>> wrongCaseRows = rowsOf(executePplViaShim(wrongCase));
+        assertEquals("lowercase value must not match the exact keyword value", 0L,
+            ((Number) wrongCaseRows.get(0).get(0)).longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> rowsOf(Map<String, Object> result) {
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        return rows;
+    }
+
+    private void createKeywordSubfieldIndex() throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + KEYWORD_SUBFIELD_INDEX));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": 1,"
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"properties\": {"
+            + "    \"occupation\": { \"type\": \"text\", \"fields\": { \"keyword\": { \"type\": \"keyword\" } } },"
+            + "    \"value\": { \"type\": \"integer\" }"
+            + "  }"
+            + "}"
+            + "}";
+
+        Request createIndex = new Request("PUT", "/" + KEYWORD_SUBFIELD_INDEX);
+        createIndex.setJsonEntity(body);
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index");
+        assertEquals(true, response.get("acknowledged"));
+
+        Request health = new Request("GET", "/_cluster/health/" + KEYWORD_SUBFIELD_INDEX);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 7; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Engineer\", \"value\": 5}\n");
+        }
+        for (int i = 0; i < 3; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Doctor\", \"value\": 3}\n");
+        }
+        Request bulkRequest = new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_bulk");
+        bulkRequest.setJsonEntity(bulk.toString());
+        bulkRequest.addParameter("refresh", "true");
+        client().performRequest(bulkRequest);
+        client().performRequest(new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_flush?force=true"));
+    }
+
     private void createIndex() throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX_NAME));

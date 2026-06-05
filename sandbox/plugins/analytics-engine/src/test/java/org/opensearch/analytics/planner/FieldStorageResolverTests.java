@@ -36,6 +36,25 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         assertEquals(List.of("lucene"), info.getIndexFormats());
     }
 
+    public void testTextFieldWithKeywordSubfieldCapturesSubfieldName() {
+        FieldStorageResolver resolver = newResolver(
+            "parquet",
+            Map.of("gender", Map.of("type", "text", "fields", Map.of("keyword", Map.of("type", "keyword"))))
+        );
+        FieldStorageInfo info = resolver.resolve(List.of("gender")).get(0);
+        assertEquals("keyword", info.getKeywordSubfield());
+    }
+
+    public void testTextFieldWithoutKeywordSubfieldHasNullSubfield() {
+        FieldStorageResolver resolver = newResolver("parquet", Map.of("name", Map.of("type", "text")));
+        assertNull(resolver.resolve(List.of("name")).get(0).getKeywordSubfield());
+    }
+
+    public void testKeywordFieldHasNullSubfield() {
+        FieldStorageResolver resolver = newResolver("parquet", Map.of("tag", Map.of("type", "keyword")));
+        assertNull(resolver.resolve(List.of("tag")).get(0).getKeywordSubfield());
+    }
+
     public void testLongFieldGetsDocValuesInPrimaryFormat() {
         FieldStorageResolver resolver = newResolver("parquet", Map.of("age", Map.of("type", "long")));
 
