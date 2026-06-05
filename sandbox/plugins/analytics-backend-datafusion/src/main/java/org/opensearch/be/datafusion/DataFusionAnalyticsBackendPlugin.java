@@ -869,7 +869,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
+    public EngineResultStream fetchByRowIds(
+        Reader reader,
+        BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator,
+        long contextId
+    ) {
         DataFusionService dataFusionService = plugin.getDataFusionService();
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionService not initialized");
@@ -897,7 +903,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 bufAddr,
                 count,
                 columns,
-                dataFusionService.getNativeRuntime().get()
+                dataFusionService.getNativeRuntime().get(),
+                contextId
             );
         } else {
             throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");

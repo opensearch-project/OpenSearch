@@ -602,6 +602,7 @@ pub async unsafe fn execute_query(
                 cpu_executor,
                 query_memory_pool,
                 qc,
+                context_id,
             ).await
         } else {
             crate::query_executor::execute_query(
@@ -651,6 +652,7 @@ pub async unsafe fn fetch_by_row_ids(
     manager: &crate::runtime_manager::RuntimeManager,
     row_ids: Vec<i64>,
     columns: Vec<String>,
+    context_id: i64,
 ) -> Result<i64, DataFusionError> {
     use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
     use crate::indexed_table::segment_info::build_segments;
@@ -791,7 +793,7 @@ pub async unsafe fn fetch_by_row_ids(
     // monotonically nondecreasing across the entire stream. target_partitions=1
     // means a single ordered execution, so the check is global, not per-batch only.
     let df_stream = ascending_row_id_check_stream(df_stream);
-    Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime))
+    Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime, context_id))
 }
 
 /// it; the failure mode is documented here to keep the dispatch contract
