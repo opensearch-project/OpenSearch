@@ -174,6 +174,58 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         assertEquals("expected 2 Sorts (coord + per-partition)", 2, sortCount);
     }
 
+    /** dc(x) by group + sort + head: APPROX_COUNT_DISTINCT splits with TopK reduce_eval. */
+    public void testRewrite_dcByGroup_splitAndTopK() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countDistinctCall(scan)));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$1], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchProject(status=[$0], dc=[$1], viableBackends=[[mock-parquet]])
+                        OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                          OpenSearchProject(status=[$0], dc=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[mock-parquet]])
+                            OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /** Multi-group-by COUNT + TopK: verifies PARTIAL/FINAL split fires. */
+    public void testRewrite_multiGroupByCount_splitAndTopK() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0, 1), null, List.of(countStarCall(scan)));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(2, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0, 1}], cnt=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                        OpenSearchAggregate(group=[{0, 1}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private RelNode buildSortHeadOverGroupedCount() {
