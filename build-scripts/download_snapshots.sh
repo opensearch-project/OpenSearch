@@ -39,6 +39,7 @@ set -euo pipefail
 # =============================================================================
 CTI_BASE_URL=""
 OUTPUT_DIR="./snapshots"
+WAZUH_TAG=""
 
 # Consumer types we are interested in (hardcoded per requirement).
 CONSUMER_TYPES=(
@@ -60,6 +61,7 @@ a manifest.json with consumer metadata.
 Options:
   --env <base-url>        CTI API base URL (e.g. https://<your-environment>/api/v1).
   --output-dir <path>     Output directory (default: ./snapshots).
+  --version <tag>         Product version tag (e.g. 5.0.0-rc1). Auto-detected from VERSION.json if omitted.
   --help                  Show this help message and exit.
 
 Example:
@@ -79,6 +81,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --output-dir)
             OUTPUT_DIR="${2:?ERROR: --output-dir requires a path}"
+            shift 2
+            ;;
+        --version)
+            WAZUH_TAG="${2:?ERROR: --version requires a version tag}"
             shift 2
             ;;
         --help)
@@ -101,6 +107,28 @@ fi
 # Strip trailing slash
 CTI_BASE_URL="${CTI_BASE_URL%/}"
 
+# Auto-detect version from VERSION.json if not provided
+if [[ -z "${WAZUH_TAG}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    VERSION_FILE="${SCRIPT_DIR}/../VERSION.json"
+    if [[ -f "${VERSION_FILE}" ]]; then
+        _ver=$(jq -r '.version // empty' "${VERSION_FILE}")
+        _stage=$(jq -r '.stage // empty' "${VERSION_FILE}")
+        if [[ -n "${_ver}" ]]; then
+            WAZUH_TAG="${_ver}"
+            if [[ -n "${_stage}" ]]; then
+                WAZUH_TAG="${_ver}-${_stage}"
+            fi
+        fi
+    fi
+    if [[ -z "${WAZUH_TAG}" ]]; then
+        echo "ERROR: Could not determine product version. Provide --version or ensure VERSION.json exists."
+        exit 1
+    fi
+fi
+
+echo "Product version tag: ${WAZUH_TAG}"
+
 # =============================================================================
 # Dependency checks
 # =============================================================================
@@ -117,7 +145,8 @@ done
 # =============================================================================
 api_get() {
     local url="$1"
-    curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 "${url}"
+    curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 \
+        -H "wazuh-tag: v${WAZUH_TAG}" "${url}"
     }
 
 # =============================================================================
@@ -242,6 +271,7 @@ main() {
         local zip_file="${OUTPUT_DIR}/${filename}"
         echo "  Downloading snapshot from ${snapshot_link}"
         curl -fSL --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 300 \
+            -H "wazuh-tag: v${WAZUH_TAG}" \
             -o "${zip_file}" "${snapshot_link}" || {
             echo "ERROR: Failed to download snapshot for ${name}"
             exit 1
