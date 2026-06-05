@@ -83,15 +83,22 @@ public final class OpenSearchTopKRewriter {
         return Optional.of(result);
     }
 
-    /** Walks the tree to find the bottommost Sort with collation above a FINAL aggregate. */
+    /**
+     * Walks the tree to find the <em>deepest</em> collated Sort above a FINAL aggregate. Recursing
+     * before matching is deliberate: PPL {@code ... | sort c | head N} arrives as a collated outer
+     * {@code LogicalSystemLimit(fetch=querySizeLimit)} over the user's collated {@code Sort(fetch=N)},
+     * and the oversampling must derive the shard fetch from the inner (tighter) N — not the outer
+     * size cap — or every shard over-fetches {@code ceil(querySizeLimit * factor) + querySizeLimit}
+     * rows. Preferring the deepest match honors the innermost limit.
+     */
     private static SortAboveFinal findSortAboveFinal(RelNode node) {
-        if (node instanceof OpenSearchSort sort && !sort.getCollation().getFieldCollations().isEmpty()) {
-            OpenSearchAggregate finalAgg = findFinalAgg(sort.getInput());
-            if (finalAgg != null) return new SortAboveFinal(sort, finalAgg);
-        }
         for (RelNode child : node.getInputs()) {
             SortAboveFinal found = findSortAboveFinal(child);
             if (found != null) return found;
+        }
+        if (node instanceof OpenSearchSort sort && !sort.getCollation().getFieldCollations().isEmpty()) {
+            OpenSearchAggregate finalAgg = findFinalAgg(sort.getInput());
+            if (finalAgg != null) return new SortAboveFinal(sort, finalAgg);
         }
         return null;
     }

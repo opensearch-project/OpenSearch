@@ -199,13 +199,9 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
         IndexReaderProvider.Reader reader = shardCtx.getReader();
         LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
-        IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
-        if (shardCtx.getQueryCache() != null) {
-            searcher.setQueryCache(shardCtx.getQueryCache());
-        }
-        if (shardCtx.getQueryCachingPolicy() != null) {
-            searcher.setQueryCachingPolicy(shardCtx.getQueryCachingPolicy());
-        }
+        // Shared per-reader searcher (see LuceneReader#searcher) — a fresh one here crashes the node
+        // on self-union delegated scans.
+        IndexSearcher searcher = luceneReader.searcher(shardCtx.getQueryCache(), shardCtx.getQueryCachingPolicy());
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
         BooleanSupplier isCancelled = () -> {
             Task task = shardCtx.getTask();

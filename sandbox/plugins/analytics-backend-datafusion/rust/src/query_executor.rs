@@ -424,6 +424,7 @@ pub fn wrap_stream_as_handle(
     df_stream: datafusion::execution::SendableRecordBatchStream,
     cpu_executor: DedicatedExecutor,
     runtime: &DataFusionRuntime,
+    context_id: i64,
 ) -> i64 {
     let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
     let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
@@ -431,7 +432,7 @@ pub fn wrap_stream_as_handle(
         cross_rt_stream,
     );
     let query_context = crate::query_tracker::QueryTrackingContext::new(
-        0,
+        context_id,
         runtime.runtime_env.memory_pool.clone(),
         crate::query_tracker::QueryType::Shard,
     );

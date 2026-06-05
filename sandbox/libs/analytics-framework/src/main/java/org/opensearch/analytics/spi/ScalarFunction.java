@@ -258,6 +258,20 @@ public enum ScalarFunction {
      * rewrites the call into a DataFusion-native interval-add expression.
      */
     TIMESTAMPADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_ADD(<date|timestamp|time>, INTERVAL n unit)} — shift a temporal value
+     * forward by an interval, returning TIMESTAMP. Resolves through the SQL plugin's
+     * {@code DateAddSubFunction} UDF named {@code "DATE_ADD"}. The analytics-backend-datafusion
+     * adapter rewrites the call into {@code DATETIME_PLUS(base, interval)}, which binds through
+     * Substrait's standard {@code add(timestamp, interval)} to DataFusion's native interval add.
+     */
+    DATE_ADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_SUB(<date|timestamp|time>, INTERVAL n unit)} — the subtract counterpart of
+     * {@link #DATE_ADD}. Lowered to {@code DATETIME_PLUS(base, -interval)} by the
+     * analytics-backend-datafusion adapter.
+     */
+    DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),

@@ -51,6 +51,29 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         assertFalse(handle.isOpen());
     }
 
+    public void testServiceStartWithEmptySpillDirectory() {
+        // Empty spillDirectory triggers DiskManagerMode::Disabled in Rust. The runtime
+        // must build successfully (memory-only execution); spill-attempting queries will
+        // fail with a "DiskManager is disabled" error, but plain runtime construction
+        // and shutdown are unaffected.
+        ensureTokioInit();
+        DataFusionService service = DataFusionService.builder()
+            .memoryPoolLimit(64 * 1024 * 1024)
+            .spillMemoryLimit(0L)
+            .spillDirectory("")
+            .cpuThreads(2)
+            .build();
+        service.start();
+
+        NativeRuntimeHandle handle = service.getNativeRuntime();
+        assertNotNull(handle);
+        assertTrue(handle.isOpen());
+        assertTrue(handle.get() != 0);
+
+        service.stop();
+        assertFalse(handle.isOpen());
+    }
+
     public void testGetNativeRuntimeBeforeStartThrows() {
         DataFusionService service = DataFusionService.builder().build();
         expectThrows(IllegalStateException.class, service::getNativeRuntime);
