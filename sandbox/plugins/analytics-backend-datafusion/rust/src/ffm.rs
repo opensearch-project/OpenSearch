@@ -287,6 +287,7 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
     col_names_len_ptr: *const i64,
     col_names_count: i64,
     runtime_ptr: i64,
+    context_id: i64,
 ) -> i64 {
     // Hard FFM-boundary checks (UB risk if violated): pointers must be non-zero before any deref.
     // Always-on `assert!` (not debug_assert!) — these protect against use-after-close from Java.
@@ -329,6 +330,7 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
             &mgr,
             row_ids,
             columns,
+            context_id,
         ))
         .map_err(|e| e.to_string())
 }
