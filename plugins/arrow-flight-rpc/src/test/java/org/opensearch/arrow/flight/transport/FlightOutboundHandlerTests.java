@@ -246,7 +246,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 // Clean up the stream root created by the handler
                 sentRoot.close();
                 return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class));
+            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
 
             TestArrowResponse response = new TestArrowResponse(producerRoot);
             handler.sendResponseBatch(
@@ -291,7 +291,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 assertEquals(1, sentRoot.getRowCount());
                 assertEquals(99, ((IntVector) sentRoot.getVector("val")).get(0));
                 return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class));
+            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
 
             doAnswer(invocation -> {
                 latch.countDown();
