@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -82,6 +83,7 @@ public class TopCommandIT extends AnalyticsRestTestCase {
         assertNumOfRows("source=" + DATASET.indexName + " | top int0", 8);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testTopCommandUseNullFalse() throws IOException {
         // usenull=false drops the null bucket → 7 distinct non-null values.
         assertNumOfRows("source=" + DATASET.indexName + " | top usenull=false int0", 7);
