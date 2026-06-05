@@ -172,15 +172,27 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
                 statsTracker
             )
         );
-        pushSettingsToRust();
-        // Register this shard's tracker with the format-wide stats provider so the
-        // /_plugins/parquet/{index}/_stats and /_plugins/parquet/_nodes/{nodeId}/_stats
-        // REST endpoints can read live counters. Unregistered in close().
-        ParquetStatsProvider provider = (ParquetStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
-            ParquetStatsProvider.FORMAT_NAME
-        );
-        if (provider != null) {
-            provider.register(shardPath.getShardId(), statsTracker);
+        boolean registered = false;
+        ParquetStatsProvider provider = null;
+        try {
+            pushSettingsToRust();
+            // Register this shard's tracker with the format-wide stats provider so the
+            // /_plugins/parquet/{index}/_stats and /_plugins/parquet/_nodes/{nodeId}/_stats
+            // REST endpoints can read live counters. Unregistered in close().
+            provider = (ParquetStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(ParquetStatsProvider.FORMAT_NAME);
+            if (provider != null) {
+                provider.register(shardPath.getShardId(), statsTracker);
+                registered = true;
+            }
+        } catch (Throwable t) {
+            if (registered && provider != null) {
+                try {
+                    provider.unregister(shardPath.getShardId());
+                } catch (Throwable rollbackErr) {
+                    logger.warn("Failed to unregister parquet stats tracker during constructor rollback", rollbackErr);
+                }
+            }
+            throw t;
         }
     }
 

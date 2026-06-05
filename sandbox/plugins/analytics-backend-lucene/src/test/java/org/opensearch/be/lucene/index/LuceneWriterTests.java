@@ -272,7 +272,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             LuceneDocumentInput input = new LuceneDocumentInput();

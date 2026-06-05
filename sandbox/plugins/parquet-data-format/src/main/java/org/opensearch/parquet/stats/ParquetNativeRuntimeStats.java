@@ -23,9 +23,16 @@ import java.io.IOException;
  * (never on individual shard trackers) and dropped during cross-node aggregation
  * so it never appears in cluster-wide /{idx}/_stats responses.
  *
- * <p>The wire format encodes 11 values via {@link #FIELD_COUNT}; the JNI bridge in
+ * <p>The wire format encodes {@value #FIELD_COUNT} values; the JNI bridge in
  * {@link org.opensearch.parquet.bridge.RustBridge#collectRuntimeMetrics()} returns
  * an array of the same length in the order documented in {@link #fromArray}.
+ *
+ * <p><b>parquet_merge.merge_tasks_failed</b> counts logical errors that occur INSIDE
+ * the rayon-wrapped column-encoding pass only. Logical errors that occur before this
+ * wrapper runs (FFM bridge throws, Java-side validation fails, IO task panics, etc.)
+ * increment the per-shard {@code parquet.merge.merge_failures} counter but NOT
+ * {@code merge_tasks_failed}. The two populations overlap but intentionally measure
+ * different scopes — they are not expected to be equal.
  *
  * @opensearch.experimental
  */

@@ -111,10 +111,15 @@ pub fn collect() -> NativeRuntimeStats {
 ///
 /// Counter semantics:
 /// - `submitted` = number of times this wrapper was entered.
+/// - `started`   = number of times the closure actually began executing on a rayon worker.
 /// - `completed` = number of times the closure returned `Ok(_)`.
+/// - `failed`    = number of times the closure returned `Err(_)` — i.e. logical errors that
+///   happened INSIDE the rayon-wrapped column-encoding pass. Logical errors that occur
+///   BEFORE this wrapper runs (FFM bridge throws, Java-side validation fails, IO task
+///   panics, etc.) increment the per-shard `parquet.merge.merge_failures` counter but
+///   NOT this one. As a result, `merge_tasks_failed` and `merge_failures` populations
+///   overlap but are not identical — they intentionally measure different things.
 /// - `panicked`  = number of times the closure unwound (panicked); the panic is then re-raised.
-/// - On `Err(_)`, neither `completed` nor `panicked` is incremented; `submitted - completed - panicked`
-///   is the count of merges that terminated with a logical error.
 /// - `merge_wall_millis` accumulates total wall-clock duration of every wrapped call (the work
 ///   itself, plus any rayon-pool install overhead, plus errored and panicked invocations).
 pub fn record_merge<F, R>(f: F) -> Result<R, MergeError>

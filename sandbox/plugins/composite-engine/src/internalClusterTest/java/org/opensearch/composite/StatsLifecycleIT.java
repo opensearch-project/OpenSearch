@@ -119,9 +119,17 @@ public class StatsLifecycleIT extends BaseStatsIT {
                 260L
             );
             Map<String, Object> l5 = luceneIndexStats("lifecycle-idx");
-            // Note: lucene.merge.merge_total stays 0 in the composite-engine flow because the
-            // lucene secondary uses flush+addIndexes (not standalone IndexWriter.maybeMerge()).
-            // The force-merge work is recorded under flush.flush_force_merge_time_millis instead.
+            // Lucene merger fires per shard during composite force_merge — CompositeMerger
+            // dispatches to both the primary (parquet) and secondary (lucene) mergers. We
+            // expect merge_total >= number_of_primary_shards (1 here, single-shard test).
+            // flush.flush_force_merge_time_millis also records time spent in the internal
+            // force-merge during flush.
+            assertCounterAtLeast(
+                "stage 5 lucene merge_total >= 1 (composite force_merge dispatches to lucene merger too)",
+                l5,
+                "indices.lifecycle-idx.merge.merge_total",
+                1L
+            );
             assertCounterAtLeast(
                 "stage 5 lucene flush_force_merge_time_millis",
                 l5,

@@ -8,6 +8,8 @@
 
 package org.opensearch.composite;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -36,6 +38,8 @@ import java.util.concurrent.TimeUnit;
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class StatsManualValidationIT extends BaseStatsIT {
+
+    private static final Logger LOGGER = LogManager.getLogger(StatsManualValidationIT.class);
 
     @SuppressWarnings("unchecked")
     public void testFullManualValidation() throws Exception {
@@ -233,31 +237,32 @@ public class StatsManualValidationIT extends BaseStatsIT {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // Output helpers — write to stdout via System.out so they're visible in test logs
+    // Output helpers — emit via Log4j so they appear in test logs
+    // (forbidden-apis disallows direct System.out usage).
     // ─────────────────────────────────────────────────────────────────────────────
 
     private static void printSection(String title) {
-        System.out.println();
-        System.out.println("════════════════════════════════════════════════════════════════════════");
-        System.out.println("  " + title);
-        System.out.println("════════════════════════════════════════════════════════════════════════");
+        LOGGER.info("");
+        LOGGER.info("════════════════════════════════════════════════════════════════════════");
+        LOGGER.info("  {}", title);
+        LOGGER.info("════════════════════════════════════════════════════════════════════════");
     }
 
     private static void printResponse(String label, Map<String, Object> body) {
-        System.out.println();
-        System.out.println("    >>> " + label);
+        LOGGER.info("");
+        LOGGER.info("    >>> {}", label);
         try {
             String json = JsonXContent.contentBuilder().map(body == null ? new LinkedHashMap<>() : body).toString();
             for (String line : json.split("\n")) {
-                System.out.println("    " + line);
+                LOGGER.info("    {}", line);
             }
         } catch (IOException e) {
-            System.out.println("    [error rendering body: " + e.getMessage() + "]");
+            LOGGER.info("    [error rendering body: {}]", e.getMessage());
         }
     }
 
     private static void printAssertion(String label, boolean ok) {
-        System.out.println("    " + (ok ? "✅" : "❌") + "  " + label);
+        LOGGER.info("    {}  {}", ok ? "✅" : "❌", label);
         if (!ok) {
             throw new AssertionError("assertion failed: " + label);
         }

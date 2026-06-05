@@ -51,6 +51,7 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -356,11 +357,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
             // Common path: forceMerge to 1 segment, commit, build FileInfos
             long forceMergeStartNanos = System.nanoTime();
-            try {
-                indexWriter.forceMerge(1, true);
-            } finally {
-                stats.addFlushForceMergeTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - forceMergeStartNanos));
-            }
+            StatsRecorder.recordTimeMillis(() -> indexWriter.forceMerge(1, true), stats::addFlushForceMergeTimeMillis);
             long forceMergeDurationMs = TimeValue.nsecToMSec(System.nanoTime() - forceMergeStartNanos);
             logger.info(
                 "flush: forceMerge complete: generation={}, docCount={}, duration={}ms",

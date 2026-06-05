@@ -147,12 +147,25 @@ impl MergeContext {
 
     /// Concat buffered batches, append row IDs, encode columns in parallel,
     /// and send the encoded row group to the IO task.
+    ///
+    /// `flush_and_sort_chunk_count` and `flush_and_sort_chunk_time_millis` are
+    /// always recorded — including on failure paths — to keep this counter
+    /// symmetric with rayon's `merge_wall_millis`. The empty-chunks early-return
+    /// is the only path that doesn't count as an attempt.
     pub fn flush(&mut self) -> MergeResult<()> {
         if self.output_chunks.is_empty() {
             return Ok(());
         }
         let flush_start = std::time::Instant::now();
+        self.flush_and_sort_chunk_count += 1;
 
+        let result = self.do_flush();
+
+        self.flush_and_sort_chunk_time_millis += flush_start.elapsed().as_millis() as i64;
+        result
+    }
+
+    fn do_flush(&mut self) -> MergeResult<()> {
         let merged = if self.output_chunks.len() == 1 {
             self.output_chunks.pop().unwrap()
         } else {
@@ -215,8 +228,6 @@ impl MergeContext {
             self.total_rows_written
         );
 
-        self.flush_and_sort_chunk_count += 1;
-        self.flush_and_sort_chunk_time_millis += flush_start.elapsed().as_millis() as i64;
         Ok(())
     }
 

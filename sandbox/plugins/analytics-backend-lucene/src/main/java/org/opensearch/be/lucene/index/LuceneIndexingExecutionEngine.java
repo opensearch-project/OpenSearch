@@ -130,20 +130,34 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         // Create the lucene subdirectory if it doesn't exist, or clear stale contents
         // from a prior engine lifecycle. Any data here is either already hardlinked into
         // index/ (via addIndexes) or will be replayed from the translog on recovery.
-        if (Files.isDirectory(baseDirectory)) {
-            tryDeleteDirectory(baseDirectory);
-        }
+        boolean registered = false;
+        LuceneStatsProvider provider = null;
         try {
-            Files.createDirectories(baseDirectory);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
-        }
-        // Register this shard's tracker with the format-wide stats provider so the
-        // /_plugins/lucene/{index}/_stats and /_plugins/lucene/_nodes/{nodeId}/_stats
-        // REST endpoints can read live counters. Unregistered in close().
-        LuceneStatsProvider provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(LuceneStatsProvider.FORMAT_NAME);
-        if (provider != null) {
-            provider.register(store.shardId(), stats);
+            if (Files.isDirectory(baseDirectory)) {
+                tryDeleteDirectory(baseDirectory);
+            }
+            try {
+                Files.createDirectories(baseDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
+            }
+            // Register this shard's tracker with the format-wide stats provider so the
+            // /_plugins/lucene/{index}/_stats and /_plugins/lucene/_nodes/{nodeId}/_stats
+            // REST endpoints can read live counters. Unregistered in close().
+            provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(LuceneStatsProvider.FORMAT_NAME);
+            if (provider != null) {
+                provider.register(store.shardId(), stats);
+                registered = true;
+            }
+        } catch (Throwable t) {
+            if (registered && provider != null) {
+                try {
+                    provider.unregister(store.shardId());
+                } catch (Throwable rollbackErr) {
+                    logger.warn("Failed to unregister lucene stats tracker during constructor rollback", rollbackErr);
+                }
+            }
+            throw t;
         }
     }
 
