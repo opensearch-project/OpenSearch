@@ -417,7 +417,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : listed) {
             assertNotNull("list(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= DOCS_PER_SHARD; i++) {
@@ -456,7 +456,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : listed) {
             assertNotNull("list(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= totalDocs; i++) {
@@ -494,7 +494,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : got) {
             assertNotNull("values(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= 5; i++) {
@@ -532,7 +532,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : got) {
             assertNotNull("values(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= 10; i++) {
