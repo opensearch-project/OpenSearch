@@ -26,37 +26,37 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
 
     public void testListBoolean() throws Exception {
         provision();
-        assertSingleElement("boolean_value", true);
+        assertSingleElement("boolean_value", "true");
     }
 
     public void testListByte() throws Exception {
         provision();
-        assertSingleElement("byte_value", 4);
+        assertSingleElement("byte_value", "4");
     }
 
     public void testListShort() throws Exception {
         provision();
-        assertSingleElement("short_value", 3);
+        assertSingleElement("short_value", "3");
     }
 
     public void testListInteger() throws Exception {
         provision();
-        assertSingleElement("integer_value", 2);
+        assertSingleElement("integer_value", "2");
     }
 
     public void testListLong() throws Exception {
         provision();
-        assertSingleElement("long_value", 1);
+        assertSingleElement("long_value", "1");
     }
 
     public void testListFloat() throws Exception {
         provision();
-        assertSingleElementDouble("float_value", 6.2, 0.001);
+        assertSingleElement("float_value", "6.2");
     }
 
     public void testListDouble() throws Exception {
         provision();
-        assertSingleElementDouble("double_value", 5.1, 0.001);
+        assertSingleElement("double_value", "5.1");
     }
 
     public void testListKeyword() throws Exception {
@@ -66,12 +66,14 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
 
     public void testListDate() throws Exception {
         provision();
-        assertSingleElement("date_value", "2020-10-13 13:00:00");
+        // DataFusion's CAST(TIMESTAMP AS VARCHAR) emits ISO-8601 'T' between date and time.
+        assertSingleElement("date_value", "2020-10-13T13:00:00");
     }
 
     public void testListDateNanos() throws Exception {
         provision();
-        assertSingleElement("date_nanos_value", "2019-03-24 01:34:46.123456789");
+        // DataFusion's CAST(TIMESTAMP_NS AS VARCHAR) emits ISO-8601 'T' between date and time.
+        assertSingleElement("date_nanos_value", "2019-03-24T01:34:46.123456789");
     }
 
     public void testListText() throws Exception {
@@ -93,12 +95,6 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
         List<Object> listed = runListQuery(field);
         assertEquals("list(" + field + ") must return exactly 1 element", 1, listed.size());
         assertEquals("list(" + field + ")[0]", expected, listed.get(0));
-    }
-
-    private void assertSingleElementDouble(String field, double expected, double delta) throws Exception {
-        List<Object> listed = runListQuery(field);
-        assertEquals("list(" + field + ") must return exactly 1 element", 1, listed.size());
-        assertEquals("list(" + field + ")[0]", expected, ((Number) listed.get(0)).doubleValue(), delta);
     }
 
     @SuppressWarnings("unchecked")
