@@ -225,4 +225,39 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertSame("column-valued from_tz must pass through unmodified", fromCol, call.getOperands().get(1));
         assertSame("column-valued to_tz must pass through unmodified", toCol, call.getOperands().get(2));
     }
+
+    /**
+     * Covers {@code CONVERT_TZ('<datetime>', '<from_tz>', '<to_tz>')} all-literal:
+     * folds at plan time to a TIMESTAMP literal. Skips the UDF (which only accepts
+     * precision_timestamp inputs, not VARCHAR).
+     */
+    public void testAdaptFoldsAllLiteralStringForm() {
+        RelDataType timestampType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
+        RexNode tsLit = rexBuilder.makeLiteral("2021-05-12 11:34:50");
+        RexNode fromTz = rexBuilder.makeLiteral("+10:00");
+        RexNode toTz = rexBuilder.makeLiteral("+11:00");
+        RexCall original = (RexCall) rexBuilder.makeCall(convertTzOp(timestampType), List.of(tsLit, fromTz, toTz));
+
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexLiteral || adapted.getType().getSqlTypeName() == SqlTypeName.TIMESTAMP);
+        assertEquals(SqlTypeName.TIMESTAMP, adapted.getType().getSqlTypeName());
+    }
+
+    /**
+     * Covers {@code CONVERT_TZ('<datetime>', '<bad_tz>', '<to_tz>')}: invalid tz literal
+     * surfaces as IllegalArgumentException at plan time (not silent NULL at runtime).
+     */
+    public void testAdaptFoldFailsForUnparseableTimestamp() {
+        RelDataType timestampType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
+        RexNode tsLit = rexBuilder.makeLiteral("not-a-timestamp");
+        RexNode fromTz = rexBuilder.makeLiteral("+00:00");
+        RexNode toTz = rexBuilder.makeLiteral("+01:00");
+        RexCall original = (RexCall) rexBuilder.makeCall(convertTzOp(timestampType), List.of(tsLit, fromTz, toTz));
+
+        // Unparseable timestamp: fold returns null, falls through to UDF call (will fail at runtime/isthmus).
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+        assertTrue(adapted instanceof RexCall);
+        assertSame(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, ((RexCall) adapted).getOperator());
+    }
 }

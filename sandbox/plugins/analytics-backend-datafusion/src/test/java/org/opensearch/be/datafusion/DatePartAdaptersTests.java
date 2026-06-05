@@ -177,6 +177,48 @@ public class DatePartAdaptersTests extends OpenSearchTestCase {
         assertEquals(SqlKind.CAST, ((RexCall) adapted.getOperands().get(1)).getKind());
     }
 
+    /** PPL-style nullary-arg HOUR operator stand-in. */
+    private SqlFunction pplHour() {
+        return new SqlFunction(
+            "HOUR",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.INTEGER_NULLABLE,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.TIMEDATE
+        );
+    }
+
+    /**
+     * Covers {@code HOUR(TIME('17:30:00'))}: TIME-literal operand folds to a BIGINT
+     * literal at plan time. The {@code (string, precision_time<P>)} signature can't
+     * be declared in YAML, so folding is the only way to lower this shape.
+     */
+    public void testHourOfTimeLiteralFoldsToInt() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType timeType = typeFactory.createSqlType(SqlTypeName.TIME);
+        // Build inner to_time('17:30:00') call returning TIME.
+        SqlFunction toTimeOp = new SqlFunction(
+            "to_time",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(timeType),
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.TIMEDATE
+        );
+        RexNode strLit = rexBuilder.makeLiteral("17:30:00", varcharType, true);
+        RexCall innerToTime = (RexCall) rexBuilder.makeCall(toTimeOp, List.of(strLit));
+        RexCall original = (RexCall) rexBuilder.makeCall(pplHour(), List.of(innerToTime));
+
+        RexNode adapted = DatePartAdapters.hour().adapt(original, List.of(), cluster);
+
+        // Folded result is an integer (the call's declared return type) — either a
+        // bare RexLiteral when Calcite constant-folds the cast or a CAST(bigint) call.
+        assertEquals(SqlTypeName.INTEGER, adapted.getType().getSqlTypeName());
+        // Most importantly: not the un-folded date_part call (which would still mention 'hour').
+        assertNotSame(original, adapted);
+    }
+
     private void assertInvalidLiteralRejected(String value) {
         RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
         RexNode literal = rexBuilder.makeLiteral(value, varcharType, true);
