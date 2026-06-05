@@ -126,7 +126,8 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
         if *agg.mode() == AggregateMode::Partial {
             return Some(plan);
         }
-        return None;
+        // Non-Partial aggregate (Final/FinalPartitioned) — look into its input for Partial
+        return find_partial_input(Arc::clone(agg.input()));
     }
     let children = plan.children();
     if children.len() == 1 {

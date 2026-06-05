@@ -87,6 +87,21 @@ public class ShardBucketOversamplingIT extends AnalyticsRestTestCase {
         assertRowCount(result, 10);
     }
 
+    /** Mixed aggregation with TopK: dc + sum, sorted by dc. */
+    public void testMultiAgg_sortByDc_head10() throws Exception {
+        ensureProvisioned();
+        Map<String, Object> result = executePPL(
+            "source = " + INDEX + " | stats dc(UserID) as u, sum(AdvEngineID) as s by RegionID | sort - u | head 10"
+        );
+        List<List<Object>> rows = rowsOf(result);
+        assertFalse("Should return rows", rows.isEmpty());
+        assertTrue("Should return at most 10 rows", rows.size() <= 10);
+        // Verify all expected columns present (row is a positional list; schema has 3 columns: u, s, RegionID)
+        for (List<Object> row : rows) {
+            assertEquals("each row should have 3 columns [u, s, RegionID]", 3, row.size());
+        }
+    }
+
     // ── Multi-shard TopK across sort placements / group-by / having ─────────────────────
     // 84 distinct RegionID groups over 100 docs on 2 shards, so `head 10` (10 << 84) genuinely
     // exercises the per-shard TopK oversampling path (a per-partition Sort+Limit below the ER).

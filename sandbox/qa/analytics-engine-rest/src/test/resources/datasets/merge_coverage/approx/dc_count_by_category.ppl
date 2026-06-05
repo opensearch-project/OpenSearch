@@ -1,0 +1,1 @@
+source=%INDEX% | stats dc(label) as d, count() as c by category
