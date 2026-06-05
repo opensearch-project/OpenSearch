@@ -268,6 +268,28 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    // A correlated EXISTS subsearch. The PPL frontend injects a SUBSEARCH_MAXOUT Sort(fetch=N) at
+    // the top of the subsearch; that correlated Sort(fetch>1) blocks RelDecorrelator, leaving a
+    // LogicalCorrelate that marking rejects ("unmarked child [LogicalCorrelate]"). The planner now
+    // strips the (existence-irrelevant) limit so the EXISTS decorrelates to a join. Two calcs rows
+    // have an int1 that equals some row's int0.
+    public void testCorrelatedExistsSubsearch() throws IOException {
+        assertRowCount(
+            "source=" + DATASET.indexName + " as o | where exists [ source=" + DATASET.indexName
+                + " as i | where i.int0 = o.int1 ] | fields int1",
+            2
+        );
+    }
+
+    // Complement of the EXISTS case: NOT EXISTS keeps the remaining 15 of 17 rows.
+    public void testCorrelatedNotExistsSubsearch() throws IOException {
+        assertRowCount(
+            "source=" + DATASET.indexName + " as o | where not exists [ source=" + DATASET.indexName
+                + " as i | where i.int0 = o.int1 ] | fields int1",
+            15
+        );
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private static List<Object> row(Object... values) {
