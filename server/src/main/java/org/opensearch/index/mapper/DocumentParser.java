@@ -1315,12 +1315,7 @@ final class DocumentParser {
 
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING, dynamic, fullPath);
             if (builder == null) {
-                return handleNoTemplateFound(
-                    dynamic,
-                    () -> new TextFieldMapper.Builder(currentFieldName, context.mapperService().getIndexAnalyzers()).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
-                    )
-                );
+                return handleNoTemplateFound(dynamic, builderSupplierForText(currentFieldName, context));
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -1370,6 +1365,16 @@ final class DocumentParser {
         throw new IllegalStateException(
             "Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]"
         );
+    }
+
+    private static java.util.function.Supplier<Mapper.Builder<?>> builderSupplierForText(String fieldName, ParseContext context) {
+        if (context.indexSettings().isPluggableDataFormatEnabled()) {
+            return () -> new TextFieldMapper.Builder(fieldName, context.mapperService().getIndexAnalyzers());
+        } else {
+            return () -> new TextFieldMapper.Builder(fieldName, context.mapperService().getIndexAnalyzers()).addMultiField(
+                new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
+            );
+        }
     }
 
     private static Mapper.Builder<?> handleNoTemplateFound(
