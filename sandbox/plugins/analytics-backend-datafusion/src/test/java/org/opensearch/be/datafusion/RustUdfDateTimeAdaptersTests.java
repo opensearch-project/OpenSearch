@@ -16,11 +16,15 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -65,6 +69,48 @@ public class RustUdfDateTimeAdaptersTests extends OpenSearchTestCase {
 
         RexNode coercedValue = adaptedCall.getOperands().get(1);
         assertEquals(SqlTypeName.VARCHAR, coercedValue.getType().getSqlTypeName());
+        assertTrue(coercedValue instanceof RexCall && ((RexCall) coercedValue).getKind() == SqlKind.CAST);
+    }
+
+    /**
+     * {@code extract(YEAR FROM <TIME>)} must anchor the value to today's UTC date at plan time —
+     * otherwise Arrow's TIME→1970-01-01 anchor leaks through and YEAR returns 1970.
+     */
+    public void testExtractAdapterPrependsTodayForDatePartOnTime() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType time9 = typeFactory.createSqlType(SqlTypeName.TIME, 9);
+        RelDataType bigint = typeFactory.createSqlType(SqlTypeName.BIGINT);
+
+        RexNode unit = rexBuilder.makeLiteral("YEAR", varchar, true);
+        RexNode timeVal = rexBuilder.makeInputRef(time9, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(bigint, RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, List.of(unit, timeVal));
+
+        RexNode adapted = new RustUdfDateTimeAdapters.ExtractAdapter().adapt(original, List.of(), cluster);
+
+        RexCall adaptedCall = (RexCall) adapted;
+        RexNode coercedValue = adaptedCall.getOperands().get(1);
+        assertTrue("expected CONCAT wrapping the TIME cast", coercedValue instanceof RexCall);
+        RexCall concat = (RexCall) coercedValue;
+        assertEquals(SqlStdOperatorTable.CONCAT, concat.getOperator());
+        // First arg of the CONCAT is a literal "<today> " (UTC).
+        RexNode prefix = concat.getOperands().get(0);
+        assertTrue(prefix instanceof RexLiteral);
+        String expected = LocalDate.now(ZoneOffset.UTC).toString() + " ";
+        assertEquals(expected, ((RexLiteral) prefix).getValue2());
+    }
+
+    /** Pure time-part units (HOUR/MINUTE/SECOND/...) keep the existing TIME→VARCHAR cast path. */
+    public void testExtractAdapterKeepsBareCastForTimePartOnTime() {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType time9 = typeFactory.createSqlType(SqlTypeName.TIME, 9);
+        RelDataType bigint = typeFactory.createSqlType(SqlTypeName.BIGINT);
+
+        RexNode unit = rexBuilder.makeLiteral("HOUR", varchar, true);
+        RexNode timeVal = rexBuilder.makeInputRef(time9, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(bigint, RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, List.of(unit, timeVal));
+
+        RexNode adapted = new RustUdfDateTimeAdapters.ExtractAdapter().adapt(original, List.of(), cluster);
+        RexNode coercedValue = ((RexCall) adapted).getOperands().get(1);
         assertTrue(coercedValue instanceof RexCall && ((RexCall) coercedValue).getKind() == SqlKind.CAST);
     }
 

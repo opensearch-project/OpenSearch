@@ -273,6 +273,8 @@ fn extract_for_unit(unit: &str, dt: DateTime<Utc>) -> Option<i64> {
     let (dd, mo, yy) = (dt.day() as i64, dt.month() as i64, dt.year() as i64);
     match unit {
         "MICROSECOND" => Some(us),
+        // Millisecond fraction within the second (0..=999), matching SQL plugin semantics.
+        "MILLISECOND" => Some(us / 1_000),
         "SECOND" => Some(ss),
         "MINUTE" => Some(mm),
         "HOUR" => Some(hh),
@@ -342,6 +344,15 @@ mod tests {
         ] {
             assert_eq!(eval(unit), Some(want), "unit={unit}");
         }
+    }
+
+    #[test]
+    fn millisecond_returns_fraction_within_second() {
+        // Sample is 2020-03-15 10:30:45.123456 → ms fraction 123, μs fraction 123_456.
+        assert_eq!(eval("MILLISECOND"), Some(123));
+        assert_eq!(eval("millisecond"), Some(123));
+        // Boundary: a timestamp with no sub-second component → MILLISECOND = 0.
+        assert_eq!(compute("MILLISECOND", us(2024, 6, 15, 10, 30, 0)), Some(0));
     }
 
     #[test]
