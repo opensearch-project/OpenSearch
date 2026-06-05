@@ -93,22 +93,10 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
             operands.set(slot, canonicalizeTzOperand(operands.get(slot), rexBuilder));
         }
 
-        // Identity short-circuit: both operands resolve to the same canonical
-        // string → the conversion is a no-op.
-        //
-        // Type-preservation rules:
-        // 1. If the timestamp operand's RelDataType already matches the call's
-        // declared return type, return it raw — zero-cost no-op.
-        // 2. Otherwise the operand is typically a STRING literal/expression
-        // while the call's declared return type is TIMESTAMP. We must not
-        // return the bare operand: the surrounding Project/Filter rowType
-        // was built from the call's declared TIMESTAMP type and
-        // RexUtil.compatibleTypes would trip
-        // (`type mismatch: VARCHAR NOT NULL / TIMESTAMP(9)`). Use a SAFE
-        // cast (returns NULL on parse failure) so that an invalid date
-        // string does not crash DataFusion's `simplify_expressions`
-        // optimizer at plan time — matches the convert_tz UDF's semantics
-        // of yielding NULL for unparseable inputs.
+        // Identity short-circuit: same from/to tz → conversion is a no-op.
+        // If operand type matches the declared return type, return it bare; otherwise
+        // SAFE-cast to TIMESTAMP so the surrounding Project rowType stays consistent
+        // (a bare VARCHAR operand would trip `RexUtil.compatibleTypes`).
         String fromLiteral = tzLiteralValue(operands.get(1));
         String toLiteral = tzLiteralValue(operands.get(2));
         if (fromLiteral != null && toLiteral != null && fromLiteral.equals(toLiteral)) {
@@ -119,18 +107,11 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
             return rexBuilder.makeCast(original.getType(), operand, true, true);
         }
 
-        // UDF fallback. The substrait yaml only declares
-        // convert_tz(precision_timestamp, string, string) — when the timestamp
-        // slot arrives as a STRING (literal or column expression), wrap it in a
-        // SAFE cast so substrait conversion can match the signature. SAFE casts
-        // produce NULL on parse failure, matching the original convert_tz UDF
-        // semantics (returns NULL for invalid timestamp strings).
+        // UDF fallback: substrait declares convert_tz(precision_timestamp, string, string),
+        // so wrap a VARCHAR timestamp slot in a SAFE cast (NULL on parse failure).
         if (!operands.get(0).getType().equals(original.getType())) {
             operands.set(0, rexBuilder.makeCast(original.getType(), operands.get(0), true, true));
         }
-
-        // Preserve the original call's return type — see
-        // AbstractNameMappingAdapter for why (Project.isValid compatibleTypes check).
         return rexBuilder.makeCall(original.getType(), LOCAL_CONVERT_TZ_OP, operands);
     }
 

@@ -226,14 +226,7 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertSame("column-valued to_tz must pass through unmodified", toCol, call.getOperands().get(2));
     }
 
-    /**
-     * Regression for type-schema-merge q1/q2: identity short-circuit must NOT
-     * return the bare timestamp operand when its type differs from the call's
-     * declared return type. A VARCHAR literal under a TIMESTAMP-typed call
-     * would leave the enclosing Project's rowType inconsistent with its child,
-     * tripping {@code RexUtil.compatibleTypes} (`type1: VARCHAR NOT NULL /
-     * type2: TIMESTAMP(9)`). The adapter wraps the operand in a SAFE cast.
-     */
+    /** Identity short-circuit with a VARCHAR operand under a TIMESTAMP-typed call: SAFE-cast to keep Project rowType consistent. */
     public void testIdentityShortCircuitWrapsInSafeCastWhenOperandTypeDiffers() {
         RelDataType returnType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 9), true);
         RexNode tsLiteral = rexBuilder.makeLiteral("2021-05-12 11:34:50");
@@ -243,27 +236,13 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
 
         RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
 
-        assertNotSame("VARCHAR operand vs TIMESTAMP declared return type → must not return operand bare", tsLiteral, adapted);
-        assertEquals(
-            "adapted node must adopt the call's declared TIMESTAMP return type, otherwise Project rowType breaks",
-            original.getType(),
-            adapted.getType()
-        );
-        assertTrue("wrapper must be a RexCall (the SAFE cast)", adapted instanceof RexCall);
-        assertEquals(
-            "wrapper must be a SAFE_CAST node (safe=true → SqlKind.SAFE_CAST)",
-            org.apache.calcite.sql.SqlKind.SAFE_CAST,
-            ((RexCall) adapted).getOperator().getKind()
-        );
+        assertNotSame(tsLiteral, adapted);
+        assertEquals(original.getType(), adapted.getType());
+        assertTrue(adapted instanceof RexCall);
+        assertEquals(org.apache.calcite.sql.SqlKind.SAFE_CAST, ((RexCall) adapted).getOperator().getKind());
     }
 
-    /**
-     * Regression for the UDF-fallback path when the timestamp operand arrives
-     * as VARCHAR: substrait yaml only declares
-     * {@code convert_tz(precision_timestamp, string, string)}, so the adapter
-     * must SAFE-cast the operand to TIMESTAMP before calling out. Without the
-     * cast, substrait conversion can't bind the signature.
-     */
+    /** UDF fallback with a VARCHAR timestamp operand: SAFE-cast slot 0 to TIMESTAMP so substrait can bind. */
     public void testUdfFallbackWrapsVarcharOperandInSafeCast() {
         RelDataType returnType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 9), true);
         RexNode tsLiteral = rexBuilder.makeLiteral("2021-05-12 11:34:50");
@@ -276,20 +255,12 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertTrue(adapted instanceof RexCall);
         RexCall call = (RexCall) adapted;
         assertSame(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, call.getOperator());
-        assertEquals("UDF call preserves declared return type", original.getType(), call.getType());
+        assertEquals(original.getType(), call.getType());
 
         RexNode firstArg = call.getOperands().get(0);
-        assertNotSame("first operand must have been wrapped in a CAST, not passed through bare", tsLiteral, firstArg);
-        assertEquals(
-            "wrapped first operand must be TIMESTAMP-typed so substrait conversion can match the signature",
-            original.getType(),
-            firstArg.getType()
-        );
+        assertNotSame(tsLiteral, firstArg);
+        assertEquals(original.getType(), firstArg.getType());
         assertTrue(firstArg instanceof RexCall);
-        assertEquals(
-            "first operand wrapper must be a SAFE_CAST node",
-            org.apache.calcite.sql.SqlKind.SAFE_CAST,
-            ((RexCall) firstArg).getOperator().getKind()
-        );
+        assertEquals(org.apache.calcite.sql.SqlKind.SAFE_CAST, ((RexCall) firstArg).getOperator().getKind());
     }
 }
