@@ -81,13 +81,11 @@ fn force_aggregate_mode(
             }
             _ => Ok(plan),
         }
-    } else if plan.as_any().downcast_ref::<RepartitionExec>().is_some()
-        || plan
-            .as_any()
-            .downcast_ref::<CoalescePartitionsExec>()
-            .is_some()
-    {
-        // Transparent — recurse through
+    } else if plan.children().len() == 1 {
+        // Single-input wrapper (RelabelExec, ProjectionExec, RepartitionExec, CoalescePartitionsExec,
+        // CoalesceBatchesExec, etc.). Recurse through it transparently — the strip target may live
+        // beneath. Without this, plans like RelabelExec(AggregateExec(Final, AggregateExec(Partial)))
+        // pre-empt the strip because the root isn't an AggregateExec.
         let new_children: Vec<Arc<dyn ExecutionPlan>> = plan
             .children()
             .into_iter()
@@ -95,12 +93,13 @@ fn force_aggregate_mode(
             .collect::<Result<_>>()?;
         plan.with_new_children(new_children)
     } else {
-        // Leaf or unrelated node — return as-is
+        // Leaf or multi-input node — return as-is
         Ok(plan)
     }
 }
 
-/// Walks down through RepartitionExec/CoalescePartitionsExec to find an
+/// Walks down through any single-input wrapper (RelabelExec / RepartitionExec /
+/// CoalescePartitionsExec / ProjectionExec / etc.) to find an
 /// AggregateExec(Partial) and returns the entire Partial subtree (the
 /// AggregateExec node itself, not just its input).
 fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionPlan>> {
@@ -110,16 +109,9 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
         }
         return None;
     }
-    if plan.as_any().downcast_ref::<RepartitionExec>().is_some()
-        || plan
-            .as_any()
-            .downcast_ref::<CoalescePartitionsExec>()
-            .is_some()
-    {
-        let children = plan.children();
-        if children.len() == 1 {
-            return find_partial_input(Arc::clone(children[0]));
-        }
+    let children = plan.children();
+    if children.len() == 1 {
+        return find_partial_input(Arc::clone(children[0]));
     }
     None
 }

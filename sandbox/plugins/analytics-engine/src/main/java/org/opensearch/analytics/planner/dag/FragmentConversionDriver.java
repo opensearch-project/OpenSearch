@@ -230,7 +230,8 @@ public class FragmentConversionDriver {
     ) {
         FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
         LinkedList<InstructionNode> instructions = new LinkedList<>();
-        RelNode leaf = findLeaf(plan.resolvedFragment());
+        RelNode resolvedFragment = plan.resolvedFragment();
+        RelNode leaf = findLeaf(resolvedFragment);
 
         if (leaf instanceof OpenSearchTableScan tableScan) {
             // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
@@ -242,8 +243,69 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
             }
+            // Engine-native-merge PARTIAL (Type.APPROXIMATE + intermediateField with reducer == self,
+            // currently APPROX_COUNT_DISTINCT for HLL): activate prepare_partial_plan +
+            // force_aggregate_mode(Partial) so the data node strips Mode::Final and ships sketch state
+            // on the wire (vs. cardinality scalar). SUM / COUNT / AVG / MIN / MAX are state == value
+            // so they take the default executeLocalPlan path — no instruction needed.
+            if (resolvedFragment instanceof OpenSearchAggregate agg
+                && agg.getMode() == AggregateMode.PARTIAL
+                && hasEngineNativeMergeMeasure(agg)) {
+                LOGGER.debug(
+                    "Emitting SETUP_PARTIAL_AGGREGATE for engine-native-merge PARTIAL fragment:\n{}",
+                    org.apache.calcite.plan.RelOptUtil.toString(resolvedFragment)
+                );
+                factory.createPartialAggregateNode().ifPresent(instructions::add);
+            }
+        } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeFinalAggregate(resolvedFragment)) {
+            // Coord-side reduce stage with an engine-native-merge FINAL aggregate. Activate
+            // prepare_final_plan + force_aggregate_mode(Final) so AggregateExec(Mode::Final) calls
+            // merge_batch on the gathered sketch state (vs. update_batch which would treat the
+            // state column as raw values and produce wrong cardinalities).
+            LOGGER.debug(
+                "Emitting SETUP_FINAL_AGGREGATE for engine-native-merge FINAL fragment:\n{}",
+                org.apache.calcite.plan.RelOptUtil.toString(resolvedFragment)
+            );
+            factory.createFinalAggregateNode().ifPresent(instructions::add);
         }
         return instructions;
+    }
+
+    /**
+     * Returns {@code true} when {@code agg} has at least one aggregate call whose
+     * {@link org.opensearch.analytics.spi.AggregateFunction#intermediateFields()} declares a
+     * single field with {@code reducer == self} — the engine-native-merge classification
+     * (currently APPROX_COUNT_DISTINCT for HLL sketch merge).
+     */
+    private static boolean hasEngineNativeMergeMeasure(OpenSearchAggregate agg) {
+        for (org.apache.calcite.rel.core.AggregateCall call : agg.getAggCallList()) {
+            org.opensearch.analytics.spi.AggregateFunction func;
+            try {
+                func = org.opensearch.analytics.spi.AggregateFunction.fromSqlAggFunction(call.getAggregation());
+            } catch (IllegalStateException ignored) {
+                continue;
+            }
+            List<org.opensearch.analytics.spi.AggregateFunction.IntermediateField> fields = func.intermediateFields();
+            if (fields != null && fields.size() == 1 && fields.get(0).reducer() == func) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when {@code root}'s subtree contains an
+     * {@link OpenSearchAggregate} in {@link AggregateMode#FINAL} with at least one
+     * engine-native-merge measure. Walks past Project / Sort / Filter wrappers above FINAL.
+     */
+    private static boolean containsEngineNativeFinalAggregate(RelNode root) {
+        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL && hasEngineNativeMergeMeasure(agg)) {
+            return true;
+        }
+        for (RelNode child : root.getInputs()) {
+            if (containsEngineNativeFinalAggregate(child)) return true;
+        }
+        return false;
     }
 
     /**

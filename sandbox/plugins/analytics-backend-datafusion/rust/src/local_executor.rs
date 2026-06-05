@@ -220,13 +220,21 @@ impl LocalSession {
         log_debug!("DataFusion logical plan (reduce):\n{}", logical_plan.display_indent());
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
-        let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
-        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-        log_debug!("DataFusion physical plan (reduce):\n{}", displayable(physical_plan.as_ref()).indent(true));
+        // Strip first so `force_aggregate_mode(Final)` can find the Final/Partial pair
+        // through the raw plan; then derive `target_schema` and wrap with RelabelExec from
+        // the stripped output (otherwise the relabel target would carry the pre-strip Final
+        // output type tag and fail when wrapping the stripped tree).
         let stripped = crate::agg_mode::apply_aggregate_mode(
             physical_plan,
             crate::agg_mode::Mode::Final,
         )?;
+        let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
+        let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
+        eprintln!(
+            "[ENM-TRACE] prepare_final_plan: stripped FINAL plan output schema = {:?}\nplan:\n{}",
+            stripped.schema(),
+            displayable(stripped.as_ref()).indent(true)
+        );
         self.prepared_plan = Some(stripped);
         Ok(())
     }

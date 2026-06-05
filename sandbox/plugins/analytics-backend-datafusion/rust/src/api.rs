@@ -1130,6 +1130,10 @@ fn derive_schema_from_partial_plan(
     let state = SessionStateBuilder::new()
         .with_config(SessionConfig::new())
         .with_default_features()
+        // Mirror the data node's SessionContextHandle: keep `Final(Partial(...))` intact so the
+        // post-physical Mode::Partial strip below can find the Partial half (otherwise Combine
+        // collapses to Single and the strip falls through to the leaf scan).
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
@@ -1188,7 +1192,49 @@ fn derive_schema_from_partial_plan(
 
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
-    Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
+    // Mirror the data node's `prepare_partial_plan` strip when SETUP_PARTIAL_AGGREGATE fires for
+    // engine-native-merge stages. The data node runs `force_aggregate_mode(Partial)` which keeps
+    // only AggregateExec(Mode::Partial) — output is per-state-field columns (e.g. `dc[hll_registers]:
+    // Binary` for HLL sketch state) instead of the user-facing scalar from Final.evaluate (`dc:
+    // Int64` cardinality). The coordinator's StreamingTable schema must match what the wire
+    // actually delivers. For non-engine-native aggregates state == value: AggregateExec(Mode::Partial)'s
+    // state column has the same type as Mode::Single's evaluated output, just suffixed (e.g.
+    // `total_sum[sum]` vs `total_sum`); `strip_aggregate_state_suffix` below unwinds the suffix.
+    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
+    let schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
+    let result = strip_aggregate_state_suffix(schema);
+    eprintln!(
+        "[ENM-TRACE] derive_schema_from_partial_plan: returned schema = {:?}",
+        result
+    );
+    Ok(result)
+}
+
+/// Strip `[state_field]` suffix from `AggregateExec(Mode::Partial)` output column names so the
+/// coordinator's StreamingTable schema matches what the FINAL substrait declares (user-facing
+/// aliases like `dc`, `$f0`, `count`). Bridges the producer-side physical schema (DataFusion's
+/// internal state suffix, e.g. `dc[hll_registers]`, `$f0[sum]`, `count(opt)[count]`) to the
+/// consumer-side substrait Read's base_schema (`dc`, `$f0`, `count(opt)`) — replaces the
+/// per-cell `coerceToDeclaredSchema` rename that lived on the Java `feedToSender` path before
+/// `35ce14790c2` folded schema derivation into Rust. Wire data flows positionally via Arrow C
+/// Data so the column-name change does not affect runtime data movement; only the StreamingTable's
+/// declared name aligns with the FINAL plan's expected name.
+fn strip_aggregate_state_suffix(schema: arrow::datatypes::SchemaRef) -> arrow::datatypes::SchemaRef {
+    use arrow::datatypes::{Field, Schema};
+    if !schema.fields().iter().any(|f| f.name().contains('[')) {
+        return schema;
+    }
+    let stripped: Vec<Field> = schema
+        .fields()
+        .iter()
+        .map(|f| {
+            let original = f.name();
+            let user_facing = original.split('[').next().unwrap_or(original);
+            Field::new(user_facing, f.data_type().clone(), f.is_nullable())
+                .with_metadata(f.metadata().clone())
+        })
+        .collect();
+    Arc::new(Schema::new_with_metadata(stripped, schema.metadata().clone()))
 }
 
 /// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message

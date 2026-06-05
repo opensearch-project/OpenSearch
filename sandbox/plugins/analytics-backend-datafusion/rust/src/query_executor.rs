@@ -269,6 +269,42 @@ pub async fn execute_with_context(
     }
 
     let query_future = async {
+        // If prepare_partial_plan stored a stripped plan on this handle (engine-native-merge
+        // PARTIAL stage triggered by SETUP_PARTIAL_AGGREGATE), skip the substrait re-decode
+        // and run the prepared plan directly. This activates `force_aggregate_mode(Partial)`
+        // semantics — only AggregateExec(Mode::Partial) executes, emitting state-suffixed
+        // columns on the wire (e.g. `dc[hll_registers]: Binary` for HLL sketch state). The
+        // FINAL substrait declares VARBINARY (resolver's overrideExchangeType), so the wire
+        // matches the exchange contract. Non-engine-native paths leave `prepared_plan` as None
+        // and fall through to the standard decode + execute below.
+        eprintln!(
+            "[ENM-TRACE] execute_with_context: prepared_plan.is_some() = {}, aggregate_mode = {:?}",
+            handle.prepared_plan.is_some(),
+            handle.aggregate_mode
+        );
+        if let Some(prepared) = handle.prepared_plan.as_ref() {
+            let physical_plan = std::sync::Arc::clone(prepared);
+            eprintln!(
+                "[ENM-TRACE] execute_with_context: USING PREPARED plan; output schema = {:?}\nplan:\n{}",
+                physical_plan.schema(),
+                displayable(physical_plan.as_ref()).indent(true)
+            );
+            let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+                error!("execute_with_context: failed to execute prepared plan: {}", e);
+                e
+            })?;
+            let (cross_rt_stream, abort_handle) =
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+            if let Some(h) = abort_handle {
+                crate::query_tracker::set_abort_handle(context_id, h);
+            }
+            let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+                cross_rt_stream.schema(),
+                cross_rt_stream,
+            );
+            return Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64);
+        }
+
         let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
             DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
         })?;
