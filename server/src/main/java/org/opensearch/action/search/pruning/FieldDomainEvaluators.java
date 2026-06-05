@@ -8,6 +8,8 @@
 
 package org.opensearch.action.search.pruning;
 
+import org.opensearch.index.fielddomain.FieldDomain;
+
 import java.util.List;
 import java.util.Objects;
 

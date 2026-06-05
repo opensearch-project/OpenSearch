@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search.pruning;
+package org.opensearch.index.fielddomain;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -23,6 +23,10 @@ import static org.hamcrest.Matchers.instanceOf;
 public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
     private static final IndexFieldDomainMetadata METADATA = IndexFieldDomainMetadata.getInstance();
 
+    public void testCustomMetadataKeyIsStable() {
+        assertThat(IndexFieldDomainMetadata.CUSTOM_KEY, equalTo("index_field_domains"));
+    }
+
     public void testFromCustomDataReadsDateRangeDomain() {
         Map<String, String> customData = Map.of(
             "fields.event.ingested.type",
@@ -34,7 +38,7 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
             "fields.event.ingested.finalized",
             "true",
             "fields.event.ingested.source",
-            "ism_rollover",
+            "test_producer",
             "fields.event.ingested.format",
             "strict_date_optional_time",
             "fields.event.ingested.resolution",
@@ -52,7 +56,7 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertThat(domain.min(), equalTo("1714521600000"));
         assertThat(domain.max(), equalTo("1717200000000"));
         assertTrue(domain.finalized());
-        assertThat(domain.source(), equalTo("ism_rollover"));
+        assertThat(domain.source(), equalTo("test_producer"));
         assertThat(domain.format(), equalTo("strict_date_optional_time"));
         assertThat(domain.resolution(), equalTo("milliseconds"));
     }
@@ -99,6 +103,21 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         );
     }
 
+    public void testFromCustomDataReturnsEmptyWhenRequestedFieldIsMissing() {
+        Map<String, String> customData = Map.of(
+            "fields.event.created.type",
+            "date_range",
+            "fields.event.created.min",
+            "100",
+            "fields.event.created.max",
+            "200",
+            "fields.event.created.finalized",
+            "true"
+        );
+
+        assertTrue(METADATA.fromCustomData(customData, "event.ingested").isEmpty());
+    }
+
     public void testFromCustomDataReadsDateRangeDomainWithOptionalFieldsOmitted() {
         Optional<FieldDomain> maybeDomain = METADATA.fromCustomData(
             Map.of(
@@ -135,6 +154,12 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertThat(customData.get("fields.@timestamp.resolution"), equalTo("milliseconds"));
     }
 
+    public void testToCustomDataReturnsImmutableMap() {
+        Map<String, String> customData = METADATA.toCustomData(new DateRangeFieldDomain("@timestamp", 100L, 200L, true, "test"));
+
+        expectThrows(UnsupportedOperationException.class, () -> customData.put("fields.@timestamp.min", "300"));
+    }
+
     public void testToCustomDataRejectsUnsupportedDomainType() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -142,6 +167,18 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         );
 
         assertThat(exception.getMessage(), equalTo("unsupported field domain type [unsupported]"));
+    }
+
+    public void testPutFieldDomainCreatesCustomDataWhenMissing() {
+        IndexMetadata metadata = indexMetadataBuilder("logs-000001").build();
+
+        IndexMetadata updated = METADATA.putFieldDomain(metadata, new DateRangeFieldDomain("@timestamp", 100L, 200L, true, "test"));
+
+        Map<String, String> customData = updated.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY);
+        assertThat(customData.get("fields.@timestamp.type"), equalTo("date_range"));
+        assertThat(customData.get("fields.@timestamp.min"), equalTo("100"));
+        assertThat(customData.get("fields.@timestamp.max"), equalTo("200"));
+        assertThat(customData.get("fields.@timestamp.finalized"), equalTo("true"));
     }
 
     public void testPutFieldDomainReplacesOnlyTargetFieldMetadata() {
@@ -219,6 +256,16 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertFalse(customData.containsKey("fields.@timestamp.format"));
         assertThat(customData.get("fields.@timestamp.resolution"), equalTo("milliseconds"));
         assertThat(customData.get("fields.@timestamp.custom"), equalTo("preserved"));
+    }
+
+    public void testPutFieldDomainRejectsNullInputs() {
+        IndexMetadata metadata = indexMetadataBuilder("logs-000001").build();
+
+        expectThrows(
+            NullPointerException.class,
+            () -> METADATA.putFieldDomain(null, new DateRangeFieldDomain("@timestamp", 1L, 2L, true, "test"))
+        );
+        expectThrows(NullPointerException.class, () -> METADATA.putFieldDomain(metadata, null));
     }
 
     private static IndexMetadata.Builder indexMetadataBuilder(String index) {

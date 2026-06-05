@@ -8,8 +8,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.search.pruning.DateRangeFieldDomain;
-import org.opensearch.action.search.pruning.IndexFieldDomainMetadata;
 import org.opensearch.action.search.pruning.SearchIndexPruningSettings;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -22,6 +20,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.fielddomain.DateRangeFieldDomain;
+import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search.pruning;
+package org.opensearch.index.fielddomain;
 
 import java.util.LinkedHashMap;
 import java.util.List;

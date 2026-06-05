@@ -10,10 +10,8 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.search.pruning.FieldDomain;
 import org.opensearch.action.search.pruning.FieldDomainEvaluationContext;
 import org.opensearch.action.search.pruning.FieldDomainEvaluators;
-import org.opensearch.action.search.pruning.FieldDomainProvider;
 import org.opensearch.action.search.pruning.MandatoryQueryConstraintExtractor;
 import org.opensearch.action.search.pruning.QueryConstraint;
 import org.opensearch.action.search.pruning.QueryConstraintExtractor;
@@ -23,6 +21,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.fielddomain.FieldDomain;
+import org.opensearch.index.fielddomain.FieldDomainProvider;
 
 import java.util.BitSet;
 import java.util.Collection;

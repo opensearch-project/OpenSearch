@@ -8,6 +8,8 @@
 
 package org.opensearch.action.search.pruning;
 
+import org.opensearch.index.fielddomain.FieldDomain;
+
 /**
  * Type-specific component that compares an index-side {@link FieldDomain} with a query-side {@link QueryConstraint}.
  *

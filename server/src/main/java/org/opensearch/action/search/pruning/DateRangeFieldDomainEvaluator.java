@@ -10,6 +10,8 @@ package org.opensearch.action.search.pruning;
 
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
+import org.opensearch.index.fielddomain.DateRangeFieldDomain;
+import org.opensearch.index.fielddomain.FieldDomain;
 import org.opensearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;

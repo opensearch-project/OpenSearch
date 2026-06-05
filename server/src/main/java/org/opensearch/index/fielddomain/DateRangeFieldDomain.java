@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search.pruning;
+package org.opensearch.index.fielddomain;
 
 import java.util.Objects;
 
@@ -36,7 +36,7 @@ public final class DateRangeFieldDomain implements FieldDomain {
      * @param field field name this domain describes
      * @param min inclusive lower index bound in epoch milliseconds
      * @param max inclusive upper index bound in epoch milliseconds
-     * @param finalized whether this domain is safe to use for pruning
+     * @param finalized whether this domain is trusted as complete for consumers that require finalized metadata
      * @param source optional producer identifier
      */
     public DateRangeFieldDomain(String field, long min, long max, boolean finalized, String source) {
@@ -49,7 +49,7 @@ public final class DateRangeFieldDomain implements FieldDomain {
      * @param field field name this domain describes
      * @param min inclusive lower index bound
      * @param max inclusive upper index bound
-     * @param finalized whether this domain is safe to use for pruning
+     * @param finalized whether this domain is trusted as complete for consumers that require finalized metadata
      * @param source optional producer identifier
      * @param format optional date format used by the bound producer
      * @param resolution optional date resolution, for example milliseconds or nanoseconds

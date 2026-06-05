@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search.pruning;
+package org.opensearch.index.fielddomain;
 
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -41,6 +41,14 @@ public class FieldDomainParserRegistryTests extends OpenSearchTestCase {
         assertTrue(registry.fromCustomData("unknown", "field", Map.of(), "fields.field.").isEmpty());
     }
 
+    public void testFromCustomDataReturnsEmptyWhenRegisteredParserReturnsEmpty() {
+        FieldDomainParserRegistry registry = new FieldDomainParserRegistry(
+            List.of(FieldDomainParserRegistry.entry(FieldDomain.class, new TestParser("test")))
+        );
+
+        assertTrue(registry.fromCustomData("test", "field", Map.of(), "fields.field.").isEmpty());
+    }
+
     public void testRejectsDuplicateParserTypes() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -61,10 +69,7 @@ public class FieldDomainParserRegistryTests extends OpenSearchTestCase {
     }
 
     public void testEntryRejectsNullDomainClassOrParser() {
-        expectThrows(
-            NullPointerException.class,
-            () -> FieldDomainParserRegistry.entry(null, new TypedTestParser("test"))
-        );
+        expectThrows(NullPointerException.class, () -> FieldDomainParserRegistry.entry(null, new TypedTestParser("test")));
         expectThrows(NullPointerException.class, () -> FieldDomainParserRegistry.entry(TypedTestDomain.class, null));
     }
 
@@ -91,13 +96,20 @@ public class FieldDomainParserRegistryTests extends OpenSearchTestCase {
         );
         Map<String, String> targetCustomData = new HashMap<>();
 
-        registry.writeToCustomData(
-            new TypedTestDomain("event.ingested", "test"),
-            targetCustomData,
-            "fields.event.ingested."
-        );
+        registry.writeToCustomData(new TypedTestDomain("event.ingested", "test"), targetCustomData, "fields.event.ingested.");
 
         assertThat(targetCustomData.get("fields.event.ingested.written"), equalTo("event.ingested"));
+    }
+
+    public void testWriteToCustomDataRejectsUnknownType() {
+        FieldDomainParserRegistry registry = new FieldDomainParserRegistry(List.of());
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.writeToCustomData(new TypedTestDomain("event.ingested", "unknown"), new HashMap<>(), "fields.event.ingested.")
+        );
+
+        assertThat(exception.getMessage(), equalTo("unsupported field domain type [unknown]"));
     }
 
     public void testWriteToCustomDataRejectsMismatchedDomainClass() {
@@ -107,11 +119,7 @@ public class FieldDomainParserRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> registry.writeToCustomData(
-                new OtherTestDomain("event.ingested", "test"),
-                new HashMap<>(),
-                "fields.event.ingested."
-            )
+            () -> registry.writeToCustomData(new OtherTestDomain("event.ingested", "test"), new HashMap<>(), "fields.event.ingested.")
         );
 
         assertThat(exception.getMessage(), containsString("is not supported by parser [test]"));

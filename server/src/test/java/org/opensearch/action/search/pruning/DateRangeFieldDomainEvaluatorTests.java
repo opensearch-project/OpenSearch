@@ -9,6 +9,8 @@
 package org.opensearch.action.search.pruning;
 
 import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.index.fielddomain.DateRangeFieldDomain;
+import org.opensearch.index.fielddomain.FieldDomain;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class DateRangeFieldDomainEvaluatorTests extends OpenSearchTestCase {
