@@ -1192,14 +1192,6 @@ fn derive_schema_from_partial_plan(
 
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
-    // Mirror the data node's `prepare_partial_plan` strip when SETUP_PARTIAL_AGGREGATE fires for
-    // engine-native-merge stages. The data node runs `force_aggregate_mode(Partial)` which keeps
-    // only AggregateExec(Mode::Partial) — output is per-state-field columns (e.g. `dc[hll_registers]:
-    // Binary` for HLL sketch state) instead of the user-facing scalar from Final.evaluate (`dc:
-    // Int64` cardinality). The coordinator's StreamingTable schema must match what the wire
-    // actually delivers. For non-engine-native aggregates state == value: AggregateExec(Mode::Partial)'s
-    // state column has the same type as Mode::Single's evaluated output, just suffixed (e.g.
-    // `total_sum[sum]` vs `total_sum`); `strip_aggregate_state_suffix` below unwinds the suffix.
     let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
     let result = strip_aggregate_state_suffix(schema);

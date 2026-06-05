@@ -94,12 +94,38 @@ fn force_aggregate_mode(
         // CoalesceBatchesExec, etc.). Recurse through it transparently — the strip target may live
         // beneath. Without this, plans like RelabelExec(AggregateExec(Final, AggregateExec(Partial)))
         // pre-empt the strip because the root isn't an AggregateExec.
-        let new_children: Vec<Arc<dyn ExecutionPlan>> = plan
-            .children()
-            .into_iter()
-            .map(|c| force_aggregate_mode(Arc::clone(c), target))
-            .collect::<Result<_>>()?;
-        plan.with_new_children(new_children)
+        let old_child = Arc::clone(plan.children()[0]);
+        let new_child = force_aggregate_mode(old_child.clone(), target)?;
+
+        // ProjectionExec stores Column references with name+index. If the child's schema names
+        // changed (aggregate switched from Final to Partial emitting state-suffixed names),
+        // rebuild the projection with updated column names (preserving indices).
+        if let Some(proj) = plan.as_any().downcast_ref::<ProjectionExec>() {
+            let old_schema = old_child.schema();
+            let new_schema = new_child.schema();
+            if old_schema.fields().len() == new_schema.fields().len()
+                && old_schema
+                    .fields()
+                    .iter()
+                    .zip(new_schema.fields().iter())
+                    .any(|(o, n)| o.name() != n.name() || o.data_type() != n.data_type())
+            {
+                let remapped_exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = proj
+                    .expr()
+                    .iter()
+                    .map(|pe| {
+                        let remapped = remap_column_names(pe.expr.clone(), &old_schema, &new_schema);
+                        (remapped, pe.alias.clone())
+                    })
+                    .collect();
+                return Ok(Arc::new(ProjectionExec::try_new(
+                    remapped_exprs,
+                    new_child,
+                )?));
+            }
+        }
+
+        plan.with_new_children(vec![new_child])
     } else {
         // Leaf or multi-input node — return as-is
         Ok(plan)
@@ -188,6 +214,32 @@ pub(crate) fn wrap_with_user_facing_names(
         })
         .collect();
     Ok(Arc::new(ProjectionExec::try_new(exprs, plan)?))
+}
+
+/// Remaps `Column` expression names from old_schema field names to new_schema field names
+/// (matched by index). Non-Column leaf expressions are returned unchanged; compound expressions
+/// recurse into children.
+fn remap_column_names(
+    expr: Arc<dyn PhysicalExpr>,
+    old_schema: &arrow::datatypes::SchemaRef,
+    new_schema: &arrow::datatypes::SchemaRef,
+) -> Arc<dyn PhysicalExpr> {
+    if let Some(col) = expr.as_any().downcast_ref::<Column>() {
+        let idx = col.index();
+        if idx < new_schema.fields().len() {
+            return Arc::new(Column::new(new_schema.field(idx).name(), idx));
+        }
+        return expr;
+    }
+    let children = expr.children();
+    if children.is_empty() {
+        return expr;
+    }
+    let new_children: Vec<Arc<dyn PhysicalExpr>> = children
+        .into_iter()
+        .map(|c| remap_column_names(c.clone(), old_schema, new_schema))
+        .collect();
+    expr.with_new_children(new_children).unwrap_or_else(|_| unreachable!())
 }
 
 /// Walks down through single-input wrappers to find the topmost `AggregateExec`,

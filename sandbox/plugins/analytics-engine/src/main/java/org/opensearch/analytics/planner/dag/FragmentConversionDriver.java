@@ -248,9 +248,8 @@ public class FragmentConversionDriver {
             // force_aggregate_mode(Partial) so the data node strips Mode::Final and ships sketch state
             // on the wire (vs. cardinality scalar). SUM / COUNT / AVG / MIN / MAX are state == value
             // so they take the default executeLocalPlan path — no instruction needed.
-            if (resolvedFragment instanceof OpenSearchAggregate agg
-                && agg.getMode() == AggregateMode.PARTIAL
-                && hasEngineNativeMergeMeasure(agg)) {
+            // Tree-walk: TopK rewriter may wrap the PARTIAL aggregate with Sort/Project operators.
+            if (containsEngineNativePartialAggregate(resolvedFragment)) {
                 LOGGER.debug(
                     "Emitting SETUP_PARTIAL_AGGREGATE for engine-native-merge PARTIAL fragment:\n{}",
                     org.apache.calcite.plan.RelOptUtil.toString(resolvedFragment)
@@ -289,6 +288,21 @@ public class FragmentConversionDriver {
             if (fields != null && fields.size() == 1 && fields.get(0).reducer() == func) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when {@code root}'s subtree contains an
+     * {@link OpenSearchAggregate} in {@link AggregateMode#PARTIAL} with at least one
+     * engine-native-merge measure. Walks past Project / Sort wrappers inserted by TopK.
+     */
+    private static boolean containsEngineNativePartialAggregate(RelNode root) {
+        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL && hasEngineNativeMergeMeasure(agg)) {
+            return true;
+        }
+        for (RelNode child : root.getInputs()) {
+            if (containsEngineNativePartialAggregate(child)) return true;
         }
         return false;
     }
@@ -482,6 +496,35 @@ public class FragmentConversionDriver {
                 return convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
             }
 
+            // TopK case: operators (Project/Sort) wrap a PARTIAL aggregate. Build substrait
+            // in layers so the aggregate gets INITIAL_TO_INTERMEDIATE phase — this ensures
+            // derive_schema_from_partial_plan correctly identifies the output as Binary (sketch state).
+            OpenSearchAggregate buriedPartial = findBuriedPartialAggregate(resolvedFragment);
+            if (buriedPartial != null) {
+                // Convert scan below the aggregate
+                List<RelNode> strippedInputs = buriedPartial.getInputs().stream()
+                    .map(input -> strip(input, delegationBytes)).toList();
+                byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
+                // Attach aggregate with INITIAL_TO_INTERMEDIATE phase
+                Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(
+                    buriedPartial, buriedPartial.getCluster().getRexBuilder());
+                RelNode strippedAgg = buriedPartial.stripAnnotations(strippedInputs, resolver);
+                byte[] aggBytes = convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
+                // Attach each operator above the aggregate individually (bottom-up)
+                List<RelNode> aboveAgg = new ArrayList<>();
+                RelNode walk = resolvedFragment;
+                while (walk != buriedPartial) {
+                    aboveAgg.add(walk);
+                    walk = walk.getInputs().getFirst();
+                }
+                byte[] current = aggBytes;
+                for (int i = aboveAgg.size() - 1; i >= 0; i--) {
+                    current = convertor.attachFragmentOnTop(
+                        stripSingleOperator(aboveAgg.get(i)), current);
+                }
+                return current;
+            }
+
             RelNode stripped = strip(resolvedFragment, delegationBytes);
             return convertor.convertFragment(stripped);
         }
@@ -625,7 +668,16 @@ public class FragmentConversionDriver {
             }
             return openSearchNode.stripAnnotations(strippedChildren, resolver);
         }
-        return node;
+        // Non-OpenSearch node (e.g. LogicalProject inserted by TopK rewriter): rebuild with
+        // stripped children so OpenSearch operators below get properly converted to Logical nodes.
+        boolean childrenChanged = false;
+        for (int i = 0; i < strippedChildren.size(); i++) {
+            if (strippedChildren.get(i) != node.getInputs().get(i)) {
+                childrenChanged = true;
+                break;
+            }
+        }
+        return childrenChanged ? node.copy(node.getTraitSet(), strippedChildren) : node;
     }
 
     private static RelNode findLeaf(RelNode node) {
@@ -634,4 +686,41 @@ public class FragmentConversionDriver {
         }
         return findLeaf(node.getInputs().getFirst());
     }
+
+    /**
+     * Finds a PARTIAL aggregate buried under single-input operators (TopK's Project/Sort).
+     * Returns null if the top IS already the aggregate or if no engine-native-merge PARTIAL exists.
+     */
+    private static OpenSearchAggregate findBuriedPartialAggregate(RelNode fragment) {
+        if (fragment instanceof OpenSearchAggregate) return null;
+        RelNode node = fragment;
+        while (node.getInputs().size() == 1) {
+            RelNode child = node.getInputs().getFirst();
+            if (child instanceof OpenSearchAggregate agg
+                && agg.getMode() == AggregateMode.PARTIAL
+                && hasEngineNativeMergeMeasure(agg)) {
+                return agg;
+            }
+            node = child;
+        }
+        return null;
+    }
+
+    /**
+     * Strips a single operator with a placeholder child for use with {@code attachFragmentOnTop}.
+     * Uses direct {@code stripAnnotations} (no delegation resolver) since TopK operators have
+     * no delegated predicates — avoids the getOutputFieldStorage() call that would fail on
+     * the placeholder.
+     */
+    private static RelNode stripSingleOperator(RelNode node) {
+        RelNode child = node.getInputs().getFirst();
+        OpenSearchStageInputScan placeholder = new OpenSearchStageInputScan(
+            node.getCluster(), node.getTraitSet(), -1, child.getRowType(), List.of(), List.of()
+        );
+        if (node instanceof OpenSearchRelNode openSearchNode) {
+            return openSearchNode.stripAnnotations(List.of(placeholder), OperatorAnnotation::unwrap);
+        }
+        return node.copy(node.getTraitSet(), List.of(placeholder));
+    }
+
 }

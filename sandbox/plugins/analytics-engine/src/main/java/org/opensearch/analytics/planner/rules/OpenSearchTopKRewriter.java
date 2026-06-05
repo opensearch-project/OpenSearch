@@ -8,19 +8,33 @@
 
 package org.opensearch.analytics.planner.rules;
 
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
+import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.common.settings.Settings;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,6 +45,15 @@ import java.util.Optional;
  * <p>Pattern: Sort(collation) → [Project] → Aggregate(FINAL) → ER → Aggregate(PARTIAL) → Scan
  */
 public final class OpenSearchTopKRewriter {
+
+    private static final SqlFunction REDUCE_EVAL = new SqlFunction(
+        "reduce_eval",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
 
     private OpenSearchTopKRewriter() {}
 
@@ -65,18 +88,73 @@ public final class OpenSearchTopKRewriter {
             sort.getCluster().getTypeFactory().createSqlType(SqlTypeName.INTEGER),
             true
         );
+
+        RelNode sortInput = partial;
+        RelCollation adjustedCollation = sort.getCollation();
+
+        if (hasEngineNativeMergeMeasure(partial, sort.getCollation())) {
+            RelDataType partialRowType = partial.getRowType();
+            int fieldCount = partialRowType.getFieldCount();
+            int groupCount = partial.getGroupSet().cardinality();
+
+            List<RexNode> projects = new ArrayList<>();
+            List<String> names = new ArrayList<>();
+            for (int i = 0; i < fieldCount; i++) {
+                projects.add(rb.makeInputRef(partialRowType.getFieldList().get(i).getType(), i));
+                names.add(partialRowType.getFieldNames().get(i));
+            }
+
+            List<RelFieldCollation> newCollations = new ArrayList<>();
+            for (RelFieldCollation fc : sort.getCollation().getFieldCollations()) {
+                int sortIdx = fc.getFieldIndex();
+                if (sortIdx >= groupCount && isEngineNativeMergeCall(partial, sortIdx - groupCount)) {
+                    RexNode aggNameLiteral = rb.makeLiteral("approx_distinct");
+                    RexNode stateRef = rb.makeInputRef(partialRowType.getFieldList().get(sortIdx).getType(), sortIdx);
+                    RexNode reduceCall = rb.makeCall(REDUCE_EVAL, aggNameLiteral, stateRef);
+                    int newIdx = projects.size();
+                    projects.add(reduceCall);
+                    names.add("__reduce_eval_" + sortIdx);
+                    newCollations.add(new RelFieldCollation(newIdx, fc.getDirection(), fc.nullDirection));
+                } else {
+                    newCollations.add(fc);
+                }
+            }
+
+            RelDataType reduceEvalRowType = deriveRowType(sort.getCluster().getTypeFactory(), partial.getRowType(), projects, names);
+            sortInput = new OpenSearchProject(
+                sort.getCluster(), partial.getTraitSet(), partial, projects, reduceEvalRowType, partial.getViableBackends()
+            );
+            adjustedCollation = RelCollations.of(newCollations);
+        }
+
         OpenSearchSort shardSort = new OpenSearchSort(
             sort.getCluster(),
             partial.getTraitSet(),
-            partial,
-            sort.getCollation(),
+            sortInput,
+            adjustedCollation,
             null,
             shardSizeLiteral,
             partial.getViableBackends(),
             true
         );
 
-        RelNode newER = er.copy(er.getTraitSet(), List.of(shardSort));
+        RelNode topKSubtree = shardSort;
+        if (sortInput != partial) {
+            // Strip the reduce_eval columns: keep only [0..partial.fieldCount)
+            RelDataType sortOutputType = shardSort.getRowType();
+            int originalFieldCount = partial.getRowType().getFieldCount();
+            List<RexNode> stripProjects = new ArrayList<>();
+            List<String> stripNames = new ArrayList<>();
+            for (int i = 0; i < originalFieldCount; i++) {
+                stripProjects.add(rb.makeInputRef(sortOutputType.getFieldList().get(i).getType(), i));
+                stripNames.add(partial.getRowType().getFieldNames().get(i));
+            }
+            topKSubtree = new OpenSearchProject(
+                sort.getCluster(), partial.getTraitSet(), shardSort, stripProjects, partial.getRowType(), partial.getViableBackends()
+            );
+        }
+
+        RelNode newER = er.copy(er.getTraitSet(), List.of(topKSubtree));
         RelNode newFinal = finalAgg.copy(finalAgg.getTraitSet(), List.of(newER));
 
         RelNode result = replaceInTree(root, finalAgg, newFinal);
@@ -109,6 +187,29 @@ public final class OpenSearchTopKRewriter {
         return null;
     }
 
+    private static boolean hasEngineNativeMergeMeasure(OpenSearchAggregate agg, RelCollation collation) {
+        int groupCount = agg.getGroupSet().cardinality();
+        for (RelFieldCollation fc : collation.getFieldCollations()) {
+            int idx = fc.getFieldIndex();
+            if (idx >= groupCount && isEngineNativeMergeCall(agg, idx - groupCount)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEngineNativeMergeCall(OpenSearchAggregate agg, int callIndex) {
+        AggregateCall call = agg.getAggCallList().get(callIndex);
+        AggregateFunction func;
+        try {
+            func = AggregateFunction.fromSqlAggFunction(call.getAggregation());
+        } catch (IllegalStateException e) {
+            return false;
+        }
+        List<AggregateFunction.IntermediateField> fields = func.intermediateFields();
+        return fields != null && fields.size() == 1 && fields.get(0).reducer() == func;
+    }
+
     /** Replaces oldNode with newNode in the tree (single occurrence). */
     private static RelNode replaceInTree(RelNode root, RelNode oldNode, RelNode newNode) {
         if (root == oldNode) return newNode;
@@ -121,6 +222,19 @@ public final class OpenSearchTopKRewriter {
         }
         if (!changed) return root;
         return root.copy(root.getTraitSet(), List.of(newChildren));
+    }
+
+    private static RelDataType deriveRowType(
+        RelDataTypeFactory typeFactory,
+        RelDataType inputRowType,
+        List<RexNode> projects,
+        List<String> names
+    ) {
+        List<RelDataType> types = new ArrayList<>(projects.size());
+        for (RexNode project : projects) {
+            types.add(project.getType());
+        }
+        return typeFactory.createStructType(types, names);
     }
 
     private static double resolveOversamplingFactor(PlannerContext context) {

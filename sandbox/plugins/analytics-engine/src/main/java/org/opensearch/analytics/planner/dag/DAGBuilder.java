@@ -20,6 +20,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 
@@ -285,14 +286,14 @@ public class DAGBuilder {
 
         // Use the reducer's OUTPUT rowType so QTF's appended ___ugsi (set on erRowType by the
         // rewriter) flows into the parent stage's partition schema. No-op for non-QTF reducers.
-        OpenSearchRelNode reducerInput = (OpenSearchRelNode) reducer.getInput();
+        List<FieldStorageInfo> fieldStorage = findFieldStorage(reducer.getInput());
         OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
             reducer.getCluster(),
             reducer.getTraitSet(),
             childStageId,
             reducer.getRowType(),
             reducer.getViableBackends(),
-            reducerInput.getOutputFieldStorage()
+            fieldStorage
         );
         return new OpenSearchExchangeReducer(
             reducer.getCluster(),
@@ -301,5 +302,16 @@ public class DAGBuilder {
             reducer.getViableBackends(),
             reducer.getExchangeInfo()
         );
+    }
+
+    /** Walks down through non-OpenSearch nodes (e.g. LogicalProject from TopK rewriter) to find field storage. */
+    private static List<FieldStorageInfo> findFieldStorage(RelNode node) {
+        if (node instanceof OpenSearchRelNode osNode) {
+            return osNode.getOutputFieldStorage();
+        }
+        if (!node.getInputs().isEmpty()) {
+            return findFieldStorage(node.getInputs().getFirst());
+        }
+        return List.of();
     }
 }
