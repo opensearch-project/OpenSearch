@@ -275,10 +275,26 @@ public final class ResponseValidator {
         if (expected instanceof Number && actual instanceof Number) {
             double exp = ((Number) expected).doubleValue();
             double act = ((Number) actual).doubleValue();
-            return Math.abs(exp - act) < 1e-9;
+            return numbersClose(exp, act);
         }
 
         return false;
+    }
+
+    /**
+     * Compares two doubles with a hybrid absolute + relative tolerance. A purely absolute {@code
+     * 1e-9} is too strict for large aggregate sums (e.g. TPC-H q1's {@code sum_base_price ~ 3.7e7}):
+     * floating-point summation reorders across shards and runs, so the last ULP of a ~1e7 magnitude
+     * value drifts by ~1e-8 — larger than 1e-9 yet semantically identical. Accept when the values
+     * are within 1e-9 absolutely OR within 1e-9 relative to the larger magnitude.
+     */
+    private static boolean numbersClose(double exp, double act) {
+        double diff = Math.abs(exp - act);
+        if (diff < 1e-9) {
+            return true;
+        }
+        double scale = Math.max(Math.abs(exp), Math.abs(act));
+        return diff <= 1e-9 * scale;
     }
 
     /** Returns "true"/"false" if {@code expected} is a known property sentinel, else null. */

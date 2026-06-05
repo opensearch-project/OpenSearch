@@ -1,0 +1,240 @@
+{
+  "schema" : [
+    {
+      "name" : "c_custkey",
+      "type" : "bigint"
+    },
+    {
+      "name" : "c_name",
+      "type" : "string"
+    },
+    {
+      "name" : "revenue",
+      "type" : "double"
+    },
+    {
+      "name" : "c_acctbal",
+      "type" : "double"
+    },
+    {
+      "name" : "n_name",
+      "type" : "string"
+    },
+    {
+      "name" : "c_address",
+      "type" : "string"
+    },
+    {
+      "name" : "c_phone",
+      "type" : "string"
+    },
+    {
+      "name" : "c_comment",
+      "type" : "string"
+    }
+  ],
+  "total" : 20,
+  "datarows" : [
+    [
+      121,
+      "Customer#000000121",
+      282635.1719,
+      6428.32,
+      "PERU",
+      "tv nCR2YKupGN73mQudO",
+      "27-411-990-2959",
+      "uriously stealthy ideas. carefully final courts use carefully"
+    ],
+    [
+      124,
+      "Customer#000000124",
+      222182.5188,
+      1842.49,
+      "CHINA",
+      "aTbyVAW5tCd,v09O",
+      "28-183-750-7809",
+      "le fluffily even dependencies. quietly s"
+    ],
+    [
+      106,
+      "Customer#000000106",
+      190241.3334,
+      3288.42,
+      "ARGENTINA",
+      "xGCOEAUjUNG",
+      "11-751-989-4627",
+      "lose slyly. ironic accounts along the evenly regular theodolites wake about the special, final gifts. "
+    ],
+    [
+      16,
+      "Customer#000000016",
+      161422.04609999998,
+      4681.03,
+      "IRAN",
+      "cYiaeMLZSMAOQ2 d0W,",
+      "20-781-609-3107",
+      "kly silent courts. thinly regular theodolites sleep fluffily after "
+    ],
+    [
+      44,
+      "Customer#000000044",
+      149364.56519999998,
+      7315.94,
+      "MOZAMBIQUE",
+      "Oi,dOSPwDu4jo4x,,P85E0dmhZGvNtBwi",
+      "26-190-260-5375",
+      "r requests around the unusual, bold a"
+    ],
+    [
+      71,
+      "Customer#000000071",
+      129481.02450000001,
+      -611.19,
+      "GERMANY",
+      "TlGalgdXWBmMV,6agLyWYDyIz9MKzcY8gl,w6t1B",
+      "17-710-812-5403",
+      "g courts across the regular, final pinto beans are blithely pending ac"
+    ],
+    [
+      89,
+      "Customer#000000089",
+      121663.1243,
+      1530.76,
+      "KENYA",
+      "dtR, y9JQWUO6FoJExyp8whOU",
+      "24-394-451-5404",
+      "counts are slyly beyond the slyly final accounts. quickly final ideas wake. r"
+    ],
+    [
+      112,
+      "Customer#000000112",
+      111137.71409999998,
+      2953.35,
+      "ROMANIA",
+      "RcfgG3bO7QeCnfjqJT1",
+      "29-233-262-8382",
+      "rmanently unusual multipliers. blithely ruthless deposits are furiously along the"
+    ],
+    [
+      62,
+      "Customer#000000062",
+      106368.0153,
+      595.61,
+      "GERMANY",
+      "upJK2Dnw13,",
+      "17-361-978-7059",
+      "kly special dolphins. pinto beans are slyly. quickly regular accounts are furiously a"
+    ],
+    [
+      146,
+      "Customer#000000146",
+      103265.98879999999,
+      3328.68,
+      "CANADA",
+      "GdxkdXG9u7iyI1,,y5tq4ZyrcEy",
+      "13-835-723-3223",
+      "ffily regular dinos are slyly unusual requests. slyly specia"
+    ],
+    [
+      19,
+      "Customer#000000019",
+      99306.01270000002,
+      8914.71,
+      "CHINA",
+      "uc,3bHIx84H,wdrmLOjVsiqXCq2tr",
+      "28-396-526-5053",
+      " nag. furiously careful packages are slyly at the accounts. furiously regular in"
+    ],
+    [
+      145,
+      "Customer#000000145",
+      99256.90179999999,
+      9748.93,
+      "JORDAN",
+      "kQjHmt2kcec cy3hfMh969u",
+      "23-562-444-8454",
+      "ests? express, express instructions use. blithely fina"
+    ],
+    [
+      103,
+      "Customer#000000103",
+      97311.77240000002,
+      2757.45,
+      "INDONESIA",
+      "8KIsQX4LJ7QMsj6DrtFtXu0nUEdV,8a",
+      "19-216-107-2107",
+      "furiously pending notornis boost slyly around the blithely ironic ideas? final, even instructions cajole fl"
+    ],
+    [
+      136,
+      "Customer#000000136",
+      95855.398,
+      -842.39,
+      "GERMANY",
+      "QoLsJ0v5C1IQbh,DS1",
+      "17-501-210-4726",
+      "ackages sleep ironic, final courts. even requests above the blithely bold requests g"
+    ],
+    [
+      53,
+      "Customer#000000053",
+      92568.9124,
+      4113.64,
+      "MOROCCO",
+      "HnaxHzTfFTZs8MuCpJyTbZ47Cm4wFOOgib",
+      "25-168-852-5363",
+      "ar accounts are. even foxes are blithely. fluffily pending deposits boost"
+    ],
+    [
+      49,
+      "Customer#000000049",
+      90965.7262,
+      4573.94,
+      "IRAN",
+      "cNgAeX7Fqrdf7HQN9EwjUa4nxT,68L FKAxzl",
+      "20-908-631-4424",
+      "nusual foxes! fluffily pending packages maintain to the regular "
+    ],
+    [
+      37,
+      "Customer#000000037",
+      88065.74579999999,
+      -917.75,
+      "INDIA",
+      "7EV4Pwh,3SboctTWt",
+      "18-385-235-7162",
+      "ilent packages are carefully among the deposits. furiousl"
+    ],
+    [
+      82,
+      "Customer#000000082",
+      86998.9644,
+      9468.34,
+      "CHINA",
+      "zhG3EZbap4c992Gj3bK,3Ne,Xn",
+      "28-159-442-5305",
+      "s wake. bravely regular accounts are furiously. regula"
+    ],
+    [
+      125,
+      "Customer#000000125",
+      84808.068,
+      -234.12,
+      "ROMANIA",
+      ",wSZXdVR xxIIfm9s8ITyLl3kgjT6UC07GY0Y",
+      "29-261-996-3120",
+      "x-ray finally after the packages? regular requests c"
+    ],
+    [
+      59,
+      "Customer#000000059",
+      84655.5711,
+      3458.6,
+      "ARGENTINA",
+      "zLOCP0wh92OtBihgspOGl4",
+      "11-355-584-3112",
+      "ously final packages haggle blithely after the express deposits. furiou"
+    ]
+  ],
+  "size" : 20
+}

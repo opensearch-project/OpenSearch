@@ -40,19 +40,30 @@ import java.util.ArrayList;
  * this backend (see {@link #testCaptureExpected}), not transcribed from the source's Lucene
  * assertions.
  *
- * <p><b>Coverage on this backend (2 shards).</b> Of the 22 canonical TPC-H queries, 11 run and
- * match the source's documented row counts (q2, q3, q9, q11, q13, q16, q17, q18, q19, q21, q22 —
- * most are multi-table joins, so the MPP join path, including multi-broadcast queries, is genuinely
- * covered). The remaining 11 are skipped via {@link #getSkipQueries()} — all share the same
- * date-arithmetic gap:
+ * <p><b>Coverage on this backend (2 shards).</b> Of the 22 canonical TPC-H queries, 17 run and
+ * match captured expected files (q1, q2, q3, q5, q6, q9, q10, q11, q12, q13, q14, q16, q17, q18,
+ * q19, q21, q22 — most are multi-table joins, so the MPP join path, including multi-broadcast
+ * queries, is genuinely covered). q1, q6, q10, q12, q14 were unblocked once {@code date_add}/{@code
+ * date_sub} over a {@code DATE('...')} literal landed (#21991); their captured values match the
+ * source SQL plugin's {@code CalcitePPLTpchIT} assertions. q5 returns an empty result set, which the
+ * source IT also asserts ({@code verifyNumOfRows(actual, 0)}) — the full 6-table join is correct,
+ * the {@code c_nationkey = s_nationkey} + {@code r_name = 'ASIA'} predicate just selects no rows in
+ * this dataset — so it is asserted (empty expected file), not skipped. The remaining 5 are skipped
+ * via {@link #getSkipQueries()}:
  * <ul>
- *   <li><b>q1, q4, q5, q6, q10, q12, q14, q15, q20</b> — {@code date_add}/{@code date_sub}
- *       over a {@code DATE('...')} literal is unrecognized by the DataFusion scalar-function
- *       registry ({@code Unrecognized scalar function [DATE_ADD]} / {@code [DATE_SUB]}, or
- *       {@code Unable to convert call DATE_ADD(date?, interval_year)}). Note: the same functions
- *       over a timestamp <em>field</em> are supported.</li>
  *   <li><b>q7, q8</b> — {@code BETWEEN} with mixed timestamp/date operands fails type
  *       coercion ({@code BETWEEN expression types are incompatible: [TIMESTAMP, DATE, DATE]}).</li>
+ *   <li><b>q15, q20</b> — a timestamp-vs-date comparison inside a <em>decorrelated subquery</em>
+ *       fails Substrait conversion ("Unable to convert call &gt;=(precision_timestamp&lt;0&gt;?,
+ *       string?)"). The same comparison at the top level (q1, q6, …) works; inside a subquery
+ *       {@code RelDecorrelator}'s expression simplification constant-folds the PPL {@code TIMESTAMP}
+ *       UDF down to its bare string argument before the backend's scalar-function adapter runs, so
+ *       the timestamp coercion is lost. Independent of the literal form ({@code date('...')} and
+ *       {@code DATE '...'} both regress).</li>
+ *   <li><b>q4</b> — a <em>correlated</em> {@code EXISTS} subquery over lineitem times out (60s).
+ *       The date window alone (no EXISTS) runs fine; even a bare {@code exists [lineitem where
+ *       l_orderkey = o_orderkey]} hangs, so the cause is the correlated-EXISTS execution path
+ *       (not decorrelated to a join, unlike q15/q20's scalar/IN subqueries), not date arithmetic.</li>
  * </ul>
  * As the engine closes these gaps, move queries out of {@link #getSkipQueries()} and capture
  * their expected files via {@link #testCaptureExpected}.
@@ -64,10 +75,13 @@ import java.util.ArrayList;
  */
 public class TpchPplIT extends BasePplIT {
 
-    /** Queries not yet runnable on the parquet/DataFusion path — only the date-arithmetic gap
-     *  remains: date_add/date_sub over a DATE literal (q1,q4,q5,q6,q10,q12,q14,q15,q20) and
-     *  BETWEEN timestamp/date coercion (q7,q8). See class javadoc. */
-    private static final Set<Integer> UNSUPPORTED = Set.of(1, 4, 5, 6, 7, 8, 10, 12, 14, 15, 20);
+    /** Queries not yet runnable on the parquet/DataFusion path. After date_add/date_sub over a DATE
+     *  literal landed (#21991, unblocking q1,q6,q10,q12,q14) and q5 was confirmed legitimately empty
+     *  (now asserted, not skipped), the remaining gaps are: q7,q8 — BETWEEN timestamp/date coercion;
+     *  q15,q20 — a timestamp/date comparison inside a decorrelated subquery (the PPL TIMESTAMP UDF is
+     *  constant-folded to a bare string before the backend adapter runs); q4 — a correlated EXISTS
+     *  subquery times out. See class javadoc. */
+    private static final Set<Integer> UNSUPPORTED = Set.of(4, 7, 8, 15, 20);
 
     /** The eight TPC-H tables, each provisioned from its own {@code mapping_<index>.json} +
      *  {@code bulk_<index>.json} under {@code resources/datasets/tpch/}. */
