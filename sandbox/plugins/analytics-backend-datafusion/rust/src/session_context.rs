@@ -408,16 +408,9 @@ pub async fn prepare_partial_plan(
     // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
     // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
     let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
-    // Rename DataFusion's state-suffixed AggregateExec(Partial) outputs (e.g. `v[hll_registers]`)
-    // back to the user-facing alias (`v`) so the wire matches the FINAL substrait declaration.
-    let stripped = crate::agg_mode::wrap_with_user_facing_names(stripped)?;
+
     let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
     let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
-    eprintln!(
-        "[ENM-TRACE] prepare_partial_plan: stripped plan output schema = {:?}\nplan:\n{}",
-        stripped.schema(),
-        datafusion::physical_plan::displayable(stripped.as_ref()).indent(true)
-    );
     handle.prepared_plan = Some(stripped);
     Ok(())
 }

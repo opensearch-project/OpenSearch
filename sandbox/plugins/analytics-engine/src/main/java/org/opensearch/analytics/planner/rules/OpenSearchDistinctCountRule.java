@@ -19,31 +19,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Rewrites single-arg {@code COUNT(DISTINCT x)} → {@code APPROX_COUNT_DISTINCT(x)} on plain
- * {@link LogicalAggregate} during the HEP rewrite phase, before {@link OpenSearchAggregateRule}
- * marks it.
- *
- * <p>Why: PPL {@code dc(x)} / {@code distinct_count(x)} are parsed by the SQL plugin's PPL
- * frontend as {@code COUNT(DISTINCT x)} (see {@code AstExpressionBuilder.visitDistinctCountFunctionCall}).
- * Distinctness can't be reduced additively across shards — summing per-shard distinct counts
- * over-counts any value present on more than one shard. Routing the call through Calcite's
- * standard {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} engages the
- * {@link org.opensearch.analytics.spi.AggregateFunction#APPROX_COUNT_DISTINCT}
- * registration ({@code Type.APPROXIMATE} + {@code intermediateFields=[sketch:Binary, reducer==self]}),
- * which carries cross-shard HLL sketch merge semantics through the
- * {@link OpenSearchAggregateSplitRule} structural split,
- * {@link org.opensearch.analytics.planner.dag.DistributedAggregateRewriter#overrideExchangeType}
- * engine-native-merge retyping, and the DataFusion backend's prepare_partial/final_plan execution.
- *
- * <p>Multi-arg {@code COUNT(DISTINCT a, b)} doesn't match — falls through to the residual
- * {@code aggCall.isDistinct()} skip in {@link OpenSearchAggregateSplitRule}, which gathers to
- * the coordinator and runs the distinct count once.
- *
- * <p>The new {@link AggregateCall} is built via the {@code create} overload that takes
- * {@code (groupCount, input)} and a {@code null} explicit type — Calcite re-infers the return
- * type from {@code APPROX_COUNT_DISTINCT.inferReturnType(...)}, which avoids the
- * {@code typeMatchesInferred} mismatch that would surface if {@code COUNT}'s
- * {@code BIGINT NOT NULL} type were cloned onto an operator that infers force-nullable.
+ * Rewrites single-arg {@code COUNT(DISTINCT x)} → {@code APPROX_COUNT_DISTINCT(x)} before
+ * the aggregate is marked by {@link OpenSearchAggregateRule}. Multi-arg distinct falls through
+ * to coordinator-gather in {@link OpenSearchAggregateSplitRule}.
  *
  * @opensearch.internal
  */

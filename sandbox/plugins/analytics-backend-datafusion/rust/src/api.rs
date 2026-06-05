@@ -1190,43 +1190,37 @@ fn derive_schema_from_partial_plan(
         let _ = ctx.register_table(&table_name, Arc::new(table));
     }
 
+    // Extract the substrait-declared output names from Plan.Root.names — these are the
+    // user-facing aliases Java wrote (e.g. "RegionID", "u") and must match what the
+    // FINAL substrait's Read.base_schema declares on the coordinator side.
+    let declared_names: Vec<String> = plan.relations.iter().find_map(|pr| {
+        if let Some(substrait::proto::plan_rel::RelType::Root(rr)) = pr.rel_type.as_ref() {
+            Some(rr.names.clone())
+        } else {
+            None
+        }
+    }).unwrap_or_default();
+
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
-    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
-    let schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
-    let result = strip_aggregate_state_suffix(schema);
-    eprintln!(
-        "[ENM-TRACE] derive_schema_from_partial_plan: returned schema = {:?}",
-        result
-    );
-    Ok(result)
-}
 
-/// Strip `[state_field]` suffix from `AggregateExec(Mode::Partial)` output column names so the
-/// coordinator's StreamingTable schema matches what the FINAL substrait declares (user-facing
-/// aliases like `dc`, `$f0`, `count`). Bridges the producer-side physical schema (DataFusion's
-/// internal state suffix, e.g. `dc[hll_registers]`, `$f0[sum]`, `count(opt)[count]`) to the
-/// consumer-side substrait Read's base_schema (`dc`, `$f0`, `count(opt)`) — replaces the
-/// per-cell `coerceToDeclaredSchema` rename that lived on the Java `feedToSender` path before
-/// `35ce14790c2` folded schema derivation into Rust. Wire data flows positionally via Arrow C
-/// Data so the column-name change does not affect runtime data movement; only the StreamingTable's
-/// declared name aligns with the FINAL plan's expected name.
-fn strip_aggregate_state_suffix(schema: arrow::datatypes::SchemaRef) -> arrow::datatypes::SchemaRef {
-    use arrow::datatypes::{Field, Schema};
-    if !schema.fields().iter().any(|f| f.name().contains('[')) {
-        return schema;
+    // For engine-native-merge aggregates, get the Partial aggregate's output schema directly
+    // (has correct state types like Binary for HLL). For non-aggregate plans, use the top schema.
+    let base_schema = crate::agg_mode::partial_aggregate_schema(&physical_plan)
+        .unwrap_or_else(|| physical_plan.schema());
+    let schema = crate::schema_coerce::coerce_inferred_schema(base_schema);
+
+    // Use substrait-declared names (Java's authoritative aliases) with physical-plan-derived types.
+    if !declared_names.is_empty() && declared_names.len() == schema.fields().len() {
+        use arrow::datatypes::{Field, Schema};
+        let fields: Vec<Field> = schema.fields().iter().zip(declared_names.iter())
+            .map(|(f, name)| Field::new(name.as_str(), f.data_type().clone(), f.is_nullable())
+                .with_metadata(f.metadata().clone()))
+            .collect();
+        Ok(Arc::new(Schema::new_with_metadata(fields, schema.metadata().clone())))
+    } else {
+        Ok(schema)
     }
-    let stripped: Vec<Field> = schema
-        .fields()
-        .iter()
-        .map(|f| {
-            let original = f.name();
-            let user_facing = original.split('[').next().unwrap_or(original);
-            Field::new(user_facing, f.data_type().clone(), f.is_nullable())
-                .with_metadata(f.metadata().clone())
-        })
-        .collect();
-    Arc::new(Schema::new_with_metadata(stripped, schema.metadata().clone()))
 }
 
 /// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message

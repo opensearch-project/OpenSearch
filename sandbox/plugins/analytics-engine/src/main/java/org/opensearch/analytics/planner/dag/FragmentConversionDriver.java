@@ -243,102 +243,29 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
             }
-            // Engine-native-merge PARTIAL (Type.APPROXIMATE + intermediateField with reducer == self,
-            // currently APPROX_COUNT_DISTINCT for HLL): activate prepare_partial_plan +
-            // force_aggregate_mode(Partial) so the data node strips Mode::Final and ships sketch state
-            // on the wire (vs. cardinality scalar). SUM / COUNT / AVG / MIN / MAX are state == value
-            // so they take the default executeLocalPlan path — no instruction needed.
-            // Tree-walk: TopK rewriter may wrap the PARTIAL aggregate with Sort/Project operators.
-            if (containsEngineNativePartialAggregate(resolvedFragment)) {
-                LOGGER.debug(
-                    "Emitting SETUP_PARTIAL_AGGREGATE for engine-native-merge PARTIAL fragment:\n{}",
-                    org.apache.calcite.plan.RelOptUtil.toString(resolvedFragment)
-                );
+            if (containsEngineNativeAggregate(resolvedFragment, AggregateMode.PARTIAL)) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);
             }
-        } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeFinalAggregate(resolvedFragment)) {
-            // Coord-side reduce stage with an engine-native-merge FINAL aggregate. Activate
-            // prepare_final_plan + force_aggregate_mode(Final) so AggregateExec(Mode::Final) calls
-            // merge_batch on the gathered sketch state (vs. update_batch which would treat the
-            // state column as raw values and produce wrong cardinalities).
-            LOGGER.debug(
-                "Emitting SETUP_FINAL_AGGREGATE for engine-native-merge FINAL fragment:\n{}",
-                org.apache.calcite.plan.RelOptUtil.toString(resolvedFragment)
-            );
+        } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
             factory.createFinalAggregateNode().ifPresent(instructions::add);
         }
         return instructions;
     }
 
-    /**
-     * Returns {@code true} when {@code agg} has at least one aggregate call whose
-     * {@link org.opensearch.analytics.spi.AggregateFunction#intermediateFields()} declares a
-     * single field with {@code reducer == self} — the engine-native-merge classification
-     * (currently APPROX_COUNT_DISTINCT for HLL sketch merge).
-     */
-    private static boolean hasEngineNativeMergeMeasure(OpenSearchAggregate agg) {
-        for (org.apache.calcite.rel.core.AggregateCall call : agg.getAggCallList()) {
-            org.opensearch.analytics.spi.AggregateFunction func;
-            try {
-                func = org.opensearch.analytics.spi.AggregateFunction.fromSqlAggFunction(call.getAggregation());
-            } catch (IllegalStateException ignored) {
-                continue;
-            }
-            List<org.opensearch.analytics.spi.AggregateFunction.IntermediateField> fields = func.intermediateFields();
-            if (fields != null && fields.size() == 1 && fields.get(0).reducer() == func) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Returns {@code true} when {@code root}'s subtree contains an
-     * {@link OpenSearchAggregate} in {@link AggregateMode#PARTIAL} with at least one
-     * engine-native-merge measure. Walks past Project / Sort wrappers inserted by TopK.
-     */
-    private static boolean containsEngineNativePartialAggregate(RelNode root) {
-        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL && hasEngineNativeMergeMeasure(agg)) {
+    /** Tree-walks for an engine-native-merge aggregate in the given mode. */
+    private static boolean containsEngineNativeAggregate(RelNode root, AggregateMode mode) {
+        if (root instanceof OpenSearchAggregate agg && agg.getMode() == mode
+            && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
             return true;
         }
         for (RelNode child : root.getInputs()) {
-            if (containsEngineNativePartialAggregate(child)) return true;
+            if (containsEngineNativeAggregate(child, mode)) return true;
         }
         return false;
     }
 
-    /**
-     * Returns {@code true} when {@code root}'s subtree contains an
-     * {@link OpenSearchAggregate} in {@link AggregateMode#FINAL} with at least one
-     * engine-native-merge measure. Walks past Project / Sort / Filter wrappers above FINAL.
-     */
-    private static boolean containsEngineNativeFinalAggregate(RelNode root) {
-        if (root instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL && hasEngineNativeMergeMeasure(agg)) {
-            return true;
-        }
-        for (RelNode child : root.getInputs()) {
-            if (containsEngineNativeFinalAggregate(child)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * True when {@code project}'s expressions are all pure column references
-     * ({@link org.apache.calcite.rex.RexInputRef}), i.e. the Project does nothing but
-     * reorder / drop / duplicate columns.
-     */
     private static boolean isPureReorderProject(org.apache.calcite.rel.core.Project project) {
-        for (RexNode expr : project.getProjects()) {
-            if (!(expr instanceof org.apache.calcite.rex.RexInputRef)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** Alias for {@link #containsEngineNativeFinalAggregate}, used for readability at the call site. */
-    private static boolean hasEngineNativeMergeFinalBelow(RelNode root) {
-        return containsEngineNativeFinalAggregate(root);
+        return project.getProjects().stream().allMatch(e -> e instanceof org.apache.calcite.rex.RexInputRef);
     }
 
     /**
@@ -486,38 +413,32 @@ public class FragmentConversionDriver {
         RelNode leaf = findLeaf(resolvedFragment);
 
         if (leaf instanceof OpenSearchTableScan) {
-            // Partial agg at top: convert everything below it, then attach partial agg on top.
-            // strippedInputs passed to stripAnnotations for schema validity (LogicalAggregate needs its inputs).
-            if (resolvedFragment instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-                List<RelNode> strippedInputs = agg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
-                byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
-                Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(agg, agg.getCluster().getRexBuilder());
-                RelNode strippedAgg = agg.stripAnnotations(strippedInputs, resolver);
-                return convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
+            // Identify the PARTIAL aggregate — either at the top of the fragment or buried
+            // under TopK's Sort/Project wrapper.
+            OpenSearchAggregate partialAgg = null;
+            if (resolvedFragment instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL
+                && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
+                partialAgg = agg;
+            } else {
+                partialAgg = findBuriedPartialAggregate(resolvedFragment);
             }
 
-            // TopK case: operators (Project/Sort) wrap a PARTIAL aggregate. Build substrait
-            // in layers so the aggregate gets INITIAL_TO_INTERMEDIATE phase — this ensures
-            // derive_schema_from_partial_plan correctly identifies the output as Binary (sketch state).
-            OpenSearchAggregate buriedPartial = findBuriedPartialAggregate(resolvedFragment);
-            if (buriedPartial != null) {
-                // Convert scan below the aggregate
-                List<RelNode> strippedInputs = buriedPartial.getInputs().stream()
+            if (partialAgg != null) {
+                // Layered conversion: convert scan below → attachPartialAggOnTop → attach
+                // any operators above the aggregate (zero iterations when agg is the top).
+                List<RelNode> strippedInputs = partialAgg.getInputs().stream()
                     .map(input -> strip(input, delegationBytes)).toList();
                 byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
-                // Attach aggregate with INITIAL_TO_INTERMEDIATE phase
                 Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(
-                    buriedPartial, buriedPartial.getCluster().getRexBuilder());
-                RelNode strippedAgg = buriedPartial.stripAnnotations(strippedInputs, resolver);
-                byte[] aggBytes = convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
-                // Attach each operator above the aggregate individually (bottom-up)
+                    partialAgg, partialAgg.getCluster().getRexBuilder());
+                RelNode strippedAgg = partialAgg.stripAnnotations(strippedInputs, resolver);
+                byte[] current = convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
                 List<RelNode> aboveAgg = new ArrayList<>();
                 RelNode walk = resolvedFragment;
-                while (walk != buriedPartial) {
+                while (walk != partialAgg) {
                     aboveAgg.add(walk);
                     walk = walk.getInputs().getFirst();
                 }
-                byte[] current = aggBytes;
                 for (int i = aboveAgg.size() - 1; i >= 0; i--) {
                     current = convertor.attachFragmentOnTop(
                         stripSingleOperator(aboveAgg.get(i)), current);
@@ -623,22 +544,11 @@ public class FragmentConversionDriver {
 
             // Single-input operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
-            // Engine-native-merge FINAL workaround: Calcite emits a pure-reorder Project on top of
-            // FINAL when PPL's user-visible output order differs from the natural [group, measures]
-            // Aggregate order (e.g. `stats distinct_count(label) by category` → output =
-            // [distinct_count(label), category]). DataFusion's substrait consumer fails to bind the
-            // Project's input-field names against the Aggregate's measure column when the measure
-            // column emits state types via Mode::Final (assertion `col.name() == matching_name`
-            // tripping on `distinct_count(label)` vs `approx_distinct(input-0.distinct_count(label))`).
-            // Skip the reorder Project at substrait emit; the Java-side reduce sink consumes columns
-            // by name (not position), so the order shift is invisible to the response.
+            // Skip pure-reorder Project above engine-native-merge FINAL — DataFusion's substrait
+            // consumer can't bind reordered field names against the FINAL aggregate's state columns.
             if (node instanceof org.apache.calcite.rel.core.Project p
                 && isPureReorderProject(p)
-                && hasEngineNativeMergeFinalBelow(node.getInputs().getFirst())) {
-                LOGGER.debug(
-                    "[ENM-WORKAROUND] Skipping pure-reorder Project above engine-native-merge FINAL — DataFusion substrait-binding bug:\n{}",
-                    org.apache.calcite.plan.RelOptUtil.toString(node)
-                );
+                && containsEngineNativeAggregate(node.getInputs().getFirst(), AggregateMode.FINAL)) {
                 return innerBytes;
             }
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
@@ -668,8 +578,6 @@ public class FragmentConversionDriver {
             }
             return openSearchNode.stripAnnotations(strippedChildren, resolver);
         }
-        // Non-OpenSearch node (e.g. LogicalProject inserted by TopK rewriter): rebuild with
-        // stripped children so OpenSearch operators below get properly converted to Logical nodes.
         boolean childrenChanged = false;
         for (int i = 0; i < strippedChildren.size(); i++) {
             if (strippedChildren.get(i) != node.getInputs().get(i)) {
@@ -687,10 +595,7 @@ public class FragmentConversionDriver {
         return findLeaf(node.getInputs().getFirst());
     }
 
-    /**
-     * Finds a PARTIAL aggregate buried under single-input operators (TopK's Project/Sort).
-     * Returns null if the top IS already the aggregate or if no engine-native-merge PARTIAL exists.
-     */
+    /** Finds an engine-native-merge PARTIAL aggregate buried under operators (not at fragment top). */
     private static OpenSearchAggregate findBuriedPartialAggregate(RelNode fragment) {
         if (fragment instanceof OpenSearchAggregate) return null;
         RelNode node = fragment;
@@ -698,7 +603,7 @@ public class FragmentConversionDriver {
             RelNode child = node.getInputs().getFirst();
             if (child instanceof OpenSearchAggregate agg
                 && agg.getMode() == AggregateMode.PARTIAL
-                && hasEngineNativeMergeMeasure(agg)) {
+                && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
                 return agg;
             }
             node = child;

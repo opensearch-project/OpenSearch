@@ -12,17 +12,10 @@ import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
-import org.apache.calcite.sql.SqlFunctionCategory;
-import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.type.OperandTypes;
-import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateMode;
@@ -45,15 +38,6 @@ import java.util.Optional;
  * <p>Pattern: Sort(collation) → [Project] → Aggregate(FINAL) → ER → Aggregate(PARTIAL) → Scan
  */
 public final class OpenSearchTopKRewriter {
-
-    private static final SqlFunction REDUCE_EVAL = new SqlFunction(
-        "reduce_eval",
-        SqlKind.OTHER_FUNCTION,
-        ReturnTypes.BIGINT_NULLABLE,
-        null,
-        OperandTypes.ANY_ANY,
-        SqlFunctionCategory.USER_DEFINED_FUNCTION
-    );
 
     private OpenSearchTopKRewriter() {}
 
@@ -107,10 +91,12 @@ public final class OpenSearchTopKRewriter {
             List<RelFieldCollation> newCollations = new ArrayList<>();
             for (RelFieldCollation fc : sort.getCollation().getFieldCollations()) {
                 int sortIdx = fc.getFieldIndex();
-                if (sortIdx >= groupCount && isEngineNativeMergeCall(partial, sortIdx - groupCount)) {
-                    RexNode aggNameLiteral = rb.makeLiteral("approx_distinct");
+                if (sortIdx >= groupCount && AggregateFunction.isEngineNativeMerge(partial.getAggCallList().get(sortIdx - groupCount))) {
+                    AggregateFunction aggFunc = AggregateFunction.fromSqlAggFunction(
+                        partial.getAggCallList().get(sortIdx - groupCount).getAggregation());
+                    RexNode aggNameLiteral = rb.makeLiteral(aggFunc.reduceEvalName());
                     RexNode stateRef = rb.makeInputRef(partialRowType.getFieldList().get(sortIdx).getType(), sortIdx);
-                    RexNode reduceCall = rb.makeCall(REDUCE_EVAL, aggNameLiteral, stateRef);
+                    RexNode reduceCall = rb.makeCall(AggregateFunction.REDUCE_EVAL_OP, aggNameLiteral, stateRef);
                     int newIdx = projects.size();
                     projects.add(reduceCall);
                     names.add("__reduce_eval_" + sortIdx);
@@ -120,7 +106,8 @@ public final class OpenSearchTopKRewriter {
                 }
             }
 
-            RelDataType reduceEvalRowType = deriveRowType(sort.getCluster().getTypeFactory(), partial.getRowType(), projects, names);
+            RelDataType reduceEvalRowType = sort.getCluster().getTypeFactory().createStructType(
+                projects.stream().map(RexNode::getType).toList(), names);
             sortInput = new OpenSearchProject(
                 sort.getCluster(), partial.getTraitSet(), partial, projects, reduceEvalRowType, partial.getViableBackends()
             );
@@ -140,7 +127,6 @@ public final class OpenSearchTopKRewriter {
 
         RelNode topKSubtree = shardSort;
         if (sortInput != partial) {
-            // Strip the reduce_eval columns: keep only [0..partial.fieldCount)
             RelDataType sortOutputType = shardSort.getRowType();
             int originalFieldCount = partial.getRowType().getFieldCount();
             List<RexNode> stripProjects = new ArrayList<>();
@@ -191,23 +177,11 @@ public final class OpenSearchTopKRewriter {
         int groupCount = agg.getGroupSet().cardinality();
         for (RelFieldCollation fc : collation.getFieldCollations()) {
             int idx = fc.getFieldIndex();
-            if (idx >= groupCount && isEngineNativeMergeCall(agg, idx - groupCount)) {
+            if (idx >= groupCount && AggregateFunction.isEngineNativeMerge(agg.getAggCallList().get(idx - groupCount))) {
                 return true;
             }
         }
         return false;
-    }
-
-    private static boolean isEngineNativeMergeCall(OpenSearchAggregate agg, int callIndex) {
-        AggregateCall call = agg.getAggCallList().get(callIndex);
-        AggregateFunction func;
-        try {
-            func = AggregateFunction.fromSqlAggFunction(call.getAggregation());
-        } catch (IllegalStateException e) {
-            return false;
-        }
-        List<AggregateFunction.IntermediateField> fields = func.intermediateFields();
-        return fields != null && fields.size() == 1 && fields.get(0).reducer() == func;
     }
 
     /** Replaces oldNode with newNode in the tree (single occurrence). */
@@ -222,19 +196,6 @@ public final class OpenSearchTopKRewriter {
         }
         if (!changed) return root;
         return root.copy(root.getTraitSet(), List.of(newChildren));
-    }
-
-    private static RelDataType deriveRowType(
-        RelDataTypeFactory typeFactory,
-        RelDataType inputRowType,
-        List<RexNode> projects,
-        List<String> names
-    ) {
-        List<RelDataType> types = new ArrayList<>(projects.size());
-        for (RexNode project : projects) {
-            types.add(project.getType());
-        }
-        return typeFactory.createStructType(types, names);
     }
 
     private static double resolveOversamplingFactor(PlannerContext context) {

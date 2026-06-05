@@ -14,10 +14,8 @@ use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_optimizer::combine_partial_final_agg::CombinePartialFinalAggregate;
 use datafusion::physical_optimizer::optimizer::{PhysicalOptimizer, PhysicalOptimizerRule};
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
-use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::expressions::Column;
 use datafusion::physical_plan::projection::ProjectionExec;
-use datafusion::physical_plan::repartition::RepartitionExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion_common::Result;
 
@@ -49,6 +47,12 @@ pub(crate) fn apply_aggregate_mode(
         Mode::Partial => force_aggregate_mode(plan, AggregateMode::Partial),
         Mode::Final => force_aggregate_mode(plan, AggregateMode::Final),
     }
+}
+
+/// Returns the output schema of the Partial aggregate without rebuilding the plan tree.
+/// Used by `derive_schema_from_partial_plan` where we only need types, not an executable plan.
+pub(crate) fn partial_aggregate_schema(plan: &Arc<dyn ExecutionPlan>) -> Option<arrow::datatypes::SchemaRef> {
+    find_partial_input(Arc::clone(plan)).map(|p| p.schema())
 }
 
 /// Walks the plan tree and strips the half that doesn't match `target`.
@@ -90,38 +94,19 @@ fn force_aggregate_mode(
             _ => Ok(plan),
         }
     } else if plan.children().len() == 1 {
-        // Single-input wrapper (RelabelExec, ProjectionExec, RepartitionExec, CoalescePartitionsExec,
-        // CoalesceBatchesExec, etc.). Recurse through it transparently — the strip target may live
-        // beneath. Without this, plans like RelabelExec(AggregateExec(Final, AggregateExec(Partial)))
-        // pre-empt the strip because the root isn't an AggregateExec.
+        // Single-input wrapper — recurse transparently.
         let old_child = Arc::clone(plan.children()[0]);
         let new_child = force_aggregate_mode(old_child.clone(), target)?;
 
-        // ProjectionExec stores Column references with name+index. If the child's schema names
-        // changed (aggregate switched from Final to Partial emitting state-suffixed names),
-        // rebuild the projection with updated column names (preserving indices).
+        // DataFusion's ProjectionMapping::try_new asserts col.name() == input_schema.field(i).name();
+        // with_new_children triggers it. Remap columns to the post-strip schema so it passes.
         if let Some(proj) = plan.as_any().downcast_ref::<ProjectionExec>() {
-            let old_schema = old_child.schema();
-            let new_schema = new_child.schema();
-            if old_schema.fields().len() == new_schema.fields().len()
-                && old_schema
-                    .fields()
-                    .iter()
-                    .zip(new_schema.fields().iter())
-                    .any(|(o, n)| o.name() != n.name() || o.data_type() != n.data_type())
-            {
-                let remapped_exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = proj
-                    .expr()
-                    .iter()
-                    .map(|pe| {
-                        let remapped = remap_column_names(pe.expr.clone(), &old_schema, &new_schema);
-                        (remapped, pe.alias.clone())
-                    })
+            if old_child.schema() != new_child.schema() {
+                let new_schema = &new_child.schema();
+                let remapped: Vec<(Arc<dyn PhysicalExpr>, String)> = proj.expr().iter()
+                    .map(|pe| (remap_column(pe.expr.clone(), new_schema), pe.alias.clone()))
                     .collect();
-                return Ok(Arc::new(ProjectionExec::try_new(
-                    remapped_exprs,
-                    new_child,
-                )?));
+                return Ok(Arc::new(ProjectionExec::try_new(remapped, new_child)?));
             }
         }
 
@@ -150,110 +135,19 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
     None
 }
 
-/// Renames an `AggregateExec(Partial)`'s state-suffixed output columns back to the
-/// per-measure user-facing alias derived from `AggregateFunctionExpr::name()`. No-op
-/// for any other plan shape.
-///
-/// `Mode::Partial` emits one column per state field, named `<measure-alias>[<state>]`
-/// (e.g. `dc(x)[hll_registers]`, `count(*)[count]`). The exchange wire schema declares
-/// the unsuffixed alias (matching the FINAL substrait's `Read.base_schema`), so we
-/// derive each column's intended name structurally from the aggregate's own
-/// `name()` / `state_fields()` rather than pattern-matching the `[…]` suffix:
-///
-///   * group columns       → keep input names (passthrough)
-///   * single-state measure → rename to `aggr.name()` (its final-mode alias)
-///   * multi-state measure → keep state-field names (e.g. AVG's `[count]` + `[sum]`,
-///                           transported separately and reconstructed at FINAL)
-pub(crate) fn wrap_with_user_facing_names(
-    plan: Arc<dyn ExecutionPlan>,
-) -> Result<Arc<dyn ExecutionPlan>> {
-    let Some(agg) = find_top_aggregate_exec(&plan) else {
-        return Ok(plan);
-    };
-    // Only Partial emits state-suffixed names; Final / FinalPartitioned outputs already
-    // match the measure's final-mode field name.
-    if !matches!(agg.mode(), AggregateMode::Partial) {
-        return Ok(plan);
-    }
-    let group_count = agg.group_expr().expr().len();
-    let plan_schema = plan.schema();
 
-    let mut expected_names: Vec<String> = plan_schema
-        .fields()
-        .iter()
-        .take(group_count)
-        .map(|f| f.name().clone())
-        .collect();
-    for aggr in agg.aggr_expr() {
-        let states = aggr.state_fields()?;
-        if states.len() == 1 {
-            expected_names.push(aggr.name().to_string());
-        } else {
-            for state in &states {
-                expected_names.push(state.name().clone());
-            }
-        }
-    }
-
-    if plan_schema
-        .fields()
-        .iter()
-        .zip(expected_names.iter())
-        .all(|(f, e)| f.name() == e)
-    {
-        return Ok(plan);
-    }
-
-    let exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = plan_schema
-        .fields()
-        .iter()
-        .zip(expected_names.into_iter())
-        .enumerate()
-        .map(|(i, (f, name))| {
-            (Arc::new(Column::new(f.name(), i)) as Arc<dyn PhysicalExpr>, name)
-        })
-        .collect();
-    Ok(Arc::new(ProjectionExec::try_new(exprs, plan)?))
-}
-
-/// Remaps `Column` expression names from old_schema field names to new_schema field names
-/// (matched by index). Non-Column leaf expressions are returned unchanged; compound expressions
-/// recurse into children.
-fn remap_column_names(
-    expr: Arc<dyn PhysicalExpr>,
-    old_schema: &arrow::datatypes::SchemaRef,
-    new_schema: &arrow::datatypes::SchemaRef,
-) -> Arc<dyn PhysicalExpr> {
+/// Updates Column expression names to match the given schema (by index). Recurses into children.
+fn remap_column(expr: Arc<dyn PhysicalExpr>, schema: &arrow::datatypes::SchemaRef) -> Arc<dyn PhysicalExpr> {
     if let Some(col) = expr.as_any().downcast_ref::<Column>() {
-        let idx = col.index();
-        if idx < new_schema.fields().len() {
-            return Arc::new(Column::new(new_schema.field(idx).name(), idx));
-        }
-        return expr;
+        return Arc::new(Column::new(schema.field(col.index()).name(), col.index()));
     }
     let children = expr.children();
-    if children.is_empty() {
-        return expr;
-    }
-    let new_children: Vec<Arc<dyn PhysicalExpr>> = children
-        .into_iter()
-        .map(|c| remap_column_names(c.clone(), old_schema, new_schema))
-        .collect();
-    expr.with_new_children(new_children).unwrap_or_else(|_| unreachable!())
+    if children.is_empty() { return expr; }
+    let new_children: Vec<_> = children.into_iter().map(|c| remap_column(c.clone(), schema)).collect();
+    let fallback = expr.clone();
+    expr.with_new_children(new_children).unwrap_or(fallback)
 }
 
-/// Walks down through single-input wrappers to find the topmost `AggregateExec`,
-/// or `None` if the chain doesn't contain one.
-fn find_top_aggregate_exec(plan: &Arc<dyn ExecutionPlan>) -> Option<&AggregateExec> {
-    if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
-        return Some(agg);
-    }
-    let children = plan.children();
-    if children.len() == 1 {
-        return find_top_aggregate_exec(children[0]);
-    }
-    None
-}
 
 #[cfg(test)]
 mod tests {

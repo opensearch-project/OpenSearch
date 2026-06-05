@@ -89,7 +89,7 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
     public void testApproxCountDistinctReducerIsSelf() {
         List<AggregateFunction.IntermediateField> fields = APPROX_COUNT_DISTINCT.intermediateFields();
         assertEquals(1, fields.size());
-        assertEquals("sketch", fields.get(0).name());
+        assertEquals("hll_registers", fields.get(0).name());
         assertSame(APPROX_COUNT_DISTINCT, fields.get(0).reducer());
         assertEquals(SqlTypeName.VARBINARY, resolve(fields.get(0), integer).getSqlTypeName());
     }

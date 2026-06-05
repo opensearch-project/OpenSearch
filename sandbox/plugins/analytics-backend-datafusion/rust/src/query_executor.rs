@@ -161,10 +161,7 @@ pub async fn execute_query(
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
-    // Rename `AggregateExec(Partial)` state-suffixed outputs (`<alias>[<state>]`) back to the
-    // measure's user-facing alias when the plan is a partial aggregate. No-op when the plan
-    // top is not an `AggregateExec(Partial)`.
-    let physical_plan = crate::agg_mode::wrap_with_user_facing_names(physical_plan)?;
+
     // Retag any physical-plan output columns whose type tags differ from what Substrait
     // declared on bit-compatible Int↔UInt pairs (see crate::relabel_exec). The target is
     // schema_coerce::coerce_inferred_schema(physical_schema) — the same narrowing the
@@ -281,18 +278,8 @@ pub async fn execute_with_context(
         // FINAL substrait declares VARBINARY (resolver's overrideExchangeType), so the wire
         // matches the exchange contract. Non-engine-native paths leave `prepared_plan` as None
         // and fall through to the standard decode + execute below.
-        eprintln!(
-            "[ENM-TRACE] execute_with_context: prepared_plan.is_some() = {}, aggregate_mode = {:?}",
-            handle.prepared_plan.is_some(),
-            handle.aggregate_mode
-        );
         if let Some(prepared) = handle.prepared_plan.as_ref() {
             let physical_plan = std::sync::Arc::clone(prepared);
-            eprintln!(
-                "[ENM-TRACE] execute_with_context: USING PREPARED plan; output schema = {:?}\nplan:\n{}",
-                physical_plan.schema(),
-                displayable(physical_plan.as_ref()).indent(true)
-            );
             let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
                 error!("execute_with_context: failed to execute prepared plan: {}", e);
                 e
@@ -348,14 +335,9 @@ pub async fn execute_with_context(
         // create_physical_plan runs all registered physical optimizer rules including
         // ProjectRowIdOptimizer (registered in session_context when strategy=ListingTable).
         let physical_plan = dataframe.create_physical_plan().await?;
-        let physical_plan = crate::agg_mode::wrap_with_user_facing_names(physical_plan)?;
+
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-        eprintln!(
-            "[ENM-TRACE] execute_with_context (DEFAULT path): physical plan output schema = {:?}\nplan:\n{}",
-            physical_plan.schema(),
-            displayable(physical_plan.as_ref()).indent(true)
-        );
 
         let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
             error!("execute_with_context: failed to create stream: {}", e);

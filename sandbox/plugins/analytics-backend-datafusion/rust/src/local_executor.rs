@@ -186,10 +186,7 @@ impl LocalSession {
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
-        // Rename `AggregateExec(Partial)` state-suffixed outputs (`<alias>[<state>]`) back to the
-        // measure's user-facing alias when the plan is a partial aggregate. No-op when the plan
-        // top is not an `AggregateExec(Partial)`.
-        let physical_plan = crate::agg_mode::wrap_with_user_facing_names(physical_plan)?;
+
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
         datafusion::physical_plan::execute_stream(physical_plan, self.ctx.task_ctx())
@@ -220,15 +217,7 @@ impl LocalSession {
                 e
             ))
         })?;
-        eprintln!(
-            "[ENM-TRACE] prepare_final_plan: substrait Plan (debug):\n{:#?}",
-            plan
-        );
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
-        eprintln!(
-            "[ENM-TRACE] prepare_final_plan: DataFusion logical plan:\n{}",
-            logical_plan.display_indent()
-        );
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
         // Strip first so `force_aggregate_mode(Final)` can find the Final/Partial pair
@@ -239,16 +228,9 @@ impl LocalSession {
             physical_plan,
             crate::agg_mode::Mode::Final,
         )?;
-        // Rename DataFusion's state-suffixed AggregateExec outputs (e.g. `v[hll_registers]`)
-        // back to user-facing aliases so downstream operators bind by name.
-        let stripped = crate::agg_mode::wrap_with_user_facing_names(stripped)?;
+
         let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
         let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
-        eprintln!(
-            "[ENM-TRACE] prepare_final_plan: stripped FINAL plan output schema = {:?}\nplan:\n{}",
-            stripped.schema(),
-            displayable(stripped.as_ref()).indent(true)
-        );
         self.prepared_plan = Some(stripped);
         Ok(())
     }
