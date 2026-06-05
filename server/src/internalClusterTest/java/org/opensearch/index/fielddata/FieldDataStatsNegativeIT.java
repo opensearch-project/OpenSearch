@@ -86,11 +86,10 @@ public class FieldDataStatsNegativeIT extends OpenSearchIntegTestCase {
             populateCache();
         }
 
-        // Drive cleanup synchronously instead of waiting for the periodic CacheCleaner.
-        // Equivalent to one cleaner tick: refresh() iterates the cache, fires onRemoval for
-        // entries whose readers have been closed — which is where the misrouted-decrement bug
-        // surfaces.
-        internalCluster().getInstance(IndicesService.class, node1).getIndicesFieldDataCache().getCache().refresh();
+        // On 2.19, IndexFieldCache.onClose calls cache.invalidate() synchronously when each
+        // shard's Lucene readers close. The misrouted onRemoval (and the resulting negative
+        // counter) therefore fires during the relocation round-trips above — no separate
+        // CacheCleaner tick is required to surface the bug.
 
         // Assert non-negative bytes at every layer.
         // 1) Per-shard counter (ShardFieldData.totalMetric).
