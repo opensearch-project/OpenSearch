@@ -8,16 +8,15 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
-
 import java.util.Set;
 
 /**
  * OTel logs PPL integration test.
  *
- * <p>Two queries are skipped today as documented Mustang/SQL-plugin gaps:
- * Q32 (text-equality returns 0 rows) and Q33 (head 0 ClassCastException).
- * Both stay on disk as live reproducers — when the upstream fixes land,
+ * <p>Several queries are skipped today as documented Mustang/SQL-plugin gaps:
+ * Q32 (text-equality returns 0 rows), Q33 (head 0 ClassCastException), and
+ * Q19/Q20/Q38/Q39 (multi-filter rejection — PR #21948).
+ * All stay on disk as live reproducers — when the upstream fixes land,
  * remove the entry from getSkipQueries() to re-enable them.
  */
 public class OtelLogsPplIT extends BasePplIT {
@@ -29,6 +28,8 @@ public class OtelLogsPplIT extends BasePplIT {
 
     @Override
     protected Set<Integer> getSkipQueries() {
+        // Q19, Q20, Q38, Q39: multi-filter rejection — see PR #21948.
+        //
         // Q32: `where severityText = 'ERROR'` returns 0 rows on a multi-field
         // text+keyword field. Aggregation auto-redirects to the keyword sub-field,
         // but Mustang's CBO routes equality predicates to DataFusion which scans
@@ -41,10 +42,9 @@ public class OtelLogsPplIT extends BasePplIT {
         // Q33: `... | head 0` triggers ClassCastException in
         // org.opensearch.sql.api.UnifiedQueryPlanner.preserveCollation:145 —
         // RelCompositeTrait cannot be cast to RelCollation. Upstream
-        return Set.of(32, 33);
+        return Set.of(19, 20, 32, 33, 38, 39);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testOtelLogsPplQueries() throws Exception {
         runPplQueries();
     }
