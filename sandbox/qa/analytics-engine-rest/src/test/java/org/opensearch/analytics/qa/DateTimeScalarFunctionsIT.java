@@ -259,10 +259,12 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
 
     // date_add inside a WHERE predicate — the TPC-H q1/q4 shape that surfaced the gap.
     public void testDateAddInWherePredicate() throws IOException {
+        // head moved to the end so the two where clauses are not separated by a Sort,
+        // letting FILTER_PROJECT_TRANSPOSE + FILTER_MERGE collapse them into one filter.
         assertFirstRowString(
-            oneRow("key00")
+            "source=" + DATASET.indexName + " | where key='key00'"
                 + "| where datetime0 < date_add(date('2005-01-01'), interval 1 year) "
-                + "| eval v = date_format(datetime0, '%Y-%m-%d') | fields v",
+                + "| eval v = date_format(datetime0, '%Y-%m-%d') | fields v | head 1",
             "2004-07-09"
         );
     }
