@@ -1130,9 +1130,6 @@ fn derive_schema_from_partial_plan(
     let state = SessionStateBuilder::new()
         .with_config(SessionConfig::new())
         .with_default_features()
-        // Mirror the data node's SessionContextHandle: keep `Final(Partial(...))` intact so the
-        // post-physical Mode::Partial strip below can find the Partial half (otherwise Combine
-        // collapses to Single and the strip falls through to the leaf scan).
         .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
     let ctx = SessionContext::new_with_state(state);
@@ -1204,23 +1201,22 @@ fn derive_schema_from_partial_plan(
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 
-    // For engine-native-merge aggregates, get the Partial aggregate's output schema directly
-    // (has correct state types like Binary for HLL). For non-aggregate plans, use the top schema.
-    let base_schema = crate::agg_mode::partial_aggregate_schema(&physical_plan)
-        .unwrap_or_else(|| physical_plan.schema());
-    let schema = crate::schema_coerce::coerce_inferred_schema(base_schema);
-
-    // Use substrait-declared names (Java's authoritative aliases) with physical-plan-derived types.
-    if !declared_names.is_empty() && declared_names.len() == schema.fields().len() {
-        use arrow::datatypes::{Field, Schema};
-        let fields: Vec<Field> = schema.fields().iter().zip(declared_names.iter())
-            .map(|(f, name)| Field::new(name.as_str(), f.data_type().clone(), f.is_nullable())
-                .with_metadata(f.metadata().clone()))
-            .collect();
-        Ok(Arc::new(Schema::new_with_metadata(fields, schema.metadata().clone())))
-    } else {
-        Ok(schema)
+    // Engine-native-merge (HLL): Partial has Binary fields that differ from the top (Int64).
+    // Use Partial schema + Root.names so coordinator sees the correct Binary wire type.
+    // All other plans: use top schema directly (matches main behavior).
+    if let Some(partial_schema) = crate::agg_mode::partial_aggregate_schema(&physical_plan) {
+        let has_binary = partial_schema.fields().iter().any(|f| matches!(f.data_type(), arrow::datatypes::DataType::Binary));
+        if has_binary && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
+            use arrow::datatypes::{Field, Schema};
+            let coerced = crate::schema_coerce::coerce_inferred_schema(partial_schema);
+            let fields: Vec<Field> = coerced.fields().iter().zip(declared_names.iter())
+                .map(|(f, name)| Field::new(name.as_str(), f.data_type().clone(), f.is_nullable())
+                    .with_metadata(f.metadata().clone()))
+                .collect();
+            return Ok(Arc::new(Schema::new_with_metadata(fields, coerced.metadata().clone())));
+        }
     }
+    Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
 }
 
 /// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message

@@ -254,7 +254,8 @@ public class FragmentConversionDriver {
 
     /** Tree-walks for an engine-native-merge aggregate in the given mode. */
     private static boolean containsEngineNativeAggregate(RelNode root, AggregateMode mode) {
-        if (root instanceof OpenSearchAggregate agg && agg.getMode() == mode
+        if (root instanceof OpenSearchAggregate agg
+            && agg.getMode() == mode
             && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
             return true;
         }
@@ -416,7 +417,8 @@ public class FragmentConversionDriver {
             // Identify the PARTIAL aggregate — either at the top of the fragment or buried
             // under TopK's Sort/Project wrapper.
             OpenSearchAggregate partialAgg = null;
-            if (resolvedFragment instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL
+            if (resolvedFragment instanceof OpenSearchAggregate agg
+                && agg.getMode() == AggregateMode.PARTIAL
                 && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
                 partialAgg = agg;
             } else {
@@ -426,11 +428,12 @@ public class FragmentConversionDriver {
             if (partialAgg != null) {
                 // Layered conversion: convert scan below → attachPartialAggOnTop → attach
                 // any operators above the aggregate (zero iterations when agg is the top).
-                List<RelNode> strippedInputs = partialAgg.getInputs().stream()
-                    .map(input -> strip(input, delegationBytes)).toList();
+                List<RelNode> strippedInputs = partialAgg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
                 byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
                 Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(
-                    partialAgg, partialAgg.getCluster().getRexBuilder());
+                    partialAgg,
+                    partialAgg.getCluster().getRexBuilder()
+                );
                 RelNode strippedAgg = partialAgg.stripAnnotations(strippedInputs, resolver);
                 byte[] current = convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
                 List<RelNode> aboveAgg = new ArrayList<>();
@@ -440,8 +443,7 @@ public class FragmentConversionDriver {
                     walk = walk.getInputs().getFirst();
                 }
                 for (int i = aboveAgg.size() - 1; i >= 0; i--) {
-                    current = convertor.attachFragmentOnTop(
-                        stripSingleOperator(aboveAgg.get(i)), current);
+                    current = convertor.attachFragmentOnTop(stripSingleOperator(aboveAgg.get(i)), current);
                 }
                 return current;
             }
@@ -620,7 +622,12 @@ public class FragmentConversionDriver {
     private static RelNode stripSingleOperator(RelNode node) {
         RelNode child = node.getInputs().getFirst();
         OpenSearchStageInputScan placeholder = new OpenSearchStageInputScan(
-            node.getCluster(), node.getTraitSet(), -1, child.getRowType(), List.of(), List.of()
+            node.getCluster(),
+            node.getTraitSet(),
+            -1,
+            child.getRowType(),
+            List.of(),
+            List.of()
         );
         if (node instanceof OpenSearchRelNode openSearchNode) {
             return openSearchNode.stripAnnotations(List.of(placeholder), OperatorAnnotation::unwrap);

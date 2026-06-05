@@ -174,8 +174,12 @@ public enum AggregateFunction {
 
     /** Evaluates opaque engine-native-merge state to a sortable scalar (used by TopK). */
     public static final SqlOperator REDUCE_EVAL_OP = new SqlFunction(
-        "reduce_eval", SqlKind.OTHER_FUNCTION, ReturnTypes.BIGINT_NULLABLE,
-        null, OperandTypes.ANY_ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION
+        "reduce_eval",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
     /**

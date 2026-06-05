@@ -93,7 +93,8 @@ public final class OpenSearchTopKRewriter {
                 int sortIdx = fc.getFieldIndex();
                 if (sortIdx >= groupCount && AggregateFunction.isEngineNativeMerge(partial.getAggCallList().get(sortIdx - groupCount))) {
                     AggregateFunction aggFunc = AggregateFunction.fromSqlAggFunction(
-                        partial.getAggCallList().get(sortIdx - groupCount).getAggregation());
+                        partial.getAggCallList().get(sortIdx - groupCount).getAggregation()
+                    );
                     RexNode aggNameLiteral = rb.makeLiteral(aggFunc.reduceEvalName());
                     RexNode stateRef = rb.makeInputRef(partialRowType.getFieldList().get(sortIdx).getType(), sortIdx);
                     RexNode reduceCall = rb.makeCall(AggregateFunction.REDUCE_EVAL_OP, aggNameLiteral, stateRef);
@@ -106,10 +107,16 @@ public final class OpenSearchTopKRewriter {
                 }
             }
 
-            RelDataType reduceEvalRowType = sort.getCluster().getTypeFactory().createStructType(
-                projects.stream().map(RexNode::getType).toList(), names);
+            RelDataType reduceEvalRowType = sort.getCluster()
+                .getTypeFactory()
+                .createStructType(projects.stream().map(RexNode::getType).toList(), names);
             sortInput = new OpenSearchProject(
-                sort.getCluster(), partial.getTraitSet(), partial, projects, reduceEvalRowType, partial.getViableBackends()
+                sort.getCluster(),
+                partial.getTraitSet(),
+                partial,
+                projects,
+                reduceEvalRowType,
+                partial.getViableBackends()
             );
             adjustedCollation = RelCollations.of(newCollations);
         }
@@ -136,7 +143,12 @@ public final class OpenSearchTopKRewriter {
                 stripNames.add(partial.getRowType().getFieldNames().get(i));
             }
             topKSubtree = new OpenSearchProject(
-                sort.getCluster(), partial.getTraitSet(), shardSort, stripProjects, partial.getRowType(), partial.getViableBackends()
+                sort.getCluster(),
+                partial.getTraitSet(),
+                shardSort,
+                stripProjects,
+                partial.getRowType(),
+                partial.getViableBackends()
             );
         }
 
