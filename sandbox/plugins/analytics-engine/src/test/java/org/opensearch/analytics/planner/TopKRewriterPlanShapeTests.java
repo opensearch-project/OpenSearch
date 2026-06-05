@@ -112,6 +112,31 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         assertTrue("at least 2 OpenSearchSort nodes expected", sortCount >= 2);
     }
 
+    /**
+     * Collated outer system-limit over a collated inner head: oversampling must honor the INNER
+     * fetch, not the outer cap. PPL {@code ... | sort - c | head 10} arrives as
+     * {@code SystemLimit(fetch=10000, sort0=$1 DESC) → Sort(fetch=10, sort0=$1 DESC) → ... → FINAL}.
+     * The per-partition shard Sort fetch must derive from 10 (→ ceil(10*2)+10 = 30), not from the
+     * 10000 system cap (which would over-fetch 30000 rows/shard).
+     */
+    public void testRewrite_collatedOuterLimit_honorsInnerFetch() {
+        RelNode inner = buildSortHeadOverGroupedCount(); // Sort(collation $1 DESC, fetch 10) over grouped count
+        // Outer system size-limit with the SAME collation and a large cap (what QueryService wraps).
+        RelNode outer = LogicalSort.create(
+            inner,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10000, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(outer, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
+        assertTrue("a per-partition Sort must be inserted", sortCount >= 2);
+        // Shard Sort fetch = ceil(innerFetch * factor) + innerFetch = ceil(10*2)+10 = 30.
+        assertTrue("shard Sort must be sized off the inner fetch (30), got plan:\n" + plan, plan.contains("fetch=[30]"));
+        assertFalse("shard Sort must NOT be sized off the 10000 system cap (30000)", plan.contains("fetch=[30000]"));
+    }
+
     /** SUM aggregate: partial SUM is directly sortable, no reduce_eval needed. */
     public void testRewrite_sumByGroup_sortInserted() {
         RelOptTable table = mockTable("test_index", "status", "size");
