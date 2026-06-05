@@ -87,6 +87,67 @@ public class ShardBucketOversamplingIT extends AnalyticsRestTestCase {
         assertRowCount(result, 10);
     }
 
+    // ── Multi-shard TopK across sort placements / group-by / having ─────────────────────
+    // 84 distinct RegionID groups over 100 docs on 2 shards, so `head 10` (10 << 84) genuinely
+    // exercises the per-shard TopK oversampling path (a per-partition Sort+Limit below the ER).
+    //
+    // These assert only the DETERMINISTIC contract — row count, schema, no error — across the
+    // shape variations. They intentionally do NOT assert exact group membership/values: shard-bucket
+    // oversampling is approximate by design (see AnalyticsApproximationSettings); a globally-top-N
+    // group that ranks below every shard's local cutoff can legitimately be dropped, and tied
+    // sort-keys have no defined tie-break, so value-equality vs. an unsampled run is not a guaranteed
+    // property and would be flaky. The exactness of the fix (per-shard fetch sized off the inner
+    // limit, not the outer system cap) is pinned deterministically in TopKRewriterPlanShapeTests.
+
+    /** count by group, sort DESC on the agg, head 10. */
+    public void testCountByGroup_sortDescAgg_head10() throws Exception {
+        ensureProvisioned();
+        assertCountByQueryReturns("source = " + INDEX + " | stats count() as c by RegionID | sort - c | head 10", 10);
+    }
+
+    /** sort ASC on the agg, head 10 — opposite collation direction through the per-shard sort. */
+    public void testCountByGroup_sortAscAgg_head10() throws Exception {
+        ensureProvisioned();
+        assertCountByQueryReturns("source = " + INDEX + " | stats count() as c by RegionID | sort c | head 10", 10);
+    }
+
+    /** sort on the GROUP KEY (not the agg), head 10 — sort field is the by-column. */
+    public void testCountByGroup_sortOnGroupKey_head10() throws Exception {
+        ensureProvisioned();
+        assertCountByQueryReturns("source = " + INDEX + " | stats count() as c by RegionID | sort - RegionID | head 10", 10);
+    }
+
+    /** HAVING (post-stats where) between the agg and the limit, then sort + head. */
+    public void testCountByGroup_having_sortDesc_head10() throws Exception {
+        ensureProvisioned();
+        // `where c > 1` is PPL's HAVING: filters groups after aggregation, before sort/limit.
+        // 14 RegionID groups have count > 1 (12 at 2 + 2 at 3), so head 10 still bounds the result.
+        assertCountByQueryReturns(
+            "source = " + INDEX + " | stats count() as c by RegionID | where c > 1 | sort - c | head 10",
+            10
+        );
+    }
+
+    /** No head: grouped + sorted, every surviving group returned (redundant outer system limit
+     *  must not trim, and TopK must not fire when there is no user limit). */
+    public void testCountByGroup_sortDesc_noHead_returnsAllGroups() throws Exception {
+        ensureProvisioned();
+        // 84 distinct RegionID groups in the fixture.
+        assertCountByQueryReturns("source = " + INDEX + " | stats count() as c by RegionID | sort - c", 84);
+    }
+
+    /** Asserts the query returns exactly {@code expectedRows} rows with the expected [c, RegionID]
+     *  schema — the deterministic contract that holds regardless of oversampling factor. */
+    private void assertCountByQueryReturns(String ppl, int expectedRows) throws Exception {
+        Map<String, Object> result = executePPL(ppl);
+        List<List<Object>> rows = rowsOf(result);
+        assertEquals("row count", expectedRows, rows.size());
+        for (List<Object> row : rows) {
+            assertEquals("each row is [count, RegionID]", 2, row.size());
+            assertTrue("count column must be numeric, got " + row.get(0), row.get(0) instanceof Number);
+        }
+    }
+
     /** No oversampling (factor=0): query still works. */
     public void testFactorZero_queryWorks() throws Exception {
         ensureProvisioned();
@@ -111,6 +172,19 @@ public class ShardBucketOversamplingIT extends AnalyticsRestTestCase {
         List<?> rows = (List<?>) result.get("rows");
         assertNotNull("response must have rows, got: " + result.keySet(), rows);
         assertEquals(expected, rows.size());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> rowsOf(Map<String, Object> result) {
+        List<?> rows = (List<?>) result.get("rows");
+        assertNotNull("response must have rows, got: " + result.keySet(), rows);
+        return (List<List<Object>>) rows;
+    }
+
+    private void setOversamplingFactor(double factor) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.shard_bucket_oversampling_factor\": " + factor + "}}");
+        client().performRequest(req);
     }
 
     private Map<String, Object> executePPL(String ppl) throws Exception {
