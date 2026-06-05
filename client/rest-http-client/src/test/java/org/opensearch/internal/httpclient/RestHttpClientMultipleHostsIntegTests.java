@@ -201,12 +201,12 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
             Response response;
             try {
-                response = restClient.performRequest(new Request(method, "/" + statusCode));
+                response = restClient.performRequest(Request.newRequest(method, "/" + statusCode).build());
             } catch (ResponseException responseException) {
                 response = responseException.getResponse();
             }
             assertEquals(method, response.getRequestLine().getMethod());
-            assertEquals(statusCode, response.getStatusLine().getStatusCode());
+            assertEquals(statusCode, response.getStatusLine().statusCode());
             assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, response.getRequestLine().getUri());
         }
     }
@@ -219,7 +219,7 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
             // we don't test status codes that are subject to retries as they interfere with hosts being stopped
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
-            restClient.performRequestAsync(new Request(method, "/" + statusCode), new ResponseListener() {
+            restClient.performRequestAsync(Request.newRequest(method, "/" + statusCode).build(), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(new TestResponse(method, statusCode, response));
@@ -239,7 +239,7 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
         for (TestResponse testResponse : responses) {
             Response response = testResponse.getResponse();
             assertEquals(testResponse.method, response.getRequestLine().getMethod());
-            assertEquals(testResponse.statusCode, response.getStatusLine().getStatusCode());
+            assertEquals(testResponse.statusCode, response.getStatusLine().statusCode());
             assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode, response.getRequestLine().getUri());
         }
     }
@@ -252,7 +252,7 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
         for (int i = 0; i < numRequests; i++) {
             CountDownLatch latch = new CountDownLatch(1);
             waitForCancelHandler.reset();
-            Cancellable cancellable = restClient.performRequestAsync(new Request("GET", "/wait"), new ResponseListener() {
+            Cancellable cancellable = restClient.performRequestAsync(Request.newRequest("GET", "/wait").build(), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(response);
@@ -287,7 +287,7 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
      */
     public void testNodeSelector() throws Exception {
         try (RestHttpClient restClient = buildRestClient(firstPositionNodeSelector())) {
-            Request request = new Request("GET", "/200");
+            Request request = Request.newRequest("GET", "/200").build();
             int rounds = between(1, 10);
             for (int i = 0; i < rounds; i++) {
                 /*

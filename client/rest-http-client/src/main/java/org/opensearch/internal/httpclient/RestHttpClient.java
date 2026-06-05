@@ -353,7 +353,7 @@ public class RestHttpClient implements Closeable {
         int statusCode = httpResponse.statusCode();
 
         Response response = Response.from(new RequestLine(httpRequest), node.getHost(), httpResponse);
-        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
+        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().statusCode())) {
             onResponse(node);
             if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
                 throw new WarningFailureException(response);
@@ -384,7 +384,7 @@ public class RestHttpClient implements Closeable {
         RequestLogger.logStreamingResponse(logger, request.httpRequest.apply(node), node.getHost(), httpResponse);
         int statusCode = httpResponse.statusCode();
 
-        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
+        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().statusCode())) {
             onResponse(node);
             if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
                 throw new WarningFailureException(response);
@@ -886,26 +886,26 @@ public class RestHttpClient implements Closeable {
         private volatile Cancellable cancellable = Cancellable.fromFuture(new CompletableFuture<>());
 
         InternalRequest(Request request) {
-            Map<String, String> params = new HashMap<>(request.getParameters());
+            Map<String, String> params = new HashMap<>(request.parameters());
             // ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = params.remove("ignore");
-            this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
+            this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.method());
             this.httpRequest = node -> {
-                URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
+                URI uri = buildUri(pathPrefix, request.endpoint(), params);
                 final HttpRequest.Builder builder = createHttpRequest(
                     node,
-                    request.getMethod(),
+                    request.method(),
                     uri,
-                    request.getEntity(),
-                    request.getOptions().getTimeout(),
+                    request.entity(),
+                    request.options().getTimeout(),
                     compressionEnabled
                 );
-                setHeaders(builder, request.getOptions().getHeaders());
+                setHeaders(builder, request.options().getHeaders());
                 return builder.build();
             };
-            this.warningsHandler = request.getOptions().getWarningsHandler() == null
+            this.warningsHandler = request.options().getWarningsHandler() == null
                 ? RestHttpClient.this.warningsHandler
-                : request.getOptions().getWarningsHandler();
+                : request.options().getWarningsHandler();
         }
 
         private void setCancellable(Future<?> f) {

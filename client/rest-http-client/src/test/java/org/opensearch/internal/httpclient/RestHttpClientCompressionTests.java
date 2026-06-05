@@ -100,8 +100,7 @@ public class RestHttpClientCompressionTests extends RestHttpClientTestCase {
 
     public void testCompressingClientWithContentLengthSync() throws Exception {
         try (RestHttpClient restClient = createClient(true)) {
-            Request request = new Request("POST", "/");
-            request.setEntity(BodyPublishers.ofString("compressing client"));
+            Request request = Request.newRequest("POST", "/").withEntity(BodyPublishers.ofString("compressing client")).build();
 
             Response response = restClient.performRequest(request);
 
@@ -114,8 +113,7 @@ public class RestHttpClientCompressionTests extends RestHttpClientTestCase {
 
     public void testCompressingClientContentLengthAsync() throws Exception {
         try (RestHttpClient restClient = createClient(true)) {
-            Request request = new Request("POST", "/");
-            request.setEntity(BodyPublishers.ofString("compressing client"));
+            Request request = Request.newRequest("POST", "/").withEntity(BodyPublishers.ofString("compressing client")).build();
 
             FutureResponse futureResponse = new FutureResponse();
             restClient.performRequestAsync(request, futureResponse);

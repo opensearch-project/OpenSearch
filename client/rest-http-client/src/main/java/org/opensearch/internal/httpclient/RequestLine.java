@@ -53,7 +53,6 @@ public final class RequestLine implements Serializable {
      * @param version HTTP protocol
      */
     public RequestLine(final String method, final URI uri, final Version version) {
-        super();
         this.method = Objects.requireNonNull(method, "Method");
         this.uri = Objects.requireNonNull(uri, "URI").getPath();
         this.protoversion = version != null ? version : Version.HTTP_1_1;

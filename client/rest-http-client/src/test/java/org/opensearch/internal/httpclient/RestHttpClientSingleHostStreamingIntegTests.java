@@ -159,7 +159,7 @@ public class RestHttpClientSingleHostStreamingIntegTests extends RestHttpClientT
         StreamingResponse esResponse = restClient.streamRequest(request);
 
         assertEquals(method, esResponse.getRequestLine().getMethod());
-        assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
+        assertEquals(statusCode, esResponse.getStatusLine().statusCode());
         assertEquals(pathPrefix + "/" + statusCode, esResponse.getRequestLine().getUri());
 
         if (statusCode >= 200 && statusCode < 400) {

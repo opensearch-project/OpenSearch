@@ -20,71 +20,22 @@ import static java.util.Collections.unmodifiableMap;
  * HTTP Request to OpenSearch.
  * Note: This is an experimental API.
  */
-public final class Request {
-    private final String method;
-    private final String endpoint;
-    private final Map<String, String> parameters = new HashMap<>();
+public record Request(String method, String endpoint, Map<String, String> parameters, BodyPublisher entity, RequestOptions options) {
 
-    private BodyPublisher entity;
-    private RequestOptions options = RequestOptions.DEFAULT;
-
-    /**
-     * Create the {@linkplain Request}.
-     * @param method the HTTP method
-     * @param endpoint the path of the request (without scheme, host, port, or prefix)
-     */
-    public Request(String method, String endpoint) {
-        this.method = Objects.requireNonNull(method, "method cannot be null");
-        this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
-    }
-
-    /**
-     * The HTTP method.
-     */
-    public String getMethod() {
-        return method;
-    }
-
-    /**
-     * The path of the request (without scheme, host, port, or prefix).
-     */
-    public String getEndpoint() {
-        return endpoint;
-    }
-
-    /**
-     * Add a query string parameter.
-     * @param name the name of the url parameter. Must not be null.
-     * @param value the value of the url url parameter. If {@code null} then
-     *      the parameter is sent as {@code name} rather than {@code name=value}
-     * @throws IllegalArgumentException if a parameter with that name has
-     *      already been set
-     */
-    public void addParameter(String name, String value) {
-        Objects.requireNonNull(name, "url parameter name cannot be null");
-        if (parameters.containsKey(name)) {
-            throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + parameters.get(name) + "]");
-        } else {
-            parameters.put(name, value);
-        }
-    }
-
-    /**
-     * Add query parameters using the provided map of key value pairs.
-     *
-     * @param paramSource a map of key value pairs where the key is the url parameter.
-     * @throws IllegalArgumentException if a parameter with that name has already been set.
-     */
-    public void addParameters(Map<String, String> paramSource) {
-        paramSource.forEach(this::addParameter);
+    public Request {
+        method = Objects.requireNonNull(method, "method cannot be null");
+        endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
+        parameters = parameters == null ? new HashMap<>() : parameters;
+        options = options == null ? RequestOptions.DEFAULT : options;
     }
 
     /**
      * Query string parameters. The returned map is an unmodifiable view of the
-     * map in the request so calls to {@link #addParameter(String, String)}
+     * map in the request so calls to {@link Map#put(Object, Object)}
      * will change it.
      */
-    public Map<String, String> getParameters() {
+    @Override
+    public Map<String, String> parameters() {
         if (options.getParameters().isEmpty()) {
             return unmodifiableMap(parameters);
         } else {
@@ -94,114 +45,116 @@ public final class Request {
         }
     }
 
-    /**
-     * Set the body of the request. If not set or set to {@code null} then no
-     * body is sent with the request.
-     *
-     * @param entity the {@link BodyPublisher} to be set as the body of the request.
-     */
-    public void setEntity(BodyPublisher entity) {
-        this.entity = entity;
+    public static Request.Builder newRequest(String method, String endpoint) {
+        return new Request.Builder(method, endpoint);
     }
 
-    /**
-     * Set the body of the request to a string. If not set or set to
-     * {@code null} then no body is sent with the request. The
-     * {@code Content-Type} will be sent as {@code application/json}.
-     * If you need a different content type then use
-     * {@link #setEntity(BodyPublisher)}.
-     *
-     * @param entity JSON string to be set as the entity body of the request.
-     */
-    public void setJsonEntity(String entity) {
-        setEntity(entity == null ? BodyPublishers.noBody() : BodyPublishers.ofString(entity));
-    }
+    public static final class Builder {
+        private final String method;
+        private final String endpoint;
+        private final Map<String, String> parameters = new HashMap<>();
+        private BodyPublisher entity;
+        private RequestOptions options = RequestOptions.DEFAULT;
 
-    /**
-     * The body of the request. If {@code null} then no body
-     * is sent with the request.
-     */
-    public BodyPublisher getEntity() {
-        return entity;
-    }
-
-    /**
-     * Set the portion of an HTTP request to OpenSearch that can be
-     * manipulated without changing OpenSearch's behavior.
-     *
-     * @param options the options to be set.
-     * @throws NullPointerException if {@code options} is null.
-     */
-    public void setOptions(RequestOptions options) {
-        Objects.requireNonNull(options, "options cannot be null");
-        this.options = options;
-    }
-
-    /**
-     * Set the portion of an HTTP request to OpenSearch that can be
-     * manipulated without changing OpenSearch's behavior.
-     *
-     * @param options the options to be set.
-     * @throws NullPointerException if {@code options} is null.
-     */
-    public void setOptions(RequestOptions.Builder options) {
-        Objects.requireNonNull(options, "options cannot be null");
-        this.options = options.build();
-    }
-
-    /**
-     * Get the portion of an HTTP request to OpenSearch that can be
-     * manipulated without changing OpenSearch's behavior.
-     */
-    public RequestOptions getOptions() {
-        return options;
-    }
-
-    /**
-     * Convert request to string representation
-     */
-    @Override
-    public String toString() {
-        StringBuilder b = new StringBuilder();
-        b.append("Request{");
-        b.append("method='").append(method).append('\'');
-        b.append(", endpoint='").append(endpoint).append('\'');
-        if (false == parameters.isEmpty()) {
-            b.append(", params=").append(parameters);
-        }
-        if (entity != null) {
-            b.append(", entity=").append(entity);
-        }
-        b.append(", options=").append(options);
-        return b.append('}').toString();
-    }
-
-    /**
-     * Compare two requests for equality
-     * @param obj request instance to compare with
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || (obj.getClass() != getClass())) {
-            return false;
-        }
-        if (obj == this) {
-            return true;
+        private Builder(String method, String endpoint) {
+            this.method = Objects.requireNonNull(method, "method cannot be null");
+            this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
         }
 
-        Request other = (Request) obj;
-        return method.equals(other.method)
-            && endpoint.equals(other.endpoint)
-            && parameters.equals(other.parameters)
-            && Objects.equals(entity, other.entity)
-            && options.equals(other.options);
-    }
+        /**
+         * Set the portion of an HTTP request to OpenSearch that can be
+         * manipulated without changing OpenSearch's behavior.
+         *
+         * @param options the options to be set.
+         * @throws NullPointerException if {@code options} is null.
+         */
+        public void setOptions(RequestOptions options) {
+            Objects.requireNonNull(options, "options cannot be null");
+            this.options = options;
+        }
 
-    /**
-     * Calculate the hash code of the request
-     */
-    @Override
-    public int hashCode() {
-        return Objects.hash(method, endpoint, parameters, entity, options);
+        /**
+         * Add a query string parameter.
+         * @param name the name of the url parameter. Must not be null.
+         * @param value the value of the url url parameter. If {@code null} then
+         *      the parameter is sent as {@code name} rather than {@code name=value}
+         * @throws IllegalArgumentException if a parameter with that name has
+         *      already been set
+         */
+        public Builder withParameter(String name, String value) {
+            Objects.requireNonNull(name, "url parameter name cannot be null");
+            if (parameters.containsKey(name)) {
+                throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + parameters.get(name) + "]");
+            } else {
+                parameters.put(name, value);
+            }
+            return this;
+        }
+
+        /**
+         * Add query parameters using the provided map of key value pairs.
+         *
+         * @param paramSource a map of key value pairs where the key is the url parameter.
+         * @throws IllegalArgumentException if a parameter with that name has already been set.
+         */
+        public Builder withParameters(Map<String, String> paramSource) {
+            paramSource.forEach(this::withParameter);
+            return this;
+        }
+
+        /**
+         * Set the portion of an HTTP request to OpenSearch that can be
+         * manipulated without changing OpenSearch's behavior.
+         *
+         * @param options the options to be set.
+         * @throws NullPointerException if {@code options} is null.
+         */
+        public Builder withOptions(RequestOptions.Builder options) {
+            Objects.requireNonNull(options, "options cannot be null");
+            this.options = options.build();
+            return this;
+        }
+
+        /**
+         * Set the portion of an HTTP request to OpenSearch that can be
+         * manipulated without changing OpenSearch's behavior.
+         *
+         * @param options the options to be set.
+         * @throws NullPointerException if {@code options} is null.
+         */
+        public Builder withOptions(RequestOptions options) {
+            Objects.requireNonNull(options, "options cannot be null");
+            this.options = options;
+            return this;
+        }
+
+        /**
+         * Set the body of the request. If not set or set to {@code null} then no
+         * body is sent with the request.
+         *
+         * @param entity the {@link BodyPublisher} to be set as the body of the request.
+         */
+        public Builder withEntity(BodyPublisher entity) {
+            this.entity = entity;
+            return this;
+        }
+
+        /**
+         * Set the body of the request to a string. If not set or set to
+         * {@code null} then no body is sent with the request. The
+         * {@code Content-Type} will be sent as {@code application/json}.
+         * If you need a different content type then use
+         * {@link #withEntity(BodyPublisher)}.
+         *
+         * @param entity JSON string to be set as the entity body of the request.
+         */
+        public Builder withEntity(String entity) {
+            withEntity(entity == null ? BodyPublishers.noBody() : BodyPublishers.ofString(entity));
+            return this;
+        }
+
+        public Request build() {
+            return new Request(method, endpoint, parameters, entity, options);
+        }
     }
 }

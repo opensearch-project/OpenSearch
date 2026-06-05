@@ -316,8 +316,8 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
     public void testOkStatusCodes() throws Exception {
         for (String method : getHttpMethods()) {
             for (int okStatusCode : getOkStatusCodes()) {
-                Response response = performRequestSyncOrAsync(restClient, new Request(method, "/" + okStatusCode));
-                assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
+                Response response = performRequestSyncOrAsync(restClient, Request.newRequest(method, "/" + okStatusCode).build());
+                assertThat(response.getStatusLine().statusCode(), equalTo(okStatusCode));
             }
         }
         failureListener.assertNotCalled();
@@ -347,14 +347,14 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             // error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
                 try {
-                    Request request = new Request(method, "/" + errorStatusCode);
+                    Request.Builder builder = Request.newRequest(method, "/" + errorStatusCode);
                     if (false == ignoreParam.isEmpty()) {
-                        request.addParameter("ignore", ignoreParam);
+                        builder = builder.withParameter("ignore", ignoreParam);
                     }
-                    Response response = restClient.performRequest(request);
+                    Response response = restClient.performRequest(builder.build());
                     if (expectedIgnores.contains(errorStatusCode)) {
                         // no exception gets thrown although we got an error status code, as it was configured to be ignored
-                        assertEquals(errorStatusCode, response.getStatusLine().getStatusCode());
+                        assertEquals(errorStatusCode, response.getStatusLine().statusCode());
                     } else {
                         fail("request should have failed");
                     }
@@ -362,7 +362,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
                     if (expectedIgnores.contains(errorStatusCode)) {
                         throw e;
                     }
-                    assertEquals(errorStatusCode, e.getResponse().getStatusLine().getStatusCode());
+                    assertEquals(errorStatusCode, e.getResponse().getStatusLine().statusCode());
                     assertExceptionStackContainsCallingMethod(e);
                 }
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
@@ -378,7 +378,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
         for (String method : getHttpMethods()) {
             // IOExceptions should be let bubble up
             try {
-                restClient.performRequest(new Request(method, "/ioe"));
+                restClient.performRequest(Request.newRequest(method, "/ioe").build());
                 fail("request should have failed");
             } catch (IOException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
@@ -386,7 +386,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             }
             failureListener.assertCalled(singletonList(node));
             try {
-                restClient.performRequest(new Request(method, "/coe"));
+                restClient.performRequest(Request.newRequest(method, "/coe").build());
                 fail("request should have failed");
             } catch (HttpTimeoutException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
@@ -394,7 +394,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             }
             failureListener.assertCalled(singletonList(node));
             try {
-                restClient.performRequest(new Request(method, "/soe"));
+                restClient.performRequest(Request.newRequest(method, "/soe").build());
                 fail("request should have failed");
             } catch (SocketTimeoutException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
@@ -402,7 +402,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             }
             failureListener.assertCalled(singletonList(node));
             try {
-                restClient.performRequest(new Request(method, "/closed"));
+                restClient.performRequest(Request.newRequest(method, "/closed").build());
                 fail("request should have failed");
             } catch (ClosedChannelException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
@@ -410,7 +410,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             }
             failureListener.assertCalled(singletonList(node));
             try {
-                restClient.performRequest(new Request(method, "/handshake"));
+                restClient.performRequest(Request.newRequest(method, "/handshake").build());
                 fail("request should have failed");
             } catch (SSLHandshakeException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
@@ -423,7 +423,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
     public void testPerformRequestRuntimeExceptions() throws Exception {
         for (String method : getHttpMethods()) {
             try {
-                restClient.performRequest(new Request(method, "/runtime"));
+                restClient.performRequest(Request.newRequest(method, "/runtime").build());
                 fail("request should have failed");
             } catch (RuntimeException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
@@ -436,7 +436,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
     public void testPerformRequestExceptions() throws Exception {
         for (String method : getHttpMethods()) {
             try {
-                restClient.performRequest(new Request(method, "/uri"));
+                restClient.performRequest(Request.newRequest(method, "/uri").build());
                 fail("request should have failed");
             } catch (RuntimeException e) {
                 assertThat(e.getCause(), instanceOf(URISyntaxException.class));
@@ -456,21 +456,19 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
         BodyPublisher entity = BodyPublishers.ofString(body);
         for (String method : Arrays.asList("DELETE", "GET", "PATCH", "POST", "PUT", "TRACE")) {
             for (int okStatusCode : getOkStatusCodes()) {
-                Request request = new Request(method, "/" + okStatusCode);
-                request.setEntity(entity);
+                Request request = Request.newRequest(method, "/" + okStatusCode).withEntity(entity).build();
                 Response response = restClient.performRequest(request);
-                assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
+                assertThat(response.getStatusLine().statusCode(), equalTo(okStatusCode));
                 assertThat(BodyUtils.getBodyAsString(response), equalTo(body));
             }
             for (int errorStatusCode : getAllErrorStatusCodes()) {
-                Request request = new Request(method, "/" + errorStatusCode);
-                request.setEntity(entity);
+                Request request = Request.newRequest(method, "/" + errorStatusCode).withEntity(entity).build();
                 try {
                     restClient.performRequest(request);
                     fail("request should have failed");
                 } catch (ResponseException e) {
                     Response response = e.getResponse();
-                    assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
+                    assertThat(response.getStatusLine().statusCode(), equalTo(errorStatusCode));
                     assertThat(BodyUtils.getBodyAsString(response), equalTo(body));
                     assertExceptionStackContainsCallingMethod(e);
                 }
@@ -486,19 +484,19 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
         for (String method : getHttpMethods()) {
             final Map<String, List<String>> requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
-            Request request = new Request(method, "/" + statusCode);
-            RequestOptions.Builder options = request.getOptions().toBuilder();
+            Request.Builder builder = Request.newRequest(method, "/" + statusCode);
+            RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             for (Map.Entry<String, List<String>> requestHeader : requestHeaders.entrySet()) {
                 requestHeader.getValue().forEach(v -> options.addHeader(requestHeader.getKey(), v));
             }
-            request.setOptions(options);
+            builder = builder.withOptions(options);
             Response esResponse;
             try {
-                esResponse = performRequestSyncOrAsync(restClient, request);
+                esResponse = performRequestSyncOrAsync(restClient, builder.build());
             } catch (ResponseException e) {
                 esResponse = e.getResponse();
             }
-            assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
+            assertThat(esResponse.getStatusLine().statusCode(), equalTo(statusCode));
             assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
             assertFalse(esResponse.hasWarnings());
         }
@@ -563,8 +561,8 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
 
     private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws Exception {
         String method = randomFrom(getHttpMethods());
-        Request request = new Request(method, "/200");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
+        Request.Builder builder = Request.newRequest(method, "/200");
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         for (String warningHeaderText : warningHeaderTexts) {
             options.addHeader("Warning", warningHeaderText);
         }
@@ -579,12 +577,12 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             options.setWarningsHandler(warningOption.warningsHandler());
             expectFailure = warningOption.warningsHandler().warningsShouldFailRequest(warningBodyTexts);
         }
-        request.setOptions(options);
+        builder = builder.withOptions(options);
 
         Response response;
         if (expectFailure) {
             try {
-                performRequestSyncOrAsync(restClient, request);
+                performRequestSyncOrAsync(restClient, builder.build());
                 fail("expected WarningFailureException from warnings");
                 return;
             } catch (WarningFailureException e) {
@@ -594,7 +592,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
                 response = e.getResponse();
             }
         } else {
-            response = performRequestSyncOrAsync(restClient, request);
+            response = performRequestSyncOrAsync(restClient, builder.build());
         }
         assertEquals(false == warningBodyTexts.isEmpty(), response.hasWarnings());
         assertEquals(warningBodyTexts, response.getWarnings());
@@ -615,7 +613,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
 
     private HttpRequest performRandomRequest(String method) throws Exception {
         String uriAsString = "/" + randomStatusCode(getRandom());
-        Request request = new Request(method, uriAsString);
+        Request.Builder builder = Request.newRequest(method, uriAsString);
 
         Map<String, String> params = new HashMap<>();
         if (randomBoolean()) {
@@ -623,7 +621,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             for (int i = 0; i < numParams; i++) {
                 String name = "param-" + i;
                 String value = randomAsciiAlphanumOfLengthBetween(3, 10);
-                request.addParameter(name, value);
+                builder = builder.withParameter(name, value);
                 params.put(name, value);
             }
         }
@@ -633,7 +631,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             if (randomBoolean()) {
                 ignore += "," + randomFrom(RestClientTestUtil.getAllErrorStatusCodes());
             }
-            request.addParameter("ignore", ignore);
+            builder = builder.withParameter("ignore", ignore);
         }
 
         final String additionalQuery = params.entrySet()
@@ -645,20 +643,20 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
         BodyPublisher bodyPublisher = BodyPublishers.noBody();
         if (getRandom().nextBoolean()) {
             bodyPublisher = BodyPublishers.ofString(randomAsciiAlphanumOfLengthBetween(10, 100));
-            request.setEntity(bodyPublisher);
+            builder = builder.withEntity(bodyPublisher);
         }
 
         HttpRequest.Builder expectedRequest = HttpRequest.newBuilder(uri).method(method, bodyPublisher);
         final Set<String> uniqueNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         if (randomBoolean()) {
             Map<String, List<String>> headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
+            RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeaders(headers);
             for (Map.Entry<String, List<String>> header : headers.entrySet()) {
                 header.getValue().forEach(v -> expectedRequest.header(header.getKey(), v));
                 uniqueNames.add(header.getKey());
             }
-            request.setOptions(options);
+            builder = builder.withOptions(options);
         }
         for (Map.Entry<String, List<String>> defaultHeader : defaultHeaders.entrySet()) {
             // request level headers override default headers
@@ -667,7 +665,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             }
         }
         try {
-            performRequestSyncOrAsync(restClient, request);
+            performRequestSyncOrAsync(restClient, builder.build());
         } catch (Exception e) {
             // all good
         }
