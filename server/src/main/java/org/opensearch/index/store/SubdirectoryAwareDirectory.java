@@ -42,7 +42,7 @@ import java.util.Set;
  */
 public class SubdirectoryAwareDirectory extends FilterDirectory {
     private static final Logger logger = LogManager.getLogger(SubdirectoryAwareDirectory.class);
-    private static final Set<String> EXCLUDED_SUBDIRECTORIES = Set.of("index/", "translog/", "_state/");
+    private static final Set<String> EXCLUDED_SUBDIRECTORIES = Set.of("index/", "translog/", "_state/", "lucene/");
     private final ShardPath shardPath;
     private final Path fsDataPath;
 

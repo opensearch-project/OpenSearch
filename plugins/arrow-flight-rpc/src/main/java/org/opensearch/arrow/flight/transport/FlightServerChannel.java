@@ -12,6 +12,7 @@ import org.apache.arrow.flight.BackpressureStrategy;
 import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.FlightRuntimeException;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
@@ -148,12 +149,15 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         return executor;
     }
 
-    /**
-     * Sends a batch of data as a VectorSchemaRoot.
-     *
-     * @param output StreamOutput for the response
-     */
     public void sendBatch(ByteBuffer header, VectorStreamOutput output) {
+        sendBatch(header, output, null);
+    }
+
+    /**
+     * Sends a batch, optionally with application metadata attached to the same Flight
+     * frame via {@code putNext(ArrowBuf)}. Metadata is opaque to the transport.
+     */
+    public void sendBatch(ByteBuffer header, VectorStreamOutput output, byte[] metadata) {
         if (cancelled) {
             throw StreamException.cancelled("Cannot flush more batches. Stream cancelled by the client");
         }
@@ -162,19 +166,24 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         }
         batchNumber.incrementAndGet();
         long batchStartTime = System.nanoTime();
-        // Only set for the first batch
         if (root == null) {
             middleware.setHeader(header);
             root = output.getRoot();
             serverStreamListener.start(root);
         } else {
             root = output.getRoot();
-            // placeholder to clear and fill the root with data for the next batch
         }
         logger.debug("Sending batch #{} for correlation ID: {}", batchNumber, correlationId);
-        // we do not want to close the root right after putNext() call as we do not know the status of it whether
-        // its transmitted at transport; we close them all at complete stream. TODO: optimize this behaviour
-        serverStreamListener.putNext();
+        // Roots are not closed right after putNext: gRPC may still hold zero-copy refs.
+        // They're released at completeStream. TODO: optimize.
+        if (metadata != null) {
+            // Flight takes ownership of metadataBuf via putNext(ArrowBuf).
+            ArrowBuf metadataBuf = allocator.buffer(metadata.length);
+            metadataBuf.writeBytes(metadata);
+            serverStreamListener.putNext(metadataBuf);
+        } else {
+            serverStreamListener.putNext();
+        }
         long putNextTime = (System.nanoTime() - batchStartTime) / 1_000_000;
         if (callTracker != null) {
             long rootSize = FlightUtils.calculateVectorSchemaRootSize(root);
