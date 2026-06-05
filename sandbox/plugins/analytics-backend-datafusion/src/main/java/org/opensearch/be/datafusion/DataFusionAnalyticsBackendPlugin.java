@@ -600,6 +600,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 SecondAdapter second = new SecondAdapter();
                 // Stateless cast adapter shared between CAST and SAFE_CAST registrations.
                 IpBinaryCastFunctionAdapter ipBinaryCast = new IpBinaryCastFunctionAdapter();
+                // Stateless adapter shared across the six comparison operators.
+                ComparisonTemporalCoercionAdapter comparisonTemporalCoercion = new ComparisonTemporalCoercionAdapter();
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
@@ -743,7 +745,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
                     Map.entry(ScalarFunction.WIDTH_BUCKET, new WidthBucketAdapter()),
-                    Map.entry(ScalarFunction.YEAR, DatePartAdapters.year())
+                    Map.entry(ScalarFunction.YEAR, DatePartAdapters.year()),
+                    // Coerce a bare character operand to TIMESTAMP when compared against a temporal
+                    // operand — recovers the coercion lost when RelDecorrelator folds the PPL
+                    // TIMESTAMP UDF wrapper to a string inside a subquery (see adapter javadoc).
+                    Map.entry(ScalarFunction.EQUALS, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.NOT_EQUALS, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.GREATER_THAN, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.GREATER_THAN_OR_EQUAL, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.LESS_THAN, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, comparisonTemporalCoercion)
                 );
             }
         };

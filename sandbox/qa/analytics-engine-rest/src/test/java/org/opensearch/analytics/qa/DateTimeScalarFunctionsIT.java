@@ -267,6 +267,52 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    // A timestamp-vs-date comparison at the TOP LEVEL coerces correctly and runs: all 17 calcs
+    // docs have a datetime0 in 2004, so the predicate matches everything. Baseline for the
+    // subquery variants below, which use the SAME comparison but inside a subquery.
+    public void testTimestampGeDateLiteralTopLevel() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName + " | where datetime0 >= date('2004-01-01') | stats count() as c",
+            17L
+        );
+    }
+
+    // Same comparison, but inside an IN subquery (TPC-H q20 shape). RelDecorrelator simplifies the
+    // subquery body and constant-folds the PPL TIMESTAMP(varchar) wrapper around the date literal
+    // down to a bare string before the backend's scalar-function adapter can coerce it, so Substrait
+    // conversion fails with "Unable to convert call >=(precision_timestamp<0>?, string?)". The
+    // top-level form above (which skips decorrelation) works.
+    public void testTimestampGeDateLiteralInSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where key in [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01') | fields key ] | stats count() as c",
+            17L
+        );
+    }
+
+    // Same comparison inside a SCALAR subquery (TPC-H q15 shape).
+    public void testTimestampGeDateLiteralScalarSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where num0 = [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01') | stats max(num0) ] | stats count() as c",
+            1L
+        );
+    }
+
+    // The literal form is irrelevant: a native Calcite DATE literal (DATE '...') regresses the same
+    // way as the PPL date('...') UDF inside a subquery, confirming the bug is the decorrelation fold,
+    // not the literal's surface syntax.
+    public void testTimestampGeDateNativeLiteralInSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where key in [ source=" + DATASET.indexName
+                + " | where datetime0 >= DATE '2004-01-01' | fields key ] | stats count() as c",
+            17L
+        );
+    }
+
     private void assertFirstRowString(String ppl, String expected) throws IOException {
         Object cell = firstRowFirstCell(ppl);
         assertNotNull("Expected non-null result for query [" + ppl + "]", cell);
