@@ -59,13 +59,8 @@ final class LuceneScanInstructionHandler implements FragmentInstructionHandler<S
         if (luceneReader == null) {
             throw new IllegalStateException("Lucene-driver fragment dispatched to a shard with no LuceneReader");
         }
-        IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
-        if (shardCtx.getQueryCache() != null) {
-            searcher.setQueryCache(shardCtx.getQueryCache());
-        }
-        if (shardCtx.getQueryCachingPolicy() != null) {
-            searcher.setQueryCachingPolicy(shardCtx.getQueryCachingPolicy());
-        }
+        // Shared per-reader searcher (see LuceneReader#searcher).
+        IndexSearcher searcher = luceneReader.searcher(shardCtx.getQueryCache(), shardCtx.getQueryCachingPolicy());
         Decoded decoded = decodeFragmentBytes(shardCtx, searcher);
         LOGGER.debug(
             "[lucene-count] shardId={} filterQuery={} columnNames={}",
