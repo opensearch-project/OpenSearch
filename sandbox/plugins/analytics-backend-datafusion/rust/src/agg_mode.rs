@@ -10,10 +10,13 @@
 
 use std::sync::Arc;
 
+use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_optimizer::combine_partial_final_agg::CombinePartialFinalAggregate;
 use datafusion::physical_optimizer::optimizer::{PhysicalOptimizer, PhysicalOptimizerRule};
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
+use datafusion::physical_plan::expressions::Column;
+use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::physical_plan::repartition::RepartitionExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion_common::Result;
@@ -54,7 +57,12 @@ fn force_aggregate_mode(
     target: AggregateMode,
 ) -> Result<Arc<dyn ExecutionPlan>> {
     if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
-        if *agg.mode() == target {
+        // Treat `FinalPartitioned` as `Final`: DataFusion picks `FinalPartitioned` for
+        // grouped aggregates that consume hash-partitioned input and `Final` for scalar /
+        // un-partitioned ones. Both are the FINAL half of the Partial/Final pair we strip.
+        let agg_is_target = *agg.mode() == target
+            || (target == AggregateMode::Final && *agg.mode() == AggregateMode::FinalPartitioned);
+        if agg_is_target {
             // Keep this node, recurse into children
             let new_children: Vec<Arc<dyn ExecutionPlan>> = agg
                 .children()
@@ -112,6 +120,85 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
     let children = plan.children();
     if children.len() == 1 {
         return find_partial_input(Arc::clone(children[0]));
+    }
+    None
+}
+
+/// Renames an `AggregateExec(Partial)`'s state-suffixed output columns back to the
+/// per-measure user-facing alias derived from `AggregateFunctionExpr::name()`. No-op
+/// for any other plan shape.
+///
+/// `Mode::Partial` emits one column per state field, named `<measure-alias>[<state>]`
+/// (e.g. `dc(x)[hll_registers]`, `count(*)[count]`). The exchange wire schema declares
+/// the unsuffixed alias (matching the FINAL substrait's `Read.base_schema`), so we
+/// derive each column's intended name structurally from the aggregate's own
+/// `name()` / `state_fields()` rather than pattern-matching the `[…]` suffix:
+///
+///   * group columns       → keep input names (passthrough)
+///   * single-state measure → rename to `aggr.name()` (its final-mode alias)
+///   * multi-state measure → keep state-field names (e.g. AVG's `[count]` + `[sum]`,
+///                           transported separately and reconstructed at FINAL)
+pub(crate) fn wrap_with_user_facing_names(
+    plan: Arc<dyn ExecutionPlan>,
+) -> Result<Arc<dyn ExecutionPlan>> {
+    let Some(agg) = find_top_aggregate_exec(&plan) else {
+        return Ok(plan);
+    };
+    // Only Partial emits state-suffixed names; Final / FinalPartitioned outputs already
+    // match the measure's final-mode field name.
+    if !matches!(agg.mode(), AggregateMode::Partial) {
+        return Ok(plan);
+    }
+    let group_count = agg.group_expr().expr().len();
+    let plan_schema = plan.schema();
+
+    let mut expected_names: Vec<String> = plan_schema
+        .fields()
+        .iter()
+        .take(group_count)
+        .map(|f| f.name().clone())
+        .collect();
+    for aggr in agg.aggr_expr() {
+        let states = aggr.state_fields()?;
+        if states.len() == 1 {
+            expected_names.push(aggr.name().to_string());
+        } else {
+            for state in &states {
+                expected_names.push(state.name().clone());
+            }
+        }
+    }
+
+    if plan_schema
+        .fields()
+        .iter()
+        .zip(expected_names.iter())
+        .all(|(f, e)| f.name() == e)
+    {
+        return Ok(plan);
+    }
+
+    let exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = plan_schema
+        .fields()
+        .iter()
+        .zip(expected_names.into_iter())
+        .enumerate()
+        .map(|(i, (f, name))| {
+            (Arc::new(Column::new(f.name(), i)) as Arc<dyn PhysicalExpr>, name)
+        })
+        .collect();
+    Ok(Arc::new(ProjectionExec::try_new(exprs, plan)?))
+}
+
+/// Walks down through single-input wrappers to find the topmost `AggregateExec`,
+/// or `None` if the chain doesn't contain one.
+fn find_top_aggregate_exec(plan: &Arc<dyn ExecutionPlan>) -> Option<&AggregateExec> {
+    if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+        return Some(agg);
+    }
+    let children = plan.children();
+    if children.len() == 1 {
+        return find_top_aggregate_exec(children[0]);
     }
     None
 }

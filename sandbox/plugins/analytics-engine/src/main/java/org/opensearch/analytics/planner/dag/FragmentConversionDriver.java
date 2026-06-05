@@ -309,6 +309,25 @@ public class FragmentConversionDriver {
     }
 
     /**
+     * True when {@code project}'s expressions are all pure column references
+     * ({@link org.apache.calcite.rex.RexInputRef}), i.e. the Project does nothing but
+     * reorder / drop / duplicate columns.
+     */
+    private static boolean isPureReorderProject(org.apache.calcite.rel.core.Project project) {
+        for (RexNode expr : project.getProjects()) {
+            if (!(expr instanceof org.apache.calcite.rex.RexInputRef)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Alias for {@link #containsEngineNativeFinalAggregate}, used for readability at the call site. */
+    private static boolean hasEngineNativeMergeFinalBelow(RelNode root) {
+        return containsEngineNativeFinalAggregate(root);
+    }
+
+    /**
      * Accumulates serialized delegated query bytes during fragment conversion.
      *
      * <p>The resolver performs a single bottom-up traversal of the filter condition tree,
@@ -561,6 +580,24 @@ public class FragmentConversionDriver {
 
             // Single-input operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
+            // Engine-native-merge FINAL workaround: Calcite emits a pure-reorder Project on top of
+            // FINAL when PPL's user-visible output order differs from the natural [group, measures]
+            // Aggregate order (e.g. `stats distinct_count(label) by category` → output =
+            // [distinct_count(label), category]). DataFusion's substrait consumer fails to bind the
+            // Project's input-field names against the Aggregate's measure column when the measure
+            // column emits state types via Mode::Final (assertion `col.name() == matching_name`
+            // tripping on `distinct_count(label)` vs `approx_distinct(input-0.distinct_count(label))`).
+            // Skip the reorder Project at substrait emit; the Java-side reduce sink consumes columns
+            // by name (not position), so the order shift is invisible to the response.
+            if (node instanceof org.apache.calcite.rel.core.Project p
+                && isPureReorderProject(p)
+                && hasEngineNativeMergeFinalBelow(node.getInputs().getFirst())) {
+                LOGGER.debug(
+                    "[ENM-WORKAROUND] Skipping pure-reorder Project above engine-native-merge FINAL — DataFusion substrait-binding bug:\n{}",
+                    org.apache.calcite.plan.RelOptUtil.toString(node)
+                );
+                return innerBytes;
+            }
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
