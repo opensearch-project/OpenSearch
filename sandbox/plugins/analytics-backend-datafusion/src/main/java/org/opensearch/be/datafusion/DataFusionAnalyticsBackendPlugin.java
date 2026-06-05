@@ -357,10 +357,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // default catalog, so adapters rewrite to DF-native interval arithmetic.
         ScalarFunction.TIMESTAMPDIFF,
         ScalarFunction.TIMESTAMPADD,
-        // PPL `DATE_ADD(t, INTERVAL n unit)` / `DATE_SUB(t, INTERVAL n unit)` — shift a temporal
-        // value by an interval. Neither is bound by isthmus's default catalog (surfaces as
-        // "Unrecognized scalar function [DATE_ADD]"), so DateAddSubAdapter rewrites them to
-        // DATETIME_PLUS(base, ±interval), the same substrait-native add the timestamp adapters use.
         ScalarFunction.DATE_ADD,
         ScalarFunction.DATE_SUB
     );

@@ -27,39 +27,21 @@ import java.util.List;
 
 /**
  * Rewrites PPL {@code DATE_ADD(base, INTERVAL n unit)} / {@code DATE_SUB(base, INTERVAL n unit)}
- * into {@code DATETIME_PLUS(CAST(base AS TIMESTAMP), interval)}.
+ * into {@code DATETIME_PLUS(CAST(base AS TIMESTAMP), interval)}, which lowers to Substrait's
+ * {@code add(timestamp, interval)} that DataFusion executes natively. The raw PPL UDFs have no
+ * Substrait binding, so isthmus rejects them.
  *
- * <p>The PPL {@code DATE_ADD} / {@code DATE_SUB} UDFs (named operators from
- * {@code DateAddSubFunction}) have no Substrait extension binding — isthmus rejects the raw call
- * with {@code "Unrecognized scalar function [DATE_ADD]"} / {@code "Unable to convert call
- * DATE_ADD(date?, interval_year)"}. {@code DATETIME_PLUS}, by contrast, lowers to Substrait's
- * standard {@code add(timestamp, interval)} which DataFusion executes natively — the same path
- * {@link EarliestLatestAdapter} and {@link TimestampDiffAdapter} already rely on for interval
- * arithmetic.
+ * <p>PPL's interval literal carries the leading-field value (e.g. {@code 90} for
+ * {@code INTERVAL 90 day}), but Substrait/DataFusion expect day-time intervals in milliseconds and
+ * year-month intervals in months. This adapter rebuilds the interval in those base units (under a
+ * {@link TimeUnit#DAY} or {@link TimeUnit#MONTH} qualifier) and folds the {@code DATE_SUB} sign in,
+ * the same way {@link EarliestLatestAdapter} does.
  *
- * <p><b>Interval value units.</b> PPL's {@code visitInterval} builds the literal with the
- * <em>leading-field value</em> (e.g. {@code 90} for {@code INTERVAL 90 day}). Substrait /
- * DataFusion, however, carry a day-time interval as <em>milliseconds</em> and a year-month interval
- * as <em>months</em>. Passing the PPL literal through unchanged therefore adds 90&nbsp;ms, not
- * 90&nbsp;days. This adapter reconstructs the interval in the backend's expected base units —
- * milliseconds under a {@link TimeUnit#DAY} qualifier for day-time units, months under a
- * {@link TimeUnit#MONTH} qualifier for the month family — exactly as {@link EarliestLatestAdapter}
- * does. The {@code DATE_SUB} sign is folded into the converted value.
- *
- * <p>The base is cast to the call's declared TIMESTAMP type first: PPL {@code DATE_ADD} always
- * returns TIMESTAMP (midnight UTC when the base is a DATE), and the DATE-to-TIMESTAMP cast maps to
- * arrow's Date32 to Timestamp(Nanosecond) kernel (see {@code TimestampFunctionAdapter}'s Shape B).
- *
- * <p><b>Scope.</b> Only DATE and TIMESTAMP bases are lowered. A TIME base is anchored to the
- * query-start date by the PPL UDF before the interval is added; this adapter has no access to that
- * date, so it leaves TIME bases (and any non-temporal base) on the UDF path rather than emitting an
- * epoch-anchored result. Likewise, sub-millisecond interval units (MICROSECOND) aren't representable
- * in Arrow's millisecond-granular day-time interval and are left for the UDF path. In both cases the
- * call is returned unchanged so Substrait conversion surfaces a precise "unrecognized function"
- * error rather than silently mis-lowering.
- *
- * <p>Returns the call unchanged when the shape isn't the expected {@code (base, INTERVAL literal)}
- * pair as well.
+ * <p>Only DATE and TIMESTAMP bases are lowered. TIME bases (the PPL UDF anchors them to the
+ * query-start date, which this adapter can't reproduce) and sub-millisecond units (MICROSECOND,
+ * unrepresentable in Arrow's millisecond-granular interval) are left on the UDF path, as is any
+ * unexpected shape — the call is returned unchanged so Substrait conversion raises a loud
+ * "unrecognized function" error rather than mis-lowering.
  *
  * @opensearch.internal
  */
