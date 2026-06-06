@@ -172,11 +172,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public void sync() throws IOException {
-        vsrManager.sync();
-    }
-
-    @Override
     public long generation() {
         return writerGeneration;
     }

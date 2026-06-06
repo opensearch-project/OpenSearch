@@ -383,8 +383,6 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
             return state;
         }
 
-        @Override
-        public void sync() {}
 
         @Override
         public long generation() {

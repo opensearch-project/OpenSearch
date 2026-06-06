@@ -169,17 +169,6 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     }
 }
 
-#[ffm_safe]
-#[no_mangle]
-pub unsafe extern "C" fn parquet_sync_to_disk(
-    file_ptr: *const u8,
-    file_len: i64,
-) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_sync_to_disk: {}", e))?.to_string();
-    NativeParquetWriter::sync_to_disk(filename)
-        .map(|_| 0)
-        .map_err(|e| e.to_string())
-}
 
 #[ffm_safe]
 #[no_mangle]

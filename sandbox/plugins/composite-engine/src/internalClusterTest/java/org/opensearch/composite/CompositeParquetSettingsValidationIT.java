@@ -286,7 +286,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
 
         Map<String, Object> nameMeta = getColumnInfo(INDEX_NAME, "name");
         assertHasEncoding(nameMeta, "DELTA_BYTE_ARRAY");
-        assertCompression(nameMeta, "SNAPPY");
+        assertCompression(nameMeta, "ZSTD");
     }
 
     /**
@@ -309,7 +309,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
         assertCompression(valueMeta, "ZSTD");
 
         Map<String, Object> nameMeta = getColumnInfo(INDEX_NAME, "name");
-        assertCompression(nameMeta, "LZ4_RAW");
+        assertCompression(nameMeta, "ZSTD");
     }
 
     /**
