@@ -1130,6 +1130,7 @@ fn derive_schema_from_partial_plan(
     let state = SessionStateBuilder::new()
         .with_config(SessionConfig::new())
         .with_default_features()
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
@@ -1186,8 +1187,35 @@ fn derive_schema_from_partial_plan(
         let _ = ctx.register_table(&table_name, Arc::new(table));
     }
 
+    // Extract the substrait-declared output names from Plan.Root.names — these are the
+    // user-facing aliases Java wrote (e.g. "RegionID", "u") and must match what the
+    // FINAL substrait's Read.base_schema declares on the coordinator side.
+    let declared_names: Vec<String> = plan.relations.iter().find_map(|pr| {
+        if let Some(substrait::proto::plan_rel::RelType::Root(rr)) = pr.rel_type.as_ref() {
+            Some(rr.names.clone())
+        } else {
+            None
+        }
+    }).unwrap_or_default();
+
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
+
+    // Engine-native-merge (HLL): Partial has Binary fields that differ from the top (Int64).
+    // Use Partial schema + Root.names so coordinator sees the correct Binary wire type.
+    // All other plans: use top schema directly (matches main behavior).
+    if let Some(partial_schema) = crate::agg_mode::partial_aggregate_schema(&physical_plan) {
+        let has_binary = partial_schema.fields().iter().any(|f| matches!(f.data_type(), arrow::datatypes::DataType::Binary));
+        if has_binary && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
+            use arrow::datatypes::{Field, Schema};
+            let coerced = crate::schema_coerce::coerce_inferred_schema(partial_schema);
+            let fields: Vec<Field> = coerced.fields().iter().zip(declared_names.iter())
+                .map(|(f, name)| Field::new(name.as_str(), f.data_type().clone(), f.is_nullable())
+                    .with_metadata(f.metadata().clone()))
+                .collect();
+            return Ok(Arc::new(Schema::new_with_metadata(fields, coerced.metadata().clone())));
+        }
+    }
     Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
 }
 

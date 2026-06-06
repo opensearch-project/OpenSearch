@@ -11,9 +11,7 @@ package org.opensearch.analytics.spi;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -91,7 +89,7 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
     public void testApproxCountDistinctReducerIsSelf() {
         List<AggregateFunction.IntermediateField> fields = APPROX_COUNT_DISTINCT.intermediateFields();
         assertEquals(1, fields.size());
-        assertEquals("sketch", fields.get(0).name());
+        assertEquals("hll_registers", fields.get(0).name());
         assertSame(APPROX_COUNT_DISTINCT, fields.get(0).reducer());
         assertEquals(SqlTypeName.VARBINARY, resolve(fields.get(0), integer).getSqlTypeName());
     }
@@ -196,29 +194,5 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
 
     public void testFromSqlKindReturnsNullForOther() {
         assertNull(AggregateFunction.fromSqlKind(SqlKind.OTHER));
-    }
-
-    public void testResolveOperatorRewritesCountDistinctToApprox() {
-        SqlAggFunction op = SqlStdOperatorTable.COUNT;
-        SqlAggFunction canon = AggregateFunction.COUNT.resolveOperator(op, /*isDistinct=*/ true, 1);
-        assertSame(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, canon);
-    }
-
-    public void testResolveOperatorLeavesNonDistinctCountUnchanged() {
-        SqlAggFunction op = SqlStdOperatorTable.COUNT;
-        assertSame(op, AggregateFunction.COUNT.resolveOperator(op, false, 1));
-    }
-
-    public void testResolveOperatorLeavesMultiArgDistinctUnchanged() {
-        // count(DISTINCT a, b) is not rewritten — distinctness across multiple args isn't
-        // reducible to single-arg APPROX_COUNT_DISTINCT.
-        SqlAggFunction op = SqlStdOperatorTable.COUNT;
-        assertSame(op, AggregateFunction.COUNT.resolveOperator(op, true, 2));
-    }
-
-    public void testResolveOperatorDefaultIsIdentity() {
-        // Default override (e.g. SUM) returns the input op unchanged regardless of flags.
-        SqlAggFunction op = SqlStdOperatorTable.SUM;
-        assertSame(op, AggregateFunction.SUM.resolveOperator(op, true, 1));
     }
 }

@@ -37,6 +37,7 @@ import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
@@ -299,13 +300,24 @@ public class PlannerImpl {
     }
 
     /**
-     * Phase 1b: decompose AVG / STDDEV / VAR into primitive SUM/COUNT (+ SUM_SQ for variance) plus a
-     * scalar LogicalProject computing the quotient. Runs as its own HEP pass on plain LogicalAggregate
-     * before {@link OpenSearchAggregateRule} marks it; the marking phase, the Volcano split rule, and
-     * the AggregateDecompositionResolver then see correctly-typed primitives.
+     * Phase 1b: pre-marking rewrites on plain {@link org.apache.calcite.rel.logical.LogicalAggregate}.
+     * Runs before {@link OpenSearchAggregateRule} marks the aggregate so the marking phase, the
+     * Volcano split rule, and the {@code DistributedAggregateRewriter} see the rewritten shape:
+     * <ul>
+     *   <li>{@link OpenSearchDistinctCountRule} — single-arg {@code COUNT(DISTINCT x)} →
+     *       {@code APPROX_COUNT_DISTINCT(x)} so distinct counts engage the engine-native
+     *       HLL sketch merge instead of additive SUM-of-counts.</li>
+     *   <li>{@link OpenSearchAggregateReduceRule} — {@code AVG} / {@code STDDEV} / {@code VAR} →
+     *       primitive {@code SUM} / {@code COUNT} (+ {@code SUM_SQ} for variance) plus a scalar
+     *       {@link org.apache.calcite.rel.logical.LogicalProject} computing the quotient.</li>
+     * </ul>
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
-        return HepPhase.named("aggregate-decompose").bottomUp().addRuleInstance(new OpenSearchAggregateReduceRule()).run(input, listener);
+        return HepPhase.named("aggregate-decompose")
+            .bottomUp()
+            .addRuleInstance(new OpenSearchDistinctCountRule())
+            .addRuleInstance(new OpenSearchAggregateReduceRule())
+            .run(input, listener);
     }
 
     /**

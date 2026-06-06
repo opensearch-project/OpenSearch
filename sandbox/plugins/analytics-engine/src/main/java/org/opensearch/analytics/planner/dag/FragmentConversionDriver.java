@@ -230,7 +230,8 @@ public class FragmentConversionDriver {
     ) {
         FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
         LinkedList<InstructionNode> instructions = new LinkedList<>();
-        RelNode leaf = findLeaf(plan.resolvedFragment());
+        RelNode resolvedFragment = plan.resolvedFragment();
+        RelNode leaf = findLeaf(resolvedFragment);
 
         if (leaf instanceof OpenSearchTableScan tableScan) {
             // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
@@ -242,8 +243,30 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode(requestsRowIds).ifPresent(instructions::add);
             }
+            if (containsEngineNativeAggregate(resolvedFragment, AggregateMode.PARTIAL)) {
+                factory.createPartialAggregateNode().ifPresent(instructions::add);
+            }
+        } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
+            factory.createFinalAggregateNode().ifPresent(instructions::add);
         }
         return instructions;
+    }
+
+    /** Tree-walks for an engine-native-merge aggregate in the given mode. */
+    private static boolean containsEngineNativeAggregate(RelNode root, AggregateMode mode) {
+        if (root instanceof OpenSearchAggregate agg
+            && agg.getMode() == mode
+            && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
+            return true;
+        }
+        for (RelNode child : root.getInputs()) {
+            if (containsEngineNativeAggregate(child, mode)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isPureReorderProject(org.apache.calcite.rel.core.Project project) {
+        return project.getProjects().stream().allMatch(e -> e instanceof org.apache.calcite.rex.RexInputRef);
     }
 
     /**
@@ -391,14 +414,38 @@ public class FragmentConversionDriver {
         RelNode leaf = findLeaf(resolvedFragment);
 
         if (leaf instanceof OpenSearchTableScan) {
-            // Partial agg at top: convert everything below it, then attach partial agg on top.
-            // strippedInputs passed to stripAnnotations for schema validity (LogicalAggregate needs its inputs).
-            if (resolvedFragment instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-                List<RelNode> strippedInputs = agg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
+            // Identify the PARTIAL aggregate — either at the top of the fragment or buried
+            // under TopK's Sort/Project wrapper.
+            OpenSearchAggregate partialAgg = null;
+            if (resolvedFragment instanceof OpenSearchAggregate agg
+                && agg.getMode() == AggregateMode.PARTIAL
+                && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
+                partialAgg = agg;
+            } else {
+                partialAgg = findBuriedPartialAggregate(resolvedFragment);
+            }
+
+            if (partialAgg != null) {
+                // Layered conversion: convert scan below → attachPartialAggOnTop → attach
+                // any operators above the aggregate (zero iterations when agg is the top).
+                List<RelNode> strippedInputs = partialAgg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
                 byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
-                Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(agg, agg.getCluster().getRexBuilder());
-                RelNode strippedAgg = agg.stripAnnotations(strippedInputs, resolver);
-                return convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
+                Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(
+                    partialAgg,
+                    partialAgg.getCluster().getRexBuilder()
+                );
+                RelNode strippedAgg = partialAgg.stripAnnotations(strippedInputs, resolver);
+                byte[] current = convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
+                List<RelNode> aboveAgg = new ArrayList<>();
+                RelNode walk = resolvedFragment;
+                while (walk != partialAgg) {
+                    aboveAgg.add(walk);
+                    walk = walk.getInputs().getFirst();
+                }
+                for (int i = aboveAgg.size() - 1; i >= 0; i--) {
+                    current = convertor.attachFragmentOnTop(stripSingleOperator(aboveAgg.get(i)), current);
+                }
+                return current;
             }
 
             RelNode stripped = strip(resolvedFragment, delegationBytes);
@@ -499,6 +546,13 @@ public class FragmentConversionDriver {
 
             // Single-input operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
+            // Skip pure-reorder Project above engine-native-merge FINAL — DataFusion's substrait
+            // consumer can't bind reordered field names against the FINAL aggregate's state columns.
+            if (node instanceof org.apache.calcite.rel.core.Project p
+                && isPureReorderProject(p)
+                && containsEngineNativeAggregate(node.getInputs().getFirst(), AggregateMode.FINAL)) {
+                return innerBytes;
+            }
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
@@ -526,7 +580,14 @@ public class FragmentConversionDriver {
             }
             return openSearchNode.stripAnnotations(strippedChildren, resolver);
         }
-        return node;
+        boolean childrenChanged = false;
+        for (int i = 0; i < strippedChildren.size(); i++) {
+            if (strippedChildren.get(i) != node.getInputs().get(i)) {
+                childrenChanged = true;
+                break;
+            }
+        }
+        return childrenChanged ? node.copy(node.getTraitSet(), strippedChildren) : node;
     }
 
     private static RelNode findLeaf(RelNode node) {
@@ -535,4 +596,43 @@ public class FragmentConversionDriver {
         }
         return findLeaf(node.getInputs().getFirst());
     }
+
+    /** Finds an engine-native-merge PARTIAL aggregate buried under operators (not at fragment top). */
+    private static OpenSearchAggregate findBuriedPartialAggregate(RelNode fragment) {
+        if (fragment instanceof OpenSearchAggregate) return null;
+        RelNode node = fragment;
+        while (node.getInputs().size() == 1) {
+            RelNode child = node.getInputs().getFirst();
+            if (child instanceof OpenSearchAggregate agg
+                && agg.getMode() == AggregateMode.PARTIAL
+                && agg.getAggCallList().stream().anyMatch(org.opensearch.analytics.spi.AggregateFunction::isEngineNativeMerge)) {
+                return agg;
+            }
+            node = child;
+        }
+        return null;
+    }
+
+    /**
+     * Strips a single operator with a placeholder child for use with {@code attachFragmentOnTop}.
+     * Uses direct {@code stripAnnotations} (no delegation resolver) since TopK operators have
+     * no delegated predicates — avoids the getOutputFieldStorage() call that would fail on
+     * the placeholder.
+     */
+    private static RelNode stripSingleOperator(RelNode node) {
+        RelNode child = node.getInputs().getFirst();
+        OpenSearchStageInputScan placeholder = new OpenSearchStageInputScan(
+            node.getCluster(),
+            node.getTraitSet(),
+            -1,
+            child.getRowType(),
+            List.of(),
+            List.of()
+        );
+        if (node instanceof OpenSearchRelNode openSearchNode) {
+            return openSearchNode.stripAnnotations(List.of(placeholder), OperatorAnnotation::unwrap);
+        }
+        return node.copy(node.getTraitSet(), List.of(placeholder));
+    }
+
 }
