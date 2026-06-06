@@ -161,4 +161,42 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
             result
         );
     }
+
+    // ---- COUNT(DISTINCT x) → APPROX_COUNT_DISTINCT(x) (engine-native HLL sketch merge) ----
+
+    /**
+     * 1-shard {@code COUNT(DISTINCT x)} — the HEP {@code OpenSearchDistinctCountRule} rewrites to
+     * {@code APPROX_COUNT_DISTINCT(x)}, then no split (single shard). SINGLE at the shard.
+     */
+    public void testCountDistinct_1shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, countDistinctCall(scan));
+        RelNode result = runPlanner(plan, singleShardContext());
+        assertPlanShape("""
+            OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
+    }
+
+    /**
+     * Multi-shard {@code COUNT(DISTINCT x)} — rewritten to {@code APPROX_COUNT_DISTINCT(x)} and then
+     * split via {@link org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule}. FINAL
+     * keeps the {@code APPROX_COUNT_DISTINCT} operator (engine-native merge: reducer == self), reads
+     * column $1 of the gathered exchange. {@code DistributedAggregateRewriter} retypes the exchange
+     * column to {@code VARBINARY} (HLL sketch state) downstream during DAG-cut + fragment conversion.
+     */
+    public void testCountDistinct_2shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, countDistinctCall(scan));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
 }

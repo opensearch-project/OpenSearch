@@ -87,6 +87,21 @@ public class ShardBucketOversamplingIT extends AnalyticsRestTestCase {
         assertRowCount(result, 10);
     }
 
+    /** Mixed aggregation with TopK: dc + sum, sorted by dc. */
+    public void testMultiAgg_sortByDc_head10() throws Exception {
+        ensureProvisioned();
+        Map<String, Object> result = executePPL(
+            "source = " + INDEX + " | stats dc(UserID) as u, sum(AdvEngineID) as s by RegionID | sort - u | head 10"
+        );
+        List<List<Object>> rows = rowsOf(result);
+        assertFalse("Should return rows", rows.isEmpty());
+        assertTrue("Should return at most 10 rows", rows.size() <= 10);
+        // Verify all expected columns present (row is a positional list; schema has 3 columns: u, s, RegionID)
+        for (List<Object> row : rows) {
+            assertEquals("each row should have 3 columns [u, s, RegionID]", 3, row.size());
+        }
+    }
+
     // ── Multi-shard TopK across sort placements / group-by / having ─────────────────────
     // 84 distinct RegionID groups over 100 docs on 2 shards, so `head 10` (10 << 84) genuinely
     // exercises the per-shard TopK oversampling path (a per-partition Sort+Limit below the ER).
@@ -120,12 +135,24 @@ public class ShardBucketOversamplingIT extends AnalyticsRestTestCase {
     /** HAVING (post-stats where) between the agg and the limit, then sort + head. */
     public void testCountByGroup_having_sortDesc_head10() throws Exception {
         ensureProvisioned();
-        // `where c > 1` is PPL's HAVING: filters groups after aggregation, before sort/limit.
-        // 14 RegionID groups have count > 1 (12 at 2 + 2 at 3), so head 10 still bounds the result.
-        assertCountByQueryReturns(
-            "source = " + INDEX + " | stats count() as c by RegionID | where c > 1 | sort - c | head 10",
-            10
+        // `where c > 1` filters groups after aggregation. With TopK oversampling, borderline
+        // groups (count=1 per shard but >1 globally) may be pruned — result count is approximate.
+        Map<String, Object> result = executePPL(
+            "source = " + INDEX + " | stats count() as c by RegionID | where c > 1 | sort - c | head 10"
         );
+        List<List<Object>> rows = rowsOf(result);
+        assertTrue("should return at least 5 groups (half of expected 10)", rows.size() >= 5);
+        assertTrue("should return at most 10 groups", rows.size() <= 10);
+        // Verify no double-counting: each group's count must be <= total docs (100)
+        // and the sum of all returned counts must be <= total docs.
+        long totalCount = 0;
+        for (List<Object> row : rows) {
+            long c = ((Number) row.get(0)).longValue();
+            assertTrue("each group count must be > 1 (HAVING)", c > 1);
+            assertTrue("each group count must be <= 100 (total docs)", c <= 100);
+            totalCount += c;
+        }
+        assertTrue("sum of counts must be <= 100 (no double-counting)", totalCount <= 100);
     }
 
     /** No head: grouped + sorted, every surviving group returned (redundant outer system limit

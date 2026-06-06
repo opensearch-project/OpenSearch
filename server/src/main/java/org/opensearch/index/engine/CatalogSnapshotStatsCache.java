@@ -11,6 +11,7 @@ package org.opensearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.shard.DocsStats;
@@ -106,7 +107,11 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
         // Compute docs stats from catalog snapshot
         long totalDocs = snapshot.getNumDocs();
         long deletedDocs = 0; // TODO: Add deleted docs support when available
-        long totalSizeInBytes = 0; // TODO: Compute total size if needed
+        long totalSizeInBytes = snapshot.getSegments()
+            .stream()
+            .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
+            .mapToLong(WriterFileSet::getTotalSize)
+            .sum();
 
         return new DocsStats.Builder().count(totalDocs).deleted(deletedDocs).totalSizeInBytes(totalSizeInBytes).build();
     }
