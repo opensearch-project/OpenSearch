@@ -38,7 +38,8 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     private final List<String> viableBackends;
 
     public OpenSearchFilter(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, RexNode condition, List<String> viableBackends) {
-        super(cluster, traitSet, input, condition);
+        // Filter.<init> asserts RexUtil.isFlat — flatten any nested AND/OR before super().
+        super(cluster, traitSet, input, RexUtil.flatten(cluster.getRexBuilder(), condition));
         this.viableBackends = viableBackends;
     }
 

@@ -21,6 +21,7 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -99,6 +100,28 @@ public class SargAdapterTests extends OpenSearchTestCase {
 
         assertFalse(isSearch(adapted));
         assertTrue(containsNoSearchOrSarg(adapted));
+    }
+
+    /** Builds {@code SEARCH(x, Sarg[(-inf..1), (1..2), (2..+inf)])} — the {@code x != 1 AND x != 2} shape. */
+    private RexCall buildPointExclusionsSearch() {
+        RangeSet<BigDecimal> rangeSet = TreeRangeSet.create();
+        rangeSet.add(Range.lessThan(BigDecimal.valueOf(1)));
+        rangeSet.add(Range.open(BigDecimal.valueOf(1), BigDecimal.valueOf(2)));
+        rangeSet.add(Range.greaterThan(BigDecimal.valueOf(2)));
+        Sarg<BigDecimal> sarg = Sarg.of(org.apache.calcite.rex.RexUnknownAs.UNKNOWN, ImmutableRangeSet.copyOf(rangeSet));
+        RexNode xRef = rexBuilder.makeInputRef(intType, 0);
+        RexNode sargLit = rexBuilder.makeSearchArgumentLiteral(sarg, intType);
+        return (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.SEARCH, List.of(xRef, sargLit));
+    }
+
+    /** Multi-point-exclusion SEARCH expands to a nested-AND chain; adapter flattens to satisfy RexUtil.isFlat. */
+    public void testAdaptFlattensExpandedAndChain() {
+        RexCall original = buildPointExclusionsSearch();
+        RexNode adapted = new SargAdapter().adapt(original, List.of(), cluster);
+
+        assertFalse(isSearch(adapted));
+        assertTrue(containsNoSearchOrSarg(adapted));
+        assertTrue("expanded condition must be flat: " + adapted, RexUtil.isFlat(adapted));
     }
 
     /**
