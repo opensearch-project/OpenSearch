@@ -222,6 +222,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                     + batch.getSchema()
             );
         }
+        ViewVectorSanitizer.sanitize(batch);
         ArrowArray array = ArrowArray.allocateNew(alloc);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(alloc);
         try {
