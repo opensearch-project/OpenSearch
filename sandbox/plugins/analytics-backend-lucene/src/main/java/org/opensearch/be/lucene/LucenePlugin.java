@@ -53,7 +53,7 @@ import java.util.function.Supplier;
 @ExperimentalApi
 public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin {
 
-    private static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+    public static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
 
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}

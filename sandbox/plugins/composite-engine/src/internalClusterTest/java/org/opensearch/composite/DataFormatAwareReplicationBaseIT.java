@@ -74,7 +74,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats", List.of())
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
     }
 
@@ -92,7 +92,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
 
     /** Whether lucene is configured as a secondary data format (produces searchable segment files). */
     protected boolean hasLuceneSecondary() {
-        return false;
+        return true;
     }
 
     /**

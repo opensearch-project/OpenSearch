@@ -83,6 +83,9 @@ pub struct QueryStreamHandle {
     /// Concurrency gate permit — held for the query's entire lifetime.
     /// Released on drop, which frees partition budget for other queries.
     _concurrency_permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    /// Physical plan reference for post-execution metrics extraction.
+    /// Available after execution completes; read via `df_stream_get_metrics`.
+    physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
 }
 
 impl QueryStreamHandle {
@@ -104,6 +107,7 @@ impl QueryStreamHandle {
             _session_ctx: None,
             has_views,
             _concurrency_permit: permit,
+            physical_plan: None,
         }
     }
 
@@ -120,6 +124,51 @@ impl QueryStreamHandle {
             _session_ctx: Some(ctx),
             has_views,
             _concurrency_permit: permit,
+            physical_plan: None,
+        }
+    }
+
+    pub fn with_physical_plan(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        ctx: datafusion::prelude::SessionContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+        plan: Arc<dyn datafusion::physical_plan::ExecutionPlan>,
+    ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: Some(ctx),
+            has_views,
+            _concurrency_permit: permit,
+            physical_plan: Some(plan),
+        }
+    }
+
+    /// Returns execution metrics from ALL operators in the physical plan tree as JSON bytes.
+    /// Walks the tree recursively, collecting metrics from every node.
+    pub fn get_metrics_json(&self) -> Option<Vec<u8>> {
+        let plan = self.physical_plan.as_ref()?;
+        let mut map = serde_json::Map::new();
+        Self::collect_metrics(plan.as_ref(), &mut map);
+        if map.is_empty() {
+            return None;
+        }
+        serde_json::to_vec(&map).ok()
+    }
+
+    fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
+        if let Some(metrics) = plan.metrics() {
+            for m in metrics.iter() {
+                let name = m.value().name().to_string();
+                let value = m.value().as_usize() as i64;
+                // Later operators override earlier ones if same name — leaf (scan) metrics take priority
+                map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+            }
+        }
+        for child in plan.children() {
+            Self::collect_metrics(child.as_ref(), map);
         }
     }
 }
