@@ -140,7 +140,7 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
             + "    \"double_value\":      { \"type\": \"double\" },"
             + "    \"keyword_value\":     { \"type\": \"keyword\" },"
             + "    \"text_value\":        { \"type\": \"text\" },"
-            + "    \"binary_value\":      { \"type\": \"binary\" },"
+            + "    \"binary_value\":      { \"type\": \"binary\", \"store\": \"true\" },"
             + "    \"date_value\":        { \"type\": \"date\", \"format\": \"yyyy-MM-dd HH:mm:ss\" },"
             + "    \"date_nanos_value\":  { \"type\": \"date_nanos\" },"
             + "    \"ip_value\":          { \"type\": \"ip\" }"

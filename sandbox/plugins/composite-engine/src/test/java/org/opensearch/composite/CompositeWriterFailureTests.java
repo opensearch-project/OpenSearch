@@ -8,16 +8,25 @@
 
 package org.opensearch.composite;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.index.LuceneWriter;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.WriteResult;
+import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Unit tests for {@link CompositeWriter} failure handling: primary/secondary write failures,
@@ -183,6 +192,88 @@ public class CompositeWriterFailureTests extends OpenSearchTestCase {
         assertEquals(WriterState.RETIRED_FLUSHABLE, writer.state());
         writer.close();
         assertEquals(WriterState.CLOSED, writer.state());
+    }
+
+    /**
+     * Reproduces the production LockObtainFailedException scenario:
+     *
+     * 1. CompositeWriter is created — Lucene (secondary) acquires write.lock via NativeFSLockFactory,
+     *    adding the lock path to Lucene's static LOCK_HELD set
+     * 2. During indexing, a write failure triggers writer retirement → CompositeWriter.close()
+     * 3. If primary.close() throws (e.g. Parquet I/O error), the old sequential close skips
+     *    secondary writers — Lucene's lock path stays in LOCK_HELD
+     * 4. Engine fails, shard re-initializes on same node (same JVM). writerGenerationCounter
+     *    re-initializes from maxGenFromCommit. Since the leaked writer's generation was never
+     *    committed, the counter produces the same generation → same path →
+     *    LockObtainFailedException: "Lock held by this virtual machine"
+     *
+     * The fix uses IOUtils.close() which closes ALL writers (aggregating exceptions), ensuring
+     * LuceneWriter.close() → indexWriter.rollback() → NativeFSLock.close() → LOCK_HELD.remove()
+     * always runs regardless of whether other writers throw on close.
+     */
+    public void testPrimaryCloseFailureLockLeak() throws IOException {
+        Path baseDir = createTempDir();
+        long generation = 42L;
+        Set<LuceneWriter> registry = ConcurrentHashMap.newKeySet();
+        LuceneDataFormat luceneFormat = new LuceneDataFormat();
+
+        // First, prove the failure mode
+        LuceneWriter leakedWriter = new LuceneWriter(generation, 0L, luceneFormat, baseDir, null, Codec.getDefault(), null, registry);
+        LockObtainFailedException lockError = expectThrows(
+            LockObtainFailedException.class,
+            () -> new LuceneWriter(generation, 0L, luceneFormat, baseDir, null, Codec.getDefault(), null, registry)
+        );
+        assertThat(lockError.getMessage(), org.hamcrest.Matchers.containsString("Lock held by this virtual machine"));
+        leakedWriter.close();
+
+        // Wire: primary throws on close, Lucene as secondary (real lock)
+        DataFormat primaryFormat = CompositeTestHelper.stubFormat("parquet", 1, Set.of());
+        IndexingExecutionEngine<?, ?> throwingPrimaryEngine = new CompositeTestHelper.StubIndexingExecutionEngine(primaryFormat) {
+            @Override
+            public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+                return new CompositeTestHelper.StubWriter(getDataFormat()) {
+                    @Override
+                    public void close() throws IOException {
+                        throw new IOException("primary close failed");
+                    }
+                };
+            }
+        };
+
+        IndexingExecutionEngine<?, ?> luceneSecondaryEngine = new CompositeTestHelper.StubIndexingExecutionEngine(luceneFormat) {
+            @SuppressWarnings("unchecked")
+            @Override
+            public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+                try {
+                    return (Writer<DocumentInput<?>>) (Writer<?>) new LuceneWriter(
+                        config.writerGeneration(),
+                        0L,
+                        luceneFormat,
+                        baseDir,
+                        null,
+                        Codec.getDefault(),
+                        null,
+                        registry
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
+        CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngineWithDelegates(
+            throwingPrimaryEngine,
+            luceneSecondaryEngine
+        );
+
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(generation));
+        // close() — primary throws, but IOUtils.close ensures secondary Lucene writer is still closed
+        expectThrows(IOException.class, writer::close);
+
+        // Simulate engine restart reusing same generation.
+        // Without the fix, this throws LockObtainFailedException.
+        LuceneWriter retryWriter = new LuceneWriter(generation, 0L, luceneFormat, baseDir, null, Codec.getDefault(), null, registry);
+        retryWriter.close();
     }
 
     private CompositeDocumentInput createDocumentInput() {

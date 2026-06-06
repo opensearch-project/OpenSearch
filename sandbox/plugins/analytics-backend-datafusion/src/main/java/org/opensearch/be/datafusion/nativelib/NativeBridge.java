@@ -85,6 +85,8 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_GET_SCHEMA;
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
+    private static final MethodHandle STREAM_GET_METRICS;
+    private static final MethodHandle FREE_METRICS_BUF;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
     private static final MethodHandle REGISTER_FILTER_TREE_CALLBACKS;
     private static final MethodHandle CREATE_LOCAL_SESSION;
@@ -240,6 +242,15 @@ public final class NativeBridge {
 
         STREAM_CLOSE = linker.downcallHandle(lib.find("df_stream_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
+        STREAM_GET_METRICS = linker.downcallHandle(
+            lib.find("df_stream_get_metrics").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        FREE_METRICS_BUF = linker.downcallHandle(
+            lib.find("df_free_metrics_buf").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
         // i64 df_sql_to_substrait(shard_ptr, table_ptr, table_len, sql_ptr, sql_len, runtime_ptr, out_ptr, out_cap, out_len)
         SQL_TO_SUBSTRAIT = linker.downcallHandle(
             lib.find("df_sql_to_substrait").orElseThrow(),
@@ -865,6 +876,31 @@ public final class NativeBridge {
 
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
+    }
+
+    /**
+     * Extracts execution metrics from the stream's physical plan as JSON bytes.
+     * Returns null if no metrics are available (e.g., plan didn't capture them).
+     * Must be called BEFORE streamClose (the stream handle must still be alive).
+     */
+    public static byte[] streamGetMetrics(long streamPtr) {
+        try (var arena = Arena.ofConfined()) {
+            var outPtr = arena.allocate(ValueLayout.ADDRESS);
+            var outLen = arena.allocate(ValueLayout.JAVA_LONG);
+            long result = (long) STREAM_GET_METRICS.invokeExact(streamPtr, outPtr, outLen);
+            if (result != 0) {
+                return null; // no metrics available
+            }
+            long len = outLen.get(ValueLayout.JAVA_LONG, 0);
+            MemorySegment dataPtr = outPtr.get(ValueLayout.ADDRESS, 0);
+            byte[] bytes = dataPtr.reinterpret(len).toArray(ValueLayout.JAVA_BYTE);
+            // Free the Rust-allocated buffer
+            FREE_METRICS_BUF.invokeExact(dataPtr, len);
+            return bytes;
+        } catch (Throwable t) {
+            logger.debug("Failed to read native stream metrics", t);
+            return null;
+        }
     }
 
     // ---- Cancellation ----

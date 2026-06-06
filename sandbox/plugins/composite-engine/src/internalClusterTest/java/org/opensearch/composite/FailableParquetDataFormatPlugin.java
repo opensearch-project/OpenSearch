@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.composite.framework.ParquetOnlyDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
@@ -24,7 +25,6 @@ import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.store.FormatChecksumStrategy;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 
@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   FailableParquetDataFormatPlugin.clearFailure();
  * }</pre>
  */
-public class FailableParquetDataFormatPlugin extends ParquetDataFormatPlugin {
+public class FailableParquetDataFormatPlugin extends ParquetOnlyDataFormatPlugin {
 
     private static final AtomicBoolean suppressMappingUpdates = new AtomicBoolean(false);
 
