@@ -16,15 +16,18 @@ import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
 import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
 import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
+import org.opensearch.be.datafusion.health.SpillDirectoryHealthMonitor;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -52,12 +55,16 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -352,12 +359,17 @@ public class DataFusionPlugin extends Plugin
      */
     private static final int ACTIVE_QUERY_METRICS_TOP_N = 10;
 
+    /** Hardcoded cadence for the {@link SpillDirectoryHealthMonitor} runtime probe. Mirrors {@code FsHealthService}'s default. */
+    private static final TimeValue SPILL_DIRECTORY_PROBE_INTERVAL = TimeValue.timeValueSeconds(60);
+
     private volatile DataFusionService dataFusionService;
     private volatile DataFormatRegistry dataFormatRegistry;
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
     private volatile CircuitBreaker datafusionBreaker;
+    private volatile SpillDirectoryHealthMonitor spillDirectoryHealthMonitor;
+    private volatile Scheduler.Cancellable spillDirectoryProbeFuture;
 
     /**
      * Creates the DataFusion plugin.
@@ -386,6 +398,11 @@ public class DataFusionPlugin extends Plugin
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
         String spillDir = DATAFUSION_SPILL_DIRECTORY.get(settings);
 
+        // Boot-time hard fail: if spill is configured, verify the directory is writable
+        // before starting the native runtime. Halts boot loudly on misconfiguration so
+        // queries don't silently fall over at first spill.
+        probeSpillDirectoryWritable(spillDir);
+
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)
             .spillMemoryLimit(spillMemoryLimit)
@@ -396,6 +413,19 @@ public class DataFusionPlugin extends Plugin
             .build();
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+
+        // Schedule the runtime writability probe only when spill is enabled. The boot
+        // probe above has already verified initial writability; this monitor catches
+        // a mount going read-only or being unmounted at runtime.
+        if (spillDir != null && !spillDir.isEmpty()) {
+            this.spillDirectoryHealthMonitor = new SpillDirectoryHealthMonitor(spillDir);
+            this.spillDirectoryProbeFuture = threadPool.scheduleWithFixedDelay(
+                this.spillDirectoryHealthMonitor,
+                SPILL_DIRECTORY_PROBE_INTERVAL,
+                ThreadPool.Names.GENERIC
+            );
+            dataFusionService.setSpillDirectoryHealthMonitor(this.spillDirectoryHealthMonitor);
+        }
 
         // Wire the dynamic memory pool limit setting to the native runtime so updates via the
         // cluster settings API take effect without restarting the node. The framework's
@@ -689,8 +719,34 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public void close() throws IOException {
+        Scheduler.Cancellable probe = this.spillDirectoryProbeFuture;
+        if (probe != null) {
+            probe.cancel();
+        }
         if (dataFusionService != null) {
             dataFusionService.close();
+        }
+    }
+
+    /**
+     * One-shot writability probe for the configured spill directory. Runs once at
+     * {@link #createComponents} when {@code datafusion.spill_directory} is non-empty.
+     * Throws {@link IllegalStateException} on any failure so node boot halts.
+     *
+     * <p>Empty/null input is a no-op — spill is disabled and there is nothing to probe.
+     */
+    static void probeSpillDirectoryWritable(String spillDirectory) {
+        if (spillDirectory == null || spillDirectory.isEmpty()) {
+            return;
+        }
+        Path dir = Path.of(spillDirectory);
+        Path probe = dir.resolve(".opensearch_df_spill_boot_probe_" + UUIDs.randomBase64UUID());
+        try {
+            Files.deleteIfExists(probe);
+            Files.write(probe, "boot".getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW);
+            Files.delete(probe);
+        } catch (Exception e) {
+            throw new IllegalStateException("DataFusion spill directory [" + spillDirectory + "] is not writable: " + e.getMessage(), e);
         }
     }
 

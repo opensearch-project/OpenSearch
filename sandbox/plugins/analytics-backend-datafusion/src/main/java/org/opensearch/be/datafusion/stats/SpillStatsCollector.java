@@ -42,31 +42,49 @@ public final class SpillStatsCollector {
      * @param spillMemoryLimit the resolved value of {@code datafusion.spill_memory_limit_bytes}
      *                         in bytes (the user-facing setting value)
      * @return a populated {@link SpillStats}; on error, all byte fields are 0 but the
-     *         {@code directory} and {@code disk_reserved_bytes} fields are preserved
+     *         {@code directory} and {@code disk_reserved_bytes} fields are preserved.
+     *         {@code directory_writable} defaults to {@code true} (caller without
+     *         a health monitor cannot distinguish writable from not-writable).
      */
     public static SpillStats collect(String spillDirectory, long spillMemoryLimit) {
+        return collect(spillDirectory, spillMemoryLimit, true);
+    }
+
+    /**
+     * Collect a spill-stats snapshot, threading the writability signal from
+     * {@code SpillDirectoryHealthMonitor}.
+     *
+     * @param directoryWritable the most recent result of the runtime writability probe.
+     *                          When spill is disabled or the monitor is absent, callers
+     *                          should pass {@code true} (vacuously writable).
+     * @return a populated {@link SpillStats}; on error, all byte fields are 0 but the
+     *         {@code directory} and {@code disk_reserved_bytes} fields are preserved.
+     *         {@code directory_writable} is forced to {@code true} when {@code spillDirectory}
+     *         is empty (spill disabled — vacuously writable); otherwise the passed
+     *         {@code directoryWritable} flag is propagated.
+     */
+    public static SpillStats collect(String spillDirectory, long spillMemoryLimit, boolean directoryWritable) {
         if (spillDirectory == null || spillDirectory.isEmpty()) {
-            return new SpillStats("", 0L, 0L, 0L, 0L);
+            // Spill disabled — vacuously writable; ignore caller's flag.
+            return new SpillStats("", 0L, 0L, 0L, 0L, true);
         }
 
         try {
             Path path = Path.of(spillDirectory);
             if (!Files.exists(path)) {
-                // Directory may be created later by a host boot script (first-boot mount).
-                // Don't fail; report zeros for capacity but keep directory + reserve visible.
-                return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit);
+                return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit, directoryWritable);
             }
             FileStore fs = Files.getFileStore(path);
             long total = fs.getTotalSpace();
             long available = fs.getUsableSpace();
             long used = total - available;
-            return new SpillStats(spillDirectory, total, available, used, spillMemoryLimit);
+            return new SpillStats(spillDirectory, total, available, used, spillMemoryLimit, directoryWritable);
         } catch (IOException e) {
             logger.warn("Failed to read filesystem stats for spill directory [{}]: {}", spillDirectory, e.getMessage());
-            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit);
+            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit, directoryWritable);
         } catch (RuntimeException e) {
             logger.warn("Unexpected error reading spill stats for [{}]: {}", spillDirectory, e.getMessage());
-            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit);
+            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit, directoryWritable);
         }
     }
 }

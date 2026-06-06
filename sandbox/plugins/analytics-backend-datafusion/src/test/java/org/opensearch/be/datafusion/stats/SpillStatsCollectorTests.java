@@ -10,47 +10,49 @@ package org.opensearch.be.datafusion.stats;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 
 public class SpillStatsCollectorTests extends OpenSearchTestCase {
 
-    public void testEmptyDirectoryReturnsAllZeroSnapshot() {
-        SpillStats stats = SpillStatsCollector.collect("", 999_999L);
-
+    public void testCollectReturnsZeroForEmptyDirectory() {
+        SpillStats stats = SpillStatsCollector.collect("", 999_999L, true);
         assertEquals("", stats.getDirectory());
         assertEquals(0L, stats.getDiskTotalBytes());
         assertEquals(0L, stats.getDiskAvailableBytes());
         assertEquals(0L, stats.getDiskUsedBytes());
         assertEquals(0L, stats.getDiskReservedBytes());
+        assertTrue(stats.isDirectoryWritable());
     }
 
-    public void testValidDirectoryReportsRealCapacityAndConfiguredReserve() throws Exception {
+    public void testCollectReadsFilesystemForExistingDirectory() throws IOException {
         Path tmp = createTempDir();
-
-        SpillStats stats = SpillStatsCollector.collect(tmp.toString(), 1_000_000L);
-
+        SpillStats stats = SpillStatsCollector.collect(tmp.toString(), 1_000_000L, true);
         assertEquals(tmp.toString(), stats.getDirectory());
-        assertTrue("disk_total_bytes should be > 0 on a real tmpdir", stats.getDiskTotalBytes() > 0);
-        assertTrue("disk_available_bytes should be > 0 on a real tmpdir", stats.getDiskAvailableBytes() > 0);
-        // total = available + used by definition (when using FS-level used)
-        assertEquals(
-            stats.getDiskTotalBytes(),
-            stats.getDiskAvailableBytes() + stats.getDiskUsedBytes()
-        );
+        assertTrue(stats.getDiskTotalBytes() > 0L);
+        assertTrue(stats.getDiskAvailableBytes() > 0L);
         assertEquals(1_000_000L, stats.getDiskReservedBytes());
+        assertTrue(stats.isDirectoryWritable());
+        assertEquals(stats.getDiskTotalBytes(), stats.getDiskAvailableBytes() + stats.getDiskUsedBytes());
     }
 
-    public void testMissingDirectoryReturnsZeroBytesButPreservesPathAndReserve() throws Exception {
-        Path missing = createTempDir().resolve("does-not-exist");
-        assertFalse(Files.exists(missing));
-
-        SpillStats stats = SpillStatsCollector.collect(missing.toString(), 4242L);
-
+    public void testCollectReturnsZeroBytesForMissingDirectoryButPreservesReserved() {
+        Path missing = createTempDir().resolve("does-not-exist-" + UUID.randomUUID());
+        assertFalse("precondition: path must not exist", Files.exists(missing));
+        SpillStats stats = SpillStatsCollector.collect(missing.toString(), 4242L, false);
         assertEquals(missing.toString(), stats.getDirectory());
         assertEquals(0L, stats.getDiskTotalBytes());
-        assertEquals(0L, stats.getDiskAvailableBytes());
-        assertEquals(0L, stats.getDiskUsedBytes());
         assertEquals(4242L, stats.getDiskReservedBytes());
+        assertFalse(stats.isDirectoryWritable());
+    }
+
+    public void testCollectPropagatesUnwritableSnapshot() throws IOException {
+        Path tmp = createTempDir();
+        SpillStats stats = SpillStatsCollector.collect(tmp.toString(), 1_000_000L, false);
+        assertFalse(stats.isDirectoryWritable());
+        assertTrue(stats.getDiskTotalBytes() > 0L);
+        assertEquals(stats.getDiskTotalBytes(), stats.getDiskAvailableBytes() + stats.getDiskUsedBytes());
     }
 }

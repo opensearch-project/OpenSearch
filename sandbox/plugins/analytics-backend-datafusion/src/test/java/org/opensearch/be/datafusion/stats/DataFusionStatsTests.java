@@ -38,7 +38,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
             new NativeExecutorsStats(io, cpu, taskMonitors),
             new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
             new PartitionGateStats("coordinator_gate", 12, 0, 0, 0),
-            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L)
+            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, true)
         );
     }
 
