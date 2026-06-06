@@ -158,9 +158,9 @@ public class RestHttpClientSingleHostStreamingIntegTests extends RestHttpClientT
         request.setOptions(options);
         StreamingResponse esResponse = restClient.streamRequest(request);
 
-        assertEquals(method, esResponse.getRequestLine().getMethod());
+        assertEquals(method, esResponse.getRequestLine().method());
         assertEquals(statusCode, esResponse.getStatusLine().statusCode());
-        assertEquals(pathPrefix + "/" + statusCode, esResponse.getRequestLine().getUri());
+        assertEquals(pathPrefix + "/" + statusCode, esResponse.getRequestLine().uri());
 
         if (statusCode >= 200 && statusCode < 400) {
             StepVerifier.create(Flux.from(esResponse.getBody()).map(StandardCharsets.UTF_8::decode).map(CharBuffer::toString))

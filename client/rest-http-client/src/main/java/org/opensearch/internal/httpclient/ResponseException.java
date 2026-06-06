@@ -35,9 +35,9 @@ public final class ResponseException extends IOException {
         String message = String.format(
             Locale.ROOT,
             "method [%s], host [%s], URI [%s], status line [%s]",
-            response.requestLine().getMethod(),
+            response.requestLine().method(),
             response.host(),
-            response.requestLine().getUri(),
+            response.requestLine().uri(),
             response.statusLine().toString()
         );
 

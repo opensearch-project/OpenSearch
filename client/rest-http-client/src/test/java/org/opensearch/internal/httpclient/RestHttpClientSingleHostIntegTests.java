@@ -291,9 +291,9 @@ public class RestHttpClientSingleHostIntegTests extends RestHttpClientTestCase {
                 esResponse = e.getResponse();
             }
 
-            assertEquals(method, esResponse.requestLine().getMethod());
+            assertEquals(method, esResponse.requestLine().method());
             assertEquals(statusCode, esResponse.statusLine().statusCode());
-            assertEquals(pathPrefix + "/" + statusCode, esResponse.requestLine().getUri());
+            assertEquals(pathPrefix + "/" + statusCode, esResponse.requestLine().uri());
 
             assertHeaders(defaultHeaders, requestHeaders, esResponse.headers(), standardHeaders);
             final Set<String> removedHeaders = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
@@ -331,42 +331,42 @@ public class RestHttpClientSingleHostIntegTests extends RestHttpClientTestCase {
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "this/is/the/routing").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=this%2Fis%2Fthe%2Frouting", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=this%2Fis%2Fthe%2Frouting", response.requestLine().uri());
         }
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "this|is|the|routing").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=this%7Cis%7Cthe%7Crouting", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=this%7Cis%7Cthe%7Crouting", response.requestLine().uri());
         }
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "routing#1").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=routing%231", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=routing%231", response.requestLine().uri());
         }
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "中文").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=%E4%B8%AD%E6%96%87", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=%E4%B8%AD%E6%96%87", response.requestLine().uri());
         }
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "foo bar").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=foo+bar", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=foo+bar", response.requestLine().uri());
         }
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "foo+bar").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=foo%2Bbar", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=foo%2Bbar", response.requestLine().uri());
         }
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "foo/bar").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=foo%2Fbar", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=foo%2Fbar", response.requestLine().uri());
         }
         {
             Request request = Request.newRequest("PUT", "/200").withParameter("routing", "foo^bar").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=foo%5Ebar", response.requestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=foo%5Ebar", response.requestLine().uri());
         }
     }
 
@@ -481,9 +481,9 @@ public class RestHttpClientSingleHostIntegTests extends RestHttpClientTestCase {
         } catch (ResponseException e) {
             esResponse = e.getResponse();
         }
-        assertEquals(method, esResponse.requestLine().getMethod());
+        assertEquals(method, esResponse.requestLine().method());
         assertEquals(statusCode, esResponse.statusLine().statusCode());
-        assertEquals(pathPrefix + "/" + statusCode, esResponse.requestLine().getUri());
+        assertEquals(pathPrefix + "/" + statusCode, esResponse.requestLine().uri());
         assertEquals(requestBody, BodyUtils.getBodyAsString(esResponse));
 
         return esResponse;

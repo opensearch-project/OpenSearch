@@ -205,9 +205,9 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
             } catch (ResponseException responseException) {
                 response = responseException.getResponse();
             }
-            assertEquals(method, response.requestLine().getMethod());
+            assertEquals(method, response.requestLine().method());
             assertEquals(statusCode, response.statusLine().statusCode());
-            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, response.requestLine().getUri());
+            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, response.requestLine().uri());
         }
     }
 
@@ -238,9 +238,9 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
         assertEquals(numRequests, responses.size());
         for (TestResponse testResponse : responses) {
             Response response = testResponse.getResponse();
-            assertEquals(testResponse.method, response.requestLine().getMethod());
+            assertEquals(testResponse.method, response.requestLine().method());
             assertEquals(testResponse.statusCode, response.statusLine().statusCode());
-            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode, response.requestLine().getUri());
+            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode, response.requestLine().uri());
         }
     }
 

@@ -18,23 +18,19 @@ import java.util.Objects;
  * Request line (protocol, method, uri)
  * Note: This is an experimental API.
  */
-public final class RequestLine implements Serializable {
-
+public record RequestLine(String method, String uri, Version protocolVersion) implements Serializable {
     private static final long serialVersionUID = 2810581718468737193L;
 
-    private final Version protoversion;
-    private final String method;
-    private final String uri;
+    public RequestLine {
+        method = Objects.requireNonNull(method, "Method");
+    }
 
     /**
      * Create a new instance from the request
      * @param request HTTP request
      */
     public RequestLine(final HttpRequest request) {
-        Objects.requireNonNull(request, "Request");
-        this.method = request.method();
-        this.uri = buildUri(request.uri());
-        this.protoversion = request.version().orElse(Version.HTTP_1_1);
+        this(Objects.requireNonNull(request, "Request").method(), buildUri(request.uri()), request.version().orElse(Version.HTTP_1_1));
     }
 
     private static String buildUri(URI uri) {
@@ -53,33 +49,11 @@ public final class RequestLine implements Serializable {
      * @param version HTTP protocol
      */
     public RequestLine(final String method, final URI uri, final Version version) {
-        this.method = Objects.requireNonNull(method, "Method");
-        this.uri = Objects.requireNonNull(uri, "URI").getPath();
-        this.protoversion = version != null ? version : Version.HTTP_1_1;
-    }
-
-    /**
-     * Gets the request HTTP method
-     * @return HTTP method
-     */
-    public String getMethod() {
-        return this.method;
-    }
-
-    /**
-     * Gets the request HTTP protocol
-     * @return HTTP protocol
-     */
-    public Version getProtocolVersion() {
-        return this.protoversion;
-    }
-
-    /**
-     * Gets the request uri
-     * @return request uri
-     */
-    public String getUri() {
-        return this.uri;
+        this(
+            Objects.requireNonNull(method, "Method"),
+            Objects.requireNonNull(uri, "URI").getPath(),
+            version != null ? version : Version.HTTP_1_1
+        );
     }
 
     /**
@@ -88,7 +62,7 @@ public final class RequestLine implements Serializable {
     @Override
     public String toString() {
         final StringBuilder buf = new StringBuilder();
-        buf.append(this.method).append(" ").append(this.uri).append(" ").append(this.protoversion);
+        buf.append(this.method).append(" ").append(this.uri).append(" ").append(this.protocolVersion);
         return buf.toString();
     }
 }
