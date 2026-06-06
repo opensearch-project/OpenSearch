@@ -152,6 +152,41 @@ final class CompositeTestHelper {
     }
 
     /**
+     * Creates a CompositeIndexingExecutionEngine with pre-built delegate engines for testing.
+     */
+    static CompositeIndexingExecutionEngine createStubEngineWithDelegates(
+        IndexingExecutionEngine<?, ?> primaryEngine,
+        IndexingExecutionEngine<?, ?> secondaryEngine
+    ) {
+        DataFormat primaryFormat = primaryEngine.getDataFormat();
+        DataFormat secondaryFormat = secondaryEngine.getDataFormat();
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format(primaryFormat.name())).thenReturn(primaryFormat);
+        when(registry.format(secondaryFormat.name())).thenReturn(secondaryFormat);
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormat format = invocation.getArgument(1);
+            if (format.name().equals(primaryFormat.name())) {
+                return primaryEngine;
+            } else {
+                return secondaryEngine;
+            }
+        });
+
+        Settings settings = Settings.builder()
+            .put("index.composite.primary_data_format", primaryFormat.name())
+            .putList("index.composite.secondary_data_formats", secondaryFormat.name())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
+    }
+
+    /**
      * An IndexingExecutionEngine that always returns the same pre-built writer.
      */
     static class FixedWriterEngine extends StubIndexingExecutionEngine {
@@ -320,7 +355,7 @@ final class CompositeTestHelper {
         public void sync() {}
 
         @Override
-        public void close() {
+        public void close() throws IOException {
             state = org.opensearch.index.engine.dataformat.WriterState.CLOSED;
         }
 
@@ -460,7 +495,9 @@ final class CompositeTestHelper {
         volatile WriteResult resultToReturn = new WriteResult.Success(1, 1, 1);
         volatile IOException flushFailure;
         volatile IOException rollbackFailure;
+        volatile IOException closeFailure;
         volatile boolean rollbackCalled;
+        volatile boolean closeCalled;
         final AtomicInteger addDocCallCount = new AtomicInteger();
         // Models a Lucene-style strategy by default: rollback success → RETIRED_FLUSHABLE.
         // Tests that want Parquet-style "stay ACTIVE" semantics can flip this flag.
@@ -528,7 +565,9 @@ final class CompositeTestHelper {
         public void updateMappingVersion(long newVersion) {}
 
         @Override
-        public void close() {
+        public void close() throws IOException {
+            closeCalled = true;
+            if (closeFailure != null) throw closeFailure;
             state = org.opensearch.index.engine.dataformat.WriterState.CLOSED;
         }
     }
@@ -539,6 +578,7 @@ final class CompositeTestHelper {
         private final AtomicLong writerGen = new AtomicLong();
         private final List<FailableWriter> createdWriters = new ArrayList<>();
         private volatile Supplier<WriteResult> defaultWriteResultSupplier;
+        volatile RuntimeException createWriterFailure;
 
         FailableEngine(String name) {
             this.dataFormat = new DataFormat() {
@@ -569,6 +609,7 @@ final class CompositeTestHelper {
 
         @Override
         public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+            if (createWriterFailure != null) throw createWriterFailure;
             FailableWriter w = new FailableWriter(dataFormat);
             if (defaultWriteResultSupplier != null) w.setResultToReturn(defaultWriteResultSupplier.get());
             createdWriters.add(w);
