@@ -353,9 +353,9 @@ public class RestHttpClient implements Closeable {
         int statusCode = httpResponse.statusCode();
 
         Response response = Response.from(new RequestLine(httpRequest), node.getHost(), httpResponse);
-        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().statusCode())) {
+        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.statusLine().statusCode())) {
             onResponse(node);
-            if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+            if (request.warningsHandler.warningsShouldFailRequest(response.warnings())) {
                 throw new WarningFailureException(response);
             }
             return new ResponseOrResponseException(response);
@@ -384,9 +384,9 @@ public class RestHttpClient implements Closeable {
         RequestLogger.logStreamingResponse(logger, request.httpRequest.apply(node), node.getHost(), httpResponse);
         int statusCode = httpResponse.statusCode();
 
-        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().statusCode())) {
+        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.statusLine().statusCode())) {
             onResponse(node);
-            if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+            if (request.warningsHandler.warningsShouldFailRequest(response.warnings())) {
                 throw new WarningFailureException(response);
             }
             return new ResponseOrResponseException(response);

@@ -35,17 +35,17 @@ public final class ResponseException extends IOException {
         String message = String.format(
             Locale.ROOT,
             "method [%s], host [%s], URI [%s], status line [%s]",
-            response.getRequestLine().getMethod(),
-            response.getHost(),
-            response.getRequestLine().getUri(),
-            response.getStatusLine().toString()
+            response.requestLine().getMethod(),
+            response.host(),
+            response.requestLine().getUri(),
+            response.statusLine().toString()
         );
 
         if (response.hasWarnings()) {
-            message += "\n" + "Warnings: " + response.getWarnings();
+            message += "\n" + "Warnings: " + response.warnings();
         }
 
-        List<ByteBuffer> entity = response.getEntity();
+        List<ByteBuffer> entity = response.entity();
         if (entity != null) {
             message += "\n" + BodyUtils.getBodyAsString(response);
         }

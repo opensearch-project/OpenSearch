@@ -125,7 +125,7 @@ public class RestHttpClientGzipCompressionTests extends RestHttpClientTestCase {
 
             Response response = restClient.performRequest(request);
 
-            String content = BodyUtils.getBodyAsString(response.getEntity());
+            String content = BodyUtils.getBodyAsString(response.entity());
             Assert.assertEquals("null#gzip#plain request, gzip response", content);
         }
     }
@@ -142,7 +142,7 @@ public class RestHttpClientGzipCompressionTests extends RestHttpClientTestCase {
             restClient.performRequestAsync(request, futureResponse);
             Response response = futureResponse.get();
 
-            String content = BodyUtils.getBodyAsString(response.getEntity());
+            String content = BodyUtils.getBodyAsString(response.entity());
             Assert.assertEquals("null#gzip#plain request, gzip response", content);
         }
     }
@@ -153,7 +153,7 @@ public class RestHttpClientGzipCompressionTests extends RestHttpClientTestCase {
 
             Response response = restClient.performRequest(request);
 
-            String content = BodyUtils.getBodyAsString(response.getEntity());
+            String content = BodyUtils.getBodyAsString(response.entity());
             Assert.assertEquals("gzip#gzip#compressing client", content);
         }
     }
@@ -172,7 +172,7 @@ public class RestHttpClientGzipCompressionTests extends RestHttpClientTestCase {
             Response response = futureResponse.get();
 
             // Server should report it had a compressed request and sent back a compressed response
-            String content = BodyUtils.getBodyAsString(response.getEntity());
+            String content = BodyUtils.getBodyAsString(response.entity());
             Assert.assertEquals("gzip#gzip#compressing client", content);
         }
     }

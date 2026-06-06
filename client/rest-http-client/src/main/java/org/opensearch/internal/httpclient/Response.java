@@ -13,67 +13,74 @@ import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Flow;
 
 /**
- * Holds an opensearch response. It wraps the {@link HttpResponse} returned and associates it with
+ * Holds an OpenSearch response. It wraps the {@link HttpResponse} returned and associates it with
  * its corresponding {@link RequestLine} and {@link HttpHost}.
  * Note: This is an experimental API.
  */
-public class Response {
-    private final RequestLine requestLine;
-    private final HttpHost host;
-    private final HttpResponse<?> response;
-    private final List<ByteBuffer> body;
-    private final boolean compressed;
-
-    private Response(RequestLine requestLine, HttpHost host, HttpResponse<?> response, List<ByteBuffer> body) {
-        Objects.requireNonNull(requestLine, "requestLine cannot be null");
-        Objects.requireNonNull(host, "host cannot be null");
-        Objects.requireNonNull(response, "response cannot be null");
-        this.requestLine = requestLine;
-        this.host = host;
-        this.response = response;
-        this.body = body;
-        this.compressed = response.headers().firstValue("Content-Encoding").filter("gzip"::equalsIgnoreCase).map(h -> true).orElse(false);
-    }
-
+public sealed interface Response permits CompressedResponse, NonCompressedResponse {
+    /**
+     * Create response from streaming conversation
+     * @param requestLine request line
+     * @param host host
+     * @param response underlying HTTP response
+     * @return new response instance
+     */
     static Response fromStreaming(RequestLine requestLine, HttpHost host, HttpResponse<Flow.Publisher<List<ByteBuffer>>> response) {
-        return new Response(requestLine, host, response, List.of() /* streaming body could be very large */);
+        return new NonCompressedResponse(requestLine, host, response, List.of() /* streaming body could be very large */);
     }
 
+    /**
+     * Create response from non-streaming conversation
+     * @param requestLine request line
+     * @param host host
+     * @param response underlying HTTP response
+     * @return new response instance
+     */
     static Response from(RequestLine requestLine, HttpHost host, HttpResponse<List<ByteBuffer>> response) {
-        return new Response(requestLine, host, response, response.body());
+        final boolean compressed = response.headers()
+            .firstValue("Content-Encoding")
+            .filter("gzip"::equalsIgnoreCase)
+            .map(h -> true)
+            .orElse(false);
+        if (compressed == false) {
+            return new NonCompressedResponse(requestLine, host, response, response.body());
+        } else {
+            return new CompressedResponse(requestLine, host, response, response.body());
+        }
     }
 
     /**
      * Returns the request line that generated this response
      */
-    public RequestLine getRequestLine() {
-        return requestLine;
-    }
+    RequestLine requestLine();
 
     /**
      * Returns the node that returned this response
      */
-    public HttpHost getHost() {
-        return host;
-    }
+    HttpHost host();
 
     /**
      * Returns the status line of the current response
      */
-    public StatusLine getStatusLine() {
-        return new StatusLine(response);
+    default StatusLine statusLine() {
+        return new StatusLine(httpResponse());
     }
 
     /**
      * Returns all the response headers
      */
-    public HttpHeaders getHeaders() {
-        return response.headers();
+    default HttpHeaders headers() {
+        return httpResponse().headers();
     }
+
+    /**
+     * Returns the response body available, null otherwise
+     * @see InputStream
+     */
+    List<ByteBuffer> entity();
 
     /**
      * Returns the value of the first header with a specified name of this message.
@@ -82,43 +89,29 @@ public class Response {
      *
      * @param name header name
      */
-    public String getHeader(String name) {
-        return response.headers().firstValue(name).orElse(null);
-    }
-
-    /**
-     * Returns the response body available, null otherwise
-     * @see InputStream
-     */
-    public List<ByteBuffer> getEntity() {
-        return (compressed == false) ? body : BodyUtils.decompress(body);
+    default String header(String name) {
+        return headers().firstValue(name).orElse(null);
     }
 
     /**
      * Returns a list of all warning headers returned in the response.
      */
-    public List<String> getWarnings() {
-        return ResponseWarningsExtractor.getWarnings(response);
+    default List<String> warnings() {
+        return ResponseWarningsExtractor.getWarnings(httpResponse());
     }
 
     /**
      * Returns true if there is at least one warning header returned in the
      * response.
      */
-    public boolean hasWarnings() {
-        List<String> warnings = response.headers().allValues("Warning");
+    default boolean hasWarnings() {
+        List<String> warnings = headers().allValues("Warning");
         return warnings != null && warnings.size() > 0;
     }
 
-    HttpResponse<?> getHttpResponse() {
-        return response;
-    }
-
     /**
-     * Convert response to string representation
+     * Returns underlying HTTP response instance
+     * @return
      */
-    @Override
-    public String toString() {
-        return "Response{" + "requestLine=" + requestLine + ", host=" + host + ", response=" + getStatusLine() + '}';
-    }
+    HttpResponse<?> httpResponse();
 }

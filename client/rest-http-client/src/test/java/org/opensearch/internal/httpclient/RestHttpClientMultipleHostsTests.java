@@ -102,8 +102,8 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
                     restClient,
                     Request.newRequest(randomHttpMethod(getRandom()), "/" + statusCode).build()
                 );
-                assertEquals(statusCode, response.getStatusLine().statusCode());
-                assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
+                assertEquals(statusCode, response.statusLine().statusCode());
+                assertTrue("host not found: " + response.host(), hostsSet.remove(response.host()));
             }
             assertEquals("every host should have been used but some weren't: " + hostsSet, 0, hostsSet.size());
         }
@@ -125,9 +125,9 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
                     );
                     if (method.equals("HEAD") && statusCode == 404) {
                         // no exception gets thrown although we got a 404
-                        assertEquals(404, response.getStatusLine().statusCode());
-                        assertEquals(statusCode, response.getStatusLine().statusCode());
-                        assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
+                        assertEquals(404, response.statusLine().statusCode());
+                        assertEquals(statusCode, response.statusLine().statusCode());
+                        assertTrue("host not found: " + response.host(), hostsSet.remove(response.host()));
                     } else {
                         fail("request should have failed");
                     }
@@ -136,8 +136,8 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
                         throw e;
                     }
                     Response response = e.getResponse();
-                    assertEquals(statusCode, response.getStatusLine().statusCode());
-                    assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
+                    assertEquals(statusCode, response.statusLine().statusCode());
+                    assertTrue("host not found: " + response.host(), hostsSet.remove(response.host()));
                     assertEquals(0, e.getSuppressed().length);
                 }
             }
@@ -161,11 +161,8 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
             failureListener.assertCalled(nodes);
             do {
                 Response response = e.getResponse();
-                assertEquals(Integer.parseInt(retryEndpoint.substring(1)), response.getStatusLine().statusCode());
-                assertTrue(
-                    "host [" + response.getHost() + "] not found, most likely used multiple times",
-                    hostsSet.remove(response.getHost())
-                );
+                assertEquals(Integer.parseInt(retryEndpoint.substring(1)), response.statusLine().statusCode());
+                assertTrue("host [" + response.host() + "] not found, most likely used multiple times", hostsSet.remove(response.host()));
                 if (e.getSuppressed().length > 0) {
                     assertEquals(1, e.getSuppressed().length);
                     Throwable suppressed = e.getSuppressed()[0];
@@ -209,13 +206,13 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
                     fail("request should have failed");
                 } catch (ResponseException e) {
                     Response response = e.getResponse();
-                    assertThat(response.getStatusLine().statusCode(), equalTo(Integer.parseInt(retryEndpoint.substring(1))));
+                    assertThat(response.statusLine().statusCode(), equalTo(Integer.parseInt(retryEndpoint.substring(1))));
                     assertTrue(
-                        "host [" + response.getHost() + "] not found, most likely used multiple times",
-                        hostsSet.remove(response.getHost())
+                        "host [" + response.host() + "] not found, most likely used multiple times",
+                        hostsSet.remove(response.host())
                     );
                     // after the first request, all hosts are denylisted, a single one gets resurrected each time
-                    failureListener.assertCalled(response.getHost());
+                    failureListener.assertCalled(response.host());
                     assertEquals(0, e.getSuppressed().length);
                 } catch (IOException e) {
                     HttpHost httpHost = HttpHost.create(e.getMessage());
@@ -241,11 +238,11 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
                     } catch (ResponseException e) {
                         response = e.getResponse();
                     }
-                    assertThat(response.getStatusLine().statusCode(), equalTo(statusCode));
+                    assertThat(response.statusLine().statusCode(), equalTo(statusCode));
                     if (selectedHost == null) {
-                        selectedHost = response.getHost();
+                        selectedHost = response.host();
                     } else {
-                        assertThat(response.getHost(), equalTo(selectedHost));
+                        assertThat(response.host(), equalTo(selectedHost));
                     }
                 }
                 failureListener.assertNotCalled();
@@ -261,8 +258,8 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
                         fail("request should have failed");
                     } catch (ResponseException e) {
                         Response response = e.getResponse();
-                        assertThat(response.getStatusLine().statusCode(), equalTo(Integer.parseInt(retryEndpoint.substring(1))));
-                        assertThat(response.getHost(), equalTo(selectedHost));
+                        assertThat(response.statusLine().statusCode(), equalTo(Integer.parseInt(retryEndpoint.substring(1))));
+                        assertThat(response.host(), equalTo(selectedHost));
                         failureListener.assertCalled(selectedHost);
                     } catch (IOException e) {
                         HttpHost httpHost = HttpHost.create(e.getMessage());
@@ -295,7 +292,7 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
              */
             Request request = Request.newRequest("GET", "/200").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(nodes.get(0).getHost(), response.getHost());
+            assertEquals(nodes.get(0).getHost(), response.host());
         }
     }
 
@@ -317,7 +314,7 @@ public class RestHttpClientMultipleHostsTests extends RestHttpClientTestCase {
              */
             Request request = Request.newRequest("GET", "/200").build();
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(newNodes.get(0).getHost(), response.getHost());
+            assertEquals(newNodes.get(0).getHost(), response.host());
         }
     }
 

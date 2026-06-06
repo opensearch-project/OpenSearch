@@ -92,7 +92,7 @@ public class StreamingResponse {
         return new StatusLine(
             publisher.onErrorResume(
                 ResponseException.class,
-                e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().getHttpResponse())
+                e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().httpResponse())
             ).block()
         );
     }
@@ -105,7 +105,7 @@ public class StreamingResponse {
         return ResponseWarningsExtractor.getWarnings(
             publisher.onErrorResume(
                 ResponseException.class,
-                e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().getHttpResponse())
+                e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().httpResponse())
             ).block()
         );
     }
@@ -117,7 +117,7 @@ public class StreamingResponse {
     public HttpHeaders getHeaders() {
         return publisher.onErrorResume(
             ResponseException.class,
-            e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().getHttpResponse())
+            e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().httpResponse())
         ).map(HttpResponse::headers).block();
     }
 
@@ -132,7 +132,7 @@ public class StreamingResponse {
     public String getHeader(String name) {
         return publisher.onErrorResume(
             ResponseException.class,
-            e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().getHttpResponse())
+            e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().httpResponse())
         ).mapNotNull(response -> response.headers().firstValue(name).orElse(null)).block();
     }
 }

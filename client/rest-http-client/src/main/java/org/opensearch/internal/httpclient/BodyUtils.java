@@ -37,7 +37,7 @@ final class BodyUtils {
     }
 
     static String getBodyAsString(Response response) {
-        return getBodyAsString(response.getEntity());
+        return getBodyAsString(response.entity());
     }
 
     static Mono<String> getBodyAsString(HttpRequest httpRequest) {

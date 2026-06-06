@@ -205,9 +205,9 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
             } catch (ResponseException responseException) {
                 response = responseException.getResponse();
             }
-            assertEquals(method, response.getRequestLine().getMethod());
-            assertEquals(statusCode, response.getStatusLine().statusCode());
-            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, response.getRequestLine().getUri());
+            assertEquals(method, response.requestLine().getMethod());
+            assertEquals(statusCode, response.statusLine().statusCode());
+            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, response.requestLine().getUri());
         }
     }
 
@@ -238,9 +238,9 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
         assertEquals(numRequests, responses.size());
         for (TestResponse testResponse : responses) {
             Response response = testResponse.getResponse();
-            assertEquals(testResponse.method, response.getRequestLine().getMethod());
-            assertEquals(testResponse.statusCode, response.getStatusLine().statusCode());
-            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode, response.getRequestLine().getUri());
+            assertEquals(testResponse.method, response.requestLine().getMethod());
+            assertEquals(testResponse.statusCode, response.statusLine().statusCode());
+            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode, response.requestLine().getUri());
         }
     }
 
@@ -306,7 +306,7 @@ public class RestHttpClientMultipleHostsIntegTests extends RestHttpClientTestCas
                     }
                 } else {
                     Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-                    assertEquals(httpHosts[0], response.getHost());
+                    assertEquals(httpHosts[0], response.host());
                 }
             }
         }

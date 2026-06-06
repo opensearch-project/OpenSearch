@@ -37,7 +37,7 @@ import java.io.IOException;
 import static org.opensearch.internal.httpclient.ResponseException.buildMessage;
 
 /**
- * This exception is used to indicate that one or more {@link Response#getWarnings()} exist
+ * This exception is used to indicate that one or more {@link Response#warnings()} exist
  * and is typically used when the {@link RestHttpClient} is set to fail by setting
  * {@link RestHttpClientBuilder#setStrictDeprecationMode(boolean)} to `true`.
  */

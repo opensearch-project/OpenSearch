@@ -104,7 +104,7 @@ public class RestHttpClientCompressionTests extends RestHttpClientTestCase {
 
             Response response = restClient.performRequest(request);
 
-            String content = BodyUtils.getBodyAsString(response.getEntity());
+            String content = BodyUtils.getBodyAsString(response.entity());
             // Content-Encoding#Accept-Encoding#Content-Length#Content
             // With HttpClient, we don't sent Content-Length so it is always null
             Assert.assertEquals("gzip#gzip#null#compressing client", content);
@@ -120,7 +120,7 @@ public class RestHttpClientCompressionTests extends RestHttpClientTestCase {
             Response response = futureResponse.get();
 
             // Server should report it had a compressed request and sent back a compressed response
-            String content = BodyUtils.getBodyAsString(response.getEntity());
+            String content = BodyUtils.getBodyAsString(response.entity());
 
             // Content-Encoding#Accept-Encoding#Content-Length#Content
             // With HttpClient, we don't sent Content-Length so it is always null

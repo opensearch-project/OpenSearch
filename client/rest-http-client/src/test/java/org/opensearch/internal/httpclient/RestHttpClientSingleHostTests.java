@@ -317,7 +317,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
         for (String method : getHttpMethods()) {
             for (int okStatusCode : getOkStatusCodes()) {
                 Response response = performRequestSyncOrAsync(restClient, Request.newRequest(method, "/" + okStatusCode).build());
-                assertThat(response.getStatusLine().statusCode(), equalTo(okStatusCode));
+                assertThat(response.statusLine().statusCode(), equalTo(okStatusCode));
             }
         }
         failureListener.assertNotCalled();
@@ -354,7 +354,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
                     Response response = restClient.performRequest(builder.build());
                     if (expectedIgnores.contains(errorStatusCode)) {
                         // no exception gets thrown although we got an error status code, as it was configured to be ignored
-                        assertEquals(errorStatusCode, response.getStatusLine().statusCode());
+                        assertEquals(errorStatusCode, response.statusLine().statusCode());
                     } else {
                         fail("request should have failed");
                     }
@@ -362,7 +362,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
                     if (expectedIgnores.contains(errorStatusCode)) {
                         throw e;
                     }
-                    assertEquals(errorStatusCode, e.getResponse().getStatusLine().statusCode());
+                    assertEquals(errorStatusCode, e.getResponse().statusLine().statusCode());
                     assertExceptionStackContainsCallingMethod(e);
                 }
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
@@ -458,7 +458,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             for (int okStatusCode : getOkStatusCodes()) {
                 Request request = Request.newRequest(method, "/" + okStatusCode).withEntity(entity).build();
                 Response response = restClient.performRequest(request);
-                assertThat(response.getStatusLine().statusCode(), equalTo(okStatusCode));
+                assertThat(response.statusLine().statusCode(), equalTo(okStatusCode));
                 assertThat(BodyUtils.getBodyAsString(response), equalTo(body));
             }
             for (int errorStatusCode : getAllErrorStatusCodes()) {
@@ -468,7 +468,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
                     fail("request should have failed");
                 } catch (ResponseException e) {
                     Response response = e.getResponse();
-                    assertThat(response.getStatusLine().statusCode(), equalTo(errorStatusCode));
+                    assertThat(response.statusLine().statusCode(), equalTo(errorStatusCode));
                     assertThat(BodyUtils.getBodyAsString(response), equalTo(body));
                     assertExceptionStackContainsCallingMethod(e);
                 }
@@ -496,8 +496,8 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             } catch (ResponseException e) {
                 esResponse = e.getResponse();
             }
-            assertThat(esResponse.getStatusLine().statusCode(), equalTo(statusCode));
-            assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
+            assertThat(esResponse.statusLine().statusCode(), equalTo(statusCode));
+            assertHeaders(defaultHeaders, requestHeaders, esResponse.headers(), Collections.<String>emptySet());
             assertFalse(esResponse.hasWarnings());
         }
     }
@@ -595,7 +595,7 @@ public class RestHttpClientSingleHostTests extends RestHttpClientTestCase {
             response = performRequestSyncOrAsync(restClient, builder.build());
         }
         assertEquals(false == warningBodyTexts.isEmpty(), response.hasWarnings());
-        assertEquals(warningBodyTexts, response.getWarnings());
+        assertEquals(warningBodyTexts, response.warnings());
     }
 
     /**
