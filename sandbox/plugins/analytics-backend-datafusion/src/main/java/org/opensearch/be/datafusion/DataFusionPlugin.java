@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.SpecialPermission;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
@@ -65,6 +66,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -205,10 +209,12 @@ public class DataFusionPlugin extends Plugin
 
     /**
      * Validates {@link #DATAFUSION_SPILL_DIRECTORY}. Empty (the unset sentinel) is accepted
-     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path};
-     * existence and writability are intentionally not checked because the directory may be
-     * created later by a host boot script (first-boot mount), and runtime spill writes will
-     * surface any permission issues at first spill with a clear DataFusion error.
+     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path}.
+     *
+     * <p>Existence and writability are checked separately by
+     * {@link #probeSpillDirectoryWritable(String)} during plugin component initialization, which
+     * halts node start with {@link IllegalStateException} when the directory is missing or
+     * not writable. This validator only constrains the syntactic form of the setting.
      */
     static String validateSpillDirectory(String value) {
         if (value == null || value.isEmpty()) {
@@ -741,10 +747,23 @@ public class DataFusionPlugin extends Plugin
         }
         Path dir = Path.of(spillDirectory);
         Path probe = dir.resolve(".opensearch_df_spill_boot_probe_" + UUIDs.randomBase64UUID());
+        // SecurityManager: spill_directory is operator-configured and not on any path the
+        // core security policy grants by default. Elevate via doPrivileged using the plugin's
+        // FilePermission grant in plugin-security.policy.
+        SpecialPermission.check();
         try {
-            Files.deleteIfExists(probe);
-            Files.write(probe, "boot".getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW);
-            Files.delete(probe);
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                Files.deleteIfExists(probe);
+                Files.write(probe, "boot".getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW);
+                Files.delete(probe);
+                return null;
+            });
+        } catch (PrivilegedActionException pae) {
+            Throwable cause = pae.getCause() != null ? pae.getCause() : pae;
+            throw new IllegalStateException(
+                "DataFusion spill directory [" + spillDirectory + "] is not writable: " + cause.getMessage(),
+                cause
+            );
         } catch (Exception e) {
             throw new IllegalStateException("DataFusion spill directory [" + spillDirectory + "] is not writable: " + e.getMessage(), e);
         }

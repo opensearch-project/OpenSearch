@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -63,7 +64,7 @@ public class DataFusionPluginBootProbeTests extends OpenSearchTestCase {
     private static boolean isPosixFs() {
         try {
             Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
-            return Files.getFileStore(tmp).supportsFileAttributeView("posix");
+            return Environment.getFileStore(tmp).supportsFileAttributeView("posix");
         } catch (IOException ex) {
             return false;
         }

@@ -11,6 +11,7 @@ package org.opensearch.analytics.qa;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -81,7 +82,7 @@ public class SpillStatsEnabledIT extends OpenSearchRestTestCase {
         assertTrue("expected at least one node verified", verified > 0);
     }
 
-    private JsonNode parseResponse(Response response) throws IOException {
+    private JsonNode parseResponse(Response response) throws IOException, ParseException {
         return MAPPER.readTree(EntityUtils.toString(response.getEntity()));
     }
 }

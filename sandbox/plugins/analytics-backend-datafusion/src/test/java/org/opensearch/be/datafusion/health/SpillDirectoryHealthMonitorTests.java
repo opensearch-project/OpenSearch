@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion.health;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.env.Environment;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -155,7 +156,7 @@ public class SpillDirectoryHealthMonitorTests extends OpenSearchTestCase {
     private static boolean isPosixFs() {
         try {
             Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
-            return Files.getFileStore(tmp).supportsFileAttributeView("posix");
+            return Environment.getFileStore(tmp).supportsFileAttributeView("posix");
         } catch (IOException e) {
             return false;
         }

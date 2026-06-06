@@ -183,6 +183,8 @@ testClusters.integTestStreaming {
 }
 
 // ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
+ext.spillItDir = "${System.getProperty('java.io.tmpdir')}/df-spill-it"
+
 task integTestSpillEnabled(type: RestIntegTestTask) {
     description = 'Runs spill-stats IT with spill enabled (datafusion.spill_directory configured)'
     testClassesDirs = sourceSets.test.output.classesDirs
@@ -191,6 +193,11 @@ task integTestSpillEnabled(type: RestIntegTestTask) {
         includeTestsMatching 'org.opensearch.analytics.qa.SpillStatsEnabledIT'
     }
     systemProperty 'tests.security.manager', 'false'
+    // DataFusionPlugin's boot probe halts node start if the spill directory does not
+    // exist. Create it (idempotent) before the cluster starts.
+    doFirst {
+        java.nio.file.Files.createDirectories(java.nio.file.Paths.get(spillItDir))
+    }
 }
 check.dependsOn(integTestSpillEnabled)
 
@@ -199,8 +206,9 @@ testClusters.integTestSpillEnabled {
     configureAnalyticsCluster(delegate)
     // The collector falls back to 0s when the directory does not exist; using java.io.tmpdir
     // guarantees a real path and exercises the FileStore lookup branch in
-    // SpillStatsCollector.collect(...).
-    setting 'datafusion.spill_directory', "${System.getProperty('java.io.tmpdir')}/df-spill-it"
+    // SpillStatsCollector.collect(...). The directory is created in the task's doFirst
+    // block above so DataFusionPlugin's boot writability probe succeeds.
+    setting 'datafusion.spill_directory', spillItDir
     setting 'datafusion.spill_memory_limit_bytes', '1073741824'
 }
 

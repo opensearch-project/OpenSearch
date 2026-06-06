@@ -38,7 +38,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(DataFusionService.class);
 
     private final long memoryPoolLimit;
-    private final long spillMemoryLimit;
+    /**
+     * Mirrors the dynamic {@code datafusion.spill_memory_limit_bytes} setting and the
+     * native runtime's spill cap. Updated by {@link #setSpillMemoryLimit(long)}; surfaced
+     * as {@code spill.disk_reserved_bytes} via {@link #buildSpillStats()}. Volatile so
+     * stats readers see updates from the cluster-settings consumer thread without locking.
+     */
+    private volatile long spillMemoryLimit;
     private final String spillDirectory;
     private final int cpuThreads;
     private final double datanodeMultiplier;
@@ -180,10 +186,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     /**
      * Sets the spill memory limit at runtime. Requires {@link #isSpillLimitDynamic()};
-     * otherwise throws {@link UnsupportedOperationException}.
+     * otherwise throws {@link UnsupportedOperationException}. Also updates the Java-side
+     * mirror used by {@link #buildSpillStats()} so {@code spill.disk_reserved_bytes}
+     * reflects the new value on the next stats read.
      */
     public void setSpillMemoryLimit(long newLimitBytes) {
         NativeBridge.setSpillLimit(getNativeRuntime().get(), newLimitBytes);
+        this.spillMemoryLimit = newLimitBytes;
     }
 
     /**

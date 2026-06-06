@@ -1,0 +1,24 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+grant {
+  // datafusion.spill_directory is operator-configured and lives outside the paths
+  // the default OpenSearch security policy grants (path.data, path.logs, java.io.tmpdir, etc.).
+  //
+  // We can't reference the setting value here: plugin-security.policy is static —
+  // it only resolves system-property variables (${java.io.tmpdir}, ${codebase.*}),
+  // not cluster settings. Granting <<ALL FILES>> with read/readlink/write/delete is the
+  // narrowest scope we can express at policy-load time. Actual reach is limited by
+  // SpecialPermission.check() + AccessController.doPrivileged at the three call sites
+  // that touch the spill directory:
+  //   - DataFusionPlugin.probeSpillDirectoryWritable (boot probe)
+  //   - SpillDirectoryHealthMonitor.probeOnce        (runtime probe, 60s cadence)
+  //   - SpillStatsCollector.collect                  (stats endpoint, on-demand)
+  // No execute permission is granted; no other plugin code uses doPrivileged to access files.
+  permission java.io.FilePermission "<<ALL FILES>>", "read,readlink,write,delete";
+};

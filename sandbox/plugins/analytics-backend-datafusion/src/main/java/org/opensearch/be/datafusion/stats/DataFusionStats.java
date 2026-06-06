@@ -20,9 +20,14 @@ import java.util.Objects;
 /**
  * Top-level stats container for the DataFusion backend.
  *
- * <p>Composes sibling fragments rather than duplicating their fields. New metric
- * categories are added by appending a nullable field, ctor arg, writeTo/readFrom
- * pair, and toXContent call.
+ * <p>Implements {@link Writeable} for transport serialization,
+ * {@link Writeable} for transport serialization, and {@link ToXContentFragment}
+ * for JSON rendering.
+ *
+ * <p>Composes {@link NativeExecutorsStats} rather than duplicating its fields,
+ * making it extensible for future metric categories (e.g. MemoryPoolStats).
+ * No inner classes — {@code RuntimeMetrics} and {@code TaskMonitorStats} belong
+ * to {@link NativeExecutorsStats}.
  */
 public class DataFusionStats implements Writeable, ToXContentFragment {
 
@@ -31,6 +36,14 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
     private final PartitionGateStats coordinatorGateStats; // nullable
     private final SpillStats spillStats; // nullable
 
+    /**
+     * Construct from components.
+     *
+     * @param nativeExecutorsStats  the native executor metrics (nullable)
+     * @param datanodeGateStats     the datanode partition gate metrics (nullable)
+     * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
+     * @param spillStats            the spill directory stats
+     */
     public DataFusionStats(
         NativeExecutorsStats nativeExecutorsStats,
         PartitionGateStats datanodeGateStats,
@@ -43,6 +56,12 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         this.spillStats = spillStats;
     }
 
+    /**
+     * Deserialize from stream.
+     *
+     * @param in the stream input
+     * @throws IOException if deserialization fails
+     */
     public DataFusionStats(StreamInput in) throws IOException {
         this.nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
         this.datanodeGateStats = in.readOptionalWriteable(PartitionGateStats::new);
@@ -75,18 +94,30 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Returns the native executor metrics, or {@code null} if absent.
+     */
     public NativeExecutorsStats getNativeExecutorsStats() {
         return nativeExecutorsStats;
     }
 
+    /**
+     * Returns the datanode partition gate metrics, or {@code null} if absent.
+     */
     public PartitionGateStats getDatanodeGateStats() {
         return datanodeGateStats;
     }
 
+    /**
+     * Returns the coordinator partition gate metrics, or {@code null} if absent.
+     */
     public PartitionGateStats getCoordinatorGateStats() {
         return coordinatorGateStats;
     }
 
+    /**
+     * Returns the spill directory metrics, or {@code null} if absent.
+     */
     public SpillStats getSpillStats() {
         return spillStats;
     }

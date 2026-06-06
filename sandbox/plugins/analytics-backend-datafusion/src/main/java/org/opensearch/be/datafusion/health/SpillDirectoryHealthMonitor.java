@@ -10,12 +10,16 @@ package org.opensearch.be.datafusion.health;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.SpecialPermission;
 import org.opensearch.common.UUIDs;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 
 /**
  * Periodically probes the configured DataFusion spill directory by writing and
@@ -73,11 +77,22 @@ public final class SpillDirectoryHealthMonitor implements Runnable {
         Path tempPath = spillDirectory.resolve(probeFileName);
         boolean nowWritable;
         String error = "";
+        // SecurityManager: spill_directory is operator-configured and not on any path the
+        // core security policy grants by default. Elevate via doPrivileged using the plugin's
+        // FilePermission grant in plugin-security.policy.
+        SpecialPermission.check();
         try {
-            Files.deleteIfExists(tempPath);
-            Files.write(tempPath, probePayload, StandardOpenOption.CREATE_NEW);
-            Files.delete(tempPath);
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                Files.deleteIfExists(tempPath);
+                Files.write(tempPath, probePayload, StandardOpenOption.CREATE_NEW);
+                Files.delete(tempPath);
+                return null;
+            });
             nowWritable = true;
+        } catch (PrivilegedActionException pae) {
+            Throwable cause = pae.getCause() != null ? pae.getCause() : pae;
+            nowWritable = false;
+            error = cause.getClass().getSimpleName() + ": " + cause.getMessage();
         } catch (Exception e) {
             nowWritable = false;
             error = e.getClass().getSimpleName() + ": " + e.getMessage();
