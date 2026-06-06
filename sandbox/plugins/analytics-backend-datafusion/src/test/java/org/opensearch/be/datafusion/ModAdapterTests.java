@@ -26,10 +26,8 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Unit tests for {@link ModAdapter}. PPL semantics require {@code mod(x, 0)}
- * to return NULL; the adapter wraps every {@code MOD(x, y)} in
- * {@code CASE WHEN y = 0 THEN NULL ELSE MOD(x, y) END} so DataFusion's runtime
- * never raises {@code Arrow error: Divide by zero error}.
+ * Tests for {@link ModAdapter}. Wraps every {@code MOD(x, y)} in
+ * {@code CASE WHEN y = 0 THEN NULL ELSE MOD(x, y) END} so {@code mod(x, 0)} yields NULL.
  */
 public class ModAdapterTests extends OpenSearchTestCase {
 
@@ -51,12 +49,7 @@ public class ModAdapterTests extends OpenSearchTestCase {
         return (RexCall) rexBuilder.makeCall(retType, SqlStdOperatorTable.MOD, List.of(lhs, rhs));
     }
 
-    /**
-     * Regression for engine-arrow-divzero q5: literal-zero divisor must wrap
-     * the MOD call in {@code CASE WHEN rhs = 0 THEN NULL ELSE MOD(...) END}
-     * so DataFusion's Arrow runtime returns NULL instead of crashing the
-     * streaming fragment.
-     */
+    /** Literal-zero divisor → CASE wrap. */
     public void testLiteralZeroDivisorWrapsInCase() {
         RexNode lhs = rexBuilder.makeExactLiteral(BigDecimal.valueOf(5), typeFactory.createSqlType(SqlTypeName.INTEGER));
         RexNode rhs = rexBuilder.makeExactLiteral(BigDecimal.ZERO, typeFactory.createSqlType(SqlTypeName.INTEGER));
@@ -64,18 +57,13 @@ public class ModAdapterTests extends OpenSearchTestCase {
 
         RexNode adapted = new ModAdapter().adapt(original, List.of(), cluster);
 
-        assertTrue("adapted node must be a RexCall (the CASE wrap)", adapted instanceof RexCall);
+        assertTrue(adapted instanceof RexCall);
         RexCall caseCall = (RexCall) adapted;
-        assertEquals("wrap must be a CASE node", SqlKind.CASE, caseCall.getKind());
-        assertTrue("CASE result must be nullable so NULL fits", caseCall.getType().isNullable());
+        assertEquals(SqlKind.CASE, caseCall.getKind());
+        assertTrue(caseCall.getType().isNullable());
     }
 
-    /**
-     * Non-zero literal divisor still gets the CASE wrap (ModAdapter wraps
-     * unconditionally — unlike DivideAdapter which short-circuits non-zero
-     * literals — because mod's substrait emit also lacks the
-     * {@code on_domain_error: NULL} option threading).
-     */
+    /** Non-zero literal divisor still gets the CASE wrap (unconditional, unlike DivideAdapter). */
     public void testNonZeroLiteralDivisorAlsoWrapsInCase() {
         RexNode lhs = rexBuilder.makeExactLiteral(BigDecimal.valueOf(5), typeFactory.createSqlType(SqlTypeName.INTEGER));
         RexNode rhs = rexBuilder.makeExactLiteral(BigDecimal.valueOf(3), typeFactory.createSqlType(SqlTypeName.INTEGER));
@@ -87,12 +75,7 @@ public class ModAdapterTests extends OpenSearchTestCase {
         assertEquals(SqlKind.CASE, ((RexCall) adapted).getKind());
     }
 
-    /**
-     * Mixed-numeric operands (e.g. {@code FLOAT % INTEGER}) widen to the higher
-     * rank type before MOD emission so substrait's signature matcher can bind
-     * the call. Substrait's stock {@code modulus} extension is integer-only;
-     * {@code opensearch_arithmetic_overloads.yaml} supplies the fp signatures.
-     */
+    /** Mixed-numeric operands (e.g. FLOAT % INTEGER) widen to a common type before MOD. */
     public void testMixedNumericOperandsWidenToCommonType() {
         RexNode lhs = rexBuilder.makeApproxLiteral(BigDecimal.valueOf(5.5), typeFactory.createSqlType(SqlTypeName.FLOAT));
         RexNode rhs = rexBuilder.makeExactLiteral(BigDecimal.valueOf(2), typeFactory.createSqlType(SqlTypeName.INTEGER));
@@ -101,27 +84,21 @@ public class ModAdapterTests extends OpenSearchTestCase {
         RexNode adapted = new ModAdapter().adapt(original, List.of(), cluster);
 
         assertTrue(adapted instanceof RexCall);
-        // CASE(EQUALS(rhs, 0), null, MOD(widenedLhs, widenedRhs))
         RexCall caseCall = (RexCall) adapted;
         assertEquals(SqlKind.CASE, caseCall.getKind());
-        // The MOD branch is the third operand of CASE (then-arm structure: cond, null, expr).
+        // CASE then-arm is the third operand; may be wrapped in a CAST for nullability.
         RexNode modBranch = caseCall.getOperands().get(2);
-        // It may be wrapped in a CAST for nullability, but the inner call must be MOD.
         RexNode innerMod = modBranch instanceof RexCall mc && mc.getKind() != SqlKind.MOD ? mc.getOperands().get(0) : modBranch;
         assertTrue(innerMod instanceof RexCall);
-        assertEquals("mixed-type MOD must use SqlStdOperatorTable.MOD after widen", SqlKind.MOD, ((RexCall) innerMod).getKind());
-        // The widened operands inside MOD must share a type.
         RexCall innerModCall = (RexCall) innerMod;
+        assertEquals(SqlKind.MOD, innerModCall.getKind());
         assertEquals(
-            "after widen, lhs and rhs must share a numeric type",
             innerModCall.getOperands().get(0).getType().getSqlTypeName(),
             innerModCall.getOperands().get(1).getType().getSqlTypeName()
         );
     }
 
-    /**
-     * Column-ref divisor wraps in CASE so the runtime per-row zero-check fires.
-     */
+    /** Column-ref divisor → CASE wrap (zero unknown until runtime). */
     public void testColumnRefDivisorWrapsInCase() {
         RelDataType intNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true);
         RexNode lhs = rexBuilder.makeExactLiteral(BigDecimal.valueOf(5), typeFactory.createSqlType(SqlTypeName.INTEGER));
