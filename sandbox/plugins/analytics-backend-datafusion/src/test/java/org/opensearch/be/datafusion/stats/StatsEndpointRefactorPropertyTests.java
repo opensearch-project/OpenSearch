@@ -112,7 +112,8 @@ public class StatsEndpointRefactorPropertyTests extends OpenSearchTestCase {
         return new DataFusionStats(
             nes,
             new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0),
+            null
         );
     }
 

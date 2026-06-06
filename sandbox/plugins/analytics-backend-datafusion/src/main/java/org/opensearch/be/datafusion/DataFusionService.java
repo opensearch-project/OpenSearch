@@ -15,6 +15,8 @@ import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.SpillStats;
+import org.opensearch.be.datafusion.stats.SpillStatsCollector;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 
@@ -181,6 +183,22 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns the spill directory this service was configured with. Empty string
+     * means spill is disabled (DataFusion built with {@code DiskManagerMode::Disabled}).
+     */
+    public String getSpillDirectory() {
+        return spillDirectory;
+    }
+
+    /**
+     * Returns the spill memory limit (in bytes) this service was configured with.
+     * Surfaced for the {@code spill.disk_reserved_bytes} stat.
+     */
+    public long getSpillMemoryLimit() {
+        return spillMemoryLimit;
+    }
+
+    /**
      * Returns the latest native executor stats, collected fresh from JNI on every call.
      *
      * @return the current {@link DataFusionStats}
@@ -189,7 +207,14 @@ public class DataFusionService extends AbstractLifecycleComponent {
         if (runtimeHandle == null) {
             throw new IllegalStateException("DataFusionService has not been started");
         }
-        return NativeBridge.stats();
+        DataFusionStats nativeStats = NativeBridge.stats();
+        SpillStats spill = SpillStatsCollector.collect(spillDirectory, spillMemoryLimit);
+        return new DataFusionStats(
+            nativeStats.getNativeExecutorsStats(),
+            nativeStats.getDatanodeGateStats(),
+            nativeStats.getCoordinatorGateStats(),
+            spill
+        );
     }
     // Cache management (node-level, delegates to native runtime)
 

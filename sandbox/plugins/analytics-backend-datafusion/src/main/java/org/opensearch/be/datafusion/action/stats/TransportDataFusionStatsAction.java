@@ -17,6 +17,7 @@ import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats.OperationType;
 import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.SpillStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -117,6 +118,7 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
      *   <li>{@code plan_setup} &rarr; {@link NativeExecutorsStats#getTaskMonitors()}.get("plan_setup")</li>
      *   <li>{@code datanode_gate} &rarr; {@link DataFusionStats#getDatanodeGateStats()}</li>
      *   <li>{@code coordinator_gate} &rarr; {@link DataFusionStats#getCoordinatorGateStats()}</li>
+     *   <li>{@code spill} &rarr; {@link DataFusionStats#getSpillStats()}</li>
      * </ul>
      *
      * @param stats  the full stats (may be null)
@@ -166,6 +168,8 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
             }
         }
 
-        return new DataFusionStats(filteredNativeStats, datanodeGate, coordinatorGate);
+        SpillStats spill = filter.contains("spill") ? stats.getSpillStats() : null;
+
+        return new DataFusionStats(filteredNativeStats, datanodeGate, coordinatorGate, spill);
     }
 }

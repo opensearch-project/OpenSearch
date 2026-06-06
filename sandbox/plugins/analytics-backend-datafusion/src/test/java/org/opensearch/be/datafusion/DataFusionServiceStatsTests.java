@@ -34,4 +34,15 @@ public class DataFusionServiceStatsTests extends OpenSearchTestCase {
         IllegalStateException ex = expectThrows(IllegalStateException.class, service::getStats);
         assertEquals("DataFusionService has not been started", ex.getMessage());
     }
+
+    public void testGetSpillDirectoryReflectsBuilderValue() {
+        DataFusionService service = DataFusionService.builder()
+            .memoryPoolLimit(64L * 1024L * 1024L)
+            .spillMemoryLimit(32L * 1024L * 1024L)
+            .spillDirectory("/var/lib/opensearch/spill")
+            .build();
+
+        assertEquals("/var/lib/opensearch/spill", service.getSpillDirectory());
+        assertEquals(32L * 1024L * 1024L, service.getSpillMemoryLimit());
+    }
 }

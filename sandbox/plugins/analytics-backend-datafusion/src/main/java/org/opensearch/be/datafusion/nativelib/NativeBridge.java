@@ -913,7 +913,7 @@ public final class NativeBridge {
             var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
             var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
 
-            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate, null);
         }
     }
 

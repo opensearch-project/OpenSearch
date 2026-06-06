@@ -20,48 +20,34 @@ import java.util.Objects;
 /**
  * Top-level stats container for the DataFusion backend.
  *
- * <p>Implements {@link Writeable} for transport serialization,
- * {@link Writeable} for transport serialization, and {@link ToXContentFragment}
- * for JSON rendering.
- *
- * <p>Composes {@link NativeExecutorsStats} rather than duplicating its fields,
- * making it extensible for future metric categories (e.g. MemoryPoolStats).
- * No inner classes — {@code RuntimeMetrics} and {@code TaskMonitorStats} belong
- * to {@link NativeExecutorsStats}.
+ * <p>Composes sibling fragments rather than duplicating their fields. New metric
+ * categories are added by appending a nullable field, ctor arg, writeTo/readFrom
+ * pair, and toXContent call.
  */
 public class DataFusionStats implements Writeable, ToXContentFragment {
 
     private final NativeExecutorsStats nativeExecutorsStats; // nullable
     private final PartitionGateStats datanodeGateStats; // nullable
     private final PartitionGateStats coordinatorGateStats; // nullable
+    private final SpillStats spillStats; // nullable
 
-    /**
-     * Construct from components.
-     *
-     * @param nativeExecutorsStats  the native executor metrics (nullable)
-     * @param datanodeGateStats     the datanode partition gate metrics (nullable)
-     * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
-     */
     public DataFusionStats(
         NativeExecutorsStats nativeExecutorsStats,
         PartitionGateStats datanodeGateStats,
-        PartitionGateStats coordinatorGateStats
+        PartitionGateStats coordinatorGateStats,
+        SpillStats spillStats
     ) {
         this.nativeExecutorsStats = nativeExecutorsStats;
         this.datanodeGateStats = datanodeGateStats;
         this.coordinatorGateStats = coordinatorGateStats;
+        this.spillStats = spillStats;
     }
 
-    /**
-     * Deserialize from stream.
-     *
-     * @param in the stream input
-     * @throws IOException if deserialization fails
-     */
     public DataFusionStats(StreamInput in) throws IOException {
         this.nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
         this.datanodeGateStats = in.readOptionalWriteable(PartitionGateStats::new);
         this.coordinatorGateStats = in.readOptionalWriteable(PartitionGateStats::new);
+        this.spillStats = in.readOptionalWriteable(SpillStats::new);
     }
 
     @Override
@@ -69,6 +55,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(nativeExecutorsStats);
         out.writeOptionalWriteable(datanodeGateStats);
         out.writeOptionalWriteable(coordinatorGateStats);
+        out.writeOptionalWriteable(spillStats);
     }
 
     @Override
@@ -82,28 +69,26 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         if (coordinatorGateStats != null) {
             coordinatorGateStats.toXContent(builder, params);
         }
+        if (spillStats != null) {
+            spillStats.toXContent(builder, params);
+        }
         return builder;
     }
 
-    /**
-     * Returns the native executor metrics, or {@code null} if absent.
-     */
     public NativeExecutorsStats getNativeExecutorsStats() {
         return nativeExecutorsStats;
     }
 
-    /**
-     * Returns the datanode partition gate metrics, or {@code null} if absent.
-     */
     public PartitionGateStats getDatanodeGateStats() {
         return datanodeGateStats;
     }
 
-    /**
-     * Returns the coordinator partition gate metrics, or {@code null} if absent.
-     */
     public PartitionGateStats getCoordinatorGateStats() {
         return coordinatorGateStats;
+    }
+
+    public SpillStats getSpillStats() {
+        return spillStats;
     }
 
     @Override
@@ -113,11 +98,12 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         DataFusionStats that = (DataFusionStats) o;
         return Objects.equals(nativeExecutorsStats, that.nativeExecutorsStats)
             && Objects.equals(datanodeGateStats, that.datanodeGateStats)
-            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats);
+            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats)
+            && Objects.equals(spillStats, that.spillStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats);
+        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats, spillStats);
     }
 }

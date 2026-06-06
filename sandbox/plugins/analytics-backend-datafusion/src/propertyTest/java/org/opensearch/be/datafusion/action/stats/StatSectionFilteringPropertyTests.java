@@ -111,7 +111,8 @@ public class StatSectionFilteringPropertyTests {
             return new DataFusionStats(
                 new NativeExecutorsStats(io, cpu, monitors),
                 new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                new PartitionGateStats("coordinator_gate", 8, 1, 200, 75),
+                null
             );
         });
     }
@@ -129,7 +130,8 @@ public class StatSectionFilteringPropertyTests {
                 return new DataFusionStats(
                     new NativeExecutorsStats(io, null, monitors),
                     new PartitionGateStats("datanode_gate", 12, 3, 100, 50),
-                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75)
+                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75),
+                    null
                 );
             });
     }

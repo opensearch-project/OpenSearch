@@ -121,6 +121,7 @@ integTest {
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'
+    exclude '**/SpillStatsEnabledIT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
@@ -179,6 +180,28 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+}
+
+// ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
+task integTestSpillEnabled(type: RestIntegTestTask) {
+    description = 'Runs spill-stats IT with spill enabled (datafusion.spill_directory configured)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.SpillStatsEnabledIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestSpillEnabled)
+
+testClusters.integTestSpillEnabled {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    // The collector falls back to 0s when the directory does not exist; using java.io.tmpdir
+    // guarantees a real path and exercises the FileStore lookup branch in
+    // SpillStatsCollector.collect(...).
+    setting 'datafusion.spill_directory', "${System.getProperty('java.io.tmpdir')}/df-spill-it"
+    setting 'datafusion.spill_memory_limit_bytes', '1073741824'
 }
 
 // Run against an external cluster (no testClusters lifecycle):
