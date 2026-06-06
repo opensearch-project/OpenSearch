@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.stage;
+package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Unit tests for {@link ViewVectorSanitizer}.
+ * Unit tests for {@link VectorUtils#sanitizeNullViewSlots}.
  *
  * <p>Regression for the QTF late-materialization {@code interleave len=0, index=<garbage>} panic.
  * A Java-built VSR fed across the Arrow C Data Interface can carry view columns (Utf8View /
@@ -31,7 +31,7 @@ import java.util.List;
  * on an all-null column, panicking. The sanitizer must zero every null view slot before export so
  * it reads back as a valid length-0 inline view.
  */
-public class ViewVectorSanitizerTests extends OpenSearchTestCase {
+public class VectorUtilsTests extends OpenSearchTestCase {
 
     private static final int ELEMENT_SIZE = BaseVariableWidthViewVector.ELEMENT_SIZE;
     private static final long GARBAGE_VIEW_LENGTH = 0x7FFFFFFFL; // far above INLINE_SIZE (12)
@@ -63,7 +63,7 @@ public class ViewVectorSanitizerTests extends OpenSearchTestCase {
             assertEquals(GARBAGE_VIEW_LENGTH, Integer.toUnsignedLong(v.getDataBuffer().getInt((long) 1 * ELEMENT_SIZE)));
 
             try (VectorSchemaRoot root = new VectorSchemaRoot(List.of(v))) {
-                ViewVectorSanitizer.sanitize(root);
+                VectorUtils.sanitizeNullViewSlots(root);
 
                 assertEquals(0, v.getDataBuffer().getInt((long) 1 * ELEMENT_SIZE));
                 assertEquals(0, v.getDataBuffer().getInt((long) 2 * ELEMENT_SIZE));
@@ -85,7 +85,7 @@ public class ViewVectorSanitizerTests extends OpenSearchTestCase {
             v.setValueCount(2);
 
             try (VectorSchemaRoot root = new VectorSchemaRoot(List.of(v))) {
-                ViewVectorSanitizer.sanitize(root);
+                VectorUtils.sanitizeNullViewSlots(root);
 
                 assertEquals(0, v.getDataBuffer().getInt((long) 1 * ELEMENT_SIZE));
                 assertTrue(v.isNull(1));
@@ -107,7 +107,7 @@ public class ViewVectorSanitizerTests extends OpenSearchTestCase {
             v.setValueCount(2);
 
             try (VectorSchemaRoot root = new VectorSchemaRoot(List.of(ints, v))) {
-                ViewVectorSanitizer.sanitize(root); // no nulls anywhere — must be a no-op, no exception
+                VectorUtils.sanitizeNullViewSlots(root); // no nulls anywhere — must be a no-op, no exception
 
                 assertEquals(10, ints.get(0));
                 assertEquals("a", new String(v.get(0), StandardCharsets.UTF_8));

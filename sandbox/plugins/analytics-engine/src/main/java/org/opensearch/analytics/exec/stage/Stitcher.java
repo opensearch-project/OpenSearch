@@ -15,6 +15,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.exec.VectorUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSink;
 
@@ -171,7 +172,7 @@ public final class Stitcher {
         try {
             if (failures.isEmpty()) {
                 output.setRowCount(totalRows);
-                ViewVectorSanitizer.sanitize(output);
+                VectorUtils.sanitizeNullViewSlots(output);
                 parentSink.feed(output);
                 parentSink.close();
                 logger.debug("[Stitcher] emitted rows={}", totalRows);
