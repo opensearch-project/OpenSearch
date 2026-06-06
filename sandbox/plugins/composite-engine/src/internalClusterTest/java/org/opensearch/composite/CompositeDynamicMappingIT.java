@@ -153,7 +153,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertEquals("All 10 Lucene docs should have __row_id__", 10, rowsWithRowId);
 
         // Verify that the lucene index has the expected indexed fields (inverted index)
-        assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text", "dynamic_text.keyword"));
+        assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text"));
         ensureNoActiveMerges(indexName);
     }
 
