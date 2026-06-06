@@ -104,8 +104,8 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         fields.put("CounterID", Map.of("type", "integer"));
         fields.put("UserID", Map.of("type", "long"));
-        fields.put("URL", Map.of("type", "keyword"));
-        fields.put("Title", Map.of("type", "keyword"));
+        fields.put("URL", Map.of("type", "keyword", "index", "false"));
+        fields.put("Title", Map.of("type", "keyword", "index", "false"));
         fields.put("EventDate", Map.of("type", "date"));
 
         ClusterState clusterState = clusterStateWith(INDEX, fields, "parquet", 2);
@@ -192,8 +192,8 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         fields.put("CounterID", Map.of("type", "integer"));
         fields.put("UserID", Map.of("type", "long"));
-        fields.put("URL", Map.of("type", "keyword"));
-        fields.put("Title", Map.of("type", "keyword"));
+        fields.put("URL", Map.of("type", "keyword", "index", "false"));
+        fields.put("Title", Map.of("type", "keyword", "index", "false"));
         fields.put("EventDate", Map.of("type", "date"));
         ClusterState clusterState = clusterStateWith(INDEX, fields, "parquet", 2);
 
@@ -288,7 +288,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                         .put("index.composite.primary_data_format", primaryDataFormat)
-                        .putList("index.composite.secondary_data_formats", "lucene")
+                        .putList("index.composite.secondary_data_formats")
                 )
                 .numberOfShards(shardCount)
                 .numberOfReplicas(0)

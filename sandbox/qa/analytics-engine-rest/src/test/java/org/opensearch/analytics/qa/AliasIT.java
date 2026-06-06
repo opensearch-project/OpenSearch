@@ -215,6 +215,7 @@ public class AliasIT extends AnalyticsRestTestCase {
             "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
                 + "\"index.pluggable.dataformat\":\"composite\","
                 + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":\"lucene\","
                 + "\"index.number_of_shards\":1,\"index.number_of_replicas\":0},"
                 + "\"mappings\":" + mappingJson + "}"
         );

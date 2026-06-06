@@ -94,6 +94,7 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
     }
 
     public void testFilterOnDeeplyNestedObjectField() throws IOException {
+        // This test treats latitude as a double, not geo point.
         assertRowsEqual(
             "source=" + DATASET.indexName + " | where city.location.latitude > 40 | fields city.name",
             row("Seattle"),

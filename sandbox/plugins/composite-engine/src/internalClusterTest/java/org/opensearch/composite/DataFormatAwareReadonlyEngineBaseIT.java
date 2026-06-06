@@ -17,6 +17,7 @@ import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.composite.framework.ParquetOnlyDataFormatPlugin;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexModule;
@@ -24,7 +25,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -59,7 +59,7 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
             super.nodePlugins().stream(),
             Stream.of(
                 ArrowBasePlugin.class,
-                ParquetDataFormatPlugin.class,
+                ParquetOnlyDataFormatPlugin.class,
                 CompositeDataFormatPlugin.class,
                 LucenePlugin.class,
                 DataFusionPlugin.class
@@ -96,7 +96,7 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats", List.of())
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
     }
 
