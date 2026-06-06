@@ -82,11 +82,16 @@ public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase 
             settingsBuilder.putList("index.composite.secondary_data_formats");
         }
 
+        String keywordMapping = "type=keyword";
+        if (false == withLuceneSecondary) {
+            keywordMapping += ",index=false";
+        }
+
         client().admin()
             .indices()
             .prepareCreate(indexName)
             .setSettings(settingsBuilder)
-            .setMapping("name", "type=keyword", "value", "type=integer")
+            .setMapping("name", keywordMapping, "value", "type=integer")
             .get();
         ensureGreen(indexName);
     }

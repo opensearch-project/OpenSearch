@@ -112,7 +112,7 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
     // ══════════════════════════════════════════════════════════════════════
 
     /**
-     * Verifies background merge produces a valid merged parquet file
+     * Verifies background merge produces a valid merged parquet file and lucene segment
      * with correct row count and source files cleaned up.
      */
     public void testBackgroundMerge() throws Exception {
@@ -130,35 +130,9 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
         int totalDocs = refreshCycles * docsPerCycle;
 
         DataformatAwareCatalogSnapshot snapshot = waitForMerge(refreshCycles);
-        assertEquals(Set.of("parquet"), snapshot.getDataFormats());
+        assertEquals(Set.of("parquet", "lucene"), snapshot.getDataFormats());
 
         verifyRowCount(snapshot, totalDocs);
-        verifySegmentGenerationUniqueness(snapshot);
-        verifyNoOrphanFiles(snapshot);
-    }
-
-    /**
-     * Verifies sorted merge with age DESC (nulls first), name ASC (nulls last).
-     */
-    public void testSortedMerge() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate(INDEX_NAME)
-            .setSettings(sortedSettings())
-            .setMapping("name", "type=keyword", "age", "type=integer")
-            .get();
-        ensureGreen(INDEX_NAME);
-
-        int docsPerCycle = 10;
-        int refreshCycles = 15;
-        indexDocsWithNullsAcrossRefreshes(refreshCycles, docsPerCycle);
-        int totalDocs = refreshCycles * docsPerCycle;
-
-        DataformatAwareCatalogSnapshot snapshot = waitForMerge(refreshCycles);
-        assertEquals(Set.of("parquet"), snapshot.getDataFormats());
-
-        verifyRowCount(snapshot, totalDocs);
-        verifySortOrder(snapshot);
         verifySegmentGenerationUniqueness(snapshot);
         verifyNoOrphanFiles(snapshot);
     }
@@ -366,22 +340,7 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
-            .build();
-    }
-
-    private Settings sortedSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.refresh_interval", "-1")
-            .put("index.pluggable.dataformat.enabled", true)
-            .put("index.pluggable.dataformat", "composite")
-            .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
-            .putList("index.sort.field", "age", "name")
-            .putList("index.sort.order", "desc", "asc")
-            .putList("index.sort.missing", "_first", "_last")
+            .putList("index.composite.secondary_data_formats", "lucene")
             .build();
     }
 

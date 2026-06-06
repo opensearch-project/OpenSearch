@@ -142,7 +142,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         String body = "{\"settings\": {"
             + "  \"number_of_shards\": " + shards + ", \"number_of_replicas\": 0,"
             + "  \"index.pluggable.dataformat.enabled\": true, \"index.pluggable.dataformat\": \"composite\","
-            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"lucene\""
             + "}, \"mappings\": {\"properties\": {\"value\": {\"type\": \"integer\"}}}}";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(body);
@@ -193,7 +193,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         String body = "{\"settings\": {"
             + "  \"number_of_shards\": " + shards + ", \"number_of_replicas\": 0,"
             + "  \"index.pluggable.dataformat.enabled\": true, \"index.pluggable.dataformat\": \"composite\","
-            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"lucene\""
             + "}, \"mappings\": {\"properties\": {\"label\": {\"type\": \"keyword\"}}}}";
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(body);
@@ -647,7 +647,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -720,7 +720,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -769,7 +769,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
