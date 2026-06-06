@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 
@@ -22,7 +23,8 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
     public KafkaConsumerFactory() {}
 
     @Override
-    public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
+    public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
+        IngestionSource ingestionSource = indexMetadata.getIngestionSource();
         KafkaSourceConfig localConfig = new KafkaSourceConfig((int) ingestionSource.getMaxPollSize(), ingestionSource.params());
         // Constructing a KafkaPartitionConsumer should *never* throw an exception.
         KafkaPartitionConsumer consumer = new KafkaPartitionConsumer(clientId, localConfig, shardId);
