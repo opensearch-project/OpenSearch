@@ -74,6 +74,7 @@ public class DocumentMapperParser {
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
     private final ScriptService scriptService;
+    private boolean allowCompositeFieldWithoutSettings = false;
 
     public DocumentMapperParser(
         IndexSettings indexSettings,
@@ -95,7 +96,7 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(
+        Mapper.TypeParser.ParserContext ctx = new Mapper.TypeParser.ParserContext(
             similarityService::getSimilarity,
             mapperService,
             typeParsers::get,
@@ -104,10 +105,12 @@ public class DocumentMapperParser {
             null,
             scriptService
         );
+        ctx.setAllowCompositeFieldWithoutSettings(allowCompositeFieldWithoutSettings);
+        return ctx;
     }
 
     public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-        return new Mapper.TypeParser.ParserContext(
+        Mapper.TypeParser.ParserContext ctx = new Mapper.TypeParser.ParserContext(
             similarityService::getSimilarity,
             mapperService,
             typeParsers::get,
@@ -116,6 +119,16 @@ public class DocumentMapperParser {
             dateFormatter,
             scriptService
         );
+        ctx.setAllowCompositeFieldWithoutSettings(allowCompositeFieldWithoutSettings);
+        return ctx;
+    }
+
+    /**
+     * Sets whether composite fields should be allowed without the {@code index.composite_index} setting.
+     * Used by the star tree upgrade path to bypass setting checks during mapping parsing.
+     */
+    public void setAllowCompositeFieldWithoutSettings(boolean allow) {
+        this.allowCompositeFieldWithoutSettings = allow;
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

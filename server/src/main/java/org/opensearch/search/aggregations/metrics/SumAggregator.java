@@ -105,8 +105,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return true;
             }
-            precomputeLeafUsingStarTree(ctx, supportedStarTree);
-            return true;
+            return precomputeLeafUsingStarTree(ctx, supportedStarTree);
         }
         return false;
     }
@@ -174,10 +173,10 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         };
     }
 
-    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
 
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(
+        return StarTreeQueryHelper.precomputeLeafUsingStarTree(
             context,
             valuesSource,
             ctx,

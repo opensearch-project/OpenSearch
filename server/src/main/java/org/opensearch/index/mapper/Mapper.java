@@ -154,6 +154,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final ScriptService scriptService;
 
+            private boolean allowCompositeFieldWithoutSettings = false;
+
             public ParserContext(
                 Function<String, SimilarityProvider> similarityLookupService,
                 MapperService mapperService,
@@ -226,6 +228,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
              */
             public ScriptService scriptService() {
                 return scriptService;
+            }
+
+            public boolean isAllowCompositeFieldWithoutSettings() {
+                return allowCompositeFieldWithoutSettings;
+            }
+
+            public void setAllowCompositeFieldWithoutSettings(boolean allow) {
+                this.allowCompositeFieldWithoutSettings = allow;
             }
 
             public ParserContext createMultiFieldContext(ParserContext in) {

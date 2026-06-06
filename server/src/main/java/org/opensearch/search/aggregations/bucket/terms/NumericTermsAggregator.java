@@ -175,6 +175,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            if (starTreeBucketCollector == null) {
+                return false; // segment doesn't have star tree data
+            }
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
             return true;
         }
@@ -191,7 +194,10 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parent
     ) throws IOException {
-        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree, context);
+        if (starTreeValues == null) {
+            return null; // segment doesn't have star tree data
+        }
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getDimensionValuesIterator(fieldName);
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);

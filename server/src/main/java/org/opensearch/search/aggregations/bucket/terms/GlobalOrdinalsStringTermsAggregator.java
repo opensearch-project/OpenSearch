@@ -245,6 +245,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            if (starTreeBucketCollector == null) {
+                return false; // segment doesn't have star tree data
+            }
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
             return true;
         }
@@ -376,7 +379,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parent
     ) throws IOException {
-        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree, context);
+        if (starTreeValues == null) {
+            return null; // segment doesn't have star tree data
+        }
+
         SortedSetStarTreeValuesIterator valuesIterator = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
             fieldName
         );
@@ -388,9 +395,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         if (parent != null && !(collectionStrategy instanceof RemapGlobalOrdsStarTree)) {
             collectionStrategy.close();
             collectionStrategy = new RemapGlobalOrdsStarTree(this.cardinalityUpperBound);
-            SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
-            collectionStrategy.globalOrdsReady(globalOrds);
         }
+
+        // Always initialize globalOrds for the collection strategy — the star tree precompute
+        // path skips getLeafCollector() which normally calls globalOrdsReady().
+        // Without this, DenseGlobalOrds / RemapGlobalOrds has uninitialized internal state,
+        // causing bucket ordinals to be wrong and doc counts to land in incorrect buckets.
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+        collectionStrategy.globalOrdsReady(globalOrds);
 
         LongUnaryOperator globalOperator = valuesSource.globalOrdinalsMapping(ctx);
         return new StarTreeBucketCollector(

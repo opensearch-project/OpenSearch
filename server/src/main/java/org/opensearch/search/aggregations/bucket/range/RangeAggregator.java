@@ -331,8 +331,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
-            preComputeWithStarTree(ctx, supportedStarTree);
-            return true;
+            return preComputeWithStarTree(ctx, supportedStarTree);
         }
 
         try {
@@ -381,8 +380,11 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
         };
     }
 
-    private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
+        if (starTreeBucketCollector == null) {
+            return false; // segment doesn't have star tree data
+        }
         FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
 
         int numBits = matchingDocsBitSet.length();
@@ -394,6 +396,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
                 starTreeBucketCollector.collectStarTreeEntry(bit, 0);
             }
         }
+        return true;
     }
 
     @Override
@@ -407,7 +410,10 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parentCollector
     ) throws IOException {
-        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree, context);
+        if (starTreeValues == null) {
+            return null; // segment doesn't have star tree data
+        }
 
         // TODO: Evaluate optimizing StarTree traversal filter with specific ranges instead of MATCH_ALL_DEFAULT
         return new StarTreeBucketCollector(

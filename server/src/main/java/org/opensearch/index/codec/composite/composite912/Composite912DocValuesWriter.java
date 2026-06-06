@@ -25,11 +25,13 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
+import org.opensearch.index.compositeindex.datacube.startree.LiveDocsFilteredDocValuesProducer;
 import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreesBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -68,6 +70,10 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     private final Set<String> compositeFieldSet;
     private DocValuesConsumer compositeDocValuesConsumer;
 
+    // Captured during merge to build live docs bitset for soft-delete filtering
+    private DocValuesProducer softDeletesProducer;
+    private FieldInfo softDeletesFieldInfo;
+
     public IndexOutput dataOut;
     public IndexOutput metaOut;
     private final Set<String> segmentFieldSet;
@@ -75,6 +81,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     private final AtomicInteger fieldNumberAcrossCompositeFields;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
+    private final Map<String, DocValuesProducer> mergedFieldProducerMap = new HashMap<>();
     private final Map<String, SortedSetDocValues> fieldDocIdSetIteratorMap = new HashMap<>();
 
     public Composite912DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService)
@@ -165,6 +172,16 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         if (mergeState.get() == null && segmentHasCompositeFields) {
             createCompositeIndicesIfPossible(valuesProducer, field);
         }
+        if (mergeState.get() != null) {
+            if (compositeFieldSet.contains(field.name)) {
+                mergedFieldProducerMap.put(field.name, valuesProducer);
+            }
+            // Capture __soft_deletes producer for merge-path live docs filtering
+            if ("__soft_deletes".equals(field.name)) {
+                softDeletesProducer = valuesProducer;
+                softDeletesFieldInfo = field;
+            }
+        }
     }
 
     @Override
@@ -184,6 +201,11 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         if (mergeState.get() == null && segmentHasCompositeFields) {
             createCompositeIndicesIfPossible(valuesProducer, field);
         }
+        if (mergeState.get() != null) {
+            if (compositeFieldSet.contains(field.name)) {
+                mergedFieldProducerMap.put(field.name, valuesProducer);
+            }
+        }
     }
 
     @Override
@@ -195,6 +217,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         }
         if (mergeState.get() != null) {
             if (compositeFieldSet.contains(field.name)) {
+                mergedFieldProducerMap.put(field.name, valuesProducer);
                 fieldDocIdSetIteratorMap.put(field.name, valuesProducer.getSortedSet(field));
             }
         }
@@ -357,9 +380,123 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                 }
             }
         }
-        try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-            starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
+
+        int eligibleSourceSegments = 0;
+        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            if (mergeState.docValuesProducers[i] != null) {
+                eligibleSourceSegments++;
+            }
         }
+
+        boolean allSegmentsHaveStarTree = false;
+        if (starTreeSubsPerField.isEmpty() == false) {
+            allSegmentsHaveStarTree = true;
+            for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
+                List<StarTreeValues> values = starTreeSubsPerField.get(type.name());
+                if (values == null || values.size() < eligibleSourceSegments) {
+                    allSegmentsHaveStarTree = false;
+                    break;
+                }
+            }
+        }
+
+        if (allSegmentsHaveStarTree) {
+            // All source segments have star tree data — merge them directly
+            try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
+            }
+        } else if (compositeMappedFieldTypes.isEmpty() == false) {
+            // Some or all source segments lack star tree data (hybrid upgrade case).
+            // Fall back to building from raw merged doc values — same as flush path.
+            boolean hasAllCompositeFields = true;
+            for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
+                for (String field : type.fields()) {
+                    if (field.equals(DocCountFieldMapper.NAME)) {
+                        continue;
+                    }
+                    if (mergedFieldProducerMap.containsKey(field) == false) {
+                        hasAllCompositeFields = false;
+                        break;
+                    }
+                }
+                if (hasAllCompositeFields == false) break;
+            }
+
+            if (hasAllCompositeFields) {
+                Map<String, DocValuesProducer> fieldProducerMapForMerge = buildFieldProducerMapFromMergeState(mergeState);
+                FixedBitSet mergedLiveDocs = buildSoftDeleteLiveDocsBitset();
+                Map<String, DocValuesProducer> buildProducerMap;
+                if (mergedLiveDocs != null) {
+                    buildProducerMap = new HashMap<>();
+                    for (Map.Entry<String, DocValuesProducer> entry : fieldProducerMapForMerge.entrySet()) {
+                        buildProducerMap.put(entry.getKey(), new LiveDocsFilteredDocValuesProducer(entry.getValue(), mergedLiveDocs));
+                    }
+                } else {
+                    buildProducerMap = fieldProducerMapForMerge;
+                }
+                try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                    starTreesBuilder.build(metaOut, dataOut, buildProducerMap, compositeDocValuesConsumer);
+                }
+            }
+        }
+    }
+
+    /**
+     * Builds a fieldProducerMap from the merged segment's doc values for use with the
+     * flush-path star tree builder. Uses the doc values producers captured during
+     * {@code super.merge()} and adds empty producers for any composite fields not
+     * present in the merged segment, following the same pattern as
+     * {@link #addDocValuesForEmptyField(String)}.
+     *
+     * @param mergeState the merge state containing doc values producers for the merged segment
+     * @return a map of field name to DocValuesProducer
+     */
+    private Map<String, DocValuesProducer> buildFieldProducerMapFromMergeState(MergeState mergeState) {
+        Map<String, DocValuesProducer> resultMap = new HashMap<>(mergedFieldProducerMap);
+
+        // For any composite fields not present in the merged segment, add empty producers
+        for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
+            for (String field : type.fields()) {
+                if (resultMap.containsKey(field) == false) {
+                    addDocValuesForEmptyField(field);
+                    resultMap.put(field, fieldProducerMap.get(field));
+                }
+            }
+        }
+
+        return resultMap;
+    }
+
+    /**
+     * Builds a live docs bitset from the __soft_deletes field captured during merge.
+     * Returns null if no soft deletes exist (all docs are live).
+     */
+    private FixedBitSet buildSoftDeleteLiveDocsBitset() throws IOException {
+        if (softDeletesProducer == null) {
+            return null; // no __soft_deletes field written → all docs live
+        }
+
+        int mergedMaxDoc = this.mergeState.get().segmentInfo.maxDoc();
+        FixedBitSet liveBits = new FixedBitSet(mergedMaxDoc);
+        liveBits.set(0, mergedMaxDoc); // start: all live
+
+        // Iterate __soft_deletes: docs with value=1 are soft-deleted
+        NumericDocValues softDelDV = softDeletesProducer.getNumeric(softDeletesFieldInfo);
+        int doc;
+        while ((doc = softDelDV.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (softDelDV.longValue() == 1) {
+                if (doc < mergedMaxDoc) {
+                    liveBits.clear(doc);
+                }
+            }
+        }
+
+        // If all docs are live, return null (no filtering needed)
+        if (liveBits.cardinality() == mergedMaxDoc) {
+            return null;
+        }
+
+        return liveBits;
     }
 
     private static SegmentWriteState getSegmentWriteState(SegmentWriteState segmentWriteState) {

@@ -115,8 +115,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return true;
             }
-            precomputeLeafUsingStarTree(ctx, supportedStarTree);
-            return true;
+            return precomputeLeafUsingStarTree(ctx, supportedStarTree);
         }
         return false;
     }
@@ -196,9 +195,11 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
-        assert starTreeValues != null;
+    private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree, context);
+        if (starTreeValues == null) {
+            return false; // segment doesn't have star tree data, caller should fall back
+        }
 
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String sumMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
@@ -241,6 +242,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
         sums.set(0, kahanSummation.value());
         compensations.set(0, kahanSummation.delta());
+        return true;
     }
 
     @Override

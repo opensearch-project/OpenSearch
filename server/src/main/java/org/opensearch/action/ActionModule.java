@@ -204,6 +204,9 @@ import org.opensearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.opensearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.admin.indices.shrink.TransportResizeAction;
+import org.opensearch.action.admin.indices.startree.RestStarTreeUpgradeAction;
+import org.opensearch.action.admin.indices.startree.StarTreeUpgradeAction;
+import org.opensearch.action.admin.indices.startree.TransportStarTreeUpgradeAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionAction;
@@ -751,6 +754,7 @@ public class ActionModule extends AbstractModule {
         actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
         actions.register(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
+        actions.register(StarTreeUpgradeAction.INSTANCE, TransportStarTreeUpgradeAction.class);
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
@@ -974,6 +978,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestUpgradeAction());
         registerHandler.accept(new RestUpgradeStatusAction());
+        registerHandler.accept(new RestStarTreeUpgradeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestScaleIndexAction());
         registerHandler.accept(new RestIndexAction());

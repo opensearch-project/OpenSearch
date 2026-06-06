@@ -6,44 +6,38 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.composite912;
+package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
+import org.opensearch.index.codec.composite.composite912.Composite912Codec;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
-import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,82 +52,66 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.getFieldInfoList;
 
 /**
- * Reader for star tree index and star tree doc values from the segments
+ * Standalone reader for star tree files (.cid/.cim/.cidvd/.cidvm) that works independently
+ * of the segment's declared codec. Used for segments where the codec cannot be switched to
+ * Composite912Codec (e.g., segments with soft deletes / docValuesGen != -1).
+ *
+ * <p>This reader implements {@link CompositeIndexReader} so it can be used interchangeably
+ * with {@link org.opensearch.index.codec.composite.composite912.Composite912DocValuesReader}
+ * in the query path.
+ *
+ * <p>Unlike Composite912DocValuesReader, this class does NOT extend DocValuesProducer and
+ * does NOT require a delegate producer for regular doc values. It only reads star tree data.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite912DocValuesReader extends DocValuesProducer implements CompositeIndexReader {
-    private static final Logger logger = LogManager.getLogger(Composite912DocValuesReader.class);
+public class StarTreeDirectReader implements CompositeIndexReader, Closeable {
+    private static final Logger logger = LogManager.getLogger(StarTreeDirectReader.class);
 
-    private final DocValuesProducer delegate;
     private IndexInput dataIn;
     private final Map<String, IndexInput> compositeIndexInputMap = new LinkedHashMap<>();
     private final Map<String, CompositeIndexMetadata> compositeIndexMetadataMap = new LinkedHashMap<>();
-    private final List<String> fields;
-    private DocValuesProducer compositeDocValuesProducer;
     private final List<CompositeIndexFieldInfo> compositeFieldInfos = new ArrayList<>();
+    private DocValuesProducer compositeDocValuesProducer;
     private SegmentReadState readState;
 
-    public Composite912DocValuesReader(DocValuesProducer producer, SegmentReadState readState) throws IOException {
-        this.delegate = producer;
-        this.fields = new ArrayList<>();
-
-        // Star tree files always use empty suffix — hardcode to avoid generation-based suffixes
-        // that Lucene sets when segments have soft deletes (fieldInfosGen != -1).
+    /**
+     * Opens star tree files for the given segment directly from the directory.
+     *
+     * @param directory   the index directory containing the star tree files
+     * @param segmentInfo the segment's SegmentInfo (for name, ID, maxDoc)
+     * @throws IOException if star tree files cannot be opened or are corrupt
+     */
+    public StarTreeDirectReader(Directory directory, SegmentInfo segmentInfo) throws IOException {
+        List<String> fields = new ArrayList<>();
         String starTreeSuffix = "";
 
         String metaFileName = IndexFileNames.segmentFileName(
-            readState.segmentInfo.name,
+            segmentInfo.name,
             starTreeSuffix,
             Composite912DocValuesFormat.META_EXTENSION
         );
 
         String dataFileName = IndexFileNames.segmentFileName(
-            readState.segmentInfo.name,
+            segmentInfo.name,
             starTreeSuffix,
             Composite912DocValuesFormat.DATA_EXTENSION
         );
 
         boolean success = false;
-        // Resolve star tree file directory. For compound file segments upgraded retroactively,
-        // star tree files are in segmentInfo.dir, not inside .cfs. Falls back gracefully.
-        Directory starTreeDir = readState.directory;
-        boolean starTreeFilesExist = true;
-        try {
-            readState.directory.openInput(metaFileName, IOContext.DEFAULT).close();
-        } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
-            // Star tree files not in readState.directory — try parent directory
-            starTreeDir = readState.segmentInfo.dir;
-            try {
-                starTreeDir.openInput(metaFileName, IOContext.DEFAULT).close();
-            } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e2) {
-                // Star tree files don't exist in either directory — this segment has no star tree data
-                // (e.g., called for a doc values update on a segment without star tree)
-                starTreeFilesExist = false;
-            }
-        }
+        try (ChecksumIndexInput metaIn = directory.openChecksumInput(metaFileName)) {
 
-        if (starTreeFilesExist == false) {
-            // No star tree data — initialize empty
-            success = true;
-            return;
-        }
-
-        try (ChecksumIndexInput metaIn = starTreeDir.openChecksumInput(metaFileName)) {
-
-            // initialize data input
-            dataIn = starTreeDir.openInput(dataFileName, readState.context.withHints(FileTypeHint.DATA));
+            dataIn = directory.openInput(dataFileName, IOContext.DEFAULT);
             CodecUtil.checkIndexHeader(
                 dataIn,
                 Composite912DocValuesFormat.DATA_CODEC_NAME,
                 Composite912DocValuesFormat.VERSION_START,
                 Composite912DocValuesFormat.VERSION_CURRENT,
-                readState.segmentInfo.getId(),
+                segmentInfo.getId(),
                 starTreeSuffix
             );
 
-            // initialize meta input
             Throwable priorE = null;
             try {
                 CodecUtil.checkIndexHeader(
@@ -141,34 +119,28 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                     Composite912DocValuesFormat.META_CODEC_NAME,
                     Composite912DocValuesFormat.VERSION_START,
                     Composite912DocValuesFormat.VERSION_CURRENT,
-                    readState.segmentInfo.getId(),
+                    segmentInfo.getId(),
                     starTreeSuffix
                 );
                 Map<String, DocValuesType> dimensionFieldTypeMap = new HashMap<>();
                 while (true) {
-
-                    // validate magic marker
                     long magicMarker = metaIn.readLong();
                     if (magicMarker == -1) {
                         break;
                     } else if (magicMarker < 0) {
                         throw new CorruptIndexException("Unknown token encountered: " + magicMarker, metaIn);
                     } else if (COMPOSITE_FIELD_MARKER != magicMarker) {
-                        logger.error("Invalid composite field magic marker");
                         throw new IOException("Invalid composite field magic marker");
                     }
 
                     int version = metaIn.readVInt();
                     if (VERSION_CURRENT != version) {
-                        logger.error("Invalid composite field version");
                         throw new IOException("Invalid composite field version");
                     }
 
-                    // construct composite index metadata
                     String compositeFieldName = metaIn.readString();
-                    CompositeMappedFieldType.CompositeFieldType compositeFieldType = CompositeMappedFieldType.CompositeFieldType.fromName(
-                        metaIn.readString()
-                    );
+                    CompositeMappedFieldType.CompositeFieldType compositeFieldType =
+                        CompositeMappedFieldType.CompositeFieldType.fromName(metaIn.readString());
 
                     switch (compositeFieldType) {
                         case STAR_TREE:
@@ -189,7 +161,6 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                             compositeIndexMetadataMap.put(compositeFieldName, starTreeMetadata);
 
                             Map<String, DimensionConfig> dimensionFieldToDocValuesMap = starTreeMetadata.getDimensionFields();
-                            // generating star tree unique fields (fully qualified name for dimension and metrics)
                             for (Map.Entry<String, DimensionConfig> dimensionEntry : dimensionFieldToDocValuesMap.entrySet()) {
                                 String dimName = fullyQualifiedFieldNameForStarTreeDimensionsDocValues(
                                     compositeFieldName,
@@ -198,7 +169,6 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                                 fields.add(dimName);
                                 dimensionFieldTypeMap.put(dimName, dimensionEntry.getValue().getDocValuesType());
                             }
-                            // adding metric fields
                             for (Metric metric : starTreeMetadata.getMetrics()) {
                                 for (MetricStat metricStat : metric.getBaseMetrics()) {
                                     fields.add(
@@ -208,28 +178,25 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                                             metricStat.getTypeName()
                                         )
                                     );
-
                                 }
                             }
-
                             break;
                         default:
-                            throw new CorruptIndexException("Invalid composite field type found in the file", dataIn);
+                            throw new CorruptIndexException(
+                                "Invalid composite field type found in the file",
+                                dataIn
+                            );
                     }
                 }
 
-                // populates the dummy list of field infos to fetch doc id set iterators for respective fields.
-                // the dummy field info is used to fetch the doc id set iterators for respective fields based on field name
                 FieldInfos fieldInfos = new FieldInfos(getFieldInfoList(fields, dimensionFieldTypeMap));
                 this.readState = new SegmentReadState(
-                    starTreeDir,
-                    readState.segmentInfo,
+                    directory,
+                    segmentInfo,
                     fieldInfos,
-                    readState.context,
+                    IOContext.DEFAULT,
                     starTreeSuffix
                 );
-
-                // initialize star-tree doc values producer
 
                 compositeDocValuesProducer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
                     Composite912Codec.COMPOSITE_INDEX_CODEC_NAME,
@@ -248,60 +215,8 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
+                close();
             }
-        }
-    }
-
-    @Override
-    public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-        return delegate.getNumeric(field);
-    }
-
-    @Override
-    public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-        return delegate.getBinary(field);
-    }
-
-    @Override
-    public SortedDocValues getSorted(FieldInfo field) throws IOException {
-        return delegate.getSorted(field);
-    }
-
-    @Override
-    public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-        return delegate.getSortedNumeric(field);
-    }
-
-    @Override
-    public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
-        return delegate.getSortedSet(field);
-    }
-
-    @Override
-    public void checkIntegrity() throws IOException {
-        delegate.checkIntegrity();
-        if (dataIn != null) {
-            CodecUtil.checksumEntireFile(dataIn);
-        }
-    }
-
-    @Override
-    public void close() throws IOException {
-        delegate.close();
-        boolean success = false;
-        try {
-            IOUtils.close(dataIn);
-            IOUtils.close(compositeDocValuesProducer);
-            success = true;
-        } finally {
-            if (!success) {
-                IOUtils.closeWhileHandlingException(dataIn);
-            }
-            compositeIndexInputMap.clear();
-            compositeIndexMetadataMap.clear();
-            fields.clear();
-            dataIn = null;
         }
     }
 
@@ -312,7 +227,6 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
 
     @Override
     public CompositeIndexValues getCompositeIndexValues(CompositeIndexFieldInfo compositeIndexFieldInfo) throws IOException {
-
         switch (compositeIndexFieldInfo.getType()) {
             case STAR_TREE:
                 return new StarTreeValues(
@@ -321,28 +235,26 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                     compositeDocValuesProducer,
                     this.readState
                 );
-
             default:
-                throw new CorruptIndexException("Unsupported composite index field type: ", compositeIndexFieldInfo.getType().getName());
+                throw new CorruptIndexException(
+                    "Unsupported composite index field type: ",
+                    compositeIndexFieldInfo.getType().getName()
+                );
         }
-
-    }
-
-    /**
-     * Returns the sorted numeric doc values for the given sorted numeric field.
-     * If the sorted numeric field is null, it returns an empty doc id set iterator.
-     * <p>
-     * Sorted numeric field can be null for cases where the segment doesn't hold a particular value.
-     *
-     * @param sortedNumeric the sorted numeric doc values for a field
-     * @return empty sorted numeric values if the field is not present, else sortedNumeric
-     */
-    public static SortedNumericDocValues getSortedNumericDocValues(SortedNumericDocValues sortedNumeric) {
-        return sortedNumeric == null ? DocValues.emptySortedNumeric() : sortedNumeric;
     }
 
     @Override
-    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
-        return delegate.getSkipper(field);
+    public void close() throws IOException {
+        try {
+            if (compositeDocValuesProducer != null) {
+                compositeDocValuesProducer.close();
+            }
+        } finally {
+            if (dataIn != null) {
+                dataIn.close();
+            }
+            compositeIndexInputMap.clear();
+            compositeIndexMetadataMap.clear();
+        }
     }
 }

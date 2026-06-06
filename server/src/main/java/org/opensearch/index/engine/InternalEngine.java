@@ -175,6 +175,12 @@ public class InternalEngine extends Engine {
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
 
+    /**
+     * Callback for cleaning up StarTreeDirectReader cache entries after a merge.
+     * Set by IndexShard after upgrade. Dispatched from afterMerge() on the FLUSH thread pool.
+     */
+    private volatile Runnable directReaderMergeCleanupCallback;
+
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
     private final IndexingThrottler throttle;
@@ -1683,6 +1689,13 @@ public class InternalEngine extends Engine {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    /**
+     * Sets the callback for cleaning up StarTreeDirectReader cache entries after merges.
+     */
+    public void setDirectReaderMergeCleanupCallback(Runnable callback) {
+        this.directReaderMergeCleanupCallback = callback;
+    }
+
     @Override
     public void forceMerge(
         final boolean flush,
@@ -2160,6 +2173,21 @@ public class InternalEngine extends Engine {
                     deactivateThrottling();
                 }
             }
+
+            // Dispatch direct reader cache cleanup after merge
+            Runnable cleanupCallback = directReaderMergeCleanupCallback;
+            if (cleanupCallback != null) {
+                engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(() -> {
+                    try {
+                        cleanupCallback.run();
+                    } catch (Exception e) {
+                        if (isClosed.get() == false) {
+                            logger.warn("failed to clean up direct reader cache after merge", e);
+                        }
+                    }
+                });
+            }
+
             if (documentIndexWriter.hasPendingMerges() == false
                 && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
                 // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer

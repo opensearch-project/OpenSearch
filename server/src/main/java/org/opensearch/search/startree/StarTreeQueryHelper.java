@@ -17,6 +17,7 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeDirectReader;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
@@ -60,18 +61,57 @@ public class StarTreeQueryHelper {
     }
 
     public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
+        return getStarTreeValues(context, starTree, null);
+    }
+
+    /**
+     * Gets star tree values for a leaf reader context, checking both the native codec path
+     * and the direct reader cache for segments where the codec was not switched.
+     */
+    public static StarTreeValues getStarTreeValues(
+        LeafReaderContext context,
+        CompositeIndexFieldInfo starTree,
+        SearchContext searchContext
+    ) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
-        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader)) {
-            return null;
+        String segmentName = reader.getSegmentName();
+
+        // Path 1: Native codec path — segment uses Composite912Codec
+        if (reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader) {
+            StarTreeValues values = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
+            return values;
         }
-        return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
+
+        // Path 2: Direct reader cache — segment has star tree files but codec was not switched
+        if (searchContext != null) {
+            java.util.concurrent.ConcurrentHashMap<String, StarTreeDirectReader> cache =
+                searchContext.indexShard().getStarTreeDirectReaderCache();
+            StarTreeDirectReader directReader = cache.get(segmentName);
+
+            if (directReader != null) {
+                // Find matching composite field
+                CompositeIndexFieldInfo matchingField = null;
+                for (CompositeIndexFieldInfo field : directReader.getCompositeIndexFields()) {
+                    if (field.getField().equals(starTree.getField())) {
+                        matchingField = field;
+                        break;
+                    }
+                }
+                if (matchingField != null) {
+                    StarTreeValues values = (StarTreeValues) directReader.getCompositeIndexValues(matchingField);
+                    return values;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
      * Get the star-tree leaf collector
      * This collector computes the aggregation prematurely and invokes an early termination collector
      */
-    public static void precomputeLeafUsingStarTree(
+    public static boolean precomputeLeafUsingStarTree(
         SearchContext context,
         ValuesSource.Numeric valuesSource,
         LeafReaderContext ctx,
@@ -80,8 +120,10 @@ public class StarTreeQueryHelper {
         Consumer<Long> valueConsumer,
         Runnable finalConsumer
     ) throws IOException {
-        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-        assert starTreeValues != null;
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree, context);
+        if (starTreeValues == null) {
+            return false; // segment doesn't have star tree data, caller should fall back
+        }
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
 
@@ -91,7 +133,7 @@ public class StarTreeQueryHelper {
         // Obtain a FixedBitSet of matched star tree document IDs
         FixedBitSet filteredValues = getStarTreeFilteredValues(context, ctx, starTreeValues);
 
-        int numBits = filteredValues.length();  // Get the number of the filtered values (matching docs)
+        int numBits = filteredValues.length();  // Total bit count (upper bound for iteration)
         if (numBits > 0) {
             // Iterate over the filtered values
             for (int bit = filteredValues.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
@@ -112,6 +154,7 @@ public class StarTreeQueryHelper {
 
         // Call the final consumer after processing all entries
         finalConsumer.run();
+        return true;
     }
 
     /**
