@@ -828,28 +828,28 @@ public class RestHttpClient implements Closeable {
         private volatile Cancellable cancellable = Cancellable.fromFuture(new CompletableFuture<>());
 
         InternalStreamingRequest(StreamingRequest request) {
-            Map<String, String> params = new HashMap<>(request.getParameters());
+            Map<String, String> params = new HashMap<>(request.parameters());
             // ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = params.remove("ignore");
-            this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
+            this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.method());
 
             this.httpRequest = node -> {
-                URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
+                URI uri = buildUri(pathPrefix, request.endpoint(), params);
                 HttpRequest.Builder builder = createStreamingHttpRequest(
                     node,
-                    request.getMethod(),
+                    request.method(),
                     uri,
-                    request.getBody(),
-                    request.getOptions().getTimeout(),
+                    request.body(),
+                    request.options().getTimeout(),
                     compressionEnabled
                 );
-                setHeaders(builder, request.getOptions().getHeaders());
+                setHeaders(builder, request.options().getHeaders());
                 return builder.build();
             };
 
-            this.warningsHandler = request.getOptions().getWarningsHandler() == null
+            this.warningsHandler = request.options().getWarningsHandler() == null
                 ? RestHttpClient.this.warningsHandler
-                : request.getOptions().getWarningsHandler();
+                : request.options().getWarningsHandler();
         }
 
         private void setHeaders(HttpRequest.Builder httpRequest, Map<String, List<String>> requestHeaders) {

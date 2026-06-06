@@ -22,10 +22,9 @@ import reactor.core.publisher.Mono;
  * HTTP Streaming Response from OpenSearch.
  * Note: This is an experimental API.
  */
-public class StreamingResponse {
+public final class StreamingResponse {
     private final RequestLine requestLine;
     private final Mono<HttpResponse<Flow.Publisher<List<ByteBuffer>>>> publisher;
-    private volatile HttpHost host;
 
     /**
      * Constructor
@@ -40,34 +39,18 @@ public class StreamingResponse {
     }
 
     /**
-     * Set host
-     * @param host host
-     */
-    public void setHost(HttpHost host) {
-        this.host = host;
-    }
-
-    /**
      * Get request line
      * @return request line
      */
-    public RequestLine getRequestLine() {
+    public RequestLine requestLine() {
         return requestLine;
-    }
-
-    /**
-     * Get host
-     * @return host
-     */
-    public HttpHost getHost() {
-        return host;
     }
 
     /**
      * Get response boby {@link Publisher}
      * @return response boby {@link Publisher}
      */
-    public Publisher<ByteBuffer> getBody() {
+    public Publisher<ByteBuffer> body() {
         return publisher.flatMapMany(m -> {
             final boolean compressed = m.headers()
                 .firstValue("Content-Encoding")
@@ -88,7 +71,7 @@ public class StreamingResponse {
      * Returns the status line of the current response
      */
     @SuppressWarnings("unchecked")
-    public StatusLine getStatusLine() {
+    public StatusLine statusLine() {
         return new StatusLine(
             publisher.onErrorResume(
                 ResponseException.class,
@@ -101,7 +84,7 @@ public class StreamingResponse {
      * Returns a list of all warning headers returned in the response.
      */
     @SuppressWarnings("unchecked")
-    public List<String> getWarnings() {
+    public List<String> warnings() {
         return ResponseWarningsExtractor.getWarnings(
             publisher.onErrorResume(
                 ResponseException.class,
@@ -114,7 +97,7 @@ public class StreamingResponse {
      * Returns a list of all headers returned in the response.
      */
     @SuppressWarnings("unchecked")
-    public HttpHeaders getHeaders() {
+    public HttpHeaders headers() {
         return publisher.onErrorResume(
             ResponseException.class,
             e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().httpResponse())
@@ -129,7 +112,7 @@ public class StreamingResponse {
      * @param name header name
      */
     @SuppressWarnings("unchecked")
-    public String getHeader(String name) {
+    public String header(String name) {
         return publisher.onErrorResume(
             ResponseException.class,
             e -> Mono.just((HttpResponse<Flow.Publisher<List<ByteBuffer>>>) e.getResponse().httpResponse())

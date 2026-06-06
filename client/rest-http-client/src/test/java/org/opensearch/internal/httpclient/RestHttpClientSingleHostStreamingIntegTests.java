@@ -150,25 +150,29 @@ public class RestHttpClientSingleHostStreamingIntegTests extends RestHttpClientT
     private StreamingResponse bodyTest(RestHttpClient restClient, String method, int statusCode, Map<String, List<String>> headers)
         throws Exception {
         String requestBody = "{ \"field\": \"value\" }";
-        StreamingRequest request = new StreamingRequest(method, "/" + statusCode, Mono.just(StandardCharsets.UTF_8.encode(requestBody)));
-        RequestOptions.Builder options = request.getOptions().toBuilder();
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             header.getValue().forEach(v -> options.addHeader(header.getKey(), v));
         }
-        request.setOptions(options);
+
+        final StreamingRequest request = StreamingRequest.newRequest(
+            method,
+            "/" + statusCode,
+            Mono.just(StandardCharsets.UTF_8.encode(requestBody))
+        ).withOptions(options).build();
         StreamingResponse esResponse = restClient.streamRequest(request);
 
-        assertEquals(method, esResponse.getRequestLine().method());
-        assertEquals(statusCode, esResponse.getStatusLine().statusCode());
-        assertEquals(pathPrefix + "/" + statusCode, esResponse.getRequestLine().uri());
+        assertEquals(method, esResponse.requestLine().method());
+        assertEquals(statusCode, esResponse.statusLine().statusCode());
+        assertEquals(pathPrefix + "/" + statusCode, esResponse.requestLine().uri());
 
         if (statusCode >= 200 && statusCode < 400) {
-            StepVerifier.create(Flux.from(esResponse.getBody()).map(StandardCharsets.UTF_8::decode).map(CharBuffer::toString))
+            StepVerifier.create(Flux.from(esResponse.body()).map(StandardCharsets.UTF_8::decode).map(CharBuffer::toString))
                 .expectNextMatches(s -> s.equals(requestBody))
                 .expectComplete()
                 .verify(Duration.ofSeconds(5));
         } else {
-            StepVerifier.create(Flux.from(esResponse.getBody())).expectError(ResponseException.class).verify(Duration.ofSeconds(5));
+            StepVerifier.create(Flux.from(esResponse.body())).expectError(ResponseException.class).verify(Duration.ofSeconds(5));
         }
 
         return esResponse;
