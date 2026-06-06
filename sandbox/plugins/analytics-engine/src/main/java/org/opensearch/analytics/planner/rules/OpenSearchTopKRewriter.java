@@ -23,9 +23,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
-import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
 import org.opensearch.analytics.spi.AggregateFunction;
-import org.opensearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -211,10 +209,7 @@ public final class OpenSearchTopKRewriter {
     }
 
     private static double resolveOversamplingFactor(PlannerContext context) {
-        // TODO: Move to per-index setting once index-pattern/alias resolution is handled.
-        Settings clusterSettings = context.getClusterState().metadata().settings();
-        if (clusterSettings == null) return 0.0;
-        return AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(clusterSettings);
+        return context.getOversamplingFactor();
     }
 
     private record SortAboveFinal(OpenSearchSort sort, OpenSearchAggregate finalAgg) {

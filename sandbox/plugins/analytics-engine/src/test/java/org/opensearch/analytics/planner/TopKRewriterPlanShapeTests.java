@@ -19,11 +19,8 @@ import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.opensearch.common.settings.Settings;
 
 import java.util.List;
-
-import static org.mockito.Mockito.when;
 
 /**
  * Plan shape tests for the TopK rewriter. Grouped into Detection (skip cases)
@@ -255,8 +252,7 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
 
     private PlannerContext contextWithOversampling(double factor) {
         PlannerContext ctx = buildContext("parquet", 2, intFields());
-        Settings clusterSettings = Settings.builder().put("analytics.shard_bucket_oversampling_factor", factor).build();
-        when(ctx.getClusterState().metadata().settings()).thenReturn(clusterSettings);
+        ctx.setOversamplingFactor(factor);
         return ctx;
     }
 }

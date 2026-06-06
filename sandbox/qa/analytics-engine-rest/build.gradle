@@ -122,6 +122,7 @@ integTest {
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'
     exclude '**/SpillStatsEnabledIT.class'
+    exclude '**/YmlOversamplingIT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
@@ -210,6 +211,24 @@ testClusters.integTestSpillEnabled {
     // block above so DataFusionPlugin's boot writability probe succeeds.
     setting 'datafusion.spill_directory', spillItDir
     setting 'datafusion.spill_memory_limit_bytes', '1073741824'
+}
+
+// ── YML oversampling variant: verifies TopK fires from opensearch.yml setting ─
+task integTestYmlOversampling(type: RestIntegTestTask) {
+    description = 'Verifies TopK oversampling works when set via opensearch.yml (node settings)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.YmlOversamplingIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestYmlOversampling)
+
+testClusters.integTestYmlOversampling {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'analytics.shard_bucket_oversampling_factor', '2.0'
 }
 
 // Run against an external cluster (no testClusters lifecycle):

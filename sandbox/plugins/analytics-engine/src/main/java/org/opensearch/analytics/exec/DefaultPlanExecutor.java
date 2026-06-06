@@ -39,6 +39,7 @@ import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
@@ -95,6 +96,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile int maxConcurrentShardRequestsPerNode;
     private volatile boolean fuseDualViable;
     private volatile boolean preferMetadataDriver;
+    private volatile double oversamplingFactor;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
@@ -150,6 +152,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
+        this.oversamplingFactor = AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR, v -> oversamplingFactor = v);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.analyticsSearchSlowLog = analyticsSearchSlowLog;
     }
@@ -227,10 +232,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // TODO: remove the null fallback once every front-end (test-ppl-frontend,
         // dsl-query-executor) threads an EngineContextProvider.getContext() snapshot through.
         ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
-        RelNode plan = PlannerImpl.createPlan(
-            logicalFragment,
-            new PlannerContext(capabilityRegistry, planningState, indexNameExpressionResolver, false, preferMetadataDriver)
+        PlannerContext plannerContext = new PlannerContext(
+            capabilityRegistry,
+            planningState,
+            indexNameExpressionResolver,
+            false,
+            preferMetadataDriver
         );
+        plannerContext.setOversamplingFactor(oversamplingFactor);
+        RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
