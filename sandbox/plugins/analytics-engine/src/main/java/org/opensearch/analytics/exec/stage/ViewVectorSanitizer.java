@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.analytics.exec.stage;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthViewVector;
@@ -14,14 +14,17 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 
 /**
- * Zeroes the view of every null slot in a batch's view columns (Utf8View / BinaryView) before it
- * crosses the Arrow C Data Interface into native code.
+ * Zeroes the view of every null slot in a hand-built batch's view columns (Utf8View / BinaryView).
  *
- * <p>Arrow's null-write path unsets the validity bit but leaves the slot's 16-byte view as
- * uninitialized buffer memory. Arrow-Java honors the validity bit, but DataFusion's interleave
- * reads the view length prefix unconditionally and a garbage length dereferences a data buffer
- * that does not exist on an all-null column, panicking. Zeroing makes each null slot a valid
- * length-0 inline view; validity bits are untouched. Mutates in place, so export stays zero-copy.
+ * <p>When a producer fills a view vector with {@code copyFromSafe}/{@code setNull}, Arrow unsets
+ * the validity bit but leaves the slot's 16-byte view as uninitialized buffer memory. Arrow-Java
+ * honors the validity bit, but once the batch is exported across the Arrow C Data Interface,
+ * DataFusion's interleave reads the view length prefix unconditionally — a garbage length
+ * dereferences a data buffer that does not exist on an all-null column and panics. Zeroing makes
+ * each null slot a valid length-0 inline view; validity bits are untouched, so cells stay null.
+ *
+ * <p>Called by the producer that builds the batch (the {@link Stitcher}); batches imported from
+ * native are already spec-valid and never need this. Mutates in place — no copy.
  */
 final class ViewVectorSanitizer {
 

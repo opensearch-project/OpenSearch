@@ -171,6 +171,7 @@ public final class Stitcher {
         try {
             if (failures.isEmpty()) {
                 output.setRowCount(totalRows);
+                ViewVectorSanitizer.sanitize(output);
                 parentSink.feed(output);
                 parentSink.close();
                 logger.debug("[Stitcher] emitted rows={}", totalRows);

@@ -78,7 +78,6 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
     @Override
     protected void feedBatchUnderLock(VectorSchemaRoot batch) {
         BufferAllocator alloc = ctx.allocator();
-        ViewVectorSanitizer.sanitize(batch);
         ArrowArray array = ArrowArray.allocateNew(alloc);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(alloc);
         try {
