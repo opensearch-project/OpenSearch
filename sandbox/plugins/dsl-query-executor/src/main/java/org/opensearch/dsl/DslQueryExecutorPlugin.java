@@ -26,7 +26,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
@@ -59,7 +58,7 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.searchActionFilter = new SearchActionFilter((NodeClient) client);
+        this.searchActionFilter = new SearchActionFilter(clusterService, indexNameExpressionResolver);
         return Collections.emptyList();
     }
 
