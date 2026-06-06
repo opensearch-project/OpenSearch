@@ -152,18 +152,18 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Number of Rayon threads for parallel column encoding during merge (default num_cores/8, min 1). */
+    /** Number of Rayon threads for parallel column encoding during merge (default num_cores/2, min 1). */
     public static final Setting<Integer> MERGE_RAYON_THREADS = Setting.intSetting(
         "parquet.merge_rayon_threads",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
         1,
         Setting.Property.NodeScope
     );
 
-    /** Number of Tokio IO threads for async disk writes during merge (default num_cores/8, min 1). */
+    /** Number of Tokio IO threads for async disk writes during merge (default num_cores/2, min 1). */
     public static final Setting<Integer> MERGE_IO_THREADS = Setting.intSetting(
         "parquet.merge_io_threads",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
         1,
         Setting.Property.NodeScope
     );
