@@ -9,6 +9,7 @@
 package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.Nullable;
@@ -32,6 +33,9 @@ public class PlannerContext {
     private double oversamplingFactor;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
+    // Per-backend delegation block-list. Defaults to empty (nothing blocked); DefaultPlanExecutor
+    // injects the live, settings-backed instance via setDelegationBlockList before planning.
+    private DelegationBlockList delegationBlockList = DelegationBlockList.empty();
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
         this(capabilityRegistry, clusterState, null, false, true);
@@ -98,6 +102,16 @@ public class PlannerContext {
 
     public CapabilityRegistry getCapabilityRegistry() {
         return capabilityRegistry;
+    }
+
+    /** Per-backend delegation block-list consulted at marking time. Never null (defaults to empty). */
+    public DelegationBlockList getDelegationBlockList() {
+        return delegationBlockList;
+    }
+
+    /** Inject the live, settings-backed block-list. Called by {@code DefaultPlanExecutor} before planning. */
+    public void setDelegationBlockList(DelegationBlockList delegationBlockList) {
+        this.delegationBlockList = delegationBlockList;
     }
 
     public ClusterState getClusterState() {
