@@ -143,6 +143,7 @@ pub mod makedate;
 pub mod maketime;
 pub mod minspan_bucket;
 pub mod mvappend;
+pub mod mysql_week;
 pub mod mvfind;
 pub mod mvzip;
 pub(crate) mod mysql_format;
@@ -190,6 +191,7 @@ pub fn register_all(ctx: &SessionContext) {
     maketime::register_all(ctx);
     minspan_bucket::register_all(ctx);
     mvappend::register_all(ctx);
+    mysql_week::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
     parse::register_all(ctx);

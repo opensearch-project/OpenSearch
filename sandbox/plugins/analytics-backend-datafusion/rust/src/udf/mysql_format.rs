@@ -19,7 +19,7 @@ enum Token {
     Literal(char),
     A, B, C, D, DLower, E, F,
     HUpper, HLower, ILower, IUpper, J, K, L,
-    MUpper, MLower, P, R, SUpper, SLower, T,
+    MUpper, MLower, P, PUpper, R, SUpper, SLower, T,
     UUpper, ULower, VUpper, VLower, W, WLower,
     XUpper, XLower, YUpper, YLower,
 }
@@ -57,6 +57,7 @@ fn tokenize(format: &str) -> Vec<Token> {
             b'M' => Some(Token::MUpper),
             b'm' => Some(Token::MLower),
             b'p' => Some(Token::P),
+            b'P' => Some(Token::PUpper),
             b'r' => Some(Token::R),
             b'S' => Some(Token::SUpper),
             b's' => Some(Token::SLower),
@@ -140,14 +141,15 @@ fn render_token(tok: Token, dt: DateTime<Utc>, mode: FormatMode) -> Option<Rende
         // PPL bug-for-bug: %w uses Mon=1..Sun=7 despite MySQL docs claiming Sun=0.
         Token::WLower => date_only!(Str(dt.weekday().number_from_monday().to_string())),
         Token::J => date_only!(Str(format!("{:03}", dt.ordinal()))),
-        Token::UUpper => date_only!(Str(format!("{:02}", week_number_sunday_first(dt)))),
-        Token::ULower => date_only!(Str(format!("{:02}", week_number_monday_first(dt)))),
-        Token::VUpper => date_only!(Str(format!("{:02}", week_number_sunday_first_01(dt)))),
-        Token::VLower => date_only!(Str(format!("{:02}", dt.iso_week().week()))),
+        // Cluster F case 4: %U/%u/%V/%v render unpadded (PPL emits via '%d', not '%02d').
+        Token::UUpper => date_only!(Str(week_number_sunday_first(dt).to_string())),
+        Token::ULower => date_only!(Str(week_number_monday_first(dt).to_string())),
+        Token::VUpper => date_only!(Str(week_number_sunday_first_01(dt).to_string())),
+        Token::VLower => date_only!(Str(week_number_monday_first_01(dt).to_string())),
         Token::XUpper => date_only!(Str(format!("{:04}", week_year_sunday_first(dt)))),
-        Token::XLower => date_only!(Str(format!("{:04}", dt.iso_week().year()))),
-        // Numeric date tokens emit zero-literal padding in time mode.
-        Token::C => Str(if time_mode { "0".into() } else { dt.month().to_string() }),
+        Token::XLower => date_only!(Str(format!("{:04}", week_year_monday_first(dt)))),
+        // Cluster F case 4: %c is zero-padded month (PPL: 'MM' pattern).
+        Token::C => Str(if time_mode { "0".into() } else { format!("{:02}", dt.month()) }),
         Token::DLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.day()) }),
         Token::E => Str(if time_mode { "0".into() } else { dt.day().to_string() }),
         Token::MLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.month()) }),
@@ -160,6 +162,8 @@ fn render_token(tok: Token, dt: DateTime<Utc>, mode: FormatMode) -> Option<Rende
         Token::K => Str(dt.hour().to_string()),
         Token::L => Str(twelve_hour(dt.hour()).to_string()),
         Token::P => Str(if dt.hour() < 12 { "AM".into() } else { "PM".into() }),
+        // Cluster F case 4: %P is non-MySQL but PPL passes the trailing letter through verbatim.
+        Token::PUpper => Char('P'),
         Token::R => Str(format!(
             "{:02}:{:02}:{:02} {}",
             twelve_hour(dt.hour()),
@@ -240,8 +244,32 @@ fn week_number_sunday_first_01(dt: DateTime<Utc>) -> u32 {
     }
 }
 
+/// `%v` — MySQL mode 3: Monday-first, 01..53; week 0 remaps to prior year's last week.
+/// Cluster F case 4: differs from ISO week (chrono's `iso_week()`) when Jan 1
+/// lands on Tue–Sat — MySQL keeps those days in week 0/last-of-prior-year, ISO
+/// keeps them in week 52/53.
+fn week_number_monday_first_01(dt: DateTime<Utc>) -> u32 {
+    let wn = week_number_monday_first(dt);
+    if wn == 0 {
+        let last = chrono::NaiveDate::from_ymd_opt(dt.year() - 1, 12, 31).unwrap();
+        let last_dt = Utc.from_utc_datetime(&last.and_hms_opt(0, 0, 0).unwrap());
+        week_number_monday_first(last_dt)
+    } else {
+        wn
+    }
+}
+
 fn week_year_sunday_first(dt: DateTime<Utc>) -> i32 {
     if week_number_sunday_first(dt) == 0 {
+        dt.year() - 1
+    } else {
+        dt.year()
+    }
+}
+
+/// `%x` — year for the Monday-first 01..53 week numbering used by `%v`.
+fn week_year_monday_first(dt: DateTime<Utc>) -> i32 {
+    if week_number_monday_first(dt) == 0 {
         dt.year() - 1
     } else {
         dt.year()
@@ -425,6 +453,14 @@ pub(crate) fn parse_mysql_format(input: &str, format: &str) -> Option<Parsed> {
             Token::P => {
                 pos = read_am_pm(input_bytes, pos, &mut f)?;
             }
+            // Cluster F case 4: parsing `%P` consumes a single literal `P`
+            // (mirrors the formatter's pass-through behavior).
+            Token::PUpper => {
+                if pos >= input_bytes.len() || (input_bytes[pos] != b'P' && input_bytes[pos] != b'p') {
+                    return None;
+                }
+                pos += 1;
+            }
             Token::R => {
                 let (h, np) = read_digits(input_bytes, pos, 1, 2)?;
                 if !(1..=12).contains(&h) {
@@ -469,8 +505,18 @@ pub(crate) fn parse_mysql_format(input: &str, format: &str) -> Option<Parsed> {
                 f.minute = Some(m);
                 f.second = Some(s);
             }
-            // Name tokens: opportunistically consume letters (PPL doesn't validate).
-            Token::A | Token::B | Token::W | Token::MUpper => {
+            // Cluster F case 3: %b/%M parse the month name into Parsed.month so a
+            // YYYY-%b-DD input like '1-May-13' resolves to the right month rather
+            // than silently defaulting to January. Weekday tokens still pass-through.
+            Token::B | Token::MUpper => {
+                let end = consume_while(input_bytes, pos, |b| b.is_ascii_alphabetic());
+                if end > pos {
+                    let name = std::str::from_utf8(&input_bytes[pos..end]).ok()?;
+                    f.month = Some(month_name_to_number(name)?);
+                }
+                pos = end;
+            }
+            Token::A | Token::W => {
                 pos = consume_while(input_bytes, pos, |b| b.is_ascii_alphabetic());
             }
             // Week-based tokens: consume digits, ignore value (PPL doesn't back-solve either).
@@ -513,6 +559,27 @@ fn expect_literal(bytes: &[u8], pos: usize, expected: u8) -> Option<usize> {
         return None;
     }
     Some(pos + 1)
+}
+
+/// Cluster F case 3 helper: maps an English month name (full or 3-letter
+/// abbreviation, case-insensitive) to its 1-based number.
+fn month_name_to_number(name: &str) -> Option<u32> {
+    let lower = name.to_ascii_lowercase();
+    match lower.as_str() {
+        "jan" | "january" => Some(1),
+        "feb" | "february" => Some(2),
+        "mar" | "march" => Some(3),
+        "apr" | "april" => Some(4),
+        "may" => Some(5),
+        "jun" | "june" => Some(6),
+        "jul" | "july" => Some(7),
+        "aug" | "august" => Some(8),
+        "sep" | "sept" | "september" => Some(9),
+        "oct" | "october" => Some(10),
+        "nov" | "november" => Some(11),
+        "dec" | "december" => Some(12),
+        _ => None,
+    }
 }
 
 fn consume_while<F: Fn(u8) -> bool>(bytes: &[u8], pos: usize, pred: F) -> usize {
@@ -575,9 +642,33 @@ mod tests {
 
     #[test]
     fn week_tokens_iso_and_first_day() {
-        let dt = sample(); // 2020-03-15 = Sunday, ISO week 11
-        assert_eq!(fmt(dt, "%v", FormatMode::Date).unwrap(), "11");
+        // Cluster F case 4: %U/%u/%V/%v are unpadded; %v is MySQL mode 3
+        // (Monday-first, 01..53) — distinct from ISO week.
+        let dt = sample(); // 2020-03-15 = Sunday
+        // %U Sunday-first counts the date in the week that began Mar 15 itself
+        // (Sun→Sat); %v Monday-first counts the week that began Mar 9.
         assert_eq!(fmt(dt, "%U", FormatMode::Date).unwrap(), "11");
+        assert_eq!(fmt(dt, "%v", FormatMode::Date).unwrap(), "10");
+
+        // 1998-01-31 (Saturday) → all four week tokens render `4` un-padded.
+        let jan31 = Utc.with_ymd_and_hms(1998, 1, 31, 0, 0, 0).unwrap();
+        assert_eq!(fmt(jan31, "%U %u %V %v %W %w %X %x %Y %y", FormatMode::Date).unwrap(),
+                   "4 4 4 4 Saturday 6 1998 1998 1998 98");
+    }
+
+    #[test]
+    fn date_format_timestamp_full_token_set() {
+        // Cluster F case 4: full token set from CalciteDateTimeFunctionIT.testDateFormat
+        // for timestamp 1998-01-31 13:14:15.012345 — %c is zero-padded; %P
+        // passes through as a literal `P`.
+        let ts = chrono::NaiveDate::from_ymd_opt(1998, 1, 31)
+            .unwrap()
+            .and_hms_micro_opt(13, 14, 15, 12_345)
+            .unwrap();
+        let dt = chrono::Utc.from_utc_datetime(&ts);
+        let fmtstr = "%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %% %P";
+        let want = "Sat Jan 01 31st 31 31 012345 13 01 01 14 031 13 1 January 01 PM 01:14:15 PM 15 15 13:14:15 % P";
+        assert_eq!(fmt(dt, fmtstr, FormatMode::Date).unwrap(), want);
     }
 
     #[test]
@@ -612,6 +703,20 @@ mod tests {
         assert_eq!(p.to_naive().unwrap().time().to_string(), "13:30:45");
         let p = parse_mysql_format("12:00:00 AM", "%h:%i:%s %p").unwrap();
         assert_eq!(p.to_naive().unwrap().time().to_string(), "00:00:00");
+    }
+
+    #[test]
+    fn parse_b_token_resolves_month_abbrev() {
+        // Cluster F case 3: %b parses Jan..Dec abbreviation into Parsed.month.
+        let p = parse_mysql_format("1-May-13", "%d-%b-%y").unwrap();
+        let n = p.to_naive().unwrap();
+        assert_eq!(n.to_string(), "2013-05-01 00:00:00");
+        // %M parses full month name; case-insensitive.
+        let p = parse_mysql_format("February 4 2020", "%M %d %Y").unwrap();
+        let n = p.to_naive().unwrap();
+        assert_eq!(n.to_string(), "2020-02-04 00:00:00");
+        // Unknown name → None (parse fails rather than silently defaulting).
+        assert!(parse_mysql_format("Foo 4 2020", "%M %d %Y").is_none());
     }
 
     #[test]

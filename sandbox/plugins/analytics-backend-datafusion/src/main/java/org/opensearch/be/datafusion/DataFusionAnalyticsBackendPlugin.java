@@ -591,7 +591,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DatePartAdapters dayOfYear = DatePartAdapters.dayOfYear();
                 DatePartAdapters hour = DatePartAdapters.hour();
                 DatePartAdapters minute = DatePartAdapters.minute();
-                DatePartAdapters week = DatePartAdapters.week();
+                // Cluster F cases 1+2: WEEK/WEEK_OF_YEAR follow MySQL semantics, not ISO. The
+                // mysql_week Rust UDF implements modes 0..3 and matches MySQL's default of 0
+                // (Sunday-first). DataFusion's stock date_part('week', ts) is ISO-only.
+                RustUdfDateTimeAdapters.MysqlWeekAdapter week = new RustUdfDateTimeAdapters.MysqlWeekAdapter();
                 DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();

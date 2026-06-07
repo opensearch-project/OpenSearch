@@ -147,6 +147,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, "date_format"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_TIME_FORMAT_OP, "time_format"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_STR_TO_DATE_OP, "str_to_date"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MYSQL_WEEK_OP, "mysql_week"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),

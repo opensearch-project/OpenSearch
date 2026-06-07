@@ -127,9 +127,34 @@ final class DateTimeAdapters {
         }
     }
 
-    static final class TimeAdapter extends AbstractNameMappingAdapter {
-        TimeAdapter() {
-            super(LOCAL_TIME_OP, List.of(), List.of());
+    /**
+     * Cluster F case 7: PPL accepts a datetime-string ({@code '1985-10-09 12:00:00'})
+     * for {@code TIME(x)} and {@code cast(x AS TIME)}, returning just the time
+     * component. DataFusion's stock {@code to_time} parses {@code HH:MM:SS}
+     * formats only — strings with a date prefix throw. We strip the leading
+     * {@code YYYY-MM-DD } portion via {@code regexp_replace} for character
+     * operands; non-string operands route through unchanged.
+     */
+    static final class TimeAdapter implements ScalarFunctionAdapter {
+
+        private static final String DATE_PREFIX_PATTERN = "^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ]";
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            List<RexNode> operands = original.getOperands();
+            if (operands.size() == 1 && SqlTypeName.CHAR_TYPES.contains(operands.get(0).getType().getSqlTypeName())) {
+                RexNode arg = operands.get(0);
+                RexNode pattern = rexBuilder.makeLiteral(DATE_PREFIX_PATTERN);
+                RexNode replacement = rexBuilder.makeLiteral("");
+                RexNode stripped = rexBuilder.makeCall(
+                    arg.getType(),
+                    SqlLibraryOperators.REGEXP_REPLACE_3,
+                    List.of(arg, pattern, replacement)
+                );
+                return rexBuilder.makeCall(original.getType(), LOCAL_TIME_OP, List.of(stripped));
+            }
+            return rexBuilder.makeCall(original.getType(), LOCAL_TIME_OP, operands);
         }
     }
 

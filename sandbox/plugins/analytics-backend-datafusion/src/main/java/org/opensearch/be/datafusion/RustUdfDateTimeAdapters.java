@@ -64,6 +64,14 @@ final class RustUdfDateTimeAdapters {
     static final SqlOperator LOCAL_STR_TO_DATE_OP = udf("str_to_date", ReturnTypes.TIMESTAMP_NULLABLE, OperandTypes.ANY_ANY);
 
     /**
+     * Cluster F cases 1+2: PPL's WEEK / WEEK_OF_YEAR follow MySQL's WEEK(date [,mode])
+     * semantics, not ISO week. We route through the Rust `mysql_week` UDF.
+     * Operand checker accepts {@code (date)} and {@code (date, mode)} via the
+     * permissive {@link OperandTypes#VARIADIC} family.
+     */
+    static final SqlOperator LOCAL_MYSQL_WEEK_OP = udf("mysql_week", ReturnTypes.INTEGER_NULLABLE, OperandTypes.VARIADIC);
+
+    /**
      * Adapter for PPL {@code extract(<unit> FROM <expr>)}.
      * <p>For TIME(p) operands, CASTs to VARCHAR so the call binds to the {@code (string, string)}
      * yaml overload — substrait-java 0.89.1 can't emit a {@code precision_time<P>} signature.
@@ -154,6 +162,37 @@ final class RustUdfDateTimeAdapters {
     static final class StrToDateAdapter extends AbstractNameMappingAdapter {
         StrToDateAdapter() {
             super(LOCAL_STR_TO_DATE_OP, List.of(), List.of());
+        }
+    }
+
+    /**
+     * Cluster F cases 1+2: rewrite WEEK(date [, mode]) to mysql_week(date [, mode]).
+     * String operands cast to TIMESTAMP so the YAML date/timestamp impls bind;
+     * VARCHAR is rejected by the substrait function-resolver otherwise.
+     */
+    static final class MysqlWeekAdapter extends AbstractNameMappingAdapter {
+        MysqlWeekAdapter() {
+            super(LOCAL_MYSQL_WEEK_OP, List.of(), List.of());
+        }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            if (original.getOperands().isEmpty() || !SqlTypeFamily.CHARACTER.contains(original.getOperands().get(0).getType())) {
+                return super.adapt(original, fieldStorage, cluster);
+            }
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            List<RexNode> coerced = new java.util.ArrayList<>(original.getOperands().size());
+            DatePartAdapters.validateDatetimeLiteral(original.getOperands().get(0));
+            RelDataType timestampType = rexBuilder.getTypeFactory()
+                .createTypeWithNullability(
+                    rexBuilder.getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP),
+                    original.getOperands().get(0).getType().isNullable()
+                );
+            coerced.add(rexBuilder.makeCast(timestampType, original.getOperands().get(0)));
+            for (int i = 1; i < original.getOperands().size(); i++) {
+                coerced.add(original.getOperands().get(i));
+            }
+            return rexBuilder.makeCall(original.getType(), LOCAL_MYSQL_WEEK_OP, coerced);
         }
     }
 

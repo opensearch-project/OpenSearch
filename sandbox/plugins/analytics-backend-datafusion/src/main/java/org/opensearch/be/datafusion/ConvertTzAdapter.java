@@ -88,9 +88,14 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         List<RexNode> operands = new ArrayList<>(original.getOperands());
-        // Slot 0 is the timestamp; slots 1 and 2 are from_tz / to_tz.
+        // Cluster F case 6: out-of-range / unparseable tz literal → typed NULL (MySQL semantics)
+        // rather than HTTP 400. Column-valued tz still goes to the UDF which returns NULL per row.
         for (int slot : new int[] { 1, 2 }) {
-            operands.set(slot, canonicalizeTzOperand(operands.get(slot), rexBuilder));
+            try {
+                operands.set(slot, canonicalizeTzOperand(operands.get(slot), rexBuilder));
+            } catch (IllegalArgumentException badTz) {
+                return rexBuilder.makeNullLiteral(original.getType());
+            }
         }
 
         // Same from/to tz → no-op. SAFE-cast a VARCHAR operand to TIMESTAMP so the parent

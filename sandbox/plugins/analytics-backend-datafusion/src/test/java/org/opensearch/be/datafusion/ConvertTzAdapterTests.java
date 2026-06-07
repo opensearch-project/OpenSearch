@@ -190,17 +190,29 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
     }
 
     /**
-     * Invalid literal tz operand surfaces at plan time as
-     * {@link IllegalArgumentException} with the offending value in the message,
-     * rather than silently producing per-row NULL at runtime.
+     * Cluster F case 6: out-of-range / unparseable tz literal yields a typed
+     * NULL rather than HTTP 400 (MySQL-compatible lenient behavior).
      */
-    public void testAdaptInvalidLiteralErrorsAtPlanTime() {
+    public void testAdaptOutOfRangeLiteralReturnsTypedNull() {
+        RexCall original = buildConvertTz("UTC", "+15:00");
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue("out-of-range tz literal must yield a NULL literal", adapted instanceof RexLiteral);
+        assertTrue("NULL literal must report null value", ((RexLiteral) adapted).isNull());
+        assertEquals("typed NULL must keep the original return type", original.getType(), adapted.getType());
+    }
+
+    /**
+     * Unknown IANA literal also degrades to NULL (same path as out-of-range
+     * offset). Keeps wire behavior consistent across both invalid-literal kinds.
+     */
+    public void testAdaptUnknownIanaLiteralReturnsTypedNull() {
         RexCall original = buildConvertTz("Mars/Olympus", "UTC");
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ConvertTzAdapter().adapt(original, List.of(), cluster)
-        );
-        assertTrue("error must name the offending literal for user UX: " + ex.getMessage(), ex.getMessage().contains("Mars/Olympus"));
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexLiteral);
+        assertTrue(((RexLiteral) adapted).isNull());
+        assertEquals(original.getType(), adapted.getType());
     }
 
     /**

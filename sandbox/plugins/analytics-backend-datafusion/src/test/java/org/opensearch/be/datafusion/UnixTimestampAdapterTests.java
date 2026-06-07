@@ -71,6 +71,78 @@ public class UnixTimestampAdapterTests extends OpenSearchTestCase {
     }
 
     /**
+     * Cluster F case 5: a numeric literal of shape YYYYMMDDhhmmss is rewritten
+     * to its string-datetime form so {@code to_unixtime} can parse it.
+     */
+    public void testNumericYyyyMmDdHhMmSsLiteralIsRewrittenToString() {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner planner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(planner, rexBuilder);
+
+        RelDataType doubleNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
+        SqlFunction unixTimestampOp = new SqlFunction(
+            "UNIX_TIMESTAMP",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(doubleNullable),
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.TIMEDATE
+        );
+        RexNode numericLiteral = rexBuilder.makeLiteral(
+            new java.math.BigDecimal("20771122143845"),
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            true
+        );
+        RexCall original = (RexCall) rexBuilder.makeCall(unixTimestampOp, List.of(numericLiteral));
+
+        RexNode adapted = new UnixTimestampAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexCall);
+        RexCall call = (RexCall) adapted;
+        assertSame(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, call.getOperator());
+        assertEquals(1, call.getOperands().size());
+        RexNode arg = call.getOperands().get(0);
+        assertTrue("numeric literal must be rewritten to a string literal", arg instanceof org.apache.calcite.rex.RexLiteral);
+        assertEquals("2077-11-22 14:38:45", ((org.apache.calcite.rex.RexLiteral) arg).getValueAs(String.class));
+    }
+
+    /**
+     * Numeric literal that doesn't pass YYYYMMDDhhmmss validation (e.g. month
+     * 99) falls through to the default rewrite, leaving the original operand
+     * intact. The downstream UDF resolves it.
+     */
+    public void testInvalidNumericLiteralFallsThrough() {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner planner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(planner, rexBuilder);
+
+        RelDataType doubleNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
+        SqlFunction unixTimestampOp = new SqlFunction(
+            "UNIX_TIMESTAMP",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(doubleNullable),
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.TIMEDATE
+        );
+        // 12345 is not 14 digits → not a YYYYMMDDhhmmss literal.
+        RexNode numericLiteral = rexBuilder.makeLiteral(
+            new java.math.BigDecimal("12345"),
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            true
+        );
+        RexCall original = (RexCall) rexBuilder.makeCall(unixTimestampOp, List.of(numericLiteral));
+
+        RexNode adapted = new UnixTimestampAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexCall);
+        RexCall call = (RexCall) adapted;
+        assertSame("non-YYYYMMDDhhmmss numeric literal must pass through unchanged", numericLiteral, call.getOperands().get(0));
+    }
+
+    /**
      * Regression guard for adapter return-type preservation.
      * PPL's {@code UNIX_TIMESTAMP} is typed {@code DOUBLE_FORCE_NULLABLE}; DF's
      * {@code to_unixtime} is typed {@code Int64}. The adapter must preserve the
