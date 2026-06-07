@@ -265,6 +265,22 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         return planner.getCostFactory().makeTinyCost();
     }
 
+    /**
+     * Fixed group-by reduction factor used in lieu of column distinct-value stats (Calcite's
+     * default estimate is often wrong by orders of magnitude). Conservative — enough to make
+     * Volcano prefer the split (PARTIAL/FINAL across an Exchange) over aggregate-at-coordinator.
+     */
+    private static final double GROUP_REDUCTION_FACTOR = 100.0;
+
+    @Override
+    public double estimateRowCount(RelMetadataQuery mq) {
+        if (getGroupSet().isEmpty()) {
+            return 1.0;
+        }
+        double inputRows = mq.getRowCount(getInput());
+        return Math.max(1.0, inputRows / GROUP_REDUCTION_FACTOR);
+    }
+
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw).item("mode", mode).item("viableBackends", viableBackends);
