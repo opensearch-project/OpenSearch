@@ -60,7 +60,19 @@ public final class OpenSearchTopKRewriter {
         double factor = resolveOversamplingFactor(context);
         if (factor <= 0.0) return Optional.empty();
 
-        long coordLimit = (sort.fetch instanceof RexLiteral lit) ? RexLiteral.intValue(lit) : 10_000L;
+        // coordLimit is the rank the coordinator must satisfy after merging shard streams: for
+        // `head N from M` it skips M then takes N, so the merged stream needs the global top-(M+N).
+        // Non-literal offsets bail to no-pushdown (PPL only emits literal offsets).
+        long fetch = (sort.fetch instanceof RexLiteral lit) ? RexLiteral.intValue(lit) : 10_000L;
+        long offset;
+        if (sort.offset == null) {
+            offset = 0L;
+        } else if (sort.offset instanceof RexLiteral lit) {
+            offset = RexLiteral.intValue(lit);
+        } else {
+            return Optional.empty();
+        }
+        long coordLimit = offset + fetch;
         long shardSize = (long) Math.ceil(coordLimit * factor) + coordLimit;
         if (shardSize > Integer.MAX_VALUE) return Optional.empty();
 
