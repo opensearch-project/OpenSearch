@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
@@ -42,9 +43,19 @@ class MicrosecondAdapter implements ScalarFunctionAdapter {
             return original;
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
-        RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
+        RelDataTypeFactory factory = cluster.getTypeFactory();
+        RelDataType varchar = factory.createSqlType(SqlTypeName.VARCHAR);
+        // when the operand is a string/timestamp expression, force a TIMESTAMP(6) coercion so
+        // DataFusion doesn't downcast to ms and clip the µs fraction before date_part runs.
+        // TIME/DATE operands are left alone — those overloads aren't in cluster E's scope.
+        RexNode operand = original.getOperands().get(0);
+        SqlTypeName operandType = operand.getType().getSqlTypeName();
+        if (operandType == SqlTypeName.VARCHAR || operandType == SqlTypeName.CHAR || operandType == SqlTypeName.TIMESTAMP) {
+            RelDataType tsMicros = factory.createSqlType(SqlTypeName.TIMESTAMP, 6);
+            operand = rexBuilder.makeCast(tsMicros, operand);
+        }
         RexNode partLiteral = rexBuilder.makeLiteral("microsecond", varchar, true);
-        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, original.getOperands().get(0));
+        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, operand);
         RexNode mod = rexBuilder.makeCall(SqlStdOperatorTable.MOD, datePart, rexBuilder.makeExactLiteral(ONE_MILLION));
         return rexBuilder.makeCast(original.getType(), mod);
     }

@@ -28,9 +28,9 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
 
     private static final TypeCreator R = TypeCreator.of(false);
 
-    public void testTimestampPrecision6ConvertedTo3() {
-        long epochMicros = 1704067200000000L; // 2024-01-01T00:00:00Z in micros
-        long expectedMillis = 1704067200000L;
+    public void testTimestampPrecision6Preserved() {
+        // preserve µs precision so cast('… .123456' AS TIMESTAMP) keeps the microsecond fraction
+        long epochMicros = 1704067200123456L;
 
         Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder()
             .value(epochMicros)
@@ -44,8 +44,8 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
         Expression condition = getFilterCondition(rewritten);
         assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
         Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) condition;
-        assertEquals(3, pts.precision());
-        assertEquals(expectedMillis, pts.value());
+        assertEquals(6, pts.precision());
+        assertEquals(epochMicros, pts.value());
     }
 
     public void testTimestampPrecision9ConvertedTo3() {
@@ -62,6 +62,40 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
         Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) condition;
         assertEquals(3, pts.precision());
         assertEquals(expectedMillis, pts.value());
+    }
+
+    public void testTimestampPrecision6PreservedInsideScalarFunction() {
+        // µs literals inside e.g. cast(varchar -> timestamp) projections must keep their precision
+        long epochMicros = 1696161600123456L;
+
+        Expression tsLiteral = ImmutableExpression.PrecisionTimestampLiteral.builder()
+            .value(epochMicros)
+            .precision(6)
+            .nullable(false)
+            .build();
+
+        FieldReference fieldRef = FieldReference.newRootStructReference(0, R.precisionTimestamp(3));
+
+        SimpleExtension.ExtensionCollection extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION;
+        SimpleExtension.ScalarFunctionVariant gtFunc = extensions.getScalarFunction(
+            SimpleExtension.FunctionAnchor.of(DefaultExtensionCatalog.FUNCTIONS_COMPARISON, "gt:any_any")
+        );
+
+        Expression gtCall = Expression.ScalarFunctionInvocation.builder()
+            .declaration(gtFunc)
+            .addArguments(fieldRef, tsLiteral)
+            .outputType(R.BOOLEAN)
+            .build();
+
+        Plan plan = buildFilterPlan(gtCall);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
+
+        Expression condition = getFilterCondition(rewritten);
+        Expression.ScalarFunctionInvocation rewrittenGt = (Expression.ScalarFunctionInvocation) condition;
+        Expression arg1 = (Expression) rewrittenGt.arguments().get(1);
+        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) arg1;
+        assertEquals(6, pts.precision());
+        assertEquals(epochMicros, pts.value());
     }
 
     public void testTimestampPrecision3Unchanged() {
@@ -83,13 +117,14 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
         assertEquals(epochMillis, pts.value());
     }
 
-    public void testTimestampInsideScalarFunction() {
-        long epochMicros = 1704067200000000L;
-        long expectedMillis = 1704067200000L;
+    public void testTimestampPrecision9InsideScalarFunctionConvertedTo3() {
+        // ns-precision literal in a function arg is still coerced to ms — DataFusion can't compare ns against parquet ms storage
+        long epochNanos = 1704067200123456789L;
+        long expectedMillis = 1704067200123L;
 
         Expression tsLiteral = ImmutableExpression.PrecisionTimestampLiteral.builder()
-            .value(epochMicros)
-            .precision(6)
+            .value(epochNanos)
+            .precision(9)
             .nullable(false)
             .build();
 
@@ -132,11 +167,18 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
         assertEquals(List.of("parquet_dates"), rewrittenScan.getNames());
     }
 
-    public void testUnsupportedPrecisionThrows() {
-        Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder().value(12345L).precision(4).nullable(false).build();
+    public void testNonStandardPrecisionUnchanged() {
+        // only precision 9 is rewritten now; other precisions pass through untouched
+        Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder().value(12345L).precision(0).nullable(false).build();
 
         Plan plan = buildFilterPlan(literal);
-        expectThrows(IllegalArgumentException.class, () -> SubstraitPlanPojoRewriter.rewrite(plan));
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
+
+        Expression condition = getFilterCondition(rewritten);
+        assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
+        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) condition;
+        assertEquals(0, pts.precision());
+        assertEquals(12345L, pts.value());
     }
 
     // --- VarCharLiteral → StrLiteral tests ---

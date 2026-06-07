@@ -27,8 +27,10 @@ import io.substrait.util.EmptyVisitationContext;
  * and patches expressions that isthmus emits incorrectly or that DataFusion's
  * substrait consumer cannot handle. Today it covers two cases:
  * <ul>
- *   <li>{@code PrecisionTimestampLiteral} arrives at precision 6 (µs) regardless of
- *       the source type; rescaled to precision 3 (ms) to match parquet storage.</li>
+ *   <li>{@code PrecisionTimestampLiteral} at precision 9 (ns) is rescaled to precision 3
+ *       (ms) — DataFusion's substrait consumer does not coerce ns→ms when comparing
+ *       against parquet's ms-stored {@code date} fields. Precision 6 (µs) is left intact
+ *       so {@code cast('… .123456' AS TIMESTAMP)} preserves microsecond fractions.</li>
  *   <li>{@code VarCharLiteral} → {@code StrLiteral} — DataFusion 53.1.0's consumer
  *       has no VarCharLiteral arm; the two literal types are byte-identical.</li>
  * </ul>
@@ -122,14 +124,15 @@ class SubstraitPlanPojoRewriter {
             super(relVisitor);
         }
 
-        // Isthmus hardcodes timestamp literals to precision 6 (microseconds).
-        // Parquet stores Timestamp(MILLISECOND), so convert to precision 3.
+        // Only coerce precision 9 (ns) → 3 (ms): DataFusion's substrait consumer can't
+        // compare a ns literal against parquet's ms-stored Timestamp field. Precision 6
+        // (µs) literals pass through so cast('…123456' AS TIMESTAMP) keeps the µs fraction.
         @Override
         public Optional<Expression> visit(Expression.PrecisionTimestampLiteral pts, EmptyVisitationContext ctx) {
-            if (pts.precision() != 3) {
+            if (pts.precision() == 9) {
                 return Optional.of(
                     ImmutableExpression.PrecisionTimestampLiteral.builder()
-                        .value(toMillis(pts.value(), pts.precision()))
+                        .value(TimeUnit.NANOSECONDS.toMillis(pts.value()))
                         .precision(3)
                         .nullable(pts.nullable())
                         .build()
@@ -150,14 +153,4 @@ class SubstraitPlanPojoRewriter {
         }
     }
 
-    private static long toMillis(long value, int precision) {
-        return switch (precision) {
-            case 0 -> value * 1000L;
-            case 6 -> TimeUnit.MICROSECONDS.toMillis(value);
-            case 9 -> TimeUnit.NANOSECONDS.toMillis(value);
-            default -> throw new IllegalArgumentException(
-                "Unsupported timestamp precision: " + precision + ". Expected 0 (seconds), 6 (micros), or 9 (nanos)."
-            );
-        };
-    }
 }

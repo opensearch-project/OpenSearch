@@ -14,6 +14,8 @@ import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeSystem;
+import org.apache.calcite.rel.type.RelDataTypeSystemImpl;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
@@ -49,7 +51,15 @@ public class MicrosecondAdapterTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        typeFactory = new JavaTypeFactoryImpl();
+        // a type system that allows TIMESTAMP precision up to 9 — matches production behavior
+        RelDataTypeSystem typeSystem = new RelDataTypeSystemImpl() {
+            @Override
+            public int getMaxPrecision(SqlTypeName typeName) {
+                if (typeName == SqlTypeName.TIMESTAMP) return 9;
+                return super.getMaxPrecision(typeName);
+            }
+        };
+        typeFactory = new JavaTypeFactoryImpl(typeSystem);
         rexBuilder = new RexBuilder(typeFactory);
         HepPlanner planner = new HepPlanner(new HepProgramBuilder().build());
         cluster = RelOptCluster.create(planner, rexBuilder);
@@ -71,7 +81,8 @@ public class MicrosecondAdapterTests extends OpenSearchTestCase {
 
         RexNode adapted = new MicrosecondAdapter().adapt(original, List.of(), cluster);
 
-        // Expected tree: CAST(MOD(date_part('microsecond', arg), 1_000_000) AS INTEGER)
+        // Expected tree: CAST(MOD(date_part('microsecond', CAST(arg AS TIMESTAMP(6))), 1_000_000) AS INTEGER)
+        // The inner cast forces TIMESTAMP(6) so DataFusion preserves µs precision.
         assertTrue("outermost node must be a RexCall", adapted instanceof RexCall);
         RexCall castCall = (RexCall) adapted;
         assertSame("outermost operator must be CAST", SqlStdOperatorTable.CAST, castCall.getOperator());
@@ -92,7 +103,14 @@ public class MicrosecondAdapterTests extends OpenSearchTestCase {
         RexNode partLiteral = datePart.getOperands().get(0);
         assertTrue("date_part's first arg must be a literal", partLiteral instanceof RexLiteral);
         assertEquals("microsecond", ((RexLiteral) partLiteral).getValueAs(String.class));
-        assertSame("date_part's second arg must be the original timestamp arg", arg, datePart.getOperands().get(1));
+
+        RexNode datePartArg = datePart.getOperands().get(1);
+        assertTrue("date_part's second arg must be a CAST to TIMESTAMP(6)", datePartArg instanceof RexCall);
+        RexCall innerCast = (RexCall) datePartArg;
+        assertSame(SqlStdOperatorTable.CAST, innerCast.getOperator());
+        assertEquals(6, innerCast.getType().getPrecision());
+        assertEquals(SqlTypeName.TIMESTAMP, innerCast.getType().getSqlTypeName());
+        assertSame("inner CAST wraps the original arg", arg, innerCast.getOperands().get(0));
 
         RexNode modRight = modCall.getOperands().get(1);
         assertTrue("MOD's right operand must be a literal", modRight instanceof RexLiteral);

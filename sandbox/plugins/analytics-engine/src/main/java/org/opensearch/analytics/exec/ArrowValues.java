@@ -35,8 +35,12 @@ public final class ArrowValues {
 
     // Space-separator output. Matches what the SQL plugin's ExprTimestampValue emits.
     private static final DateTimeFormatter TIMESTAMP_NO_NANO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+    private static final DateTimeFormatter TIMESTAMP_WITH_MILLI = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS", Locale.ROOT);
+    private static final DateTimeFormatter TIMESTAMP_WITH_MICRO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS", Locale.ROOT);
     private static final DateTimeFormatter TIMESTAMP_WITH_NANO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS", Locale.ROOT);
     private static final DateTimeFormatter TIME_NO_NANO = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT);
+    private static final DateTimeFormatter TIME_WITH_MILLI = DateTimeFormatter.ofPattern("HH:mm:ss.SSS", Locale.ROOT);
+    private static final DateTimeFormatter TIME_WITH_MICRO = DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSS", Locale.ROOT);
     private static final DateTimeFormatter TIME_WITH_NANO = DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSSSS", Locale.ROOT);
     // ISO-T strings produced by DataFusion's CAST(temporal AS VARCHAR). Tolerates optional fraction.
     private static final Pattern ISO_TIMESTAMP_T = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)$");
@@ -110,7 +114,7 @@ public final class ArrowValues {
         return ld.format(DateTimeFormatter.ISO_LOCAL_DATE);
     }
 
-    /** Time → "HH:mm:ss[.SSSSSSSSS]"; never prefixes with the 1970 epoch date. */
+    /** Time → "HH:mm:ss[.fraction]"; fractional width matches the Arrow TimeUnit. */
     private static String formatTime(ArrowType.Time type, Object value) {
         LocalTime lt;
         if (value instanceof LocalTime t) {
@@ -127,10 +131,10 @@ public final class ArrowValues {
             };
             lt = LocalTime.ofNanoOfDay(nanoOfDay);
         }
-        return lt.getNano() == 0 ? lt.format(TIME_NO_NANO) : lt.format(TIME_WITH_NANO);
+        return lt.format(timeFormatter(type.getUnit(), lt.getNano()));
     }
 
-    /** Timestamp → "yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]". */
+    /** Timestamp → "yyyy-MM-dd HH:mm:ss[.fraction]"; fractional width matches the Arrow TimeUnit. */
     private static String formatTimestamp(ArrowType.Timestamp type, Object value) {
         LocalDateTime ldt;
         if (value instanceof LocalDateTime t) {
@@ -147,7 +151,38 @@ public final class ArrowValues {
             };
             ldt = LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
         }
-        return ldt.getNano() == 0 ? ldt.format(TIMESTAMP_NO_NANO) : ldt.format(TIMESTAMP_WITH_NANO);
+        return ldt.format(timestampFormatter(type.getUnit(), ldt.getNano()));
+    }
+
+    /** Pick a timestamp formatter; width follows the source unit, then trims trailing-zero fraction triplets. */
+    private static DateTimeFormatter timestampFormatter(org.apache.arrow.vector.types.TimeUnit unit, int nano) {
+        return switch (effectiveFractionalDigits(unit, nano)) {
+            case 0 -> TIMESTAMP_NO_NANO;
+            case 3 -> TIMESTAMP_WITH_MILLI;
+            case 6 -> TIMESTAMP_WITH_MICRO;
+            default -> TIMESTAMP_WITH_NANO;
+        };
+    }
+
+    /** Pick a time formatter; width follows the source unit, then trims trailing-zero fraction triplets. */
+    private static DateTimeFormatter timeFormatter(org.apache.arrow.vector.types.TimeUnit unit, int nano) {
+        return switch (effectiveFractionalDigits(unit, nano)) {
+            case 0 -> TIME_NO_NANO;
+            case 3 -> TIME_WITH_MILLI;
+            case 6 -> TIME_WITH_MICRO;
+            default -> TIME_WITH_NANO;
+        };
+    }
+
+    /** 0 / 3 / 6 / 9 — capped by source unit; ns-typed values trim trailing zero triplets to keep output tight. */
+    private static int effectiveFractionalDigits(org.apache.arrow.vector.types.TimeUnit unit, int nano) {
+        if (nano == 0) return 0;
+        return switch (unit) {
+            case SECOND, MILLISECOND -> 3;
+            case MICROSECOND -> 6;
+            // ns-typed: trim ns-only trailing zeros so a µs round-tripped through ns prints at µs width
+            case NANOSECOND -> nano % 1_000_000 == 0 ? 3 : (nano % 1_000 == 0 ? 6 : 9);
+        };
     }
 
     private static Object normalize(Object value) {

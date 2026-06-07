@@ -254,8 +254,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
     /**
      * Pick a precision for fold output. {@code date_nanos} fields force 9
      * (nanosecond) precision so values can compare equal to native ts values;
-     * everything else defaults to 3 (millisecond), which is wide enough for
-     * year-of-i64-ns-overflow boundary cases (year 3077+).
+     * everything else defaults to 6 (microsecond) so cast/timestamp(string-with-µs)
+     * preserves the µs fraction. i64-µs comfortably covers the supported range.
      */
     private static int resolvePrecision(List<FieldStorageInfo> fieldStorage) {
         for (FieldStorageInfo field : fieldStorage) {
@@ -263,7 +263,7 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
                 return 9;
             }
         }
-        return 3;
+        return 6;
     }
 
     /**

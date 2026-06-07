@@ -128,7 +128,8 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             v.allocateNew(1);
             v.set(0, 27_605_123_456L);
             v.setValueCount(1);
-            assertEquals("07:40:05.123456000", ArrowValues.toJavaValue(v, 0));
+            // µs-typed time prints exactly 6 fractional digits — no zero-padding to nano width
+            assertEquals("07:40:05.123456", ArrowValues.toJavaValue(v, 0));
         }
     }
 
@@ -173,7 +174,8 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             v.allocateNew(1);
             v.set(0, 1_780_731_605_123_456L);
             v.setValueCount(1);
-            assertEquals("2026-06-06 07:40:05.123456000", ArrowValues.toJavaValue(v, 0));
+            // µs-typed timestamp prints exactly 6 fractional digits — no zero-padding to nano width
+            assertEquals("2026-06-06 07:40:05.123456", ArrowValues.toJavaValue(v, 0));
         }
     }
 
@@ -183,6 +185,36 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             v.set(0, 1_780_731_605_123_456_789L);
             v.setValueCount(1);
             assertEquals("2026-06-06 07:40:05.123456789", ArrowValues.toJavaValue(v, 0));
+        }
+    }
+
+    public void testTimestampMilliFractionPrintsThreeDigits() {
+        // ms-typed timestamp with non-zero fraction prints exactly 3 digits, not nano-padded
+        try (TimeStampMilliVector v = new TimeStampMilliVector("ts", allocator)) {
+            v.allocateNew(1);
+            v.set(0, 1_780_731_605_123L);
+            v.setValueCount(1);
+            assertEquals("2026-06-06 07:40:05.123", ArrowValues.toJavaValue(v, 0));
+        }
+    }
+
+    public void testTimestampNanoTrailingZerosTrimToMicroWidth() {
+        // ns-typed timestamp with µs-aligned fraction (.123456000 ns) trims to 6-digit µs width
+        try (TimeStampNanoVector v = new TimeStampNanoVector("ts", allocator)) {
+            v.allocateNew(1);
+            v.set(0, 1_780_731_605_123_456_000L);
+            v.setValueCount(1);
+            assertEquals("2026-06-06 07:40:05.123456", ArrowValues.toJavaValue(v, 0));
+        }
+    }
+
+    public void testTimestampNanoTrailingZerosTrimToMilliWidth() {
+        // ns-typed timestamp with ms-aligned fraction (.123000000 ns) trims to 3-digit ms width
+        try (TimeStampNanoVector v = new TimeStampNanoVector("ts", allocator)) {
+            v.allocateNew(1);
+            v.set(0, 1_780_731_605_123_000_000L);
+            v.setValueCount(1);
+            assertEquals("2026-06-06 07:40:05.123", ArrowValues.toJavaValue(v, 0));
         }
     }
 
