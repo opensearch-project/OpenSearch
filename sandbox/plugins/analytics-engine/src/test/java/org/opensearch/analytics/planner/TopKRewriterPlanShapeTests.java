@@ -16,6 +16,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -129,7 +130,7 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         String plan = RelOptUtil.toString(result);
         long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
         assertTrue("a per-partition Sort must be inserted", sortCount >= 2);
-        // Shard Sort fetch = ceil(innerFetch * factor) + innerFetch = ceil(10*2)+10 = 30.
+        // Shard Sort fetch = offset + ceil(fetch * factor) + fetch = 0 + ceil(10*2) + 10 = 30.
         assertTrue("shard Sort must be sized off the inner fetch (30), got plan:\n" + plan, plan.contains("fetch=[30]"));
         assertFalse("shard Sort must NOT be sized off the 10000 system cap (30000)", plan.contains("fetch=[30000]"));
     }
@@ -221,6 +222,101 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
                 """,
             result
         );
+    }
+
+    /**
+     * {@code head 10 from 1000}: PPL emits {@code Sort(collation, offset=1000, fetch=10)}. The
+     * coordinator skips 1000 then takes 10, so its merged stream must contain the global top-1010
+     * — i.e. {@code coordLimit = offset + fetch}. Shard fetch is then the usual oversampling
+     * formula applied to that coord limit: {@code ceil(coordLimit * factor) + coordLimit}.
+     *
+     * <p>Expected shard fetch: {@code ceil(1010*2) + 1010 = 3030}. Without offset handling the
+     * rewriter used {@code coordLimit = fetch = 10}, so each shard shipped 30 rows, the
+     * coordinator skipped 1000, and the result was empty.
+     */
+    public void testRewrite_sortWithOffset_shardFetchHonorsOffset() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            rexBuilder.makeLiteral(1000, typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertTrue(
+            "shard Sort must be sized as ceil((offset+fetch)*factor) + (offset+fetch) = 3030, got plan:\n" + plan,
+            plan.contains("fetch=[3030]")
+        );
+        // Pre-fix bug: shard Sort sized off bare fetch (30) — coordinator's skip-1000 would have emptied the result.
+        assertFalse("shard Sort must NOT be sized off fetch alone (30)", plan.contains("fetch=[30]"));
+    }
+
+    /**
+     * factor=1.0 with offset: oversampling collapses to {@code 2 * coordLimit}. For
+     * {@code head 10 from 1000} → 2*1010 = 2020. coordLimit = offset+fetch is still honored;
+     * factor=1 just removes the per-coord-row padding multiplier.
+     */
+    public void testRewrite_factorOne_twiceCoordLimit() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            rexBuilder.makeLiteral(1000, typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(1.0));
+        String plan = RelOptUtil.toString(result);
+        assertTrue("factor=1 → shard fetch = 2 * (offset+fetch) = 2020, got plan:\n" + plan, plan.contains("fetch=[2020]"));
+    }
+
+    /**
+     * Offset close to {@code Integer.MAX_VALUE} pushes shardSize past int range — rewriter must
+     * bail (no per-partition Sort inserted). Without the bail an int overflow would produce a
+     * negative or wrong fetch literal.
+     */
+    public void testRewrite_offsetOverflow_bails() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            rexBuilder.makeLiteral(Integer.MAX_VALUE - 5, typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
+        assertEquals("overflow → no per-partition Sort inserted", 1, sortCount);
+    }
+
+    /**
+     * Non-literal offset (parameterized expression): rewriter bails to no-pushdown rather than
+     * guessing a value. Each shard ships everything; correct but slow. PPL emits literal offsets
+     * in practice, so this is a defensive check.
+     */
+    public void testRewrite_nonLiteralOffset_bails() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countStarCall()));
+        RexNode lit5 = rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RexNode lit10 = rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RexNode nonLiteralOffset = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, lit5, lit10);
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            nonLiteralOffset,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
+        assertEquals("non-literal offset → no per-partition Sort inserted", 1, sortCount);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
