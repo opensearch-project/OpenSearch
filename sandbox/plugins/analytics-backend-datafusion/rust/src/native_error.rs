@@ -49,6 +49,29 @@ pub fn pool_limit_error(
     ))
 }
 
+/// Allocation rejected because jemalloc resident bytes exceed the critical
+/// threshold of the pool. Distinct from `pool_limit_error` so callers can
+/// distinguish RSS-pressure rejections from pool-fill rejections.
+///
+/// Java conversion: `CircuitBreakingException` → HTTP 429
+/// Key phrase: "Native RSS pressure"
+pub fn rss_critical_error(
+    bytes_requested: usize,
+    consumer_name: &str,
+    consumer_reserved: usize,
+    pool_limit: usize,
+    pool_used: usize,
+    rss_bytes: i64,
+) -> DataFusionError {
+    DataFusionError::ResourcesExhausted(format!(
+        "Native RSS pressure: failed to allocate {} bytes for {} ({} already reserved). \
+         Native resident bytes {} exceed critical threshold of pool ({} used / {} limit). \
+         Cause: native memory pressure, not pool fill.",
+        bytes_requested, consumer_name, consumer_reserved,
+        rss_bytes, pool_used, pool_limit,
+    ))
+}
+
 /// Admission rejection: not enough pool capacity to start a new query.
 ///
 /// Produced when `acquire_budget` cannot reserve the phantom even at minimum
