@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
@@ -24,6 +25,8 @@ import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 /**
@@ -138,6 +141,7 @@ final class DateTimeAdapters {
             List<RexNode> operands = original.getOperands();
             if (operands.size() == 1 && SqlTypeName.CHAR_TYPES.contains(operands.get(0).getType().getSqlTypeName())) {
                 RexNode arg = operands.get(0);
+                DatetimeLiteralValidator.validate(arg, DatetimeLiteralValidator.Kind.TIME);
                 RexNode pattern = rexBuilder.makeLiteral(DATE_PREFIX_PATTERN);
                 RexNode replacement = rexBuilder.makeLiteral("");
                 RexNode stripped = rexBuilder.makeCall(
@@ -151,15 +155,23 @@ final class DateTimeAdapters {
         }
     }
 
-    static final class DateAdapter extends AbstractNameMappingAdapter {
-        DateAdapter() {
-            super(LOCAL_DATE_OP, List.of(), List.of());
+    static final class DateAdapter implements ScalarFunctionAdapter {
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            if (original.getOperands().size() == 1) {
+                RexNode operand = original.getOperands().get(0);
+                if (SqlTypeName.CHAR_TYPES.contains(operand.getType().getSqlTypeName())) {
+                    DatetimeLiteralValidator.validate(operand, DatetimeLiteralValidator.Kind.DATE);
+                }
+            }
+            return cluster.getRexBuilder().makeCall(original.getType(), LOCAL_DATE_OP, original.getOperands());
         }
     }
 
     /**
      * Single-arg {@code DATETIME(string)} strips the trailing offset (+HH:MM / -HHMM / Z) so the
-     * result is wall-clock, not UTC-converted. Two-arg {@code DATETIME(string, tz)} and
+     * result is wall-clock, not UTC-converted. Invalid string literals fold to NULL TIMESTAMP
+     * (legacy SQL DATETIME-of-invalid semantics). Two-arg {@code DATETIME(string, tz)} and
      * non-string operands route through {@code to_timestamp} unchanged.
      *
      * <p>This belongs in the PPL frontend ({@code PPLBuiltinOperators.DATETIME}) so every
@@ -175,6 +187,10 @@ final class DateTimeAdapters {
             List<RexNode> operands = original.getOperands();
             if (operands.size() == 1 && SqlTypeName.CHAR_TYPES.contains(operands.get(0).getType().getSqlTypeName())) {
                 RexNode arg = operands.get(0);
+                RexNode foldedNull = tryFoldInvalidLiteralToNull(arg, original, cluster);
+                if (foldedNull != null) {
+                    return foldedNull;
+                }
                 RexNode pattern = rexBuilder.makeLiteral(OFFSET_SUFFIX_PATTERN);
                 RexNode replacement = rexBuilder.makeLiteral("");
                 RexNode stripped = rexBuilder.makeCall(
@@ -185,6 +201,24 @@ final class DateTimeAdapters {
                 return rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, List.of(stripped));
             }
             return rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, operands);
+        }
+
+        /** Folds any non-full-datetime string literal to NULL TIMESTAMP after stripping the offset suffix. */
+        private static RexNode tryFoldInvalidLiteralToNull(RexNode operand, RexCall original, RelOptCluster cluster) {
+            if (!(operand instanceof RexLiteral literal)) {
+                return null;
+            }
+            String value = literal.getValueAs(String.class);
+            if (value == null) {
+                return null;
+            }
+            String stripped = value.replaceAll(OFFSET_SUFFIX_PATTERN, "");
+            try {
+                LocalDateTime.parse(stripped.replace(' ', 'T'));
+                return null;
+            } catch (DateTimeParseException ignored) {
+                return cluster.getRexBuilder().makeNullLiteral(original.getType());
+            }
         }
     }
 }

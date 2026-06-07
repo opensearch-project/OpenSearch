@@ -317,7 +317,9 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
                 return toTimestampString(ldt);
             } catch (DateTimeParseException ignored) {}
         }
-        throw new IllegalArgumentException(input);
+        throw new IllegalArgumentException(
+            String.format(java.util.Locale.ROOT, "timestamp:%s in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", input)
+        );
     }
 
     private static TimestampString toTimestampString(LocalDateTime ldt) {

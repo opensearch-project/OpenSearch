@@ -99,13 +99,13 @@ public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> TimestampFunctionAdapter.parseTimestamp("2025-13-02")
         );
-        assertEquals("2025-13-02", e.getMessage());
+        assertEquals("timestamp:2025-13-02 in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", e.getMessage());
 
         IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
             () -> TimestampFunctionAdapter.parseTimestamp("2025-12-01 15:02:61")
         );
-        assertEquals("2025-12-01 15:02:61", e2.getMessage());
+        assertEquals("timestamp:2025-12-01 15:02:61 in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", e2.getMessage());
     }
 
     // ── i64-ns range validation ───────────────────────────────────────────
@@ -175,11 +175,11 @@ public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
     public void testAdaptShapeAUnparseableInputThrowsIllegalArgument() {
         RexCall call = buildOneArgCall(makeVarcharLiteral("2025-13-02"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> adapter.adapt(call, List.of(), cluster));
-        assertEquals("2025-13-02", e.getMessage());
+        assertEquals("timestamp:2025-13-02 in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", e.getMessage());
 
         RexCall call2 = buildOneArgCall(makeVarcharLiteral("2025-12-01 15:02:61"));
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> adapter.adapt(call2, List.of(), cluster));
-        assertEquals("2025-12-01 15:02:61", e2.getMessage());
+        assertEquals("timestamp:2025-12-01 15:02:61 in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", e2.getMessage());
     }
 
     // ── adapt(): Shape B — TIMESTAMP(DATE('<lit>')) ───────────────────────
@@ -265,10 +265,10 @@ public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
 
     public void testAdaptShapeETwoArgUnparseableTimestampThrowsIllegalArgument() {
         // Bad first arg propagates out of parseTimestamp as IllegalArgumentException
-        // with the raw input — same surface as the 1-arg unparseable path.
+        // with the typed format-hint message — same surface as the 1-arg unparseable path.
         RexCall call = buildTwoArgCall("not-a-timestamp", "01:30:00");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> adapter.adapt(call, List.of(), cluster));
-        assertEquals("not-a-timestamp", e.getMessage());
+        assertEquals("timestamp:not-a-timestamp in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", e.getMessage());
     }
 
     // ── adapt(): Shape F — column ref → DATETIME_ADAPTER ──────────────────

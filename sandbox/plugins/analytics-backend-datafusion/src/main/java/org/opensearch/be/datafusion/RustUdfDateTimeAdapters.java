@@ -146,18 +146,99 @@ final class RustUdfDateTimeAdapters {
         DateFormatAdapter() {
             super(LOCAL_DATE_FORMAT_OP, List.of(), List.of());
         }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            validateFirstArgIfStringLiteral(original, DatetimeLiteralValidator.Kind.TIMESTAMP);
+            return super.adapt(original, fieldStorage, cluster);
+        }
     }
 
     static final class TimeFormatAdapter extends AbstractNameMappingAdapter {
         TimeFormatAdapter() {
             super(LOCAL_TIME_FORMAT_OP, List.of(), List.of());
         }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            validateFirstArgIfStringLiteral(original, DatetimeLiteralValidator.Kind.TIMESTAMP);
+            return super.adapt(original, fieldStorage, cluster);
+        }
     }
 
+    /** PPL str_to_date returns NULL on parse failure; invalid month/day values still need to error rather than silent-null. */
     static final class StrToDateAdapter extends AbstractNameMappingAdapter {
         StrToDateAdapter() {
             super(LOCAL_STR_TO_DATE_OP, List.of(), List.of());
         }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            rejectOutOfRangeMonthOrDay(original);
+            return super.adapt(original, fieldStorage, cluster);
+        }
+    }
+
+    private static void validateFirstArgIfStringLiteral(RexCall original, DatetimeLiteralValidator.Kind kind) {
+        if (original.getOperands().isEmpty()) {
+            return;
+        }
+        RexNode firstArg = original.getOperands().get(0);
+        if (!SqlTypeFamily.CHARACTER.contains(firstArg.getType())) {
+            return;
+        }
+        DatetimeLiteralValidator.validate(firstArg, kind);
+    }
+
+    private static final java.util.regex.Pattern FORMAT_TOKEN = java.util.regex.Pattern.compile("%[a-zA-Z]");
+    private static final java.util.regex.Pattern VALUE_NUMBER = java.util.regex.Pattern.compile("\\d+");
+
+    /** Mirrors legacy DateTimeFormatterUtil: reject %m/%c values outside 1..12 and %d/%e values outside 1..31. */
+    private static void rejectOutOfRangeMonthOrDay(RexCall original) {
+        if (original.getOperands().size() != 2) {
+            return;
+        }
+        if (!(original.getOperands().get(0) instanceof RexLiteral valueLit)
+            || !(original.getOperands().get(1) instanceof RexLiteral fmtLit)) {
+            return;
+        }
+        String value = valueLit.getValueAs(String.class);
+        String format = fmtLit.getValueAs(String.class);
+        if (value == null || format == null) {
+            return;
+        }
+        java.util.regex.Matcher fmtMatcher = FORMAT_TOKEN.matcher(format);
+        java.util.regex.Matcher valMatcher = VALUE_NUMBER.matcher(value);
+        while (fmtMatcher.find() && valMatcher.find()) {
+            String token = fmtMatcher.group();
+            int n;
+            try {
+                n = Integer.parseInt(valMatcher.group());
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+            if (("%m".equals(token) || "%c".equals(token)) && (n < 1 || n > 12)) {
+                throw outOfRange("month", n, 1, 12, value, format);
+            }
+            if (("%d".equals(token) || "%e".equals(token)) && (n < 1 || n > 31)) {
+                throw outOfRange("day", n, 1, 31, value, format);
+            }
+        }
+    }
+
+    private static IllegalArgumentException outOfRange(String component, int n, int lo, int hi, String value, String format) {
+        return new IllegalArgumentException(
+            String.format(
+                Locale.ROOT,
+                "%s value %d is out of range (%d..%d) in str_to_date('%s', '%s')",
+                component,
+                n,
+                lo,
+                hi,
+                value,
+                format
+            )
+        );
     }
 
     /**

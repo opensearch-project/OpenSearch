@@ -97,4 +97,17 @@ public class DatetimeAdapterTests extends OpenSearchTestCase {
         assertSame(ts, call.getOperands().get(0));
         assertSame(tz, call.getOperands().get(1));
     }
+
+    /** 1-arg DATETIME('2021-13-03 10:00:00') folds to typed NULL TIMESTAMP via tryFoldInvalidLiteralToNull. */
+    public void testSingleArgInvalidLiteralFoldsToNullTimestamp() {
+        RexNode arg = rexBuilder.makeLiteral("2021-13-03 10:00:00");
+        RexCall original = (RexCall) rexBuilder.makeCall(DATETIME_OP, List.of(arg));
+
+        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof org.apache.calcite.rex.RexLiteral);
+        org.apache.calcite.rex.RexLiteral lit = (org.apache.calcite.rex.RexLiteral) adapted;
+        assertTrue("invalid month=13 must fold to NULL", lit.isNull());
+        assertEquals(SqlTypeName.TIMESTAMP, lit.getType().getSqlTypeName());
+    }
 }

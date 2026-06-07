@@ -28,6 +28,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Date-part extractor adapters — rewrite {@code FN(ts)} to {@code date_part('<unit>', ts)}.
@@ -64,7 +65,7 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         List<RexNode> coerced = new ArrayList<>(original.getOperands().size());
         for (RexNode operand : original.getOperands()) {
             if (isCharacterOperand(operand)) {
-                validateDatetimeLiteral(operand);
+                validateDatetimeLiteralForUnit(operand, unit);
                 coerced.add(castToTimestamp(operand, cluster));
             } else {
                 coerced.add(operand);
@@ -105,23 +106,25 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         return castToTimestamp(operand, cluster);
     }
 
-    /**
-     * Eagerly parses string {@link RexLiteral} operands so an invalid literal surfaces as a
-     * coordinator-side {@link IllegalArgumentException} during planning, before the value reaches
-     * DataFusion's CAST kernel. The native error message ({@code "Arrow error: Parser error: ..."})
-     * is dropped by Flight RPC serialization on the worker→coordinator hop, so without this check
-     * users see {@code "Failed to start streaming fragment on ..."} instead of the legacy
-     * {@code "timestamp:<v> in unsupported format"} wording.
-     *
-     * <p>Non-literal operands (column refs, expressions) and NULL literals pass through — column
-     * value validation is a separate concern (Arrow CAST per-row error handling, tracked
-     * separately).
-     *
-     * <p>Accept-set mirrors legacy {@code DateTimeParser.parse}: try {@link LocalDateTime} (date+time
-     * with optional nanos), {@link LocalDate} (bare date), {@link LocalTime} (bare time), throw on
-     * all-failed. Same try/catch-fall-through shape used by
-     * {@link TimestampFunctionAdapter#parseTimestamp}.
-     */
+    /** Time-only units reject bare-date literals (HOUR('2020-08-26') must throw, not return 0). */
+    private static final Set<String> TIME_ONLY_UNITS = Set.of("hour", "minute", "second", "microsecond");
+
+    /** Date-part units reject bare-time literals (DAY('12:00:00') must throw, not silent-fail). */
+    private static final Set<String> DATE_ONLY_UNITS = Set.of("year", "quarter", "month", "day", "week", "doy", "dow");
+
+    static void validateDatetimeLiteralForUnit(RexNode operand, String unit) {
+        if (TIME_ONLY_UNITS.contains(unit)) {
+            DatetimeLiteralValidator.validate(operand, DatetimeLiteralValidator.Kind.TIME);
+            return;
+        }
+        if (DATE_ONLY_UNITS.contains(unit)) {
+            DatetimeLiteralValidator.validate(operand, DatetimeLiteralValidator.Kind.DATE);
+            return;
+        }
+        validateDatetimeLiteral(operand);
+    }
+
+    /** Plan-time validation for string-literal operands; accepts datetime / date / time, rejects garbage. */
     static void validateDatetimeLiteral(RexNode operand) {
         if (!(operand instanceof RexLiteral literal)) {
             return;
@@ -144,9 +147,7 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
             LocalTime.parse(value);
             return;
         } catch (DateTimeParseException ignored) {
-            // SQL plugin's ErrorMessageFactory.unwrapCause walks to the deepest cause for the response
-            // type/details, so attaching DateTimeParseException as cause would surface its stock JDK
-            // message instead of this one. Mirrors legacy DateTimeParser.parse, which throws causeless.
+            // causeless — see DatetimeLiteralValidator#fail.
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT, "timestamp:%s in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", value)
             );
