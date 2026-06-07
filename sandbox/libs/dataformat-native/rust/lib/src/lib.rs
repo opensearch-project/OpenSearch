@@ -35,8 +35,10 @@
 /// zero CPU overhead and negligible memory overhead. Profiling is activated on-demand
 /// via cluster settings at runtime. Dev/test builds (cargo build without --release)
 /// do not include profiling support.
+// Decay set to 1s so jemalloc resident reflects current usage within ~1s of free().
+// Runtime-tunable via cluster settings `native.jemalloc.{dirty,muzzy}_decay_ms`.
 #[export_name = "malloc_conf"]
-pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:30000,muzzy_decay_ms:30000,lg_tcache_max:16\0";
+pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:1000,muzzy_decay_ms:1000,lg_tcache_max:16\0";
 
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;

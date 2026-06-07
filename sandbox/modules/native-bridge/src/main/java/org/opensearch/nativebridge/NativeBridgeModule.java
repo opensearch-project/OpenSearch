@@ -49,7 +49,7 @@ public class NativeBridgeModule extends Plugin {
     /** jemalloc dirty page decay time (ms). Dynamically tunable — applied to all arenas at runtime. */
     public static final Setting<Long> JEMALLOC_DIRTY_DECAY_MS = Setting.longSetting(
         "native.jemalloc.dirty_decay_ms",
-        30_000L,
+        1_000L,
         -1L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -58,7 +58,7 @@ public class NativeBridgeModule extends Plugin {
     /** jemalloc muzzy page decay time (ms). Dynamically tunable — applied to all arenas at runtime. */
     public static final Setting<Long> JEMALLOC_MUZZY_DECAY_MS = Setting.longSetting(
         "native.jemalloc.muzzy_decay_ms",
-        30_000L,
+        1_000L,
         -1L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
