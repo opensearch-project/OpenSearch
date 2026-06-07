@@ -54,6 +54,21 @@ public class LikeDelegationIT extends AnalyticsRestTestCase {
         }
     }
 
+    /**
+     * LIKE on a {@code text} field that has a {@code .keyword} subfield: the wildcard is delegated
+     * against {@code msg.keyword} (raw value), so it matches the whole stored string exactly as
+     * DataFusion's native LIKE would. msg ∈ "Service alpha started"×7, "Service beta stopped"×2,
+     * "Gateway timeout error"×1.
+     */
+    public void testLikeOnTextFieldWithKeywordSubfield() throws Exception {
+        createIndex();
+        indexDocs();
+
+        assertMsgLikeCount("Service%", 9);   // both "Service ..." families: 7 + 2
+        assertMsgLikeCount("%timeout%", 1);  // only "Gateway timeout error"
+        assertMsgLikeCount("%alpha%", 7);    // only the alpha family
+    }
+
     /** The block-list only accepts the {@code lucene} namespace (the sole FILTER-delegation acceptor). */
     public void testBlockListRejectsNonLuceneBackend() throws Exception {
         Request req = new Request("PUT", "/_cluster/settings");
@@ -67,6 +82,11 @@ public class LikeDelegationIT extends AnalyticsRestTestCase {
     private void assertLikeCount(String pattern, long expected) throws Exception {
         String ppl = "source = " + INDEX_NAME + " | where str0 LIKE '" + pattern + "' | stats count() as c";
         assertCount(ppl, expected, "str0 LIKE '" + pattern + "'");
+    }
+
+    private void assertMsgLikeCount(String pattern, long expected) throws Exception {
+        String ppl = "source = " + INDEX_NAME + " | where msg LIKE '" + pattern + "' | stats count() as c";
+        assertCount(ppl, expected, "msg LIKE '" + pattern + "'");
     }
 
     private void assertPplLikeCount(String pattern, long expected) throws Exception {
@@ -106,7 +126,8 @@ public class LikeDelegationIT extends AnalyticsRestTestCase {
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
-            + "    \"str0\": { \"type\": \"keyword\" }"
+            + "    \"str0\": { \"type\": \"keyword\" },"
+            + "    \"msg\": { \"type\": \"text\", \"fields\": { \"keyword\": { \"type\": \"keyword\" } } }"
             + "  }"
             + "}"
             + "}";
@@ -124,10 +145,11 @@ public class LikeDelegationIT extends AnalyticsRestTestCase {
 
     private void indexDocs() throws Exception {
         StringBuilder bulk = new StringBuilder();
-        appendDocs(bulk, "apple", 4);
-        appendDocs(bulk, "applesauce", 3);
-        appendDocs(bulk, "banana", 2);
-        appendDocs(bulk, "cherry pie", 1);
+        // str0 (keyword) value paired with a msg (text+keyword-subfield) value per doc.
+        appendDocs(bulk, "apple", "Service alpha started", 4);
+        appendDocs(bulk, "applesauce", "Service alpha started", 3);
+        appendDocs(bulk, "banana", "Service beta stopped", 2);
+        appendDocs(bulk, "cherry pie", "Gateway timeout error", 1);
 
         Request bulkReq = new Request("POST", "/" + INDEX_NAME + "/_bulk");
         bulkReq.addParameter("refresh", "true");
@@ -135,10 +157,10 @@ public class LikeDelegationIT extends AnalyticsRestTestCase {
         assertOkAndParse(client().performRequest(bulkReq), "Bulk index");
     }
 
-    private static void appendDocs(StringBuilder bulk, String value, int count) {
+    private static void appendDocs(StringBuilder bulk, String str0, String msg, int count) {
         for (int i = 0; i < count; i++) {
             bulk.append("{\"index\": {}}\n");
-            bulk.append("{\"str0\": \"").append(value).append("\"}\n");
+            bulk.append("{\"str0\": \"").append(str0).append("\", \"msg\": \"").append(msg).append("\"}\n");
         }
     }
 }

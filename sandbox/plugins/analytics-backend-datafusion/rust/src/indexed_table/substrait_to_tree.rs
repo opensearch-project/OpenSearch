@@ -90,11 +90,17 @@ pub struct ExtractionResult {
 
 /// Extract the filter expression from a DataFusion logical plan.
 ///
-/// Walks down through Projection/SubqueryAlias/etc. nodes to find the first
-/// `Filter` node. Returns `None` if there's no filter.
+/// Returns the SCAN-LEVEL filter predicate, or `None`. A `Filter` qualifies only when its input
+/// reaches a `TableScan` through schema-preserving nodes; a `Filter` above an `Aggregate` is a
+/// HAVING predicate over aggregate outputs (e.g. `count(Int64(1)) > 0`) and must NOT be returned —
+/// lowering it against the raw scan schema fails with "No field named ...". A HAVING filter is
+/// skipped while still descending past the aggregate to find the real WHERE filter below it.
 pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
     match plan {
-        LogicalPlan::Filter(filter) => Some(filter.predicate.clone()),
+        LogicalPlan::Filter(filter) if reaches_scan_without_schema_change(filter.input.as_ref()) => {
+            Some(filter.predicate.clone())
+        }
+        // Anything else (HAVING Filter, Aggregate, Projection, ...): descend into inputs.
         _ => {
             for child in plan.inputs() {
                 if let Some(expr) = extract_filter_expr(child) {
@@ -103,6 +109,21 @@ pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
             }
             None
         }
+    }
+}
+
+/// True if `plan` is a `TableScan` reachable through only schema-preserving pass-through nodes
+/// (Filter / Projection / SubqueryAlias / Sort / Limit) — i.e. no Aggregate/Window/Join/Union in
+/// between. Used to decide whether a `Filter`'s predicate is expressed over the scan schema.
+fn reaches_scan_without_schema_change(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::TableScan(_) => true,
+        LogicalPlan::Filter(_)
+        | LogicalPlan::Projection(_)
+        | LogicalPlan::SubqueryAlias(_)
+        | LogicalPlan::Sort(_)
+        | LogicalPlan::Limit(_) => plan.inputs().iter().any(|c| reaches_scan_without_schema_change(c)),
+        _ => false,
     }
 }
 
@@ -755,5 +776,44 @@ mod tests {
             ]),
         ]);
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
+    }
+
+    // ── extract_filter_expr: must return the SCAN-level filter, not a HAVING filter ──
+
+    #[test]
+    fn extract_filter_returns_scan_level_predicate_below_aggregate() {
+        use datafusion::logical_expr::LogicalPlanBuilder;
+        use datafusion::datasource::empty::EmptyTable;
+
+        // Plan: Filter(count(*) > 0)  ← HAVING, over aggregate output
+        //         Aggregate(group=[qty], aggs=[count(*)])
+        //           Filter(price > 100)  ← WHERE, scan-level
+        //             TableScan
+        let provider = Arc::new(EmptyTable::new(test_schema()));
+        let plan = LogicalPlanBuilder::scan("t", provider_as_source(provider), None)
+            .unwrap()
+            .filter(col("price").gt(lit(100i32)))
+            .unwrap()
+            .aggregate(vec![col("qty")], vec![datafusion::functions_aggregate::expr_fn::count(lit(1i64))])
+            .unwrap()
+            .filter(datafusion::functions_aggregate::expr_fn::count(lit(1i64)).gt(lit(0i64)))
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let extracted = extract_filter_expr(&plan).expect("a scan-level filter must be found");
+        // Must be the WHERE predicate (references the scan column `price`), NOT the HAVING
+        // predicate (references the aggregate output count(...)). Asserting the rendered expr
+        // mentions `price` and not `count` pins that we stopped at the Aggregate boundary.
+        let rendered = format!("{extracted}");
+        assert!(rendered.contains("price"), "expected scan-level WHERE on price, got: {rendered}");
+        assert!(!rendered.contains("count"), "must not return the HAVING count() predicate, got: {rendered}");
+    }
+
+    /// EmptyTable as a TableSource for LogicalPlanBuilder::scan.
+    fn provider_as_source(
+        provider: Arc<dyn datafusion::datasource::TableProvider>,
+    ) -> Arc<dyn datafusion::logical_expr::TableSource> {
+        datafusion::datasource::provider_as_source(provider)
     }
 }
