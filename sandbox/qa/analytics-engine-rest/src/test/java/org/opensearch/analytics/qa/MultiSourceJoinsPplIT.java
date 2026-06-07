@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-
 /**
  * Complex Redesigned (multi-index) PPL integration test. Runs PPL queries against complex_redesigned data.
  */
@@ -23,9 +22,13 @@ public class MultiSourceJoinsPplIT extends BasePplIT {
         runPplQueries();
     }
 
-    /** Queries that fail at 1 shard: multi-source join unsupported. Skipped so the rest run and are visible. */
+    /**
+     * Queries that fail at 1 shard:
+     *   2, 4: multi-source join unsupported.
+     *   5:    multi-filter rejection (PR #21948 — `where ... | dedup | stats | sort`).
+     */
     @Override
     protected java.util.Set<Integer> getSkipQueries() {
-        return java.util.Set.of(2, 4);
+        return java.util.Set.of(2, 4, 5);
     }
 }

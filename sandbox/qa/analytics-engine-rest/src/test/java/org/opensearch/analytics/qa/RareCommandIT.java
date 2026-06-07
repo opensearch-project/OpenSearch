@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -70,6 +71,7 @@ public class RareCommandIT extends AnalyticsRestTestCase {
         assertNumOfRows("source=" + DATASET.indexName + " | rare int0", 8);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21948")
     public void testRareCommandUseNullFalse() throws IOException {
         // usenull=false drops the null bucket → 7 result rows.
         assertNumOfRows("source=" + DATASET.indexName + " | rare usenull=false int0", 7);

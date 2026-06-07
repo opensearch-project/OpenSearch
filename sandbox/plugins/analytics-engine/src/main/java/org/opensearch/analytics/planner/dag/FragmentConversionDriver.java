@@ -118,7 +118,11 @@ public class FragmentConversionDriver {
             // Derive filter tree shape BEFORE stripping (annotations must be intact). Mirrors
             // fuseDualViable so the deriver's classification matches the post-combiner tree
             // the data node actually sees.
-            OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
+            List<OpenSearchFilter> filters = RelNodeUtils.findAllNodes(plan.resolvedFragment(), OpenSearchFilter.class);
+            if (filters.size() > 1) {
+                throw new UnsupportedOperationException("Multiple filters in a single fragment are not supported");
+            }
+            OpenSearchFilter filter = filters.isEmpty() ? null : filters.getFirst();
             FilterTreeShape treeShape = filter != null
                 ? FilterTreeShapeDeriver.derive(filter, plan.backendId(), fuseDualViable)
                 : FilterTreeShape.NO_DELEGATION;

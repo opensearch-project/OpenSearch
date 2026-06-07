@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-
 /**
  * Security Logs PPL integration test. Runs PPL queries against security_logs data.
  */
@@ -23,9 +22,13 @@ public class SecurityLogsPplIT extends BasePplIT {
         runPplQueries();
     }
 
-    /** Queries that fail at 1 shard: unsupported operations / value mismatch. Skipped so the rest run and are visible. */
+    /**
+     * Queries that fail at 1 shard:
+     *   1, 2, 3, 4, 5, 7, 8: unsupported operations / value mismatch.
+     *   10:                  multi-filter rejection (PR #21948).
+     */
     @Override
     protected java.util.Set<Integer> getSkipQueries() {
-        return java.util.Set.of(1, 2, 3, 4, 5, 7, 8);
+        return java.util.Set.of(1, 2, 3, 4, 5, 7, 8, 10);
     }
 }

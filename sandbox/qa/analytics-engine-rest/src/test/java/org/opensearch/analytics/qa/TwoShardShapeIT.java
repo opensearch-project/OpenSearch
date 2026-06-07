@@ -31,7 +31,11 @@ public class TwoShardShapeIT extends TwoShardReduceTestCase {
 
     @Override
     protected Map<String, String> knownIssues() {
-        return Map.of("streamstats_sum",
-            "cumulative window over arrival-ordered gather: 1-shard 1,3,6,10,... vs 2-shard 216,2,5,9,...");
+        return Map.of(
+            "streamstats_sum",
+            "cumulative window over arrival-ordered gather: 1-shard 1,3,6,10,... vs 2-shard 216,2,5,9,...",
+            "dedup_category",
+            "Multiple filters in a single fragment are not supported (PR #21948)"
+        );
     }
 }

@@ -33,6 +33,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -160,6 +161,22 @@ public class RelNodeUtils {
             return findNode(node.getInputs().getFirst(), type);
         }
         return null;
+    }
+
+    /**
+     * Finds all nodes of the given type along the fragment's single-input chain (root → leaf),
+     * preserving top-down order. Mirrors {@link #findNode} but does not stop at the first hit.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> List<T> findAllNodes(RelNode node, Class<T> type) {
+        List<T> matches = new ArrayList<>();
+        for (RelNode current = node; current != null;) {
+            if (type.isInstance(current)) {
+                matches.add((T) current);
+            }
+            current = current.getInputs().isEmpty() ? null : current.getInputs().getFirst();
+        }
+        return matches;
     }
 
     /**

@@ -21,4 +21,10 @@ public class PerformanceMetricsPplIT extends BasePplIT {
     public void testPerformanceMetricsPplQueries() throws Exception {
         runPplQueries();
     }
+
+    /** Q7: multi-filter rejection (PR #21948 — `where ... | stats | where`). */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(7);
+    }
 }

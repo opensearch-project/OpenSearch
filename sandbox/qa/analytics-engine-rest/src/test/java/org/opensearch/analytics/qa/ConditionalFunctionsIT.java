@@ -322,7 +322,7 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
      * just above the threshold survives (1 row), a key just below is filtered
      * out (0 rows).
      */
-    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: \"Failed to start streaming fragment on [calcs][0]\" - head|where|where residual filter is mis-routed through the indexed executor (ffm.rs routes on the always-present __row_id__ column). Needs the ffm routing + countFilters<=1 fix (engine/rust fix, separate PR).")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21964")
     public void testEarliestAbsoluteLiteralSelectsSpecificRows() throws IOException {
         assertFirstRowLong(
             oneRow("key01") + "| where earliest('2004-07-26 00:00:00', `datetime0`) | stats count() as cnt",
