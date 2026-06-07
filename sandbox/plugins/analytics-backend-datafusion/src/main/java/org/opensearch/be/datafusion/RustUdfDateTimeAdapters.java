@@ -151,17 +151,107 @@ final class RustUdfDateTimeAdapters {
         DateFormatAdapter() {
             super(LOCAL_DATE_FORMAT_OP, List.of(), List.of());
         }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            // invalid first-arg literal → typed format-hint exception at plan time
+            validateFirstArgIfStringLiteral(original, DatetimeLiteralValidator.Kind.TIMESTAMP);
+            return super.adapt(original, fieldStorage, cluster);
+        }
     }
 
     static final class TimeFormatAdapter extends AbstractNameMappingAdapter {
         TimeFormatAdapter() {
             super(LOCAL_TIME_FORMAT_OP, List.of(), List.of());
         }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            // invalid first-arg literal → typed format-hint exception at plan time
+            validateFirstArgIfStringLiteral(original, DatetimeLiteralValidator.Kind.TIMESTAMP);
+            return super.adapt(original, fieldStorage, cluster);
+        }
     }
 
     static final class StrToDateAdapter extends AbstractNameMappingAdapter {
         StrToDateAdapter() {
             super(LOCAL_STR_TO_DATE_OP, List.of(), List.of());
+        }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            // PPL str_to_date(value, fmt) returns NULL on parse failure; invalid month/day
+            // values (e.g. month=13) still need to surface as an error rather than silent-null.
+            // Detect month-out-of-range / day-out-of-range patterns at plan time and reject.
+            rejectOutOfRangeMonthOrDay(original);
+            return super.adapt(original, fieldStorage, cluster);
+        }
+    }
+
+    /** Validates the first operand against {@code kind} when it's a non-null string literal. */
+    private static void validateFirstArgIfStringLiteral(RexCall original, DatetimeLiteralValidator.Kind kind) {
+        if (original.getOperands().isEmpty()) {
+            return;
+        }
+        RexNode firstArg = original.getOperands().get(0);
+        if (!SqlTypeFamily.CHARACTER.contains(firstArg.getType())) {
+            return;
+        }
+        DatetimeLiteralValidator.validate(firstArg, kind);
+    }
+
+    /**
+     * str_to_date plan-time guard: when both args are string literals and the format extracts
+     * month / day positions, sanity-check those numeric components against MySQL's range.
+     * Mirrors legacy {@code DateTimeFormatterUtil} behavior of rejecting invalid month/day values.
+     */
+    private static void rejectOutOfRangeMonthOrDay(RexCall original) {
+        if (original.getOperands().size() != 2) {
+            return;
+        }
+        if (!(original.getOperands().get(0) instanceof RexLiteral valueLit)
+            || !(original.getOperands().get(1) instanceof RexLiteral fmtLit)) {
+            return;
+        }
+        String value = valueLit.getValueAs(String.class);
+        String format = fmtLit.getValueAs(String.class);
+        if (value == null || format == null) {
+            return;
+        }
+        java.util.regex.Matcher fmtMatcher = java.util.regex.Pattern.compile("%[a-zA-Z]").matcher(format);
+        java.util.regex.Matcher valMatcher = java.util.regex.Pattern.compile("\\d+").matcher(value);
+        while (fmtMatcher.find() && valMatcher.find()) {
+            String token = fmtMatcher.group();
+            String numStr = valMatcher.group();
+            int n;
+            try {
+                n = Integer.parseInt(numStr);
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+            // %m/%c — month 1..12; %d/%e — day 1..31 (actual day-of-month bounds checked downstream)
+            if (("%m".equals(token) || "%c".equals(token)) && (n < 1 || n > 12)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        java.util.Locale.ROOT,
+                        "month value %d is out of range (1..12) in str_to_date('%s', '%s')",
+                        n,
+                        value,
+                        format
+                    )
+                );
+            }
+            if (("%d".equals(token) || "%e".equals(token)) && (n < 1 || n > 31)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        java.util.Locale.ROOT,
+                        "day value %d is out of range (1..31) in str_to_date('%s', '%s')",
+                        n,
+                        value,
+                        format
+                    )
+                );
+            }
         }
     }
 

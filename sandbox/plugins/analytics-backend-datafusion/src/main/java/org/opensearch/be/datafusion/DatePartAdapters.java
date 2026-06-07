@@ -64,7 +64,9 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         List<RexNode> coerced = new ArrayList<>(original.getOperands().size());
         for (RexNode operand : original.getOperands()) {
             if (isCharacterOperand(operand)) {
-                validateDatetimeLiteral(operand);
+                // unit-aware validation: pure time-parts (HOUR/MINUTE/SECOND/MICROSECOND) reject
+                // bare-date literals so HOUR('2020-08-26') throws with a time format hint.
+                validateDatetimeLiteralForUnit(operand, unit);
                 coerced.add(castToTimestamp(operand, cluster));
             } else {
                 coerced.add(operand);
@@ -103,6 +105,67 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         }
         validateDatetimeLiteral(operand);
         return castToTimestamp(operand, cluster);
+    }
+
+    /** Pure time-parts that reject bare-date literals (HOUR('2020-08-26') must throw, not 0). */
+    private static final java.util.Set<String> TIME_ONLY_UNITS = java.util.Set.of("hour", "minute", "second", "microsecond");
+
+    /** Date-part units that reject bare-time literals (DAY('12:00:00') must throw, not silent-fail). */
+    private static final java.util.Set<String> DATE_PART_UNITS = java.util.Set.of("year", "quarter", "month", "day", "week", "doy", "dow");
+
+    /** Unit-aware validation: pick TIME / DATE format-hint based on unit kind. */
+    static void validateDatetimeLiteralForUnit(RexNode operand, String unit) {
+        if (TIME_ONLY_UNITS.contains(unit)) {
+            validateTimeUnitOperand(operand);
+            return;
+        }
+        if (DATE_PART_UNITS.contains(unit)) {
+            validateDateUnitOperand(operand);
+            return;
+        }
+        validateDatetimeLiteral(operand);
+    }
+
+    /** Time-part units (HOUR, MINUTE, ...): accept bare time / datetime, reject bare date. */
+    private static void validateTimeUnitOperand(RexNode operand) {
+        if (!(operand instanceof RexLiteral literal)) {
+            return;
+        }
+        String value = literal.getValueAs(String.class);
+        if (value == null) {
+            return;
+        }
+        try {
+            LocalTime.parse(value);
+            return;
+        } catch (DateTimeParseException ignored) {}
+        try {
+            LocalDateTime.parse(value.replace(' ', 'T'));
+            return;
+        } catch (DateTimeParseException ignored) {}
+        throw new IllegalArgumentException(
+            String.format(Locale.ROOT, "time:%s in unsupported format, please use 'HH:mm:ss[.SSSSSSSSS]'", value)
+        );
+    }
+
+    /** Date-part units (YEAR, MONTH, DAY, ...): accept bare date / datetime, reject bare time. */
+    private static void validateDateUnitOperand(RexNode operand) {
+        if (!(operand instanceof RexLiteral literal)) {
+            return;
+        }
+        String value = literal.getValueAs(String.class);
+        if (value == null) {
+            return;
+        }
+        try {
+            LocalDate.parse(value);
+            return;
+        } catch (DateTimeParseException ignored) {}
+        try {
+            LocalDateTime.parse(value.replace(' ', 'T'));
+            return;
+        } catch (DateTimeParseException ignored) {}
+        throw new IllegalArgumentException(String.format(Locale.ROOT, "date:%s in unsupported format, please use 'yyyy-MM-dd'", value));
     }
 
     /**

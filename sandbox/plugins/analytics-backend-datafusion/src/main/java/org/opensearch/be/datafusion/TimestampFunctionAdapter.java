@@ -317,7 +317,10 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
                 return toTimestampString(ldt);
             } catch (DateTimeParseException ignored) {}
         }
-        throw new IllegalArgumentException(input);
+        // unsupported format → typed format-hint exception so users see legacy SQL-plugin wording
+        throw new IllegalArgumentException(
+            String.format(java.util.Locale.ROOT, "timestamp:%s in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", input)
+        );
     }
 
     private static TimestampString toTimestampString(LocalDateTime ldt) {
