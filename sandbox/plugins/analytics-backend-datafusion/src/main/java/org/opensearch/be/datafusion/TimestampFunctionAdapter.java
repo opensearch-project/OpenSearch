@@ -99,7 +99,39 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
         if (dateLifted != null) {
             return dateLifted;
         }
+        RexNode combined = tryCombineTimestampPlusTime(original, cluster);
+        if (combined != null) {
+            return wrapWithCallType(combined, original, cluster);
+        }
         return wrapWithCallType(DATETIME_ADAPTER.adapt(original, fieldStorage, cluster), original, cluster);
+    }
+
+    /** TIMESTAMP(date col, time col) -> from_unixtime(to_unixtime(date) + to_unixtime(time)). */
+    private static RexNode tryCombineTimestampPlusTime(RexCall original, RelOptCluster cluster) {
+        if (original.getOperands().size() != 2) {
+            return null;
+        }
+        RexNode op0 = stripOperatorAnnotation(original.getOperands().get(0));
+        RexNode op1 = stripOperatorAnnotation(original.getOperands().get(1));
+        if (!isTemporal(op0) || !isTemporal(op1)) {
+            return null;
+        }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RexNode unix0 = rexBuilder.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, op0);
+        RexNode unix1 = rexBuilder.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, op1);
+        RexNode sum = rexBuilder.makeCall(org.apache.calcite.sql.fun.SqlStdOperatorTable.PLUS, unix0, unix1);
+        org.apache.calcite.rel.type.RelDataType fp64 = rexBuilder.getTypeFactory()
+            .createTypeWithNullability(rexBuilder.getTypeFactory().createSqlType(SqlTypeName.DOUBLE), true);
+        RexNode sumFp = rexBuilder.makeCast(fp64, sum, true);
+        return rexBuilder.makeCall(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, sumFp);
+    }
+
+    private static boolean isTemporal(RexNode node) {
+        SqlTypeName tn = node.getType().getSqlTypeName();
+        return tn == SqlTypeName.TIMESTAMP
+            || tn == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE
+            || tn == SqlTypeName.DATE
+            || tn == SqlTypeName.TIME;
     }
 
     /**
