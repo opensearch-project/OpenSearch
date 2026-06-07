@@ -459,6 +459,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
+        preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -489,6 +490,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
+        preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }
