@@ -47,16 +47,64 @@ class MicrosecondAdapter implements ScalarFunctionAdapter {
         RelDataType varchar = factory.createSqlType(SqlTypeName.VARCHAR);
         // when the operand is a string/timestamp expression, force a TIMESTAMP(6) coercion so
         // DataFusion doesn't downcast to ms and clip the µs fraction before date_part runs.
-        // TIME/DATE operands are left alone — those overloads aren't in cluster E's scope.
+        // TIME operands are anchored to today UTC; bare-time strings get the same prefix.
         RexNode operand = original.getOperands().get(0);
         SqlTypeName operandType = operand.getType().getSqlTypeName();
-        if (operandType == SqlTypeName.VARCHAR || operandType == SqlTypeName.CHAR || operandType == SqlTypeName.TIMESTAMP) {
-            RelDataType tsMicros = factory.createSqlType(SqlTypeName.TIMESTAMP, 6);
+        RelDataType tsMicros = factory.createSqlType(SqlTypeName.TIMESTAMP, 6);
+        if (operandType == SqlTypeName.TIME) {
+            // TIME → 'today HH:MM:SS.SSSSSS' → TIMESTAMP(6) directly (no intermediate TIMESTAMP cast).
+            operand = todayPrefixedTimeAsTimestamp6(operand, rexBuilder, factory, tsMicros);
+        } else if (operandType == SqlTypeName.VARCHAR || operandType == SqlTypeName.CHAR) {
+            // Cast straight to TIMESTAMP(6) so the µs fraction survives. Bare-time strings would
+            // need today-anchoring; route those through the helper, otherwise direct cast.
+            operand = stringAsTimestamp6(operand, rexBuilder, factory, tsMicros);
+        } else if (operandType == SqlTypeName.TIMESTAMP) {
             operand = rexBuilder.makeCast(tsMicros, operand);
         }
         RexNode partLiteral = rexBuilder.makeLiteral("microsecond", varchar, true);
         RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, operand);
         RexNode mod = rexBuilder.makeCall(SqlStdOperatorTable.MOD, datePart, rexBuilder.makeExactLiteral(ONE_MILLION));
         return rexBuilder.makeCast(original.getType(), mod);
+    }
+
+    /** TIME → CONCAT('today ', CAST(time AS VARCHAR)) → TIMESTAMP(6). */
+    private static RexNode todayPrefixedTimeAsTimestamp6(
+        RexNode operand,
+        RexBuilder rexBuilder,
+        RelDataTypeFactory factory,
+        RelDataType tsMicros
+    ) {
+        RelDataType varchar = factory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType nullableVarchar = factory.createTypeWithNullability(varchar, operand.getType().isNullable());
+        RexNode timeAsVarchar = rexBuilder.makeCast(nullableVarchar, operand);
+        String prefix = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString() + " ";
+        RexNode prefixLit = rexBuilder.makeLiteral(prefix, varchar, false);
+        RexNode concat = rexBuilder.makeCall(nullableVarchar, SqlStdOperatorTable.CONCAT, List.of(prefixLit, timeAsVarchar));
+        return rexBuilder.makeCast(tsMicros, concat);
+    }
+
+    /** String → TIMESTAMP(6) preserving µs. Bare-time strings get today-anchored first. */
+    private static RexNode stringAsTimestamp6(RexNode operand, RexBuilder rexBuilder, RelDataTypeFactory factory, RelDataType tsMicros) {
+        if (isBareTimeStringLiteral(operand)) {
+            RelDataType varchar = factory.createSqlType(SqlTypeName.VARCHAR);
+            String prefix = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString() + " ";
+            RexNode prefixLit = rexBuilder.makeLiteral(prefix, varchar, false);
+            RexNode concat = rexBuilder.makeCall(varchar, SqlStdOperatorTable.CONCAT, List.of(prefixLit, operand));
+            return rexBuilder.makeCast(tsMicros, concat);
+        }
+        return rexBuilder.makeCast(tsMicros, operand);
+    }
+
+    /** True for a CHAR/VARCHAR {@link org.apache.calcite.rex.RexLiteral} that parses as bare time only. */
+    private static boolean isBareTimeStringLiteral(RexNode operand) {
+        if (!(operand instanceof org.apache.calcite.rex.RexLiteral literal)) return false;
+        String value = literal.getValueAs(String.class);
+        if (value == null) return false;
+        try {
+            java.time.LocalTime.parse(value);
+            return true;
+        } catch (java.time.format.DateTimeParseException ignored) {
+            return false;
+        }
     }
 }

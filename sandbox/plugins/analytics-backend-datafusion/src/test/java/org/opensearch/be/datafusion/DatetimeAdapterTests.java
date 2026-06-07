@@ -28,7 +28,11 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
-/** Covers DatetimeAdapter: VARCHAR operand gets offset-stripped, non-VARCHAR (TIMESTAMP) passes through, two-arg form passes through. */
+/**
+ * Covers DatetimeAdapter: 1-arg VARCHAR strips offset; 1-arg non-string passes through;
+ * 2-arg literal-literal folds to a typed TIMESTAMP literal (or NULL on bad input);
+ * 2-arg with column input rewrites to convert_tz wrapping.
+ */
 public class DatetimeAdapterTests extends OpenSearchTestCase {
 
     private RelDataTypeFactory typeFactory;
@@ -83,18 +87,40 @@ public class DatetimeAdapterTests extends OpenSearchTestCase {
         assertSame(arg, call.getOperands().get(0));
     }
 
-    public void testTwoArgFormPassesThroughUnwrapped() {
-        RexNode ts = rexBuilder.makeLiteral("2008-01-01 02:00:00+10:00");
-        RexNode tz = rexBuilder.makeLiteral("UTC");
+    public void testTwoArgLiteralLiteralFoldsToTimestampLiteral() {
+        // DATETIME('2008-12-25 05:30:00-05:00', '+05:00') = '2008-12-25 15:30:00'.
+        RexNode ts = rexBuilder.makeLiteral("2008-12-25 05:30:00-05:00");
+        RexNode tz = rexBuilder.makeLiteral("+05:00");
         RexCall original = (RexCall) rexBuilder.makeCall(DATETIME_OP, List.of(ts, tz));
 
         RexNode adapted = adapter.adapt(original, List.of(), cluster);
 
+        assertTrue(adapted instanceof org.apache.calcite.rex.RexLiteral);
+        assertEquals(SqlTypeName.TIMESTAMP, adapted.getType().getSqlTypeName());
+    }
+
+    public void testTwoArgInvalidTzFoldsToNull() {
+        // DATETIME(valid-string, '+15:00') — invalid tz → NULL TIMESTAMP literal.
+        RexNode ts = rexBuilder.makeLiteral("2008-01-01 02:00:00+10:00");
+        RexNode tz = rexBuilder.makeLiteral("+15:00");
+        RexCall original = (RexCall) rexBuilder.makeCall(DATETIME_OP, List.of(ts, tz));
+
+        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof org.apache.calcite.rex.RexLiteral);
+        assertTrue(((org.apache.calcite.rex.RexLiteral) adapted).isNull());
+    }
+
+    public void testTwoArgColumnInputRewritesToConvertTz() {
+        // DATETIME(column, '+10:00') — non-literal first arg → convert_tz wrap.
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode columnRef = rexBuilder.makeInputRef(varchar, 0);
+        RexNode tz = rexBuilder.makeLiteral("+10:00");
+        RexCall original = (RexCall) rexBuilder.makeCall(DATETIME_OP, List.of(columnRef, tz));
+
+        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+
         assertTrue(adapted instanceof RexCall);
-        RexCall call = (RexCall) adapted;
-        assertSame(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, call.getOperator());
-        assertEquals(2, call.getOperands().size());
-        assertSame(ts, call.getOperands().get(0));
-        assertSame(tz, call.getOperands().get(1));
+        assertSame(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, ((RexCall) adapted).getOperator());
     }
 }

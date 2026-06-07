@@ -729,6 +729,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
                     // fall through unchanged — fully-general interval-aware support is a follow-up.
                     Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
+                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.TRUNCATE, new IntegerRoundingCastAdapter(SqlStdOperatorTable.TRUNCATE)),

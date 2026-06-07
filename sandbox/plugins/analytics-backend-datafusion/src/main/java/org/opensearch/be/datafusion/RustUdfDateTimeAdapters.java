@@ -286,9 +286,29 @@ final class RustUdfDateTimeAdapters {
         }
     }
 
+    /**
+     * Cluster B: PPL FROM_UNIXTIME accepts {@code (epoch [, format])}. The 1-arg form binds to the
+     * yaml impl directly. For the 2-arg form we widen epoch to fp64, build the timestamp via the
+     * 1-arg UDF, then wrap in {@code date_format(ts, format)} so the result is a string with the
+     * MySQL-style format applied.
+     */
     static final class FromUnixtimeAdapter extends NumericToDoubleAdapter {
         FromUnixtimeAdapter() {
             super(LOCAL_FROM_UNIXTIME_OP);
+        }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            if (original.getOperands().size() != 2) {
+                return super.adapt(original, fieldStorage, cluster);
+            }
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            RexNode epoch = NumericToDoubleAdapter.widenToDoubleIfNumeric(original.getOperands().get(0), cluster);
+            RexNode format = original.getOperands().get(1);
+            RelDataType tsType = rexBuilder.getTypeFactory()
+                .createTypeWithNullability(rexBuilder.getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP), true);
+            RexNode ts = rexBuilder.makeCall(tsType, LOCAL_FROM_UNIXTIME_OP, List.of(epoch));
+            return rexBuilder.makeCall(original.getType(), LOCAL_DATE_FORMAT_OP, List.of(ts, format));
         }
     }
 

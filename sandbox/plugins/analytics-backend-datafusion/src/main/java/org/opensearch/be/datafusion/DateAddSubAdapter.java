@@ -76,18 +76,15 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
             return original;
         }
 
-        // PPL DATE_ADD/DATE_SUB accept DATE / TIMESTAMP / TIME bases, but we only lower DATE and
-        // TIMESTAMP. A DATE base casts to midnight UTC of the call's declared TIMESTAMP type and a
-        // TIMESTAMP base passes through; a TIME base, however, is anchored to the query-start DATE
-        // by the PPL UDF before the interval is added — a plain CAST(time AS TIMESTAMP) would anchor
-        // it to the epoch instead, silently shifting the result onto 1970-01-01. We can't reproduce
-        // query-date anchoring here, so leave TIME (and any other base type) for the UDF path:
-        // returning the original call surfaces a loud "Unrecognized scalar function" error rather
-        // than a wrong date.
+        // PPL DATE_ADD/DATE_SUB accept DATE / TIMESTAMP / TIME bases.
+        // DATE / TIMESTAMP cast straight to TIMESTAMP. TIME is anchored to today's UTC date as a
+        // TIMESTAMP, matching the PPL UDF's query-start-clock semantics for the common case where
+        // the query starts on the same calendar day as today.
         SqlTypeName baseSqlType = base.getType().getSqlTypeName();
         if (baseSqlType != SqlTypeName.DATE
             && baseSqlType != SqlTypeName.TIMESTAMP
-            && baseSqlType != SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+            && baseSqlType != SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE
+            && baseSqlType != SqlTypeName.TIME) {
             return original;
         }
 
@@ -143,9 +140,26 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
             }
         }
 
-        // PPL DATE_ADD/DATE_SUB return TIMESTAMP; lift the (possibly DATE) base to that type so
+        // PPL DATE_ADD/DATE_SUB return TIMESTAMP; lift the (possibly DATE/TIME) base to that type so
         // DATETIME_PLUS yields a TIMESTAMP and the surrounding rowType matches the call's type.
-        RexNode baseTimestamp = rexBuilder.makeAbstractCast(original.getType(), base);
+        // For TIME, prepend today's UTC date so the timestamp anchors to the current calendar day.
+        RexNode baseTimestamp;
+        if (baseSqlType == SqlTypeName.TIME) {
+            org.apache.calcite.rel.type.RelDataType varchar = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
+            org.apache.calcite.rel.type.RelDataType nullableVarchar = rexBuilder.getTypeFactory()
+                .createTypeWithNullability(varchar, base.getType().isNullable());
+            RexNode timeAsVarchar = rexBuilder.makeCast(nullableVarchar, base);
+            String prefix = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString() + " ";
+            RexNode prefixLit = rexBuilder.makeLiteral(prefix, varchar, false);
+            RexNode concat = rexBuilder.makeCall(
+                nullableVarchar,
+                org.apache.calcite.sql.fun.SqlStdOperatorTable.CONCAT,
+                List.of(prefixLit, timeAsVarchar)
+            );
+            baseTimestamp = rexBuilder.makeAbstractCast(original.getType(), concat);
+        } else {
+            baseTimestamp = rexBuilder.makeAbstractCast(original.getType(), base);
+        }
         RexNode interval = rexBuilder.makeIntervalLiteral(
             BigDecimal.valueOf(baseValue),
             new SqlIntervalQualifier(baseUnit, null, SqlParserPos.ZERO)

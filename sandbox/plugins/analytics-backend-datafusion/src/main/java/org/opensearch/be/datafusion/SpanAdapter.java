@@ -112,6 +112,13 @@ class SpanAdapter implements ScalarFunctionAdapter {
     private static final Map<String, String> SUB_SECOND_UNIT_TO_DATE_BIN_STRIDE = Map.of("us", "microseconds", "ms", "milliseconds");
 
     /**
+     * Cluster B: multi-unit calendar spans (e.g. {@code 3month}, {@code 2quarter}, {@code 5year}).
+     * date_bin accepts {@code "<N> month"} / {@code "<N> year"} as a stride literal — DataFusion
+     * computes the bucket boundaries against its month-aligned epoch (1970-01-01).
+     */
+    private static final Map<String, String> CALENDAR_UNIT_TO_DATE_BIN_STRIDE = Map.of("M", "month", "q", "quarter", "y", "year");
+
+    /**
      * Locally-declared target operator for the sub-second {@code date_bin} path. Name
      * matches DataFusion's native {@code date_bin}; the operand checker is informational
      * (the adapter constructs the call directly and isthmus resolves the substrait
@@ -124,7 +131,7 @@ class SpanAdapter implements ScalarFunctionAdapter {
         SqlKind.OTHER_FUNCTION,
         ReturnTypes.ARG1_NULLABLE,
         null,
-        OperandTypes.ANY_ANY,
+        OperandTypes.VARIADIC,
         SqlFunctionCategory.TIMEDATE
     );
 
@@ -183,6 +190,19 @@ class SpanAdapter implements ScalarFunctionAdapter {
                     if (n != null) {
                         RexNode stride = rexBuilder.makeLiteral(n + " " + dateBinStrideUnit);
                         return rexBuilder.makeCall(original.getType(), LOCAL_DATE_BIN_OP, List.of(stride, field));
+                    }
+                }
+                // Cluster B multi-unit calendar span (e.g. SPAN(t, 3, 'M')): rewrite to
+                // date_bin("<N> month", t, '1970-01-01T00:00:00Z'). The 3-arg form pins the
+                // month-aligned origin so the bucket starts on a calendar-aligned boundary
+                // (3-month → quarter-start, 6-month → half-year-start, etc.).
+                String calendarStrideUnit = CALENDAR_UNIT_TO_DATE_BIN_STRIDE.get(unitText);
+                if (calendarStrideUnit != null) {
+                    Long n = extractPositiveInteger(interval);
+                    if (n != null) {
+                        RexNode stride = rexBuilder.makeLiteral(n + " " + calendarStrideUnit);
+                        RexNode origin = rexBuilder.makeLiteral("1970-01-01T00:00:00Z");
+                        return rexBuilder.makeCall(original.getType(), LOCAL_DATE_BIN_OP, List.of(stride, field, origin));
                     }
                 }
             }

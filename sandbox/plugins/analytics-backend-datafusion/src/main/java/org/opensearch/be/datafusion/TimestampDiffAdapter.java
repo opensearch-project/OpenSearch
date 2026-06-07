@@ -115,6 +115,16 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
         604_800L
     );
 
+    /** Variable-length out unit → seconds approximation for standalone TIMESTAMPDIFF. */
+    private static final Map<String, Long> VARIABLE_OUT_APPROX_SECONDS = Map.of(
+        "MONTH",
+        30L * 86_400L,
+        "QUARTER",
+        90L * 86_400L,
+        "YEAR",
+        365L * 86_400L
+    );
+
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         if (!original.getOperator().getName().equalsIgnoreCase("TIMESTAMPDIFF")) {
@@ -132,50 +142,78 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
             return original;
         }
 
-        // The peephole only fires when end is TIMESTAMPADD(in_unit_literal, n_int_literal, start).
-        // `start` here must be the *same* RexNode reference as the outer TIMESTAMPDIFF's start
-        // (typically a RexInputRef into @timestamp). RexInputRef.equals compares by ordinal,
-        // so structurally-equal refs to the same input position match. OperatorAnnotation
-        // wrappers (e.g. AnnotatedProjectExpression introduced by OpenSearchProjectRule) are
-        // peeled at each operand before structural comparison so the wrapped TIMESTAMPADD
-        // call remains recognizable as a TIMESTAMPADD instead of looking like an annotation
-        // RexCall whose operator is ANNOTATED_PROJECT_EXPR.
-        if (!(endArg instanceof RexCall endCall)
-            || !endCall.getOperator().getName().equalsIgnoreCase("TIMESTAMPADD")
-            || endCall.getOperands().size() != 3) {
-            return original;
-        }
-        String inUnit = stringLiteralValue(unwrapAnnotation(endCall.getOperands().get(0)));
-        Long inValue = integerLiteralValue(unwrapAnnotation(endCall.getOperands().get(1)));
-        RexNode addedBase = unwrapAnnotation(endCall.getOperands().get(2));
-        if (inUnit == null || inValue == null || !addedBase.equals(startArg)) {
-            return original;
-        }
-
-        RexBuilder rexBuilder = cluster.getRexBuilder();
-
-        Long foldedDiff = constantFold(outUnit, inUnit, inValue);
-        if (foldedDiff != null) {
-            RexNode literal = rexBuilder.makeBigintLiteral(BigDecimal.valueOf(foldedDiff));
-            // Pin the literal back to the original call's declared return type so the
-            // surrounding Project's typeMatchesInferred check doesn't see a NOT NULL vs
-            // FORCE_NULLABLE mismatch.
-            return rexBuilder.makeCast(original.getType(), literal, true);
-        }
-
-        // Variable-length inner units (MONTH/QUARTER/YEAR) with a fixed-length out unit:
-        // rewrite to runtime evaluation, since the actual ms-per-bucket depends on the
-        // calendar month the row's bucket lands in. PPL timechart's per_* aggregations
-        // with span=1M / span=1month / span=1q / span=1y all hit this path.
-        Long innerMonths = VARIABLE_INNER_MONTHS.get(inUnit.toUpperCase(Locale.ROOT));
-        if (innerMonths != null) {
-            RexNode rewritten = rewriteVariableInner(rexBuilder, startArg, inValue, innerMonths, outUnit, original.getType());
-            if (rewritten != null) {
-                return rewritten;
+        // Peephole: TIMESTAMPDIFF(out, t, TIMESTAMPADD(in, n, t)) — fold or rewrite via runtime path.
+        if (endArg instanceof RexCall endCall
+            && endCall.getOperator().getName().equalsIgnoreCase("TIMESTAMPADD")
+            && endCall.getOperands().size() == 3) {
+            String inUnit = stringLiteralValue(unwrapAnnotation(endCall.getOperands().get(0)));
+            Long inValue = integerLiteralValue(unwrapAnnotation(endCall.getOperands().get(1)));
+            RexNode addedBase = unwrapAnnotation(endCall.getOperands().get(2));
+            if (inUnit != null && inValue != null && addedBase.equals(startArg)) {
+                RexBuilder rb = cluster.getRexBuilder();
+                Long foldedDiff = constantFold(outUnit, inUnit, inValue);
+                if (foldedDiff != null) {
+                    RexNode literal = rb.makeBigintLiteral(BigDecimal.valueOf(foldedDiff));
+                    return rb.makeCast(original.getType(), literal, true);
+                }
+                Long innerMonths = VARIABLE_INNER_MONTHS.get(inUnit.toUpperCase(Locale.ROOT));
+                if (innerMonths != null) {
+                    RexNode rewritten = rewriteVariableInner(rb, startArg, inValue, innerMonths, outUnit, original.getType());
+                    if (rewritten != null) {
+                        return rewritten;
+                    }
+                }
             }
         }
 
-        return original;
+        // Standalone TIMESTAMPDIFF(out_unit, t1, t2): rewrite via to_unixtime delta + scale.
+        return rewriteStandaloneDiff(cluster, original, outUnit, startArg, endArg);
+    }
+
+    /**
+     * Standalone TIMESTAMPDIFF(out_unit, t1, t2): cast both args to TIMESTAMP, take the second-delta
+     * via to_unixtime, then scale. For variable-length out units (MONTH/QUARTER/YEAR), use a
+     * 30-day / 90-day / 365-day approximation matching legacy SQL plugin behavior.
+     */
+    private static RexNode rewriteStandaloneDiff(RelOptCluster cluster, RexCall original, String outUnit, RexNode start, RexNode end) {
+        RexBuilder rb = cluster.getRexBuilder();
+        RexNode t1 = liftToTimestamp(rb, start, original.getType());
+        RexNode t2 = liftToTimestamp(rb, end, original.getType());
+        RexNode endSeconds = rb.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, t2);
+        RexNode startSeconds = rb.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, t1);
+        RexNode diffSeconds = rb.makeCall(SqlStdOperatorTable.MINUS, endSeconds, startSeconds);
+        String upper = outUnit.toUpperCase(Locale.ROOT);
+        Long mult = OUT_UNIT_MULTIPLIER_FROM_SECONDS.get(upper);
+        Long div = mult == null ? OUT_UNIT_DIVISOR_FROM_SECONDS.get(upper) : null;
+        Long approxSeconds = mult == null && div == null ? VARIABLE_OUT_APPROX_SECONDS.get(upper) : null;
+        RexNode scaled;
+        if (mult != null && mult > 1L) {
+            RexNode multLit = rb.makeBigintLiteral(BigDecimal.valueOf(mult));
+            scaled = rb.makeCall(SqlStdOperatorTable.MULTIPLY, diffSeconds, multLit);
+        } else if (div != null && div > 1L) {
+            RexNode divLit = rb.makeBigintLiteral(BigDecimal.valueOf(div));
+            scaled = rb.makeCall(SqlStdOperatorTable.DIVIDE, diffSeconds, divLit);
+        } else if (approxSeconds != null) {
+            // Variable-length out unit — approximate (MONTH≈30d, QUARTER≈90d, YEAR≈365d).
+            RexNode divLit = rb.makeBigintLiteral(BigDecimal.valueOf(approxSeconds));
+            scaled = rb.makeCall(SqlStdOperatorTable.DIVIDE, diffSeconds, divLit);
+        } else {
+            scaled = diffSeconds;
+        }
+        return rb.makeCast(original.getType(), scaled, true);
+    }
+
+    /** Cast a string/date/timestamp expression to TIMESTAMP matching {@code resultType}'s nullability. */
+    private static RexNode liftToTimestamp(RexBuilder rb, RexNode operand, org.apache.calcite.rel.type.RelDataType resultType) {
+        if (operand.getType().getSqlTypeName() == SqlTypeName.TIMESTAMP) {
+            return operand;
+        }
+        org.apache.calcite.rel.type.RelDataType tsType = rb.getTypeFactory()
+            .createTypeWithNullability(
+                rb.getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP),
+                operand.getType().isNullable() || resultType.isNullable()
+            );
+        return rb.makeCast(tsType, operand, true);
     }
 
     private static RexNode rewriteVariableInner(
