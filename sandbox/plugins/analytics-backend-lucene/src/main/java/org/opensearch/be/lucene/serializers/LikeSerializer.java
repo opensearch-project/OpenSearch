@@ -59,7 +59,13 @@ public class LikeSerializer extends AbstractQuerySerializer {
             throw new IllegalArgumentException("LIKE delegation requires (RexInputRef, RexLiteral); got " + left + " LIKE " + right);
         }
 
-        String fieldName = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex()).getFieldName();
+        FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
+        // Route to the field's exact-match subfield when it has one (a text field's .keyword): a
+        // wildcard over the raw keyword term is the valid superset, whereas a wildcard over the
+        // analyzed text field is not. Marking only delegates text LIKE when this subfield exists.
+        String fieldName = field.getExactMatchSubfield() != null
+            ? field.getFieldName() + "." + field.getExactMatchSubfield()
+            : field.getFieldName();
         Object patternValue = CalciteToOSMapperConversionUtils.literalToOpenSearchValue(patternLit);
         if (patternValue == null) {
             throw new IllegalArgumentException("LIKE pattern must be a non-null literal");

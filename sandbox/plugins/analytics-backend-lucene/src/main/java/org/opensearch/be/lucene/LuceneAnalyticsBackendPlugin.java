@@ -66,9 +66,12 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     // an IllegalStateException ("No Lucene serializer for [..]"). EQUALS and LIKE have
     // serializers today; range ops, NOT_EQUALS, IS_NULL, IS_NOT_NULL, IN are deferred until
     // their serializers land.
-    // LIKE delegation is a performance pre-filter (DataFusion re-verifies the exact predicate),
-    // so the Lucene query only needs to be a superset of matches; it is governed at runtime by the
-    // analytics.delegation.<backend>.blocked_predicates kill-switch.
+    //
+    // LIKE is a performance pre-filter (DataFusion re-verifies), so the Lucene query only needs to be a
+    // superset. On KEYWORD it runs against the single raw term (correct). On analyzed TEXT a wildcard
+    // matches per-token and can fail in the scan path, so text LIKE is delegated only when the field has
+    // a keyword exact-match subfield to route to (LikeSerializer targets field.<keyword>); the marking
+    // layer (OpenSearchFilterRule) drops delegation for text LIKE without one.
     // TODO: have CapabilityRegistry intersect declared FilterCapability against the
     // backend's serializer keyset at startup so this list can't drift again. The TODO in
     // OpenSearchFilterRule.resolveViableBackends references the same constraint.

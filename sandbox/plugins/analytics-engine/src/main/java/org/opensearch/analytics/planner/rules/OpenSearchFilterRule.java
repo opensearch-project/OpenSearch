@@ -198,6 +198,19 @@ public class OpenSearchFilterRule extends RelOptRule {
                 // field only when the field has indexFormats=[lucene] set in the mapping).
                 // TODO: for FULL_TEXT operators, extract required params from RexCall
                 fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
+
+                // LIKE on an analyzed TEXT field is only a valid delegated superset when the field has
+                // a keyword exact-match subfield to route the wildcard to (see LikeSerializer); on a
+                // bare text field a per-token wildcard under-matches and can fail in the scan path.
+                // Drop FILTER-delegation acceptors (e.g. Lucene) for that case so the predicate stays
+                // on the driving engine. Keyword fields and text-with-subfield are unaffected.
+                // TODO: support LIKE delegation for pure-text fields WITHOUT a keyword subfield (e.g.
+                // via an ngram/analyzed-aware Lucene query) so they don't fall back to DataFusion.
+                if (function == ScalarFunction.LIKE
+                    && FieldType.text().contains(storageInfo.getFieldType())
+                    && storageInfo.getExactMatchSubfield() == null) {
+                    fieldViable.removeAll(registry.delegationAcceptors(DelegationType.FILTER));
+                }
             }
 
             viableSet.retainAll(fieldViable);
