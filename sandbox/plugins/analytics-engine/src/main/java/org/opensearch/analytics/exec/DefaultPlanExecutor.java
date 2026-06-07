@@ -41,6 +41,7 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
+import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.ClusterState;
@@ -96,6 +97,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile int maxConcurrentShardRequestsPerNode;
     private volatile boolean preferMetadataDriver;
     private volatile double oversamplingFactor;
+    private final DelegationBlockList delegationBlockList;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
@@ -138,6 +140,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.maxShardsPerQuery = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY, v -> maxShardsPerQuery = v);
+        // Per-backend delegation block-list; self-registers an affix update consumer for live changes.
+        this.delegationBlockList = DelegationBlockList.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings(),
+            capabilityRegistry
+        );
         this.maxConcurrentShardRequestsPerNode = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE.get(
             clusterService.getSettings()
         );
@@ -237,6 +245,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             preferMetadataDriver
         );
         plannerContext.setOversamplingFactor(oversamplingFactor);
+        plannerContext.setDelegationBlockList(delegationBlockList);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
