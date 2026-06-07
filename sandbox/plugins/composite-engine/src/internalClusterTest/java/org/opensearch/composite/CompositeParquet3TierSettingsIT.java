@@ -205,8 +205,8 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         indexAndFlush();
 
         assertCompression(getColumnInfo(INDEX_NAME, "value"), "ZSTD");
-        // "name" (utf8) should still use global default LZ4_RAW
-        assertCompression(getColumnInfo(INDEX_NAME, "name"), "LZ4_RAW");
+        // "name" (utf8) uses ZSTD as the default for utf8/binary types
+        assertCompression(getColumnInfo(INDEX_NAME, "name"), "ZSTD");
     }
 
     /**

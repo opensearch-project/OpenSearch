@@ -23,9 +23,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
-import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
 import org.opensearch.analytics.spi.AggregateFunction;
-import org.opensearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,7 +60,19 @@ public final class OpenSearchTopKRewriter {
         double factor = resolveOversamplingFactor(context);
         if (factor <= 0.0) return Optional.empty();
 
-        long coordLimit = (sort.fetch instanceof RexLiteral lit) ? RexLiteral.intValue(lit) : 10_000L;
+        // coordLimit is the rank the coordinator must satisfy after merging shard streams: for
+        // `head N from M` it skips M then takes N, so the merged stream needs the global top-(M+N).
+        // Non-literal offsets bail to no-pushdown (PPL only emits literal offsets).
+        long fetch = (sort.fetch instanceof RexLiteral lit) ? RexLiteral.intValue(lit) : 10_000L;
+        long offset;
+        if (sort.offset == null) {
+            offset = 0L;
+        } else if (sort.offset instanceof RexLiteral lit) {
+            offset = RexLiteral.intValue(lit);
+        } else {
+            return Optional.empty();
+        }
+        long coordLimit = offset + fetch;
         long shardSize = (long) Math.ceil(coordLimit * factor) + coordLimit;
         if (shardSize > Integer.MAX_VALUE) return Optional.empty();
 
@@ -211,10 +221,7 @@ public final class OpenSearchTopKRewriter {
     }
 
     private static double resolveOversamplingFactor(PlannerContext context) {
-        // TODO: Move to per-index setting once index-pattern/alias resolution is handled.
-        Settings clusterSettings = context.getClusterState().metadata().settings();
-        if (clusterSettings == null) return 0.0;
-        return AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(clusterSettings);
+        return context.getOversamplingFactor();
     }
 
     private record SortAboveFinal(OpenSearchSort sort, OpenSearchAggregate finalAgg) {

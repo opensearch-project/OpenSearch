@@ -28,13 +28,12 @@ fn test_complete_writer_lifecycle() {
     assert_eq!(metadata.metadata.file_metadata().num_rows(), 9); // 3 batches × 3 rows
     assert!(metadata.metadata.file_metadata().version() > 0);
 
-    assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
     assert!(file_path.exists());
     assert!(file_path.metadata().unwrap().len() > 0);
 
     let read_metadata = NativeParquetWriter::get_file_metadata(filename.clone()).unwrap();
-    assert_eq!(read_metadata.num_rows(), metadata.metadata.file_metadata().num_rows());
-    assert_eq!(read_metadata.version(), metadata.metadata.file_metadata().version());
+    assert_eq!(read_metadata.file_metadata().num_rows(), metadata.metadata.file_metadata().num_rows());
+    assert_eq!(read_metadata.file_metadata().version(), metadata.metadata.file_metadata().version());
 }
 
 #[test]
@@ -181,7 +180,7 @@ fn test_concurrent_complete_writer_lifecycle() {
                 if write_ok {
                     if let Ok(Some(metadata)) = NativeParquetWriter::finalize_writer(filename.clone()) {
                         if metadata.metadata.file_metadata().num_rows() == 3
-                            && NativeParquetWriter::sync_to_disk(filename.clone()).is_ok()
+
                             && file_path.exists()
                         {
                             success_count.fetch_add(1, Ordering::SeqCst);
@@ -225,13 +224,12 @@ fn test_ipc_staging_sorted_writer_integration() {
     let metadata = result.unwrap().unwrap();
     assert_eq!(metadata.metadata.file_metadata().num_rows(), 6);
 
-    assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
 
     let ids = read_parquet_file_sorted_ids(&filename);
     assert_eq!(ids, vec![10, 20, 30, 40, 50, 60]);
 
     let read_metadata = NativeParquetWriter::get_file_metadata(filename).unwrap();
-    assert_eq!(read_metadata.num_rows(), 6);
+    assert_eq!(read_metadata.file_metadata().num_rows(), 6);
 
     cleanup_ffi_schema(schema_ptr);
 }
@@ -264,7 +262,7 @@ fn test_ipc_staging_concurrent_sorted_lifecycle() {
                 if write_ok {
                     if let Ok(Some(metadata)) = NativeParquetWriter::finalize_writer(filename.clone()) {
                         if metadata.metadata.file_metadata().num_rows() == 3
-                            && NativeParquetWriter::sync_to_disk(filename.clone()).is_ok()
+
                             && file_path.exists()
                         {
                             let ids = read_parquet_file_sorted_ids(&filename);

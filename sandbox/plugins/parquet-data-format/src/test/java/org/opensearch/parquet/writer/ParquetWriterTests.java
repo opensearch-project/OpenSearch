@@ -198,35 +198,6 @@ public class ParquetWriterTests extends ParquetBaseTests {
         assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
     }
 
-    public void testSyncAfterFlush() throws Exception {
-        String filePath = createTempDir().resolve("sync.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(
-            filePath,
-            1L,
-            1L,
-            new ParquetDataFormat(),
-            schema,
-            () -> schema,
-            bufferPool,
-            indexSettings,
-            threadPool,
-            null
-        );
-
-        ParquetDocumentInput doc = new ParquetDocumentInput();
-        populateMetadataFields(doc);
-        doc.addField(idField, 1);
-        doc.addField(nameField, "alice");
-        doc.addField(scoreField, 100L);
-        doc.setRowId("__row_id__", 0);
-        writer.addDoc(doc);
-        doc.close();
-
-        writer.flush(FlushInput.EMPTY);
-        writer.sync();
-        assertTrue(Files.exists(Path.of(filePath)));
-    }
-
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {
         List<Field> fields = new ArrayList<>();
         for (MappedFieldType ft : fieldTypes) {

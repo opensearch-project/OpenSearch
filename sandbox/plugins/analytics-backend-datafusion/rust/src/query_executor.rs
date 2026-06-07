@@ -293,7 +293,11 @@ pub async fn execute_with_context(
                 cross_rt_stream.schema(),
                 cross_rt_stream,
             );
-            return Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64);
+            // Prepared (engine-native PARTIAL) path carries no physical_plan handle — match the
+            // tuple shape of the other exits so the closure's return type stays consistent.
+            return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>(
+                (Box::into_raw(Box::new(wrapped)) as i64, None),
+            );
         }
 
         let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {

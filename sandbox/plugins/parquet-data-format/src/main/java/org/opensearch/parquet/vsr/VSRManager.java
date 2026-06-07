@@ -49,7 +49,6 @@ import java.util.concurrent.atomic.LongAdder;
  *       VSR's Arrow vectors, rotating the VSR if the row threshold is reached.</li>
  *   <li>{@link #flush()} — freezes the active VSR, exports it to the native writer,
  *       finalizes the Parquet file, and returns file metadata.</li>
- *   <li>{@link #sync()} — fsyncs the Parquet file to durable storage after flush.</li>
  * </ol>
  *
  * <p>Field values are resolved to their Arrow vector types via {@link ArrowFieldRegistry}
@@ -283,10 +282,6 @@ public class VSRManager implements AutoCloseable {
     /**
      * Syncs the Parquet file to disk. Must be called after {@link #flush()}.
      */
-    public void sync() throws IOException {
-        awaitPendingWrite(ROTATION_TIMEOUT, false);
-        writer.sync();
-    }
 
     @Override
     public void close() {

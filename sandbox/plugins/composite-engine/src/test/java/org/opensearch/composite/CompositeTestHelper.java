@@ -352,9 +352,6 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public void sync() {}
-
-        @Override
         public void close() throws IOException {
             state = org.opensearch.index.engine.dataformat.WriterState.CLOSED;
         }
@@ -542,9 +539,6 @@ final class CompositeTestHelper {
         public org.opensearch.index.engine.dataformat.WriterState state() {
             return state;
         }
-
-        @Override
-        public void sync() {}
 
         @Override
         public long generation() {

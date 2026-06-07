@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -675,17 +674,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                 info.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(0));
             }
         }
-    }
-
-    /**
-     * Syncs all files in the temp directory to durable storage.
-     *
-     * @throws IOException if the sync fails
-     */
-    @Override
-    public void sync() throws IOException {
-        directory.sync(Arrays.asList(directory.listAll()));
-        directory.syncMetaData();
     }
 
     /** {@inheritDoc} Returns the writer generation number assigned at construction. */
