@@ -384,9 +384,6 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
         }
 
         @Override
-        public void sync() {}
-
-        @Override
         public long generation() {
             return generation;
         }

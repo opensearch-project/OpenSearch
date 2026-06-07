@@ -191,14 +191,6 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     }
 
     @Override
-    public void sync() throws IOException {
-        primaryWriter.sync();
-        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
-            writer.sync();
-        }
-    }
-
-    @Override
     public long generation() {
         return getWriterGeneration();
     }

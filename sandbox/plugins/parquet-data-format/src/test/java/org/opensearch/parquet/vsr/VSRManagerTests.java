@@ -142,20 +142,6 @@ public class VSRManagerTests extends ParquetBaseTests {
         assertEquals(1, metadata.numRows());
     }
 
-    public void testSyncAfterFlush() throws Exception {
-        String filePath = createTempDir().resolve("sync.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
-
-        ManagedVSR active = manager.getActiveManagedVSR();
-        IntVector vec = (IntVector) active.getVector("val");
-        vec.setSafe(0, 10);
-        active.setRowCount(1);
-
-        manager.flush();
-        manager.sync();
-        assertTrue(java.nio.file.Files.exists(java.nio.file.Path.of(filePath)));
-    }
-
     public void testMaybeRotateNoOpBelowThreshold() throws Exception {
         String filePath = createTempDir().resolve("norotate.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
