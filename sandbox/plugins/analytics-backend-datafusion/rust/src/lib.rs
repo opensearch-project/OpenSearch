@@ -11,6 +11,15 @@
 //! The bridge-agnostic API lives in [`api`]. The FFM bridge (`ffm.rs`) exports
 //! `extern "C"` functions for JDK FFM.
 
+/// Column name for the shard-global row identifier used by Query-Then-Fetch.
+/// Stored as Int64 in parquet, computed from position in the indexed path.
+///
+/// TODO: source this from Java — the canonical column name should be defined
+/// once on the coordinator side and passed across FFM rather than hardcoded
+/// here. Today both sides hardcode "__row_id__" and rely on the strings
+/// matching by convention.
+pub const ROW_ID_COLUMN_NAME: &str = "__row_id__";
+
 pub(crate) mod agg_mode;
 pub mod api;
 pub mod cache;
@@ -26,13 +35,25 @@ pub mod indexed_table;
 pub mod io;
 pub mod local_executor;
 pub mod memory;
+pub mod memory_guard;
+pub mod native_error;
 pub mod partition_stream;
+pub mod patterns;
+pub mod phantom_corrector;
+pub mod project_row_id_analyzer;
+pub mod project_row_id_optimizer;
+pub mod query_budget;
 pub mod query_executor;
 pub mod query_tracker;
+pub mod relabel_exec;
+pub mod shard_table_provider;
 pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
 pub mod statistics_cache;
+pub mod udaf;
 pub mod udf;
+pub mod udwf;
+pub mod native_node_stats;
 pub mod stats;
 pub mod task_monitors;

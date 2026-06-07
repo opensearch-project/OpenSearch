@@ -8,7 +8,7 @@
 
 /*
  * Shared concurrent queue utilities for the composite indexing engine.
- * No external dependencies — pure Java concurrency primitives.
+ * Only depends on opensearch-common for the Releasable interface.
  */
 
 // ---- JMH benchmark source set ----
@@ -21,9 +21,7 @@ sourceSets {
 }
 
 dependencies {
-  /*******
-   *  !!!! NO RUNTIME DEPENDENCIES !!!!
-   *******/
+  api project(':libs:opensearch-common')
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"

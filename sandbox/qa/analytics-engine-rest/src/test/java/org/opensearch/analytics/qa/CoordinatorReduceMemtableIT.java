@@ -34,15 +34,15 @@ public class CoordinatorReduceMemtableIT extends AnalyticsRestTestCase {
         createParquetBackedIndex();
         indexDeterministicDocs();
 
-        Map<String, Object> result = executePPL("source = " + INDEX + " | stats sum(value) as total");
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats sum(value) as total");
 
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
+        List<String> columns = extractColumnNames(result);
+        assertNotNull("schema must not be null", columns);
         assertTrue("columns must contain 'total', got " + columns, columns.contains("total"));
 
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("rows must not be null", rows);
         assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
 
@@ -66,7 +66,7 @@ public class CoordinatorReduceMemtableIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -102,10 +102,4 @@ public class CoordinatorReduceMemtableIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + ppl + "\"}");
-        Response response = client().performRequest(request);
-        return entityAsMap(response);
-    }
 }

@@ -1,0 +1,1 @@
+source=aggregation_tests | stats count() as total, distinct_count(user) as unique_users, min(response_time) as min_rt, max(response_time) as max_rt, percentile(response_time, 50) as median_rt by department | sort - total

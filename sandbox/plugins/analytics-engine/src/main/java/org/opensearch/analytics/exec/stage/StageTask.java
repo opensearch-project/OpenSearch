@@ -8,21 +8,26 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
+
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * A single dispatchable unit within a {@link StageExecution}. Sealed so the variant set
- * stays known at compile time — each variant carries the payload its transport needs:
- * {@link ShardStageTask} an {@link org.opensearch.analytics.planner.dag.ExecutionTarget}
- * (routing key for shard-fragment dispatch), {@link LocalStageTask} a {@link Runnable}
- * body executed on the per-query virtual-thread executor. Future variants (shuffle,
- * metadata, broadcast) will extend the {@code permits} list.
+ * A single dispatchable unit within a {@link StageExecution}. Each variant carries the
+ * payload its transport needs: {@code ShardStageTask} an
+ * {@link org.opensearch.analytics.planner.dag.ExecutionTarget} (routing key for
+ * shard-fragment dispatch), {@link LocalStageTask} a {@link Runnable} body executed on
+ * the per-query virtual-thread executor.
  *
  * <p>Per-attempt state and timestamps are common to all variants and live on this base.
  *
  * @opensearch.internal
  */
-public abstract sealed class StageTask permits ShardStageTask, LocalStageTask {
+public abstract class StageTask {
+    // Note: was `sealed permits ShardStageTask, LocalStageTask` — the recent move
+    // of ShardStageTask to a sibling package broke the same-package sealed constraint
+    // (no module-info in the analytics-engine plugin). Variant set still controlled
+    // socially via package-private constructors on concrete subclasses.
 
     private final StageTaskId id;
     private final AtomicReference<StageTaskState> state = new AtomicReference<>(StageTaskState.CREATED);

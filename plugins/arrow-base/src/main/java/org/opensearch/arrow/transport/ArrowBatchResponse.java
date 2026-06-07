@@ -9,7 +9,7 @@
 package org.opensearch.arrow.transport;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -47,7 +47,16 @@ import java.io.IOException;
  *
  * <p><b>Allocator rules:</b>
  * <ul>
- *   <li><b>Send side:</b> Use a child of {@link ArrowAllocatorService}.
+ *   <li><b>Send side:</b> Source the allocator from one of the framework's named pools via
+ *       {@link ArrowNativeAllocator#getPoolAllocator(String)}. Pick the pool that matches the
+ *       semantics of the producing component:
+ *       <ul>
+ *         <li>{@code POOL_FLIGHT} — transport-layer producers/consumers (arrow-flight-rpc and
+ *             plugins built on top of {@code StreamTransportService}).</li>
+ *         <li>{@code POOL_INGEST} — ingest-path producers (parquet-data-format VSR allocators).</li>
+ *         <li>{@code POOL_QUERY} — query-execution producers (analytics-engine fragments and
+ *             coordinator-side intermediate batches).</li>
+ *       </ul>
  *       All allocators must share the same root so zero-copy transfers pass Arrow's
  *       {@code AllocationManager} associate check.</li>
  *   <li><b>Send side:</b> Allocators must outlive the transport stream — some transports
@@ -55,10 +64,10 @@ import java.io.IOException;
  *       create and close a child allocator per request.</li>
  *   <li><b>Receive side:</b> The transport transfers vectors from its own allocator into
  *       the response. The consumer can then transfer them into its own allocator — which
- *       must also be a child of {@link ArrowAllocatorService}.</li>
+ *       must also descend from one of the framework's named pools.</li>
  * </ul>
  *
- * <p><b>Cross-plugin footgun:</b> bypassing {@link ArrowAllocatorService}
+ * <p><b>Cross-plugin footgun:</b> bypassing the framework's named pools
  * (e.g. {@code new RootAllocator()} inside a plugin) does not fail fast — allocation and
  * single-plugin use still work. But any zero-copy handoff to another plugin's buffers will trip
  * Arrow's {@code AllocationManager.associate()} check, because roots are compared by identity,
@@ -70,24 +79,42 @@ import java.io.IOException;
 public abstract class ArrowBatchResponse extends ActionResponse {
 
     private final VectorSchemaRoot batchRoot;
+    private final byte[] metadata;
 
     /**
-     * Send-side constructor: wraps a root populated by the producer.
+     * Send-side: wraps a root populated by the producer.
+     *
      * @param batchRoot the root to send; ownership transfers to the transport
      */
     protected ArrowBatchResponse(VectorSchemaRoot batchRoot) {
-        this.batchRoot = batchRoot;
+        this(batchRoot, null);
     }
 
     /**
-     * Receive-side constructor: claims ownership of the batch from the input.
-     * @param in must also implement {@link ArrowStreamInput}; throws otherwise
+     * Send-side: wraps a root with opaque application metadata that travels on the same
+     * Arrow Flight frame ({@code putNext(ArrowBuf)}). Use for per-batch metadata (row
+     * offsets, watermarks) or, by attaching to the last batch, stream-terminal payloads
+     * (profiling counters, summary stats).
+     *
+     * @param batchRoot the root to send; ownership transfers to the transport
+     * @param metadata opaque bytes to attach to this batch, or {@code null}
+     */
+    protected ArrowBatchResponse(VectorSchemaRoot batchRoot, byte[] metadata) {
+        this.batchRoot = batchRoot;
+        this.metadata = metadata;
+    }
+
+    /**
+     * Receive-side: claims ownership of the batch and pulls any attached metadata.
+     *
+     * @param in must also implement {@link ArrowStreamInput}
      * @throws IOException if reading fails
      */
     protected ArrowBatchResponse(StreamInput in) throws IOException {
         super(in);
         if (in instanceof ArrowStreamInput arrowIn) {
             this.batchRoot = arrowIn.getRoot();
+            this.metadata = arrowIn.getMetadata();
             arrowIn.claimOwnership();
         } else {
             throw new IllegalStateException(
@@ -102,6 +129,11 @@ public abstract class ArrowBatchResponse extends ActionResponse {
     /** Returns the Arrow root holding the response vectors. */
     public VectorSchemaRoot getRoot() {
         return batchRoot;
+    }
+
+    /** Returns the application metadata attached to this batch, or {@code null} if none. */
+    public byte[] getMetadata() {
+        return metadata;
     }
 
     @Override

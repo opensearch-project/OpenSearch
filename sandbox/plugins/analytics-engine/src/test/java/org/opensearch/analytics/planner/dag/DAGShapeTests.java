@@ -52,7 +52,7 @@ public class DAGShapeTests extends BasePlannerRulesTests {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(logicalPlan));
         RelNode cboOutput = runPlanner(logicalPlan, context);
         LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         LOGGER.info("QueryDAG:\n{}", dag);
         return dag;
     }
@@ -102,15 +102,15 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 1
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
-                        OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                        OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
                           OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             dag
@@ -124,13 +124,13 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 2
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                           OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
-                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
-                        OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                        OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
                           OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                             OpenSearchStageInputScan(childStageId=[1], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
@@ -149,7 +149,7 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 2
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                         OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
@@ -159,8 +159,8 @@ public class DAGShapeTests extends BasePlannerRulesTests {
                     OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
                   Stage 1 exchange=SINGLETON
-                    OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             dag
@@ -174,13 +174,13 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 2
-                  OpenSearchAggregate(group=[{}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchJoin(condition=[=($0, $2)], joinType=[left], viableBackends=[[mock-parquet]])
                       OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                           OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
-                      OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
-                        OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                        OpenSearchSort(fetch=[50000], viableBackends=[[mock-parquet]])
                           OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                             OpenSearchStageInputScan(childStageId=[1], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
@@ -201,14 +201,12 @@ public class DAGShapeTests extends BasePlannerRulesTests {
             """
                 QueryDAG(queryId=<random>)
                 Stage 1
-                  OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
-                    OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                        OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
-                          OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                            OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
+                  OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                        OpenSearchStageInputScan(childStageId=[0], viableBackends=[[mock-parquet]])
                   Stage 0 exchange=SINGLETON
-                    OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             dag
@@ -220,18 +218,13 @@ public class DAGShapeTests extends BasePlannerRulesTests {
      *  collapses into a single stage. */
     public void testTopKAfterStatsDag_singleShard() {
         QueryDAG dag = buildDAG(1, buildTopKAfterStats());
-        assertDagShape(
-            """
-                QueryDAG(queryId=<random>)
-                Stage 0
-                  OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
-                    OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                        OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            dag
-        );
+        assertDagShape("""
+            QueryDAG(queryId=<random>)
+            Stage 0
+              OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, dag);
     }
 
     // ── Builders ─────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.QueryScheduler;
+import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -199,7 +200,7 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void onStageSuccess(String queryId, int stageId, long tookInNanos, long rowsProcessed) {
+        public void onStageSuccess(String queryId, int stageId, String stageType, long tookInNanos, long rowsProcessed) {
             events.add("onStageSuccess:" + stageId);
         }
 
@@ -235,7 +236,7 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
 
         @Override
         protected List<StageTask> materializeTasks() {
-            return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), () -> {}));
+            return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), l -> l.onResponse(null)));
         }
 
         @Override

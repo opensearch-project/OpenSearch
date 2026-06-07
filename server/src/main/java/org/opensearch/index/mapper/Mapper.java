@@ -43,6 +43,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
@@ -50,6 +51,7 @@ import org.opensearch.script.ScriptService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -72,11 +74,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
+        @Nullable
+        private final Consumer<MappedFieldType> capabilityAssigner;
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
+            this(indexSettings, contentPath, (Consumer<MappedFieldType>) null);
+        }
+
+        public BuilderContext(Settings indexSettings, ContentPath contentPath, @Nullable Consumer<MappedFieldType> capabilityAssigner) {
             Objects.requireNonNull(indexSettings, "indexSettings is required");
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
+            this.capabilityAssigner = capabilityAssigner;
         }
 
         public ContentPath path() {
@@ -85,6 +94,12 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public Settings indexSettings() {
             return this.indexSettings;
+        }
+
+        public void assignCapabilities(MappedFieldType fieldType) {
+            if (capabilityAssigner != null) {
+                capabilityAssigner.accept(fieldType);
+            }
         }
 
         public Version indexCreatedVersion() {
@@ -154,6 +169,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final ScriptService scriptService;
 
+            private final DataFormatRegistry dataFormatRegistry;
+
             public ParserContext(
                 Function<String, SimilarityProvider> similarityLookupService,
                 MapperService mapperService,
@@ -163,6 +180,28 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 DateFormatter dateFormatter,
                 ScriptService scriptService
             ) {
+                this(
+                    similarityLookupService,
+                    mapperService,
+                    typeParsers,
+                    indexVersionCreated,
+                    queryShardContextSupplier,
+                    dateFormatter,
+                    scriptService,
+                    null
+                );
+            }
+
+            public ParserContext(
+                Function<String, SimilarityProvider> similarityLookupService,
+                MapperService mapperService,
+                Function<String, TypeParser> typeParsers,
+                Version indexVersionCreated,
+                Supplier<QueryShardContext> queryShardContextSupplier,
+                DateFormatter dateFormatter,
+                ScriptService scriptService,
+                @Nullable DataFormatRegistry dataFormatRegistry
+            ) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -170,10 +209,20 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.queryShardContextSupplier = queryShardContextSupplier;
                 this.dateFormatter = dateFormatter;
                 this.scriptService = scriptService;
+                this.dataFormatRegistry = dataFormatRegistry;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
                 return mapperService.getIndexAnalyzers();
+            }
+
+            /**
+             * Returns the DataFormatRegistry, or null if not available.
+             * Only non-null when pluggable data format is enabled.
+             */
+            @Nullable
+            public DataFormatRegistry dataFormatRegistry() {
+                return dataFormatRegistry;
             }
 
             public Settings getSettings() {
@@ -246,7 +295,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                         in.indexVersionCreated(),
                         in.queryShardContextSupplier(),
                         in.getDateFormatter(),
-                        in.scriptService()
+                        in.scriptService(),
+                        in.dataFormatRegistry()
                     );
                 }
 

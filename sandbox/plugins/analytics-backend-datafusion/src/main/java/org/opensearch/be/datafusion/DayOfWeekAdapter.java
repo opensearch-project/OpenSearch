@@ -27,6 +27,10 @@ import java.util.List;
  * MySQL/PPL uses 1=Sun..7=Sat but DataFusion/Postgres {@code date_part('dow')} returns 0..6, so we
  * add 1 and cast back to the original call's return type.
  *
+ * <p>VARCHAR operands (bare PPL string literals like {@code DAYOFWEEK('2020-09-16')}) are coerced
+ * to TIMESTAMP so the {@code (string, precision_timestamp<P>)} signature resolves — same rationale
+ * as {@link DatePartAdapters}.
+ *
  * @opensearch.internal
  */
 class DayOfWeekAdapter implements ScalarFunctionAdapter {
@@ -39,7 +43,8 @@ class DayOfWeekAdapter implements ScalarFunctionAdapter {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
         RexNode partLiteral = rexBuilder.makeLiteral("dow", varchar, true);
-        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, original.getOperands().get(0));
+        RexNode operand = DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster);
+        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, operand);
         RexNode sum = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, datePart, rexBuilder.makeExactLiteral(BigDecimal.ONE));
         return rexBuilder.makeCast(original.getType(), sum);
     }

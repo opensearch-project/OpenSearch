@@ -28,5 +28,5 @@ public abstract class AbstractQuerySerializer implements DelegatedPredicateSeria
         return ConversionUtils.serializeQueryBuilder(queryBuilder);
     }
 
-    protected abstract QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage);
+    public abstract QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage);
 }

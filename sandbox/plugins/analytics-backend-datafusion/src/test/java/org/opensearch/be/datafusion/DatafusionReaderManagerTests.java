@@ -219,7 +219,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         DataFusionService mockService = mock(DataFusionService.class);
 
         DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
-        expectThrows(IOException.class, () -> manager.getReader(null));
+        expectThrows(IllegalArgumentException.class, () -> manager.getReader(null));
         manager.close();
     }
 }

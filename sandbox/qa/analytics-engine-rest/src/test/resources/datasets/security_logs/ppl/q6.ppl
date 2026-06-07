@@ -1,0 +1,1 @@
+source=security_logs | where threat_level in ("HIGH", "CRITICAL") | stats count() as threat_count, dc(source_ip) as unique_ips by event_type | sort - threat_count

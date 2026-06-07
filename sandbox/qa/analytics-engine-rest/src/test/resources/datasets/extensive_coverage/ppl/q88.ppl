@@ -1,0 +1,1 @@
+source=test_data | spath input=json_test_data path=name | fields json_data, name | head 3

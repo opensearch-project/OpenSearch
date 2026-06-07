@@ -39,16 +39,35 @@ public final class FoyerBlockCache implements BlockCache {
     /**
      * Create the native Foyer cache and acquire its handle.
      *
-     * @param diskBytes       maximum disk capacity in bytes; must be {@code > 0}
-     * @param diskDir         directory where Foyer stores cache data; must not be null or blank
-     * @param blockSizeBytes  Foyer disk block size in bytes; must be {@code > 0}
-     * @param ioEngine        I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param diskBytes              maximum disk capacity in bytes; must be {@code > 0}
+     * @param diskDir                directory where Foyer stores cache data; must not be null or blank
+     * @param blockSizeBytes         Foyer disk block size in bytes; must be {@code > 0}
+     * @param ioEngine               I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param sweepIntervalSecs      background key_index sweep interval in seconds;
+     *                               {@code 0} = disabled (no background sweep task is spawned).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     * @param sweepThresholdRatio    minimum {@code used_bytes / disk_bytes} ratio to run the sweep;
+     *                               {@code 0.0} = disabled (always sweep).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_threshold}.
+     * @param persistIntervalSecs    how often (seconds) the independent persist task flushes the
+     *                               key_index to disk; {@code 0} = disabled (only {@code Drop} persists).
+     *                               Maps to {@code block_cache.foyer.key_index_persist_interval_seconds}.
      * @throws IllegalArgumentException if {@code diskBytes <= 0}, {@code blockSizeBytes <= 0},
+     *                                  {@code sweepIntervalSecs < 0}, {@code persistIntervalSecs < 0},
+     *                                  {@code sweepThresholdRatio} outside {@code [0.0, 1.0]},
      *                                  or {@code diskDir} is blank
      * @throws NullPointerException     if {@code diskDir} or {@code ioEngine} is null
      * @throws IllegalStateException    if the native call fails to return a valid handle
      */
-    public FoyerBlockCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
+    public FoyerBlockCache(
+        long diskBytes,
+        String diskDir,
+        long blockSizeBytes,
+        String ioEngine,
+        long sweepIntervalSecs,
+        double sweepThresholdRatio,
+        long persistIntervalSecs
+    ) {
         if (diskBytes <= 0) {
             throw new IllegalArgumentException("diskBytes must be > 0, got: " + diskBytes);
         }
@@ -60,13 +79,30 @@ public final class FoyerBlockCache implements BlockCache {
             throw new IllegalArgumentException("blockSizeBytes must be > 0, got: " + blockSizeBytes);
         }
         Objects.requireNonNull(ioEngine, "ioEngine must not be null");
+        if (sweepIntervalSecs < 0) {
+            throw new IllegalArgumentException("sweepIntervalSecs must be >= 0, got: " + sweepIntervalSecs);
+        }
+        if (sweepThresholdRatio < 0.0 || sweepThresholdRatio > 1.0) {
+            throw new IllegalArgumentException("sweepThresholdRatio must be in [0.0, 1.0], got: " + sweepThresholdRatio);
+        }
+        if (persistIntervalSecs < 0) {
+            throw new IllegalArgumentException("persistIntervalSecs must be >= 0, got: " + persistIntervalSecs);
+        }
         this.diskBytes = diskBytes;
-        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine);
+        this.cachePtr = FoyerBridge.createCache(
+            diskBytes,
+            diskDir,
+            blockSizeBytes,
+            ioEngine,
+            sweepIntervalSecs,
+            sweepThresholdRatio,
+            persistIntervalSecs
+        );
     }
 
     @Override
     public String cacheName() {
-        return BlockCacheConstants.DISK_CACHE;
+        return BlockCacheConstants.FOYER;
     }
 
     /**
@@ -128,6 +164,32 @@ public final class FoyerBlockCache implements BlockCache {
     public void evictPrefix(String prefix) {
         if (closed.get() == false) {
             FoyerBridge.evictPrefix(cachePtr, prefix);
+        }
+    }
+
+    @Override
+    public boolean clear() {
+        if (closed.get() == false && cachePtr > 0) {
+            return FoyerBridge.clearCache(cachePtr);
+        }
+        return false;
+    }
+
+    public void updateSweepThreshold(double newRatio) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepThreshold(cachePtr, newRatio);
+        }
+    }
+
+    public void updateSweepInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepInterval(cachePtr, newSecs);
+        }
+    }
+
+    public void updatePersistInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updatePersistInterval(cachePtr, newSecs);
         }
     }
 

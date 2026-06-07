@@ -13,6 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.RowProducingSink;
+import org.opensearch.analytics.exec.stage.coordinator.LateMaterializationStageExecutionFactory;
+import org.opensearch.analytics.exec.stage.coordinator.LocalComputeStageExecutionFactory;
+import org.opensearch.analytics.exec.stage.coordinator.PassThroughStageExecution;
+import org.opensearch.analytics.exec.stage.coordinator.ReduceStageExecutionFactory;
+import org.opensearch.analytics.exec.stage.shard.ShardFragmentStageExecutionFactory;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.DataConsumer;
@@ -55,9 +60,15 @@ public class StageExecutionBuilder {
     public StageExecutionBuilder(ClusterService clusterService, AnalyticsSearchTransportService dispatcher) {
         this.factories = new HashMap<>();
         registerFactory(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageExecutionFactory(clusterService, dispatcher));
-        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new LocalStageExecutionFactory());
+        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new ReduceStageExecutionFactory());
         registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, config, sink));
         registerFactory(StageExecutionType.LOCAL_COMPUTE, new LocalComputeStageExecutionFactory());
+        // QTF (late-materialization) Scatter-Gather. Skeleton today —
+        // LateMaterializationStageExecution.start() throws UnsupportedOperationException.
+        // The DAG, FragmentConversion, and stage wiring are all in place; the four phases
+        // (drain → scatter fetch → gather → stitch) are documented inside the execution
+        // class and the new transport action / data-node handler are the remaining work.
+        registerFactory(StageExecutionType.LATE_MATERIALIZATION, new LateMaterializationStageExecutionFactory(clusterService, dispatcher));
     }
 
     /**
@@ -102,7 +113,10 @@ public class StageExecutionBuilder {
      */
     public StageExecution buildExecution(Stage stage, StageExecution parentExec, QueryContext config) {
         ExchangeSink sink = switch (stage.getExecutionType()) {
-            case SHARD_FRAGMENT, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH, LOCAL_COMPUTE -> resolveRowSink(stage, parentExec);
+            case SHARD_FRAGMENT, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH, LOCAL_COMPUTE, LATE_MATERIALIZATION -> resolveRowSink(
+                stage,
+                parentExec
+            );
         };
         return buildStageExecution(stage, sink, config);
     }

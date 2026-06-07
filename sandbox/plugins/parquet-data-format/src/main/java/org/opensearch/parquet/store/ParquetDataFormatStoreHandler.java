@@ -52,7 +52,7 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
      * Creates a per-shard native file registry.
      *
      * <p>On warm nodes, creates a native store via FFM. The handler resolves
-     * {@link BlockCacheConstants#DISK_CACHE} from {@code cacheRegistry} and wires it into the
+     * {@link BlockCacheConstants#FOYER} from {@code cacheRegistry} and wires it into the
      * store if available.
      *
      * <p>On hot nodes (or when the native store is unavailable), creates an empty
@@ -69,9 +69,9 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
             long remotePtr = (repo != null && repo.isLive()) ? repo.getPointer() : 0L;
 
             // Resolve preferred cache by name; EMPTY if unavailable (hot nodes or no matching cache).
-            // owned by NodeCacheOrchestrator and must not be freed here.
+            // owned by NodeCacheService and must not be freed here.
             NativeStoreHandle cacheHandle = (cacheRegistry != null)
-                ? cacheRegistry.get(BlockCacheConstants.DISK_CACHE).map(BlockCache::nativeCacheHandle).orElse(NativeStoreHandle.EMPTY)
+                ? cacheRegistry.get(BlockCacheConstants.FOYER).map(BlockCache::nativeCacheHandle).orElse(NativeStoreHandle.EMPTY)
                 : NativeStoreHandle.EMPTY;
             long cachePtr = cacheHandle.isLive() ? cacheHandle.getPointer() : 0L;
 
@@ -81,7 +81,7 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
             logger.debug(
                 "[{}] ParquetDataFormatStoreHandler created: cache={}",
                 shardId,
-                cacheHandle.isLive() ? BlockCacheConstants.DISK_CACHE : "none"
+                cacheHandle.isLive() ? BlockCacheConstants.FOYER : "none"
             );
         } else {
             this.storeHandle = NativeStoreHandle.EMPTY;

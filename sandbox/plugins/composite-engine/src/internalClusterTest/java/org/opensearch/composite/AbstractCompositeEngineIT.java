@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,7 +47,13 @@ public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
+        return Arrays.asList(
+            ArrowBasePlugin.class,
+            ParquetDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class,
+            DataFusionPlugin.class
+        );
     }
 
     @Override
@@ -75,11 +82,16 @@ public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase 
             settingsBuilder.putList("index.composite.secondary_data_formats");
         }
 
+        String keywordMapping = "type=keyword";
+        if (false == withLuceneSecondary) {
+            keywordMapping += ",index=false";
+        }
+
         client().admin()
             .indices()
             .prepareCreate(indexName)
             .setSettings(settingsBuilder)
-            .setMapping("name", "type=keyword", "value", "type=integer")
+            .setMapping("name", keywordMapping, "value", "type=integer")
             .get();
         ensureGreen(indexName);
     }

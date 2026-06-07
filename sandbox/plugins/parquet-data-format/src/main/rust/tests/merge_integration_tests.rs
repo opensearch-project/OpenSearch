@@ -262,7 +262,7 @@ fn test_tier2_yield_after_batch_boundary() {
     let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
     merge_sorted(
         &[file_a, file_b], &output, index,
-        &["v".into()], &[false], &[false],
+        &["v".into()], &[false], &[false], 0,
     ).unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -308,7 +308,7 @@ fn test_tier2_yield_multiple_cursors() {
     let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
     merge_sorted(
         &[file_a, file_b, file_c], &output, index,
-        &["v".into()], &[false], &[false],
+        &["v".into()], &[false], &[false], 0,
     ).unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -349,7 +349,7 @@ fn test_tier2_yield_descending() {
     let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
     merge_sorted(
         &[file_a, file_b], &output, index,
-        &["v".into()], &[true], &[false],
+        &["v".into()], &[true], &[false], 0,
     ).unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -390,7 +390,7 @@ fn test_tier2_no_yield_when_equal_to_heap_top() {
     let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
     merge_sorted(
         &[file_a, file_b], &output, index,
-        &["v".into()], &[false], &[false],
+        &["v".into()], &[false], &[false], 0,
     ).unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -433,7 +433,7 @@ fn test_tier2_yield_many_small_batches() {
     let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
     merge_sorted(
         &[file_a, file_b], &output, index,
-        &["v".into()], &[false], &[false],
+        &["v".into()], &[false], &[false], 0,
     ).unwrap();
 
     let vals = read_all_int64(&output, "v");
@@ -522,7 +522,7 @@ fn test_default_settings_ascending_nulls_last() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a, file_b], &output, "test_default_asc_nulls_last",
-        &["v".into()], &[false], &[false]).unwrap();
+        &["v".into()], &[false], &[false], 0).unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
     // With default batch_size=100_000 which divides evenly into RG_MAX=1_000_000,
@@ -564,7 +564,7 @@ fn test_default_settings_descending_nulls_last() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a, file_b], &output, "test_default_desc_nulls_last",
-        &["v".into()], &[true], &[false]).unwrap();
+        &["v".into()], &[true], &[false], 0).unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -619,7 +619,7 @@ fn test_default_settings_ascending_nulls_first() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a, file_b], &output, "test_default_asc_nulls_first",
-        &["v".into()], &[false], &[true]).unwrap();
+        &["v".into()], &[false], &[true], 0).unwrap();
 
     // ── Row group structure ──────────────────────────────────────────────
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -666,7 +666,7 @@ fn test_single_large_file_passthrough() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a], &output, "test_single_large_file",
-        &["v".into()], &[false], &[false]).unwrap();
+        &["v".into()], &[false], &[false], 0).unwrap();
 
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
     assert_eq!(rg_sizes.len(), 2);
@@ -707,7 +707,7 @@ fn test_skewed_file_sizes_large_small() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a, file_b], &output, "test_skewed_large_small",
-        &["v".into()], &[false], &[false]).unwrap();
+        &["v".into()], &[false], &[false], 0).unwrap();
 
     let total = large + small;
     let out_vals = read_col_i64(&output, "v");
@@ -754,7 +754,7 @@ fn test_three_files_middle_exhausts_first() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a, file_b, file_c], &output, "test_three_files_middle_exhausts",
-        &["v".into()], &[false], &[false]).unwrap();
+        &["v".into()], &[false], &[false], 0).unwrap();
 
     let total = a_count + b_count + c_count;
     let out_vals = read_col_i64(&output, "v");
@@ -786,7 +786,7 @@ fn test_all_duplicate_sort_keys_large() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&files, &output, "test_all_dupes_large",
-        &["v".into()], &[false], &[false]).unwrap();
+        &["v".into()], &[false], &[false], 0).unwrap();
 
     let total = n * 3;
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
@@ -822,7 +822,7 @@ fn test_non_multiple_of_batch_size() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a, file_b], &output, "test_non_multiple_batch",
-        &["v".into()], &[false], &[false]).unwrap();
+        &["v".into()], &[false], &[false], 0).unwrap();
 
     let total = a_count + b_count;
     let out_vals = read_col_i64(&output, "v");
@@ -868,7 +868,7 @@ fn test_rg_size_overshoots_when_batch_straddles_threshold() {
 
     let output = tmp.path().join("out.parquet").to_string_lossy().to_string();
     merge_sorted(&[file_a], &output, index,
-        &["v".into()], &[false], &[false]).unwrap();
+        &["v".into()], &[false], &[false], 0).unwrap();
 
     let (rg_sizes, rg_firsts, rg_lasts) = inspect_row_groups(&output, "v");
     assert_eq!(rg_sizes.len(), 2);

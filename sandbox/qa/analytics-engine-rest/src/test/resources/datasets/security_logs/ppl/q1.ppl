@@ -1,0 +1,1 @@
+source=security_logs | where event_type="authentication_failure" and severity in ("ERROR", "CRITICAL") | stats count() as failed_attempts by user, source_ip | where failed_attempts > 5 | sort - failed_attempts

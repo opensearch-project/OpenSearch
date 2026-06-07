@@ -144,13 +144,18 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getClusterManagerThrottlingStats(),
                 nodeStats.getWeightedRoutingStats(),
                 this.aggregateFileCacheStats != null ? this.aggregateFileCacheStats : nodeStats.getFileCacheStats(),
+                nodeStats.getFileCacheOnlyStats(),
+                nodeStats.getBlockCacheOnlyStats(),
                 nodeStats.getTaskCancellationStats(),
                 nodeStats.getSearchPipelineStats(),
                 nodeStats.getSegmentReplicationRejectionStats(),
                 nodeStats.getRepositoriesStats(),
                 nodeStats.getAdmissionControlStats(),
                 nodeStats.getNodeCacheStats(),
-                nodeStats.getRemoteStoreNodeStats()
+                nodeStats.getRemoteStoreNodeStats(),
+                nodeStats.getNativeAllocatorStats(),
+                nodeStats.getAnalyticsBackendNativeMemoryStats(),
+                nodeStats.getTotalEstimatedNativeBytes()
             );
         }).collect(Collectors.toList());
     }

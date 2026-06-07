@@ -11,6 +11,8 @@ package org.opensearch.be.lucene;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -63,6 +65,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     // at first use). Revisit if this surfaces as a real cost — needs revisiting.
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
+    private final IndexSearcher searcher;
     private final List<LeafReaderContext> leaves;
     private final BooleanSupplier isCancelledSupplier;
     private final Map<Long, String> generationToSegmentName;
@@ -83,6 +86,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         assert luceneReader != null : "luceneReader must not be null";
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = luceneReader.directoryReader();
+        this.searcher = queryShardContext.searcher();
         this.leaves = directoryReader.leaves();
         this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
@@ -119,7 +123,6 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             return -1;
         }
         try {
-            IndexSearcher searcher = new IndexSearcher(directoryReader);
             Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             int providerKey = nextProviderKey.getAndIncrement();
             weightsByProviderKey.put(providerKey, weight);
@@ -149,7 +152,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
         LeafReaderContext leaf = null;
         for (LeafReaderContext lrc : leaves) {
-            if (((SegmentReader) lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
+            if (unwrapSegmentReader(lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
                 leaf = lrc;
                 break;
             }
@@ -271,6 +274,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     public void close() {
         weightsByProviderKey.clear();
         scorersByCollectorKey.clear();
+    }
+
+    private SegmentReader unwrapSegmentReader(LeafReader reader) {
+        LeafReader current = reader;
+        while (current instanceof FilterLeafReader flr) {
+            current = flr.getDelegate();
+        }
+        return (SegmentReader) current;
     }
 
     private static final class ScorerHandle {

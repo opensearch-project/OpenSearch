@@ -338,6 +338,10 @@ async fn test_list_includes_remote_only_files() {
         )
         .await
         .unwrap();
+    // Register local file in registry — list() returns registry entries only
+    tiered
+        .register_file("data/local.parquet", FileLocation::Local, None)
+        .unwrap();
 
     remote
         .put(
@@ -903,12 +907,12 @@ async fn test_head_directory_path_returns_synthetic_when_registry_has_entries() 
     let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/a.parquet")), 1024);
     registry.register("data/parquet/a.parquet", entry);
 
-    // head() on a directory path (no file extension) should return synthetic metadata
+    // head() on a directory path should return NotFound — DataFusion uses list()
+    // to discover files in directories, not head(). Returning NotFound tells
+    // DataFusion "this is not a file" and it proceeds to list().
     let result = tiered.head(&Path::from("data/parquet")).await;
-    assert!(result.is_ok());
-    let meta = result.unwrap();
-    assert_eq!(meta.size, 0);
-    assert_eq!(meta.location, Path::from("data/parquet"));
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), object_store::Error::NotFound { .. }));
 }
 
 #[tokio::test]
@@ -918,10 +922,10 @@ async fn test_head_directory_path_with_trailing_slash() {
     let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/b.parquet")), 2048);
     registry.register("data/parquet/b.parquet", entry);
 
-    // Trailing slash also treated as directory
+    // Trailing slash also treated as directory — returns NotFound
     let result = tiered.head(&Path::from("data/parquet/")).await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap().size, 0);
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), object_store::Error::NotFound { .. }));
 }
 
 #[tokio::test]

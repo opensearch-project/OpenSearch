@@ -13,13 +13,12 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
-import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -126,19 +125,9 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         );
     }
 
-    private EngineContext buildEngineContext() {
-        SchemaPlus schema = buildSchema();
-        return new EngineContext() {
-            @Override
-            public SchemaPlus getSchema() {
-                return schema;
-            }
-
-            @Override
-            public SqlOperatorTable operatorTable() {
-                return SqlOperatorTables.of();
-            }
-        };
+    private EngineContextProvider buildEngineContext() {
+        QueryRequestContext ctx = new QueryRequestContext(null, buildSchema());
+        return () -> ctx;
     }
 
     private SchemaPlus buildSchema() {

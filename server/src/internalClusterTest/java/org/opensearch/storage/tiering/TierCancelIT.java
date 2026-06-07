@@ -25,7 +25,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexModule;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
@@ -35,11 +37,14 @@ import org.opensearch.storage.action.tiering.HotToWarmTierAction;
 import org.opensearch.storage.action.tiering.IndexTieringRequest;
 import org.opensearch.storage.action.tiering.WarmToHotTierAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
@@ -75,7 +80,9 @@ public class TierCancelIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return super.nodePlugins().stream().collect(Collectors.toList());
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -311,6 +318,26 @@ public class TierCancelIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().startClusterManagerOnlyNode(settingsBuilder.build());
         internalCluster().startDataOnlyNodes(numberOfReplicas + 1, settingsBuilder.build());
         internalCluster().startWarmOnlyNodes(2, settingsBuilder.build());
+        interceptCheckpointUpdates();
+    }
+
+    protected void interceptCheckpointUpdates() {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                nodeName
+            );
+            mockTransportService.addRequestHandlingBehavior(
+                SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT,
+                (handler, request, channel, task) -> {
+                    try {
+                        handler.messageReceived(request, channel, task);
+                    } catch (AssertionError e) {
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    }
+                }
+            );
+        }
     }
 
     protected void createTestIndex(String indexName, int numberOfShards, int numberOfReplicas) {

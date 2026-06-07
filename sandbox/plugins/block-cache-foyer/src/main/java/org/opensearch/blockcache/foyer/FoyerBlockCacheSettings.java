@@ -44,17 +44,17 @@ public final class FoyerBlockCacheSettings {
      * byte allocation scales automatically with the instance's SSD capacity.
      *
      * <p>Example: 1&nbsp;TB SSD, {@code node.search.cache.size=80%} (800&nbsp;GB budget),
-     * {@code block_cache.foyer.size=25%} → Foyer gets 200&nbsp;GB, FileCache gets 600&nbsp;GB.
+      * {@code block_cache.foyer.size=50%} → Foyer gets 400&nbsp;GB, FileCache gets 400&nbsp;GB.
      *
-     * <p>Default: {@code 25%}. Set to {@code 0%} to disable the block cache.
-     * Accepts a percentage (e.g. {@code 25%}) or a ratio (e.g. {@code 0.25}).
+     * <p>Default: {@code 50%}. Set to {@code 0%} to disable the block cache.
+     * Accepts a percentage (e.g. {@code 50%}) or a ratio (e.g. {@code 0.50}).
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.foyer.size: 25%
+     * block_cache.foyer.size: 50%
      * }</pre>
      */
-    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "25%", value -> {
+    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "50%", value -> {
         try {
             RatioValue ratio = RatioValue.parseRatioValue(value);
             if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 1.0) {
@@ -118,24 +118,76 @@ public final class FoyerBlockCacheSettings {
     }, Setting.Property.NodeScope);
 
     /**
-     * Data-to-cache amplification ratio for the Foyer block cache.
+     * How often (seconds) the background sweeper prunes stale key_index entries left
+     * by Foyer's disk reclaimer. {@code 0} = disabled (no background sweep task is spawned).
+     * Range: [0, 3600]. Configure via {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     */
+    public static final Setting<Long> KEY_INDEX_SWEEP_INTERVAL_SETTING = Setting.longSetting(
+        "block_cache.foyer.key_index_sweep_interval_seconds",
+        0L,    // 0 = disabled (no sweep task spawned)
+        0L,    // min: 0
+        3600L, // max: 1 hour
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Minimum {@code used_bytes / disk_bytes} ratio required to run the key_index sweep.
      *
-     * <p>For every byte of Foyer SSD capacity, the warm node can virtually serve this
-     * many bytes of remote data. Used by warm-node capacity reporting
-     * ({@code WarmFsService}) for shard placement decisions.
+     * <p>On each interval tick the sweep loop checks whether the current usage ratio is
+     * strictly below this threshold. If so, the sweep is skipped (no-op) — no DashMap
+     * locks are acquired and no shard is iterated. This avoids wasting CPU cycles when
+     * the cache is lightly loaded and Foyer's disk reclaimer is unlikely to have evicted
+     * anything.
      *
-     * <p>Default: {@code 5.0}.
+     * <p>Default: {@code 0.70} — skip the sweep when the cache is less than 70% full.
+     * Set to {@code 0.0} to disable the threshold guard and always sweep.
+     *
+     * <p>Range: {@code [0.0, 1.0]}.
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.foyer.data_to_cache_ratio: 5.0
+     * block_cache.foyer.key_index_sweep_threshold: 0.75
      * }</pre>
      */
-    public static final Setting<Double> DATA_TO_CACHE_RATIO_SETTING = Setting.doubleSetting(
-        "block_cache.foyer.data_to_cache_ratio",
-        5.0,
-        1.0,
-        Setting.Property.NodeScope
+    public static final Setting<Double> KEY_INDEX_SWEEP_THRESHOLD_SETTING = Setting.doubleSetting(
+        "block_cache.foyer.key_index_sweep_threshold",
+        0.70, // default: skip sweep when cache < 70% full
+        0.0,  // min: 0.0 (explicit 0 = always sweep)
+        1.0,  // max: 1.0
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How often (seconds) the independent persist task flushes the key_index to disk.
+     *
+     * <p>The persist task is decoupled from the sweep task so that persist frequency
+     * (a cheap file write, default 60 s) and sweep frequency (an expensive DashMap scan)
+     * can be tuned independently.
+     *
+     * <p>The task uses {@code used_bytes} as a change signal: if {@code used_bytes} has
+     * not changed since the last successful write, the tick is skipped (no disk I/O).
+     * This means idle caches produce zero I/O even if the interval is short.
+     *
+     * <p>{@code 0} = disabled — the key_index is only persisted on graceful shutdown
+     * via the {@code Drop} impl (i.e. when the JVM shuts down cleanly). In this mode
+     * the maximum durability window after a crash equals the node uptime since startup.
+     *
+     * <p>Default: {@code 60} seconds. Range: [0, 3600].
+     *
+     * <p>Configure in {@code opensearch.yml}:
+     * <pre>{@code
+     * block_cache.foyer.key_index_persist_interval_seconds: 60
+     * }</pre>
+     */
+    public static final Setting<Long> KEY_INDEX_PERSIST_INTERVAL_SETTING = Setting.longSetting(
+        "block_cache.foyer.key_index_persist_interval_seconds",
+        60L,   // default: 60 seconds
+        0L,    // min: 0 (0 = disabled, persist only on graceful shutdown)
+        3600L, // max: 1 hour
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private FoyerBlockCacheSettings() {}

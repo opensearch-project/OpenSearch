@@ -1,0 +1,1 @@
+source=regex_logs | where raw_message like "Database Query:%" | grok raw_message 'Database Query: SELECT \* FROM %{WORD:table_name} WHERE %{WORD:column}=%{QUOTEDSTRING:value} ExecutionTime: %{NUMBER:exec_time}s Rows: %{INT:row_count}' | where table_name != "" | stats count() as query_count, avg(row_count) as avg_rows by table_name | sort - query_count

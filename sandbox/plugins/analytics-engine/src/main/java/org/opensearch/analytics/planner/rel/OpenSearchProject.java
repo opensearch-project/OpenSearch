@@ -31,6 +31,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -76,7 +77,8 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
                 result.add(inputStorage.get(ref.getIndex()));
             } else {
                 String fieldName = getRowType().getFieldList().get(i).getName();
-                result.add(FieldStorageInfo.derivedColumn(fieldName, getRowType().getFieldList().get(i).getType().getSqlTypeName()));
+                LinkedHashSet<String> deps = RelNodeUtils.resolvePhysicalDeps(expr, inputStorage);
+                result.add(FieldStorageInfo.derivedColumn(fieldName, getRowType().getFieldList().get(i).getType().getSqlTypeName(), deps));
             }
         }
         return result;

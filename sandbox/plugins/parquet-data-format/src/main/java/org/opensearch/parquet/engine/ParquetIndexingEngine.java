@@ -11,6 +11,7 @@ package org.opensearch.parquet.engine;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -102,7 +103,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Schema> schemaSupplier,
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ArrowNativeAllocator nativeAllocator
     ) {
         this(
             settings,
@@ -112,7 +114,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             mappingVersionSupplier,
             indexSettings,
             threadPool,
-            new PrecomputedChecksumStrategy()
+            new PrecomputedChecksumStrategy(),
+            nativeAllocator
         );
     }
 
@@ -127,6 +130,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      * @param checksumStrategy  the checksum strategy to use (shared with the directory)
+     * @param nativeAllocator   the framework's unified native allocator
      */
     public ParquetIndexingEngine(
         Settings settings,
@@ -136,13 +140,14 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
-        FormatChecksumStrategy checksumStrategy
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.mappingVersionSupplier = mappingVersionSupplier;
-        this.bufferPool = new ArrowBufferPool(settings);
+        this.bufferPool = new ArrowBufferPool(settings, nativeAllocator);
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
         this.threadPool = threadPool;
@@ -184,9 +189,18 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
             .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
             .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
+            .rowGroupMaxBytes(ParquetSettings.ROW_GROUP_MAX_BYTES.get(settings).getBytes())
             .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
             .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
             .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
+            .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
+            .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
+            .fieldBloomFilterEnabled(ParquetSettings.getFieldBloomFilterEnabled(settings))
+            .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
+            .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
+            .typeBloomFilterEnabled(ParquetSettings.getTypeBloomFilterEnabled(nodeSettings))
+            .typeBloomFilterFpp(ParquetSettings.getTypeBloomFilterFpp(nodeSettings))
+            .typeBloomFilterNdv(ParquetSettings.getTypeBloomFilterNdv(nodeSettings))
             .build();
         try {
             RustBridge.onSettingsUpdate(config);
@@ -198,19 +212,26 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public Writer<ParquetDocumentInput> createWriter(WriterConfig config) {
         long mappingVersion = mappingVersionSupplier.get();
-        Schema schema = getOrBuildSchema(mappingVersion);
+        Schema schema = getOrBuildSchema();
         Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
         return new ParquetWriter(
             filePath.toString(),
             config.writerGeneration(),
-            mappingVersion,
+            0L,
             dataFormat,
             schema,
+            this::getOrBuildSchema,
             bufferPool,
             indexSettings,
             threadPool,
             checksumStrategy
         );
+    }
+
+    /** Parquet indexing uses only native (off-heap) memory via Arrow buffers and Rust writers, no JVM heap. */
+    @Override
+    public long getHeapBytesUsed() {
+        return 0;
     }
 
     @Override
@@ -273,13 +294,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return null;
     }
 
-    private Schema getOrBuildSchema(long mappingVersion) {
-        if (cachedSchemaVersion == mappingVersion && cachedSchema != null) {
-            return cachedSchema;
-        }
-        cachedSchema = schemaSupplier.get();
-        cachedSchemaVersion = mappingVersion;
-        return cachedSchema;
+    private Schema getOrBuildSchema() {
+        return schemaSupplier.get();
     }
 
     @Override

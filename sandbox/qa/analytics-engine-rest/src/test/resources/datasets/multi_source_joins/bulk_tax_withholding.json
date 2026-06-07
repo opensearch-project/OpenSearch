@@ -1,0 +1,601 @@
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00044", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00045", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00009", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00042", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": true, "part_mid": "MID00032", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00001", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00049", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00039", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": true, "part_mid": "MID00034", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00032", "user_id": "user17", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00005", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00037", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00019", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00018", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00009", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00036", "user_id": "user17", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00046", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00035", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00009", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00028", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00006", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00038", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00037", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": true, "part_mid": "MID00015", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00039", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00021", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00031", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00018", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00010", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00049", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00030", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00032", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00017", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00016", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00036", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00048", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00009", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00044", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": true, "part_mid": "MID00047", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00041", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00034", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": true, "part_mid": "MID00015", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00030", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00048", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00027", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00035", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00005", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00022", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00001", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00047", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00006", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00045", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00010", "user_id": "user13", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00021", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00041", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00037", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": true, "part_mid": "MID00027", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00017", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00018", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00017", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00003", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00030", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00033", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00048", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00023", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00040", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00042", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00005", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00006", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00005", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00042", "user_id": "user10", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00022", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00033", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00047", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00047", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00005", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00026", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00005", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00025", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00007", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00032", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": true, "part_mid": "MID00003", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00000", "user_id": "user17", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00001", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00010", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00045", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00040", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00003", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00015", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00034", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": true, "part_mid": "MID00037", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00007", "user_id": "user10", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00019", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": true, "part_mid": "MID00004", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00010", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00014", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00002", "user_id": "user10", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00045", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00000", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00031", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00038", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00038", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00032", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00000", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00009", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00001", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00017", "user_id": "user17", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00037", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00043", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00018", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00031", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00041", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00036", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00002", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00011", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00045", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00048", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00032", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00000", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00044", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00033", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00019", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00008", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00002", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": true, "part_mid": "MID00039", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00040", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00031", "user_id": "user13", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00036", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00047", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00012", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00042", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": true, "part_mid": "MID00004", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00036", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00036", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00042", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "ERROR", "mock_update": false, "part_mid": "MID00014", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": true, "part_mid": "MID00005", "user_id": "user10", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00020", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": true, "part_mid": "MID00038", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00035", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00039", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "ERROR", "mock_update": true, "part_mid": "MID00029", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": true, "part_mid": "MID00038", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00013", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00026", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00041", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": true, "part_mid": "MID00009", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00002", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": true, "part_mid": "MID00049", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00027", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00021", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00046", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00075", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00068", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00025", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00070", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00012", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00083", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00081", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00070", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00033", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00002", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00009", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00002", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00081", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00075", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00037", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00072", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00004", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00066", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00074", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00096", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00002", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00066", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00073", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00005", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00015", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00021", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00022", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00001", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00063", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00064", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00065", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00016", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00089", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00073", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00037", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00064", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00094", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00053", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00080", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00008", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00084", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00066", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00093", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00067", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00019", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00068", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "WARN", "mock_update": false, "part_mid": "MID00002", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm1", "log_level": "INFO", "mock_update": false, "part_mid": "MID00054", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00000", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00093", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00058", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00056", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00031", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00005", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00050", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00031", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00068", "user_id": "user13", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00047", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00007", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00091", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00057", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00007", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00006", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00039", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00011", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00011", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00046", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00022", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00072", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00009", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00038", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00027", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00070", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00088", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00054", "user_id": "user28", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00085", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00013", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00007", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00028", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00076", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00032", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00082", "user_id": "user13", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00076", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00056", "user_id": "user10", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00071", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00020", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00000", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00001", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00032", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00044", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00014", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00080", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00082", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00009", "user_id": "user14", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00010", "user_id": "user21", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "WARN", "mock_update": false, "part_mid": "MID00085", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00033", "user_id": "user13", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm2", "log_level": "INFO", "mock_update": false, "part_mid": "MID00057", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00046", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00076", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00020", "user_id": "user11", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00005", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00005", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00085", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00049", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00046", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00093", "user_id": "user22", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00099", "user_id": "user18", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00094", "user_id": "user2", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00061", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00026", "user_id": "user10", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00046", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00012", "user_id": "user5", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00031", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00099", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00019", "user_id": "user17", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00083", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00011", "user_id": "user24", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00057", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00005", "user_id": "user17", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00086", "user_id": "user30", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00073", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00098", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00019", "user_id": "user1", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00093", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00086", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00027", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00083", "user_id": "user9", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00081", "user_id": "user27", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00001", "user_id": "user15", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00069", "user_id": "user8", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00037", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00092", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00092", "user_id": "user12", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00094", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00054", "user_id": "user16", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00053", "user_id": "user7", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00050", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00044", "user_id": "user29", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00091", "user_id": "user3", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00043", "user_id": "user26", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00010", "user_id": "user20", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00016", "user_id": "user19", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00042", "user_id": "user25", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00014", "user_id": "user4", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "WARN", "mock_update": false, "part_mid": "MID00090", "user_id": "user23", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00064", "user_id": "user6", "form_type": "W4R"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "uri": "/taxwithholding/v1/irs/form/w4r", "realm": "realm3", "log_level": "INFO", "mock_update": false, "part_mid": "MID00040", "user_id": "user13", "form_type": "W4R"}
+

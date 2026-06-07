@@ -36,7 +36,7 @@ import java.util.List;
 public class EqualsSerializer extends AbstractQuerySerializer {
 
     @Override
-    protected QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
+    public QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage) {
         if (call.getOperands().size() != 2) {
             throw new IllegalArgumentException("EQUALS expects 2 operands, got " + call.getOperands().size());
         }

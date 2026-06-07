@@ -22,6 +22,15 @@ repositories {
   }
 }
 
+configurations {
+    // External plugin zips consumed from Maven and installed onto the test cluster
+    // via cluster.plugin(Provider<RegularFile>). opensearch-sql declares
+    // opensearch-job-scheduler in its extended.plugins, so both must be installed
+    // (job-scheduler first to satisfy opensearch-plugin install's jarHell check).
+    jobSchedulerPlugin
+    sqlPlugin
+}
+
 dependencies {
     testImplementation project(':sandbox:plugins:analytics-engine')
     testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
@@ -29,7 +38,18 @@ dependencies {
     testImplementation project(':sandbox:plugins:dsl-query-executor')
     testImplementation project(':sandbox:plugins:composite-engine')
     testImplementation project(':sandbox:plugins:parquet-data-format')
+    // test-ppl-frontend kept available so ExplainApiIT can hit /_analytics/ppl/_explain;
+    // its profile/stage-timing output isn't matched by the real opensearch-sql plugin's
+    // explain endpoint (returns plain Calcite plan text). All other QA tests use
+    // /_plugins/_ppl on the real plugin.
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
+
+    // job-scheduler pulled from OpenSearch Snapshots (no local build).
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.7.0.0-SNAPSHOT@zip"
+    // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
+    // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
+    // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.7.0.0-SNAPSHOT@zip"
 }
 
 // ── Shared cluster configuration closure ─────────────────────────────────────
@@ -46,11 +66,24 @@ def configureAnalyticsCluster = { cluster ->
     cluster.plugin ':sandbox:plugins:dsl-query-executor'
     cluster.plugin ':sandbox:plugins:composite-engine'
     cluster.plugin ':sandbox:plugins:parquet-data-format'
+    // Shim — keeps /_analytics/ppl/_explain available for ExplainApiIT, which asserts on
+    // the shim's profile/stage-timing output that the real plugin doesn't emit.
     cluster.plugin ':sandbox:plugins:test-ppl-frontend'
+    // External plugins from Maven. job-scheduler must be installed before
+    // opensearch-sql (which declares it in extended.plugins).
+    cluster.plugin project.layout.file(provider { configurations.jobSchedulerPlugin.singleFile })
+    cluster.plugin project.layout.file(provider { configurations.sqlPlugin.singleFile })
 
     // Arrow/Flight JVM flags for DataFusion native library
     cluster.jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
     cluster.jvmArgs '--enable-native-access=ALL-UNNAMED'
+
+    // Calcite's Aggregate.typeMatchesInferred enforces declared == inferred per aggCall.
+    // Distributed FINAL aggregates pin a different return type than what re-inference over
+    // the array-typed StageInputScan column would produce — the engine's substrait emit
+    // and Rust's derive_schema_from_partial_plan are the source of truth, not Calcite's
+    // re-inference. Disable that one assertion namespace; -ea remains on elsewhere.
+    cluster.jvmArgs '-da:org.apache.calcite...'
 
     // Arrow memory allocator needs Netty unsafe access on JDK 25; mirrors
     // gradle/run.gradle's arrow-flight-rpc overrides so AnalyticsSearchService
@@ -65,6 +98,12 @@ def configureAnalyticsCluster = { cluster ->
 
     // Enable pluggable dataformat feature flag
     cluster.systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+
+    // Cluster-level opt-in: opensearch-sql plugin's RestUnifiedQueryAction#isAnalyticsIndex
+    // gates on this — when set to "composite" it routes every PPL/SQL query to the
+    // analytics-engine path (bypassing the per-index lookup that doesn't handle aliases,
+    // wildcards, or comma-lists).
+    cluster.setting 'cluster.pluggable.dataformat', 'composite'
 
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
@@ -81,6 +120,13 @@ integTest {
     systemProperty 'tests.security.manager', 'false'
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
+    exclude '**/QueryCacheIT.class'
+    exclude '**/YmlOversamplingIT.class'
+
+    // Note: parallel forks against the same 2-node testCluster slow the suite down
+    // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
+    // when ITs provision their indices lazily. Keep the OpenSearchTestBasePlugin
+    // defaults (single fork, no maxParallelForks override).
 }
 
 // ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────
@@ -101,6 +147,24 @@ testClusters.integTestMemtable {
     setting 'datafusion.reduce.input_mode', 'memtable'
 }
 
+// ── Query cache variant: all_segments=true for cache testing ─────────────────
+task integTestQueryCache(type: RestIntegTestTask) {
+    description = 'Runs query cache tests with all_segments=true to bypass segment size threshold'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.QueryCacheIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestQueryCache)
+
+testClusters.integTestQueryCache {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'indices.queries.cache.all_segments', 'true'
+}
+
 // ── Streaming variant: 2 nodes, Arrow Flight stream transport enabled ────────
 task integTestStreaming(type: RestIntegTestTask) {
     description = 'Runs coordinator-reduce tests with Arrow Flight streaming'
@@ -116,6 +180,24 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+}
+
+// ── YML oversampling variant: verifies TopK fires from opensearch.yml setting ─
+task integTestYmlOversampling(type: RestIntegTestTask) {
+    description = 'Verifies TopK oversampling works when set via opensearch.yml (node settings)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.YmlOversamplingIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestYmlOversampling)
+
+testClusters.integTestYmlOversampling {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'analytics.shard_bucket_oversampling_factor', '2.0'
 }
 
 // Run against an external cluster (no testClusters lifecycle):

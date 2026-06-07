@@ -34,6 +34,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     private static final Logger LOGGER = LogManager.getLogger(RuleProfilingListenerTests.class);
 
     private static final List<String> EXPECTED_PHASES = List.of(
+        "subquery-remove",
+        "literal-agg-extract",
         "reduce-expressions",
         "pushdown-rules",
         "aggregate-decompose",
@@ -84,6 +86,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
             5,
             "SELECT CounterID, SUM(ParamPrice) AS total FROM hits WHERE AdvEngineID = 5 GROUP BY CounterID",
             Map.ofEntries(
+                Map.entry("ExtractLiteralAggRule", 0L),
                 Map.entry("ReduceExpressionsRule(Filter)", 0L),
                 Map.entry("ReduceExpressionsRule(Project)", 0L),
                 Map.entry("OpenSearchFilterRule", 1L),
@@ -103,6 +106,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
             5,
             "SELECT l.CounterID, COUNT(*) AS cnt FROM hits l JOIN hits r ON l.CounterID = r.CounterID GROUP BY l.CounterID",
             Map.of(
+                "ExtractLiteralAggRule",
+                0L,
                 "ReduceExpressionsRule(Project)",
                 0L,
                 "OpenSearchTableScanRule",

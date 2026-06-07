@@ -120,12 +120,16 @@ pub(crate) fn coerce_args(
         .collect()
 }
 
+pub mod binary_to_base64;
+pub mod conv;
 pub mod convert_tz;
 pub mod conversion;
 pub mod crc32;
 pub mod date_format;
 pub mod extract;
 pub mod from_unixtime;
+pub mod ip_to_string;
+pub mod item;
 pub mod json_append;
 pub mod json_array_length;
 pub(crate) mod json_common;
@@ -142,6 +146,8 @@ pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
 pub(crate) mod mysql_format;
+pub mod parse;
+pub mod pattern_parser;
 pub mod range_bucket;
 pub mod rex_extract;
 pub mod rex_extract_multi;
@@ -152,6 +158,7 @@ pub mod str_to_date;
 pub mod strftime;
 pub mod time_format;
 pub mod width_bucket;
+pub mod reduce_eval;
 
 // Dev note: if a freshly added UDF here fails at runtime with
 // "Unsupported function name: <X>" despite the Java side being wired, the
@@ -161,12 +168,16 @@ pub mod width_bucket;
 // `./gradlew :sandbox:libs:dataformat-native:buildRustLibrary --rerun-tasks`
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
+    binary_to_base64::register_all(ctx);
+    conv::register_all(ctx);
     convert_tz::register_all(ctx);
     conversion::register_all(ctx);
     crc32::register_all(ctx);
     date_format::register_all(ctx);
     extract::register_all(ctx);
     from_unixtime::register_all(ctx);
+    ip_to_string::register_all(ctx);
+    item::register_all(ctx);
     json_append::register_all(ctx);
     json_array_length::register_all(ctx);
     json_delete::register_all(ctx);
@@ -181,6 +192,8 @@ pub fn register_all(ctx: &SessionContext) {
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    parse::register_all(ctx);
+    pattern_parser::register_all(ctx);
     range_bucket::register_all(ctx);
     rex_extract::register_all(ctx);
     rex_extract_multi::register_all(ctx);
@@ -191,8 +204,18 @@ pub fn register_all(ctx: &SessionContext) {
     strftime::register_all(ctx);
     time_format::register_all(ctx);
     width_bucket::register_all(ctx);
+    reduce_eval::register_all(ctx);
+    // Delegation markers (index_filter = correctness-delegation, delegation_possible =
+    // performance-delegation). Calcite emits these into a shard filter's substrait; they are
+    // unwrapped/executed ONLY on the data-node indexed path. But every session must be able to
+    // PARSE them: a coordinator-reduce session derives the producer (shard) plan's output schema
+    // via derive_schema_from_partial_plan, which builds the producer's physical plan and fails on
+    // an unregistered function. Register here so all sessions can parse; the bodies still error if
+    // ever actually invoked (they never are off the indexed path).
+    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_index_filter_udf());
+    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, conversion(numeric_conversion: num/auto/memk/rmcomma/rmunit/dur2sec/mstime, time_conversion: ctime/mktime), crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_extract_all, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, width_bucket registered"
+        "OpenSearch UDF register_all: convert_tz, conversion(numeric_conversion: num/auto/memk/rmcomma/rmunit/dur2sec/mstime, time_conversion: ctime/mktime), crc32, date_format, opensearch_extract, from_unixtime, item, json_append, json_array_length, json_delete, json_extend, json_extract, json_extract_all, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, parse, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, width_bucket registered"
     );
 }
 

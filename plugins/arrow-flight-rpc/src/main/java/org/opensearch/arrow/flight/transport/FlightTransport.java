@@ -19,10 +19,11 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
@@ -95,13 +96,12 @@ class FlightTransport extends TcpTransport {
     private final AtomicInteger nextExecutorIndex = new AtomicInteger(0);
 
     private final ThreadPool threadPool;
-    private BufferAllocator flightAllocator;
     private BufferAllocator serverAllocator;
     private BufferAllocator clientAllocator;
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
-    private final ArrowAllocatorService allocatorService;
+    private final ArrowNativeAllocator nativeAllocator;
     private final FlightTransportConfig config = new FlightTransportConfig();
 
     final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
@@ -119,7 +119,7 @@ class FlightTransport extends TcpTransport {
         Tracer tracer,
         SslContextProvider sslContextProvider,
         FlightStatsCollector statsCollector,
-        ArrowAllocatorService allocatorService
+        ArrowNativeAllocator nativeAllocator
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.portRange = SETTING_FLIGHT_PORTS.get(settings);
@@ -127,7 +127,7 @@ class FlightTransport extends TcpTransport {
         this.publishHosts = SETTING_FLIGHT_PUBLISH_HOST.get(settings).toArray(new String[0]);
         this.sslContextProvider = sslContextProvider;
         this.statsCollector = statsCollector;
-        this.allocatorService = allocatorService;
+        this.nativeAllocator = nativeAllocator;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
         this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors());
         this.serverExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
@@ -147,14 +147,29 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            flightAllocator = allocatorService.newChildAllocator("flight", Integer.MAX_VALUE);
-            serverAllocator = flightAllocator.newChildAllocator("server", 0, flightAllocator.getLimit());
-            clientAllocator = flightAllocator.newChildAllocator("client", 0, flightAllocator.getLimit());
+            // Use the unified native allocator's flight pool directly as the parent for
+            // server/client child allocators. Allocations are tracked and capped by the
+            // framework alongside ingest, query, and datafusion. Hard-fail if the framework
+            // plugin is missing — silently falling back to a separate root would break the
+            // same-root invariant for cross-plugin Arrow handoff.
+            //
+            // Server/client are children of the pool with Long.MAX_VALUE limits so dynamic
+            // resizes of parquet.native.pool.flight.max take effect immediately via Arrow's
+            // parent-cap check at allocateBytes — no listener needed.
+            BufferAllocator flightPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_FLIGHT);
+            serverAllocator = flightPool.newChildAllocator("server", 0, Long.MAX_VALUE);
+            clientAllocator = flightPool.newChildAllocator("client", 0, Long.MAX_VALUE);
             if (statsCollector != null) {
-                statsCollector.setBufferAllocator(flightAllocator);
+                statsCollector.setBufferAllocator(flightPool);
                 statsCollector.setThreadPool(threadPool);
             }
-            flightProducer = new ArrowFlightProducer(this, flightAllocator, SERVER_HEADER_KEY, statsCollector);
+            flightProducer = new ArrowFlightProducer(
+                this,
+                flightPool,
+                SERVER_HEADER_KEY,
+                statsCollector,
+                ServerConfig.FLIGHT_READY_TIMEOUT.get(settings).millis()
+            );
             bindServer();
             success = true;
             if (statsCollector != null) {
@@ -233,6 +248,7 @@ class FlightTransport extends TcpTransport {
                     .bossEventLoopGroup(bossEventLoopGroup)
                     .workerEventLoopGroup(workerEventLoopGroup)
                     .executor(serverExecutor)
+                    .backpressureThreshold((int) ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(settings).getBytes())
                     .middleware(SERVER_HEADER_KEY, factory);
 
                 builder.location(locations.get(0));
@@ -261,6 +277,7 @@ class FlightTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         try {
+
             if (flightServer != null) {
                 flightServer.shutdown();
                 flightServer.awaitTermination();
@@ -269,7 +286,6 @@ class FlightTransport extends TcpTransport {
             }
             serverAllocator.close();
             clientAllocator.close();
-            flightAllocator.close();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
 
@@ -321,6 +337,7 @@ class FlightTransport extends TcpTransport {
             .sslContext(sslContextProvider != null ? sslContextProvider.getClientSslContext() : null)
             .executor(clientExecutor)
             .intercept(factory)
+            .grpcIntercept(new BufferReleasingClientInterceptor())
             .build();
 
         try {

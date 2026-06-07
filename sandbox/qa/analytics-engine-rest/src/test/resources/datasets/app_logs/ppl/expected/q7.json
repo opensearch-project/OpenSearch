@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "log_level",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      22,
+      "web-service",
+      "ERROR"
+    ],
+    [
+      21,
+      "db-service",
+      "ERROR"
+    ],
+    [
+      18,
+      "auth-service",
+      "ERROR"
+    ],
+    [
+      17,
+      "api-service",
+      "ERROR"
+    ],
+    [
+      4,
+      "web-service",
+      "INFO"
+    ],
+    [
+      2,
+      "api-service",
+      "INFO"
+    ],
+    [
+      2,
+      "db-service",
+      "INFO"
+    ],
+    [
+      2,
+      "db-service",
+      "WARN"
+    ],
+    [
+      1,
+      "auth-service",
+      "INFO"
+    ],
+    [
+      1,
+      "auth-service",
+      "WARN"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

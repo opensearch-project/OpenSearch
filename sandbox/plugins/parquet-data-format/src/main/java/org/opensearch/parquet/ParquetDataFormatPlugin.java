@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet;
 
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -17,6 +18,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -31,6 +33,7 @@ import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.parquet.store.ParquetStoreStrategy;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -61,6 +64,13 @@ import java.util.function.Supplier;
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
+    /**
+     * Current parquet writer format version, long-encoded (plugin-defined namespace; the
+     * encoding happens to reuse {@code major * 1_000_000 + minor * 1_000 + patch} but is
+     * NOT a Lucene version — do not compare to Lucene-encoded versions).
+     */
+    public static final long PARQUET_FORMAT_VERSION = 1_000_000L; // 1.0.0
+
     /** Thread pool name for background native Parquet writes during VSR rotation. */
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
     private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();
@@ -68,6 +78,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
     private Settings settings = Settings.EMPTY;
     private ThreadPool threadPool;
+    private ArrowNativeAllocator nativeAllocator;
 
     /** Creates a new ParquetDataFormatPlugin. */
     public ParquetDataFormatPlugin() {}
@@ -84,10 +95,13 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
     ) {
         this.settings = clusterService.getSettings();
         this.threadPool = threadPool;
+        this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
         return Collections.emptyList();
     }
 
@@ -106,7 +120,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             () -> engineConfig.mapperService().getIndexSettings().getIndexMetadata().getMappingVersion(),
             engineConfig.indexSettings(),
             threadPool,
-            engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)
+            engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME),
+            nativeAllocator
         );
     }
 
@@ -130,6 +145,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     @Override
     public List<Setting<?>> getSettings() {
         return ParquetSettings.getSettings();
+    }
+
+    @Override
+    public Collection<IndexCreationValidator> getIndexCreationValidators() {
+        return List.of(new ParquetIndexCreationValidator());
     }
 
     @Override

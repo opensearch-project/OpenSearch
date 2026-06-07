@@ -21,9 +21,12 @@ import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
+import org.opensearch.analytics.schema.BinaryType;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.test.OpenSearchTestCase;
@@ -344,11 +347,79 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     }
 
     /**
+     * Case-insensitive table resolution: Calcite uppercases unquoted identifiers. The schema
+     * must still resolve them. Verifying a SELECT against an uppercased table works.
+     */
+    /**
+     * The schema's lazy {@code get()} lower-cases incoming lookup names before consulting
+     * {@code IndexNameExpressionResolver} (OpenSearch index names must be lowercase). This lets
+     * Calcite's uppercased identifier resolution find a lower-cased index without needing eager
+     * enumeration of the cluster's index list at schema construction.
+     */
+    public void testCaseInsensitiveTableResolution() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("my_table", Map.of("name", "keyword", "age", "long")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        // Exact-case lookup must work — this is the storage truth.
+        assertNotNull("Exact-case schema lookup must work", schema.getTable("my_table"));
+
+        // Upper-cased lookup must work — exercises the lowercase-on-lookup behavior directly
+        // (bypasses the SQL parser, which would case-fold first). Pins the regression Calcite
+        // would trigger if the schema regressed to case-sensitive resolver invocation.
+        assertNotNull("Upper-case schema lookup must work", schema.getTable("MY_TABLE"));
+        assertNotNull("Mixed-case schema lookup must work", schema.getTable("My_Table"));
+
+        // End-to-end via the SQL path: validate+convert succeeds against the lower-cased index.
+        RelNode rel = parseValidateConvert(schema, "SELECT name FROM my_table");
+        assertNotNull("Query via SQL path must succeed", rel);
+    }
+
+    /**
      * Defensive: mapFieldType called with null must return null (treated as "unknown") rather
      * than NPE. Mirrors the analytics-framework FieldType.fromMappingType convention.
      */
     public void testMapFieldTypeReturnsNullOnNullInput() {
         assertNull(OpenSearchSchemaBuilder.mapFieldType(null));
+    }
+
+    /**
+     * IP and binary fields are wrapped in dedicated {@link IpType} / {@link BinaryType} markers
+     * so the SQL plugin can disambiguate them at the response boundary. Operator dispatch is
+     * unaffected because both extend {@link org.apache.calcite.sql.type.AbstractSqlType} with
+     * {@link SqlTypeName#VARBINARY} underneath.
+     */
+    public void testIpAndBinaryFieldsCarryLogicalTypeUdt() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("udt_index", Map.of("address", "ip", "blob", "binary")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("udt_index");
+        assertNotNull(table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        RelDataType ipType = rowType.getField("address", true, false).getType();
+        assertTrue("ip column must be IpType, got " + ipType.getClass(), ipType instanceof IpType);
+        assertEquals("IpType must still report VARBINARY for operator dispatch", SqlTypeName.VARBINARY, ipType.getSqlTypeName());
+
+        RelDataType binType = rowType.getField("blob", true, false).getType();
+        assertTrue("binary column must be BinaryType, got " + binType.getClass(), binType instanceof BinaryType);
+        assertEquals(SqlTypeName.VARBINARY, binType.getSqlTypeName());
+    }
+
+    /**
+     * Two separately constructed {@link IpType} instances must be digest-equal so plan equality
+     * / planner caching works without requiring Calcite type-factory canonicalization (we don't
+     * go through {@code typeFactory.canonize}).
+     */
+    public void testLogicalTypeEqualityIsDigestBased() {
+        RelDataType a = IpType.nullable();
+        RelDataType b = IpType.nullable();
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+
+        RelDataType c = BinaryType.nullable();
+        assertNotSame(a, c);
+        assertNotEquals(a, c);
     }
 
     // --- helpers ---
@@ -357,6 +428,118 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         RelDataTypeField field = rowType.getField(fieldName, true, false);
         assertNotNull("Field '" + fieldName + "' should exist", field);
         assertEquals("Field '" + fieldName + "' should have type " + expectedType, expectedType, field.getType().getSqlTypeName());
+    }
+
+    /**
+     * Aliases over indices show up in the schema as their own table so the Calcite validator
+     * can resolve {@code SELECT * FROM alias}. The exposed row type is the field-union of every
+     * backing index — fields absent from some indices appear as nullable columns in the alias
+     * row type, and {@code OpenSearchTableScanRule} null-fills those columns at scan time.
+     */
+    public void testBuildSchemaExposesAliasAsTable() throws Exception {
+        IndexMetadata a = IndexMetadata.builder("bank_a")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"age\":{\"type\":\"long\"}}}")
+            .putAlias(AliasMetadata.builder("bank_all").build())
+            .build();
+        IndexMetadata b = IndexMetadata.builder("bank_b")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"age\":{\"type\":\"long\"}}}")
+            .putAlias(AliasMetadata.builder("bank_all").build())
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(a, false).put(b, false).build())
+            .build();
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(state);
+
+        assertNotNull("alias table present", schema.getTable("bank_all"));
+        assertNotNull("backing concrete index still present", schema.getTable("bank_a"));
+        RelDataType rowType = schema.getTable("bank_all").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * A single wildcard source ({@code test*}) resolves to one table whose row type is the union
+     * of the matching concrete indices' supported fields. Mirrors the sql-plugin behavior where
+     * {@code source=test*} resolves against the cluster's index expression.
+     */
+    public void testWildcardPatternResolvesToUnionedTable() throws Exception {
+        ClusterState clusterState = buildClusterState(
+            Map.of("test", Map.of("name", "keyword", "age", "long"), "test1", Map.of("name", "keyword", "alias_field", "keyword"))
+        );
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        Table table = schema.getTable("test*");
+        assertNotNull("Wildcard 'test*' should resolve to a table", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+        assertFieldType(rowType, "alias_field", SqlTypeName.VARCHAR);
+    }
+
+    /**
+     * A comma-separated multi-source ({@code bank,test}) resolves to one table unioning both
+     * indices' fields — the shape {@code source=a, b} produces after Relation comma-joins names.
+     */
+    public void testCommaSeparatedSourcesResolveToUnionedTable() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("bank", Map.of("balance", "long"), "test", Map.of("age", "long")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        Table table = schema.getTable("bank,test");
+        assertNotNull("Comma list 'bank,test' should resolve to a table", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "balance", SqlTypeName.BIGINT);
+        assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * Comma-separated sources with field-name conflict: first-resolved-wins semantics. The
+     * field 'age' appears as long in bank and keyword in test — whichever index the resolver
+     * returns first determines the type. Both are valid; the key invariant is that the field
+     * exists and unique-per-index fields from both indices appear in the union.
+     */
+    public void testCommaSeparatedSourcesFieldConflictPicksOne() throws Exception {
+        IndexMetadata idx1 = buildIndexMetadata("bank", Map.of("age", "long", "name", "keyword"));
+        IndexMetadata idx2 = buildIndexMetadata("test", Map.of("age", "keyword", "score", "double"));
+        Metadata metadata = Metadata.builder().put(idx1, false).put(idx2, false).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("bank,test");
+        assertNotNull("Comma-separated expression must resolve", table);
+
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        // 'age' exists — could be BIGINT or VARCHAR depending on resolver order
+        RelDataTypeField ageField = rowType.getField("age", true, false);
+        assertNotNull("Conflicting field 'age' must still appear in union", ageField);
+        assertTrue(
+            "age must be one of the two types",
+            ageField.getType().getSqlTypeName() == SqlTypeName.BIGINT || ageField.getType().getSqlTypeName() == SqlTypeName.VARCHAR
+        );
+        // unique fields from each index must appear
+        assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "score", SqlTypeName.DOUBLE);
+    }
+
+    /**
+     * A pattern matching no index yields no table, so Calcite surfaces a clean "table not found"
+     * at plan time rather than an empty-row-type table.
+     */
+    public void testNonMatchingPatternYieldsNoTable() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("test", Map.of("age", "long")));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+
+        assertNull("Non-matching pattern 'nonexistent*' should resolve to no table", schema.getTable("nonexistent*"));
     }
 
     private ClusterState buildClusterState(Map<String, Map<String, String>> indices) throws Exception {
@@ -400,8 +583,14 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
 
     /** Parse + validate + convert SQL against the given Calcite schema; throws on validator error. */
     private static RelNode parseValidateConvert(SchemaPlus schema, String sql) throws Exception {
+        // Preserve the original case of unquoted identifiers so both table names and column names
+        // reach the validator as-typed. Default Calcite parsing uppercases unquoted identifiers
+        // (Lex.ORACLE), which would force a case-insensitive validator + getTableNames()
+        // enumeration — incompatible with the lazy schema (table names aren't enumerable until
+        // resolved). PPL hits the schema via RelBuilder.scan with the user-typed case directly;
+        // this config mirrors that for SQL-based unit tests.
         FrameworkConfig config = Frameworks.newConfigBuilder()
-            .parserConfig(SqlParser.config().withCaseSensitive(false))
+            .parserConfig(SqlParser.config().withUnquotedCasing(org.apache.calcite.avatica.util.Casing.UNCHANGED))
             .defaultSchema(schema)
             .operatorTable(SqlStdOperatorTable.instance())
             .build();

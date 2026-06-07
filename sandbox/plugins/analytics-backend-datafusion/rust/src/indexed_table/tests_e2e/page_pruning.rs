@@ -216,6 +216,7 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
         parquet_size: size,
         row_groups: rgs,
         metadata: parquet_meta,
+            global_base: 0,
     };
     (seg, schema)
 }
@@ -360,6 +361,8 @@ async fn run_single_collector(
                 std::sync::Arc::new(std::collections::HashMap::new()),
                 segment.writer_generation,
                 std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                0,
+                None,
             ));
             Ok(eval)
         })
@@ -390,6 +393,7 @@ async fn execute_and_collect(
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();

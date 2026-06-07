@@ -21,6 +21,7 @@ import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockReader;
 import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -97,7 +98,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         Writer<MockDocumentInput> writer = engine.createWriter(new WriterConfig(1L));
 
         MockDocumentInput doc1 = engine.newDocumentInput();
-        doc1.setRowId("_row_id", 0);
+        doc1.setRowId("__row_id__", 0);
         doc1.addField(mock(MappedFieldType.class), "Alice");
         WriteResult result1 = writer.addDoc(doc1);
         assertEquals(WriteResult.Success.class, result1.getClass());
@@ -109,14 +110,13 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(WriteResult.Success.class, result2.getClass());
 
         // 3. Flush the writer to produce file metadata
-        FileInfos fileInfos = writer.flush();
+        FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
         Optional<WriterFileSet> writerFileSet = fileInfos.getWriterFileSet(format);
         assertTrue(writerFileSet.isPresent());
         assertFalse(writerFileSet.get().files().isEmpty());
         assertEquals(2, writerFileSet.get().numRows());
         assertEquals(1L, writerFileSet.get().writerGeneration());
 
-        writer.sync();
         writer.close();
 
         // 4. Write a second batch with a new writer generation
@@ -125,7 +125,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         doc3.setRowId("_row_id", 2);
         doc3.addField(mock(MappedFieldType.class), "Bob");
         writer2.addDoc(doc3);
-        FileInfos fileInfos2 = writer2.flush();
+        FileInfos fileInfos2 = writer2.flush(FlushInput.EMPTY);
         writer2.close();
 
         WriterFileSet fileSet1 = fileInfos.getWriterFileSet(format).get();
@@ -227,7 +227,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertFalse(withoutMapping.rowIdMapping().isPresent());
         assertEquals(fileSet, withoutMapping.getMergedWriterFileSetForDataformat(format));
 
-        RowIdMapping mapping = (oldId, oldGen) -> oldId;
+        RowIdMapping mapping = new PackedRowIdMapping(new long[] { 0 }, false);
         MergeResult withMapping = new MergeResult(Map.of(format, fileSet), mapping);
         assertTrue(withMapping.rowIdMapping().isPresent());
     }
@@ -241,8 +241,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertTrue(empty.existingSegments().isEmpty());
 
         Path dir = createTempDir();
-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
+        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, 0L);
+        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, 0L);
         Segment seg = new Segment(0L, Map.of());
 
         RefreshInput input = RefreshInput.builder()
@@ -269,7 +269,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         d1.addField(mock(MappedFieldType.class), "Alice");
         d1.setRowId("_row_id", 0);
         w1.addDoc(d1);
-        WriterFileSet fs1 = w1.flush().getWriterFileSet(format).get();
+        WriterFileSet fs1 = w1.flush(FlushInput.EMPTY).getWriterFileSet(format).get();
         w1.close();
 
         RefreshResult rr1 = indexEngine.refresh(
@@ -283,8 +283,13 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
+
+        // Simulate the engine's commit of the initial snapshot so commitNewSnapshot can proceed
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            ((DataformatAwareCatalogSnapshot) ref.get()).setLastCommitInfo("segments_1", 1L, 0L);
+        }
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -304,7 +309,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         d2.addField(mock(MappedFieldType.class), "Bob");
         d2.setRowId("_row_id", 1);
         w2.addDoc(d2);
-        WriterFileSet fs2 = w2.flush().getWriterFileSet(format).get();
+        WriterFileSet fs2 = w2.flush(FlushInput.EMPTY).getWriterFileSet(format).get();
         w2.close();
 
         RefreshResult rr2 = indexEngine.refresh(
@@ -383,7 +388,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -417,7 +422,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         d.addField(mock(MappedFieldType.class), "x");
         d.setRowId("_row_id", 0);
         w.addDoc(d);
-        WriterFileSet fs = w.flush().getWriterFileSet(format).get();
+        WriterFileSet fs = w.flush(FlushInput.EMPTY).getWriterFileSet(format).get();
         w.close();
 
         RefreshResult rr = indexEngine.refresh(

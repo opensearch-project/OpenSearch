@@ -11,7 +11,6 @@ use datafusion::execution::cache::cache_manager::{FileMetadataCache, FileStatist
 use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
 use datafusion::execution::cache::CacheAccessor;
 use crate::statistics_cache::compute_parquet_statistics;
-use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
@@ -106,7 +105,7 @@ impl CustomCacheManager {
     }
 
     /// Add multiple files to all applicable caches
-    pub fn add_files(&self, file_paths: &[String]) -> Result<Vec<(String, bool)>, String> {
+    pub fn add_files(&self, file_paths: &[String], rt_handle: &tokio::runtime::Handle) -> Result<Vec<(String, bool)>, String> {
         let mut results = Vec::new();
 
         for file_path in file_paths {
@@ -114,7 +113,7 @@ impl CustomCacheManager {
             let mut errors = Vec::new();
 
             // Add to metadata cache
-            match self.metadata_cache_put(file_path) {
+            match self.metadata_cache_put(file_path, rt_handle) {
                 Ok(true) => {
                     any_success = true;
                 }
@@ -185,7 +184,6 @@ impl CustomCacheManager {
             // Remove from statistics cache
             if let Some(cache) = &self.statistics_cache {
                 let path = Path::from(file_path.clone());
-                // Use the CacheAccessor remove method to properly update memory tracking
                 if cache.remove(&path).is_some() {
                     any_removed = true;
                 }
@@ -342,7 +340,7 @@ impl CustomCacheManager {
     }
 
     /// Internal method to put metadata into cache
-    fn metadata_cache_put(&self, file_path: &str) -> Result<bool, String> {
+    fn metadata_cache_put(&self, file_path: &str, rt_handle: &tokio::runtime::Handle) -> Result<bool, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
             return Ok(false); // Skip unsupported formats
         }
@@ -367,16 +365,14 @@ impl CustomCacheManager {
         // 2. Load the complete metadata including column and offset indexes
         // 3. Automatically put the metadata into the cache (lines 155-160 in datafusion's metadata.rs)
         // This ensures we cache exactly what DataFusion would cache during query execution
-        let _parquet_metadata = Runtime::new()
-            .map_err(|e| format!("Failed to create Tokio Runtime: {}", e))?
-            .block_on(async {
-                let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
-                    .with_file_metadata_cache(Some(metadata_cache));
+        let _parquet_metadata = rt_handle.block_on(async {
+            let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
+                .with_file_metadata_cache(Some(metadata_cache));
 
-                // fetch_metadata() performs the cache put operation internally
-                df_metadata.fetch_metadata().await
-                    .map_err(|e| format!("Failed to fetch metadata: {}", e))
-            })?;
+            // fetch_metadata() performs the cache put operation internally
+            df_metadata.fetch_metadata().await
+                .map_err(|e| format!("Failed to fetch metadata: {}", e))
+        })?;
 
         // Verify the metadata was cached properly
         match cache_ref.inner.lock() {

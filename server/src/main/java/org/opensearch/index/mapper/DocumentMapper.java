@@ -39,6 +39,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -51,6 +52,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
@@ -64,6 +66,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -90,12 +93,23 @@ public class DocumentMapper implements ToXContentFragment {
 
         private final Mapper.BuilderContext builderContext;
 
+        private final long newVersion;
+
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
-            final Settings indexSettings = mapperService.getIndexSettings().getSettings();
-            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
+            this(builder, mapperService, null);
+        }
+
+        public Builder(RootObjectMapper.Builder builder, MapperService mapperService, @Nullable DataFormatRegistry dataFormatRegistry) {
+            final IndexSettings is = mapperService.getIndexSettings();
+            final Settings indexSettings = is.getSettings();
+            final Consumer<MappedFieldType> assigner = dataFormatRegistry != null
+                ? fieldType -> dataFormatRegistry.assignCapabilities(fieldType, is)
+                : null;
+            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), assigner);
             this.rootObjectMapper = builder.build(builderContext);
 
             final DocumentMapper existingMapper = mapperService.documentMapper();
+            this.newVersion = existingMapper == null ? 1L : existingMapper.getVersion() + 1L;
             final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
@@ -110,6 +124,18 @@ public class DocumentMapper implements ToXContentFragment {
                     metadataMapper = existingMetadataMapper;
                 }
                 metadataMappers.put(metadataMapper.getClass(), metadataMapper);
+            }
+        }
+
+        /**
+         * Recursively walks the mapper tree and assigns capability maps to all non-metadata field types.
+         */
+        private static void assignCapabilitiesRecursive(Mapper mapper, Mapper.BuilderContext context) {
+            if (mapper instanceof FieldMapper) {
+                context.assignCapabilities(((FieldMapper) mapper).fieldType());
+            }
+            for (Mapper child : mapper) {
+                assignCapabilitiesRecursive(child, context);
             }
         }
 
@@ -132,7 +158,7 @@ public class DocumentMapper implements ToXContentFragment {
                 metadataMappers.values().toArray(new MetadataFieldMapper[0]),
                 meta
             );
-            return new DocumentMapper(mapperService, mapping);
+            return new DocumentMapper(mapperService, mapping, newVersion);
         }
     }
 
@@ -152,7 +178,13 @@ public class DocumentMapper implements ToXContentFragment {
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
+    private final long version;
+
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
+        this(mapperService, mapping, 1L);
+    }
+
+    public DocumentMapper(MapperService mapperService, Mapping mapping, long version) {
         this.mapperService = mapperService;
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
@@ -192,6 +224,17 @@ public class DocumentMapper implements ToXContentFragment {
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name()))
             .toArray(MetadataFieldMapper[]::new);
+
+        // Assign capabilities for dynamically merged mappers that bypass the Builder path.
+        final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
+        if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
+            assignCapabilitiesRecursive(mapping.root(), registry, indexSettings);
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                registry.assignCapabilities(metadataMapper.fieldType(), indexSettings);
+            }
+        }
+
+        this.version = version;
     }
 
     public Mapping mapping() {
@@ -212,6 +255,10 @@ public class DocumentMapper implements ToXContentFragment {
 
     public CompressedXContent mappingSource() {
         return this.mappingSource;
+    }
+
+    public long getVersion() {
+        return this.version;
     }
 
     public RootObjectMapper root() {
@@ -321,9 +368,29 @@ public class DocumentMapper implements ToXContentFragment {
         }
     }
 
+    /**
+     * Recursively walks the mapper tree and assigns capability maps to all field types.
+     */
+    private void assignCapabilitiesRecursive(Mapper mapper, DataFormatRegistry registry, IndexSettings indexSettings) {
+        if (mapper instanceof FieldMapper) {
+            registry.assignCapabilities(((FieldMapper) mapper).fieldType(), indexSettings);
+            // For derived source: keyword fields with ignore_above/normalizer use a separate
+            // rawValueFieldType to store the raw value for source reconstruction.
+            if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+                KeywordFieldMapper.KeywordFieldType rawValueFieldType = keywordFieldMapper.getRawValueFieldType();
+                if (rawValueFieldType != null && !mappers().isMultiField(keywordFieldMapper.fieldType().name())) {
+                    registry.assignCapabilities(rawValueFieldType, indexSettings);
+                }
+            }
+        }
+        for (Mapper child : mapper) {
+            assignCapabilitiesRecursive(child, registry, indexSettings);
+        }
+    }
+
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(mapperService, merged);
+        return new DocumentMapper(mapperService, merged, this.version + 1L);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

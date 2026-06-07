@@ -9,6 +9,7 @@
 package org.opensearch.parquet.bridge;
 
 import org.opensearch.common.SetOnce;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>{@link #initialize(String, long, ParquetSortConfig, long)} — creates the native writer with the final schema</li>
  *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
  *   <li>{@link #flush()} — finalizes the Parquet file and returns metadata</li>
- *   <li>{@link #sync()} — fsyncs the file to durable storage (calls flush if needed)</li>
  * </ol>
  *
  * <p>This class is not thread-safe. External synchronization is required
@@ -33,6 +33,7 @@ public class NativeParquetWriter {
     private final AtomicBoolean writerFlushed = new AtomicBoolean(false);
     private final String filePath;
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
+    private final SetOnce<RowIdMapping> rowIdMapping = new SetOnce<>();
     private volatile boolean initialized = false;
 
     /**
@@ -102,23 +103,16 @@ public class NativeParquetWriter {
     public ParquetFileMetadata flush() throws IOException {
         if (writerFlushed.compareAndSet(false, true)) {
             if (initialized) {
-                metadata.set(RustBridge.finalizeWriter(filePath));
+                RustBridge.WriterFinalizeResult result = RustBridge.finalizeWriter(filePath);
+                if (result != null) {
+                    metadata.set(result.metadata());
+                    if (result.rowIdMapping() != null) {
+                        rowIdMapping.set(result.rowIdMapping());
+                    }
+                }
             }
         }
         return metadata.get();
-    }
-
-    /**
-     * Syncs the Parquet file to disk.
-     * If flush has not been called yet, it will be called first.
-     *
-     * @throws IOException if the sync fails
-     */
-    public void sync() throws IOException {
-        if (!writerFlushed.get()) {
-            flush();
-        }
-        RustBridge.syncToDisk(filePath);
     }
 
     /**
@@ -128,6 +122,14 @@ public class NativeParquetWriter {
      */
     public ParquetFileMetadata getMetadata() {
         return metadata.get();
+    }
+
+    /**
+     * Returns the row ID mapping produced during sort-on-close as a memory-efficient
+     * packed mapping, or null if no sorting was configured or the file was empty.
+     */
+    public RowIdMapping getRowIdMapping() {
+        return rowIdMapping.get();
     }
 
 }

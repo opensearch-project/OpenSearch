@@ -1,0 +1,1 @@
+source=api_metrics | fields endpoint, status_code, latency | head 10

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -109,6 +110,11 @@ public class QueryExecution {
         return state.get();
     }
 
+    /** Returns the execution graph for post-execution inspection (e.g. profiling). */
+    public ExecutionGraph getGraph() {
+        return graph;
+    }
+
     /**
      * Single-fire cleanup — closes terminal sink + per-query context. Each step under
      * {@link #runQuietly} so a failure in one doesn't skip the other. Auto-fired from any
@@ -118,7 +124,19 @@ public class QueryExecution {
         if (closed.compareAndSet(false, true) == false) return;
         runQuietly("terminal sink close", this::closeTerminalSink);
         // TODO: Re-evaluate this per query child allocator
+        logAllocatorState();
         runQuietly("query context close", config::close);
+    }
+
+    private void logAllocatorState() {
+        if (!config.ownsAllocator()) return;
+        BufferAllocator allocator = config.bufferAllocator();
+        long allocated = allocator.getAllocatedMemory();
+        if (allocated > 0) {
+            logger.warn("[query-{}] Arrow allocator closing with {}B still allocated — potential leak", config.queryId(), allocated);
+        } else {
+            logger.debug("[query-{}] Arrow allocator closed cleanly", config.queryId());
+        }
     }
 
     // ─── Internal: query-level state machine ─────────────────────────────

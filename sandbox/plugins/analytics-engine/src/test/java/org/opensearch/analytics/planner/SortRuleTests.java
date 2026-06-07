@@ -18,6 +18,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
@@ -44,10 +45,12 @@ public class SortRuleTests extends BasePlannerRulesTests {
     ) {
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertPipelineViableBackends(result, types, Set.of(MockDataFusionBackend.NAME));
+        // After QTF rewrite the wrapper sits at the root; the anchor Sort is its input.
+        OpenSearchSort sort = (OpenSearchSort) (result instanceof OpenSearchLateMaterialization wrap ? wrap.getInput() : result);
         if (fetch < 0) {
-            assertNull("Sort without limit must have null fetch", ((OpenSearchSort) result).fetch);
+            assertNull("Sort without limit must have null fetch", sort.fetch);
         } else {
-            assertNotNull("Sort with limit must have non-null fetch", ((OpenSearchSort) result).fetch);
+            assertNotNull("Sort with limit must have non-null fetch", sort.fetch);
         }
     }
 

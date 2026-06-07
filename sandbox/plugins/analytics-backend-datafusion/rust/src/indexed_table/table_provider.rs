@@ -29,7 +29,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{Session, TableProvider};
 use datafusion::common::{Result, Statistics};
 use datafusion::datasource::TableType;
@@ -41,6 +41,9 @@ use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties};
 use datafusion_common::DataFusionError;
+
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use futures::StreamExt;
 
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
@@ -65,6 +68,9 @@ pub struct SegmentFileInfo {
     pub parquet_size: u64,
     pub row_groups: Vec<RowGroupInfo>,
     pub metadata: Arc<ParquetMetaData>,
+    /// Cumulative row count from all preceding segments. Used to compute
+    /// shard-global row IDs: `global_base + rg.first_row + position_in_rg`.
+    pub global_base: u64,
 }
 
 /// Factory: build a `RowGroupBitsetSource` for one `SegmentChunk`.
@@ -124,6 +130,10 @@ pub struct IndexedTableConfig {
     pub query_config: Arc<DatafusionQueryConfig>,
     /// Full-schema column indices referenced by BoolNode Predicate leaves.
     pub predicate_columns: Vec<usize>,
+    /// When true, the `___row_id` column in the output projection is computed
+    /// from position (global_base + rg.first_row + position_in_rg) instead of
+    /// being read from parquet. Other projected columns are read normally.
+    pub emit_row_ids: bool,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -181,13 +191,55 @@ impl TableProvider for IndexedTableProvider {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let full_schema = self.config.schema.clone();
-        // Output schema = what DataFusion expects
-        let output_schema: SchemaRef = match projection {
-            Some(proj) => Arc::new(full_schema.project(proj)?),
-            None => full_schema.clone(),
+
+        // Detect __row_id__ in the output projection when emit_row_ids=true.
+        // If present, we strip it from the parquet read and compute it from position.
+        let row_id_col_in_full_schema = full_schema.index_of(crate::ROW_ID_COLUMN_NAME).ok();
+        let row_id_output_index: Option<usize> = if self.config.emit_row_ids {
+            match projection {
+                Some(proj) => proj.iter().position(|&idx| Some(idx) == row_id_col_in_full_schema),
+                None => row_id_col_in_full_schema,
+            }
+        } else {
+            None
         };
-        // Read projection = output + predicate columns for evaluator
-        let read_projection: Option<Vec<usize>> = if self.config.predicate_columns.is_empty() {
+
+        // Output schema = what DataFusion expects (includes ___row_id if projected).
+        // When computing row IDs, replace the ___row_id field type with UInt64.
+        let output_schema: SchemaRef = {
+            let base: SchemaRef = match projection {
+                Some(proj) => Arc::new(full_schema.project(proj)?),
+                None => full_schema.clone(),
+            };
+            if let Some(idx) = row_id_output_index {
+                let mut fields: Vec<Field> = base.fields().iter().map(|f| f.as_ref().clone()).collect();
+                fields[idx] = Field::new(crate::ROW_ID_COLUMN_NAME, DataType::Int64, false);
+                Arc::new(Schema::new(fields))
+            } else {
+                base
+            }
+        };
+
+        // Read projection = output columns (minus ___row_id) + predicate columns for evaluator.
+        let read_projection: Option<Vec<usize>> = if self.config.emit_row_ids {
+            let output_cols: Vec<usize> = match projection {
+                Some(proj) => proj.iter()
+                    .filter(|&&idx| Some(idx) != row_id_col_in_full_schema)
+                    .copied()
+                    .collect(),
+                None => (0..full_schema.fields().len())
+                    .filter(|&idx| Some(idx) != row_id_col_in_full_schema)
+                    .collect(),
+            };
+            let mut cols = output_cols;
+            for &idx in &self.config.predicate_columns {
+                if !cols.contains(&idx) {
+                    cols.push(idx);
+                }
+            }
+            cols.sort();
+            Some(cols)
+        } else if self.config.predicate_columns.is_empty() {
             projection.cloned()
         } else {
             projection.map(|proj| {
@@ -201,6 +253,7 @@ impl TableProvider for IndexedTableProvider {
                 cols
             })
         };
+
         let projected_schema = output_schema;
 
         // Ignore DataFusion's `filters` argument. The `index_filter(...)`
@@ -243,6 +296,7 @@ impl TableProvider for IndexedTableProvider {
             predicate,
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::new(std::sync::Mutex::new(Vec::new())),
+            row_id_output_index,
         }))
     }
 
@@ -268,6 +322,9 @@ pub struct QueryShardExec {
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     metrics: ExecutionPlanMetricsSet,
     inner_parquet_metrics: Arc<std::sync::Mutex<Vec<MetricsSet>>>,
+    /// Column index in the OUTPUT schema where computed `___row_id` should be
+    /// injected. `None` means no row ID computation (normal data path).
+    row_id_output_index: Option<usize>,
 }
 
 impl fmt::Debug for QueryShardExec {
@@ -341,8 +398,14 @@ impl ExecutionPlan for QueryShardExec {
         let stream_metrics =
             pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
 
-        // Build one IndexedExec per SegmentChunk, chain via UnionExec-style concatenation.
-        let mut execs: Vec<Arc<dyn ExecutionPlan>> = Vec::with_capacity(assignment.chunks.len());
+        // Build one IndexedExec per SegmentChunk and execute it immediately,
+        // collecting per-chunk streams. We then chain them sequentially into
+        // a single stream for this partition. This avoids the
+        // UnionExec + CoalescePartitionsExec wrapping (which would re-shape
+        // partitioning and add an extra coalesce hop) — chunks here are
+        // already serialized within one partition assignment.
+        let mut streams: Vec<SendableRecordBatchStream> =
+            Vec::with_capacity(assignment.chunks.len());
         for chunk in &assignment.chunks {
             let segment = self.config.segments.get(chunk.segment_idx).ok_or_else(|| {
                 DataFusionError::Internal(format!("segment_idx {} out of range", chunk.segment_idx))
@@ -389,29 +452,27 @@ impl ExecutionPlan for QueryShardExec {
                 metrics: ExecutionPlanMetricsSet::new(),
                 stream_metrics: stream_metrics.clone(),
                 query_config: Arc::clone(&self.config.query_config),
+                global_base: segment.global_base,
+                emit_row_ids: self.config.emit_row_ids,
+                row_id_output_index: self.row_id_output_index,
             };
-            execs.push(Arc::new(exec));
+            streams.push(exec.execute(0, Arc::clone(&context))?);
         }
 
-        if execs.is_empty() {
-            // No work — empty stream
-            let empty =
-                datafusion::physical_plan::empty::EmptyExec::new(self.projected_schema.clone());
-            return empty.execute(0, context);
+        match streams.len() {
+            0 => {
+                let empty = datafusion::physical_plan::empty::EmptyExec::new(
+                    self.projected_schema.clone(),
+                );
+                empty.execute(0, context)
+            }
+            1 => Ok(streams.into_iter().next().unwrap()),
+            _ => {
+                let schema = self.projected_schema.clone();
+                let chained = futures::stream::iter(streams).flatten();
+                Ok(Box::pin(RecordBatchStreamAdapter::new(schema, chained)))
+            }
         }
-
-        if execs.len() == 1 {
-            return execs.remove(0).execute(0, context);
-        }
-
-        // Multiple chunks in one partition — concatenate via UnionExec
-        let union: Arc<dyn ExecutionPlan> =
-            datafusion::physical_plan::union::UnionExec::try_new(execs)?;
-        // UnionExec exposes sum-of-partitions; we want exactly one stream per our partition,
-        // so wrap in CoalescePartitionsExec.
-        let coalesced =
-            datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec::new(union);
-        coalesced.execute(0, context)
     }
 }
 
@@ -450,6 +511,7 @@ mod tests {
                 crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             ),
             predicate_columns: vec![],
+            emit_row_ids: false,
         }
     }
 
