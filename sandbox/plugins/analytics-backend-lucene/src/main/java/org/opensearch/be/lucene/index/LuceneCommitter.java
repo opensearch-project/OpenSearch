@@ -153,14 +153,17 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     public synchronized CommitResult commit(CommitInput commitData) throws IOException {
         ensureOpen();
         long start = System.nanoTime();
+        long syncMillis = 0;
         boolean threw = false;
         try {
             indexWriter.setLiveCommitData(commitData.userData());
             // Write-ahead fsync: data files durable before the commit point that references them.
             // getFiles(false) excludes segments_N — IndexWriter.commit() handles that via rename + syncMetaData.
             if (commitData.catalogSnapshot() != null) {
+                long syncStart = System.nanoTime();
                 store.directory().sync(commitData.catalogSnapshot().getFiles(false));
                 store.directory().syncMetaData();
+                syncMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - syncStart);
             }
             indexWriter.commit();
             SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
@@ -179,6 +182,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
                 LuceneShardStatsTracker tracker = provider.getTracker(store.shardId());
                 if (tracker != null) {
                     tracker.addCommitTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                    tracker.addCommitSyncTimeMillis(syncMillis);
                     if (threw) {
                         tracker.incCommitFailures();
                     } else {

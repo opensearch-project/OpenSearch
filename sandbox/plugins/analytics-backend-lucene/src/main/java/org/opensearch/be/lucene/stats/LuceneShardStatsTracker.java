@@ -47,6 +47,7 @@ public class LuceneShardStatsTracker {
     private final LongAdder commitTotal = new LongAdder();
     private final LongAdder commitTimeMillis = new LongAdder();
     private final LongAdder commitFailures = new LongAdder();
+    private final LongAdder commitSyncTimeMillis = new LongAdder();
 
     // Delete counters
     private final LongAdder deleteTotal = new LongAdder();
@@ -73,6 +74,7 @@ public class LuceneShardStatsTracker {
             commitTotal.sum(),
             commitTimeMillis.sum(),
             commitFailures.sum(),
+            commitSyncTimeMillis.sum(),
             deleteTotal.sum(),
             deleteTimeMillis.sum()
         );
@@ -150,6 +152,10 @@ public class LuceneShardStatsTracker {
 
     public void incCommitFailures() {
         commitFailures.increment();
+    }
+
+    public void addCommitSyncTimeMillis(long ms) {
+        commitSyncTimeMillis.add(ms);
     }
 
     // --- Delete methods ---

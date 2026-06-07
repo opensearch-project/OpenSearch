@@ -43,9 +43,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
     private final long nativeFinalizeTotal;
     private final long nativeFinalizeTimeMillis;
     private final long nativeFinalizeFailures;
-    private final long nativeSyncTotal;
-    private final long nativeSyncTimeMillis;
-    private final long nativeSyncFailures;
 
     // Merge
     private final long mergeTotal;
@@ -74,7 +71,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
      * Used by transport actions when a shard does not have a Parquet primary delegate.
      */
     public static ParquetShardStats empty() {
-        return new ParquetShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return new ParquetShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     /**
@@ -90,9 +87,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long nativeFinalizeTotal,
         long nativeFinalizeTimeMillis,
         long nativeFinalizeFailures,
-        long nativeSyncTotal,
-        long nativeSyncTimeMillis,
-        long nativeSyncFailures,
         long mergeTotal,
         long mergeTimeMillis,
         long mergeFailures,
@@ -116,9 +110,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             nativeFinalizeTotal,
             nativeFinalizeTimeMillis,
             nativeFinalizeFailures,
-            nativeSyncTotal,
-            nativeSyncTimeMillis,
-            nativeSyncFailures,
             mergeTotal,
             mergeTimeMillis,
             mergeFailures,
@@ -148,9 +139,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long nativeFinalizeTotal,
         long nativeFinalizeTimeMillis,
         long nativeFinalizeFailures,
-        long nativeSyncTotal,
-        long nativeSyncTimeMillis,
-        long nativeSyncFailures,
         long mergeTotal,
         long mergeTimeMillis,
         long mergeFailures,
@@ -174,9 +162,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.nativeFinalizeTotal = nativeFinalizeTotal;
         this.nativeFinalizeTimeMillis = nativeFinalizeTimeMillis;
         this.nativeFinalizeFailures = nativeFinalizeFailures;
-        this.nativeSyncTotal = nativeSyncTotal;
-        this.nativeSyncTimeMillis = nativeSyncTimeMillis;
-        this.nativeSyncFailures = nativeSyncFailures;
         this.mergeTotal = mergeTotal;
         this.mergeTimeMillis = mergeTimeMillis;
         this.mergeFailures = mergeFailures;
@@ -207,9 +192,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.nativeFinalizeTotal = in.readVLong();
         this.nativeFinalizeTimeMillis = in.readVLong();
         this.nativeFinalizeFailures = in.readVLong();
-        this.nativeSyncTotal = in.readVLong();
-        this.nativeSyncTimeMillis = in.readVLong();
-        this.nativeSyncFailures = in.readVLong();
 
         // Merge
         this.mergeTotal = in.readVLong();
@@ -247,9 +229,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         out.writeVLong(nativeFinalizeTotal);
         out.writeVLong(nativeFinalizeTimeMillis);
         out.writeVLong(nativeFinalizeFailures);
-        out.writeVLong(nativeSyncTotal);
-        out.writeVLong(nativeSyncTimeMillis);
-        out.writeVLong(nativeSyncFailures);
 
         // Merge
         out.writeVLong(mergeTotal);
@@ -292,9 +271,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         builder.field("native_finalize_total", nativeFinalizeTotal);
         builder.field("native_finalize_time_millis", nativeFinalizeTimeMillis);
         builder.field("native_finalize_failures", nativeFinalizeFailures);
-        builder.field("native_sync_total", nativeSyncTotal);
-        builder.field("native_sync_time_millis", nativeSyncTimeMillis);
-        builder.field("native_sync_failures", nativeSyncFailures);
         builder.endObject();
 
         // Merge
@@ -341,9 +317,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             this.nativeFinalizeTotal + other.nativeFinalizeTotal,
             this.nativeFinalizeTimeMillis + other.nativeFinalizeTimeMillis,
             this.nativeFinalizeFailures + other.nativeFinalizeFailures,
-            this.nativeSyncTotal + other.nativeSyncTotal,
-            this.nativeSyncTimeMillis + other.nativeSyncTimeMillis,
-            this.nativeSyncFailures + other.nativeSyncFailures,
             this.mergeTotal + other.mergeTotal,
             this.mergeTimeMillis + other.mergeTimeMillis,
             this.mergeFailures + other.mergeFailures,
@@ -376,9 +349,6 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             nativeFinalizeTotal,
             nativeFinalizeTimeMillis,
             nativeFinalizeFailures,
-            nativeSyncTotal,
-            nativeSyncTimeMillis,
-            nativeSyncFailures,
             mergeTotal,
             mergeTimeMillis,
             mergeFailures,

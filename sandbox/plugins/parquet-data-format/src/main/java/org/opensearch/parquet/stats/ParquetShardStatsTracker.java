@@ -37,9 +37,6 @@ public class ParquetShardStatsTracker {
     private final LongAdder nativeFinalizeTotal = new LongAdder();
     private final LongAdder nativeFinalizeTimeMillis = new LongAdder();
     private final LongAdder nativeFinalizeFailures = new LongAdder();
-    private final LongAdder nativeSyncTotal = new LongAdder();
-    private final LongAdder nativeSyncTimeMillis = new LongAdder();
-    private final LongAdder nativeSyncFailures = new LongAdder();
 
     // Merge counters
     private final LongAdder mergeTotal = new LongAdder();
@@ -73,9 +70,6 @@ public class ParquetShardStatsTracker {
             nativeFinalizeTotal.sum(),
             nativeFinalizeTimeMillis.sum(),
             nativeFinalizeFailures.sum(),
-            nativeSyncTotal.sum(),
-            nativeSyncTimeMillis.sum(),
-            nativeSyncFailures.sum(),
             mergeTotal.sum(),
             mergeTimeMillis.sum(),
             mergeFailures.sum(),
@@ -131,18 +125,6 @@ public class ParquetShardStatsTracker {
 
     public void incNativeFinalizeFailures() {
         nativeFinalizeFailures.increment();
-    }
-
-    public void incNativeSyncTotal() {
-        nativeSyncTotal.increment();
-    }
-
-    public void addNativeSyncTimeMillis(long ms) {
-        nativeSyncTimeMillis.add(ms);
-    }
-
-    public void incNativeSyncFailures() {
-        nativeSyncFailures.increment();
     }
 
     // --- Merge methods ---
