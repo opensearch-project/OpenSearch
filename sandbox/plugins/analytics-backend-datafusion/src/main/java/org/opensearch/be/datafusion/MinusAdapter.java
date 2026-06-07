@@ -55,8 +55,7 @@ class MinusAdapter implements ScalarFunctionAdapter {
         // DATE-DATE → integer day-count (legacy convention). Calcite infers the return type
         // as DATE, so returning BIGINT directly prevents ArrowValues from formatting
         // epoch-day 5 as the date "1970-01-06".
-        if (left.getType().getSqlTypeName() == SqlTypeName.DATE
-                && right.getType().getSqlTypeName() == SqlTypeName.DATE) {
+        if (left.getType().getSqlTypeName() == SqlTypeName.DATE && right.getType().getSqlTypeName() == SqlTypeName.DATE) {
             RelDataType bigint = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.BIGINT);
             RexNode secsPerDay = rexBuilder.makeLiteral(java.math.BigDecimal.valueOf(86_400L), bigint);
             return rexBuilder.makeCall(SqlStdOperatorTable.DIVIDE, diffSeconds, secsPerDay);
