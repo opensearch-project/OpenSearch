@@ -136,7 +136,6 @@ public class FileBackedFailableWriter implements Writer<DocumentInput<?>> {
         return directory.resolve(fileName);
     }
 
-
     @Override
     public long generation() {
         return writerGeneration;

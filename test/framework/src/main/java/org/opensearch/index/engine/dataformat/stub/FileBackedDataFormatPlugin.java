@@ -383,7 +383,6 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
             return state;
         }
 
-
         @Override
         public long generation() {
             return generation;

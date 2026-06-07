@@ -131,7 +131,6 @@ public class MockWriter implements Writer<MockDocumentInput> {
         return FileInfos.builder().putWriterFileSet(dataFormat, fileSet).build();
     }
 
-
     @Override
     public long generation() {
         return writerGeneration;
