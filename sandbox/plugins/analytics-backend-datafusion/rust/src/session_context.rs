@@ -47,6 +47,9 @@ pub struct SessionContextHandle {
     pub indexed_config: Option<IndexedExecutionConfig>,
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
+    /// IO runtime handle for bloom filter reads and other async I/O dispatched
+    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
@@ -72,7 +75,7 @@ pub struct IndexedExecutionConfig {
 /// Uses the `datafusion-substrait` consumer's `from_substrait_named_struct` for type conversion
 /// (which already marks all fields nullable). The consumer is built from the session's existing
 /// state — no throwaway SessionState needed.
-fn widen_schema_from_plan(
+pub(crate) fn widen_schema_from_plan(
     ctx: &SessionContext,
     plan_bytes: &[u8],
     table_name: &str,
@@ -270,7 +273,9 @@ pub async unsafe fn create_session_context(
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
 
-    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
+    // Widen to the plan's base_schema if this shard's parquet is missing columns the plan
+    // expects (multi-index unions, or single-index cross-shard drift). No-op when the shard
+    // already covers every base_schema column.
     let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
 
     // If widening added columns, disable stat collection: the global stats cache is keyed by
@@ -325,6 +330,7 @@ pub async unsafe fn create_session_context(
         table_name: table_name.to_string(),
         indexed_config: None,
         query_config,
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: phantom,
@@ -395,9 +401,16 @@ pub async fn prepare_partial_plan(
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
-    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
-    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+    // Strip first on the raw physical plan so `force_aggregate_mode(Partial)` can find the
+    // Final/Partial pair without a RelabelExec wrapper at the root pre-empting the walk.
+    // Then derive `target_schema` and wrap with RelabelExec from the stripped plan's actual
+    // output (state-suffixed Binary for HLL Partial vs. Int64 cardinality for Final.evaluate)
+    // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
+    // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
     let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
+
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
+    let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
     handle.prepared_plan = Some(stripped);
     Ok(())
 }
@@ -566,6 +579,7 @@ mod tests {
             table_name: "t".to_string(),
             indexed_config: None,
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
+            io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
             prepared_plan: None,
             phantom_reservation: None,

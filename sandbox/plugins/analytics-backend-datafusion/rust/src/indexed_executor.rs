@@ -96,6 +96,7 @@ pub async fn execute_indexed_query(
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn MemoryPool>>,
     query_config: Arc<DatafusionQueryConfig>,
+    context_id: i64,
 ) -> Result<i64, DataFusionError> {
     let num_partitions = query_config.target_partitions.max(1);
     // Share caches with the global runtime (same as vanilla path): list-files
@@ -175,10 +176,11 @@ pub async fn execute_indexed_query(
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
         writer_generations: shard_view.writer_generations.clone(),
-        query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
+        query_context: crate::query_tracker::QueryTrackingContext::new(context_id, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: None,
@@ -507,6 +509,7 @@ async unsafe fn execute_indexed_with_context_inner(
     let object_metas = handle.object_metas;
     let writer_generations = handle.writer_generations;
     let query_context = handle.query_context;
+    let io_handle = handle.io_handle;
     // Extract context_id early so it can be captured by the per-segment closures
     // below. The closures pass it through every FFM upcall so Java can route each
     // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
@@ -535,6 +538,8 @@ async unsafe fn execute_indexed_with_context_inner(
     .await
     .map_err(DataFusionError::Execution)?;
     let schema = crate::schema_coerce::coerce_inferred_schema(schema);
+    // Widen to the plan's base_schema so columns absent from this shard's parquet (cross-shard drift) are null-filled at read time.
+    let schema = crate::session_context::widen_schema_from_plan(&ctx, &substrait_bytes, &table_name, &schema);
 
     let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
         schema: schema.clone(),
@@ -684,6 +689,9 @@ async unsafe fn execute_indexed_with_context_inner(
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
             let call_strategy = query_config.single_collector_strategy;
+            let bloom_store = Arc::clone(&store);
+            let bloom_schema = schema.clone();
+            let bloom_on_read = query_config.bloom_filter_on_read;
             Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
@@ -714,6 +722,19 @@ async unsafe fn execute_indexed_with_context_inner(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
+                    let bloom_config = if bloom_on_read {
+                        Some(crate::indexed_table::eval::single_collector::BloomConfig {
+                            store: Arc::clone(&bloom_store),
+                            object_path: segment.object_path.clone(),
+                            metadata: Arc::clone(&segment.metadata),
+                            arrow_schema: Arc::clone(&bloom_schema),
+                            io_handle: io_handle.clone(),
+                            rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
+                            bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
+                        })
+                    } else {
+                        None
+                    };
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
@@ -727,6 +748,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             segment.writer_generation,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                             context_id,
+                            bloom_config,
                         ));
                     Ok(eval)
                 },
@@ -864,7 +886,7 @@ async unsafe fn execute_indexed_with_context_inner(
     let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
     let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
-    let df_stream = execute_stream(physical_plan, ctx.task_ctx())
+    let df_stream = execute_stream(physical_plan.clone(), ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 
     let (cross_rt_stream, abort_handle) =
@@ -876,6 +898,6 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx, Some(permit));
+    let stream_handle = crate::api::QueryStreamHandle::with_physical_plan(wrapped, query_context, ctx, Some(permit), physical_plan);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

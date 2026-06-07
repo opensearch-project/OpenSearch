@@ -9,12 +9,22 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -27,6 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -248,5 +260,66 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
 
         StreamException ex = expectThrows(StreamException.class, ch::awaitReadyOrThrow);
         assertEquals(StreamErrorCode.CANCELLED, ex.getErrorCode());
+    }
+
+    /**
+     * sendBatch with non-null metadata must call {@code putNext(ArrowBuf)} (not {@code putNext()})
+     * with a buffer carrying the exact bytes the producer attached.
+     */
+    public void testSendBatchWithMetadataCallsPutNextWithBuf() throws Exception {
+        try (RootAllocator realAllocator = new RootAllocator()) {
+            FlightServerChannel ch = new FlightServerChannel(listener, realAllocator, middleware, callTracker, executor, 5_000);
+
+            VectorSchemaRoot root = newSingleIntRoot(realAllocator, 7);
+            byte[] metadata = "{\"output_rows\":1}".getBytes(StandardCharsets.UTF_8);
+            AtomicReference<byte[]> capturedMetadata = new AtomicReference<>();
+
+            // In production, Flight's putNext(ArrowBuf) takes ownership and frees the buffer.
+            // The mock doesn't, so close it here to avoid an allocator leak at test teardown.
+            doAnswer(inv -> {
+                ArrowBuf buf = inv.getArgument(0);
+                byte[] copy = new byte[(int) buf.readableBytes()];
+                buf.getBytes(0, copy);
+                capturedMetadata.set(copy);
+                buf.close();
+                return null;
+            }).when(listener).putNext(any(ArrowBuf.class));
+
+            try (VectorStreamOutput out = VectorStreamOutput.forNativeArrow(root)) {
+                ch.sendBatch(ByteBuffer.allocate(0), out, metadata);
+            }
+
+            verify(listener, times(1)).putNext(any(ArrowBuf.class));
+            verify(listener, never()).putNext();
+            assertArrayEquals("metadata bytes must round-trip into the ArrowBuf", metadata, capturedMetadata.get());
+            root.close();
+        }
+    }
+
+    /** sendBatch without metadata must call the no-arg {@code putNext()} variant. */
+    public void testSendBatchWithoutMetadataCallsPutNextNoArg() throws Exception {
+        try (RootAllocator realAllocator = new RootAllocator()) {
+            FlightServerChannel ch = new FlightServerChannel(listener, realAllocator, middleware, callTracker, executor, 5_000);
+            VectorSchemaRoot root = newSingleIntRoot(realAllocator, 1);
+
+            try (VectorStreamOutput out = VectorStreamOutput.forNativeArrow(root)) {
+                ch.sendBatch(ByteBuffer.allocate(0), out);
+            }
+
+            verify(listener, times(1)).putNext();
+            verify(listener, never()).putNext(any(ArrowBuf.class));
+            root.close();
+        }
+    }
+
+    private static VectorSchemaRoot newSingleIntRoot(BufferAllocator allocator, int value) {
+        Schema schema = new Schema(List.of(new Field("v", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+        VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
+        IntVector vec = (IntVector) root.getVector("v");
+        vec.allocateNew();
+        vec.setSafe(0, value);
+        vec.setValueCount(1);
+        root.setRowCount(1);
+        return root;
     }
 }

@@ -12,6 +12,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -97,6 +99,7 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
 
             assertTrue(settingKeys.contains("datafusion.indexed.batch_size"));
             assertTrue(settingKeys.contains("datafusion.indexed.parquet_pushdown_filters"));
+            assertTrue(settingKeys.contains("datafusion.indexed.bloom_filter_on_read"));
             assertTrue(settingKeys.contains("datafusion.indexed.min_skip_run_default"));
             assertTrue(settingKeys.contains("datafusion.indexed.min_skip_run_selectivity_threshold"));
             assertTrue(settingKeys.contains("datafusion.indexed.single_collector_strategy"));
@@ -111,10 +114,75 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
     public void testGetSettingsReturnsTotalExpectedCount() {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             List<Setting<?>> settings = plugin.getSettings();
-            assertEquals(25, settings.size());
+            assertEquals(27, settings.size());
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    // ── datafusion.spill_directory (task 1.1) ──
+
+    public void testSpillDirectoryIsRegistered() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            List<Setting<?>> settings = plugin.getSettings();
+            assertTrue(
+                "Plugin must register DATAFUSION_SPILL_DIRECTORY via getSettings()",
+                settings.contains(DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY)
+            );
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testSpillDirectoryIsFinalAndNodeScope() {
+        // Final because DataFusion's DiskManagerMode::Directories is built once at runtime
+        // startup; changing the directory at runtime would orphan in-flight spill files.
+        assertFalse("datafusion.spill_directory must NOT be dynamic", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.isDynamic());
+        assertTrue("datafusion.spill_directory must have node scope", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.hasNodeScope());
+        assertTrue("datafusion.spill_directory must be Final", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.isFinal());
+    }
+
+    public void testSpillDirectoryDefaultIsEmpty() {
+        // Empty default is the sentinel for "spill disabled" — DataFusion will build the
+        // runtime in DiskManagerMode::Disabled. Setting the value to a real path opts back
+        // into spill. This preserves a sensible default for self-managed clusters that
+        // never configured the setting.
+        assertEquals("", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(Settings.EMPTY));
+    }
+
+    public void testSpillDirectoryAcceptsEmptyValue() {
+        // Explicitly setting the value to empty must also pass validation — same effect as
+        // leaving it unset (spill disabled).
+        Settings s = Settings.builder().put("datafusion.spill_directory", "").build();
+        assertEquals("", DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(s));
+    }
+
+    public void testSpillDirectoryAcceptsValidExistingPath() throws Exception {
+        Path tmp = createTempDir();
+        Settings s = Settings.builder().put("datafusion.spill_directory", tmp.toString()).build();
+        assertEquals(tmp.toString(), DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(s));
+    }
+
+    public void testSpillDirectoryAcceptsPathThatDoesNotYetExist() throws Exception {
+        // The leaf directory may not exist yet at plugin-startup time (host-fleet boot script
+        // could still be mounting the volume). Validator accepts on syntactic grounds only;
+        // runtime spill writes surface any permission/mount issues.
+        Path existingParent = createTempDir();
+        Path nonExistentLeaf = existingParent.resolve("spill-not-yet-mounted");
+        assertTrue(Files.notExists(nonExistentLeaf));
+        Settings s = Settings.builder().put("datafusion.spill_directory", nonExistentLeaf.toString()).build();
+        assertEquals(nonExistentLeaf.toString(), DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(s));
+    }
+
+    public void testSpillDirectoryRejectsInvalidPathSyntax() {
+        // Nul-byte path is unparseable by Path.of; the validator must reject it with a
+        // clear error message that references the setting key.
+        Settings s = Settings.builder().put("datafusion.spill_directory", "\u0000bad\u0000path").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.get(s));
+        assertTrue(
+            "error message should reference the setting key, got: " + e.getMessage(),
+            e.getMessage().contains("datafusion.spill_directory")
+        );
     }
 
     public void testDatafusionSettingsIsNullBeforeCreateComponents() {

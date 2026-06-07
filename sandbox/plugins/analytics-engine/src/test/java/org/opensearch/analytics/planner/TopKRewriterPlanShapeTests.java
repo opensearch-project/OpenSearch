@@ -19,11 +19,8 @@ import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.opensearch.common.settings.Settings;
 
 import java.util.List;
-
-import static org.mockito.Mockito.when;
 
 /**
  * Plan shape tests for the TopK rewriter. Grouped into Detection (skip cases)
@@ -112,6 +109,31 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         assertTrue("at least 2 OpenSearchSort nodes expected", sortCount >= 2);
     }
 
+    /**
+     * Collated outer system-limit over a collated inner head: oversampling must honor the INNER
+     * fetch, not the outer cap. PPL {@code ... | sort - c | head 10} arrives as
+     * {@code SystemLimit(fetch=10000, sort0=$1 DESC) → Sort(fetch=10, sort0=$1 DESC) → ... → FINAL}.
+     * The per-partition shard Sort fetch must derive from 10 (→ ceil(10*2)+10 = 30), not from the
+     * 10000 system cap (which would over-fetch 30000 rows/shard).
+     */
+    public void testRewrite_collatedOuterLimit_honorsInnerFetch() {
+        RelNode inner = buildSortHeadOverGroupedCount(); // Sort(collation $1 DESC, fetch 10) over grouped count
+        // Outer system size-limit with the SAME collation and a large cap (what QueryService wraps).
+        RelNode outer = LogicalSort.create(
+            inner,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10000, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(outer, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
+        assertTrue("a per-partition Sort must be inserted", sortCount >= 2);
+        // Shard Sort fetch = ceil(innerFetch * factor) + innerFetch = ceil(10*2)+10 = 30.
+        assertTrue("shard Sort must be sized off the inner fetch (30), got plan:\n" + plan, plan.contains("fetch=[30]"));
+        assertFalse("shard Sort must NOT be sized off the 10000 system cap (30000)", plan.contains("fetch=[30000]"));
+    }
+
     /** SUM aggregate: partial SUM is directly sortable, no reduce_eval needed. */
     public void testRewrite_sumByGroup_sortInserted() {
         RelOptTable table = mockTable("test_index", "status", "size");
@@ -149,6 +171,58 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         assertEquals("expected 2 Sorts (coord + per-partition)", 2, sortCount);
     }
 
+    /** dc(x) by group + sort + head: APPROX_COUNT_DISTINCT splits with TopK reduce_eval. */
+    public void testRewrite_dcByGroup_splitAndTopK() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countDistinctCall(scan)));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$1], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchProject(status=[$0], dc=[$1], viableBackends=[[mock-parquet]])
+                        OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                          OpenSearchProject(status=[$0], dc=[$1], __reduce_eval_1=[reduce_eval('approx_distinct', $1)], viableBackends=[[mock-parquet]])
+                            OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /** Multi-group-by COUNT + TopK: verifies PARTIAL/FINAL split fires. */
+    public void testRewrite_multiGroupByCount_splitAndTopK() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0, 1), null, List.of(countStarCall(scan)));
+        RelNode sort = LogicalSort.create(
+            agg,
+            RelCollations.of(new RelFieldCollation(2, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        assertPlanShape(
+            """
+                OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[10], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0, 1}], cnt=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchSort(sort0=[$2], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
+                        OpenSearchAggregate(group=[{0, 1}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private RelNode buildSortHeadOverGroupedCount() {
@@ -178,8 +252,7 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
 
     private PlannerContext contextWithOversampling(double factor) {
         PlannerContext ctx = buildContext("parquet", 2, intFields());
-        Settings clusterSettings = Settings.builder().put("analytics.shard_bucket_oversampling_factor", factor).build();
-        when(ctx.getClusterState().metadata().settings()).thenReturn(clusterSettings);
+        ctx.setOversamplingFactor(factor);
         return ctx;
     }
 }

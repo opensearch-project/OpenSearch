@@ -37,11 +37,13 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.plugins.Plugin;
 
@@ -3635,5 +3637,42 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         assertThat(doc.getDocumentInput(), sameInstance(mockInput));
         assertNotNull(doc.rootDoc().getField("obj.inner"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicTextFieldWithoutKeywordMultiFieldForPluggableDataFormat() throws Exception {
+        Settings pluggableSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {}));
+        DocumentInput<?> noopInput = new CapturingDocumentInput();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")), noopInput);
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
+
+        // With pluggable data format, text field should NOT have .keyword multi-field
+        assertFalse("Text field should not have keyword multi-field with pluggable dataformat", textMapper.iterator().hasNext());
+    }
+
+    public void testDynamicTextFieldWithKeywordMultiFieldForNonPluggableDataFormat() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
+
+        // Without pluggable data format, text field SHOULD have .keyword multi-field
+        assertTrue("Text field should have keyword multi-field without pluggable dataformat", textMapper.iterator().hasNext());
+        Mapper keywordSubField = textMapper.iterator().next();
+        assertThat(keywordSubField, instanceOf(KeywordFieldMapper.class));
+        assertEquals("dynamic_text.keyword", keywordSubField.name());
     }
 }

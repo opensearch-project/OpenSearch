@@ -133,6 +133,16 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowLong(oneRow("key00") + "| eval v = extract(DAY_HOUR FROM datetime0) | fields v", 910L);
     }
 
+    /** {@code extract(<unit> FROM '<varchar literal>')} returns the unit value. */
+    public void testExtractFromVarcharLiteral() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = extract(YEAR FROM '2003-12-31 17:30:00') | fields v", 2003L);
+    }
+
+    /** {@code extract(<unit> FROM TIME('<lit>'))} returns the unit value. */
+    public void testExtractFromTimeLiteral() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = extract(HOUR FROM time('17:30:00')) | fields v", 17L);
+    }
+
     public void testFromUnixtime() throws IOException {
         assertFirstRowString(
             oneRow("key00") + "| eval v = date_format(from_unixtime(1521467703), '%Y-%m-%d %H:%i:%s') | fields v",
@@ -195,6 +205,76 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
     public void testDateMinusDateLiterals() throws IOException {
         // DATE-DATE returns integer day-count.
         assertFirstRowLong(oneRow("key00") + "| eval v = date('2024-01-15') - date('2024-01-10') | fields v", 5L);
+    }
+
+    // ── DATE_ADD / DATE_SUB → DateAddSubAdapter (DATETIME_PLUS lowering) ──────────
+
+    public void testDateAddDayIntervalOnDateLiteral() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_add(date('1998-12-01'), interval 90 day) | fields v",
+            "1999-03-01 00:00:00"
+        );
+    }
+
+    public void testDateAddMonthIntervalOnDateLiteral() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_add(date('1993-07-01'), interval 3 month) | fields v",
+            "1993-10-01 00:00:00"
+        );
+    }
+
+    public void testDateAddYearIntervalOnDateLiteral() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_add(date('1994-01-01'), interval 1 year) | fields v",
+            "1995-01-01 00:00:00"
+        );
+    }
+
+    public void testDateSubDayIntervalOnDateLiteral() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_sub(date('1998-12-01'), interval 90 day) | fields v",
+            "1998-09-02 00:00:00"
+        );
+    }
+
+    public void testDateAddDayIntervalOnTimestampColumn() throws IOException {
+        // datetime0 at key00 == 2004-07-09 10:17:35; +1 day preserves the time-of-day.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_add(datetime0, interval 1 day) | fields v",
+            "2004-07-10 10:17:35"
+        );
+    }
+
+    public void testDateSubMonthIntervalOnTimestampColumn() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_sub(datetime0, interval 1 month) | fields v",
+            "2004-06-09 10:17:35"
+        );
+    }
+
+    public void testDateAddHourIntervalOnTimestampColumn() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_add(datetime0, interval 2 hour) | fields v",
+            "2004-07-09 12:17:35"
+        );
+    }
+
+    // MILLISECOND is the day-time base unit — exercises the 1:1 (no-scale) interval branch.
+    public void testDateAddMillisecondIntervalOnTimestampColumn() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_add(datetime0, interval 500 millisecond) | fields v",
+            "2004-07-09 10:17:35.5"
+        );
+    }
+
+    // date_add inside a WHERE predicate — the TPC-H q1/q4 shape that surfaced the gap.
+    public void testDateAddInWherePredicate() throws IOException {
+        assertFirstRowString(
+            oneRow("key00")
+                + "| where datetime0 < date_add(date('2005-01-01'), interval 1 year) "
+                + "| eval v = date_format(datetime0, '%Y-%m-%d') | fields v",
+            "2004-07-09"
+        );
     }
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {
