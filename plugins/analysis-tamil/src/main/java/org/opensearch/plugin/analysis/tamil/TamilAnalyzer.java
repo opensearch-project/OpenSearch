@@ -58,7 +58,7 @@ public final class TamilAnalyzer extends StopwordAnalyzerBase {
         Tokenizer source = new StandardTokenizer();
         TokenStream result = new LowerCaseFilter(source);
         result = new StopFilter(result, stopwords);
-        result = new TamilStemmer(result, minStemLength);
+        result = new TamilStemmer(result, minStemLength, false, true, (java.util.List<String>) null, (java.util.List<String>) null);
         return new TokenStreamComponents(source, result);
     }
 }

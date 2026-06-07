@@ -71,7 +71,7 @@ public class TamilStemTokenFilterFactory extends AbstractTokenFilterFactory {
     public TamilStemTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.minStemLength = settings.getAsInt("min_stem_length", DEFAULT_MIN_STEM_LENGTH);
-        this.stripPrefixes = settings.getAsBoolean("strip_prefixes", true);
+        this.stripPrefixes = settings.getAsBoolean("strip_prefixes", false);
         this.stripSuffixes = settings.getAsBoolean("strip_suffixes", true);
 
         // Check for inline suffixes first, then file path
