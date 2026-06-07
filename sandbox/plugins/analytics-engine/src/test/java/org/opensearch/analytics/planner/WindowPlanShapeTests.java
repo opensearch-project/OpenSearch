@@ -741,7 +741,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
 
         RexNode over = rb.makeOver(
             typeFactory.createSqlType(SqlTypeName.BIGINT),
-            (SqlAggFunction) SqlStdOperatorTable.SUM,
+            SqlStdOperatorTable.SUM,
             List.of(rb.makeInputRef(scan, 1)),
             ImmutableList.of(rb.makeInputRef(scan, 0)),    // PARTITION BY status
             ImmutableList.of(),
@@ -823,7 +823,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         RexBuilder rb = scan.getCluster().getRexBuilder();
         RexNode over = rb.makeOver(
             typeFactory.createSqlType(SqlTypeName.BIGINT),
-            (SqlAggFunction) SqlStdOperatorTable.SUM,
+            SqlStdOperatorTable.SUM,
             List.of(rb.makeInputRef(scan, 1)),
             ImmutableList.of(rb.makeInputRef(scan, 0)),     // PARTITION BY status
             ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
