@@ -31,6 +31,7 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
@@ -134,7 +135,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         // (1 shard / already gathered) or a non-splittable aggregate, the single-stage plan is the
         // correct and only choice.
         boolean partitioned = isPartitioned(child);
-        if (!partitioned || shouldSkipPartialFinalSplit(aggregate)) {
+        if (!partitioned || childGatheredByWindow(child) || shouldSkipPartialFinalSplit(aggregate)) {
             call.transformTo(singleOnSingleton);
             return;
         }
@@ -203,6 +204,37 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             if (trait instanceof OpenSearchDistribution dist) {
                 return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED;
             }
+        }
+        return false;
+    }
+
+    /**
+     * True when a window (a {@code RexOver}-bearing Project) sits between this aggregate and the
+     * data source with no exchange in between. A global-frame window forces a coordinator gather
+     * (the windowed Project has infinite cost unless its input is SINGLETON), so the aggregate's
+     * input is already on one node even though the child still carries the scan's RANDOM trait at
+     * match time (the gathering ER is a not-yet-materialized converter). Splitting here would add a
+     * redundant PARTIAL/FINAL pass over already-gathered rows.
+     *
+     * <p>The walk stops at the first {@link OpenSearchExchangeReducer}: a window <em>below</em> a
+     * shuffle doesn't gather <em>this</em> aggregate's input, so a partitioned aggregate sitting
+     * above that exchange (e.g. the lower {@code stats} in {@code stats ... | eval w=..OVER() |
+     * stats ..}) still splits correctly. Only the aggregate directly above the window-induced
+     * gather skips. Mirrors the chain walk in {@code OpenSearchLateMaterializationRewriter}.
+     */
+    private static boolean childGatheredByWindow(RelNode node) {
+        RelNode cur = RelNodeUtils.unwrapHep(node);
+        while (cur != null) {
+            if (cur instanceof OpenSearchExchangeReducer) {
+                return false; // gather boundary — anything below is a different stage
+            }
+            if (cur instanceof OpenSearchProject project && project.containsOver()) {
+                return true; // window forces a gather above its input → our input is already singleton
+            }
+            if (cur.getInputs().size() != 1) {
+                return false; // scan (no inputs) or a multi-input op (join/union) — no single window gather
+            }
+            cur = RelNodeUtils.unwrapHep(cur.getInput(0));
         }
         return false;
     }
