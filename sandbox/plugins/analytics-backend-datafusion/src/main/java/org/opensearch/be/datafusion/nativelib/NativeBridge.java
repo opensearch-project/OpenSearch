@@ -78,6 +78,7 @@ public final class NativeBridge {
     private static final MethodHandle SET_SPILL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
     private static final MethodHandle SET_REDUCE_TARGET_PARTITIONS;
+    private static final MethodHandle SET_REDUCE_PARTITION_STREAM_CAPACITY;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
@@ -192,6 +193,11 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
+        SET_REDUCE_PARTITION_STREAM_CAPACITY = linker.downcallHandle(
+            lib.find("df_set_reduce_partition_stream_capacity").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
         SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
             lib.find("df_set_memory_guard_thresholds").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
@@ -272,7 +278,8 @@ public final class NativeBridge {
 
         // i64 df_register_partition_stream(session_ptr, input_id_ptr, input_id_len,
         // partial_plan_ptr, partial_plan_len,
-        // out_ptr, out_cap, out_len)
+        // out_ptr, out_cap, out_len,
+        // out_senders, num_partitions, capacity)
         REGISTER_PARTITION_STREAM = linker.downcallHandle(
             lib.find("df_register_partition_stream").orElseThrow(),
             FunctionDescriptor.of(
@@ -284,7 +291,10 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
             )
         );
 
@@ -747,6 +757,15 @@ public final class NativeBridge {
         }
     }
 
+    /** Sets per-channel mpsc capacity for coordinator-reduce streaming inputs. {@code 0} = Rust default (4). */
+    public static void setReducePartitionStreamCapacity(int value) {
+        try {
+            SET_REDUCE_PARTITION_STREAM_CAPACITY.invokeExact((long) value);
+        } catch (Throwable t) {
+            logger.debug("Failed to set reduce partition stream capacity", t);
+        }
+    }
+
     /** Sets the memory guard thresholds (0.0–1.0): admission throttle, admission reject, execution spill, execution critical. */
     public static void setMemoryGuardThresholds(
         double admissionThrottle,
@@ -1014,8 +1033,19 @@ public final class NativeBridge {
      * session derived by lowering the producer-side substrait. The Java tripwire
      * ({@code typesMatch} in {@code DatafusionReduceSink}) validates fed batches against this
      * schema, and downstream callers decode it once into an Arrow {@link org.apache.arrow.vector.types.pojo.Schema}.
+     *
+     * <p>For multi-partition inputs ({@link #registerPartitionStream(long, String, byte[], int)}),
+     * {@code pointer} is the first sender pointer for backwards compatibility — full sender
+     * arrays are returned via {@link RegisteredInputMulti}.
      */
     public record RegisteredInput(long pointer, byte[] schemaIpc) {
+    }
+
+    /**
+     * Multi-partition reply from {@link #registerPartitionStream(long, String, byte[], int)}:
+     * sender pointers in partition-id order plus the Arrow IPC schema.
+     */
+    public record RegisteredInputMulti(long[] pointers, byte[] schemaIpc) {
     }
 
     /**
@@ -1035,17 +1065,40 @@ public final class NativeBridge {
     }
 
     /**
-     * Registers an input partition stream on the session under {@code inputId}, deriving the
-     * input schema by lowering the producer-side {@code partialPlanBytes}. Returns the native
-     * sender pointer (freed by {@link #senderClose}) and the Arrow IPC-encoded schema the
-     * native session settled on after lowering.
+     * Single-partition convenience: equivalent to
+     * {@link #registerPartitionStream(long, String, byte[], int)} with
+     * {@code numPartitions = 1}.
      */
     public static RegisteredInput registerPartitionStream(long sessionPtr, String inputId, byte[] partialPlanBytes) {
+        RegisteredInputMulti multi = registerPartitionStream(sessionPtr, inputId, partialPlanBytes, 1);
+        return new RegisteredInput(multi.pointers()[0], multi.schemaIpc());
+    }
+
+    /**
+     * Registers a {@code numPartitions}-partition streaming input under {@code inputId}.
+     * Each partition is fed by an independent Java sender and consumed by its own
+     * DataFusion partition worker — feeds never contend when
+     * {@code numPartitions == numShards}. Per-channel mpsc capacity is the cluster-dynamic
+     * value set via {@link #setReducePartitionStreamCapacity(int)}.
+     *
+     * @throws IllegalArgumentException if {@code numPartitions <= 0}
+     */
+    public static RegisteredInputMulti registerPartitionStream(
+        long sessionPtr,
+        String inputId,
+        byte[] partialPlanBytes,
+        int numPartitions
+    ) {
         NativeHandle.validatePointer(sessionPtr, "session");
+        if (numPartitions <= 0) {
+            throw new IllegalArgumentException("numPartitions must be > 0, got " + numPartitions);
+        }
         try (var call = new NativeCall()) {
             var id = call.str(inputId);
             var out = call.outBuffer(64 * 1024);
-            long ptr = call.invoke(
+            var senders = call.longArrayOut(numPartitions);
+            // capacity = 0 → Rust uses the cluster-dynamic value from setReducePartitionStreamCapacity.
+            call.invoke(
                 REGISTER_PARTITION_STREAM,
                 sessionPtr,
                 id.segment(),
@@ -1054,9 +1107,13 @@ public final class NativeBridge {
                 (long) partialPlanBytes.length,
                 out.data(),
                 (long) out.capacity(),
-                out.lenOut()
+                out.lenOut(),
+                senders,
+                (long) numPartitions,
+                0L
             );
-            return new RegisteredInput(ptr, out.toByteArray());
+            long[] ptrs = senders.toArray(ValueLayout.JAVA_LONG);
+            return new RegisteredInputMulti(ptrs, out.toByteArray());
         }
     }
 

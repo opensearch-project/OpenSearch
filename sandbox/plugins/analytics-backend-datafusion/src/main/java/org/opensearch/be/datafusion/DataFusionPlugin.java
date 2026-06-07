@@ -262,6 +262,22 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Per-channel mpsc capacity for coordinator-reduce streaming partition inputs.
+     * {@code 0} (default) uses the Rust default (4); {@code 1} gives strict
+     * one-batch-at-a-time backpressure. Larger values trade memory for fewer producer
+     * stalls. When a channel fills, the Java feeder blocks in {@code send_blocking},
+     * which propagates Flight-stream backpressure to the upstream data node.
+     */
+    public static final Setting<Integer> DATAFUSION_REDUCE_PARTITION_STREAM_CAPACITY = Setting.intSetting(
+        "datafusion.reduce.partition_stream.capacity",
+        0,
+        0,
+        1024,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Admission threshold for the jemalloc memory guard (0.0–1.0).
      * When pool accounting rejects a phantom reservation but jemalloc reports
      * actual RSS below this fraction of the pool limit, the reservation proceeds
@@ -409,6 +425,8 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
         clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_REDUCE_PARTITION_STREAM_CAPACITY, NativeBridge::setReducePartitionStreamCapacity);
+        clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
@@ -420,6 +438,7 @@ public class DataFusionPlugin extends Plugin
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
+        NativeBridge.setReducePartitionStreamCapacity(DATAFUSION_REDUCE_PARTITION_STREAM_CAPACITY.get(settings));
         NativeBridge.setMemoryGuardThresholds(
             DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),

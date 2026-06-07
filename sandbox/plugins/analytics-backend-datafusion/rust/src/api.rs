@@ -430,6 +430,25 @@ pub fn get_reduce_target_partitions() -> usize {
     REDUCE_TARGET_PARTITIONS.load(std::sync::atomic::Ordering::Acquire)
 }
 
+/// Per-channel mpsc capacity for coordinator-reduce streaming partition inputs.
+/// Mutated by the cluster-dynamic setting `datafusion.reduce.partition_stream.capacity`
+/// via [`set_reduce_partition_stream_capacity`]. `0` means "use the Rust default"
+/// (currently [`crate::partition_stream::DEFAULT_CHANNEL_CAPACITY`] = 4); any positive
+/// value sets an explicit per-channel capacity. Smaller capacity = tighter
+/// backpressure (a slow consumer parks the producer sooner); `1` is valid and gives
+/// strict one-batch-at-a-time backpressure.
+static REDUCE_PARTITION_STREAM_CAPACITY: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+pub fn set_reduce_partition_stream_capacity(value: i64) {
+    let v = if value < 0 { 0 } else { value as usize };
+    REDUCE_PARTITION_STREAM_CAPACITY.store(v, std::sync::atomic::Ordering::Release);
+}
+
+pub fn get_reduce_partition_stream_capacity() -> usize {
+    REDUCE_PARTITION_STREAM_CAPACITY.load(std::sync::atomic::Ordering::Acquire)
+}
+
 /// Creates a native reader (ShardView) for the given path and files.
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
@@ -1384,24 +1403,30 @@ pub unsafe fn close_local_session(ptr: i64) {
     }
 }
 
-/// Registers a streaming input on the session under `input_id`. The schema is
-/// derived by lowering `partial_plan_bytes` (the producer side's substrait) to
-/// a physical plan and reading its output schema — that is the schema the
-/// producer will actually emit, so we eliminate any divergence between
-/// declared and physical types.
-///
-/// Returns `(sender_ptr, schema_ipc_bytes)`. The IPC bytes are written so the
-/// Java tripwire (`typesMatch` in DatafusionReduceSink) can validate batches
-/// against the same schema the native session is registered with.
+/// Registers a `num_partitions`-partition streaming input under `input_id`. Schema
+/// is derived from the producer-side substrait so declared/physical types can't
+/// diverge. Each sender feeds its own DataFusion partition worker — no intermediate
+/// repartition. Returns `(sender_ptrs in partition-id order, schema_ipc_bytes)`.
 ///
 /// # Safety
-/// `session_ptr` must be a valid, non-zero pointer returned by
-/// `create_local_session`.
+/// `session_ptr` must be valid + non-zero from `create_local_session`.
 pub unsafe fn register_partition_stream(
     session_ptr: i64,
     input_id: &str,
     partial_plan_bytes: &[u8],
-) -> Result<(i64, Vec<u8>), DataFusionError> {
+    num_partitions: usize,
+    capacity: Option<usize>,
+) -> Result<(Vec<i64>, Vec<u8>), DataFusionError> {
+    if num_partitions == 0 {
+        return Err(DataFusionError::Execution(
+            "register_partition_stream: num_partitions must be > 0".to_string(),
+        ));
+    }
+    if matches!(capacity, Some(0)) {
+        return Err(DataFusionError::Execution(
+            "register_partition_stream: capacity must be > 0 or None for default".to_string(),
+        ));
+    }
     let session = &mut *(session_ptr as *mut LocalSession);
     // derive_schema_from_partial_plan applies `schema_coerce::coerce_inferred_schema`
     // to the physical plan's output schema, matching what isthmus declared on the wire
@@ -1425,9 +1450,20 @@ pub unsafe fn register_partition_stream(
         session.set_phantom(budget.phantom_reservation);
     }
 
+    // If the caller didn't pass an explicit per-call capacity, fall back to the
+    // cluster-dynamic setting (`datafusion.reduce.partition_stream.capacity`) which
+    // defaults to 0 == use the Rust default channel capacity.
+    let effective_capacity = capacity.or_else(|| {
+        let g = get_reduce_partition_stream_capacity();
+        if g == 0 { None } else { Some(g) }
+    });
     let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
-    let sender = session.register_partition(input_id, schema)?;
-    Ok((Box::into_raw(Box::new(sender)) as i64, schema_ipc))
+    let senders = session.register_partitions_with_capacity(input_id, schema, num_partitions, effective_capacity)?;
+    let ptrs = senders
+        .into_iter()
+        .map(|s| Box::into_raw(Box::new(s)) as i64)
+        .collect::<Vec<_>>();
+    Ok((ptrs, schema_ipc))
 }
 
 /// Executes a Substrait plan against a `LocalSession` and returns a

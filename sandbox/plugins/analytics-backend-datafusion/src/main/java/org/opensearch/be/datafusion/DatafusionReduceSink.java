@@ -25,9 +25,12 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -56,13 +59,72 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     private static final Logger logger = LogManager.getLogger(DatafusionReduceSink.class);
 
     /**
-     * Per-child senders keyed by childStageId, populated in declaration order so the
-     * single-input case can pick the sole entry without an explicit lookup.
+     * Per-child senders keyed by childStageId, in declaration order so the single-input
+     * case picks the sole entry without a lookup. Each entry holds one lane per upstream
+     * shard (sized from {@link ExchangeSinkContext.ChildInput#numInputPartitions()}).
      */
-    private final Map<Integer, DatafusionPartitionSender> sendersByChildStageId;
+    private final Map<Integer, ChildSenders> sendersByChildStageId;
     private final StreamHandle outStream;
     /** Cumulative batches fed into any native sender. */
     private final AtomicLong feedCount = new AtomicLong();
+
+    /**
+     * Sender array for a single child input. {@link #laneForOrdinal(int)} pins shard
+     * ordinals to lanes (no contention when ordinals == lanes); {@link #pickLane()}
+     * round-robins for callers without an ordinal (legacy {@code feed(vsr)}).
+     */
+    static final class ChildSenders {
+        final DatafusionPartitionSender[] senders;
+        final AtomicInteger nextLane = new AtomicInteger();
+
+        ChildSenders(DatafusionPartitionSender[] senders) {
+            assert senders.length > 0 : "ChildSenders requires at least one sender";
+            this.senders = senders;
+        }
+
+        /**
+         * Returns {@code idx mod n} in {@code [0, n)}. Bitmask fast-path for pow-2
+         * {@code n}; {@link Math#floorMod} fallback handles negative {@code idx}
+         * (e.g. wrap-around on {@link AtomicInteger#getAndIncrement()}).
+         */
+        static int laneIndex(int n, int idx) {
+            return (n & (n - 1)) == 0 ? (idx & (n - 1)) : Math.floorMod(idx, n);
+        }
+
+        /**
+         * Pins ordinal {@code i} to lane {@code i mod numLanes}. Equal counts (default
+         * {@code per_shard} policy) give zero contention; under {@code cap:N} or any
+         * drift between resolve calls, excess ordinals share lanes.
+         */
+        DatafusionPartitionSender laneForOrdinal(int sourceOrdinal) {
+            return senders[laneIndex(senders.length, sourceOrdinal)];
+        }
+
+        /** Round-robin lane pick — used by the no-ordinal {@code feed(vsr)} path. */
+        DatafusionPartitionSender pickLane() {
+            return senders[laneIndex(senders.length, nextLane.getAndIncrement())];
+        }
+
+        /** True when every lane has had its receiver dropped. */
+        boolean allReceiversDropped() {
+            for (DatafusionPartitionSender s : senders) {
+                if (!s.isReceiverDropped()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        void closeAll() {
+            for (DatafusionPartitionSender s : senders) {
+                try {
+                    s.close();
+                } catch (Exception e) {
+                    logger.warn("[reduce-sink] error closing sender lane", e);
+                }
+            }
+        }
+    }
 
     /**
      * Routes cleanup to the {@link #reduce} caller when a drain is in flight — never to a
@@ -79,7 +141,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     final AtomicReference<SinkState> state = new AtomicReference<>(SinkState.READY);
 
     /** Guards the teardown body so concurrent + sequential close paths don't run it twice. */
-    final java.util.concurrent.atomic.AtomicBoolean torndown = new java.util.concurrent.atomic.AtomicBoolean();
+    final AtomicBoolean torndown = new AtomicBoolean();
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         this(ctx, runtimeHandle, null);
@@ -93,7 +155,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             preparedState != null,
             session != null ? session.getPointer() : 0
         );
-        Map<Integer, DatafusionPartitionSender> senders = new LinkedHashMap<>(childInputs.size());
+        Map<Integer, ChildSenders> senders = new LinkedHashMap<>(childInputs.size());
         long streamPtr = 0;
         StreamHandle outStreamLocal = null;
         boolean success = false;
@@ -101,7 +163,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             if (preparedState != null) {
                 int i = 0;
                 for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
-                    senders.put(child.getKey(), preparedState.senders().get(i));
+                    senders.put(child.getKey(), new ChildSenders(preparedState.sendersForInput(i)));
                     childSchemas.put(child.getKey(), preparedState.inputSchemas().get(i));
                     i++;
                 }
@@ -110,20 +172,29 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             } else {
                 for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
                     int childStageId = child.getKey();
-                    byte[] producerPlanBytes = child.getValue();
-                    NativeBridge.RegisteredInput registered = NativeBridge.registerPartitionStream(
+                    int numLanes = childInputPartitions.getOrDefault(childStageId, 1);
+                    NativeBridge.RegisteredInputMulti registered = NativeBridge.registerPartitionStream(
                         session.getPointer(),
                         inputIdFor(childStageId),
-                        producerPlanBytes
+                        child.getValue(),
+                        numLanes
                     );
-                    senders.put(childStageId, new DatafusionPartitionSender(registered.pointer()));
+                    senders.put(childStageId, new ChildSenders(DatafusionPartitionSender.wrap(registered.pointers())));
+                    childSchemas.put(childStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
                     logger.debug(
-                        "[reduce-sink] ALLOC sender taskId={} childStageId={} senderPtr={}",
+                        "[reduce-sink] registered input partitions: taskId={} childStageId={} lanes={}",
                         ctx.taskId(),
                         childStageId,
-                        registered.pointer()
+                        registered.pointers().length
                     );
-                    childSchemas.put(childStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "[reduce-sink] sender pointers: taskId={} childStageId={} senderPtrs={}",
+                            ctx.taskId(),
+                            childStageId,
+                            Arrays.toString(registered.pointers())
+                        );
+                    }
                 }
                 streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes(), ctx.taskId());
                 logger.debug("[reduce-sink] ALLOC localPlan stream taskId={} streamPtr={}", ctx.taskId(), streamPtr);
@@ -138,8 +209,8 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                 // Only close senders we allocated locally (legacy path). When preparedState
                 // owns them, the state's close() will.
                 if (preparedState == null) {
-                    for (DatafusionPartitionSender sender : senders.values()) {
-                        sender.close();
+                    for (ChildSenders cs : senders.values()) {
+                        cs.closeAll();
                     }
                     session.close();
                 }
@@ -147,49 +218,61 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         }
         this.outStream = outStreamLocal;
         this.sendersByChildStageId = senders;
-        // Drain is not started here — it runs inline on the owning reduce stage's
-        // reduce() caller thread. No separate drain executor.
+        // Drain runs inline on the reduce() caller; no separate executor here.
     }
 
     /**
-     * Lock-free feed for the single-input case: writes to the sole registered sender.
-     * Multi-input callers must use {@link #sinkForChild(int)} instead — calling this
-     * method when more than one partition is registered is a programming error because
-     * the routing target is ambiguous.
+     * Single-input feed: round-robins into the sole child's lanes. Multi-input callers
+     * must use {@link #sinkForChild(int)} — the routing target is ambiguous otherwise.
      */
     @Override
     public void feed(VectorSchemaRoot batch) {
+        ChildSenders cs = soleChildSenders(batch);
+        feedToSender(cs.pickLane(), batch, soleChildSchema());
+    }
+
+    /** Single-input feed with shard ordinal — pins to lane {@code ordinal mod numLanes}. */
+    @Override
+    public void feed(VectorSchemaRoot batch, int sourceOrdinal) {
+        ChildSenders cs = soleChildSenders(batch);
+        feedToSender(cs.laneForOrdinal(sourceOrdinal), batch, soleChildSchema());
+    }
+
+    /** Returns the sole {@link ChildSenders}; closes {@code batch} and throws if multi-input. */
+    private ChildSenders soleChildSenders(VectorSchemaRoot batch) {
         if (sendersByChildStageId.size() != 1) {
             batch.close();
             throw new IllegalStateException(
-                "DatafusionReduceSink has " + sendersByChildStageId.size() + " input partitions; use sinkForChild(int) instead of feed()"
+                "DatafusionReduceSink has " + sendersByChildStageId.size() + " child inputs; use sinkForChild(int) instead of feed()"
             );
         }
-        feedToSender(sendersByChildStageId.values().iterator().next(), batch, childSchemas.values().iterator().next());
+        return sendersByChildStageId.values().iterator().next();
+    }
+
+    private Schema soleChildSchema() {
+        return childSchemas.values().iterator().next();
     }
 
     /**
-     * Single-input path only: true once the sole input's consumer dropped its receiver (e.g. a
-     * LimitExec satisfied its fetch). Multi-input shapes (join/union) feed via {@link #sinkForChild}
-     * and each producer observes early-termination on its own per-child wrapper
-     * ({@link ChildSink#isConsumerDone()}) — a single top-level answer can't be correct there (one
-     * dropped join side ≠ whole reduce done), so this conservatively returns false unless there is
-     * exactly one registered sender.
+     * Single-input only: true when every lane's receiver is dropped (e.g. LimitExec done).
+     * Multi-input shapes use {@link ChildSink#isConsumerDone} per-child — one dropped join
+     * side ≠ whole reduce done, so we conservatively return false here when there's more
+     * than one child input.
      */
     @Override
     public boolean isConsumerDone() {
-        return sendersByChildStageId.size() == 1 && sendersByChildStageId.values().iterator().next().isReceiverDropped();
+        return sendersByChildStageId.size() == 1 && sendersByChildStageId.values().iterator().next().allReceiversDropped();
     }
 
     @Override
     public ExchangeSink sinkForChild(int childStageId) {
-        DatafusionPartitionSender sender = sendersByChildStageId.get(childStageId);
-        if (sender == null) {
+        ChildSenders cs = sendersByChildStageId.get(childStageId);
+        if (cs == null) {
             throw new IllegalArgumentException(
                 "No registered partition for childStageId=" + childStageId + "; known ids=" + sendersByChildStageId.keySet()
             );
         }
-        return new ChildSink(sender, childSchemas.get(childStageId));
+        return new ChildSink(cs, childSchemas.get(childStageId));
     }
 
     /**
@@ -295,28 +378,33 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     }
 
     /**
-     * Per-child wrapper returned from {@link #sinkForChild(int)}. The orchestrator
-     * routes one of these per child stage, and the wrapper's close() signals EOF for
-     * its specific input partition. Idempotent — duplicate close() calls are no-ops.
+     * Per-child wrapper. close() signals EOF for every lane in this child; idempotent.
+     * {@link #feed(VectorSchemaRoot, int)} pins ordinals to lanes (one partition per
+     * shard); {@link #feed(VectorSchemaRoot)} round-robins for ordinal-less callers.
      */
     private final class ChildSink implements ExchangeSink {
-        private final DatafusionPartitionSender sender;
+        private final ChildSenders senders;
         private final Schema declaredSchema;
         private volatile boolean childClosed;
 
-        ChildSink(DatafusionPartitionSender sender, Schema declaredSchema) {
-            this.sender = sender;
+        ChildSink(ChildSenders senders, Schema declaredSchema) {
+            this.senders = senders;
             this.declaredSchema = declaredSchema;
         }
 
         @Override
         public void feed(VectorSchemaRoot batch) {
-            feedToSender(sender, batch, declaredSchema);
+            feedToSender(senders.pickLane(), batch, declaredSchema);
+        }
+
+        @Override
+        public void feed(VectorSchemaRoot batch, int sourceOrdinal) {
+            feedToSender(senders.laneForOrdinal(sourceOrdinal), batch, declaredSchema);
         }
 
         @Override
         public boolean isConsumerDone() {
-            return sender.isReceiverDropped();
+            return senders.allReceiversDropped();
         }
 
         @Override
@@ -325,11 +413,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                 return;
             }
             childClosed = true;
-            try {
-                sender.close();
-            } catch (Throwable t) {
-                logger.warn("[ReduceSink] error closing child sender", t);
-            }
+            senders.closeAll();
         }
     }
 

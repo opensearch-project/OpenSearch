@@ -37,8 +37,21 @@ public final class AnalyticsQuerySettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Lane-sizing policy for coordinator-reduce input partitions. See
+     * {@link PartitionLanePolicy} for accepted values and semantics.
+     */
+    public static final Setting<String> REDUCE_PARTITION_LANE_POLICY = Setting.simpleString(
+        "analytics.query.reduce.partition_lane_policy",
+        PartitionLanePolicy.DEFAULT_VALUE,
+        // Eager validation: malformed values throw here, not on every reduce stage.
+        PartitionLanePolicy::parse,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> all() {
-        return List.of(MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
+        return List.of(MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE, REDUCE_PARTITION_LANE_POLICY);
     }
 
     private AnalyticsQuerySettings() {}

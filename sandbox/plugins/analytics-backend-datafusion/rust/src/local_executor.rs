@@ -43,7 +43,7 @@ use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use prost::Message;
 use substrait::proto::Plan;
 
-use crate::partition_stream::{channel, PartitionStreamSender, SingleReceiverPartition};
+use crate::partition_stream::{channel_with_capacity, PartitionStreamSender, SingleReceiverPartition};
 
 /// Coordinator-reduce DataFusion session.
 ///
@@ -118,32 +118,58 @@ impl LocalSession {
         self._phantom_reservation = Some(reservation);
     }
 
-    /// Registers a streaming input on the session under `name` and returns the
-    /// producer side of the channel.
-    ///
-    /// The receiver is wrapped in a [`SingleReceiverPartition`] and registered
-    /// as a [`StreamingTable`]; Substrait plans executed through
-    /// [`Self::execute_substrait`] resolve table references named `name` to
-    /// this streaming table. The caller pushes `RecordBatch`es into the
-    /// returned [`PartitionStreamSender`] via
-    /// [`PartitionStreamSender::send_blocking`].
+    /// Single-partition shim over [`Self::register_partitions`].
     pub fn register_partition(
         &mut self,
         name: &str,
         schema: SchemaRef,
     ) -> Result<PartitionStreamSender, DataFusionError> {
-        let (sender, receiver) = channel(Arc::clone(&schema));
-        let partition: Arc<dyn PartitionStream> = Arc::new(SingleReceiverPartition::new(receiver));
-        let table = StreamingTable::try_new(schema, vec![partition])?;
+        let mut senders = self.register_partitions(name, schema, 1)?;
+        Ok(senders.pop().expect("register_partitions(1) returns one sender"))
+    }
+
+    /// Registers an `n`-partition streaming input under `name`, default capacity.
+    /// Use [`Self::register_partitions_with_capacity`] for an explicit per-channel cap.
+    pub fn register_partitions(
+        &mut self,
+        name: &str,
+        schema: SchemaRef,
+        num_partitions: usize,
+    ) -> Result<Vec<PartitionStreamSender>, DataFusionError> {
+        self.register_partitions_with_capacity(name, schema, num_partitions, None)
+    }
+
+    /// Registers `num_partitions` independent partition streams as one [`StreamingTable`].
+    /// Each `(sender, receiver)` is independent — DataFusion schedules its partitions
+    /// concurrently so producers pushing into different senders feed parallel input lanes
+    /// without an intermediate repartition.
+    ///
+    /// `capacity = None` uses [`crate::partition_stream::DEFAULT_CHANNEL_CAPACITY`];
+    /// `Some(1)` gives strict one-batch-at-a-time backpressure.
+    ///
+    /// # Panics
+    /// `num_partitions == 0` or `capacity == Some(0)`.
+    pub fn register_partitions_with_capacity(
+        &mut self,
+        name: &str,
+        schema: SchemaRef,
+        num_partitions: usize,
+        capacity: Option<usize>,
+    ) -> Result<Vec<PartitionStreamSender>, DataFusionError> {
+        assert!(num_partitions > 0, "register_partitions: num_partitions must be > 0");
+        let cap = capacity.unwrap_or(crate::partition_stream::DEFAULT_CHANNEL_CAPACITY);
+        let mut senders = Vec::with_capacity(num_partitions);
+        let mut partitions: Vec<Arc<dyn PartitionStream>> = Vec::with_capacity(num_partitions);
+        for _ in 0..num_partitions {
+            let (sender, receiver) = channel_with_capacity(Arc::clone(&schema), cap);
+            partitions.push(Arc::new(SingleReceiverPartition::new(receiver)));
+            senders.push(sender);
+        }
+        let table = StreamingTable::try_new(schema, partitions)?;
         self.ctx
             .register_table(name, Arc::new(table))
-            .map_err(|e| {
-                DataFusionError::Execution(format!(
-                    "Failed to register streaming table '{}': {}",
-                    name, e
-                ))
-            })?;
-        Ok(sender)
+            .map_err(|e| DataFusionError::Execution(format!("Failed to register streaming table '{}': {}", name, e)))?;
+        Ok(senders)
     }
 
     /// Registers an in-memory input on the session under `name`, holding all
@@ -279,6 +305,274 @@ mod tests {
             vec![Arc::new(Int64Array::from(values.to_vec()))],
         )
         .expect("batch builds")
+    }
+
+    #[tokio::test]
+    async fn register_partitions_multi_streams_parallel_inputs() {
+        // Three independent partition senders all push into the same logical input.
+        // Substrait `SELECT SUM(x)` over the table sees the union of all three lanes
+        // without a coordinator-side mpsc funnel.
+        let env = test_runtime_env();
+        let mut session = LocalSession::new(&env);
+        let schema = i64_schema("x");
+        let mut senders = session
+            .register_partitions("input-0", Arc::clone(&schema), 3)
+            .expect("register_partitions(3) succeeds");
+        assert_eq!(senders.len(), 3);
+
+        // Build a SUM substrait plan against a matching session.
+        let substrait_bytes = {
+            let env2 = test_runtime_env();
+            let mut producer = LocalSession::new(&env2);
+            let _unused = producer
+                .register_partitions("input-0", Arc::clone(&schema), 1)
+                .expect("producer register");
+            let df = producer
+                .ctx
+                .sql("SELECT SUM(x) AS total FROM \"input-0\"")
+                .await
+                .expect("sum parses");
+            let plan = df.logical_plan().clone();
+            let substrait = to_substrait_plan(&plan, &producer.ctx.state()).expect("to_substrait");
+            let mut buf = Vec::new();
+            substrait.encode(&mut buf).expect("encode");
+            buf
+        };
+
+        // Push disjoint batches into each sender concurrently. Sums:
+        //   lane 0: 1+2+3 = 6
+        //   lane 1: 10+20+30 = 60
+        //   lane 2: 100+200+300 = 600
+        // Expected total: 666.
+        let lanes = vec![vec![1i64, 2, 3], vec![10, 20, 30], vec![100, 200, 300]];
+        let producer_schema = Arc::clone(&schema);
+        let handle = Handle::current();
+        let mut joiners = Vec::new();
+        for (i, values) in lanes.into_iter().enumerate() {
+            let sender = senders.remove(0);
+            let schema_clone = Arc::clone(&producer_schema);
+            let handle_clone = handle.clone();
+            joiners.push(std::thread::spawn(move || {
+                let outcome =
+                    sender.send_blocking(Ok(i64_batch(&schema_clone, &values)), &handle_clone);
+                assert!(matches!(outcome, crate::partition_stream::SendOutcome::Sent), "lane {} send failed", i);
+                drop(sender);
+            }));
+        }
+
+        let mut stream = session
+            .execute_substrait(&substrait_bytes)
+            .await
+            .expect("execute");
+
+        let mut total: i64 = 0;
+        while let Some(batch) = stream.next().await {
+            let batch = batch.expect("batch ok");
+            let col = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .expect("i64 col");
+            for j in 0..col.len() {
+                total += col.value(j);
+            }
+        }
+        for j in joiners {
+            j.join().expect("producer thread");
+        }
+        assert_eq!(total, 666, "SUM across 3 parallel partitions");
+    }
+
+    #[test]
+    #[should_panic(expected = "num_partitions must be > 0")]
+    fn register_partitions_zero_panics() {
+        let env = test_runtime_env();
+        let mut session = LocalSession::new(&env);
+        let schema = i64_schema("x");
+        let _ = session.register_partitions("input-0", schema, 0);
+    }
+
+    /// Builds the substrait for `sql` against a fresh session that has registered
+    /// `name` as an `n`-partition streaming table with `schema`. Used by the
+    /// EXPLAIN tests below to materialise a plan we can lower to physical and walk.
+    async fn build_substrait_for_streaming_input(
+        sql: &str,
+        name: &str,
+        schema: SchemaRef,
+        n: usize,
+    ) -> Vec<u8> {
+        let env = test_runtime_env();
+        let mut producer = LocalSession::new(&env);
+        let _u = producer
+            .register_partitions(name, Arc::clone(&schema), n)
+            .expect("producer register");
+        let df = producer.ctx.sql(sql).await.expect("sql parses");
+        let substrait = to_substrait_plan(&df.logical_plan().clone(), &producer.ctx.state())
+            .expect("to_substrait");
+        let mut buf = Vec::new();
+        substrait.encode(&mut buf).expect("encode");
+        buf
+    }
+
+    /// Lowers `substrait_bytes` to a physical plan on `session` and asserts no
+    /// `RepartitionExec` sits between any `AggregateExec(Partial)` and a descendant
+    /// `StreamingTableExec` leaf. Logs the EXPLAIN under `label` for diagnostics.
+    async fn assert_no_repartition_below_partial(
+        session: &LocalSession,
+        substrait_bytes: &[u8],
+        label: &str,
+    ) {
+        let plan = Plan::decode(substrait_bytes).expect("decode");
+        let logical = from_substrait_plan(&session.ctx.state(), &plan).await.expect("logical");
+        let dataframe = session.ctx.execute_logical_plan(logical).await.expect("execute_logical");
+        let physical = dataframe.create_physical_plan().await.expect("physical");
+
+        let printed = format!("{}", displayable(physical.as_ref()).indent(true));
+        eprintln!("=== EXPLAIN: {} ===\n{}", label, printed);
+
+        let bad_paths = collect_partial_to_streaming_paths(physical.as_ref())
+            .into_iter()
+            .filter(|path| path.iter().any(|name| name.contains("RepartitionExec")))
+            .collect::<Vec<_>>();
+        assert!(
+            bad_paths.is_empty(),
+            "{}: must not have RepartitionExec below Partial agg; got paths: {:?}\nfull plan:\n{}",
+            label,
+            bad_paths,
+            printed
+        );
+    }
+
+    /// EXPLAIN-verify: with `target_partitions == num_partitions`, a pure
+    /// `SUM` (no GROUP BY) over an N-partition `StreamingTable` MUST NOT have
+    /// a `RepartitionExec` between the streaming scan and the Partial aggregate.
+    ///
+    /// This is the "scatter shards into N lanes, partial aggregate per lane,
+    /// gather to coordinator" shape we want — DataFusion's `EnforceDistribution`
+    /// rule only inserts a RoundRobin `RepartitionExec` when
+    /// `child.partition_count() < target_partitions` (see
+    /// `physical-optimizer/src/ensure_requirements/enforce_distribution.rs`),
+    /// and `Partial` aggregates declare `Distribution::UnspecifiedDistribution`,
+    /// so neither RoundRobin nor Hash repartition should appear below the
+    /// partial aggregate when input partitions == target_partitions.
+    #[tokio::test]
+    async fn explain_no_repartition_below_partial_for_pure_sum() {
+        let env = test_runtime_env();
+        let mut session = LocalSession::new(&env);
+        // Match target_partitions (default 4) so EnforceDistribution has nothing to do.
+        let n = session.target_partitions();
+        let schema = i64_schema("x");
+        let _senders = session
+            .register_partitions("input-0", Arc::clone(&schema), n)
+            .expect("register_partitions");
+
+        let substrait_bytes = build_substrait_for_streaming_input(
+            "SELECT SUM(x) AS total FROM \"input-0\"",
+            "input-0",
+            Arc::clone(&schema),
+            n,
+        )
+        .await;
+        assert_no_repartition_below_partial(
+            &session,
+            &substrait_bytes,
+            &format!("pure SUM, target_partitions == {}", n),
+        )
+        .await;
+    }
+
+    /// Walks the plan tree and returns, for every `AggregateExec(Partial)`
+    /// found, the operator names BETWEEN that Partial and any descendant
+    /// `StreamingTableExec` leaf — the chain we want to keep RepartitionExec-free.
+    /// Operators above the Partial (e.g. a Hash RepartitionExec between
+    /// FinalPartitioned and Partial) are not included; that's the natural
+    /// shuffle point and is expected.
+    fn collect_partial_to_streaming_paths(
+        plan: &dyn datafusion::physical_plan::ExecutionPlan,
+    ) -> Vec<Vec<String>> {
+        let mut out = Vec::new();
+        walk(plan, &mut Vec::new(), &mut out, None);
+        out
+    }
+
+    fn walk(
+        plan: &dyn datafusion::physical_plan::ExecutionPlan,
+        path: &mut Vec<String>,
+        out: &mut Vec<Vec<String>>,
+        partial_idx: Option<usize>,
+    ) {
+        let name = plan.name().to_string();
+        path.push(name.clone());
+
+        // Track the depth of the nearest enclosing Partial agg. If we see a
+        // Partial here, it becomes the new "root" for the slice we collect at
+        // a StreamingTableExec leaf below.
+        let new_partial_idx = if is_partial_aggregate(plan) {
+            Some(path.len() - 1)
+        } else {
+            partial_idx
+        };
+
+        if name.contains("StreamingTableExec") {
+            if let Some(start) = new_partial_idx {
+                // Slice the path from the Partial down to (and including) this
+                // StreamingTableExec. This is what must not contain a RepartitionExec.
+                out.push(path[start..].to_vec());
+            }
+        }
+
+        for child in plan.children() {
+            walk(child.as_ref(), path, out, new_partial_idx);
+        }
+        path.pop();
+    }
+
+    fn is_partial_aggregate(plan: &dyn datafusion::physical_plan::ExecutionPlan) -> bool {
+        if let Some(agg) = plan
+            .as_any()
+            .downcast_ref::<datafusion::physical_plan::aggregates::AggregateExec>()
+        {
+            matches!(
+                agg.mode(),
+                datafusion::physical_plan::aggregates::AggregateMode::Partial
+            )
+        } else {
+            false
+        }
+    }
+
+    /// EXPLAIN-verify: GROUP BY plans need a hash-repartition above the partial
+    /// aggregate (between Partial and FinalPartitioned) but still must NOT have
+    /// any RepartitionExec below the partial aggregate. Documents the expected
+    /// plan shape.
+    #[tokio::test]
+    async fn explain_no_repartition_below_partial_for_group_by() {
+        let env = test_runtime_env();
+        let mut session = LocalSession::new(&env);
+        let n = session.target_partitions();
+
+        // Two-column schema for GROUP BY g, SUM(x).
+        let schema: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("g", DataType::Int64, false),
+            Field::new("x", DataType::Int64, false),
+        ]));
+        let _senders = session
+            .register_partitions("input-0", Arc::clone(&schema), n)
+            .expect("register_partitions");
+
+        let substrait_bytes = build_substrait_for_streaming_input(
+            "SELECT g, SUM(x) AS total FROM \"input-0\" GROUP BY g",
+            "input-0",
+            Arc::clone(&schema),
+            n,
+        )
+        .await;
+        assert_no_repartition_below_partial(
+            &session,
+            &substrait_bytes,
+            &format!("GROUP BY, target_partitions == {}", n),
+        )
+        .await;
     }
 
     #[tokio::test]

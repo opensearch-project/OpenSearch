@@ -46,9 +46,9 @@ use futures::{stream, Stream};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
-/// Bounded channel capacity. Small by design — producers back-pressure when the
-/// DataFusion execute side falls behind.
-const CHANNEL_CAPACITY: usize = 4;
+/// Default bounded channel capacity — small so producers back-pressure when the
+/// DataFusion side falls behind. Override via [`channel_with_capacity`].
+pub const DEFAULT_CHANNEL_CAPACITY: usize = 4;
 
 /// Producer side of a partition stream.
 ///
@@ -139,13 +139,20 @@ impl RecordBatchStream for PartitionStreamReceiver {
 }
 
 /// Creates a paired sender/receiver over a bounded mpsc (capacity
-/// [`CHANNEL_CAPACITY`]).
+/// [`DEFAULT_CHANNEL_CAPACITY`]).
 ///
 /// Both halves share the provided [`SchemaRef`]. Dropping the sender closes the
 /// channel — the receiver's `poll_next` then yields `Ready(None)` once any
 /// buffered batches are drained, which DataFusion interprets as end-of-input.
 pub fn channel(schema: SchemaRef) -> (PartitionStreamSender, PartitionStreamReceiver) {
-    let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+    channel_with_capacity(schema, DEFAULT_CHANNEL_CAPACITY)
+}
+
+/// Creates a paired sender/receiver with explicit mpsc capacity. Smaller = tighter
+/// backpressure; `1` gives strict one-batch-at-a-time. Panics if `capacity == 0`.
+pub fn channel_with_capacity(schema: SchemaRef, capacity: usize) -> (PartitionStreamSender, PartitionStreamReceiver) {
+    assert!(capacity > 0, "channel capacity must be > 0");
+    let (tx, rx) = mpsc::channel(capacity);
     let sender = PartitionStreamSender {
         tx,
         schema: Arc::clone(&schema),
