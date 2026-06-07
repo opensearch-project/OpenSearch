@@ -13,6 +13,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.Text;
 
 import java.nio.charset.StandardCharsets;
@@ -21,20 +22,31 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** Reads Arrow vector cells as plain Java values, unwrapping Arrow {@link Text} recursively. */
 public final class ArrowValues {
+
+    // Space-separator output. Matches what the SQL plugin's ExprTimestampValue emits.
+    private static final DateTimeFormatter TIMESTAMP_NO_NANO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+    private static final DateTimeFormatter TIMESTAMP_WITH_NANO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS", Locale.ROOT);
+    private static final DateTimeFormatter TIME_NO_NANO = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT);
+    private static final DateTimeFormatter TIME_WITH_NANO = DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSSSS", Locale.ROOT);
+    // ISO-T strings produced by DataFusion's CAST(temporal AS VARCHAR). Tolerates optional fraction.
+    private static final Pattern ISO_TIMESTAMP_T = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)$");
 
     private ArrowValues() {}
 
     public static Object toJavaValue(FieldVector vector, int index) {
         if (vector.isNull(index)) return null;
         if (vector instanceof VarCharVector v) {
-            return new String(v.get(index), StandardCharsets.UTF_8);
+            return spaceSeparator(new String(v.get(index), StandardCharsets.UTF_8));
         }
         // MapVector extends ListVector — must come first.
         if (vector instanceof MapVector && vector.getObject(index) instanceof List<?> entries) {
@@ -48,74 +60,105 @@ public final class ArrowValues {
             return map;
         }
         Object value = vector.getObject(index);
-        if (vector instanceof ListVector && value instanceof List<?> raw) {
-            return normalizeList(raw);
+        if (vector instanceof ListVector lv && value instanceof List<?> raw) {
+            // list elements need the child vector's Arrow type so temporals format with space separator
+            return normalizeList(raw, lv.getDataVector().getField());
         }
-        // Date/Time/Timestamp cells return java.time.* so ExprValueUtils wraps them as
-        // ExprDateValue / ExprTimeValue / ExprTimestampValue and formats them.
-        Object temporal = normalizeTemporal(vector.getField().getType(), value);
+        Object temporal = formatTemporal(vector.getField().getType(), value);
         if (temporal != null) {
             return temporal;
         }
         return normalize(value);
     }
 
-    /** Returns LocalDate / LocalTime / LocalDateTime, or null for non-temporal types. */
-    private static Object normalizeTemporal(ArrowType type, Object value) {
+    /** Replace ISO-T separator with a space, leaving non-temporal strings unchanged. */
+    private static String spaceSeparator(String s) {
+        if (s == null) return null;
+        var m = ISO_TIMESTAMP_T.matcher(s);
+        return m.matches() ? m.group(1) + " " + m.group(2) : s;
+    }
+
+    /** Returns the formatted string for date / time / timestamp Arrow types, or null otherwise. */
+    private static Object formatTemporal(ArrowType type, Object value) {
         if (value == null) return null;
         if (type instanceof ArrowType.Date date) {
-            return toLocalDate(date, value);
+            return formatDate(date, value);
         }
         if (type instanceof ArrowType.Time time) {
-            return toLocalTime(time, value);
+            return formatTime(time, value);
         }
         if (type instanceof ArrowType.Timestamp ts) {
-            return toLocalDateTime(ts, value);
+            return formatTimestamp(ts, value);
         }
         return null;
     }
 
-    private static LocalDate toLocalDate(ArrowType.Date type, Object value) {
-        if (value instanceof LocalDate ld) return ld;
-        if (value instanceof LocalDateTime ldt) return ldt.toLocalDate();
-        long raw = ((Number) value).longValue();
-        return switch (type.getUnit()) {
-            case DAY -> LocalDate.ofEpochDay(raw);
-            case MILLISECOND -> LocalDate.ofEpochDay(Math.floorDiv(raw, 86_400_000L));
-        };
+    /** Date → "yyyy-MM-dd". */
+    private static String formatDate(ArrowType.Date type, Object value) {
+        LocalDate ld;
+        if (value instanceof LocalDate d) {
+            ld = d;
+        } else if (value instanceof LocalDateTime ldt) {
+            ld = ldt.toLocalDate();
+        } else {
+            long raw = ((Number) value).longValue();
+            ld = switch (type.getUnit()) {
+                case DAY -> LocalDate.ofEpochDay(raw);
+                case MILLISECOND -> LocalDate.ofEpochDay(Math.floorDiv(raw, 86_400_000L));
+            };
+        }
+        return ld.format(DateTimeFormatter.ISO_LOCAL_DATE);
     }
 
-    private static LocalTime toLocalTime(ArrowType.Time type, Object value) {
-        if (value instanceof LocalTime lt) return lt;
-        if (value instanceof LocalDateTime ldt) return ldt.toLocalTime();
-        long raw = ((Number) value).longValue();
-        long nanoOfDay = switch (type.getUnit()) {
-            case SECOND -> raw * 1_000_000_000L;
-            case MILLISECOND -> raw * 1_000_000L;
-            case MICROSECOND -> raw * 1_000L;
-            case NANOSECOND -> raw;
-        };
-        return LocalTime.ofNanoOfDay(nanoOfDay);
+    /** Time → "HH:mm:ss[.SSSSSSSSS]"; never prefixes with the 1970 epoch date. */
+    private static String formatTime(ArrowType.Time type, Object value) {
+        LocalTime lt;
+        if (value instanceof LocalTime t) {
+            lt = t;
+        } else if (value instanceof LocalDateTime ldt) {
+            lt = ldt.toLocalTime();
+        } else {
+            long raw = ((Number) value).longValue();
+            long nanoOfDay = switch (type.getUnit()) {
+                case SECOND -> raw * 1_000_000_000L;
+                case MILLISECOND -> raw * 1_000_000L;
+                case MICROSECOND -> raw * 1_000L;
+                case NANOSECOND -> raw;
+            };
+            lt = LocalTime.ofNanoOfDay(nanoOfDay);
+        }
+        return lt.getNano() == 0 ? lt.format(TIME_NO_NANO) : lt.format(TIME_WITH_NANO);
     }
 
-    private static LocalDateTime toLocalDateTime(ArrowType.Timestamp type, Object value) {
-        if (value instanceof LocalDateTime ldt) return ldt;
-        long raw = ((Number) value).longValue();
-        Instant instant = switch (type.getUnit()) {
-            case SECOND -> Instant.ofEpochSecond(raw);
-            case MILLISECOND -> Instant.ofEpochMilli(raw);
-            case MICROSECOND -> Instant.ofEpochSecond(Math.floorDiv(raw, 1_000_000L), Math.floorMod(raw, 1_000_000L) * 1_000L);
-            case NANOSECOND -> Instant.ofEpochSecond(Math.floorDiv(raw, 1_000_000_000L), Math.floorMod(raw, 1_000_000_000L));
-        };
-        return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+    /** Timestamp → "yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]". */
+    private static String formatTimestamp(ArrowType.Timestamp type, Object value) {
+        LocalDateTime ldt;
+        if (value instanceof LocalDateTime t) {
+            ldt = t;
+        } else if (value instanceof LocalDate ld) {
+            ldt = ld.atStartOfDay();
+        } else {
+            long raw = ((Number) value).longValue();
+            Instant instant = switch (type.getUnit()) {
+                case SECOND -> Instant.ofEpochSecond(raw);
+                case MILLISECOND -> Instant.ofEpochMilli(raw);
+                case MICROSECOND -> Instant.ofEpochSecond(Math.floorDiv(raw, 1_000_000L), Math.floorMod(raw, 1_000_000L) * 1_000L);
+                case NANOSECOND -> Instant.ofEpochSecond(Math.floorDiv(raw, 1_000_000_000L), Math.floorMod(raw, 1_000_000_000L));
+            };
+            ldt = LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+        }
+        return ldt.getNano() == 0 ? ldt.format(TIMESTAMP_NO_NANO) : ldt.format(TIMESTAMP_WITH_NANO);
     }
 
     private static Object normalize(Object value) {
         if (value instanceof Text t) {
-            return t.toString();
+            return spaceSeparator(t.toString());
+        }
+        if (value instanceof String s) {
+            return spaceSeparator(s);
         }
         if (value instanceof List<?> list) {
-            return normalizeList(list);
+            return normalizeList(list, null);
         }
         if (value instanceof Map<?, ?> m) {
             LinkedHashMap<String, Object> out = new LinkedHashMap<>(m.size());
@@ -128,10 +171,13 @@ public final class ArrowValues {
         return value;
     }
 
-    private static List<Object> normalizeList(List<?> raw) {
+    /** Normalises a list, formatting elements with the child {@link Field}'s Arrow type when temporal. */
+    private static List<Object> normalizeList(List<?> raw, Field childField) {
+        ArrowType childType = childField == null ? null : childField.getType();
         List<Object> out = new ArrayList<>(raw.size());
         for (Object element : raw) {
-            out.add(normalize(element));
+            Object formatted = childType == null ? null : formatTemporal(childType, element);
+            out.add(formatted != null ? formatted : normalize(element));
         }
         return out;
     }

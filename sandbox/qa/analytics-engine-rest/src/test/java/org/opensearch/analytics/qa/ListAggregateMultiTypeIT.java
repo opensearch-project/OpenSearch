@@ -26,7 +26,8 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
 
     public void testListBoolean() throws Exception {
         provision();
-        assertSingleElement("boolean_value", "true");
+        // CAST(boolean AS VARCHAR) is rewritten to upper-case TRUE/FALSE so list(bool) matches tostring.
+        assertSingleElement("boolean_value", "TRUE");
     }
 
     public void testListByte() throws Exception {
@@ -66,14 +67,14 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
 
     public void testListDate() throws Exception {
         provision();
-        // DataFusion's CAST(TIMESTAMP AS VARCHAR) emits ISO-8601 'T' between date and time.
-        assertSingleElement("date_value", "2020-10-13T13:00:00");
+        // ArrowValues formats temporal list elements with space separator to match the SQL plugin.
+        assertSingleElement("date_value", "2020-10-13 13:00:00");
     }
 
     public void testListDateNanos() throws Exception {
         provision();
-        // DataFusion's CAST(TIMESTAMP_NS AS VARCHAR) emits ISO-8601 'T' between date and time.
-        assertSingleElement("date_nanos_value", "2019-03-24T01:34:46.123456789");
+        // Nanosecond timestamps preserve sub-second precision in the formatted string.
+        assertSingleElement("date_nanos_value", "2019-03-24 01:34:46.123456789");
     }
 
     public void testListText() throws Exception {
