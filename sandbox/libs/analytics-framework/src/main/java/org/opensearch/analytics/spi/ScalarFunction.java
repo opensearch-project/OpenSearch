@@ -444,6 +444,19 @@ public enum ScalarFunction {
     }
 
     /**
+     * Resolves a configuration/setting token (case-insensitive) to a {@link ScalarFunction}, throwing
+     * a descriptive {@link IllegalArgumentException} if unrecognized. Used by cluster settings that
+     * name predicate functions (e.g. the delegation block-list).
+     */
+    public static ScalarFunction fromToken(String token) {
+        try {
+            return valueOf(token.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown scalar function [" + token + "]");
+        }
+    }
+
+    /**
      * Maps a Calcite SqlFunction to a ScalarFunction by name, or null if not recognized.
      */
     public static ScalarFunction fromSqlFunction(SqlFunction function) {
