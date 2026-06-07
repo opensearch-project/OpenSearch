@@ -140,7 +140,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         LOGGER.info("[QTF-DUMP] QueryDAG (pre-conversion):\n{}", dag);
 
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         LOGGER.info("[QTF-DUMP] QueryDAG (post-conversion, with backend-resolved fragments):\n{}", dag);
 
         // Walk every stage and dump its substrait Plan(s).
@@ -213,7 +213,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         RelNode cbo = PlannerImpl.runAllOptimizations(parsed, context);
         QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         return dag;
     }
 

@@ -80,13 +80,9 @@ public class FragmentConversionDriver {
     /**
      * Converts all {@link StagePlan} alternatives in the DAG, populating
      * {@link StagePlan#convertedBytes()} on each plan.
-     *
-     * @param fuseDualViable when {@code true}, performance-delegated leaves fuse with
-     *     correctness-delegated siblings even under OR/NOT. Sourced from the cluster setting
-     *     {@code analytics.delegation.fuse_dual_viable}.
      */
-    public static void convertAll(QueryDAG dag, CapabilityRegistry registry, boolean fuseDualViable) {
-        convertStage(dag.rootStage(), registry, fuseDualViable);
+    public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
+        convertStage(dag.rootStage(), registry);
         // Root stage executes locally at coordinator — store factory for instruction dispatch.
         Stage root = dag.rootStage();
         if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
@@ -95,9 +91,9 @@ public class FragmentConversionDriver {
         }
     }
 
-    private static void convertStage(Stage stage, CapabilityRegistry registry, boolean fuseDualViable) {
+    private static void convertStage(Stage stage, CapabilityRegistry registry) {
         for (Stage child : stage.getChildStages()) {
-            convertStage(child, registry, fuseDualViable);
+            convertStage(child, registry);
         }
         // After children are converted, surface any decorator-induced schema delta as
         // postDecorationSchemaBytes on the child plans. The reduce sink consults this when
@@ -115,15 +111,15 @@ public class FragmentConversionDriver {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(plan.backendId());
             FragmentConvertor convertor = backend.getFragmentConvertor();
 
-            // Derive filter tree shape BEFORE stripping (annotations must be intact). Mirrors
-            // fuseDualViable so the deriver's classification matches the post-combiner tree
-            // the data node actually sees.
+            // Derive filter tree shape BEFORE stripping (annotations must be intact). The deriver
+            // mirrors the combiner's post-combine shape so the data node's classification matches
+            // the tree it actually receives.
             OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
             FilterTreeShape treeShape = filter != null
-                ? FilterTreeShapeDeriver.derive(filter, plan.backendId(), fuseDualViable)
+                ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
                 : FilterTreeShape.NO_DELEGATION;
 
-            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry, fuseDualViable);
+            IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
             byte[] bytes = convert(plan.resolvedFragment(), convertor, delegationBytes);
 
             // Assemble instruction list
@@ -279,16 +275,10 @@ public class FragmentConversionDriver {
      */
     static final class IntraOperatorDelegationBytes {
         private final CapabilityRegistry registry;
-        private final boolean fuseDualViable;
         private List<DelegatedExpression> delegatedExpressions;
 
         IntraOperatorDelegationBytes(CapabilityRegistry registry) {
-            this(registry, false);
-        }
-
-        IntraOperatorDelegationBytes(CapabilityRegistry registry, boolean fuseDualViable) {
             this.registry = registry;
-            this.fuseDualViable = fuseDualViable;
         }
 
         /**
@@ -305,8 +295,7 @@ public class FragmentConversionDriver {
                 fieldStorage,
                 registry,
                 rexBuilder,
-                delegatedExpressions,
-                fuseDualViable
+                delegatedExpressions
             );
             return new AnnotationResolver() {
 

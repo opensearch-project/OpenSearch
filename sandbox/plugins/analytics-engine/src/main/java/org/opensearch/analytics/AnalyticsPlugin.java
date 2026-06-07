@@ -108,25 +108,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     );
 
     /**
-     * When {@code true} (default), performance-delegated leaves (driver natively evaluable,
-     * peer also viable) fuse with their correctness-delegated siblings even under {@code OR}
-     * / {@code NOT}. The combiner ships the entire boolean structure as a single delegated
-     * expression rather than throwing the dual-viable leaves back to native.
-     *
-     * <p>Default {@code true} — Lucene's term-dictionary random access typically beats
-     * managing per-leaf bitsets in DataFusion, so fusing the OR/NOT into one peer call is
-     * the favorable choice for the common workload. Flip to {@code false} for A/B comparison
-     * or to roll back if a workload regresses (e.g. very wide OR over highly-selective
-     * leaves where the driver's column scan would short-circuit before Lucene completes).
-     */
-    public static final Setting<Boolean> DELEGATION_FUSE_DUAL_VIABLE = Setting.boolSetting(
-        "analytics.delegation.fuse_dual_viable",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Controls the metadata-only driver vs. value-producing peer choice when both are viable
      * for a stage:
      *
@@ -255,7 +236,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new java.util.ArrayList<>();
         settings.add(COORDINATOR_BUFFER_LIMIT);
-        settings.add(DELEGATION_FUSE_DUAL_VIABLE);
         settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
         settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
