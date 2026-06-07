@@ -10,7 +10,9 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Project;
@@ -28,6 +30,7 @@ import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAg
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
+import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
@@ -121,7 +124,17 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getCallAnnotations()
         );
 
-        if (shouldSkipPartialFinalSplit(aggregate)) {
+        // Exchange placement is deterministic on partitioning, not cost: a SINGLE aggregate over
+        // partitioned (RANDOM) input is incorrect — each shard would aggregate in isolation and the
+        // results would never merge. So when the input is partitioned and the aggregate is
+        // splittable, emit ONLY the PARTIAL/FINAL split; don't also register the gather-everything
+        // singleOnSingleton alternative for Volcano to cost-compare against (that comparison is what
+        // streamed the whole table to the coordinator, and biasing it back via row-count estimates
+        // perturbs the global cost model for unrelated query shapes). For unpartitioned input
+        // (1 shard / already gathered) or a non-splittable aggregate, the single-stage plan is the
+        // correct and only choice.
+        boolean partitioned = isPartitioned(child);
+        if (!partitioned || shouldSkipPartialFinalSplit(aggregate)) {
             call.transformTo(singleOnSingleton);
             return;
         }
@@ -172,8 +185,26 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         // Empty-group nullability gap (COUNT→SUM swap): wrap FINAL so its row type matches SINGLE's.
         RelNode finalAlternative = wrapWithCastIfNeeded(finalAggregate, aggregate);
 
-        call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
+        // Partitioned + splittable: the split is the only correct plan, so don't register the
+        // gather-everything alternative. Volcano has nothing to cost-compare — placement is fixed.
         call.transformTo(finalAlternative);
+    }
+
+    /**
+     * True when the input is partitioned across shards (distribution type RANDOM), i.e. a SINGLE
+     * aggregate over it would be incorrect. Reads the input's distribution trait directly — the
+     * same deterministic, shard-count-driven signal the Join/Union split rules use, no cost model
+     * involved. Returns false for SINGLETON (1 shard / already gathered) or when no distribution
+     * trait is present yet (Volcano still exploring — the cost gate on SINGLE is the backstop).
+     */
+    private static boolean isPartitioned(RelNode input) {
+        for (int i = 0; i < input.getTraitSet().size(); i++) {
+            RelTrait trait = input.getTraitSet().getTrait(i);
+            if (trait instanceof OpenSearchDistribution dist) {
+                return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED;
+            }
+        }
+        return false;
     }
 
     /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */

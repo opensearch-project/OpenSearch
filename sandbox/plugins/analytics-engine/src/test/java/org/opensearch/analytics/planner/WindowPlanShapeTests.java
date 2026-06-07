@@ -652,12 +652,20 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                 StubTableScan(table=[[test_index]])
             """, plan);
         RelNode result = runPlanner(plan, multiShardContext());
+        // The window's global frame (SUM OVER ()) forces a gather (ER) directly below the Project,
+        // so the window still runs over fully-gathered input — correct. The aggregate above splits
+        // PARTIAL/FINAL because the split rule reads the child's still-RANDOM trait (the ER's
+        // SINGLETON isn't propagated up without the deferred trait-propagation work). The split is
+        // redundant here, not wrong: PARTIAL groups the single gathered partition and FINAL re-merges
+        // it (a no-op merge) — same result, one extra local aggregate pass. Accepted tradeoff for
+        // keeping Exchange placement deterministic on partitioning rather than cost.
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                  OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
