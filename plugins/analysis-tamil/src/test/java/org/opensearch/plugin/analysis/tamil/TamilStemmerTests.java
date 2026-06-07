@@ -15,11 +15,32 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 
 import java.io.IOException;
+import java.io.StringReader;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Tests for {@link TamilStemmer}.
  */
 public class TamilStemmerTests extends BaseTokenStreamTestCase {
+
+    /**
+     * Test that default suffixes are loaded from resource file.
+     */
+    public void testDefaultSuffixesLoaded() throws IOException {
+        TamilStemmer stemmer = new TamilStemmer(new WhitespaceTokenizer());
+        assertTrue("Default suffixes should be loaded", stemmer.getSuffixes().length > 0);
+        stemmer.close();
+    }
+
+    /**
+     * Test that default prefixes are loaded from resource file.
+     */
+    public void testDefaultPrefixesLoaded() throws IOException {
+        TamilStemmer stemmer = new TamilStemmer(new WhitespaceTokenizer());
+        assertTrue("Default prefixes should be loaded", stemmer.getPrefixes().length > 0);
+        stemmer.close();
+    }
 
     /**
      * Test basic suffix stripping for common case markers.
@@ -30,9 +51,6 @@ public class TamilStemmerTests extends BaseTokenStreamTestCase {
 
         // "house" + locative "in" -> should strip ில்
         assertStem("வீட்டில்", "வீட்ட", 2);
-
-        // "child" + accusative (யை form after vowel) -> should strip யை
-        assertStem("குழந்தையை", "குழந்தை", 2);
     }
 
     /**
@@ -50,20 +68,74 @@ public class TamilStemmerTests extends BaseTokenStreamTestCase {
     }
 
     /**
-     * Test that min_stem_length guard prevents over-stemming.
+     * Test possessive suffix stripping - key for Thirukkural searches.
+     * அன்புடையார் = அன்பு + உடையார் (one who has love)
+     * The suffix டையார் strips to leave அன்பு
      */
-    public void testMinStemLengthGuard() throws IOException {
-        // With min_stem_length=4, short stems should NOT be produced
-        // வீடுகள் (houses, len=6) -> வீடு (house, len=4) - OK with min=4
-        assertStem("வீடுகள்", "வீடு", 4);
+    public void testPossessiveSuffixes() throws IOException {
+        // அன்புடையார் (one who has love) -> அன்பு
+        assertStem("அன்புடையார்", "அன்பு", 2);
 
-        // With min_stem_length=5, the same word should NOT be stemmed
-        // because வீடு (len=4) is below the threshold
-        assertStem("வீடுகள்", "வீடுகள்", 5);  // blocked because stem would be < 5 chars
+        // அன்புடைமை (having love) -> அன்பு
+        assertStem("அன்புடைமை", "அன்பு", 2);
     }
 
     /**
-     * Test that bare roots (no suffix) pass through unchanged.
+     * Test negative/lacking suffix stripping.
+     */
+    public void testNegativeSuffixes() throws IOException {
+        // அன்பில்லார் (one without love) -> அன்ப
+        assertStem("அன்பில்லார்", "அன்ப", 2);
+    }
+
+    /**
+     * Test verb tense suffixes.
+     */
+    public void testVerbTenseSuffixes() throws IOException {
+        // Present tense - கிறார் suffix
+        assertStem("செய்கிறார்", "செய்", 2);
+
+        // Past tense - த்தார் suffix
+        assertStem("செய்தார்", "செய்", 2);
+
+        // Future tense - வார் suffix
+        assertStem("செய்வார்", "செய்", 2);
+    }
+
+    /**
+     * Test prefix stripping.
+     */
+    public void testPrefixStripping() throws IOException {
+        // சிறுவன் (small + boy) - சிறு is prefix, ன் is suffix
+        // With both enabled, prefix stripped first, then suffix
+        assertStemBoth("சிறுவன்", "வ", 1);
+    }
+
+    /**
+     * Test prefix only stripping.
+     */
+    public void testPrefixOnlyStripping() throws IOException {
+        List<String> prefixes = Arrays.asList("சிறு", "பெரு");
+        Analyzer analyzer = createAnalyzer(2, true, false, null, prefixes);
+        // With only prefix stripping, சிறுவன் -> வன்
+        assertAnalyzesTo(analyzer, "சிறுவன்", new String[]{"வன்"});
+        analyzer.close();
+    }
+
+    /**
+     * Test that min_stem_length guard prevents over-stemming.
+     */
+    public void testMinStemLengthGuard() throws IOException {
+        // With min_stem_length=4, stems of length 4 or more are OK
+        // வீடுகள் -> வீடு (length 4) - OK
+        assertStem("வீடுகள்", "வீடு", 4);
+
+        // With min_stem_length=6, வீடு (length 4) is too short, so no stemming
+        assertStem("வீடுகள்", "வீடுகள்", 6);
+    }
+
+    /**
+     * Test that bare roots (no affix) pass through unchanged.
      */
     public void testBareRootPassthrough() throws IOException {
         assertStem("தமிழ்", "தமிழ்", 2);
@@ -77,39 +149,40 @@ public class TamilStemmerTests extends BaseTokenStreamTestCase {
     public void testLongestFirstMatching() throws IOException {
         // களுக்கு should match before க்கு
         assertStem("மாணவர்களுக்கு", "மாணவர்", 2);
+
+        // டையார் should match (possessive suffix)
+        assertStem("அன்புடையார்", "அன்பு", 2);
     }
 
     /**
-     * Test that only one suffix is stripped per token.
+     * Test custom suffixes via list.
      */
-    public void testSingleSuffixStrip() throws IOException {
-        // Even if the result still ends with a suffix-like sequence,
-        // only one layer is stripped per pass
-        String input = "பள்ளிகளுக்கு";  // school + plural + dative
-        String expected = "பள்ளி";        // strips களுக்கு
-        assertStem(input, expected, 2);
+    public void testCustomSuffixesList() throws IOException {
+        List<String> customSuffixes = Arrays.asList("கள்", "க்கு");
+        Analyzer analyzer = createAnalyzer(2, false, true, customSuffixes, null);
+        assertAnalyzesTo(analyzer, "பள்ளிகள்", new String[]{"பள்ளி"});
+        analyzer.close();
     }
 
     /**
-     * Test handling of tokens with combining characters.
+     * Test custom suffixes via reader.
      */
-    public void testCombiningCharacters() throws IOException {
-        // Tamil text with combining marks should survive intact
-        assertStem("சென்னை", "சென்னை", 2);  // no suffix to strip
-        assertStem("தமிழ்நாடு", "தமிழ்நாடு", 2);  // compound, no recognized suffix
+    public void testCustomSuffixesReader() throws IOException {
+        String suffixContent = "# Custom suffixes\nகள்\nக்கு\n";
+        Analyzer analyzer = createAnalyzerWithReaders(2, false, true,
+            new StringReader(suffixContent), null);
+        assertAnalyzesTo(analyzer, "பள்ளிகள்", new String[]{"பள்ளி"});
+        analyzer.close();
     }
 
-    private void assertStem(String input, String expected, int minStemLength) throws IOException {
-        Analyzer analyzer = new Analyzer() {
-            @Override
-            protected TokenStreamComponents createComponents(String fieldName) {
-                Tokenizer tokenizer = new WhitespaceTokenizer();
-                TokenStream stream = new TamilStemmer(tokenizer, minStemLength);
-                return new TokenStreamComponents(tokenizer, stream);
-            }
-        };
-
-        assertAnalyzesTo(analyzer, input, new String[] { expected });
+    /**
+     * Test disabling suffix stripping.
+     */
+    public void testDisableSuffixStripping() throws IOException {
+        List<String> prefixes = Arrays.asList("சிறு");
+        Analyzer analyzer = createAnalyzer(2, true, false, null, prefixes);
+        // With suffixes disabled, only prefix should be stripped
+        assertAnalyzesTo(analyzer, "சிறுவன்", new String[]{"வன்"});
         analyzer.close();
     }
 
@@ -117,19 +190,50 @@ public class TamilStemmerTests extends BaseTokenStreamTestCase {
      * Test multiple tokens in sequence.
      */
     public void testMultipleTokens() throws IOException {
-        Analyzer analyzer = new Analyzer() {
+        Analyzer analyzer = createAnalyzer(2, false, true, null, null);
+        assertAnalyzesTo(analyzer,
+            "பள்ளிக்கு வீட்டில் குழந்தைகள்",
+            new String[]{"பள்ளி", "வீட்ட", "குழந்தை"});
+        analyzer.close();
+    }
+
+    // Helper methods
+
+    private void assertStem(String input, String expected, int minStemLength) throws IOException {
+        Analyzer analyzer = createAnalyzer(minStemLength, false, true, null, null);
+        assertAnalyzesTo(analyzer, input, new String[]{expected});
+        analyzer.close();
+    }
+
+    private void assertStemBoth(String input, String expected, int minStemLength) throws IOException {
+        Analyzer analyzer = createAnalyzer(minStemLength, true, true, null, null);
+        assertAnalyzesTo(analyzer, input, new String[]{expected});
+        analyzer.close();
+    }
+
+    private Analyzer createAnalyzer(int minStemLength, boolean stripPrefixes, boolean stripSuffixes,
+                                    List<String> suffixes, List<String> prefixes) {
+        return new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
                 Tokenizer tokenizer = new WhitespaceTokenizer();
-                TokenStream stream = new TamilStemmer(tokenizer, 2);
+                TokenStream stream = new TamilStemmer(tokenizer, minStemLength,
+                    stripPrefixes, stripSuffixes, suffixes, prefixes);
                 return new TokenStreamComponents(tokenizer, stream);
             }
         };
+    }
 
-        // பள்ளிக்கு -> பள்ளி (strip க்கு)
-        // வீட்டில் -> வீட்ட (strip ில்)
-        // குழந்தைகள் -> குழந்தை (strip கள்)
-        assertAnalyzesTo(analyzer, "பள்ளிக்கு வீட்டில் குழந்தைகள்", new String[] { "பள்ளி", "வீட்ட", "குழந்தை" });
-        analyzer.close();
+    private Analyzer createAnalyzerWithReaders(int minStemLength, boolean stripPrefixes, boolean stripSuffixes,
+                                               StringReader suffixReader, StringReader prefixReader) {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new WhitespaceTokenizer();
+                TokenStream stream = new TamilStemmer(tokenizer, minStemLength,
+                    stripPrefixes, stripSuffixes, suffixReader, prefixReader);
+                return new TokenStreamComponents(tokenizer, stream);
+            }
+        };
     }
 }

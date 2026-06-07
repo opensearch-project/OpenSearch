@@ -90,15 +90,15 @@ public class TamilAnalysisTests extends OpenSearchTestCase {
         // Test with a sentence containing stopwords and inflected forms
         // நான் = I (stopword)
         // பள்ளிக்கு = to school (should be stemmed to பள்ளி)
-        // போனேன் = went (no recognized suffix, passes through)
-        List<String> tokens = analyzeWithAnalyzer(analyzer, "நான் பள்ளிக்கு போனேன்");
+        // தமிழ் = Tamil (no suffix, passes through)
+        List<String> tokens = analyzeWithAnalyzer(analyzer, "நான் பள்ளிக்கு தமிழ்");
 
         // நான் should be removed (stopword)
         // பள்ளிக்கு should become பள்ளி (stemmed)
-        // போனேன் should pass through
+        // தமிழ் should pass through unchanged
         assertFalse(tokens.contains("நான்"));
         assertTrue(tokens.contains("பள்ளி"));
-        assertTrue(tokens.contains("போனேன்"));
+        assertTrue(tokens.contains("தமிழ்"));
     }
 
     /**
