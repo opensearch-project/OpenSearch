@@ -73,6 +73,26 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertPredicateAnnotation(annotated, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
     }
 
+    /**
+     * Keyword {@code LIKE 'foo%'} — both backends viable per-predicate. Mirrors the
+     * {@link #testKeywordEqualsAnnotatedWithBothBackends} shape but exercises the LIKE
+     * wiring: the Lucene backend declares {@code ScalarFunction.LIKE} in its STANDARD_OPS
+     * (matching production {@code LuceneAnalyticsBackendPlugin.STANDARD_OPS = {EQUALS, LIKE}}),
+     * so a LIKE predicate on a keyword field is Lucene-viable and can be delegated to Lucene.
+     */
+    public void testLikePredicateAnnotatedWithLuceneViable() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeLike(0, "foo%")
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(annotated, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+    }
+
     /** Keyword equality — both backends viable per-predicate, operator-level only child. */
     public void testKeywordEqualsAnnotatedWithBothBackends() {
         OpenSearchFilter result = runFilter(
@@ -786,6 +806,16 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
         assertPipelineViableBackends(result, List.of(OpenSearchFilter.class, OpenSearchTableScan.class), expectedViable);
         return (OpenSearchFilter) result;
+    }
+
+    /**
+     * Builds a {@code $fieldIndex LIKE 'pattern'} predicate over a VARCHAR input ref, using
+     * Calcite's {@link SqlStdOperatorTable#LIKE}. Mirrors {@code makeEquals} but for the LIKE
+     * shape exercised by {@link #testLikePredicateAnnotatedWithLuceneViable}.
+     */
+    private RexNode makeLike(int fieldIndex, String pattern) {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        return rexBuilder.makeCall(SqlStdOperatorTable.LIKE, rexBuilder.makeInputRef(varchar, fieldIndex), rexBuilder.makeLiteral(pattern));
     }
 
     private void assertPredicateAnnotation(AnnotatedPredicate predicate, String... expectedBackends) {
