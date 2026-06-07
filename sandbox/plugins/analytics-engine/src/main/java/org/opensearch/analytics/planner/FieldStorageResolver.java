@@ -160,17 +160,17 @@ public class FieldStorageResolver {
             indexFormats,
             storedFieldFormats,
             false,
-            keywordSubfieldOf(fieldType, fieldProps)
+            exactMatchSubfieldOf(fieldType, fieldProps)
         );
     }
 
     /**
      * For a {@code text} field with a {@code fields} multifield block, returns the name of the
      * first {@code keyword} subfield (e.g. {@code "keyword"}), or {@code null} if there is none.
-     * Exact-equality predicates route to this subfield (see {@link FieldStorageInfo#getKeywordSubfield()}).
+     * Exact-equality predicates route to this subfield (see {@link FieldStorageInfo#getExactMatchSubfield()}).
      */
     @SuppressWarnings("unchecked")
-    private static String keywordSubfieldOf(String fieldType, Map<String, Object> fieldProps) {
+    private static String exactMatchSubfieldOf(String fieldType, Map<String, Object> fieldProps) {
         if (!"text".equals(fieldType)) {
             return null;
         }

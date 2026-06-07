@@ -31,12 +31,10 @@ public class FieldStorageInfo {
     private final boolean derived;
     private final LinkedHashSet<String> dependsOnPhysicalCols;
     /**
-     * For a {@code text} field that declares a {@code keyword} multifield, the subfield's name
-     * (e.g. {@code "keyword"}); {@code null} otherwise. Exact-equality predicates must target
-     * this subfield — a term query on the analyzed text field does not match (the analyzer
-     * lowercases/tokenizes the indexed value but a term query does not analyze its input).
+     * Subfield to target for exact-match (term) predicates — e.g. a text field's keyword
+     * multifield — or {@code null} when the field is queried directly. Resolved from the mapping.
      */
-    private final String keywordSubfield;
+    private final String exactMatchSubfield;
 
     public FieldStorageInfo(
         String fieldName,
@@ -52,7 +50,7 @@ public class FieldStorageInfo {
         this(fieldName, mappingType, fieldType, docValueFormats, indexFormats, storedFieldFormats, derived, new LinkedHashSet<>());
     }
 
-    /** Physical-field ctor with an explicit keyword multifield name (or {@code null} if none). */
+    /** Physical-field ctor with an explicit exact-match subfield name (or {@code null} if none). */
     public FieldStorageInfo(
         String fieldName,
         String mappingType,
@@ -61,7 +59,7 @@ public class FieldStorageInfo {
         List<String> indexFormats,
         List<String> storedFieldFormats,
         boolean derived,
-        String keywordSubfield
+        String exactMatchSubfield
     ) {
         this(
             fieldName,
@@ -72,7 +70,7 @@ public class FieldStorageInfo {
             storedFieldFormats,
             derived,
             new LinkedHashSet<>(),
-            keywordSubfield
+            exactMatchSubfield
         );
     }
 
@@ -98,7 +96,7 @@ public class FieldStorageInfo {
         List<String> storedFieldFormats,
         boolean derived,
         LinkedHashSet<String> dependsOnPhysicalCols,
-        String keywordSubfield
+        String exactMatchSubfield
     ) {
         this.fieldName = fieldName;
         this.mappingType = mappingType;
@@ -108,7 +106,7 @@ public class FieldStorageInfo {
         this.storedFieldFormats = storedFieldFormats;
         this.derived = derived;
         this.dependsOnPhysicalCols = dependsOnPhysicalCols;
-        this.keywordSubfield = keywordSubfield;
+        this.exactMatchSubfield = exactMatchSubfield;
     }
 
     /** Creates a derived column (agg result, expression) with no physical storage and no deps.
@@ -139,9 +137,10 @@ public class FieldStorageInfo {
         return fieldName;
     }
 
-    /** Name of this text field's {@code keyword} multifield (e.g. {@code "keyword"}), or {@code null}. */
-    public String getKeywordSubfield() {
-        return keywordSubfield;
+    /** Subfield to target for exact-match (term) predicates — e.g. a text field's {@code keyword}
+     *  multifield — or {@code null} when the field is queried directly. */
+    public String getExactMatchSubfield() {
+        return exactMatchSubfield;
     }
 
     public String getMappingType() {
