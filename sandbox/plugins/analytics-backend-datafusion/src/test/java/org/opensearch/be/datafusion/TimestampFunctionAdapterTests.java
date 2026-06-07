@@ -271,6 +271,40 @@ public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
         assertEquals("timestamp:not-a-timestamp in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", e.getMessage());
     }
 
+    /**
+     * Covers {@code TIMESTAMP(<date_col>, <time_col>)} where both operands are
+     * temporal columns. Rewrites to {@code from_unixtime(to_unixtime(date) + to_unixtime(time))}
+     * so it lowers through existing signatures.
+     */
+    public void testAdaptTwoArgTemporalColumnsRewriteToFromUnixtime() {
+        RelDataType tsType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
+        RexNode dateCol = rexBuilder.makeInputRef(tsType, 0);
+        RexNode timeCol = rexBuilder.makeInputRef(tsType, 1);
+        RexCall call = (RexCall) rexBuilder.makeCall(TIMESTAMP_OP, List.of(dateCol, timeCol));
+
+        RexNode adapted = adapter.adapt(call, List.of(), cluster);
+
+        // Outer: from_unixtime(<sum>). Strip CAST wrapper if present.
+        RexNode unwrapped = unwrapCast(adapted);
+        assertTrue(unwrapped instanceof RexCall);
+        RexCall outer = (RexCall) unwrapped;
+        assertSame(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, outer.getOperator());
+        assertEquals(1, outer.getOperands().size());
+
+        // Inner is CAST(PLUS(to_unixtime(date), to_unixtime(time)) AS DOUBLE).
+        RexNode sumCast = outer.getOperands().get(0);
+        assertTrue(sumCast instanceof RexCall);
+        assertEquals(SqlKind.CAST, ((RexCall) sumCast).getKind());
+        RexCall sum = (RexCall) ((RexCall) sumCast).getOperands().get(0);
+        assertEquals(SqlKind.PLUS, sum.getKind());
+
+        // Each PLUS operand is to_unixtime(<col>).
+        for (int i = 0; i < 2; i++) {
+            RexCall toUnix = (RexCall) sum.getOperands().get(i);
+            assertSame(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, toUnix.getOperator());
+        }
+    }
+
     // ── adapt(): Shape F — column ref → DATETIME_ADAPTER ──────────────────
 
     public void testAdaptShapeFTimestampColumnRoutesToDatetimeAdapter() {

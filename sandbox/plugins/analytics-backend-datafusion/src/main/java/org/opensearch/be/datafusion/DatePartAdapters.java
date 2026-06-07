@@ -18,6 +18,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -57,6 +58,16 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+        // Fold TIME-literal operands (e.g. HOUR(TIME('17:30:00'))) to an integer
+        // at plan time. (string, precision_time) has no substrait signature and
+        // Time64 → Timestamp can't be CAST in DataFusion either.
+        if (original.getOperands().size() == 1) {
+            RexNode operand = original.getOperands().get(0);
+            RexNode folded = tryFoldTimeLiteralOperand(operand, original, cluster);
+            if (folded != null) {
+                return folded;
+            }
+        }
         if (original.getOperands().stream().noneMatch(DatePartAdapters::needsCoercion)) {
             return super.adapt(original, fieldStorage, cluster);
         }
@@ -82,6 +93,78 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         args.add(rexBuilder.makeLiteral(unit, unitType, true));
         args.addAll(coerced);
         return rexBuilder.makeCall(original.getType(), SqlLibraryOperators.DATE_PART, args);
+    }
+
+    /**
+     * Fold {@code DATE_PART_FN(<time-literal>)} to a numeric literal. Accepts a direct
+     * TIME literal or a {@code to_time('<lit>')} call. Returns null otherwise.
+     */
+    private RexNode tryFoldTimeLiteralOperand(RexNode operand, RexCall original, RelOptCluster cluster) {
+        // Strip OperatorAnnotation wrappers.
+        while (operand instanceof OperatorAnnotation ann && ann.unwrap() != null) {
+            operand = ann.unwrap();
+        }
+        LocalTime time = extractTimeLiteral(operand);
+        if (time == null) {
+            return null;
+        }
+        Long part = extractFromTime(time);
+        if (part == null) {
+            return null;
+        }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RexNode lit = rexBuilder.makeBigintLiteral(java.math.BigDecimal.valueOf(part));
+        return rexBuilder.makeCast(original.getType(), lit, true);
+    }
+
+    private static LocalTime extractTimeLiteral(RexNode operand) {
+        // Direct TIME literal.
+        if (operand instanceof RexLiteral lit && lit.getType().getSqlTypeName() == SqlTypeName.TIME) {
+            org.apache.calcite.util.TimeString ts = lit.getValueAs(org.apache.calcite.util.TimeString.class);
+            if (ts != null) {
+                try {
+                    return LocalTime.parse(ts.toString());
+                } catch (DateTimeParseException ignored) {}
+            }
+            Integer millisOfDay = lit.getValueAs(Integer.class);
+            if (millisOfDay != null) {
+                return LocalTime.ofNanoOfDay(millisOfDay.longValue() * 1_000_000L);
+            }
+            return null;
+        }
+        // 1-arg TIME-returning call wrapping a VARCHAR literal (e.g. to_time('17:30:00')).
+        if (operand instanceof RexCall call && call.getOperands().size() == 1 && call.getType().getSqlTypeName() == SqlTypeName.TIME) {
+            RexNode inner = call.getOperands().get(0);
+            while (inner instanceof OperatorAnnotation a && a.unwrap() != null) {
+                inner = a.unwrap();
+            }
+            if (inner instanceof RexLiteral innerLit && SqlTypeFamily.CHARACTER.contains(innerLit.getType())) {
+                String value = innerLit.getValueAs(String.class);
+                if (value == null) return null;
+                try {
+                    return LocalTime.parse(value);
+                } catch (DateTimeParseException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Long extractFromTime(LocalTime time) {
+        switch (unit) {
+            case "hour":
+                return (long) time.getHour();
+            case "minute":
+                return (long) time.getMinute();
+            case "second":
+                return (long) time.getSecond();
+            case "microsecond":
+                return time.getNano() / 1_000L;
+            default:
+                // Date-portion units (year/month/day/...) don't apply to a TIME value.
+                return null;
+        }
     }
 
     /** Operand needs coercion if it is a character or TIME — TIMESTAMP/DATE bind directly. */
