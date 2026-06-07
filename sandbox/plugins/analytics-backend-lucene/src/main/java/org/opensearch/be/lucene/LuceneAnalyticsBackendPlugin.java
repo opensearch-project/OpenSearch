@@ -63,13 +63,16 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     // registered in QuerySerializerRegistry — declaring a capability without a matching
     // DelegatedPredicateSerializer makes the marking layer pick Lucene as viable for
     // operators it can't actually translate, and the failure surfaces at convert time as
-    // an IllegalStateException ("No Lucene serializer for [..]"). Today only EQUALS has
-    // a serializer; range ops, NOT_EQUALS, IS_NULL, IS_NOT_NULL, IN, LIKE are deferred
-    // until their serializers land.
+    // an IllegalStateException ("No Lucene serializer for [..]"). EQUALS and LIKE have
+    // serializers today; range ops, NOT_EQUALS, IS_NULL, IS_NOT_NULL, IN are deferred until
+    // their serializers land.
+    // LIKE delegation is a performance pre-filter (DataFusion re-verifies the exact predicate),
+    // so the Lucene query only needs to be a superset of matches; it is governed at runtime by the
+    // analytics.delegation.<backend>.blocked_predicates kill-switch.
     // TODO: have CapabilityRegistry intersect declared FilterCapability against the
     // backend's serializer keyset at startup so this list can't drift again. The TODO in
     // OpenSearchFilterRule.resolveViableBackends references the same constraint.
-    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(ScalarFunction.EQUALS);
+    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(ScalarFunction.EQUALS, ScalarFunction.LIKE);
 
     private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
         ScalarFunction.MATCH,

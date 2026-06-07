@@ -254,6 +254,20 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         }
     }
 
+    // --- LikeSerializer registration test ---
+
+    /**
+     * Tests that the LIKE serializer is registered and backed by {@link org.opensearch.be.lucene.serializers.LikeSerializer}.
+     */
+    public void testLikeSerializerRegistered() {
+        DelegatedPredicateSerializer serializer = QuerySerializerRegistry.getSerializers().get(ScalarFunction.LIKE);
+        assertNotNull("LIKE serializer must be registered", serializer);
+        assertTrue(
+            "LIKE serializer must be an instance of LikeSerializer",
+            serializer instanceof org.opensearch.be.lucene.serializers.LikeSerializer
+        );
+    }
+
     // --- MatchAllSerializer tests ---
 
     /**
