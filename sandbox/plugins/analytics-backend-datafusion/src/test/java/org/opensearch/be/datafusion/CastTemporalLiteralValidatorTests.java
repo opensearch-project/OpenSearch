@@ -47,6 +47,16 @@ public class CastTemporalLiteralValidatorTests extends OpenSearchTestCase {
         assertEquals("date:2025-13-02 in unsupported format, please use 'yyyy-MM-dd'", e.getMessage());
     }
 
+    /** CAST('09:07:42' AS DATE) — bare time string is not a valid date literal (cluster G1). */
+    public void testTimeLiteralCastToDateRejected() {
+        RexNode cast = castStringLiteralTo("09:07:42", SqlTypeName.DATE);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cast.accept(CastTemporalLiteralValidator.newShuttle())
+        );
+        assertEquals("date:09:07:42 in unsupported format, please use 'yyyy-MM-dd'", e.getMessage());
+    }
+
     /** CAST('1984-04-12' AS TIME) → IllegalArgumentException with time format-hint. */
     public void testDateLiteralCastToTimeRejected() {
         RexNode cast = castStringLiteralTo("1984-04-12", SqlTypeName.TIME);
