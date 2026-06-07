@@ -240,6 +240,11 @@ public class OpenSearchSchemaBuilder {
      * the same shape they did before.
      */
     public static RelDataType buildLeafType(String opensearchType, RelDataTypeFactory typeFactory) {
+        return buildLeafType(opensearchType, null, typeFactory);
+    }
+
+    /** Format-aware overload: classifies {@code date}/{@code date_nanos} into DateOnly / TimeOnly UDT markers. */
+    public static RelDataType buildLeafType(String opensearchType, String format, RelDataTypeFactory typeFactory) {
         if (opensearchType == null) {
             return null;
         }
@@ -248,6 +253,16 @@ public class OpenSearchSchemaBuilder {
         }
         if (BinaryType.NAME.equals(opensearchType)) {
             return BinaryType.nullable();
+        }
+        if ("date".equals(opensearchType) || "date_nanos".equals(opensearchType)) {
+            switch (DateFormatClassifier.classify(format)) {
+                case DATE_ONLY:
+                    return DateOnlyType.nullable(typeFactory);
+                case TIME_ONLY:
+                    return TimeOnlyType.nullable(typeFactory);
+                default:
+                    // TIMESTAMP — fall through to plain SqlTypeName.TIMESTAMP below
+            }
         }
         SqlTypeName sqlType = mapFieldType(opensearchType);
         if (sqlType == null) {
@@ -311,7 +326,8 @@ public class OpenSearchSchemaBuilder {
             if ("nested".equals(fieldType)) {
                 continue;
             }
-            RelDataType columnType = buildLeafType(fieldType, typeFactory);
+            String format = (String) fieldProps.get("format");
+            RelDataType columnType = buildLeafType(fieldType, format, typeFactory);
             if (columnType == null) {
                 // Unsupported (geo_point/shape/completion/…) or unknown plugin type. Drop the
                 // column; a query referencing it surfaces a Calcite "column not found" via the
