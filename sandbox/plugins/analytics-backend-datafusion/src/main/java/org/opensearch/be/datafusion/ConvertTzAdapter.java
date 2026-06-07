@@ -61,11 +61,40 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
     /** Matches {@code ±H:MM} / {@code ±HH:MM} with hours [0,14] and minutes [0,59]. */
     private static final Pattern OFFSET_PATTERN = Pattern.compile("^([+-])(\\d{1,2}):(\\d{2})$");
 
+    /** invalid timestamp literal -> typed NULL (peels CAST wrapping that PPL adds for non-TIMESTAMP args). */
+    private static RexNode foldInvalidTimestampLiteralToNull(
+        RexNode operand,
+        org.apache.calcite.rel.type.RelDataType resultType,
+        RexBuilder rexBuilder
+    ) {
+        RexNode unwrapped = operand;
+        while (unwrapped instanceof RexCall call
+            && (call.getKind() == org.apache.calcite.sql.SqlKind.CAST || call.getKind() == org.apache.calcite.sql.SqlKind.SAFE_CAST)
+            && call.getOperands().size() == 1) {
+            unwrapped = call.getOperands().get(0);
+        }
+        if (!(unwrapped instanceof RexLiteral literal)) return null;
+        SqlTypeName typeName = literal.getType().getSqlTypeName();
+        if (typeName != SqlTypeName.CHAR && typeName != SqlTypeName.VARCHAR) return null;
+        String value = literal.getValueAs(String.class);
+        if (value == null) return null;
+        try {
+            java.time.LocalDateTime.parse(value.replace(' ', 'T'));
+            return null;
+        } catch (java.time.format.DateTimeParseException ignored) {}
+        return rexBuilder.makeNullLiteral(resultType);
+    }
+
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         List<RexNode> operands = new ArrayList<>(original.getOperands());
-        // invalid tz literal -> typed NULL (MySQL CONVERT_TZ semantics); column-valued tz routes through the UDF
+        // invalid timestamp literal -> typed NULL (MySQL CONVERT_TZ semantics)
+        RexNode tsFolded = foldInvalidTimestampLiteralToNull(operands.get(0), original.getType(), rexBuilder);
+        if (tsFolded != null) {
+            return tsFolded;
+        }
+        // invalid tz literal -> typed NULL; column-valued tz routes through the UDF
         for (int slot : new int[] { 1, 2 }) {
             try {
                 operands.set(slot, canonicalizeTzOperand(operands.get(slot), rexBuilder));

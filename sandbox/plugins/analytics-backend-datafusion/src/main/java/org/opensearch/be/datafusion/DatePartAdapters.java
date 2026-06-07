@@ -32,18 +32,8 @@ import java.util.Set;
 
 /**
  * Date-part extractor adapters — rewrite {@code FN(ts)} to {@code date_part('<unit>', ts)}.
- * Alias pairs (e.g. MONTH_OF_YEAR → MONTH) share an adapter instance at registration.
- *
- * <p>Operand coercion: PPL allows bare string-literal datetime arguments
- * (e.g. {@code DAY('2020-09-16')}). Calcite types those operands as
- * {@code VARCHAR}, but {@code opensearch_scalar_functions.yaml} declares
- * {@code date_part} only for {@code (string, precision_timestamp<P>)} and
- * {@code (string, date)}. Without coercion, isthmus' signature matcher fails
- * with {@code "Unable to convert call DATE_PART(string, string)"}. This adapter
- * wraps any character-family operand in {@code CAST(operand AS TIMESTAMP)} so
- * the call resolves to the precision_timestamp impl. DataFusion's CAST kernel
- * parses ISO-8601 datetime strings; malformed inputs surface as a runtime
- * Arrow cast error from the engine.
+ * Character-family operands cast to TIMESTAMP so substrait binds the (string, precision_timestamp&lt;P&gt;) sig;
+ * TIME and bare-time strings get today-UTC anchored first.
  *
  * @opensearch.internal
  */
@@ -58,7 +48,7 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
-        if (original.getOperands().stream().noneMatch(DatePartAdapters::isCharacterOperand)) {
+        if (original.getOperands().stream().noneMatch(DatePartAdapters::needsCoercion)) {
             return super.adapt(original, fieldStorage, cluster);
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
@@ -66,7 +56,9 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         for (RexNode operand : original.getOperands()) {
             if (isCharacterOperand(operand)) {
                 validateDatetimeLiteralForUnit(operand, unit);
-                coerced.add(castToTimestamp(operand, cluster));
+                coerced.add(castToTimestampWithTodayPrefixForBareTime(operand, cluster));
+            } else if (operand.getType().getSqlTypeName() == SqlTypeName.TIME) {
+                coerced.add(castTimeToTimestamp(operand, cluster));
             } else {
                 coerced.add(operand);
             }
@@ -76,6 +68,11 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         args.add(rexBuilder.makeLiteral(unit, unitType, true));
         args.addAll(coerced);
         return rexBuilder.makeCall(original.getType(), SqlLibraryOperators.DATE_PART, args);
+    }
+
+    /** Operand needs coercion if it is a character or TIME — TIMESTAMP/DATE bind directly. */
+    private static boolean needsCoercion(RexNode operand) {
+        return isCharacterOperand(operand) || operand.getType().getSqlTypeName() == SqlTypeName.TIME;
     }
 
     private static boolean isCharacterOperand(RexNode operand) {
@@ -91,19 +88,62 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         return cluster.getRexBuilder().makeCast(timestampType, operand);
     }
 
-    /**
-     * Shared coercion helper for sibling adapters ({@link DayOfWeekAdapter}, {@link SecondAdapter})
-     * that build {@code date_part('<unit>', operand)} calls directly. Wraps a character-family
-     * operand in {@code CAST(_ AS TIMESTAMP)}; non-character operands are returned unchanged.
-     * String {@link RexLiteral} operands are eagerly validated to surface the legacy
-     * {@code "unsupported format"} error at plan time (see {@link #validateDatetimeLiteral}).
-     */
+    /** bare-time string ({@code '17:30:00'}) → CONCAT(today-UTC, ' ', s) → CAST TIMESTAMP. */
+    private static RexNode castToTimestampWithTodayPrefixForBareTime(RexNode operand, RelOptCluster cluster) {
+        if (!isBareTimeString(operand)) {
+            return castToTimestamp(operand, cluster);
+        }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RelDataType varchar = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
+        String prefix = LocalDate.now(java.time.ZoneOffset.UTC).toString() + " ";
+        RexNode prefixLit = rexBuilder.makeLiteral(prefix, varchar, false);
+        RexNode concat = rexBuilder.makeCall(varchar, org.apache.calcite.sql.fun.SqlStdOperatorTable.CONCAT, List.of(prefixLit, operand));
+        return castToTimestamp(concat, cluster);
+    }
+
+    /** True for a string {@link RexLiteral} that parses as bare time only (HH:mm:ss[.SSSSSSSSS]). */
+    private static boolean isBareTimeString(RexNode operand) {
+        if (!(operand instanceof RexLiteral literal)) {
+            return false;
+        }
+        String value = literal.getValueAs(String.class);
+        if (value == null) {
+            return false;
+        }
+        try {
+            LocalTime.parse(value);
+            return true;
+        } catch (DateTimeParseException ignored) {
+            return false;
+        }
+    }
+
+    /** TIME → CONCAT(today-UTC, ' ', CAST AS VARCHAR) → CAST AS TIMESTAMP. */
+    private static RexNode castTimeToTimestamp(RexNode operand, RelOptCluster cluster) {
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RelDataType varchar = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
+        RelDataType nullableVarchar = rexBuilder.getTypeFactory().createTypeWithNullability(varchar, operand.getType().isNullable());
+        RexNode timeAsVarchar = rexBuilder.makeCast(nullableVarchar, operand);
+        String prefix = LocalDate.now(java.time.ZoneOffset.UTC).toString() + " ";
+        RexNode prefixLit = rexBuilder.makeLiteral(prefix, varchar, false);
+        RexNode concat = rexBuilder.makeCall(
+            nullableVarchar,
+            org.apache.calcite.sql.fun.SqlStdOperatorTable.CONCAT,
+            List.of(prefixLit, timeAsVarchar)
+        );
+        return castToTimestamp(concat, cluster);
+    }
+
+    /** Shared coercion for sibling adapters: TIME → today-anchored TIMESTAMP, VARCHAR → validated CAST. */
     static RexNode coerceCharacterOperandToTimestamp(RexNode operand, RelOptCluster cluster) {
+        if (operand.getType().getSqlTypeName() == SqlTypeName.TIME) {
+            return castTimeToTimestamp(operand, cluster);
+        }
         if (!isCharacterOperand(operand)) {
             return operand;
         }
         validateDatetimeLiteral(operand);
-        return castToTimestamp(operand, cluster);
+        return castToTimestampWithTodayPrefixForBareTime(operand, cluster);
     }
 
     /** Time-only units reject bare-date literals (HOUR('2020-08-26') must throw, not return 0). */

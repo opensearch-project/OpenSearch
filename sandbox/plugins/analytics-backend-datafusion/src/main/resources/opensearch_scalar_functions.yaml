@@ -79,6 +79,11 @@ scalar_functions:
           - { value: string, name: "stride" }
           - { value: "precision_timestamp<P>", name: "source" }
         return: precision_timestamp<P>
+      - args:
+          - { value: string, name: "stride" }
+          - { value: "precision_timestamp<P>", name: "source" }
+          - { value: string, name: "origin" }
+        return: precision_timestamp<P>
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM

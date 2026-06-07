@@ -272,9 +272,24 @@ final class RustUdfDateTimeAdapters {
         }
     }
 
+    /** PPL FROM_UNIXTIME(epoch [, format]); 2-arg → date_format(from_unixtime(epoch), format). */
     static final class FromUnixtimeAdapter extends NumericToDoubleAdapter {
         FromUnixtimeAdapter() {
             super(LOCAL_FROM_UNIXTIME_OP);
+        }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            if (original.getOperands().size() != 2) {
+                return super.adapt(original, fieldStorage, cluster);
+            }
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            RexNode epoch = NumericToDoubleAdapter.widenToDoubleIfNumeric(original.getOperands().get(0), cluster);
+            RexNode format = original.getOperands().get(1);
+            RelDataType tsType = rexBuilder.getTypeFactory()
+                .createTypeWithNullability(rexBuilder.getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP), true);
+            RexNode ts = rexBuilder.makeCall(tsType, LOCAL_FROM_UNIXTIME_OP, List.of(epoch));
+            return rexBuilder.makeCall(original.getType(), LOCAL_DATE_FORMAT_OP, List.of(ts, format));
         }
     }
 
