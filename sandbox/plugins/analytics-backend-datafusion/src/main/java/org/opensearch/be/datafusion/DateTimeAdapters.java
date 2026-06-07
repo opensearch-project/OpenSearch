@@ -127,9 +127,27 @@ final class DateTimeAdapters {
         }
     }
 
-    static final class TimeAdapter extends AbstractNameMappingAdapter {
-        TimeAdapter() {
-            super(LOCAL_TIME_OP, List.of(), List.of());
+    /** PPL {@code TIME(string)} accepts a datetime-string; strip the date prefix so {@code to_time} parses. */
+    static final class TimeAdapter implements ScalarFunctionAdapter {
+
+        private static final String DATE_PREFIX_PATTERN = "^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ]";
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            List<RexNode> operands = original.getOperands();
+            if (operands.size() == 1 && SqlTypeName.CHAR_TYPES.contains(operands.get(0).getType().getSqlTypeName())) {
+                RexNode arg = operands.get(0);
+                RexNode pattern = rexBuilder.makeLiteral(DATE_PREFIX_PATTERN);
+                RexNode replacement = rexBuilder.makeLiteral("");
+                RexNode stripped = rexBuilder.makeCall(
+                    arg.getType(),
+                    SqlLibraryOperators.REGEXP_REPLACE_3,
+                    List.of(arg, pattern, replacement)
+                );
+                return rexBuilder.makeCall(original.getType(), LOCAL_TIME_OP, List.of(stripped));
+            }
+            return rexBuilder.makeCall(original.getType(), LOCAL_TIME_OP, operands);
         }
     }
 

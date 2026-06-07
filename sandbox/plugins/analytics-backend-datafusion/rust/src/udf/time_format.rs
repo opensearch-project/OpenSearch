@@ -23,7 +23,7 @@ use datafusion::logical_expr::{
 };
 
 use super::date_format::format_dispatch;
-use super::mysql_format::FormatMode;
+use super::os_strftime::FormatMode;
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(TimeFormatUdf::new()));

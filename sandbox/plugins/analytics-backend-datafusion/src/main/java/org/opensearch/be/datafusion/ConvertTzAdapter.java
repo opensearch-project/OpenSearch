@@ -33,45 +33,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Adapter for PPL's {@code CONVERT_TZ(ts, from_tz, to_tz)}. Two jobs in
- * priority order:
+ * Adapter for PPL's {@code CONVERT_TZ(ts, from_tz, to_tz)}. Three jobs in priority order:
+ * identity short-circuit when both tz literals canonicalize to the same value, typed-NULL
+ * fallback when a literal tz fails validation (MySQL semantics), and rewrite to
+ * {@link #LOCAL_CONVERT_TZ_OP} otherwise. Literal tz operands are canonicalized at plan time
+ * via {@link #canonicalizeTz(String)} so the UDF sees a stable form.
  *
- * <ol>
- *   <li><b>Identity short-circuit</b>: when both tz operands are string
- *       literals and canonicalize to the same value, the call reduces to its
- *       timestamp operand. No UDF invocation, no wire traffic.</li>
- *   <li><b>UDF fallback with canonicalized literal operands</b>: every other
- *       case rewrites to {@link #LOCAL_CONVERT_TZ_OP} whose
- *       {@code FunctionMappings.Sig} in {@link DataFusionFragmentConvertor}
- *       resolves to the {@code convert_tz} Rust UDF. Literal tz operands are
- *       validated + canonicalized via {@link #canonicalizeTz(String)} at plan
- *       time so bad literals surface with a clear error rather than silent
- *       per-row NULL at runtime.</li>
- * </ol>
- *
- * <p>Why no offset+offset → interval fold: building an interval literal at
- * Calcite's level requires {@code org.apache.calcite.avatica.util.TimeUnit},
- * which lives in avatica and is a {@code runtimeOnly} dep of this module.
- * Pulling it in just for the fixed-offset case doesn't pay for itself; IANA
- * pairs dominate real-world {@code CONVERT_TZ} usage and must go through the
- * UDF anyway (per-row DST lookup).
- *
- * <p>The fallback preserves the original call's return type via
- * {@code rexBuilder.makeCall(original.getType(), ...)} so the enclosing
- * {@code Project} / {@code Filter} rowType cache stays consistent (see
- * {@link AbstractNameMappingAdapter} javadoc for background).
+ * <p>No offset+offset interval fold: avatica's {@code TimeUnit} is a {@code runtimeOnly} dep
+ * and IANA pairs dominate real usage anyway. Return type is preserved on the rewritten call so
+ * enclosing {@code Project}/{@code Filter} rowType cache stays consistent
+ * (see {@link AbstractNameMappingAdapter}).
  *
  * @opensearch.internal
  */
 class ConvertTzAdapter implements ScalarFunctionAdapter {
 
-    /**
-     * Locally-declared target operator for the rewrite. {@link SqlKind#OTHER_FUNCTION}
-     * so it doesn't collide with any Calcite built-in.
-     * {@link OperandTypes#ANY_STRING_STRING} keeps validation permissive on the
-     * timestamp slot — real argument vetting happens inside the UDF's
-     * {@code coerce_types} and {@code invoke_with_args}.
-     */
+    /** Locally-declared rewrite target; permissive operand types — UDF does the real vetting. */
     static final SqlOperator LOCAL_CONVERT_TZ_OP = new SqlFunction(
         "convert_tz",
         SqlKind.OTHER_FUNCTION,
@@ -88,9 +65,13 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         List<RexNode> operands = new ArrayList<>(original.getOperands());
-        // Slot 0 is the timestamp; slots 1 and 2 are from_tz / to_tz.
+        // invalid tz literal -> typed NULL (MySQL CONVERT_TZ semantics); column-valued tz routes through the UDF
         for (int slot : new int[] { 1, 2 }) {
-            operands.set(slot, canonicalizeTzOperand(operands.get(slot), rexBuilder));
+            try {
+                operands.set(slot, canonicalizeTzOperand(operands.get(slot), rexBuilder));
+            } catch (IllegalArgumentException badTz) {
+                return rexBuilder.makeNullLiteral(original.getType());
+            }
         }
 
         // Same from/to tz → no-op. SAFE-cast a VARCHAR operand to TIMESTAMP so the parent
@@ -113,11 +94,7 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
         return rexBuilder.makeCall(original.getType(), LOCAL_CONVERT_TZ_OP, operands);
     }
 
-    /**
-     * Returns the string value of a canonicalized tz literal operand, or null
-     * when the operand is not a VARCHAR/CHAR {@link RexLiteral} (column refs,
-     * NULL literals, other expressions).
-     */
+    /** String value of a canonicalized tz literal, or null for non-literal/non-string operands. */
     private static String tzLiteralValue(RexNode operand) {
         if (!(operand instanceof RexLiteral literal)) return null;
         SqlTypeName typeName = literal.getType().getSqlTypeName();
@@ -126,14 +103,8 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
     }
 
     /**
-     * If {@code operand} is a string {@link RexLiteral}, canonicalize it and
-     * return a new literal with the canonical form (or the original if already
-     * canonical). Non-literal operands (column references, function results)
-     * pass through untouched — their runtime values can't be validated until
-     * the UDF runs.
-     *
-     * <p>Throws {@link IllegalArgumentException} for literals that don't match
-     * either the {@code ±HH:MM} offset pattern or a known IANA zone id.
+     * Canonicalize a string literal tz operand; non-literals and non-strings pass through.
+     * Throws {@link IllegalArgumentException} for unrecognized literals.
      */
     private static RexNode canonicalizeTzOperand(RexNode operand, RexBuilder rexBuilder) {
         if (!(operand instanceof RexLiteral literal)) {
@@ -160,19 +131,9 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
     }
 
     /**
-     * Canonicalize a timezone string. Accepts either:
-     * <ul>
-     *   <li>{@code ±H:MM} / {@code ±HH:MM} where hours ∈ [0,14] and minutes ∈ [0,59];
-     *       returned zero-padded as {@code ±HH:MM}.</li>
-     *   <li>IANA zone id recognized by {@link ZoneId#of(String)}; returned as the
-     *       JDK-normalized form. {@code ZoneId.of} rejects unknown ids, so invalid
-     *       IANA names surface here as {@link IllegalArgumentException}.</li>
-     * </ul>
-     *
-     * <p>The {@code ±HH:MM} bounds match the Rust UDF's {@code parse_offset_seconds}
-     * (rust/src/udf/convert_tz.rs) — `+14:59` is the maximum offset anywhere on
-     * Earth (Kiribati is +14:00; the extra minute tolerance matches existing
-     * UDF behavior).
+     * Canonicalize a tz string: {@code ±H:MM}/{@code ±HH:MM} (hours 0-14, minutes 0-59,
+     * matches Rust {@code parse_offset_seconds}) or an IANA id resolvable by {@link ZoneId#of}.
+     * Throws {@link IllegalArgumentException} for unrecognized inputs.
      */
     static String canonicalizeTz(String raw) {
         Matcher offset = OFFSET_PATTERN.matcher(raw);

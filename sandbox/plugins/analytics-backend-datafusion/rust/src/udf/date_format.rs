@@ -7,7 +7,7 @@
  */
 
 //! `date_format(datetime, format)` — render a timestamp via MySQL-style tokens
-//! ([`mysql_format`](super::mysql_format)). Returns Utf8; null input → null.
+//! ([`os_strftime`](super::os_strftime)). Returns Utf8; null input → null.
 
 use std::any::Any;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-use super::mysql_format::{format_datetime, FormatMode};
+use super::os_strftime::{format_datetime, FormatMode};
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(DateFormatUdf::new()));
@@ -159,7 +159,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn render_scalar_matches_mysql_format() {
+    fn render_scalar_matches_os_strftime() {
         let out = render_at(1_584_268_245_123_456, "%Y-%m-%d %H:%i:%S", FormatMode::Date).unwrap();
         assert_eq!(out, "2020-03-15 10:30:45");
     }

@@ -146,7 +146,8 @@ pub mod minspan_bucket;
 pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
-pub(crate) mod mysql_format;
+pub(crate) mod os_strftime;
+pub mod os_week;
 pub mod parse;
 pub mod pattern_parser;
 pub mod range_bucket;
@@ -194,6 +195,7 @@ pub fn register_all(ctx: &SessionContext) {
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    os_week::register_all(ctx);
     parse::register_all(ctx);
     pattern_parser::register_all(ctx);
     range_bucket::register_all(ctx);
