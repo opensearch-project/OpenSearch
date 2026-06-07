@@ -22,8 +22,10 @@ import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
 import org.opensearch.analytics.schema.BinaryType;
+import org.opensearch.analytics.schema.DateOnlyType;
 import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.schema.TimeOnlyType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -380,6 +382,58 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
      */
     public void testMapFieldTypeReturnsNullOnNullInput() {
         assertNull(OpenSearchSchemaBuilder.mapFieldType(null));
+    }
+
+    /** date with date-only format produces a DateOnlyType marker (TIMESTAMP-backed). */
+    public void testDateFieldWithDateOnlyFormatProducesDateUDT() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("date_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertNotNull(field);
+        assertTrue("Expected DateOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof DateOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with time-only format produces a TimeOnlyType marker. */
+    public void testDateFieldWithTimeOnlyFormatProducesTimeUDT() throws Exception {
+        String mapping = "{\"properties\":{\"t\":{\"type\":\"date\",\"format\":\"hour_minute_second\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("time_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("time_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("t", true, false);
+        assertNotNull(field);
+        assertTrue("Expected TimeOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with mixed format defaults to plain TIMESTAMP. */
+    public void testDateFieldWithMixedFormatStaysTimestamp() throws Exception {
+        String mapping = "{\"properties\":{\"x\":{\"type\":\"date\",\"format\":\"yyyy-MM-dd HH:mm:ss\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("mixed_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("mixed_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("x", true, false);
+        assertNotNull(field);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof DateOnlyType);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date without an explicit format keeps default TIMESTAMP behavior. */
+    public void testDateFieldWithoutFormatStaysTimestamp() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("plain_date_idx", java.util.Map.of("d", "date")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("plain_date_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertFalse(field.getType() instanceof DateOnlyType);
+        assertFalse(field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
     }
 
     /**
