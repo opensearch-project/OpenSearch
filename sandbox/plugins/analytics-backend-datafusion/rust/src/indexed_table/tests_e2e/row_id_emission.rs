@@ -66,7 +66,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -89,6 +89,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -112,7 +113,7 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true,
+        emit_row_ids: true, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -230,7 +231,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -253,6 +254,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -276,7 +278,7 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true,
+        emit_row_ids: true, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -492,7 +494,7 @@ async fn test_row_id_with_data_columns() {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -515,6 +517,7 @@ async fn test_row_id_with_data_columns() {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -538,7 +541,7 @@ async fn test_row_id_with_data_columns() {
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true,
+        emit_row_ids: true, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -739,7 +742,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -762,6 +765,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -785,7 +789,7 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true,
+        emit_row_ids: true, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
