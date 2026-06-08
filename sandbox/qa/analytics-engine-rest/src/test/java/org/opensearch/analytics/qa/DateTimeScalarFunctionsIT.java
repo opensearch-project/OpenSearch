@@ -111,6 +111,36 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowLong(oneRow("key00") + "| eval v = second_of_minute(datetime0) | fields v", 35L);
     }
 
+    /**
+     * {@code microsecond('<varchar literal>')} returns the sub-second microseconds. The string
+     * operand is coerced to TIMESTAMP in MicrosecondAdapter so {@code date_part('microsecond', ts)}
+     * resolves. Reference: DateTimeFunctionIT#testMicrosecond.
+     */
+    public void testMicrosecondOnStringLiteral() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = microsecond('2020-09-16 17:30:00.123456') | fields v", 123456L);
+    }
+
+    /** {@code microsecond(timestamp('<lit>'))} — same value via the TIMESTAMP-typed operand path. */
+    public void testMicrosecondOnTimestamp() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval v = microsecond(timestamp('2020-09-16 17:30:00.123456')) | fields v",
+            123456L
+        );
+    }
+
+    /**
+     * {@code minute_of_day(timestamp('<lit>'))} = hour*60 + minute. MinuteOfDayAdapter coerces the
+     * operand to TIMESTAMP for the two date_part calls. Reference: DateTimeFunctionIT#testMinuteOfDay.
+     */
+    public void testMinuteOfDayOnTimestamp() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = minute_of_day(timestamp('2020-09-16 17:30:00')) | fields v", 1050L);
+    }
+
+    /** {@code minute_of_day(time('<lit>'))} — TIME operand synthesized to a 1970-pinned TIMESTAMP. */
+    public void testMinuteOfDayOnTimeLiteral() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = minute_of_day(time('17:30:00')) | fields v", 1050L);
+    }
+
     public void testDatetimeOnStringLiteral() throws IOException {
         assertFirstRowLong(oneRow("key00") + "| eval v = hour(datetime('2004-07-09 10:17:35')) | fields v", 10L);
     }
