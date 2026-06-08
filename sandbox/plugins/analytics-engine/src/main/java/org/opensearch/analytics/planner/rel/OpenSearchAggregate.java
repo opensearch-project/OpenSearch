@@ -126,7 +126,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             List.of(),
             input,
             frontGroupSetForFinal(groupSet, mode),
-            frontGroupSetsForFinal(groupSets, mode),
+            frontGroupSetsForFinal(groupSet, groupSets, mode),
             aggCalls
         );
         this.mode = mode;
@@ -138,26 +138,27 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
     }
 
     /**
-     * For a FINAL aggregate, front the groupSet to the prefix range {@code {0..groupCount-1}}.
-     * FINAL reads the gathered PARTIAL output, where Calcite's Aggregate contract has already moved
-     * the group keys to the front ahead of the agg-state columns; a non-prefix groupSet (e.g.
-     * {@code {1}} from {@code stats avg(x) by span(y,5)}, where the agg arg is projected before the
-     * key) would otherwise make FINAL group on a partial-state column instead of the key. Idempotent
-     * for an already-fronted groupSet. No-op for SINGLE/PARTIAL, which read raw input where the key
-     * sits at its original index. Pairs with the {@code groupCount + i} arg rebase in
-     * {@link org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder}.
+     * FINAL reads PARTIAL's output, where Calcite has fronted the group keys to {@code 0..n-1}; group
+     * on the prefix range so a non-prefix key (e.g. {@code avg(x) by span(y,5)} → {@code {1}}) isn't
+     * read as an agg-state column. No-op for SINGLE/PARTIAL (raw input) and already-fronted sets.
      */
     private static ImmutableBitSet frontGroupSetForFinal(ImmutableBitSet groupSet, AggregateMode mode) {
         return mode == AggregateMode.FINAL ? ImmutableBitSet.range(groupSet.cardinality()) : groupSet;
     }
 
-    private static List<ImmutableBitSet> frontGroupSetsForFinal(List<ImmutableBitSet> groupSets, AggregateMode mode) {
-        // groupSets is null by Calcite convention (single set, derived from groupSet) — leave it so
-        // the super ctor derives it from the already-fronted groupSet.
-        if (mode != AggregateMode.FINAL || groupSets == null) {
+    /**
+     * Keeps {@code groupSets} consistent with the fronted {@code groupSet}. PPL only emits simple
+     * (single-set) aggregates, so this collapses to one set; revisit if GROUPING SETS is ever added.
+     */
+    private static List<ImmutableBitSet> frontGroupSetsForFinal(
+        ImmutableBitSet groupSet,
+        List<ImmutableBitSet> groupSets,
+        AggregateMode mode
+    ) {
+        if (mode != AggregateMode.FINAL || groupSets == null || groupSets.isEmpty()) {
             return groupSets;
         }
-        return List.of(ImmutableBitSet.range(groupSets.get(0).cardinality()));
+        return List.of(ImmutableBitSet.range(groupSet.cardinality()));
     }
 
     /** Builds a FINAL aggregate post-rewrite; clears both stashes so a later {@code copy()} can't replay them. */
