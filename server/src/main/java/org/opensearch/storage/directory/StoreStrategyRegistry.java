@@ -15,6 +15,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatStoreHandler;
 import org.opensearch.index.engine.dataformat.DataFormatStoreHandlerFactory;
+import org.opensearch.index.engine.dataformat.FileResolver;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -24,6 +25,7 @@ import org.opensearch.repositories.NativeStoreRepository;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -138,7 +140,13 @@ public final class StoreStrategyRegistry implements Closeable {
                 seedFromRemoteMetadata(shardPath, strategies, storeHandlers, remoteDirectory);
             }
             success = true;
-            return new StoreStrategyRegistry(shardPath, strategies, storeHandlers);
+            StoreStrategyRegistry registry = new StoreStrategyRegistry(shardPath, strategies, storeHandlers);
+
+            // Wire lazy file resolvers into each handler. The resolver closes over
+            // the remote directory — format plugins never see RemoteSegmentStoreDirectory.
+            wireFileResolvers(registry, shardPath, strategies, storeHandlers, remoteDirectory);
+
+            return registry;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(created);
@@ -243,6 +251,74 @@ public final class StoreStrategyRegistry implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(storeHandlers.values());
+    }
+
+    /**
+     * Wires a {@link FileResolver} into each store handler for lazy file resolution.
+     *
+     * <p>The resolver closes over the remote directory — format plugins never see
+     * {@code RemoteSegmentStoreDirectory} directly. When the Rust registry misses a file
+     * at query time, the upcall invokes the resolver which:
+     * <ol>
+     *   <li>Relativizes the absolute path to get the file key</li>
+     *   <li>Looks up the file in {@code RemoteSegmentStoreDirectory} metadata</li>
+     *   <li>If not found, re-inits the remote directory (handles S3 eventual consistency)</li>
+     *   <li>Computes the remote blob path via {@link StoreStrategy#remotePath}</li>
+     *   <li>Returns a {@link DataFormatStoreHandler.FileEntry} for registration</li>
+     * </ol>
+     */
+    private static void wireFileResolvers(
+        StoreStrategyRegistry registry,
+        ShardPath shardPath,
+        Map<DataFormat, StoreStrategy> strategies,
+        Map<DataFormat, DataFormatStoreHandler> storeHandlers,
+        RemoteSegmentStoreDirectory remoteDirectory
+    ) {
+        if (remoteDirectory == null) {
+            return;
+        }
+        for (Map.Entry<DataFormat, DataFormatStoreHandler> entry : storeHandlers.entrySet()) {
+            DataFormat format = entry.getKey();
+            DataFormatStoreHandler handler = entry.getValue();
+            StoreStrategy strategy = strategies.get(format);
+            if (strategy == null) {
+                continue;
+            }
+
+            FileResolver resolver = (absoluteKey) -> {
+                // Reverse: absolute key → relative file name (used by RemoteSegmentStoreDirectory)
+                // Note: Rust strips leading "/" from paths (object_store::Path convention).
+                // Re-add it for Java Path API compatibility.
+                String fullPath = absoluteKey.startsWith("/") ? absoluteKey : "/" + absoluteKey;
+                Path absolutePath = Path.of(fullPath);
+                Path basePath = shardPath.getDataPath();
+                String file;
+                try {
+                    file = basePath.relativize(absolutePath).toString();
+                } catch (IllegalArgumentException e) {
+                    logger.warn("wireFileResolvers: cannot relativize absoluteKey=[{}] against basePath=[{}]", absoluteKey, basePath);
+                    return null;
+                }
+
+                // Lookup in remote metadata
+                RemoteSegmentStoreDirectory.UploadedSegmentMetadata meta = remoteDirectory.getSegmentsUploadedToRemoteStore().get(file);
+                if (meta == null) {
+                    logger.debug("wireFileResolvers: file=[{}] not found in remote metadata", file);
+                    return null;
+                }
+
+                // Compute remote blob path (same logic as seedFromRemoteMetadata)
+                String blobKey = meta.getUploadedFilename();
+                String remoteBasePath = remoteDirectory.getRemoteBasePath(format.name());
+                String remotePath = strategy.remotePath(format.name(), remoteBasePath, file, blobKey);
+                long size = meta.getLength();
+
+                logger.debug("wireFileResolvers: RESOLVED file=[{}] remotePath=[{}] size={}", file, remotePath, size);
+                return new DataFormatStoreHandler.FileEntry(remotePath, DataFormatStoreHandler.REMOTE, size);
+            };
+
+            handler.setFileResolver(resolver);
+        }
     }
 
     // TODO (writable warm): add seedLocalFiles(ShardPath) — scan local disk at shard open

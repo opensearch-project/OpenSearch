@@ -7,7 +7,7 @@ fn test_destroy_null_returns_error() {
 
 #[test]
 fn test_create_and_destroy_no_leak() {
-    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0, 0);
     assert!(store_ptr > 0);
     assert_eq!(ts_destroy_tiered_object_store(store_ptr), 0);
 }
@@ -27,7 +27,7 @@ fn test_remove_file_null_store_returns_error() {
 
 #[test]
 fn test_register_files_and_remove_round_trip() {
-    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0, 0);
     assert!(store_ptr > 0);
 
     // Batch register: two files as Remote (triplets: path\nremotePath\nsize\n...)
@@ -44,7 +44,7 @@ fn test_register_files_and_remove_round_trip() {
 
 #[test]
 fn test_register_files_invalid_location_returns_error() {
-    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0, 0);
     assert!(store_ptr > 0);
 
     let entries = b"test.parquet\nremote/test.parquet\n2048";
@@ -66,7 +66,7 @@ fn test_destroy_object_store_box_ptr_null_returns_error() {
 
 #[test]
 fn test_get_and_destroy_object_store_box_ptr_round_trip() {
-    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0, 0);
     assert!(store_ptr > 0);
 
     // Get a boxed pointer — this increments the Arc refcount
@@ -83,7 +83,7 @@ fn test_get_and_destroy_object_store_box_ptr_round_trip() {
 
 #[test]
 fn test_get_object_store_box_ptr_multiple_calls() {
-    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0, 0);
     assert!(store_ptr > 0);
 
     // Multiple box pointers can coexist (simulates multiple reader managers)
@@ -109,8 +109,8 @@ fn test_create_with_remote_does_not_consume_pointer() {
     let remote_ptr = Box::into_raw(remote_box) as i64;
 
     // Create two TieredObjectStores sharing the same remote pointer
-    let store1 = ts_create_tiered_object_store(0, remote_ptr, 0);
-    let store2 = ts_create_tiered_object_store(0, remote_ptr, 0);
+    let store1 = ts_create_tiered_object_store(0, remote_ptr, 0, 0);
+    let store2 = ts_create_tiered_object_store(0, remote_ptr, 0, 0);
     assert!(store1 > 0);
     assert!(store2 > 0);
 
@@ -128,7 +128,7 @@ fn test_create_with_remote_does_not_consume_pointer() {
 /// a cache. The store must still be functional for all registry and I/O operations.
 #[test]
 fn test_create_with_zero_cache_ptr_creates_uncached_store() {
-    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0, 0);
     assert!(store_ptr > 0);
 
     // Store is functional — register a file without error.
@@ -168,8 +168,8 @@ fn test_create_with_cache_does_not_consume_pointer() {
     let cache_ptr = Box::into_raw(cache_box) as i64;
 
     // Create two stores sharing the same cache pointer.
-    let store1 = ts_create_tiered_object_store(0, 0, cache_ptr);
-    let store2 = ts_create_tiered_object_store(0, 0, cache_ptr);
+    let store1 = ts_create_tiered_object_store(0, 0, cache_ptr, 0);
+    let store2 = ts_create_tiered_object_store(0, 0, cache_ptr, 0);
     assert!(store1 > 0);
     assert!(store2 > 0);
 

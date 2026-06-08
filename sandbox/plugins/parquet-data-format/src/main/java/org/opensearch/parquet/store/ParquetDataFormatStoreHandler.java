@@ -81,11 +81,16 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
                 : NativeStoreHandle.EMPTY;
             long cachePtr = cacheHandle.isLive() ? cacheHandle.getPointer() : 0L;
 
-            long ptr = TieredStorageBridge.createTieredObjectStore(0L, remotePtr, cachePtr);
+            long ptr = TieredStorageBridge.createTieredObjectStoreWithResolver(
+                0L,
+                remotePtr,
+                cachePtr,
+                TieredStorageBridge.getResolveUpcallStub()
+            );
             this.storeHandle = new NativeStoreHandle(ptr, TieredStorageBridge::destroyTieredObjectStore);
 
             logger.debug(
-                "[{}] ParquetDataFormatStoreHandler created: cache={}",
+                "[{}] ParquetDataFormatStoreHandler created: cache={} resolver=true",
                 shardId,
                 cacheHandle.isLive() ? BlockCacheConstants.FOYER : "none"
             );
@@ -154,7 +159,19 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
     }
 
     @Override
+    public void setFileResolver(org.opensearch.index.engine.dataformat.FileResolver resolver) {
+        // Delegate to TieredStorageBridge — registers the resolver for Rust upcall routing
+        if (storeHandle.isLive()) {
+            TieredStorageBridge.registerResolver(storeHandle.getPointer(), resolver);
+        }
+    }
+
+    @Override
     public void close() throws IOException {
+        // Unregister resolver before closing native resources
+        if (storeHandle.isLive()) {
+            TieredStorageBridge.unregisterResolver(storeHandle.getPointer());
+        }
         // Close box handle first (decrements Arc refcount), then the store handle (frees TieredObjectStore).
         if (nativeStoreForReader != null) {
             nativeStoreForReader.close();
