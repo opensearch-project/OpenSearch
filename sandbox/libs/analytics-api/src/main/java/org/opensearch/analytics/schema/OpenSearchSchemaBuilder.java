@@ -255,11 +255,12 @@ public class OpenSearchSchemaBuilder {
             return BinaryType.nullable();
         }
         if ("date".equals(opensearchType) || "date_nanos".equals(opensearchType)) {
+            int precision = "date_nanos".equals(opensearchType) ? 9 : 3;
             switch (DateFormatClassifier.classify(format)) {
                 case DATE_ONLY:
-                    return DateOnlyType.nullable(typeFactory);
+                    return DateOnlyType.nullable(typeFactory, precision);
                 case TIME_ONLY:
-                    return TimeOnlyType.nullable(typeFactory);
+                    return TimeOnlyType.nullable(typeFactory, precision);
                 default:
                     // TIMESTAMP — fall through to plain SqlTypeName.TIMESTAMP below
             }

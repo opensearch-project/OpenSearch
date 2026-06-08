@@ -26,14 +26,15 @@ public final class TimeOnlyType extends BasicSqlType {
 
     private final boolean nullable;
 
-    public TimeOnlyType(RelDataTypeSystem typeSystem, boolean nullable) {
-        super(typeSystem, SqlTypeName.TIMESTAMP);
+    public TimeOnlyType(RelDataTypeSystem typeSystem, boolean nullable, int precision) {
+        super(typeSystem, SqlTypeName.TIMESTAMP, precision);
         this.nullable = nullable;
         computeDigest();
     }
 
-    public static TimeOnlyType nullable(RelDataTypeFactory typeFactory) {
-        return new TimeOnlyType(typeFactory.getTypeSystem(), true);
+    /** Builds a nullable marker with the precision required to match the parquet read shape. */
+    public static TimeOnlyType nullable(RelDataTypeFactory typeFactory, int precision) {
+        return new TimeOnlyType(typeFactory.getTypeSystem(), true, precision);
     }
 
     @Override
@@ -46,11 +47,13 @@ public final class TimeOnlyType extends BasicSqlType {
         if (nullable == this.nullable) {
             return this;
         }
-        return new TimeOnlyType(typeSystem, nullable);
+        return new TimeOnlyType(typeSystem, nullable, getPrecision());
     }
 
     @Override
     protected void generateTypeString(StringBuilder sb, boolean withDetail) {
-        sb.append(NAME.toUpperCase(Locale.ROOT));
+        // Include precision in the digest — date→3 and date_nanos→9 must be distinct, else
+        // type-factory canonicalization collapses them.
+        sb.append(NAME.toUpperCase(Locale.ROOT)).append('(').append(getPrecision()).append(')');
     }
 }
