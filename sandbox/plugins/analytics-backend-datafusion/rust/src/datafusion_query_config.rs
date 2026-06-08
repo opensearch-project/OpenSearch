@@ -72,6 +72,13 @@ pub struct DatafusionQueryConfig {
     pub query_strategy: QueryStrategy,
     /// Whether to use bloom filters for row group pruning on the indexed read path.
     pub bloom_filter_on_read: bool,
+    /// Whether to accept and apply runtime dynamic filters (TopK / join)
+    /// pushed into the indexed scan via physical filter pushdown, pruning row
+    /// groups whose parquet statistics cannot satisfy the tightening predicate.
+    /// Off → `QueryShardExec` declines the pushdown (parent keeps its
+    /// `FilterExec`), so behaviour is identical to before this feature. Exposed
+    /// as a toggle to A/B the performance impact.
+    pub indexed_dynamic_filter_pushdown: bool,
 }
 
 /// FFM wire format. Must stay in lockstep with the Java `MemoryLayout`.
@@ -105,6 +112,8 @@ pub struct WireDatafusionQueryConfig {
     pub query_strategy: i32,
     /// 0 = false, 1 = true
     pub bloom_filter_on_read: i32,
+    /// 0 = false, 1 = true
+    pub indexed_dynamic_filter_pushdown: i32,
 }
 
 impl DatafusionQueryConfig {
@@ -129,6 +138,9 @@ impl DatafusionQueryConfig {
             tree_collector_strategy: CollectorCallStrategy::TightenOuterBounds,
             query_strategy: QueryStrategy::None,
             bloom_filter_on_read: true,
+            // On by default — matches the Java cluster-setting default
+            // (`datafusion.indexed.dynamic_filter_pushdown`). Toggle to A/B perf.
+            indexed_dynamic_filter_pushdown: true,
         }
     }
 
@@ -200,6 +212,7 @@ impl DatafusionQueryConfig {
                 _ => QueryStrategy::None,
             },
             bloom_filter_on_read: w.bloom_filter_on_read != 0,
+            indexed_dynamic_filter_pushdown: w.indexed_dynamic_filter_pushdown != 0,
         }
     }
 }
@@ -268,6 +281,10 @@ impl DatafusionQueryConfigBuilder {
         self.0.bloom_filter_on_read = v;
         self
     }
+    pub fn indexed_dynamic_filter_pushdown(mut self, v: bool) -> Self {
+        self.0.indexed_dynamic_filter_pushdown = v;
+        self
+    }
     pub fn build(self) -> DatafusionQueryConfig {
         self.0
     }
@@ -290,6 +307,7 @@ mod tests {
         assert_eq!(c.force_pushdown, None);
         assert_eq!(c.cost_predicate, 1);
         assert_eq!(c.cost_collector, 10);
+        assert!(c.indexed_dynamic_filter_pushdown);
     }
 
     #[test]
@@ -316,10 +334,12 @@ mod tests {
             tree_collector_strategy: 1,
             query_strategy: 1,
             bloom_filter_on_read: 1,
+            indexed_dynamic_filter_pushdown: 1,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
         assert_eq!(c.batch_size, 16384);
+        assert!(c.indexed_dynamic_filter_pushdown);
         assert_eq!(c.target_partitions, 8);
         assert_eq!(c.min_skip_run_default, 512);
         assert!((c.min_skip_run_selectivity_threshold - 0.07).abs() < 1e-9);
@@ -350,10 +370,12 @@ mod tests {
             tree_collector_strategy: 1,
             query_strategy: 0,
             bloom_filter_on_read: 0,
+            indexed_dynamic_filter_pushdown: 0,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
         assert_eq!(c.force_strategy, None);
+        assert!(!c.indexed_dynamic_filter_pushdown);
         assert_eq!(c.force_pushdown, None);
         assert_eq!(c.query_strategy, QueryStrategy::None);
     }
