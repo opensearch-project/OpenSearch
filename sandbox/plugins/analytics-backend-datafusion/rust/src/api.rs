@@ -1199,8 +1199,13 @@ fn derive_schema_from_partial_plan(
         DataFusionError::Execution(format!("derive_schema_from_partial_plan: decode failed: {}", e))
     })?;
 
+    let mut config = SessionConfig::new();
+    // Match the indexed executor's single-partition behavior so partial_aggregate_schema
+    // never finds a spurious Partial node (which would incorrectly declare Binary HLL state
+    // while the data node emits Int64 finalized output via Mode::Default).
+    config.options_mut().execution.target_partitions = 1;
     let state = SessionStateBuilder::new()
-        .with_config(SessionConfig::new())
+        .with_config(config)
         .with_default_features()
         .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
