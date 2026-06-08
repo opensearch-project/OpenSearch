@@ -267,6 +267,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.DATE_FORMAT,
         ScalarFunction.TIME_FORMAT,
         ScalarFunction.STR_TO_DATE,
+        // UTC_* are pure aliases onto DF `now` / `current_date` / `current_time`
+        // (DataFusion runs in UTC by default; PPL UTC_* just force UTC semantics).
+        ScalarFunction.UTC_DATE,
+        ScalarFunction.UTC_TIME,
+        ScalarFunction.UTC_TIMESTAMP,
+        // DAYNAME / MONTHNAME rewrite to date_format(x, '%W') / ('%M') — %W / %M
+        // render full weekday / month names via the same mysql_format tokens the
+        // date_format UDF already uses.
+        ScalarFunction.DAYNAME,
+        ScalarFunction.MONTHNAME,
+        // MINUTE_OF_DAY decomposes to date_part('hour',x)*60 + date_part('minute',x).
+        ScalarFunction.MINUTE_OF_DAY,
         ScalarFunction.ASCII,
         ScalarFunction.CONCAT_WS,
         ScalarFunction.LEFT,
@@ -645,6 +657,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.DATE_SUB, new DateAddSubAdapter(false)),
                     Map.entry(ScalarFunction.DATE_FORMAT, new RustUdfDateTimeAdapters.DateFormatAdapter()),
                     Map.entry(ScalarFunction.DAY, day),
+                    Map.entry(ScalarFunction.DAYNAME, new RustUdfDateTimeAdapters.DaynameAdapter()),
                     Map.entry(ScalarFunction.DAYOFMONTH, day),
                     Map.entry(ScalarFunction.DAYOFWEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAYOFYEAR, dayOfYear),
@@ -685,10 +698,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MICROSECOND, new MicrosecondAdapter()),
                     Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
+                    Map.entry(ScalarFunction.MINUTE_OF_DAY, new MinuteOfDayAdapter()),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
                     Map.entry(ScalarFunction.MINUS, new MinusAdapter()),
                     Map.entry(ScalarFunction.MOD, new ModAdapter()),
                     Map.entry(ScalarFunction.MONTH, month),
+                    Map.entry(ScalarFunction.MONTHNAME, new RustUdfDateTimeAdapters.MonthnameAdapter()),
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
@@ -724,13 +739,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
-                    // PPL `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))` — peephole
-                    // constant-folds to a numeric literal when both unit strings are fixed-length
-                    // (MICROSECOND through WEEK). This is the exact shape PPL timechart's per_*
-                    // aggregations produce; folding eliminates both PPL UDF references in one
-                    // step, sidestepping isthmus's lack of substrait bindings for either UDF.
-                    // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
-                    // fall through unchanged — fully-general interval-aware support is a follow-up.
+                    // Standalone `TIMESTAMPADD(unit, n, t)` rewrites to `DATETIME_PLUS(t, INTERVAL n*<m> <unit>)`,
+                    // which has Substrait wiring proof via EarliestLatestAdapter#applyOffset.
+                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
+                    // PPL `TIMESTAMPDIFF`: peephole-folds the `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))`
+                    // shape to a numeric literal when both unit strings are fixed-length; standalone
+                    // `TIMESTAMPDIFF(out_unit, t1, t2)` rewrites to `(to_unixtime(t2) - to_unixtime(t1)) * out_factor`
+                    // for fixed out-units. Variable-length out-units (MONTH/QUARTER/YEAR for two-timestamp
+                    // diff) still fall through — needs calendar-aware math, follow-up.
                     Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
@@ -745,6 +761,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.CTIME)),
                     Map.entry(ScalarFunction.MKTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.MKTIME)),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
+                    Map.entry(ScalarFunction.UTC_DATE, currentDate),
+                    Map.entry(ScalarFunction.UTC_TIME, currentTime),
+                    Map.entry(ScalarFunction.UTC_TIMESTAMP, now),
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
                     Map.entry(ScalarFunction.WIDTH_BUCKET, new WidthBucketAdapter()),

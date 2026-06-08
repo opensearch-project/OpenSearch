@@ -285,6 +285,12 @@ public enum ScalarFunction {
      * analytics-backend-datafusion adapter.
      */
     DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTHNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),

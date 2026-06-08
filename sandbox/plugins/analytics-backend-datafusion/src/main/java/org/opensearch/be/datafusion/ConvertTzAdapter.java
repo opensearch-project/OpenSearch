@@ -95,9 +95,12 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
 
         // Same from/to tz → no-op. SAFE-cast a VARCHAR operand to TIMESTAMP so the parent
         // Project rowType stays consistent (bare VARCHAR trips RexUtil.compatibleTypes).
+        // Skip when either side is an out-of-range offset (canonicalizeTz returns the raw
+        // string unchanged for those) — the runtime UDF must see them and return NULL,
+        // matching DateTimeFunctionIT#testConvertTZ.
         String fromLiteral = tzLiteralValue(operands.get(1));
         String toLiteral = tzLiteralValue(operands.get(2));
-        if (fromLiteral != null && toLiteral != null && fromLiteral.equals(toLiteral)) {
+        if (fromLiteral != null && toLiteral != null && fromLiteral.equals(toLiteral) && isInRangeTz(fromLiteral)) {
             RexNode operand = operands.get(0);
             if (operand.getType().equals(original.getType())) {
                 return operand;
@@ -111,6 +114,24 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
             operands.set(0, rexBuilder.makeCast(original.getType(), operands.get(0), true, true));
         }
         return rexBuilder.makeCall(original.getType(), LOCAL_CONVERT_TZ_OP, operands);
+    }
+
+    /**
+     * True when the canonicalized literal is something the runtime UDF will accept
+     * (in-range ±HH:MM offset or recognized IANA zone). Out-of-range offsets that
+     * canonicalize to themselves return false here so the identity short-circuit
+     * defers to the UDF's runtime NULL behavior.
+     */
+    private static boolean isInRangeTz(String canonical) {
+        Matcher offset = OFFSET_PATTERN.matcher(canonical);
+        if (offset.matches()) {
+            int hours = Integer.parseInt(offset.group(2));
+            int minutes = Integer.parseInt(offset.group(3));
+            return hours <= 14 && minutes <= 59;
+        }
+        // Non-offset canonical forms reach here only via ZoneId.of() success path
+        // in canonicalizeTz, so they're already valid IANA ids.
+        return true;
     }
 
     /**
@@ -180,10 +201,13 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
             String sign = offset.group(1);
             int hours = Integer.parseInt(offset.group(2));
             int minutes = Integer.parseInt(offset.group(3));
+            // Out-of-range but syntactically-valid offsets pass through unchanged so the
+            // runtime UDF (rust/src/udf/convert_tz.rs::parse_offset_seconds) sees the
+            // raw string, returns None, and the row surfaces as NULL — matching legacy
+            // PPL semantics (DateTimeFunctionIT#testConvertTZ expects NULL rows for
+            // '-17:00' / '+15:00').
             if (hours > 14 || minutes > 59) {
-                throw new IllegalArgumentException(
-                    "convert_tz: invalid offset [" + raw + "] — hours must be in [0, 14] and minutes in [0, 59]"
-                );
+                return raw;
             }
             return String.format(Locale.ROOT, "%s%02d:%02d", sign, hours, minutes);
         }

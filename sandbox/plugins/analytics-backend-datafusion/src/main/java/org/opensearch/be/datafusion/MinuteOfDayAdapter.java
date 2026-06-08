@@ -23,18 +23,16 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * PPL {@code microsecond(x)} → {@code CAST(MOD(date_part('microsecond', x), 1_000_000) AS <retType>)}:
- * PPL {@code MICROSECOND()} returns only the sub-second microseconds (0..999_999), but
- * DataFusion/Postgres {@code date_part('microsecond', x)} returns
- * {@code seconds * 1_000_000 + microseconds} (e.g. 46_123_456 for {@code 01:34:46.123456}).
- * Wrap with {@code MOD(..., 1_000_000)} to drop the seconds component, matching PPL semantics
- * and what {@code DateTimeFunctionIT#testMicrosecond} expects.
+ * PPL {@code minute_of_day(x)} → {@code CAST(date_part('hour', x) * 60 + date_part('minute', x)
+ * AS <retType>)} for TIMESTAMP/DATE/STRING/TIME operands. Reference impl
+ * {@code DateTimeFunctions.exprMinuteOfDay} computes {@code MINUTES.between(LocalTime.MIN, time)},
+ * which equals {@code hour*60 + minute}.
+ *
+ * <p>TIME operand handling: see {@link DatePartAdapters}.
  *
  * @opensearch.internal
  */
-class MicrosecondAdapter implements ScalarFunctionAdapter {
-
-    private static final BigDecimal ONE_MILLION = BigDecimal.valueOf(1_000_000L);
+class MinuteOfDayAdapter implements ScalarFunctionAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
@@ -43,12 +41,14 @@ class MicrosecondAdapter implements ScalarFunctionAdapter {
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
-        RexNode partLiteral = rexBuilder.makeLiteral("microsecond", varchar, true);
         // Coerce a character/TIME operand to TIMESTAMP at emit time so date_part's Substrait
         // signature resolves (DATE_PART has no (string, ...) impl). Mirrors DayOfWeek/Second.
-        RexNode operand = DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster);
-        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, operand);
-        RexNode mod = rexBuilder.makeCall(SqlStdOperatorTable.MOD, datePart, rexBuilder.makeExactLiteral(ONE_MILLION));
-        return rexBuilder.makeCast(original.getType(), mod);
+        RexNode arg = DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster);
+        RexNode hour = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, rexBuilder.makeLiteral("hour", varchar, true), arg);
+        RexNode minute = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, rexBuilder.makeLiteral("minute", varchar, true), arg);
+        RexNode sixty = rexBuilder.makeExactLiteral(BigDecimal.valueOf(60));
+        RexNode product = rexBuilder.makeCall(SqlStdOperatorTable.MULTIPLY, hour, sixty);
+        RexNode sum = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, product, minute);
+        return rexBuilder.makeCast(original.getType(), sum);
     }
 }
