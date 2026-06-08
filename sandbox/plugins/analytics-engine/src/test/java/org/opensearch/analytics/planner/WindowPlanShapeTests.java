@@ -21,6 +21,7 @@ import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexFieldCollation;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexWindowBound;
 import org.apache.calcite.rex.RexWindowBounds;
@@ -825,7 +826,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             (SqlAggFunction) SqlStdOperatorTable.SUM,
             List.of(rb.makeInputRef(scan, 1)),
             ImmutableList.of(rb.makeInputRef(scan, 0)),     // PARTITION BY status
-            ImmutableList.of(new org.apache.calcite.rex.RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
             RexWindowBounds.UNBOUNDED_PRECEDING,
             RexWindowBounds.CURRENT_ROW,
             false,                                          // rangeBased: range-by-default-when-ORDER-BY
@@ -867,7 +868,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             (SqlAggFunction) SqlStdOperatorTable.ROW_NUMBER,
             List.of(),
             ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
-            ImmutableList.of(new org.apache.calcite.rex.RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),
             RexWindowBounds.UNBOUNDED_PRECEDING,
             RexWindowBounds.CURRENT_ROW,
             true,                                            // rowBased
@@ -886,6 +887,87 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchProject(status=[$0], size=[$1], rn_per_status=[ROW_NUMBER() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * {@code RANK() OVER (PARTITION BY $0 ORDER BY $1)} on a 2-shard scan. RANK joined the
+     * WindowFunction enum alongside DENSE_RANK; like ROW_NUMBER it needs no adapter and passes
+     * through to DataFusion's native {@code rank()}. Pinning the cost-gate → SINGLETON-gather
+     * shape here keeps the wiring regression-safe and confirms the backend stays viable.
+     */
+    public void testRankOverPartitionByOrderBy_2shard() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode rank = rb.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            (SqlAggFunction) SqlStdOperatorTable.RANK,
+            List.of(),
+            ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), rank),
+            List.of("status", "size", "rank_per_status")
+        );
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], rank_per_status=[RANK() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * {@code DENSE_RANK() OVER (PARTITION BY $0 ORDER BY $1)} on a 2-shard scan. The companion to
+     * {@link #testRankOverPartitionByOrderBy_2shard} — confirms DENSE_RANK is independently
+     * recognized by {@code WindowFunction.resolveFunction} and advertised by the DataFusion backend.
+     */
+    public void testDenseRankOverPartitionByOrderBy_2shard() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode denseRank = rb.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            (SqlAggFunction) SqlStdOperatorTable.DENSE_RANK,
+            List.of(),
+            ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), denseRank),
+            List.of("status", "size", "dense_rank_per_status")
+        );
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], dense_rank_per_status=[DENSE_RANK() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
                   OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
