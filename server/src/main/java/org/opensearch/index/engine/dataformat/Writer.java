@@ -50,13 +50,6 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable {
     FileInfos flush(FlushInput flushInput) throws IOException;
 
     /**
-     * Synchronizes the writer to ensure data is persisted.
-     *
-     * @throws IOException if an I/O error occurs
-     */
-    void sync() throws IOException;
-
-    /**
      * The generation number associated with this writer
      * @return the generation number
      */

@@ -181,11 +181,6 @@ public class FailableParquetDataFormatPlugin extends ParquetOnlyDataFormatPlugin
         }
 
         @Override
-        public void sync() throws IOException {
-            delegate.sync();
-        }
-
-        @Override
         public long generation() {
             return delegate.generation();
         }

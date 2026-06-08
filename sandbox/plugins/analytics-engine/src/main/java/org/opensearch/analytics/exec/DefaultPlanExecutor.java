@@ -94,7 +94,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile long perQueryBufferLimit;
     private volatile int maxShardsPerQuery;
     private volatile int maxConcurrentShardRequestsPerNode;
-    private volatile boolean fuseDualViable;
     private volatile boolean preferMetadataDriver;
     private volatile double oversamplingFactor;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -147,8 +146,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
                 v -> maxConcurrentShardRequestsPerNode = v
             );
-        this.fuseDualViable = AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE, v -> fuseDualViable = v);
         this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
@@ -248,7 +245,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Collapse multi-backend stages to a single chosen alternative before conversion
         // so the convertor runs once per stage and the wire request carries one PlanAlternative.
         PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
-        FragmentConversionDriver.convertAll(dag, capabilityRegistry, fuseDualViable);
+        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         final long planningTimeNanos = System.nanoTime() - planStartNanos;
         final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
