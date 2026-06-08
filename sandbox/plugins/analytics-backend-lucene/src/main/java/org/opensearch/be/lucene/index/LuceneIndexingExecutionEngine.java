@@ -15,21 +15,28 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
+import org.opensearch.be.lucene.LuceneReader;
+import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -37,7 +44,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,12 +52,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
  * and incorporates them into the shared {@link LuceneCommitter} writer during refresh.
  *
- * Write path: Each call to {@link #createWriter(long)} creates a {@link LuceneWriter} with its own
+ * Write path: Each call to {@link #createWriter(WriterConfig)} creates a {@link LuceneWriter} with its own
  * {@link IndexWriter} in an isolated temp directory. Documents are indexed into this
  * per-writer segment. On flush, the writer force-merges to exactly 1 segment.
  *
@@ -73,12 +80,18 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
 
     private final LuceneDataFormat dataFormat;
-    private final IndexWriter sharedWriter;
+    private final MergeIndexWriter sharedWriter;
+    private final MapperService mapperService;
+    private final Map<Long, LuceneReader> readers;
+    private final Sort userProvidedSort;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
     private final Codec codec;
+    private final LuceneMerger luceneMerger;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
+    private final Set<LuceneWriter> activeWriters = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<Long, LuceneWriter> pendingCleanup = new ConcurrentHashMap<>();
 
     /**
      * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
@@ -97,20 +110,28 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             throw new IllegalArgumentException("LuceneCommitter must not be null");
         }
         this.dataFormat = dataFormat;
+        this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
+        this.readers = luceneCommitter.readers();
+        this.userProvidedSort = luceneCommitter.getUserProvidedSort();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
 
-        // Create the lucene subdirectory if it doesn't exist
+        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
+
+        // Create the lucene subdirectory if it doesn't exist, or clear stale contents
+        // from a prior engine lifecycle. Any data here is either already hardlinked into
+        // index/ (via addIndexes) or will be replayed from the translog on recovery.
+        if (Files.isDirectory(baseDirectory)) {
+            tryDeleteDirectory(baseDirectory);
+        }
         try {
             Files.createDirectories(baseDirectory);
-        } catch (FileAlreadyExistsException ex) {
-            logger.warn("Directory already exists: {}", baseDirectory);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
         }
     }
 
@@ -119,7 +140,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      *
      * @return the index writer
      */
-    public IndexWriter getWriter() {
+    public MergeIndexWriter getWriter() {
         return sharedWriter;
     }
 
@@ -137,25 +158,84 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      */
     @Override
     public FormatStore getStore(DataFormat dataFormat) {
-        return new LuceneFormatStore(store, sharedWriter);
+        return new LuceneFormatStore(store, sharedWriter, readers);
     }
 
     /**
      * Creates a new {@link LuceneWriter} for the given generation in an isolated temp directory
      * under the shard's Lucene base directory.
      *
-     * @param writerGeneration the generation number for the new writer
+     * @param config the writer configuration
      * @return a new writer
      * @throws RuntimeException wrapping an {@link IOException} if writer creation fails
      */
     @Override
-    public Writer<LuceneDocumentInput> createWriter(long writerGeneration) {
+    public Writer<LuceneDocumentInput> createWriter(WriterConfig config) {
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
-            return new LuceneWriter(writerGeneration, dataFormat, baseDirectory, analyzer, codec);
+            long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
+            LuceneWriter writer = buildLuceneWriter(
+                config.writerGeneration(),
+                mappingVersion,
+                dataFormat,
+                baseDirectory,
+                analyzer,
+                codec,
+                getChildWriterSortConfiguration(),
+                activeWriters
+            );
+            pendingCleanup.put(config.writerGeneration(), writer);
+            return writer;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create LuceneWriter for generation " + writerGeneration, e);
+            throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
+    }
+
+    /**
+     * Factory hook for tests: builds the per-generation {@link LuceneWriter}. Subclasses
+     * (notably test-only fault-injecting variants) override this to return a custom
+     * {@link LuceneWriter} subclass — e.g., one that wraps the {@code Directory} with a
+     * fault injector to exercise {@code IndexWriter.addDocument} failure paths.
+     */
+    protected LuceneWriter buildLuceneWriter(
+        long writerGeneration,
+        long mappingVersion,
+        LuceneDataFormat dataFormat,
+        Path baseDirectory,
+        Analyzer analyzer,
+        Codec codec,
+        Sort indexSort,
+        Set<LuceneWriter> registry
+    ) throws IOException {
+        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry);
+    }
+
+    private Sort getChildWriterSortConfiguration() {
+        // When Lucene is secondary, then clear child writer's sort configuration and restamp
+        // it at the flush end. In all other cases, propagate same sort configuration as it is.
+        Sort sortConfig = sharedWriter.getConfig().getIndexSort();
+        if (this.userProvidedSort != null
+            && sortConfig != null
+            && sortConfig.getSort().length == 1
+            && DocumentInput.ROW_ID_FIELD.equals(sortConfig.getSort()[0].getField())) {
+            sortConfig = null;
+        }
+        return sortConfig;
+    }
+
+    @Override
+    public long getHeapBytesUsed() {
+        long total = 0;
+        for (LuceneWriter activeWriter : activeWriters) {
+            total += activeWriter.getHeapBytesUsed();
+        }
+        return total;
+    }
+
+    /** Lucene indexing uses only JVM heap for IndexWriter RAM buffers, no native memory. */
+    @Override
+    public long getNativeBytesUsed() {
+        return 0;
     }
 
     /**
@@ -253,7 +333,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                         if (!writerGenerations.contains(writerGen)) {
                             continue;
                         }
-                        long numDocs = segInfo.info.maxDoc();
+                        long numDocs = segReader.maxDoc();
 
                         WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
                             .directory(sharedDir)
@@ -270,15 +350,39 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 }
             }
             assert writerGenerations.isEmpty() : "Could not get segments from all writers";
+
+            // Clean up per-writer temp directories — addIndexes has hardlinked all files
+            // into the shared writer's directory, so the originals are no longer needed.
+            for (Segment segment : refreshInput.writerFiles()) {
+                WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+                if (wfs != null) {
+                    LuceneWriter writer = pendingCleanup.remove(wfs.writerGeneration());
+                    if (writer != null) {
+                        writer.cleanupTempDirectory();
+                    }
+                }
+            }
         }
 
         return new RefreshResult(List.copyOf(resultSegments));
     }
 
-    /** Returns {@code null} — merge scheduling is not yet implemented for the Lucene format. */
     @Override
     public Merger getMerger() {
-        return null;
+        return this.luceneMerger;
+    }
+
+    /**
+     * Surfaces the shared {@link org.apache.lucene.index.IndexWriter}'s tragic exception
+     * so DFAE can fail the engine. Wraps non-Exception throwables (e.g., Errors from
+     * background merges) in {@link RuntimeException} since the contract returns Exception.
+     */
+    @Override
+    public Exception getTragicException() {
+        if (sharedWriter == null) return null;
+        Throwable tragic = sharedWriter.getTragicException();
+        if (tragic == null) return null;
+        return tragic instanceof Exception ? (Exception) tragic : new RuntimeException(tragic);
     }
 
     /**
@@ -306,12 +410,24 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     }
 
     /**
+     * Best-effort deletion of a directory tree. Logs a warning on failure rather than
+     * propagating — stale temp files will be cleaned on the next engine restart.
+     */
+    private static void tryDeleteDirectory(Path dir) {
+        try {
+            IOUtils.rm(dir);
+        } catch (IOException e) {
+            logger.warn("Failed to delete lucene temp directory [{}]: {}", dir, e.getMessage());
+        }
+    }
+
+    /**
      * A record combining the shard's {@link Store} and the shared {@link IndexWriter},
      * used by the search back-end to open NRT readers.
      *
      * @param store  the shard store
      * @param writer the shared index writer
      */
-    public static record LuceneFormatStore(Store store, IndexWriter writer) implements FormatStore {
+    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<Long, LuceneReader> readers) implements FormatStore {
     }
 }

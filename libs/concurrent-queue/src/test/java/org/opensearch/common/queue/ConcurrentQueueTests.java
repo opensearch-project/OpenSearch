@@ -160,4 +160,73 @@ public class ConcurrentQueueTests extends OpenSearchTestCase {
         pollLatch.await();
         assertEquals(numThreads * itemsPerThread, totalPolled.get());
     }
+
+    // --- Tests for pollWithRejects ---
+
+    public void testPollAndDropIncompatibleReturnsCompatibleAndDropsIncompatible() {
+        ConcurrentQueue<Integer> queue = new ConcurrentQueue<>(LinkedList::new, 1);
+        queue.add(1);
+        queue.add(2);
+        queue.add(3);
+
+        // Compatible: even numbers. canSelect: always true.
+        Integer result = queue.pollAndDropIncompatible(n -> n % 2 == 0, n -> true);
+        assertEquals(Integer.valueOf(2), result);
+        // 1 was rejected (removed), 3 still in queue (after the match, not scanned)
+        assertEquals(Integer.valueOf(3), queue.poll(e -> true));
+        assertNull(queue.poll(e -> true)); // 1 was removed
+    }
+
+    public void testPollAndDropIncompatibleAllIncompatible() {
+        ConcurrentQueue<Integer> queue = new ConcurrentQueue<>(LinkedList::new, 1);
+        queue.add(1);
+        queue.add(3);
+        queue.add(5);
+
+        Integer result = queue.pollAndDropIncompatible(n -> n % 2 == 0, n -> true);
+        assertNull(result);
+        // All removed as incompatible
+        assertNull(queue.poll(e -> true));
+    }
+
+    public void testPollAndDropIncompatibleEmptyQueue() {
+        ConcurrentQueue<Integer> queue = new ConcurrentQueue<>(LinkedList::new, 1);
+        Integer result = queue.pollAndDropIncompatible(n -> true, n -> true);
+        assertNull(result);
+    }
+
+    public void testPollAndDropIncompatibleSkipsCompatibleButUnselectable() {
+        ConcurrentQueue<Integer> queue = new ConcurrentQueue<>(LinkedList::new, 1);
+        queue.add(1);  // incompatible
+        queue.add(2);  // compatible but canSelect=false
+        queue.add(4);  // compatible and canSelect=true
+
+        Integer result = queue.pollAndDropIncompatible(
+            n -> n % 2 == 0,       // compatible: even
+            n -> n > 3             // canSelect: > 3
+        );
+        assertEquals(Integer.valueOf(4), result);
+        // 1 was rejected (removed), 2 should still be in queue (compatible but not selectable)
+        assertEquals(Integer.valueOf(2), queue.poll(e -> true));
+        assertNull(queue.poll(e -> true));
+    }
+
+    public void testPollAndDropIncompatibleMultipleStripes() {
+        ConcurrentQueue<Integer> queue = new ConcurrentQueue<>(LinkedList::new, 4);
+        for (int i = 0; i < 20; i++) {
+            queue.add(i);
+        }
+
+        // Drop 0-9 as incompatible, select first compatible entry (>= 10)
+        Integer first = queue.pollAndDropIncompatible(n -> n >= 10, n -> true);
+        assertNotNull(first);
+        assertTrue(first >= 10);
+
+        // Poll all remaining entries
+        int count = 1; // counting the first result
+        while (queue.poll(e -> true) != null) {
+            count++;
+        }
+        assertEquals(10, count);
+    }
 }

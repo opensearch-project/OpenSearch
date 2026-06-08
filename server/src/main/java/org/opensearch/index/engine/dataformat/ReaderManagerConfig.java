@@ -11,7 +11,9 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.NativeStoreHandle;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -23,10 +25,13 @@ import java.util.Optional;
  * @param format the data format to create a reader manager for
  * @param registry the data format registry it can use to wire any data format specific details.
  * @param shardPath the shard path for file storage
+ * @param dataformatAwareStoreHandles per-format native store handles for reads.
+ *                                    Empty map if no native stores are available.
+ *                                    Each plugin extracts its own handle via {@code handles.get(config.format())}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public record ReaderManagerConfig(Optional<IndexStoreProvider> indexStoreProvider, DataFormat format, DataFormatRegistry registry,
-    ShardPath shardPath) {
+    ShardPath shardPath, Map<DataFormat, NativeStoreHandle> dataformatAwareStoreHandles) {
 }

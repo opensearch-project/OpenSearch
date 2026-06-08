@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
@@ -20,6 +21,10 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * DataFusion searcher — executes substrait query plans against a native DataFusion reader.
+ * <p>
+ * A single entry point: {@link NativeBridge#executeQueryAsync} handles both vanilla
+ * parquet and indexed (index_filter-bearing) plans. The native side classifies the
+ * substrait plan and dispatches internally; Java is oblivious to which path runs.
  * <p>
  * After {@link #search}, the result stream handle is available on the context
  * via {@link DatafusionContext#getStreamHandle()}.
@@ -41,17 +46,44 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
 
     @Override
     public void search(DatafusionContext context) throws IOException {
-        if (context.getFilterTree() == null) {
-            searchVanilla(context);
+        SessionContextHandle sessionCtx = context.getSessionContextHandle();
+        if (sessionCtx != null) {
+            searchWithSessionContext(context, sessionCtx);
         } else {
-            searchWithFilterTree(context);
+            searchVanilla(context);
         }
     }
 
-    private void searchWithFilterTree(DatafusionContext context) {
-        throw new UnsupportedOperationException("Indexed query path not yet wired");
+    private void searchWithSessionContext(DatafusionContext context, SessionContextHandle sessionCtx) throws IOException {
+        DatafusionQuery query = context.getDatafusionQuery();
+        NativeRuntimeHandle runtimeHandle = context.getNativeRuntime();
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        NativeBridge.executeWithContextAsync(sessionCtx, query.getSubstraitBytes(), new ActionListener<>() {
+            @Override
+            public void onResponse(Long streamPtr) {
+                future.complete(streamPtr);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                future.completeExceptionally(exception);
+            }
+        });
+        long streamPtr;
+        try {
+            streamPtr = future.join();
+        } catch (Exception exception) {
+            throw new IOException("Query execution with session context failed", exception);
+        }
+        // NativeBridge#executeWithContextAsync has already marked the handle consumed (which
+        // closes the Java wrapper) on both success and native-error paths; no explicit close
+        // is needed here. The owning DatafusionContext#close() closes it as a safety net for
+        // paths that never reach this method (e.g. aborted search).
+        context.setStreamHandle(new StreamHandle(streamPtr, runtimeHandle));
     }
 
+    // TODO: Remove searchVanilla once all execution paths go through instruction handlers.
+    // Deprecated — retained only for tests that bypass AnalyticsSearchService.
     private void searchVanilla(DatafusionContext context) throws IOException {
         DatafusionQuery query = context.getDatafusionQuery();
         if (query == null) {
@@ -65,6 +97,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
             query.getSubstraitBytes(),
             runtimeHandle.get(),
             query.getContextId(),
+            0L,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long streamPtr) {

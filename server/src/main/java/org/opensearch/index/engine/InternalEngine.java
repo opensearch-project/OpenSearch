@@ -86,6 +86,8 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
@@ -543,28 +545,7 @@ public class InternalEngine extends Engine {
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
-            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-            final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
-            int numNoOpsAdded = 0;
-            for (long seqNo = localCheckpoint + 1; seqNo <= maxSeqNo; seqNo = localCheckpointTracker.getProcessedCheckpoint()
-                + 1 /* leap-frog the local checkpoint */) {
-                innerNoOp(new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling gaps"));
-                numNoOpsAdded++;
-                assert seqNo <= localCheckpointTracker.getProcessedCheckpoint() : "local checkpoint did not advance; was ["
-                    + seqNo
-                    + "], now ["
-                    + localCheckpointTracker.getProcessedCheckpoint()
-                    + "]";
-
-            }
-            translogManager.syncTranslog(); // to persist noops associated with the advancement of the local checkpoint
-            assert localCheckpointTracker.getPersistedCheckpoint() == maxSeqNo
-                : "persisted local checkpoint did not advance to max seq no; is ["
-                    + localCheckpointTracker.getPersistedCheckpoint()
-                    + "], max seq no ["
-                    + maxSeqNo
-                    + "]";
-            return numNoOpsAdded;
+            return SeqNoGapFiller.fillGaps(localCheckpointTracker, translogManager, primaryTerm, noOp -> innerNoOp(noOp));
         }
     }
 
@@ -1437,6 +1418,7 @@ public class InternalEngine extends Engine {
                         throw ex;
                     }
                 }
+
                 noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location location = translogManager.add(
@@ -1800,6 +1782,24 @@ public class InternalEngine extends Engine {
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
         return new GatedCloseable<>(safeCommit, () -> releaseIndexCommit(safeCommit));
+    }
+
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        // Parallel to acquireSafeIndexCommit: pin a safe Lucene commit, wrap its SegmentInfos.
+        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+        try {
+            final SegmentInfos infos = Lucene.readSegmentInfos(safeCommit);
+            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            return new GatedCloseable<>(snapshot, () -> releaseIndexCommit(safeCommit));
+        } catch (IOException e) {
+            try {
+                releaseIndexCommit(safeCommit);
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw new EngineException(shardId, "Failed to materialize safe CatalogSnapshot", e);
+        }
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {

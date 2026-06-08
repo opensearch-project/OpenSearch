@@ -50,11 +50,13 @@ import org.opensearch.discovery.Discovery;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -69,6 +71,7 @@ import org.opensearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Services exposed to nodes
@@ -96,12 +99,25 @@ public class NodeService implements Closeable {
     private final SearchPipelineService searchPipelineService;
     private final ClusterService clusterService;
     private final Discovery discovery;
-    private final FileCache fileCache;
+    @Nullable
+    private final NodeCacheService nodeCacheService;
     private final TaskCancellationMonitoringService taskCancellationMonitoringService;
     private final RepositoriesService repositoriesService;
     private final AdmissionControlService admissionControlService;
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
     private final CacheService cacheService;
+
+    /**
+     * Supplier for native allocator pool stats. Constructor-injected via discovery from
+     * {@code pluginComponents} in {@code Node.java} (looks up a published
+     * {@link org.opensearch.plugin.stats.NativeAllocatorStatsRegistry} from
+     * {@code ArrowBasePlugin.createComponents()}). When no plugin publishes a registry, the
+     * supplier is {@code null} and {@code _nodes/stats/native_allocator} returns no allocator
+     * stats. The supplier itself is responsible for returning {@code null} once its underlying
+     * allocator is closed.
+     */
+    @Nullable
+    private final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier;
 
     NodeService(
         Settings settings,
@@ -123,13 +139,14 @@ public class NodeService implements Closeable {
         AggregationUsageService aggregationUsageService,
         SearchBackpressureService searchBackpressureService,
         SearchPipelineService searchPipelineService,
-        FileCache fileCache,
+        @Nullable NodeCacheService nodeCacheService,
         TaskCancellationMonitoringService taskCancellationMonitoringService,
         ResourceUsageCollectorService resourceUsageCollectorService,
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
         RepositoriesService repositoriesService,
         AdmissionControlService admissionControlService,
-        CacheService cacheService
+        CacheService cacheService,
+        @Nullable Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -150,7 +167,7 @@ public class NodeService implements Closeable {
         this.searchBackpressureService = searchBackpressureService;
         this.searchPipelineService = searchPipelineService;
         this.clusterService = clusterService;
-        this.fileCache = fileCache;
+        this.nodeCacheService = nodeCacheService;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
         this.repositoriesService = repositoriesService;
@@ -159,6 +176,7 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
         this.cacheService = cacheService;
+        this.nativeAllocatorStatsSupplier = nativeAllocatorStatsSupplier;
     }
 
     public NodeInfo info(
@@ -236,6 +254,7 @@ public class NodeService implements Closeable {
         boolean clusterManagerThrottling,
         boolean weightedRoutingStats,
         boolean fileCacheStats,
+        boolean fileCacheDetailed,
         boolean taskCancellation,
         boolean searchPipelineStats,
         boolean resourceUsageStats,
@@ -243,7 +262,9 @@ public class NodeService implements Closeable {
         boolean repositoriesStats,
         boolean admissionControl,
         boolean cacheService,
-        boolean remoteStoreNodeStats
+        boolean remoteStoreNodeStats,
+        boolean nativeAllocator,
+        boolean nativeMemory
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -270,15 +291,29 @@ public class NodeService implements Closeable {
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
-            fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null,
+            fileCacheStats && nodeCacheService != null ? nodeCacheService.aggregateStats() : null,
+            fileCacheDetailed && nodeCacheService != null ? nodeCacheService.fileCacheStatsOnly() : null,
+            fileCacheDetailed && nodeCacheService != null ? nodeCacheService.combinedBlockCacheStats() : null,
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
             searchPipelineStats ? this.searchPipelineService.stats() : null,
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
-            remoteStoreNodeStats ? new RemoteStoreNodeStats() : null
+            remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
+            nativeAllocator ? collectNativeAllocatorStats() : null,
+            nativeMemory ? monitorService.memoryReportingService().nativeStats() : null,
+            // Always capture the process-level native memory estimate on this data node.
+            // Serialized over the wire so the coordinator renders the source node's value,
+            // not its own. Returns -1 on non-Linux platforms or when /proc/self/status is
+            // unreadable.
+            OsProbe.getInstance().getProcessNativeMemoryBytes()
         );
+    }
+
+    @Nullable
+    private NativeAllocatorPoolStats collectNativeAllocatorStats() {
+        return nativeAllocatorStatsSupplier != null ? nativeAllocatorStatsSupplier.get() : null;
     }
 
     public IngestService getIngestService() {

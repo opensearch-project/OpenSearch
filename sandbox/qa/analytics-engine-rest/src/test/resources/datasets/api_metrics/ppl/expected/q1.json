@@ -1,0 +1,54 @@
+{
+  "schema": [
+    {
+      "name": "endpoint",
+      "type": "string"
+    },
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "ok",
+      "type": "bigint"
+    },
+    {
+      "name": "error_count",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      "/SCS/Retail/v1/orders",
+      45,
+      7,
+      38
+    ],
+    [
+      "/api/orders",
+      43,
+      5,
+      38
+    ],
+    [
+      "/api/payments",
+      43,
+      6,
+      37
+    ],
+    [
+      "/api/products",
+      26,
+      5,
+      21
+    ],
+    [
+      "/api/users",
+      43,
+      5,
+      38
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

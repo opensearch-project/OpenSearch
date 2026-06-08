@@ -10,29 +10,25 @@ package org.opensearch.analytics.exec.action;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
-import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.core.action.ActionResponse;
 
 /**
- * Coordinator-level action for executing analytics queries.
+ * Coordinator-level action for executing analytics queries. Registered in
+ * {@link org.opensearch.analytics.AnalyticsPlugin#getActions()} with
+ * {@link DefaultPlanExecutor} as the handler.
  *
- * <p>Currently used as a Guice injection vehicle for {@link DefaultPlanExecutor}
- * — the transport action registration lets Guice construct the executor with all
- * its dependencies ({@code TransportService}, {@code ClusterService}, etc.).
- * The SQL plugin invokes the executor directly via
- * {@link QueryPlanExecutor#execute(Object, Object)}, not through transport.
- *
- * <p>Future: the transport path ({@code doExecute}) will accept query strings
- * for remote invocation.
+ * <p>The action name {@code indices:data/read/analytics/query} is index-level,
+ * matching the standard {@code read} action group pattern ({@code indices:data/read*}).
+ * This ensures the security plugin's {@code SecurityFilter} evaluates index-level
+ * permissions when the request is dispatched through {@code NodeClient.execute()}.
  *
  * @opensearch.internal
  */
-public class AnalyticsQueryAction extends ActionType<ActionResponse> {
+public class AnalyticsQueryAction extends ActionType<AnalyticsQueryResponse> {
 
     public static final String NAME = "indices:data/read/analytics/query";
     public static final AnalyticsQueryAction INSTANCE = new AnalyticsQueryAction();
 
     private AnalyticsQueryAction() {
-        super(NAME, in -> { throw new UnsupportedOperationException("Transport path not implemented yet"); });
+        super(NAME, AnalyticsQueryResponse::new);
     }
 }

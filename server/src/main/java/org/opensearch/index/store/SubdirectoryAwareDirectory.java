@@ -11,10 +11,12 @@ package org.opensearch.index.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
@@ -24,11 +26,12 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A Lucene Directory implementation that handles files in subdirectories.
@@ -39,8 +42,9 @@ import java.util.stream.Collectors;
  */
 public class SubdirectoryAwareDirectory extends FilterDirectory {
     private static final Logger logger = LogManager.getLogger(SubdirectoryAwareDirectory.class);
-    private static final Set<String> EXCLUDED_SUBDIRECTORIES = Set.of("index/", "translog/", "_state/");
+    private static final Set<String> EXCLUDED_SUBDIRECTORIES = Set.of("index/", "translog/", "_state/", "lucene/");
     private final ShardPath shardPath;
+    private final Path fsDataPath;
 
     /**
      * Constructor for SubdirectoryAwareDirectory.
@@ -51,6 +55,12 @@ public class SubdirectoryAwareDirectory extends FilterDirectory {
     public SubdirectoryAwareDirectory(Directory delegate, ShardPath shardPath) {
         super(delegate);
         this.shardPath = shardPath;
+        Directory unwrapped = FilterDirectory.unwrap(delegate);
+        if (unwrapped instanceof FSDirectory fsDir) {
+            this.fsDataPath = fsDir.getDirectory().getParent();
+        } else {
+            this.fsDataPath = shardPath.getDataPath();
+        }
     }
 
     @Override
@@ -76,9 +86,53 @@ public class SubdirectoryAwareDirectory extends FilterDirectory {
         return super.fileLength(parseFilePath(name));
     }
 
+    /**
+     * Syncs file data to durable storage. Subdirectory files are fsync'd directly against
+     * {@link #fsDataPath} (they live outside the delegate FSDirectory's root). Index-local
+     * files are delegated to the underlying FSDirectory via {@code super.sync()}.
+     *
+     * <p>{@link #fsDataPath} is derived from the FSDirectory's own path to ensure it shares
+     * the same filesystem provider as the delegate — required for correct behavior under
+     * Lucene's mock filesystem wrappers in tests.
+     */
     @Override
     public void sync(Collection<String> names) throws IOException {
-        super.sync(names.stream().map(this::parseFilePath).collect(Collectors.toList()));
+        List<String> indexFiles = new ArrayList<>();
+        Path indexDir = shardPath.resolveIndex();
+        for (String name : names) {
+            Path resolved = fsDataPath.resolve(parseFilePath(name));
+            logger.trace("Resolved path: {} for file: {}", resolved, name);
+            if (resolved.startsWith(indexDir)) {
+                indexFiles.add(resolved.toString());
+                logger.trace("Added to index file: {}", resolved);
+            } else {
+                IOUtils.fsync(resolved, false);
+            }
+        }
+        if (indexFiles.isEmpty() == false) {
+            super.sync(indexFiles);
+        }
+    }
+
+    /**
+     * Syncs directory metadata (directory entries) for both the index directory and all
+     * non-excluded subdirectories under the shard data path. This ensures that file
+     * creation is durable — a crash after {@link #sync} but before {@code syncMetaData}
+     * could leave file bytes on disk but directory entries missing.
+     */
+    @Override
+    public void syncMetaData() throws IOException {
+        super.syncMetaData();
+        if (Files.isDirectory(fsDataPath)) {
+            try (var stream = Files.newDirectoryStream(fsDataPath, Files::isDirectory)) {
+                for (Path subdir : stream) {
+                    String dirName = subdir.getFileName().toString() + "/";
+                    if (EXCLUDED_SUBDIRECTORIES.contains(dirName) == false) {
+                        IOUtils.fsync(subdir, true);
+                    }
+                }
+            }
+        }
     }
 
     @Override

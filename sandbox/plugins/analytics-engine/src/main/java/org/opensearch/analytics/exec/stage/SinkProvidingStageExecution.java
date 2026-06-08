@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.analytics.exec.stage.coordinator.PassThroughStageExecution;
+import org.opensearch.analytics.exec.stage.coordinator.ReduceStageExecution;
 import org.opensearch.analytics.spi.DataConsumer;
 
 /**
@@ -17,7 +19,7 @@ import org.opensearch.analytics.spi.DataConsumer;
  * <p>Stages that own a single shared sink (like {@link PassThroughStageExecution})
  * return the same object for both {@link DataConsumer#inputSink(int)} and
  * {@link DataProducer#outputSource()}. Stages with backend-provided per-child
- * routing (like {@link LocalStageExecution}) delegate both methods to the
+ * routing (like {@link ReduceStageExecution}) delegate both methods to the
  * backend's fragment executor.
  *
  * @opensearch.internal

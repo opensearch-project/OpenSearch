@@ -10,3 +10,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 native-bridge-macros = { path = "../macros" }
+tikv-jemalloc-ctl = { workspace = true }
+
+[dev-dependencies]
+tikv-jemallocator = { workspace = true }

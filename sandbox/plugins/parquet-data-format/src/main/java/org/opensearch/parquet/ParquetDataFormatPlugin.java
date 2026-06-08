@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet;
 
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -17,6 +18,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -24,12 +26,14 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
+import org.opensearch.parquet.store.ParquetStoreStrategy;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -47,29 +51,34 @@ import java.util.function.Supplier;
 /**
  * OpenSearch plugin providing the Parquet data format for indexing operations.
  *
- * <p>Implements {@link DataFormatPlugin} to register the Parquet format with OpenSearch's
- * data format framework. On node startup, captures cluster settings via
- * {@link #createComponents} and passes them to the per-shard
+ * <p>Implements {@link DataFormatPlugin} to register the Parquet format with
+ * OpenSearch's data format framework. On node startup, captures cluster
+ * settings via {@link #createComponents} and passes them to the per-shard
  * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
  *
- * <p>The descriptor provides a {@link PrecomputedChecksumStrategy} that the directory
- * holds at construction time. The {@link ParquetIndexingEngine} receives the same
- * strategy instance from the directory via
- * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory#getChecksumStrategy},
- * so pre-computed CRC32 values registered during write are directly visible to the
- * upload path — no post-construction wiring needed.
- *
- * <p>Registers plugin settings defined in {@link ParquetSettings}.
+ * <p>For tiered storage, returns a {@link ParquetStoreStrategy} from
+ * {@link #getStoreStrategies}. The composite store layer takes it from there —
+ * construction of per-shard native registries, seeding from remote metadata,
+ * routing directory events, and closing native resources are all handled
+ * there. The plugin stays purely declarative.
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
+    /**
+     * Current parquet writer format version, long-encoded (plugin-defined namespace; the
+     * encoding happens to reuse {@code major * 1_000_000 + minor * 1_000 + patch} but is
+     * NOT a Lucene version — do not compare to Lucene-encoded versions).
+     */
+    public static final long PARQUET_FORMAT_VERSION = 1_000_000L; // 1.0.0
+
     /** Thread pool name for background native Parquet writes during VSR rotation. */
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
-
-    private static final ParquetDataFormat dataFormat = new ParquetDataFormat();
+    private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();
+    public static final ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
     private Settings settings = Settings.EMPTY;
     private ThreadPool threadPool;
+    private ArrowNativeAllocator nativeAllocator;
 
     /** Creates a new ParquetDataFormatPlugin. */
     public ParquetDataFormatPlugin() {}
@@ -86,42 +95,61 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
     ) {
         this.settings = clusterService.getSettings();
         this.threadPool = threadPool;
+        this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
         return Collections.emptyList();
     }
 
     @Override
     public DataFormat getDataFormat() {
-        return dataFormat;
+        return PARQUET_DATA_FORMAT;
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig, FormatChecksumStrategy checksumStrategy) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig) {
         return new ParquetIndexingEngine(
             settings,
-            dataFormat,
+            PARQUET_DATA_FORMAT,
             engineConfig.store().shardPath(),
             () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
+            () -> engineConfig.mapperService().getIndexSettings().getIndexMetadata().getMappingVersion(),
             engineConfig.indexSettings(),
             threadPool,
-            checksumStrategy
+            engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME),
+            nativeAllocator
         );
     }
 
     @Override
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
         return Map.of(
             ParquetDataFormat.PARQUET_DATA_FORMAT_NAME,
-            new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy())
+            () -> new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy())
         );
+    }
+
+    @Override
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry registry) {
+        DataFormat parquetFormat = registry.format(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME);
+        if (parquetFormat == null) {
+            return Map.of();
+        }
+        return Map.of(parquetFormat, storeStrategy);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return ParquetSettings.getSettings();
+    }
+
+    @Override
+    public Collection<IndexCreationValidator> getIndexCreationValidators() {
+        return List.of(new ParquetIndexCreationValidator());
     }
 
     @Override

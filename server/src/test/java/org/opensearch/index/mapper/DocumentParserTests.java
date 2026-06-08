@@ -37,6 +37,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -53,9 +54,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -3582,7 +3581,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testParseDocumentWithDocumentInputPropagated() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")), mockInput);
 
@@ -3608,7 +3607,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testParseDocumentWithDocumentInputAndDynamicMapping() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_field", "value")), mockInput);
 
@@ -3628,7 +3627,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+        CapturingDocumentInput mockInput = new CapturingDocumentInput();
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.startObject("obj");
@@ -3640,25 +3639,40 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("obj.inner"));
     }
 
-    private static class TestDocumentInput implements DocumentInput<Map<String, Object>> {
-        private final Map<String, Object> fields = new HashMap<>();
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicTextFieldWithoutKeywordMultiFieldForPluggableDataFormat() throws Exception {
+        Settings pluggableSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {}));
+        DocumentInput<?> noopInput = new CapturingDocumentInput();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")), noopInput);
 
-        @Override
-        public Map<String, Object> getFinalInput() {
-            return Collections.unmodifiableMap(fields);
-        }
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
 
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {
-            fields.put(fieldType != null ? fieldType.name() : "field_" + fields.size(), value);
-        }
+        // With pluggable data format, text field should NOT have .keyword multi-field
+        assertFalse("Text field should not have keyword multi-field with pluggable dataformat", textMapper.iterator().hasNext());
+    }
 
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {
-            fields.put(rowIdFieldName, rowId);
-        }
+    public void testDynamicTextFieldWithKeywordMultiFieldForNonPluggableDataFormat() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")));
 
-        @Override
-        public void close() {}
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
+
+        // Without pluggable data format, text field SHOULD have .keyword multi-field
+        assertTrue("Text field should have keyword multi-field without pluggable dataformat", textMapper.iterator().hasNext());
+        Mapper keywordSubField = textMapper.iterator().next();
+        assertThat(keywordSubField, instanceOf(KeywordFieldMapper.class));
+        assertEquals("dynamic_text.keyword", keywordSubField.name());
     }
 }

@@ -26,6 +26,15 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>At startup, {@link NativeLibraryLoader} registers {@link #log} as a function pointer
  * with the native library. Rust calls it directly — no JNI.
+ *
+ * <p>TODO: the Rust {@code log_debug!} / {@code log_info!} macros currently format
+ * their message ({@code format!(...)}) unconditionally and only filter by level here,
+ * after the FFM call lands. Hot-path debug sites pay the formatting + allocation cost
+ * regardless of whether debug is enabled on the Java side. Expose the active log
+ * level from Java back to Rust (e.g. an atomic refreshed on level changes) so the
+ * macros can short-circuit before {@code format!} runs. Until then, hot-path Rust
+ * call sites either need to be commented out (see {@code single_collector.rs}) or
+ * gated with a manual level check.
  */
 public class RustLoggerBridge {
 

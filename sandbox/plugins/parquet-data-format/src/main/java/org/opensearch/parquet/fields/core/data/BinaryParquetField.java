@@ -11,9 +11,12 @@ package org.opensearch.parquet.fields.core.data;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
+
+import java.util.Set;
 
 /**
  * Parquet field for binary data using {@link VarBinaryVector}.
@@ -36,5 +39,10 @@ public class BinaryParquetField extends ParquetField {
     @Override
     public FieldType getFieldType() {
         return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
+        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.STORED_FIELDS);
     }
 }

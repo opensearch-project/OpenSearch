@@ -193,6 +193,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             false,
+            false, // fileCacheDetailed
+            false,
+            false,
             false,
             false,
             false,

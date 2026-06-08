@@ -10,6 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -17,6 +18,8 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -100,5 +103,29 @@ public interface SearchBackEndPlugin<R> {
         DataFormatRegistry dataFormatRegistry
     ) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns a supplier for native task cancellation stats, or {@code null} if not available.
+     * <p>
+     * The server calls this supplier on each {@code _nodes/stats} request to fetch
+     * native task cancellation counters from the execution engine.
+     *
+     * @return a supplier of native task cancellation stats, or null
+     */
+    default @Nullable Supplier<AnalyticsBackendTaskCancellationStats> getAnalyticsBackendTaskCancellationStats() {
+        return null;
+    }
+
+    /**
+     * Returns a supplier for native memory stats, or {@code null} if not available.
+     * <p>
+     * The server calls this supplier on each {@code _nodes/stats} request to fetch
+     * jemalloc memory metrics from the native layer.
+     *
+     * @return a supplier of native memory stats, or null
+     */
+    default @Nullable Supplier<AnalyticsBackendNativeMemoryStats> getAnalyticsBackendNativeMemoryStats() {
+        return null;
     }
 }

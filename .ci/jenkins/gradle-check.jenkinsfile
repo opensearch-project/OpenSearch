@@ -11,11 +11,11 @@
 // @description: Runs Gradle check on OpenSearch core repository for a given branch or commit.
 
 def secret_dockerhub_readonly = [
-    [envVar: 'DOCKER_USERNAME', secretRef: 'op://opensearch-infra-secrets/dockerhub-production-readonly-credentials/username'],
-    [envVar: 'DOCKER_PASSWORD', secretRef: 'op://opensearch-infra-secrets/dockerhub-production-readonly-credentials/password']
+    [envVar: 'DOCKER_USERNAME', secretRef: 'op://opensearch-release-secrets/dockerhub-production-readonly-credentials/username'],
+    [envVar: 'DOCKER_PASSWORD', secretRef: 'op://opensearch-release-secrets/dockerhub-production-readonly-credentials/password']
 ]
 
-lib = library(identifier: 'jenkins@11.6.0', retriever: modernSCM([
+lib = library(identifier: 'jenkins@12.0.0', retriever: modernSCM([
     $class: 'GitSCMSource',
     remote: 'https://github.com/opensearch-project/opensearch-build-libraries.git',
 ]))

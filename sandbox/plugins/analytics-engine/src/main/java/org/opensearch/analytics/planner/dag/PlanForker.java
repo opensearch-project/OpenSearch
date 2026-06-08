@@ -73,9 +73,39 @@ public class PlanForker {
             return results;
         }
 
-        // TODO: multi-input operators (joins) — each side is typically a separate stage
-        // connected via StageInputScan, so this path may not be needed in practice.
-        throw new UnsupportedOperationException("Multi-input plan forking not yet supported for: " + node.getClass().getSimpleName());
+        // Multi-input within one exchange-free stage: arms run on the same backend, so emit one
+        // alternative per backend EVERY child offers (picking each child's alt on it), not each
+        // child's first alt — which could be a backend the parent can't run (e.g. lucene under a
+        // DataFusion-only Union), leaving zero alternatives. Cross-backend arms are split by an
+        // exchange upstream; TODO: fan out the Cartesian product when multi-backend pipelines land.
+        List<String> parentBackends = node instanceof OpenSearchRelNode osNode
+            ? osNode.getViableBackends()
+            : childAlternativeSets.getFirst().stream().map(Resolved::chosenBackend).distinct().toList();
+        List<Resolved> results = new ArrayList<>();
+        for (String backend : parentBackends) {
+            List<RelNode> picked = new ArrayList<>(childAlternativeSets.size());
+            for (List<Resolved> childAlts : childAlternativeSets) {
+                Resolved on = altOnBackend(childAlts, backend);
+                if (on != null) {
+                    picked.add(on.node);
+                }
+            }
+            if (picked.size() == childAlternativeSets.size()) {
+                results.addAll(resolveOperator(node, picked, backend));
+            }
+        }
+        return results;
+    }
+
+    /** A child alternative runnable on {@code backend} — its own, or a backend-agnostic
+     *  (blank-backend) one (e.g. an infrastructure pass-through node); null if neither exists. */
+    private static Resolved altOnBackend(List<Resolved> alts, String backend) {
+        for (Resolved a : alts) {
+            if (backend.equals(a.chosenBackend) || a.chosenBackend == null || a.chosenBackend.isEmpty()) {
+                return a;
+            }
+        }
+        return null;
     }
 
     private static List<Resolved> resolveOperator(RelNode node, List<RelNode> children, String childBackend) {

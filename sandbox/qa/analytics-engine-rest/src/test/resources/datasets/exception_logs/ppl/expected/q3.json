@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "sql_errors",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      5,
+      "api-service"
+    ],
+    [
+      8,
+      "db-service"
+    ],
+    [
+      4,
+      "web-service"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

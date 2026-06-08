@@ -17,6 +17,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
@@ -224,7 +225,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             vec.setValueCount(1);
             producerRoot.setRowCount(1);
 
-            // First batch: sharedRoot is null, so it should be created
+            // First batch: streamRoot is null, so it should be created
             when(mockFlightChannel.getRoot()).thenReturn(null);
 
             CountDownLatch latch = new CountDownLatch(1);
@@ -242,10 +243,10 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
                 assertNotNull(sentRoot);
                 assertEquals(1, sentRoot.getRowCount());
                 assertEquals(42, ((IntVector) sentRoot.getVector("val")).get(0));
-                // Clean up the shared root created by the handler
+                // Clean up the stream root created by the handler
                 sentRoot.close();
                 return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class));
+            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
 
             TestArrowResponse response = new TestArrowResponse(producerRoot);
             handler.sendResponseBatch(
@@ -265,13 +266,13 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testProcessBatchTaskNativeArrowWithExistingSharedRoot() throws Exception {
+    public void testProcessBatchTaskNativeArrowWithExistingStreamRoot() throws Exception {
         try (RootAllocator allocator = new RootAllocator()) {
             Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
 
-            // Simulate existing shared root (second batch scenario)
-            VectorSchemaRoot sharedRoot = VectorSchemaRoot.create(schema, allocator);
-            when(mockFlightChannel.getRoot()).thenReturn(sharedRoot);
+            // Simulate existing stream root (second batch scenario)
+            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
+            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
 
             VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
             IntVector vec = (IntVector) producerRoot.getVector("val");
@@ -285,12 +286,12 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             doAnswer(invocation -> {
                 VectorStreamOutput out = invocation.getArgument(1);
                 VectorSchemaRoot sentRoot = out.getRoot();
-                // Should reuse the existing shared root
-                assertSame(sharedRoot, sentRoot);
+                // Should reuse the existing stream root
+                assertSame(streamRoot, sentRoot);
                 assertEquals(1, sentRoot.getRowCount());
                 assertEquals(99, ((IntVector) sentRoot.getVector("val")).get(0));
                 return null;
-            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class));
+            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
 
             doAnswer(invocation -> {
                 latch.countDown();
@@ -311,7 +312,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             );
 
             assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
-            sharedRoot.close();
+            streamRoot.close();
         }
     }
 
@@ -341,6 +342,78 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
 
         assertTrue("Task should complete", latch.await(5, TimeUnit.SECONDS));
         assertSame("Error should be passed to listener", completeError, capturedError.get());
+    }
+
+    // --- Back-pressure path: gating on the producer thread before executor submit ---
+
+    /**
+     * sendResponseBatch must call {@code awaitReadyOrThrow} on the producer thread
+     * BEFORE submitting the BatchTask to the executor — that is what throttles
+     * allocation under a slow consumer.
+     */
+    public void testSendResponseBatchGatesBeforeExecutor() throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean awaitCalled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        doAnswer(inv -> {
+            awaitCalled.set(true);
+            return null;
+        }).when(mockFlightChannel).awaitReadyOrThrow();
+
+        CountDownLatch executorRan = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            executorRan.countDown();
+            return null;
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
+
+        handler.sendResponseBatch(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockFlightChannel,
+            mock(FlightTransportChannel.class),
+            1L,
+            "test-action",
+            mock(TransportResponse.class),
+            false,
+            false
+        );
+
+        // sendResponseBatch returns only after the gate has run.
+        assertTrue("awaitReadyOrThrow must run before sendResponseBatch returns", awaitCalled.get());
+        assertTrue("Executor task should complete", executorRan.await(5, TimeUnit.SECONDS));
+        verify(mockFlightChannel).awaitReadyOrThrow();
+    }
+
+    /**
+     * If awaitReadyOrThrow throws (timeout / cancellation), the StreamException must
+     * propagate to the caller — sendResponseBatch must NOT submit the BatchTask, and
+     * NOT silently swallow the failure.
+     */
+    public void testSendResponseBatchPropagatesAwaitReadyException() {
+        ExecutorService submitTrap = mock(ExecutorService.class);
+        when(mockFlightChannel.getExecutor()).thenReturn(submitTrap);
+
+        org.opensearch.transport.stream.StreamException timeoutEx = new org.opensearch.transport.stream.StreamException(
+            org.opensearch.transport.stream.StreamErrorCode.TIMED_OUT,
+            "consumer not ready"
+        );
+        doThrow(timeoutEx).when(mockFlightChannel).awaitReadyOrThrow();
+
+        org.opensearch.transport.stream.StreamException thrown = expectThrows(
+            org.opensearch.transport.stream.StreamException.class,
+            () -> handler.sendResponseBatch(
+                Version.CURRENT,
+                Collections.emptySet(),
+                mockFlightChannel,
+                mock(FlightTransportChannel.class),
+                1L,
+                "test-action",
+                mock(TransportResponse.class),
+                false,
+                false
+            )
+        );
+        assertSame(timeoutEx, thrown);
+        // Crucially: we must not have submitted the BatchTask after the gate failed.
+        verify(submitTrap, org.mockito.Mockito.never()).execute(any());
     }
 
     public void testBatchTaskCloseWithIsErrorCallsReleaseChannelWithTrue() {

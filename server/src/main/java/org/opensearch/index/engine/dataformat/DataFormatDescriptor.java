@@ -19,7 +19,7 @@ import org.opensearch.index.store.FormatChecksumStrategy;
  * <p>The checksum strategy here is the <em>default fallback</em> — a full-file scan.
  * At runtime, the {@link IndexingExecutionEngine} may override this with a more
  * efficient strategy (e.g., {@link org.opensearch.index.store.PrecomputedChecksumStrategy})
- * via {@link org.opensearch.index.store.DataFormatAwareStoreDirectory#registerChecksumStrategy}.
+ * via the shared checksum strategies map created during shard initialization.
  *
  * @opensearch.experimental
  */

@@ -1,0 +1,1 @@
+source=kubernetes_logs | stats count() as pod_restarts by `kubernetes.pod_name` | inner join left=l right=r on l.`kubernetes.pod_name` = r.host [ source=performance_metrics | where cpu_usage > 80 | stats avg(cpu_usage) as avg_cpu by host ] | eval health_score = 100 - pod_restarts * 10 | where health_score < 80 | sort health_score

@@ -21,6 +21,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.storage.slowlogs.TieredStorageQueryMetricService;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -50,7 +51,7 @@ public class StoredFieldsPrefetch implements SearchOperationListener {
         // Based on cluster settings
         if (checkIfStoredFieldsPrefetchEnabled()) {
             executePrefetch(searchContext);
-            // TODO: Metric recording will be added when TieredStorageQueryMetricService is available
+            TieredStorageQueryMetricService.getInstance().recordStoredFieldsPrefetch(true);
         }
     }
 

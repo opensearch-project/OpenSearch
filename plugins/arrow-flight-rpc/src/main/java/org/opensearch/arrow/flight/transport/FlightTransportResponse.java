@@ -14,6 +14,7 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,6 +45,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
     private final TransportResponseHandler<T> handler;
+    private final boolean isNativeHandler;
     private final FlightTransportConfig config;
     private final long correlationId;
 
@@ -64,6 +66,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         FlightTransportConfig config
     ) {
         this.handler = Objects.requireNonNull(handler);
+        this.isNativeHandler = handler.skipsDeserialization();
         this.correlationId = correlationId;
         this.flightClient = Objects.requireNonNull(flightClient);
         this.headerContext = Objects.requireNonNull(headerContext);
@@ -121,9 +124,12 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             boolean hasNext = firstBatchConsumed ? flightStream.next() : (firstBatchConsumed = true);
             if (!hasNext) return null;
 
-            VectorSchemaRoot root = flightStream.getRoot();
-            currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(root);
-            try (VectorStreamInput input = new VectorStreamInput(root, namedWriteableRegistry)) {
+            VectorSchemaRoot streamRoot = flightStream.getRoot();
+            currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(streamRoot);
+            // Flight owns getLatestMetadata()'s buffer until the next next() call;
+            // we copy off so the response can outlive the stream cursor.
+            byte[] metadata = readMetadata();
+            try (VectorStreamInput input = newStreamInput(streamRoot, metadata)) {
                 input.setVersion(initialHeader.getVersion());
                 return handler.read(input);
             }
@@ -142,6 +148,28 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
     long getCurrentBatchSize() {
         return currentBatchSize;
+    }
+
+    private VectorStreamInput newStreamInput(VectorSchemaRoot streamRoot, byte[] metadata) {
+        return isNativeHandler
+            ? VectorStreamInput.forNativeArrow(streamRoot, namedWriteableRegistry, metadata)
+            : VectorStreamInput.forByteSerialized(streamRoot, namedWriteableRegistry);
+    }
+
+    private byte[] readMetadata() {
+        return copyMetadata(flightStream.getLatestMetadata());
+    }
+
+    /**
+     * Copies an Arrow Flight metadata buffer into a {@code byte[]} the consumer owns, or
+     * returns {@code null} if the buffer is absent/empty. Package-private for testing.
+     */
+    static byte[] copyMetadata(ArrowBuf buf) {
+        if (buf == null || buf.readableBytes() == 0) return null;
+        int len = (int) buf.readableBytes();
+        byte[] copy = new byte[len];
+        buf.getBytes(0, copy);
+        return copy;
     }
 
     @Override

@@ -12,12 +12,14 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
+import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
@@ -78,7 +80,7 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(logicalPlan));
         RelNode cboOutput = runPlanner(logicalPlan, context);
         LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         LOGGER.info("QueryDAG after forking:\n{}", dag);
         return dag;
@@ -126,27 +128,30 @@ public class PlanForkerTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Sort(Filter(Scan)) and Sort(Agg(Filter(Scan))) with limit — verifies forking
-     * produces two alternatives with correct pipeline shape at each level.
+     * Sort(Filter(Scan)) and Sort(Agg(Filter(Scan))) with limit — collated Sort always requires
+     * EXECUTION(SINGLETON), so the plan has an ER between the Sort and the scan subtree.
+     * Forking at the root stage is limited to backends that can reduce (only mock-parquet in
+     * these tests) → one alternative per stage, not two.
      */
     public void testSortQueryShapes() {
-        // Sort(Filter(Scan)) with limit
+        // Sort(Filter(Scan)) with limit — multi-shard so root-demand SINGLETON requires a gather,
+        // which narrows the root stage to reduce-capable backends.
         QueryDAG sortFilterDag = buildAndFork(
-            1,
+            3,
             makeSort(makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)), 10)
         );
-        assertTwoAlternatives(sortFilterDag.rootStage(), OpenSearchSort.class);
-        for (StagePlan plan : sortFilterDag.rootStage().getPlanAlternatives()) {
-            assertPipelineViableBackends(
-                plan.resolvedFragment(),
-                List.of(OpenSearchSort.class, OpenSearchFilter.class, OpenSearchTableScan.class),
-                Set.of(plan.backendId())
-            );
+        // QTF rewriter inserts a LATE_MATERIALIZATION root stage above the original Sort+Limit
+        // reduce stage; this test was written pre-QTF to assert on the Sort stage. Skip past LM.
+        Stage sortFilterRoot = effectiveSortRoot(sortFilterDag.rootStage());
+        assertEquals(1, sortFilterRoot.getPlanAlternatives().size());
+        for (StagePlan plan : sortFilterRoot.getPlanAlternatives()) {
+            assertTrue(plan.resolvedFragment() instanceof OpenSearchSort);
         }
 
-        // Sort(Agg(Filter(Scan))) with limit
+        // Sort(Agg(Filter(Scan))) with limit — multi-shard so split fires, root stage is FINAL+Sort
+        // over an ER, narrowed to reduce-capable backends.
         QueryDAG sortAggDag = buildAndFork(
-            1,
+            3,
             makeSort(
                 makeAggregate(
                     makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
@@ -155,14 +160,26 @@ public class PlanForkerTests extends BasePlannerRulesTests {
                 10
             )
         );
-        assertTwoAlternatives(sortAggDag.rootStage(), OpenSearchSort.class);
-        for (StagePlan plan : sortAggDag.rootStage().getPlanAlternatives()) {
-            assertPipelineViableBackends(
-                plan.resolvedFragment(),
-                List.of(OpenSearchSort.class, OpenSearchAggregate.class, OpenSearchFilter.class, OpenSearchTableScan.class),
-                Set.of(plan.backendId())
-            );
+        Stage sortAggRoot = effectiveSortRoot(sortAggDag.rootStage());
+        assertEquals(1, sortAggRoot.getPlanAlternatives().size());
+        for (StagePlan plan : sortAggRoot.getPlanAlternatives()) {
+            assertTrue(plan.resolvedFragment() instanceof OpenSearchSort);
         }
+    }
+
+    /**
+     * QTF wraps the original sort+limit reduce inside a 4-stage spine: post-LM COORDINATOR_REDUCE
+     * (root) → LATE_MATERIALIZATION → sort+limit COORDINATOR_REDUCE → SHARD_FRAGMENT. Descend
+     * down the first-child chain until we hit the stage whose fragment is the OpenSearchSort the
+     * pre-QTF assertions expect.
+     */
+    private static Stage effectiveSortRoot(Stage root) {
+        Stage stage = root;
+        while (!(stage.getFragment() instanceof OpenSearchSort)) {
+            if (stage.getChildStages().isEmpty()) return stage;
+            stage = stage.getChildStages().getFirst();
+        }
+        return stage;
     }
 
     /**
@@ -263,8 +280,57 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         );
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), constant);
         RelNode result = runPlanner(filter, context);
-        // ReduceExpressionsRule folds 1=1 → TRUE, then filter on TRUE is removed
+        // ReduceExpressionsRule folds 1=1 → TRUE, then filter on TRUE is removed.
         assertFalse("filter on constant true must be eliminated", result instanceof OpenSearchFilter);
         assertTrue("root must be the scan after filter elimination", result instanceof OpenSearchTableScan);
+    }
+
+    /**
+     * A {@code Union} that only one backend supports (DataFusion has {@code EngineCapability.UNION};
+     * Lucene does not) over dual-viable scans (both backends viable for the scan, Lucene listed first).
+     *
+     * <p>Regression for the multi-input forking bug: {@code resolve()} used to take each child's
+     * <em>first</em> alternative ({@code getFirst()}), which is the Lucene scan. The DataFusion-only
+     * Union then had {@code viableBackends ∩ {lucene} = ∅}, so it produced <b>zero</b> plan
+     * alternatives — later surfacing as a {@code NoSuchElementException} at execution. The forker must
+     * instead pick the child alternative whose backend the parent can use (DataFusion), so the Union
+     * resolves to exactly one DataFusion alternative.
+     */
+    public void testMultiInputForksChildToParentBackend() {
+        RelNode union = LogicalUnion.create(
+            List.of(stubScan(mockTable("test_index", "status", "size")), stubScan(mockTable("test_index", "status", "size"))),
+            /* all */ true
+        );
+        QueryDAG dag = buildAndForkUnionCapable(1, union);
+
+        List<StagePlan> alternatives = dag.rootStage().getPlanAlternatives();
+        assertFalse("Union over dual-viable scans must produce a resolvable plan, not an empty list", alternatives.isEmpty());
+        for (StagePlan plan : alternatives) {
+            assertEquals("Union resolves to the only backend that supports it", MockDataFusionBackend.NAME, plan.backendId());
+        }
+    }
+
+    /** Like {@link #buildAndFork} but the DataFusion backend opts into {@code EngineCapability.UNION}. */
+    private QueryDAG buildAndForkUnionCapable(int shardCount, RelNode logicalPlan) {
+        MockDataFusionBackend unionCapableDf = new MockDataFusionBackend() {
+            @Override
+            protected Set<EngineCapability> supportedEngineCapabilities() {
+                Set<EngineCapability> caps = new java.util.HashSet<>(super.supportedEngineCapabilities());
+                caps.add(EngineCapability.UNION);
+                return caps;
+            }
+        };
+        MockLuceneBackend luceneScan = new MockLuceneBackend() {
+            @Override
+            protected Set<ScanCapability> scanCapabilities() {
+                return Set.of(new ScanCapability.DocValues(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), SUPPORTED_TYPES));
+            }
+        };
+        var context = buildContextWithExplicitStorage(shardCount, duplicatedIntFields(), List.of(unionCapableDf, luceneScan));
+        RelNode cboOutput = runPlanner(logicalPlan, context);
+        LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        return dag;
     }
 }

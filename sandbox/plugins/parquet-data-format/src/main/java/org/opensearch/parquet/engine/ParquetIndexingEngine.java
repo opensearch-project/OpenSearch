@@ -11,6 +11,7 @@ package org.opensearch.parquet.engine;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -18,18 +19,24 @@ import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.parquet.ParquetSettings;
+import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
+import org.opensearch.parquet.merge.ParquetMergeExecutor;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +45,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
 
 /**
  * Per-shard Parquet indexing execution engine.
@@ -59,17 +68,22 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private static final Logger logger = LogManager.getLogger(ParquetIndexingEngine.class);
 
     /** Prefix for generated Parquet file names. */
-    public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
+    static final String FILE_NAME_PREFIX = "_parquet_file_generation";
     /** File extension for Parquet files. */
-    public static final String FILE_NAME_EXT = ".parquet";
+    static final String FILE_NAME_EXT = ".parquet";
 
     private final ParquetDataFormat dataFormat;
     private final ShardPath shardPath;
-    private final Supplier<Schema> schemaSupplier;
+    private Supplier<Schema> schemaSupplier;
+    private Supplier<Long> mappingVersionSupplier;
+    private volatile long cachedSchemaVersion = -1;
+    private volatile Schema cachedSchema;
     private final ArrowBufferPool bufferPool;
-    private final Settings settings;
+    private final IndexSettings indexSettings;
+    private final Settings nodeSettings;
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
+    private final Merger parquetMerger;
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -77,7 +91,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * @param settings          the node-level settings
      * @param dataFormat        the Parquet data format descriptor
      * @param shardPath         the shard path for file storage
-     * @param schemaSupplier    supplier for the Arrow schema
+     * @param schemaSupplier     the supplier for schema resolution
+     * @param mappingVersionSupplier     the supplier for mapping version resolution
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      */
@@ -86,50 +101,68 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
         Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ArrowNativeAllocator nativeAllocator
     ) {
-        this(settings, dataFormat, shardPath, schemaSupplier, indexSettings, threadPool, new PrecomputedChecksumStrategy());
+        this(
+            settings,
+            dataFormat,
+            shardPath,
+            schemaSupplier,
+            mappingVersionSupplier,
+            indexSettings,
+            threadPool,
+            new PrecomputedChecksumStrategy(),
+            nativeAllocator
+        );
     }
 
     /**
      * Creates a new ParquetIndexingEngine with an externally provided checksum strategy.
      *
-     * <p>Use this constructor when the checksum strategy is shared with the
-     * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory} so that
-     * pre-computed CRC32 values registered during write are visible to the upload path.
-     *
      * @param settings          the node-level settings
      * @param dataFormat        the Parquet data format descriptor
      * @param shardPath         the shard path for file storage
-     * @param schemaSupplier    supplier for the Arrow schema
+     * @param schemaSupplier     the supplier for schema resolution
+     * @param mappingVersionSupplier     the supplier for mapping version resolution
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      * @param checksumStrategy  the checksum strategy to use (shared with the directory)
+     * @param nativeAllocator   the framework's unified native allocator
      */
     public ParquetIndexingEngine(
         Settings settings,
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
         Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
-        FormatChecksumStrategy checksumStrategy
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
-        this.bufferPool = new ArrowBufferPool(settings);
-        this.settings = settings;
+        this.mappingVersionSupplier = mappingVersionSupplier;
+        this.bufferPool = new ArrowBufferPool(settings, nativeAllocator);
+        this.indexSettings = indexSettings;
+        this.nodeSettings = settings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
         try {
-            Files.createDirectory(shardPath.resolve("parquet"));
+            Files.createDirectory(shardPath.resolve(dataFormat.name()));
         } catch (FileAlreadyExistsException ex) {
             logger.warn("Directory already exists: {}", shardPath.resolve("parquet"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        this.parquetMerger = new ParquetMergeExecutor(
+            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
+        );
+        pushSettingsToRust();
     }
 
     /**
@@ -141,23 +174,64 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return checksumStrategy;
     }
 
+    private void pushSettingsToRust() {
+        Settings settings = indexSettings.getSettings();
+        NativeSettings config = NativeSettings.builder()
+            .indexName(indexSettings.getIndex().getName())
+            .compressionType(ParquetSettings.COMPRESSION_TYPE.get(settings))
+            .compressionLevel(ParquetSettings.COMPRESSION_LEVEL.get(settings))
+            .pageSizeBytes(ParquetSettings.PAGE_SIZE_BYTES.get(settings).getBytes())
+            .pageRowLimit(ParquetSettings.PAGE_ROW_LIMIT.get(settings))
+            .dictSizeBytes(ParquetSettings.DICT_SIZE_BYTES.get(settings).getBytes())
+            .bloomFilterEnabled(ParquetSettings.BLOOM_FILTER_ENABLED.get(settings))
+            .bloomFilterFpp(ParquetSettings.BLOOM_FILTER_FPP.get(settings))
+            .bloomFilterNdv(ParquetSettings.BLOOM_FILTER_NDV.get(settings))
+            .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
+            .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
+            .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
+            .rowGroupMaxBytes(ParquetSettings.ROW_GROUP_MAX_BYTES.get(settings).getBytes())
+            .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
+            .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
+            .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
+            .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
+            .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
+            .fieldBloomFilterEnabled(ParquetSettings.getFieldBloomFilterEnabled(settings))
+            .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
+            .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
+            .typeBloomFilterEnabled(ParquetSettings.getTypeBloomFilterEnabled(nodeSettings))
+            .typeBloomFilterFpp(ParquetSettings.getTypeBloomFilterFpp(nodeSettings))
+            .typeBloomFilterNdv(ParquetSettings.getTypeBloomFilterNdv(nodeSettings))
+            .build();
+        try {
+            RustBridge.onSettingsUpdate(config);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to push Parquet settings to Rust store", e);
+        }
+    }
+
     @Override
-    public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
-        Path filePath = Path.of(
-            shardPath.getDataPath().toString(),
-            dataFormat.name(),
-            FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
-        );
+    public Writer<ParquetDocumentInput> createWriter(WriterConfig config) {
+        long mappingVersion = mappingVersionSupplier.get();
+        Schema schema = getOrBuildSchema();
+        Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
         return new ParquetWriter(
             filePath.toString(),
-            writerGeneration,
+            config.writerGeneration(),
+            0L,
             dataFormat,
-            schemaSupplier.get(),
+            schema,
+            this::getOrBuildSchema,
             bufferPool,
-            settings,
+            indexSettings,
             threadPool,
             checksumStrategy
         );
+    }
+
+    /** Parquet indexing uses only native (off-heap) memory via Arrow buffers and Rust writers, no JVM heap. */
+    @Override
+    public long getHeapBytesUsed() {
+        return 0;
     }
 
     @Override
@@ -167,7 +241,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public Merger getMerger() {
-        return null;
+        return parquetMerger;
     }
 
     @Override
@@ -199,7 +273,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         }
         Collection<String> failed = new ArrayList<>();
         for (String fileName : parquetFiles) {
-            Path filePath = Path.of(fileName);
+            // Resolve relative file names against the shard's parquet directory
+            Path filePath = shardPath.getDataPath().resolve(dataFormat.name()).resolve(fileName);
             logger.debug("Deleting parquet file: {}", filePath);
             if (Files.deleteIfExists(filePath) == false) {
                 logger.warn("Failed to delete parquet file: {}", filePath);
@@ -219,8 +294,50 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return null;
     }
 
+    private Schema getOrBuildSchema() {
+        return schemaSupplier.get();
+    }
+
     @Override
     public void close() throws IOException {
+        try {
+            RustBridge.removeSettings(indexSettings.getIndex().getName());
+        } catch (Exception e) {
+            logger.warn(
+                "Failed to remove Parquet settings from Rust store for index [{}]: {}",
+                indexSettings.getIndex().getName(),
+                e.getMessage()
+            );
+        }
         bufferPool.close();
+    }
+
+    /**
+     * Builds a full file path for a Parquet file within the shard's data directory.
+     *
+     * @param shardPath        the shard's directory path
+     * @param writerGeneration the writer generation number
+     * @param additionalPrefix an optional prefix to append (e.g., "merged")
+     * @return the full file path
+     */
+    public static Path buildParquetFilePath(ShardPath shardPath, long writerGeneration, String additionalPrefix) {
+        String subDirectory = PARQUET_DATA_FORMAT.name();
+        return shardPath.getDataPath().resolve(subDirectory).resolve(buildParquetFileName(writerGeneration, additionalPrefix));
+    }
+
+    /**
+     * Builds a Parquet file name with optional additional prefix.
+     *
+     * @param writerGeneration the writer generation number
+     * @param additionalPrefix an optional prefix to append (e.g., "merged")
+     * @return the formatted file name
+     */
+    public static String buildParquetFileName(long writerGeneration, String additionalPrefix) {
+        StringBuilder fileNameBuilder = new StringBuilder(FILE_NAME_PREFIX);
+        if (additionalPrefix != null) {
+            fileNameBuilder.append("_").append(additionalPrefix);
+        }
+        fileNameBuilder.append("_").append(Long.toHexString(writerGeneration)).append(FILE_NAME_EXT);
+        return fileNameBuilder.toString();
     }
 }

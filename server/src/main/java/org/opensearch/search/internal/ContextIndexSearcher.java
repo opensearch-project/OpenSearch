@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
@@ -69,6 +70,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHits;
@@ -157,6 +159,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.searchContext = searchContext;
+        // Set the timeout on the IndexSearcher so that Lucene-native timeout-aware components
+        // (e.g. TimeLimitingKnnCollectorManager used by AbstractKnnVectorQuery) can enforce
+        // the query timeout. Without this, searcher.getTimeout() returns null and KNN vector
+        // searches ignore the configured query timeout entirely.
+        if (cancellable != null) {
+            setTimeout(cancellable);
+        }
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -604,7 +613,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return (DirectoryReader) reader;
     }
 
-    private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
+    /**
+     * A mutable timeout implementation that bridges OpenSearch's cancellation mechanism with Lucene's
+     * {@link QueryTimeout} interface.
+     * <p>
+     * This class implements both {@link ExitableDirectoryReader.QueryCancellation} (used by OpenSearch's
+     * {@link ExitableDirectoryReader} to check for cancellation while iterating terms, points, and stored fields)
+     * and {@link QueryTimeout} (used by Lucene's {@link org.apache.lucene.search.IndexSearcher} to enforce
+     * timeouts in components like {@link org.apache.lucene.search.TimeLimitingKnnCollectorManager} for KNN
+     * vector queries).
+     * <p>
+     * Cancellation runnables are added/removed dynamically via {@link #add} and {@link #remove}. When any
+     * runnable throws a {@link RuntimeException} (e.g. {@link org.opensearch.search.query.QueryPhase.TimeExceededException}),
+     * it signals that the query should be terminated.
+     *
+     * @opensearch.internal
+     */
+    private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation, QueryTimeout {
 
         private final Set<Runnable> runnables = new HashSet<>();
 
@@ -630,6 +655,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         @Override
         public boolean isEnabled() {
             return runnables.isEmpty() == false;
+        }
+
+        /**
+         * Implements {@link QueryTimeout#shouldExit()} by delegating to {@link #checkCancelled()}.
+         * Returns {@code true} if a registered cancellation runnable throws a
+         * {@link org.opensearch.search.query.QueryPhase.TimeExceededException} (timeout) or
+         * {@link org.opensearch.core.tasks.TaskCancelledException} (task cancellation),
+         * indicating that the query should be terminated early.
+         * <p>
+         * This is called by Lucene's {@link org.apache.lucene.search.TimeLimitingKnnCollectorManager}
+         * during KNN vector search to check whether the search should be terminated early.
+         */
+        @Override
+        public boolean shouldExit() {
+            try {
+                checkCancelled();
+            } catch (QueryPhase.TimeExceededException | TaskCancelledException e) {
+                return true;
+            }
+            return false;
         }
 
         public void clear() {

@@ -13,12 +13,14 @@ use std::{
 };
 
 use crate::executor::{DedicatedExecutor, JobError};
+use crate::phantom_corrector::PhantomCorrector;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{future::BoxFuture, FutureExt, Stream, StreamExt};
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::task::AbortHandle;
 use tokio_stream::wrappers::ReceiverStream;
 
 // This is used to execute a DataFusion stream on a dedicated CPU executor but consume the results on
@@ -31,6 +33,7 @@ pub struct CrossRtStream {
     inner: ReceiverStream<Result<RecordBatch, DataFusionError>>,
     inner_done: bool,
     schema: SchemaRef,
+    phantom_corrector: Option<Arc<PhantomCorrector>>,
 }
 
 impl CrossRtStream {
@@ -39,7 +42,7 @@ impl CrossRtStream {
         F: FnOnce(Sender<Result<RecordBatch, DataFusionError>>) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel(2);
         let driver = f(tx).boxed();
         Self {
             driver,
@@ -47,45 +50,74 @@ impl CrossRtStream {
             inner: ReceiverStream::new(rx),
             inner_done: false,
             schema,
+            phantom_corrector: None,
         }
     }
 
+    /// Creates a CrossRtStream that runs the DataFusion stream on the CPU executor.
     pub fn new_with_df_error_stream(
         stream: SendableRecordBatchStream,
         exec: DedicatedExecutor,
     ) -> Self {
+        let (cross_rt, _abort_handle) = Self::new_with_df_error_stream_cancellable(stream, exec);
+        cross_rt
+    }
+
+    /// Like [`new_with_df_error_stream`](Self::new_with_df_error_stream), but also returns
+    /// an [`AbortHandle`] that can be used to cancel the CPU task externally.
+    pub fn new_with_df_error_stream_cancellable(
+        stream: SendableRecordBatchStream,
+        exec: DedicatedExecutor,
+    ) -> (Self, Option<AbortHandle>) {
         let schema = stream.schema();
-        Self::new_with_tx(
-            |tx| {
-                let tx_captured = tx.clone();
-                let fut = async move {
-                    tokio::pin!(stream);
-                    while let Some(res) = stream.next().await {
-                        if tx_captured.send(res).await.is_err() {
-                            return;
-                        }
+        let (tx, rx) = channel(1);
+        let tx_captured = tx.clone();
+
+        let fut = async move {
+            tokio::pin!(stream);
+            while let Some(res) = stream.next().await {
+                if tx_captured.send(res).await.is_err() {
+                    return;
+                }
+            }
+        };
+
+        let (abort_handle, join_fut) = exec.spawn_with_abort_handle(fut);
+
+        let driver = async move {
+            if let Err(e) = join_fut.await {
+                let err = match e {
+                    JobError::Panic { msg } => {
+                        DataFusionError::Execution(format!("Panic: {}", msg))
+                    }
+                    JobError::WorkerGone => {
+                        DataFusionError::Execution("Worker gone".to_string())
                     }
                 };
-                async move {
-                    if let Err(e) = exec.spawn(fut).await {
-                        let err = match e {
-                            JobError::Panic { msg } => {
-                                DataFusionError::Execution(format!("Panic: {}", msg))
-                            }
-                            JobError::WorkerGone => {
-                                DataFusionError::Execution("Worker gone".to_string())
-                            }
-                        };
-                        tx.send(Err(err)).await.ok();
-                    }
-                }
-            },
+                tx.send(Err(err)).await.ok();
+            }
+        }.boxed();
+
+        let cross_rt = Self {
+            driver,
+            driver_ready: false,
+            inner: ReceiverStream::new(rx),
+            inner_done: false,
             schema,
-        )
+            phantom_corrector: None,
+        };
+
+        (cross_rt, abort_handle)
     }
 
     pub fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
+    }
+
+    /// Attach a phantom corrector for self-correcting budget.
+    pub fn with_phantom_corrector(mut self, corrector: Arc<PhantomCorrector>) -> Self {
+        self.phantom_corrector = Some(corrector);
+        self
     }
 }
 
@@ -110,7 +142,12 @@ impl Stream for CrossRtStream {
         }
 
         match this.inner.poll_next_unpin(cx) {
-            Poll::Ready(Some(item)) => Poll::Ready(Some(item)),
+            Poll::Ready(Some(item)) => {
+                if let (Some(corrector), Ok(batch)) = (&this.phantom_corrector, &item) {
+                    corrector.observe_batch(batch.get_array_memory_size());
+                }
+                Poll::Ready(Some(item))
+            }
             Poll::Ready(None) => {
                 this.inner_done = true;
                 if this.driver_ready {
@@ -138,7 +175,7 @@ mod tests {
     fn test_exec() -> DedicatedExecutor {
         let mut builder = tokio::runtime::Builder::new_multi_thread();
         builder.worker_threads(2).enable_all();
-        DedicatedExecutor::new("test-cpu", builder)
+        DedicatedExecutor::new("test-cpu", builder, num_cpus::get())
     }
 
     fn test_schema() -> SchemaRef {

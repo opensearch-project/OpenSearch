@@ -1,0 +1,133 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "critical_count",
+      "type": "bigint"
+    },
+    {
+      "name": "r.user",
+      "type": "string"
+    },
+    {
+      "name": "severity_score",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      41,
+      "asmith",
+      18,
+      "asmith",
+      172
+    ],
+    [
+      43,
+      "bwilson",
+      15,
+      "bwilson",
+      161
+    ],
+    [
+      33,
+      "mjones",
+      10,
+      "mjones",
+      116
+    ],
+    [
+      31,
+      "jdoe",
+      8,
+      "jdoe",
+      102
+    ],
+    [
+      25,
+      "admin",
+      9,
+      "admin",
+      95
+    ],
+    [
+      7,
+      "user1",
+      7,
+      "user1",
+      49
+    ],
+    [
+      4,
+      "user6",
+      5,
+      "user6",
+      33
+    ],
+    [
+      5,
+      "user2",
+      4,
+      "user2",
+      30
+    ],
+    [
+      8,
+      "user4",
+      2,
+      "user4",
+      26
+    ],
+    [
+      3,
+      "user9",
+      4,
+      "user9",
+      26
+    ],
+    [
+      5,
+      "user7",
+      3,
+      "user7",
+      25
+    ],
+    [
+      7,
+      "user3",
+      1,
+      "user3",
+      19
+    ],
+    [
+      4,
+      "user10",
+      2,
+      "user10",
+      18
+    ],
+    [
+      3,
+      "user5",
+      2,
+      "user5",
+      16
+    ],
+    [
+      2,
+      "user8",
+      2,
+      "user8",
+      14
+    ]
+  ],
+  "total": 15,
+  "size": 15
+}

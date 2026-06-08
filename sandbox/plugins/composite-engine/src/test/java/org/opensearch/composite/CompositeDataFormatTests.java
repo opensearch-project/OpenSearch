@@ -21,19 +21,22 @@ import java.util.Set;
 public class CompositeDataFormatTests extends OpenSearchTestCase {
 
     public void testNameReturnsComposite() {
-        CompositeDataFormat format = new CompositeDataFormat(List.of(mockFormat("lucene", 1, Set.of())));
+        DataFormat primary = mockFormat("lucene", 1, Set.of());
+        CompositeDataFormat format = new CompositeDataFormat(primary, List.of(primary));
         assertEquals("composite", format.name());
     }
 
     public void testPriorityReturnsMinValue() {
-        CompositeDataFormat format = new CompositeDataFormat(List.of(mockFormat("lucene", 1, Set.of())));
+        DataFormat primary = mockFormat("lucene", 1, Set.of());
+        CompositeDataFormat format = new CompositeDataFormat(primary, List.of(primary));
         assertEquals(Long.MIN_VALUE, format.priority());
     }
 
-    public void testDefaultConstructorReturnsEmptyFormats() {
-        CompositeDataFormat format = new CompositeDataFormat();
-        assertTrue(format.getDataFormats().isEmpty());
-        assertEquals(Set.of(), format.supportedFields());
+    public void testGetPrimaryDataformatReturnsPrimary() {
+        DataFormat primary = mockFormat("lucene", 1, Set.of());
+        DataFormat secondary = mockFormat("parquet", 2, Set.of());
+        CompositeDataFormat composite = new CompositeDataFormat(primary, List.of(primary, secondary));
+        assertSame(primary, composite.getPrimaryDataFormat());
     }
 
     public void testSupportedFieldsDelegatesToFirstFormat() {
@@ -42,36 +45,44 @@ public class CompositeDataFormatTests extends OpenSearchTestCase {
         DataFormat primary = mockFormat("lucene", 1, Set.of(cap1));
         DataFormat secondary = mockFormat("parquet", 2, Set.of(cap2));
 
-        CompositeDataFormat composite = new CompositeDataFormat(List.of(primary, secondary));
+        CompositeDataFormat composite = new CompositeDataFormat(primary, List.of(primary, secondary));
         // supportedFields() returns the first format's fields
         assertEquals(Set.of(cap1), composite.supportedFields());
     }
 
     public void testSupportedFieldsEmptyWhenNoFormats() {
-        CompositeDataFormat composite = new CompositeDataFormat(List.of());
+        DataFormat primary = mockFormat("lucene", 1, Set.of());
+        CompositeDataFormat composite = new CompositeDataFormat(primary, List.of());
         assertEquals(Set.of(), composite.supportedFields());
     }
 
     public void testGetDataFormatsReturnsAllFormats() {
         DataFormat f1 = mockFormat("lucene", 1, Set.of());
         DataFormat f2 = mockFormat("parquet", 2, Set.of());
-        CompositeDataFormat composite = new CompositeDataFormat(List.of(f1, f2));
+        CompositeDataFormat composite = new CompositeDataFormat(f1, List.of(f1, f2));
         assertEquals(2, composite.getDataFormats().size());
         assertSame(f1, composite.getDataFormats().get(0));
         assertSame(f2, composite.getDataFormats().get(1));
     }
 
     public void testGetDataFormatsIsUnmodifiable() {
-        CompositeDataFormat composite = new CompositeDataFormat(List.of(mockFormat("lucene", 1, Set.of())));
+        DataFormat primary = mockFormat("lucene", 1, Set.of());
+        CompositeDataFormat composite = new CompositeDataFormat(primary, List.of(primary));
         expectThrows(UnsupportedOperationException.class, () -> composite.getDataFormats().add(mockFormat("x", 0, Set.of())));
     }
 
-    public void testConstructorRejectsNull() {
-        expectThrows(NullPointerException.class, () -> new CompositeDataFormat(null));
+    public void testConstructorRejectsNullDataFormats() {
+        DataFormat primary = mockFormat("lucene", 1, Set.of());
+        expectThrows(NullPointerException.class, () -> new CompositeDataFormat(primary, null));
+    }
+
+    public void testConstructorRejectsNullPrimaryDataformat() {
+        expectThrows(NullPointerException.class, () -> new CompositeDataFormat(null, List.of()));
     }
 
     public void testToStringContainsClassName() {
-        CompositeDataFormat composite = new CompositeDataFormat(List.of(mockFormat("lucene", 1, Set.of())));
+        DataFormat primary = mockFormat("lucene", 1, Set.of());
+        CompositeDataFormat composite = new CompositeDataFormat(primary, List.of(primary));
         String str = composite.toString();
         assertTrue(str.contains("CompositeDataFormat"));
         assertTrue(str.contains("dataFormats="));

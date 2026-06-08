@@ -1,0 +1,1 @@
+source=test_data | eval sin_val = sin(value), cos_val = cos(value) | fields value, sin_val, cos_val | head 3

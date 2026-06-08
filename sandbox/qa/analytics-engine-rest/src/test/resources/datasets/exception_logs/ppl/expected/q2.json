@@ -1,0 +1,65 @@
+{
+  "schema": [
+    {
+      "name": "exception_count",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "level",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      15,
+      "db-service",
+      "ERROR"
+    ],
+    [
+      12,
+      "api-service",
+      "ERROR"
+    ],
+    [
+      12,
+      "db-service",
+      "FATAL"
+    ],
+    [
+      12,
+      "web-service",
+      "WARN"
+    ],
+    [
+      11,
+      "web-service",
+      "FATAL"
+    ],
+    [
+      11,
+      "api-service",
+      "WARN"
+    ],
+    [
+      10,
+      "api-service",
+      "FATAL"
+    ],
+    [
+      10,
+      "db-service",
+      "WARN"
+    ],
+    [
+      7,
+      "web-service",
+      "ERROR"
+    ]
+  ],
+  "total": 9,
+  "size": 9
+}

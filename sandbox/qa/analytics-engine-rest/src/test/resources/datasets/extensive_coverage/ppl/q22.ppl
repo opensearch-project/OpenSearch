@@ -1,0 +1,1 @@
+source=test_data | eval wk = week(timestamp), qtr = quarter(timestamp) | fields timestamp, wk, qtr | head 3

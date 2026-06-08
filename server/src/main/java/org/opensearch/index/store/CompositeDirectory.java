@@ -28,6 +28,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.storage.utils.DirectoryUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
@@ -54,7 +55,7 @@ import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDirectory extends FilterDirectory {
+public class CompositeDirectory extends FilterDirectory implements RemoteSyncListener {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
     protected final Directory localDirectory;
     protected final RemoteSegmentStoreDirectory remoteDirectory;
@@ -397,15 +398,7 @@ public class CompositeDirectory extends FilterDirectory {
     }
 
     private FSDirectory getLocalFSDirectory() {
-        FSDirectory localFSDirectory;
-        if (localDirectory instanceof FSDirectory) {
-            localFSDirectory = (FSDirectory) localDirectory;
-        } else {
-            // In this case it should be a FilterDirectory wrapped over FSDirectory as per above validation.
-            localFSDirectory = (FSDirectory) (((FilterDirectory) localDirectory).getDelegate());
-        }
-
-        return localFSDirectory;
+        return DirectoryUtils.unwrapFSDirectory(localDirectory);
     }
 
     /**
@@ -423,9 +416,11 @@ public class CompositeDirectory extends FilterDirectory {
         if (fileCache == null) throw new IllegalStateException(
             "File Cache not initialized on this Node, cannot create Composite Directory without FileCache"
         );
-        if (localDirectory instanceof FSDirectory == false
-            && !(localDirectory instanceof FilterDirectory && ((FilterDirectory) localDirectory).getDelegate() instanceof FSDirectory))
+        try {
+            DirectoryUtils.unwrapFSDirectory(localDirectory);
+        } catch (IllegalArgumentException e) {
             throw new IllegalStateException("For Composite Directory, local directory must be of type FSDirectory");
+        }
         if (remoteDirectory instanceof RemoteSegmentStoreDirectory == false) throw new IllegalStateException(
             "For Composite Directory, remote directory must be of type RemoteSegmentStoreDirectory"
         );

@@ -15,7 +15,7 @@ import org.opensearch.core.action.ActionResponse;
  * Follows {@code StreamSearchActionListener.onStreamResponse(result, isLast)} pattern.
  *
  * <p>The type parameter {@code <Resp>} is the response type for the transport action.
- * For shard fragment stages this is {@code FragmentExecutionResponse}.
+ * For shard fragment stages this is {@code FragmentExecutionArrowResponse}.
  *
  * <p>Contract:
  * <ul>
@@ -33,8 +33,11 @@ public interface StreamingResponseListener<Resp extends ActionResponse> {
      *
      * @param response the response batch
      * @param isLast   {@code true} if this is the final batch (terminal success event)
+     * @return {@code true} to keep draining this stream; {@code false} if the consumer is already
+     *         satisfied (e.g. a downstream LimitExec finished) and the caller should cancel the
+     *         stream and stop — the listener has already settled its terminal event in that case.
      */
-    void onStreamResponse(Resp response, boolean isLast);
+    boolean onStreamResponse(Resp response, boolean isLast);
 
     /**
      * Called when the request fails. Terminal failure event.

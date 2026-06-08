@@ -1,0 +1,1 @@
+source=aggregation_tests | stats distinct_count(user) as unique_users by department | sort - unique_users

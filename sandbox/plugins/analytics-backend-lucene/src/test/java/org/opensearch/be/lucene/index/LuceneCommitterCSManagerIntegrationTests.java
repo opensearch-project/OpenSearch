@@ -26,12 +26,14 @@ import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
@@ -110,18 +112,27 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
         Path translogDir = dataPath.resolve("translog");
         Files.createDirectories(translogDir);
         // Create a real translog so readGlobalCheckpoint works during safe bootstrap
-        Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
+        String createdTranslogUUID = Translog.createEmptyTranslog(
+            translogDir,
+            shardId,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            1L,
+            TRANSLOG_UUID,
+            null
+        );
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(
             shardId,
             indexSettings,
-            new NIOFSDirectory(indexDir),
+            new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
             new DummyShardLock(shardId),
             Store.OnClose.EMPTY,
             shardPath
         );
-        store.createEmpty(org.apache.lucene.util.Version.LATEST);
-        LuceneCommitter committer = new LuceneCommitter(new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir)));
+        store.createEmpty(org.apache.lucene.util.Version.LATEST, createdTranslogUUID);
+        LuceneCommitter committer = new LuceneCommitter(
+            new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
+        );
         Path parquetDir = dataPath.resolve(PARQUET_FORMAT);
         Files.createDirectories(parquetDir);
         return new TestEnv(committer, store, shardPath, indexDir, parquetDir, translogDir);
@@ -160,8 +171,8 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
     /** Builds a multi-format Segment from ingested lucene and parquet files. */
     private Segment buildSegment(long gen, Set<String> luceneFiles, Path indexDir, Set<String> parquetFiles, Path parquetDir) {
         long numRows = 100;
-        WriterFileSet luceneWfs = new WriterFileSet(indexDir.toString(), gen, luceneFiles, numRows);
-        WriterFileSet parquetWfs = new WriterFileSet(parquetDir.toString(), gen, parquetFiles, numRows);
+        WriterFileSet luceneWfs = new WriterFileSet(indexDir.toString(), gen, luceneFiles, numRows, 0L);
+        WriterFileSet parquetWfs = new WriterFileSet(parquetDir.toString(), gen, parquetFiles, numRows, 0L);
         return new Segment(gen, Map.of(LUCENE_FORMAT, luceneWfs, PARQUET_FORMAT, parquetWfs));
     }
 
@@ -193,6 +204,30 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
         };
     }
 
+    private static FileDeleter combinedFileDeleter(Map<String, Path> formatDirs) {
+        return filesToDelete -> {
+            Map<String, Collection<String>> failed = new HashMap<>();
+            for (Map.Entry<String, Collection<String>> entry : filesToDelete.entrySet()) {
+                Path dir = formatDirs.get(entry.getKey());
+                if (dir == null) continue;
+                Collection<String> failedFiles = new ArrayList<>();
+                for (String file : entry.getValue()) {
+                    try {
+                        if (Files.deleteIfExists(dir.resolve(file)) == false) {
+                            failedFiles.add(file);
+                        }
+                    } catch (IOException e) {
+                        failedFiles.add(file);
+                    }
+                }
+                if (!failedFiles.isEmpty()) {
+                    failed.put(entry.getKey(), failedFiles);
+                }
+            }
+            return failed;
+        };
+    }
+
     private boolean fileExists(Path dir, String fileName) {
         return Files.exists(dir.resolve(fileName));
     }
@@ -208,7 +243,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd = new HashMap<>(snapshot.getUserData());
             cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
             cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
-            committer.commit(cd);
+            committer.commit(new CommitInput(cd.entrySet(), snapshot, 0));
             handle.markSuccess();
         }
     }
@@ -224,11 +259,11 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
         Map<String, String> cd = new HashMap<>(initial.getUserData());
         cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, initial.serializeToString());
         cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(initial.getId()));
-        env.committer.commit(cd);
+        env.committer.commit(new CommitInput(cd.entrySet(), initial, 0));
         return new CatalogSnapshotManager(
             env.committer.listCommittedSnapshots(),
             policy,
-            Map.of(PARQUET_FORMAT, fileDeleterFor(env.parquetDir), LUCENE_FORMAT, fileDeleterFor(env.indexDir)),
+            combinedFileDeleter(Map.of(PARQUET_FORMAT, env.parquetDir, LUCENE_FORMAT, env.indexDir)),
             Map.of(),
             List.of(),
             env.shardPath,
@@ -460,18 +495,25 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
 
         // Phase 1: Pre-crash — 3 commits
         {
-            Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
+            String phaseTranslogUUID = Translog.createEmptyTranslog(
+                translogDir,
+                shardId,
+                SequenceNumbers.NO_OPS_PERFORMED,
+                1L,
+                TRANSLOG_UUID,
+                null
+            );
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
             );
-            store.createEmpty(org.apache.lucene.util.Version.LATEST);
+            store.createEmpty(org.apache.lucene.util.Version.LATEST, phaseTranslogUUID);
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             lucene0 = ingestLuceneDocs(committer, store);
@@ -487,7 +529,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd1 = new HashMap<>(cs1.getUserData());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs1.serializeToString());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs1.getId()));
-            committer.commit(cd1);
+            committer.commit(new CommitInput(cd1.entrySet(), cs1, 0));
 
             lucene1 = ingestLuceneDocs(committer, store);
             Set<String> parquet1 = ingestParquetFiles(parquetDir, "_1.parquet");
@@ -502,7 +544,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd2 = new HashMap<>(cs2.getUserData());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs2.serializeToString());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs2.getId()));
-            committer.commit(cd2);
+            committer.commit(new CommitInput(cd2.entrySet(), cs2, 0));
 
             lucene2 = ingestLuceneDocs(committer, store);
             Set<String> parquet2 = ingestParquetFiles(parquetDir, "_2.parquet");
@@ -521,7 +563,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd3 = new HashMap<>(cs3.getUserData());
             cd3.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs3.serializeToString());
             cd3.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs3.getId()));
-            committer.commit(cd3);
+            committer.commit(new CommitInput(cd3.entrySet(), cs3, 0));
 
             assertEquals(3, DirectoryReader.listCommits(store.directory()).size());
             committer.close();
@@ -539,13 +581,13 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
             );
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             assertEquals("Only safe commit remains", 1, DirectoryReader.listCommits(store.directory()).size());
@@ -553,7 +595,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             CatalogSnapshotManager manager = new CatalogSnapshotManager(
                 committer.listCommittedSnapshots(),
                 policy,
-                Map.of(PARQUET_FORMAT, fileDeleterFor(parquetDir), LUCENE_FORMAT, fileDeleterFor(indexDir)),
+                combinedFileDeleter(Map.of(PARQUET_FORMAT, parquetDir, LUCENE_FORMAT, indexDir)),
                 Map.of(),
                 List.of(),
                 shardPath,
@@ -595,18 +637,25 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
 
         // Phase 1: Pre-crash — 2 commits
         {
-            Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
+            String phaseTranslogUUID = Translog.createEmptyTranslog(
+                translogDir,
+                shardId,
+                SequenceNumbers.NO_OPS_PERFORMED,
+                1L,
+                TRANSLOG_UUID,
+                null
+            );
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
             );
-            store.createEmpty(org.apache.lucene.util.Version.LATEST);
+            store.createEmpty(org.apache.lucene.util.Version.LATEST, phaseTranslogUUID);
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             lucene0 = ingestLuceneDocs(committer, store);
@@ -622,7 +671,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd1 = new HashMap<>(cs1.getUserData());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs1.serializeToString());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs1.getId()));
-            committer.commit(cd1);
+            committer.commit(new CommitInput(cd1.entrySet(), cs1, 0));
 
             Set<String> lucene1 = ingestLuceneDocs(committer, store);
             Set<String> parquet1 = ingestParquetFiles(parquetDir, "_1.parquet");
@@ -637,7 +686,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd2 = new HashMap<>(cs2.getUserData());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs2.serializeToString());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs2.getId()));
-            committer.commit(cd2);
+            committer.commit(new CommitInput(cd2.entrySet(), cs2, 0));
 
             committer.close();
             store.close();
@@ -655,13 +704,13 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store store = new Store(
                 shardId,
                 indexSettings,
-                new NIOFSDirectory(indexDir),
+                new DataFormatAwareStoreDirectory(new NIOFSDirectory(indexDir), shardPath, java.util.Map.of()),
                 new DummyShardLock(shardId),
                 Store.OnClose.EMPTY,
                 shardPath
             );
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             assertEquals(1, DirectoryReader.listCommits(store.directory()).size());
@@ -672,7 +721,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             CatalogSnapshotManager manager = new CatalogSnapshotManager(
                 committer.listCommittedSnapshots(),
                 policy,
-                Map.of(PARQUET_FORMAT, fileDeleterFor(parquetDir), LUCENE_FORMAT, fileDeleterFor(indexDir)),
+                combinedFileDeleter(Map.of(PARQUET_FORMAT, parquetDir, LUCENE_FORMAT, indexDir)),
                 Map.of(),
                 List.of(),
                 shardPath,

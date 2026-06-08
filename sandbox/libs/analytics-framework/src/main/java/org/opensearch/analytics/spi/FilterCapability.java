@@ -23,12 +23,15 @@ import java.util.Set;
  */
 public sealed interface FilterCapability {
 
+    /** The scalar function this capability covers. */
+    ScalarFunction function();
+
     /** Standard comparison filter (EQUALS, GT, IN, LIKE, etc.) on field types in given formats. */
-    record Standard(FilterOperator operator, Set<FieldType> fieldTypes, Set<String> formats) implements FilterCapability {
+    record Standard(ScalarFunction function, Set<FieldType> fieldTypes, Set<String> formats) implements FilterCapability {
     }
 
     /** Full-text filter (MATCH, MATCH_PHRASE, FUZZY, etc.) with supported query parameters. */
-    record FullText(FilterOperator operator, FieldType fieldType, Set<String> formats, Set<String> supportedParams)
+    record FullText(ScalarFunction function, FieldType fieldType, Set<String> formats, Set<String> supportedParams)
         implements
             FilterCapability {
     }

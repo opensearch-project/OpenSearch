@@ -41,6 +41,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -340,6 +341,9 @@ public class AggregatorFactories {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         List<Aggregator> aggregators = new ArrayList<>();
         for (int i = 0; i < factories.length; i++) {
+            if (searchContext.isCancelled()) {
+                throw new TaskCancelledException("cancelled while creating aggregators");
+            }
             /*
              * Top level aggs only collect from owningBucketOrd 0 which is
              * *exactly* what CardinalityUpperBound.ONE *means*.

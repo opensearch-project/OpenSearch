@@ -1,0 +1,1 @@
+source=test_data | eval tag_array = split(tags, ',') | eval tag_count = array_length(tag_array) | fields tags, tag_count | head 3

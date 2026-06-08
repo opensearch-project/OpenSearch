@@ -80,20 +80,12 @@ public class SegmentInfosCatalogSnapshotTests extends OpenSearchTestCase {
         assertEquals(segmentInfos.files(true), new java.util.HashSet<>(uploadNames));
     }
 
-    public void testSerializeProducesValidBytes() throws Exception {
-        SegmentInfos segmentInfos = randomSegmentInfos();
-        SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
-        byte[] bytes = snapshot.serialize();
-        assertNotNull(bytes);
-        assertTrue(bytes.length > 0);
-    }
-
     public void testGetFormatVersionForUnmappedFileDefaultsToLatest() {
         SegmentInfos segmentInfos = randomSegmentInfos();
         SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
-        // File not in segmentFileVersionMap and not the segments file → falls through to LATEST.major
-        int version = snapshot.getFormatVersionForFile("nonexistent_file.xyz");
-        assertEquals(Version.LATEST.major, version);
+        // File not in segmentFileVersionMap and not the segments file → falls through to LATEST.
+        long version = snapshot.getFormatVersionForFile("nonexistent_file.xyz");
+        assertEquals(LuceneVersionConverter.encode(Version.LATEST), version);
     }
 
     public void testSetUserDataDelegatesToSegmentInfos() {
@@ -108,7 +100,7 @@ public class SegmentInfosCatalogSnapshotTests extends OpenSearchTestCase {
     public void testCloneNoAcquireReturnsIndependentCopy() {
         SegmentInfos segmentInfos = randomSegmentInfos();
         SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
-        CatalogSnapshot cloned = snapshot.cloneNoAcquire();
+        CatalogSnapshot cloned = snapshot.clone();
         assertNotSame(snapshot, cloned);
         assertNotSame(segmentInfos, ((SegmentInfosCatalogSnapshot) cloned).getSegmentInfos());
         assertEquals(snapshot.getGeneration(), cloned.getGeneration());

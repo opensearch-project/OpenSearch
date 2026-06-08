@@ -16,8 +16,12 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.JoinCapability;
+import org.opensearch.analytics.spi.ProjectCapability;
+import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -40,7 +44,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     public static final String PARQUET_DATA_FORMAT = "parquet";
     private static final Set<String> DATAFUSION_FORMATS = Set.of(PARQUET_DATA_FORMAT);
 
-    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT);
+    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT, EngineCapability.VALUES);
 
     private static final Set<FieldType> SUPPORTED_TYPES = new HashSet<>();
     static {
@@ -50,17 +54,17 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         SUPPORTED_TYPES.add(FieldType.BOOLEAN);
     }
 
-    private static final Set<FilterOperator> STANDARD_OPS = Set.of(
-        FilterOperator.EQUALS,
-        FilterOperator.NOT_EQUALS,
-        FilterOperator.GREATER_THAN,
-        FilterOperator.GREATER_THAN_OR_EQUAL,
-        FilterOperator.LESS_THAN,
-        FilterOperator.LESS_THAN_OR_EQUAL,
-        FilterOperator.IS_NULL,
-        FilterOperator.IS_NOT_NULL,
-        FilterOperator.IN,
-        FilterOperator.LIKE
+    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.IN,
+        ScalarFunction.LIKE
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -75,7 +79,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
-        for (FilterOperator op : STANDARD_OPS) {
+        for (ScalarFunction op : STANDARD_OPS) {
             caps.add(new FilterCapability.Standard(op, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         FILTER_CAPS = caps;
@@ -100,7 +104,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     public ExchangeSinkProvider getExchangeSinkProvider() {
         // Stub — real implementation provided by DataFusion backend
-        return bytes -> new ExchangeSink() {
+        return (context, backendContext) -> new ExchangeSink() {
             @Override
             public void feed(VectorSchemaRoot batch) {}
 
@@ -115,13 +119,100 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     }
 
     @Override
+    protected Set<JoinCapability> joinCapabilities() {
+        return Set.of(
+            new JoinCapability(
+                Set.of(
+                    JoinCapability.JoinKind.INNER,
+                    JoinCapability.JoinKind.LEFT,
+                    JoinCapability.JoinKind.RIGHT,
+                    JoinCapability.JoinKind.FULL,
+                    JoinCapability.JoinKind.SEMI,
+                    JoinCapability.JoinKind.ANTI,
+                    JoinCapability.JoinKind.CROSS
+                ),
+                Set.of(PARQUET_DATA_FORMAT)
+            )
+        );
+    }
+
+    @Override
+    protected Set<WindowCapability> windowCapabilities() {
+        // Mirrors DataFusionAnalyticsBackendPlugin.windowCapabilities — the *PPL form*
+        // of dc/earliest/latest is advertised; the actual rewrite to FIRST_VALUE /
+        // LAST_VALUE / COUNT(DISTINCT) happens in BackendPlanAdapter before substrait
+        // emission.
+        return Set.of(
+            new WindowCapability(
+                Set.of(
+                    WindowFunction.SUM,
+                    WindowFunction.AVG,
+                    WindowFunction.COUNT,
+                    WindowFunction.MIN,
+                    WindowFunction.MAX,
+                    WindowFunction.ARG_MIN,
+                    WindowFunction.ARG_MAX,
+                    WindowFunction.DISTINCT_COUNT_APPROX,
+                    WindowFunction.ROW_NUMBER
+                ),
+                Set.of(PARQUET_DATA_FORMAT)
+            )
+        );
+    }
+
+    @Override
     protected Set<ScanCapability> scanCapabilities() {
         return SCAN_CAPS;
+    }
+
+    private static final Set<ScalarFunction> PROJECT_OPS = Set.of(
+        // Arithmetic / math (emitted by Calcite's AggregateReduceFunctionsRule)
+        ScalarFunction.PLUS,
+        ScalarFunction.MINUS,
+        ScalarFunction.TIMES,
+        ScalarFunction.DIVIDE,
+        ScalarFunction.POWER,
+        // Type coercion / null handling
+        ScalarFunction.CAST,
+        ScalarFunction.COALESCE,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        // Conditional / comparisons (STDDEV_SAMP / VAR_SAMP emit CASE WHEN count > 1 …)
+        ScalarFunction.CASE,
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        // Logical connectives (projection-side composition: `case(a and b, …)`)
+        ScalarFunction.AND,
+        ScalarFunction.OR,
+        ScalarFunction.NOT,
+        // String — used by QTF plan-shape tests covering composite expressions / dedup.
+        ScalarFunction.CONCAT,
+        ScalarFunction.UPPER,
+        ScalarFunction.SIN,
+        ScalarFunction.ABS
+    );
+
+    private static final Set<ProjectCapability> PROJECT_CAPS;
+    static {
+        Set<ProjectCapability> caps = new HashSet<>();
+        for (ScalarFunction op : PROJECT_OPS) {
+            caps.add(new ProjectCapability.Scalar(op, SUPPORTED_TYPES, DATAFUSION_FORMATS, false));
+        }
+        PROJECT_CAPS = caps;
     }
 
     @Override
     protected Set<FilterCapability> filterCapabilities() {
         return FILTER_CAPS;
+    }
+
+    @Override
+    protected Set<ProjectCapability> projectCapabilities() {
+        return PROJECT_CAPS;
     }
 
     @Override
