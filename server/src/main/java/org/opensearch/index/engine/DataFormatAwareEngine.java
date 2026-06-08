@@ -347,7 +347,8 @@ public class DataFormatAwareEngine implements Indexer {
                     indexingExecutionEngine.getDataFormat(),
                     registry,
                     store.shardPath(),
-                    store.getDataformatAwareStoreHandles()
+                    store.getDataformatAwareStoreHandles(),
+                    engineConfig.getIndexSettings()
                 )
             );
 

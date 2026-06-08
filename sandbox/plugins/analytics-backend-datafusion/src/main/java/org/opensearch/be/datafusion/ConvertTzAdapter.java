@@ -93,16 +93,23 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
             operands.set(slot, canonicalizeTzOperand(operands.get(slot), rexBuilder));
         }
 
-        // Identity short-circuit: both operands resolve to the same canonical
-        // string → the conversion is a no-op.
+        // Same from/to tz → no-op. SAFE-cast a VARCHAR operand to TIMESTAMP so the parent
+        // Project rowType stays consistent (bare VARCHAR trips RexUtil.compatibleTypes).
         String fromLiteral = tzLiteralValue(operands.get(1));
         String toLiteral = tzLiteralValue(operands.get(2));
         if (fromLiteral != null && toLiteral != null && fromLiteral.equals(toLiteral)) {
-            return operands.get(0);
+            RexNode operand = operands.get(0);
+            if (operand.getType().equals(original.getType())) {
+                return operand;
+            }
+            return rexBuilder.makeCast(original.getType(), operand, true, true);
         }
 
-        // UDF fallback. Preserve the original call's return type — see
-        // AbstractNameMappingAdapter for why (Project.isValid compatibleTypes check).
+        // Substrait declares convert_tz(precision_timestamp, string, string); SAFE-cast
+        // a VARCHAR timestamp slot so it binds (NULL on parse failure).
+        if (!operands.get(0).getType().equals(original.getType())) {
+            operands.set(0, rexBuilder.makeCast(original.getType(), operands.get(0), true, true));
+        }
         return rexBuilder.makeCall(original.getType(), LOCAL_CONVERT_TZ_OP, operands);
     }
 

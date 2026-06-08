@@ -248,6 +248,15 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
      * independently, results would never merge). Return infinite cost so Volcano picks the
      * split alternative. Allow SOURCE/EXECUTION SINGLETON (already gathered) and ANY
      * (Volcano's "still exploring" placeholder). PARTIAL/FINAL skip the gate.
+     *
+     * <p><b>DO NOT REMOVE the infinite-cost branch below.</b> It is the correctness backstop for
+     * the whole split: {@code OpenSearchAggregateSplitRule} now emits a single alternative
+     * deterministically (no cost comparison), so this gate is the ONLY thing that rejects a SINGLE
+     * aggregate placed over RANDOM (multi-shard) input. Without it, Volcano can legally land a
+     * SINGLE aggregate directly on partitioned data — each shard aggregates in isolation, the
+     * partials never merge, and queries return silently wrong results. Plan-shape tests happen to
+     * catch the current shapes, but they are not a substitute for this gate; deleting it breaks
+     * correctness, not just a test.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
