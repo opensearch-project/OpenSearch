@@ -350,10 +350,24 @@ pub struct ShardView {
 ///
 /// # Side effect: spill directory is wiped
 ///
-/// When `spill_dir` is non-empty, the directory is cleared (`remove_dir_all` then
-/// `create_dir_all`) before the `DiskManager` is built. This removes spill files
-/// leaked by a prior non-graceful shutdown. The directory is OpenSearch-owned by
-/// contract — anything present at startup is stale.
+/// When `spill_dir` is non-empty, the directory is cleared (`remove_dir_all`)
+/// before the `DiskManager` is built. DataFusion does not sweep stale entries
+/// itself — `create_local_dirs` in `datafusion-execution` only creates a fresh
+/// `datafusion-XXXXXX/` subdirectory and never touches siblings — so a prior
+/// non-graceful shutdown (kill -9, OOM-kill, container restart) leaves orphaned
+/// `datafusion-*/` trees that accumulate forever. The directory is
+/// OpenSearch-owned by contract, so wiping is safe.
+///
+/// We do not recreate the directory here. DataFusion's `create_local_dirs` will
+/// recreate the root via `std::fs::create_dir` and provision a fresh `TempDir`
+/// inside it during `DiskManagerBuilder::build()`.
+///
+/// Any cleanup failure (permission denied, read-only filesystem, I/O error,
+/// etc.) is operator-actionable and aborts boot with `DataFusionError::Configuration`
+/// — the spill directory being in an unrecoverable state implies queries that
+/// need to spill would also fail later, so we surface the problem at boot time
+/// with full error context instead of letting orphans accumulate silently and
+/// failing later mid-query.
 ///
 /// Safe today because (a) `datafusion.spill_directory` is `NodeScope + Final`, so
 /// `DataFusionPlugin.createComponents` calls this exactly once per JVM in
@@ -396,25 +410,25 @@ pub fn create_global_runtime(
             spill_limit as u64
         };
 
-        // Clear leaked spill files from a prior non-graceful shutdown — see the
-        // "Side effect" section in this function's doc. The existence check is
-        // belt-and-braces in production (Java validates first); create_dir_all
-        // also covers Rust unit tests that inject a non-existent path.
+        // Clear leaked spill files from a prior non-graceful shutdown. Any failure
+        // here (permission denied, read-only filesystem, I/O error, etc.) is
+        // operator-actionable and signals that the spill directory is in a state
+        // where DataFusion cannot reliably write either — fail boot loudly with
+        // full error context so the operator fixes it before the node joins the
+        // cluster, instead of accumulating orphan files and inflating
+        // disk_used_bytes silently.
         let spill_path = PathBuf::from(spill_dir);
         if spill_path.exists() {
             if let Err(e) = fs::remove_dir_all(&spill_path) {
-                log::warn!(
-                    "Failed to clear leaked spill files in {}: {}; continuing — DataFusion will reuse the existing directory",
-                    spill_dir,
-                    e
+                let msg = format!(
+                    "Failed to clear leaked spill files in {} (io kind={:?}): {}. \
+                     Verify the OpenSearch process owns the spill directory and the volume \
+                     is mounted read-write before restarting.",
+                    spill_dir, e.kind(), e
                 );
+                log::error!("{}", msg);
+                return Err(DataFusionError::Configuration(msg));
             }
-        }
-        if let Err(e) = fs::create_dir_all(&spill_path) {
-            return Err(DataFusionError::Configuration(format!(
-                "Failed to (re)create spill directory {}: {}",
-                spill_dir, e
-            )));
         }
 
         // Register spill directory for per-query disk pressure checks
@@ -1802,13 +1816,15 @@ mod tests {
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
         assert!(ptr > 0);
 
-        // Both seeded entries must be gone, but the spill directory itself must still
-        // exist (recreated) so the DiskManager has a place to write.
+        // Both seeded entries must be gone. The directory itself ends up existing again
+        // because DataFusion's create_local_dirs recreates the root (and provisions a
+        // fresh datafusion-XXXXXX/ inside it) during DiskManagerBuilder::build() — our
+        // cleanup only wipes; DataFusion handles recreation.
         assert!(!top_file.exists(), "top-level leaked file must be removed");
         assert!(!nested_file.exists(), "nested leaked file must be removed");
         assert!(!nested_dir.exists(), "nested leaked subdir must be removed");
-        assert!(tmp.path().exists(), "spill directory itself must be recreated");
-        assert!(tmp.path().is_dir(), "spill directory must be a directory after cleanup");
+        assert!(tmp.path().exists(), "DataFusion's create_local_dirs must have recreated the root");
+        assert!(tmp.path().is_dir(), "spill root must be a directory after DataFusion provisioning");
 
         unsafe { close_global_runtime(ptr) };
     }
@@ -1816,14 +1832,41 @@ mod tests {
     #[test]
     fn create_global_runtime_with_empty_spill_dir_does_not_touch_filesystem() {
         // The cleanup logic must live entirely inside the spill-enabled branch. With
-        // spill disabled (empty path), no filesystem operation should run — even an
-        // accidental fs::create_dir_all("") would fail and break boot. This test
-        // guards against future refactors that might hoist the cleanup out of the
-        // else-branch.
+        // spill disabled (empty path), no filesystem operation should run — an
+        // accidental fs::remove_dir_all("") would error and break boot. This test
+        // guards against future refactors that hoist the cleanup out of the else-branch.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         unsafe { close_global_runtime(ptr) };
+    }
+
+    #[test]
+    fn create_global_runtime_fails_fast_when_cleanup_fails() {
+        // Cleanup failure is operator-actionable (permissions, RO mount, I/O) and
+        // implies the runtime would fail later mid-query anyway. Surface the failure
+        // at boot with full context. Trigger the failure path by pointing spill_dir
+        // at a regular file: spill_path.exists() returns true, but remove_dir_all
+        // refuses to operate on a non-directory.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let bad_path = tmp.path().join("regular_file");
+        fs::write(&bad_path, b"not a directory").expect("seed regular file");
+        let bad_path_str = bad_path.to_str().expect("utf-8 path");
+
+        let err = create_global_runtime(64 * 1024 * 1024, 0, bad_path_str, 0)
+            .expect_err("create_global_runtime must fail when cleanup fails");
+
+        // Operator-facing message must include the offending path + io kind so the
+        // logs are diagnostic without needing further investigation.
+        let msg = err.to_string();
+        assert!(msg.contains(bad_path_str), "error must reference the offending path; got: {}", msg);
+        assert!(msg.contains("io kind="), "error must include the io::ErrorKind for diagnosis; got: {}", msg);
+        assert!(
+            msg.contains("Failed to clear leaked spill files"),
+            "error must identify it as a cleanup failure; got: {}",
+            msg
+        );
     }
 
     #[test]
