@@ -29,6 +29,7 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
@@ -746,7 +747,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         DelegationBlockList blockList
     ) {
         PlannerContext context = buildContext(format, fields, List.of(DATAFUSION, LUCENE));
-        context.setDelegationBlockList(blockList);
+        context.setPlannerSettings(PlannerSettings.of(0.0, blockList));
         RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         RelNode result = unwrapExchange(runPlanner(filter, context));
