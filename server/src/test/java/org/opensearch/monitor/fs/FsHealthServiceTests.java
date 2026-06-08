@@ -41,6 +41,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.MockLogAppender;
@@ -55,9 +56,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
+import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -343,6 +346,39 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         } finally {
             unexpectedLockFileSizeFileSystemProvider.injectUnexpectedFileSize.set(false);
             PathUtilsForTesting.teardown();
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void testAdditionalHealthPathProbedAndUnhealthyOnFailure() throws Exception {
+        long refreshInterval = 50; // ms
+        final Settings settings = Settings.builder().put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms").build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            final Path additional = createTempDir();
+            FsHealthService fsHealthService = new FsHealthService(
+                settings,
+                clusterSettings,
+                testThreadPool,
+                env,
+                metricsRegistry,
+                List.of(additional)
+            );
+            fsHealthService.doStart();
+            assertBusy(() -> assertEquals(StatusInfo.Status.HEALTHY, fsHealthService.getHealth().getStatus()));
+
+            // Make the additional path unwritable: replace the directory with a regular file.
+            IOUtils.rm(additional);
+            Files.write(additional, new byte[] { 0x00 });
+
+            assertBusy(() -> {
+                StatusInfo info = fsHealthService.getHealth();
+                assertEquals(StatusInfo.Status.UNHEALTHY, info.getStatus());
+                assertTrue(info.getInfo(), info.getInfo().contains(additional.toString()));
+            });
+            fsHealthService.doStop();
+        } finally {
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
     }

@@ -18,41 +18,30 @@ import java.util.UUID;
 public class SpillStatsCollectorTests extends OpenSearchTestCase {
 
     public void testCollectReturnsZeroForEmptyDirectory() {
-        SpillStats stats = SpillStatsCollector.collect("", 999_999L, true);
+        SpillStats stats = SpillStatsCollector.collect("", 999_999L);
         assertEquals("", stats.getDirectory());
         assertEquals(0L, stats.getDiskTotalBytes());
         assertEquals(0L, stats.getDiskAvailableBytes());
         assertEquals(0L, stats.getDiskUsedBytes());
         assertEquals(0L, stats.getDiskReservedBytes());
-        assertTrue(stats.isDirectoryWritable());
     }
 
     public void testCollectReadsFilesystemForExistingDirectory() throws IOException {
         Path tmp = createTempDir();
-        SpillStats stats = SpillStatsCollector.collect(tmp.toString(), 1_000_000L, true);
+        SpillStats stats = SpillStatsCollector.collect(tmp.toString(), 1_000_000L);
         assertEquals(tmp.toString(), stats.getDirectory());
         assertTrue(stats.getDiskTotalBytes() > 0L);
         assertTrue(stats.getDiskAvailableBytes() > 0L);
         assertEquals(1_000_000L, stats.getDiskReservedBytes());
-        assertTrue(stats.isDirectoryWritable());
         assertEquals(stats.getDiskTotalBytes(), stats.getDiskAvailableBytes() + stats.getDiskUsedBytes());
     }
 
     public void testCollectReturnsZeroBytesForMissingDirectoryButPreservesReserved() {
         Path missing = createTempDir().resolve("does-not-exist-" + UUID.randomUUID());
         assertFalse("precondition: path must not exist", Files.exists(missing));
-        SpillStats stats = SpillStatsCollector.collect(missing.toString(), 4242L, false);
+        SpillStats stats = SpillStatsCollector.collect(missing.toString(), 4242L);
         assertEquals(missing.toString(), stats.getDirectory());
         assertEquals(0L, stats.getDiskTotalBytes());
         assertEquals(4242L, stats.getDiskReservedBytes());
-        assertFalse(stats.isDirectoryWritable());
-    }
-
-    public void testCollectPropagatesUnwritableSnapshot() throws IOException {
-        Path tmp = createTempDir();
-        SpillStats stats = SpillStatsCollector.collect(tmp.toString(), 1_000_000L, false);
-        assertFalse(stats.isDirectoryWritable());
-        assertTrue(stats.getDiskTotalBytes() > 0L);
-        assertEquals(stats.getDiskTotalBytes(), stats.getDiskAvailableBytes() + stats.getDiskUsedBytes());
     }
 }

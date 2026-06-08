@@ -219,7 +219,7 @@ final class Security {
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), getCodebaseJarMap(codebases));
+                Policy policy = readPolicy(policyFile.toUri().toURL(), getCodebaseJarMap(codebases), environment.settings());
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -243,6 +243,21 @@ final class Security {
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Policy readPolicy(URL policyFile, Map<String, URL> codebases) {
+        return readPolicy(policyFile, codebases, Settings.EMPTY);
+    }
+
+    /**
+     * Reads and returns the specified {@code policyFile}, additionally substituting plugin-policy
+     * properties derived from {@code settings}.
+     * <p>
+     * In addition to the per-codebase {@code ${codebase.*}} properties supplied by the 2-arg form,
+     * this overload sets {@code ${opensearch.datafusion.spill_directory}} from
+     * {@code datafusion.spill_directory} so plugin policy files can scope their {@link java.io.FilePermission}
+     * grants to the operator-configured directory rather than {@code <<ALL FILES>>}. The property is
+     * cleared in the same {@code finally} block as the codebase properties.
+     */
+    @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
+    static Policy readPolicy(URL policyFile, Map<String, URL> codebases, Settings settings) {
         try {
             List<String> propertiesSet = new ArrayList<>();
             try {
@@ -283,6 +298,26 @@ final class Security {
                     }
 
                     addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
+                }
+
+                // Plugin-policy substitution: datafusion.spill_directory.
+                // Set ${opensearch.datafusion.spill_directory} so plugin policy files can scope
+                // their FilePermission grants to the operator-configured directory rather than <<ALL FILES>>.
+                // TODO: this is a one-off plugin-specific substitution, hardcoded in core. A generic
+                // Plugin.getPolicySubstitutions(Settings) SPI would be cleaner — track in a follow-up
+                // issue. Acceptable here as a contained, single-property change.
+                String spillDir = settings.get("datafusion.spill_directory");
+                if (spillDir != null && !spillDir.isEmpty()) {
+                    String property = "opensearch.datafusion.spill_directory";
+                    // Mirrors addCodebaseToSystemProperties: register before setProperty so the finally clears
+                    // even if the IllegalStateException for "already set" fires. Note: setting overwrites any
+                    // pre-existing value before we detect the collision, so the previous value is lost when
+                    // we throw — same trade-off the codebase pattern accepts.
+                    propertiesSet.add(property);
+                    String previous = System.setProperty(property, spillDir);
+                    if (previous != null) {
+                        throw new IllegalStateException("datafusion spill directory property already set: " + previous);
+                    }
                 }
 
                 return new PolicyFile(policyFile);

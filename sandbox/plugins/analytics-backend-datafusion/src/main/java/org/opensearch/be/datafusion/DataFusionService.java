@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
-import org.opensearch.be.datafusion.health.SpillDirectoryHealthMonitor;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.SpillStats;
@@ -56,9 +55,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     /** Cache manager for pre-warming and managing native caches. */
     private volatile CacheManager cacheManager;
-
-    /** Optional runtime writability probe; null when spill is disabled or the monitor has not been wired yet. */
-    private volatile SpillDirectoryHealthMonitor spillDirectoryHealthMonitor;
 
     private DataFusionService(Builder builder) {
         this.memoryPoolLimit = builder.memoryPoolLimit;
@@ -212,17 +208,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Wires the runtime writability probe whose result feeds {@code SpillStats.directory_writable}.
-     * The field has no lifecycle dependency — the setter just stores the reference, and readers
-     * fall back to vacuously {@code true} when it is null. Intended to be called once during
-     * plugin component construction; idempotent replacement is allowed (last writer wins) but
-     * no current call site relies on that.
-     */
-    void setSpillDirectoryHealthMonitor(SpillDirectoryHealthMonitor monitor) {
-        this.spillDirectoryHealthMonitor = monitor;
-    }
-
-    /**
      * Returns the latest native executor stats, collected fresh from JNI on every call.
      *
      * @return the current {@link DataFusionStats}
@@ -243,14 +228,11 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     /**
      * Builds a {@link SpillStats} snapshot from the configured spill directory and the
-     * current writability flag. Package-private so unit tests can verify the wiring
-     * without starting the native runtime ({@link #getStats()} requires a started
-     * runtime; this helper does not).
+     * configured spill memory limit. Package-private so unit tests can verify the wiring
+     * without starting the native runtime.
      */
     SpillStats buildSpillStats() {
-        SpillDirectoryHealthMonitor monitor = this.spillDirectoryHealthMonitor;
-        boolean writable = monitor == null ? true : monitor.isWritable();
-        return SpillStatsCollector.collect(spillDirectory, spillMemoryLimit, writable);
+        return SpillStatsCollector.collect(spillDirectory, spillMemoryLimit);
     }
     // Cache management (node-level, delegates to native runtime)
 

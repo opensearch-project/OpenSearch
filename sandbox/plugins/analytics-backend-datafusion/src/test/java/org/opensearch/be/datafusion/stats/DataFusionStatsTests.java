@@ -38,7 +38,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
             new NativeExecutorsStats(io, cpu, taskMonitors),
             new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
             new PartitionGateStats("coordinator_gate", 12, 0, 0, 0),
-            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, true)
+            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L)
         );
     }
 
@@ -229,11 +229,11 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         assertTrue(monitors.containsKey("plan_setup"));
     }
 
-    public void testSpillFragmentRendersUnderSpillKey() throws IOException {
+    public void testSpillFragmentRendersUnderDiskSpillKey() throws IOException {
         DataFusionStats stats = sequentialStats();
         String json = toJsonString(stats);
 
-        assertTrue("missing spill object: " + json, json.contains("\"spill\":{"));
+        assertTrue("missing disk_spill object: " + json, json.contains("\"disk_spill\":{"));
         assertTrue(json.contains("\"directory\":\"/mnt/spill\""));
         assertTrue(json.contains("\"disk_total_bytes\":100"));
         assertTrue(json.contains("\"disk_available_bytes\":60"));

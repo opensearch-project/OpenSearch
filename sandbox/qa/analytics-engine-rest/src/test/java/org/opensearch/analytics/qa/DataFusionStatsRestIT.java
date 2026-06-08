@@ -47,7 +47,7 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
         "plan_setup",
         "datanode_gate",
         "coordinator_gate",
-        "spill"
+        "disk_spill"
     );
 
     @Override
@@ -239,9 +239,9 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
         while (nodeIds.hasNext()) {
             String id = nodeIds.next();
             JsonNode nodeEntry = nodes.get(id);
-            assertTrue("node " + id + " missing 'spill' section", nodeEntry.has("spill"));
+            assertTrue("node " + id + " missing 'disk_spill' section", nodeEntry.has("disk_spill"));
 
-            JsonNode spill = nodeEntry.get("spill");
+            JsonNode spill = nodeEntry.get("disk_spill");
             assertEquals("expected disabled-state empty directory on node " + id, "", spill.get("directory").asText());
             assertEquals("expected disabled-state zero disk_total_bytes",     0L, spill.get("disk_total_bytes").asLong());
             assertEquals("expected disabled-state zero disk_available_bytes", 0L, spill.get("disk_available_bytes").asLong());
@@ -253,21 +253,21 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
     }
 
     /**
-     * `?stat=spill` returns only the spill section per node.
+     * `?stat=disk_spill` returns only the spill section per node.
      */
     public void testStatFilterSpillOnlyReturnsSpillSection() throws Exception {
-        Response response = client().performRequest(new Request("GET", STATS_ENDPOINT + "/spill"));
+        Response response = client().performRequest(new Request("GET", STATS_ENDPOINT + "/disk_spill"));
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         JsonNode nodes = parseResponse(response).get("nodes");
         Iterator<String> nodeIds = nodes.fieldNames();
         while (nodeIds.hasNext()) {
             JsonNode nodeEntry = nodes.get(nodeIds.next());
-            assertTrue("spill must be present", nodeEntry.has("spill"));
+            assertTrue("disk_spill must be present", nodeEntry.has("disk_spill"));
             for (String other : ALL_SECTIONS) {
-                if (!other.equals("spill")) {
+                if (!other.equals("disk_spill")) {
                     assertFalse(
-                        "section '" + other + "' must NOT be present when ?stat=spill",
+                        "section '" + other + "' must NOT be present when ?stat=disk_spill",
                         nodeEntry.has(other)
                     );
                 }
@@ -276,7 +276,7 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
     }
 
     /**
-     * `?stat=io_runtime` does NOT include the spill section.
+     * `?stat=io_runtime` does NOT include the disk_spill section.
      */
     public void testStatFilterIoRuntimeExcludesSpill() throws Exception {
         Response response = client().performRequest(new Request("GET", STATS_ENDPOINT + "/io_runtime"));
@@ -286,7 +286,7 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
         Iterator<String> nodeIds = nodes.fieldNames();
         while (nodeIds.hasNext()) {
             JsonNode nodeEntry = nodes.get(nodeIds.next());
-            assertFalse("spill section must NOT appear when ?stat=io_runtime", nodeEntry.has("spill"));
+            assertFalse("disk_spill section must NOT appear when ?stat=io_runtime", nodeEntry.has("disk_spill"));
         }
     }
 
@@ -295,7 +295,7 @@ public class DataFusionStatsRestIT extends OpenSearchRestTestCase {
      * AND each entry must have its own spill section (no cross-node leakage).
      */
     public void testMultiNodeFanoutProducesIndependentSpillSections() throws Exception {
-        Response response = client().performRequest(new Request("GET", STATS_ENDPOINT + "/spill"));
+        Response response = client().performRequest(new Request("GET", STATS_ENDPOINT + "/disk_spill"));
         JsonNode root = parseResponse(response);
 
         int successful = root.get("_nodes").get("successful").asInt();

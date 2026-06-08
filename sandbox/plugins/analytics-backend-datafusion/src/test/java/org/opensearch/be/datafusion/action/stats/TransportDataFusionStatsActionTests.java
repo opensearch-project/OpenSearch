@@ -216,18 +216,18 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
     // ---- Helper: build DataFusionStats with only a populated SpillStats section ----
 
     private static DataFusionStats statsWithSpill() {
-        return new DataFusionStats(null, null, null, new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, true));
+        return new DataFusionStats(null, null, null, new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L));
     }
 
-    // ---- Test: filter with "spill" includes SpillStats ----
+    // ---- Test: filter with "disk_spill" includes SpillStats ----
 
     public void testFilterIncludesSpillWhenRequested() {
-        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of("spill"));
+        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of("disk_spill"));
         assertNotNull(filtered.getSpillStats());
         assertEquals("/mnt/spill", filtered.getSpillStats().getDirectory());
     }
 
-    // ---- Test: filter without "spill" excludes SpillStats ----
+    // ---- Test: filter without "disk_spill" excludes SpillStats ----
 
     public void testFilterExcludesSpillWhenNotRequested() {
         DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of("io_runtime"));

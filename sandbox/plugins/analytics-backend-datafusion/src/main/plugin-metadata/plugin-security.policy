@@ -7,18 +7,19 @@
  */
 
 grant {
-  // datafusion.spill_directory is operator-configured and lives outside the paths
-  // the default OpenSearch security policy grants (path.data, path.logs, java.io.tmpdir, etc.).
+  // Operator-configured spill directory. The system property opensearch.datafusion.spill_directory
+  // is set by Security.readPolicy from the datafusion.spill_directory cluster setting before this
+  // policy is parsed; PolicyFile.expandPermissionName resolves the ${{...}} token via
+  // System.getProperty at policy-load time. The "/-" suffix is the standard FilePermission
+  // recursive-grant marker (this directory and everything beneath it).
   //
-  // We can't reference the setting value here: plugin-security.policy is static —
-  // it only resolves system-property variables (${java.io.tmpdir}, ${codebase.*}),
-  // not cluster settings. Granting <<ALL FILES>> with read/readlink/write/delete is the
-  // narrowest scope we can express at policy-load time. Actual reach is limited by
-  // SpecialPermission.check() + AccessController.doPrivileged at the three call sites
-  // that touch the spill directory:
-  //   - DataFusionPlugin.probeSpillDirectoryWritable (boot probe)
-  //   - SpillDirectoryHealthMonitor.probeOnce        (runtime probe, 60s cadence)
-  //   - SpillStatsCollector.collect                  (stats endpoint, on-demand)
-  // No execute permission is granted; no other plugin code uses doPrivileged to access files.
-  permission java.io.FilePermission "<<ALL FILES>>", "read,readlink,write,delete";
+  // When the setting is empty (spill disabled), the property is not set, the resolver leaves
+  // the literal "${{opensearch.datafusion.spill_directory}}/-" in the FilePermission name, and
+  // the resulting permission matches no real path — granting nothing. The plugin makes no file
+  // probes in that mode, so this is benign.
+  //
+  // Single-brace ${...} substitution is hardcoded to a small allowlist in PolicyFile; arbitrary
+  // properties must use the double-brace ${{...}} form.
+  permission java.io.FilePermission "${{opensearch.datafusion.spill_directory}}/-",
+                                    "read,readlink,write,delete";
 };

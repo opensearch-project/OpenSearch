@@ -22,16 +22,12 @@ import java.util.Objects;
  * used by DataFusion's {@code DiskManager} to stage intermediate state when
  * operators (HashAggregate, Sort, TopK) exceed the in-memory pool.
  *
- * <p>Renders under the {@code "spill"} key in the plugin stats endpoint.
+ * <p>Renders under the {@code "disk_spill"} key in the plugin stats endpoint.
  *
  * <p>{@code disk_used_bytes} is filesystem-level (total - available), not a
  * DataFusion-tracked counter. Correct for dedicated EBS volumes; would lie on
  * shared volumes. Swap to a {@code DiskManager}-tracked counter via FFI if
  * the deployment assumption changes.
- *
- * <p>{@code directory_writable} reflects the most recent result of the
- * SpillDirectoryHealthMonitor probe. {@code true} when spill is disabled
- * (no probe is run; vacuously writable).
  */
 public class SpillStats implements Writeable, ToXContentFragment {
 
@@ -40,22 +36,13 @@ public class SpillStats implements Writeable, ToXContentFragment {
     private final long diskAvailableBytes;
     private final long diskUsedBytes;
     private final long diskReservedBytes;
-    private final boolean directoryWritable;
 
-    public SpillStats(
-        String directory,
-        long diskTotalBytes,
-        long diskAvailableBytes,
-        long diskUsedBytes,
-        long diskReservedBytes,
-        boolean directoryWritable
-    ) {
+    public SpillStats(String directory, long diskTotalBytes, long diskAvailableBytes, long diskUsedBytes, long diskReservedBytes) {
         this.directory = directory == null ? "" : directory;
         this.diskTotalBytes = diskTotalBytes;
         this.diskAvailableBytes = diskAvailableBytes;
         this.diskUsedBytes = diskUsedBytes;
         this.diskReservedBytes = diskReservedBytes;
-        this.directoryWritable = directoryWritable;
     }
 
     public SpillStats(StreamInput in) throws IOException {
@@ -64,7 +51,6 @@ public class SpillStats implements Writeable, ToXContentFragment {
         this.diskAvailableBytes = in.readVLong();
         this.diskUsedBytes = in.readVLong();
         this.diskReservedBytes = in.readVLong();
-        this.directoryWritable = in.readBoolean();
     }
 
     @Override
@@ -74,18 +60,16 @@ public class SpillStats implements Writeable, ToXContentFragment {
         out.writeVLong(diskAvailableBytes);
         out.writeVLong(diskUsedBytes);
         out.writeVLong(diskReservedBytes);
-        out.writeBoolean(directoryWritable);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("spill");
+        builder.startObject("disk_spill");
         builder.field("directory", directory);
         builder.field("disk_total_bytes", diskTotalBytes);
         builder.field("disk_available_bytes", diskAvailableBytes);
         builder.field("disk_used_bytes", diskUsedBytes);
         builder.field("disk_reserved_bytes", diskReservedBytes);
-        builder.field("directory_writable", directoryWritable);
         builder.endObject();
         return builder;
     }
@@ -110,10 +94,6 @@ public class SpillStats implements Writeable, ToXContentFragment {
         return diskReservedBytes;
     }
 
-    public boolean isDirectoryWritable() {
-        return directoryWritable;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -123,12 +103,11 @@ public class SpillStats implements Writeable, ToXContentFragment {
             && diskAvailableBytes == that.diskAvailableBytes
             && diskUsedBytes == that.diskUsedBytes
             && diskReservedBytes == that.diskReservedBytes
-            && directoryWritable == that.directoryWritable
             && Objects.equals(directory, that.directory);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(directory, diskTotalBytes, diskAvailableBytes, diskUsedBytes, diskReservedBytes, directoryWritable);
+        return Objects.hash(directory, diskTotalBytes, diskAvailableBytes, diskUsedBytes, diskReservedBytes);
     }
 }

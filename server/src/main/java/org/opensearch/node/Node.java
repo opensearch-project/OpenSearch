@@ -92,6 +92,7 @@ import org.opensearch.cluster.service.LocalClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.inject.Injector;
@@ -329,6 +330,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -769,12 +771,20 @@ public class Node implements Closeable {
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
+            final List<Path> pluginAdditionalHealthPaths = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .flatMap(p -> p.getAdditionalHealthPaths(settings).stream())
+                .collect(Collectors.toList());
+
+            assertCanWritePluginHealthPaths(pluginAdditionalHealthPaths);
+
             final FsHealthService fsHealthService = new FsHealthService(
                 settings,
                 clusterService.getClusterSettings(),
                 threadPool,
                 nodeEnvironment,
-                metricsRegistry
+                metricsRegistry,
+                pluginAdditionalHealthPaths
             );
             final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
             final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
@@ -2566,6 +2576,26 @@ public class Node implements Closeable {
     private static String validateFileCacheSize(String capacityRaw) {
         calculateFileCacheSize(capacityRaw, 0L);
         return capacityRaw;
+    }
+
+    /**
+     * Pre-flight write probe for plugin-supplied {@link FsHealthService} paths. Throws
+     * {@link IllegalStateException} on any failure so node boot halts loudly on misconfiguration.
+     * Mirrors the spirit of {@code NodeEnvironment.assertCanWrite()} but for plugin paths.
+     *
+     * <p>Visible for testing.
+     */
+    static void assertCanWritePluginHealthPaths(List<Path> paths) {
+        for (Path path : paths) {
+            Path probe = path.resolve(".opensearch_plugin_health_boot_probe_" + UUIDs.randomBase64UUID());
+            try {
+                Files.deleteIfExists(probe);
+                Files.write(probe, "boot".getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW);
+                Files.delete(probe);
+            } catch (IOException | RuntimeException e) {
+                throw new IllegalStateException("Plugin-supplied health path [" + path + "] is not writable: " + e.getMessage(), e);
+            }
+        }
     }
 
     /**

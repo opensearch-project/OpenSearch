@@ -118,7 +118,7 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
      *   <li>{@code plan_setup} &rarr; {@link NativeExecutorsStats#getTaskMonitors()}.get("plan_setup")</li>
      *   <li>{@code datanode_gate} &rarr; {@link DataFusionStats#getDatanodeGateStats()}</li>
      *   <li>{@code coordinator_gate} &rarr; {@link DataFusionStats#getCoordinatorGateStats()}</li>
-     *   <li>{@code spill} &rarr; {@link DataFusionStats#getSpillStats()}</li>
+     *   <li>{@code disk_spill} &rarr; {@link DataFusionStats#getSpillStats()}</li>
      * </ul>
      *
      * @param stats  the full stats (may be null)
@@ -168,7 +168,7 @@ public class TransportDataFusionStatsAction extends TransportNodesAction<
             }
         }
 
-        SpillStats spill = filter.contains("spill") ? stats.getSpillStats() : null;
+        SpillStats spill = filter.contains("disk_spill") ? stats.getSpillStats() : null;
 
         return new DataFusionStats(filteredNativeStats, datanodeGate, coordinatorGate, spill);
     }

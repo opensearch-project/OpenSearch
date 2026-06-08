@@ -31,7 +31,7 @@ import java.util.Iterator;
 public class SpillStatsEnabledIT extends OpenSearchRestTestCase {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final String SPILL_ENDPOINT = "/_plugins/_analytics_backend_datafusion/stats/spill";
+    private static final String SPILL_ENDPOINT = "/_plugins/_analytics_backend_datafusion/stats/disk_spill";
     private static final long EXPECTED_RESERVED = 1_073_741_824L;
 
     @Override
@@ -55,7 +55,7 @@ public class SpillStatsEnabledIT extends OpenSearchRestTestCase {
         int verified = 0;
         while (ids.hasNext()) {
             String id = ids.next();
-            JsonNode spill = nodes.get(id).get("spill");
+            JsonNode spill = nodes.get(id).get("disk_spill");
             assertNotNull("node " + id + " missing spill section", spill);
 
             String dir = spill.get("directory").asText();

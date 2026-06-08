@@ -261,10 +261,10 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
     }
 
     public void testSpillIsAcceptedAsValidStatName() {
-        // The REST handler exposes VALID_STATS for error messages; assert "spill" is now in it.
+        // The REST handler exposes VALID_STATS for error messages; assert "disk_spill" is now in it.
         assertTrue(
-            "VALID_STATS should include 'spill' but was: " + RestDataFusionStatsAction.VALID_STATS,
-            RestDataFusionStatsAction.VALID_STATS.contains("spill")
+            "VALID_STATS should include 'disk_spill' but was: " + RestDataFusionStatsAction.VALID_STATS,
+            RestDataFusionStatsAction.VALID_STATS.contains("disk_spill")
         );
     }
 

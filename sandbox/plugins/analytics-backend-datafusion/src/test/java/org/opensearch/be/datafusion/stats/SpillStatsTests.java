@@ -20,7 +20,7 @@ import java.io.IOException;
 public class SpillStatsTests extends OpenSearchTestCase {
 
     public void testWireFormatRoundTrip() throws IOException {
-        SpillStats original = new SpillStats("/mnt/spill", 536_870_912_000L, 214_748_364_800L, 1_073_741_824L, 429_496_729_600L, false);
+        SpillStats original = new SpillStats("/mnt/spill", 536_870_912_000L, 214_748_364_800L, 1_073_741_824L, 429_496_729_600L);
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -28,49 +28,39 @@ public class SpillStatsTests extends OpenSearchTestCase {
         try (StreamInput in = out.bytes().streamInput()) {
             SpillStats roundTripped = new SpillStats(in);
             assertEquals(original, roundTripped);
-            assertFalse(roundTripped.isDirectoryWritable());
         }
     }
 
     public void testToXContentRendersAllFields() throws IOException {
-        SpillStats stats = new SpillStats("/mnt/spill", 536_870_912_000L, 214_748_364_800L, 1_073_741_824L, 429_496_729_600L, true);
+        SpillStats stats = new SpillStats("/mnt/spill", 536_870_912_000L, 214_748_364_800L, 1_073_741_824L, 429_496_729_600L);
 
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String json = builder.toString();
 
-        assertTrue("missing spill object key: " + json, json.contains("\"spill\":{"));
+        assertTrue("missing disk_spill object key: " + json, json.contains("\"disk_spill\":{"));
         assertTrue(json.contains("\"directory\":\"/mnt/spill\""));
         assertTrue(json.contains("\"disk_total_bytes\":536870912000"));
         assertTrue(json.contains("\"disk_available_bytes\":214748364800"));
         assertTrue(json.contains("\"disk_used_bytes\":1073741824"));
         assertTrue(json.contains("\"disk_reserved_bytes\":429496729600"));
-        assertTrue(json.contains("\"directory_writable\":true"));
     }
 
     public void testEquality() {
-        SpillStats a = new SpillStats("/mnt/spill", 100L, 50L, 25L, 80L, true);
-        SpillStats b = new SpillStats("/mnt/spill", 100L, 50L, 25L, 80L, true);
-        SpillStats differentDir = new SpillStats("/var/tmp", 100L, 50L, 25L, 80L, true);
-        SpillStats differentTotal = new SpillStats("/mnt/spill", 999L, 50L, 25L, 80L, true);
-        SpillStats differentWritable = new SpillStats("/mnt/spill", 100L, 50L, 25L, 80L, false);
+        SpillStats a = new SpillStats("/mnt/spill", 100L, 50L, 25L, 80L);
+        SpillStats b = new SpillStats("/mnt/spill", 100L, 50L, 25L, 80L);
+        SpillStats differentDir = new SpillStats("/var/tmp", 100L, 50L, 25L, 80L);
+        SpillStats differentTotal = new SpillStats("/mnt/spill", 999L, 50L, 25L, 80L);
 
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
         assertNotEquals(a, differentDir);
         assertNotEquals(a, differentTotal);
-        assertNotEquals(a, differentWritable);
-    }
-
-    public void testDisabledSpillIsVacuouslyWritable() {
-        SpillStats disabled = new SpillStats("", 0L, 0L, 0L, 0L, true);
-        assertTrue(disabled.isDirectoryWritable());
-        assertEquals("", disabled.getDirectory());
     }
 
     public void testDisabledStateIsRepresentableWithEmptyDirectoryAndZeroBytes() throws IOException {
-        SpillStats disabled = new SpillStats("", 0L, 0L, 0L, 0L, true);
+        SpillStats disabled = new SpillStats("", 0L, 0L, 0L, 0L);
 
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         disabled.toXContent(builder, ToXContent.EMPTY_PARAMS);

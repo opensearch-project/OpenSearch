@@ -60,7 +60,7 @@ public class InvalidStatNameRejectionPropertyTests {
         "plan_setup",
         "datanode_gate",
         "coordinator_gate",
-        "spill"
+        "disk_spill"
     );
 
     // ---- Generators ----
