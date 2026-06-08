@@ -30,7 +30,6 @@ else
         "neural-search"        # "opensearch-neural-search"
         "opensearch-observability"
         "opensearch-security"
-        "opensearch-sql-plugin" # "opensearch-sql"
     )
     # Plugins built from this repository, installed from the local Maven repo
     # (published by ./gradlew publishToMavenLocal in build.sh)
