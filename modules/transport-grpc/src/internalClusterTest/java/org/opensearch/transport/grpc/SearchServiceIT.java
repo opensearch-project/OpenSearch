@@ -10,6 +10,8 @@ package org.opensearch.transport.grpc;
 
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.protobufs.AggregationContainer;
+import org.opensearch.protobufs.CreatePITResponse;
+import org.opensearch.protobufs.CreatePitRequest;
 import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.protobufs.MinAggregation;
 import org.opensearch.protobufs.SearchRequest;
@@ -27,6 +29,32 @@ import io.grpc.ManagedChannel;
  * Integration tests for the SearchService gRPC service.
  */
 public class SearchServiceIT extends GrpcTransportBaseIT {
+
+    /**
+     * Tests PIT creation via gRPC.
+     */
+    public void testCreatePit() throws Exception {
+        String indexName = "test-create-pit";
+        createTestIndex(indexName);
+        indexTestDocument(indexName, "1", DEFAULT_DOCUMENT_SOURCE);
+
+        try (NettyGrpcClient client = createGrpcClient()) {
+            ManagedChannel channel = client.getChannel();
+            SearchServiceGrpc.SearchServiceBlockingStub searchStub = SearchServiceGrpc.newBlockingStub(channel);
+
+            CreatePitRequest request = CreatePitRequest.newBuilder().addIndex(indexName).setKeepAlive("1m").build();
+            CreatePITResponse response = searchStub.createPit(request);
+
+            assertNotNull("Create PIT response should not be null", response);
+            assertFalse("PIT id should not be empty", response.getPitId().isEmpty());
+            assertTrue("Create PIT response should have creation time", response.hasCreationTime());
+            assertTrue("Creation time should be positive", response.getCreationTime() > 0);
+            assertTrue("Create PIT response should have shard stats", response.hasXShards());
+            assertTrue("Total shards should be positive", response.getXShards().getTotal() > 0);
+            assertTrue("Successful shards should be positive", response.getXShards().getSuccessful() > 0);
+            assertEquals("Failed shards should be zero", 0, response.getXShards().getFailed());
+        }
+    }
 
     /**
      * Tests the search operation via gRPC.

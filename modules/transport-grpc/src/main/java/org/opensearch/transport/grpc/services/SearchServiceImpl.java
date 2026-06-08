@@ -14,8 +14,10 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.protobufs.services.SearchServiceGrpc;
+import org.opensearch.transport.grpc.listeners.CreatePitRequestActionListener;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.SearchRequestActionListener;
+import org.opensearch.transport.grpc.proto.request.search.CreatePitRequestProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.SearchRequestProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
@@ -118,6 +120,44 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         } catch (RuntimeException | IOException e) {
             breaker.addWithoutBreaking(-requestSize);
             logger.debug("SearchServiceImpl failed to process search request, request=" + request + ", error=" + e.getMessage());
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            responseObserver.onError(grpcError);
+        }
+    }
+
+    /**
+     * Processes a create PIT request.
+     *
+     * @param request The PIT request to process
+     * @param responseObserver The observer to send the response back to the client
+     */
+    @Override
+    public void createPit(
+        org.opensearch.protobufs.CreatePitRequest request,
+        StreamObserver<org.opensearch.protobufs.CreatePITResponse> responseObserver
+    ) {
+        int requestSize = request.getSerializedSize();
+        CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+
+        try {
+            breaker.addEstimateBytesAndMaybeBreak(requestSize, "<grpc_request>");
+
+            StreamObserver<org.opensearch.protobufs.CreatePITResponse> wrappedObserver = new CircuitBreakerStreamObserver<>(
+                responseObserver,
+                circuitBreakerService,
+                requestSize
+            );
+
+            org.opensearch.action.search.CreatePitRequest createPitRequest = CreatePitRequestProtoUtils.prepareRequest(request);
+            CreatePitRequestActionListener listener = new CreatePitRequestActionListener(wrappedObserver);
+            client.createPit(createPitRequest, listener);
+        } catch (CircuitBreakingException e) {
+            logger.debug("Circuit breaker tripped for gRPC create PIT request: {}", e.getMessage());
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            responseObserver.onError(grpcError);
+        } catch (RuntimeException e) {
+            breaker.addWithoutBreaking(-requestSize);
+            logger.debug("SearchServiceImpl failed to process create PIT request, request={}, error={}", request, e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);
         }
