@@ -350,6 +350,29 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNoAdditionalHealthPathsProbesOnlyDataPaths() throws Exception {
+        long refreshInterval = 50;
+        final Settings settings = Settings.builder().put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms").build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            // Empty additional-paths list — the spill-directory-not-configured scenario.
+            FsHealthService fsHealthService = new FsHealthService(
+                settings,
+                clusterSettings,
+                testThreadPool,
+                env,
+                metricsRegistry,
+                List.of()
+            );
+            fsHealthService.doStart();
+            assertBusy(() -> assertEquals(StatusInfo.Status.HEALTHY, fsHealthService.getHealth().getStatus()));
+            fsHealthService.doStop();
+        } finally {
+            ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
+        }
+    }
+
     public void testAdditionalHealthPathProbedAndUnhealthyOnFailure() throws Exception {
         long refreshInterval = 50; // ms
         final Settings settings = Settings.builder().put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms").build();

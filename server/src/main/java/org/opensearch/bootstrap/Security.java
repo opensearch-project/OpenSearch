@@ -437,6 +437,30 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             addSingleFilePath(policy, environment.pidFile(), "delete");
         }
+        // Operator-configured spill directory for the analytics-backend-datafusion plugin.
+        // FsHealthService.monitorFSHealth and Node.assertCanWritePluginHealthPaths run as
+        // CORE code (not plugin code) and probe this directory, so they need an entry in
+        // core's permission ledger. Plugin code accesses are granted separately via the
+        // plugin's plugin-security.policy.
+        //
+        // We explicitly require the directory to already exist — unlike path.data, which
+        // auto-creates on first boot, the spill directory is expected to live on a
+        // dedicated, pre-mounted volume. If we let addDirectoryPath auto-create, a missing
+        // mount would silently land the spill data on whatever filesystem the path resolves
+        // to (typically root), risking boot-disk exhaustion under load.
+        String spillDir = environment.settings().get("datafusion.spill_directory");
+        if (spillDir != null && spillDir.isEmpty() == false) {
+            Path spillPath = PathUtils.get(spillDir);
+            if (Files.isDirectory(spillPath) == false) {
+                throw new IllegalStateException(
+                    "datafusion.spill_directory ["
+                        + spillDir
+                        + "] does not exist or is not a directory; ensure the spill volume is "
+                        + "mounted and the directory is created before starting OpenSearch"
+                );
+            }
+            addDirectoryPath(policy, "datafusion.spill_directory", spillPath, "read,readlink,write,delete", false);
+        }
     }
 
     /**

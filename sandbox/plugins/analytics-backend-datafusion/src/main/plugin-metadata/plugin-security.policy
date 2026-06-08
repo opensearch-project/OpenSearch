@@ -7,19 +7,28 @@
  */
 
 grant {
-  // Operator-configured spill directory. The system property opensearch.datafusion.spill_directory
-  // is set by Security.readPolicy from the datafusion.spill_directory cluster setting before this
-  // policy is parsed; PolicyFile.expandPermissionName resolves the ${{...}} token via
-  // System.getProperty at policy-load time. The "/-" suffix is the standard FilePermission
-  // recursive-grant marker (this directory and everything beneath it).
+  // Operator-configured spill directory. The system property
+  // opensearch.datafusion.spill_directory is set by Security.readPolicy from the
+  // datafusion.spill_directory cluster setting before this policy is parsed;
+  // PolicyFile.expandPermissionName resolves the ${{...}} token via System.getProperty
+  // at policy-load time.
   //
-  // When the setting is empty (spill disabled), the property is not set, the resolver leaves
-  // the literal "${{opensearch.datafusion.spill_directory}}/-" in the FilePermission name, and
-  // the resulting permission matches no real path — granting nothing. The plugin makes no file
+  // We need TWO grants:
+  //  - The directory itself (read+readlink) for Files.exists, Environment.getFileStore,
+  //    and any other operations that target the directory node.
+  //  - Files underneath via the "/-" recursive marker (full read/write/delete) for the
+  //    probe files written by core (FsHealthService) and for the spill files DataFusion's
+  //    DiskManager writes during query execution.
+  //
+  // When the setting is empty (spill disabled), the property is not set and the resolver
+  // leaves the literal "${{opensearch.datafusion.spill_directory}}" tokens in place; the
+  // resulting permissions match no real path — granting nothing. The plugin makes no file
   // probes in that mode, so this is benign.
   //
-  // Single-brace ${...} substitution is hardcoded to a small allowlist in PolicyFile; arbitrary
-  // properties must use the double-brace ${{...}} form.
+  // Single-brace ${...} substitution is hardcoded to a small allowlist in PolicyFile;
+  // arbitrary properties must use the double-brace ${{...}} form.
+  permission java.io.FilePermission "${{opensearch.datafusion.spill_directory}}",
+                                    "read,readlink";
   permission java.io.FilePermission "${{opensearch.datafusion.spill_directory}}/-",
                                     "read,readlink,write,delete";
 };

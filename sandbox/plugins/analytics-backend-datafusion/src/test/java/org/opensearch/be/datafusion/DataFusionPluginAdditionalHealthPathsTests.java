@@ -58,6 +58,22 @@ public class DataFusionPluginAdditionalHealthPathsTests extends OpenSearchTestCa
                 + content,
             content.contains("${{opensearch.datafusion.spill_directory}}")
         );
+        // Both grants must be present: the directory itself (so Files.exists / getFileStore work)
+        // AND the recursive form (so probe files and spill files can be written).
+        assertTrue(
+            "plugin-security.policy must grant FilePermission on the spill directory itself "
+                + "(\"${{opensearch.datafusion.spill_directory}}\" without /-).\n"
+                + "Actual content:\n"
+                + content,
+            content.contains("\"${{opensearch.datafusion.spill_directory}}\"")
+        );
+        assertTrue(
+            "plugin-security.policy must grant FilePermission on files under the spill directory "
+                + "(\"${{opensearch.datafusion.spill_directory}}/-\").\n"
+                + "Actual content:\n"
+                + content,
+            content.contains("\"${{opensearch.datafusion.spill_directory}}/-\"")
+        );
         // Defense-in-depth: explicitly forbid single-brace usage of the same property,
         // since a regex like contains("${opensearch.datafusion.spill_directory}") would also match
         // the double-brace form (which contains the single-brace substring). We instead assert
@@ -79,5 +95,11 @@ public class DataFusionPluginAdditionalHealthPathsTests extends OpenSearchTestCa
             }
             idx = closeIdx + 1;
         }
+    }
+
+    public void testGetAdditionalHealthPathsHandlesExplicitlyEmptyString() {
+        DataFusionPlugin plugin = new DataFusionPlugin();
+        Settings settings = Settings.builder().put(DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY.getKey(), "").build();
+        assertEquals(List.of(), plugin.getAdditionalHealthPaths(settings));
     }
 }
