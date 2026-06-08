@@ -8,6 +8,7 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
@@ -37,6 +38,7 @@ import java.util.Enumeration;
  * </ul>
  */
 @SuppressWarnings("removal")
+@SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
 public class SecuritySpillDirectoryGrantTests extends OpenSearchTestCase {
 
     public void testSpillSettingUnsetAddsNoGrant() throws Exception {
