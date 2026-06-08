@@ -244,11 +244,12 @@ public class OpenSearchSchemaBuilder {
     }
 
     /**
-     * Format-aware variant. For a {@code date}/{@code date_nanos} field whose mapping {@code format}
-     * is date-only (e.g. {@code basic_date}, {@code year_month_day}, {@code yyyy-MM-dd}) this returns
-     * a {@link DateType} UDT so the column surfaces as a SQL {@code DATE} rather than a
-     * {@code TIMESTAMP}. Time-only and datetime/epoch formats keep the existing {@code TIMESTAMP}
-     * mapping (a dedicated {@code TIME} type follows in a later phase).
+     * Format-aware variant. For a {@code date}/{@code date_nanos} field this narrows the logical
+     * type by the mapping {@code format}: a date-only format (e.g. {@code basic_date},
+     * {@code year_month_day}, {@code yyyy-MM-dd}) returns a {@link DateType} UDT and a time-only
+     * format (e.g. {@code hour}, {@code hour_minute_second}, {@code HH:mm:ss}) returns a
+     * {@link TimeType} UDT, so the column surfaces as a SQL {@code DATE} / {@code TIME} rather than
+     * a {@code TIMESTAMP}. Datetime/epoch formats keep the {@code TIMESTAMP} mapping.
      *
      * @param format the OpenSearch mapping {@code format} string for this field, or {@code null}
      */
@@ -262,12 +263,15 @@ public class OpenSearchSchemaBuilder {
         if (BinaryType.NAME.equals(opensearchType)) {
             return BinaryType.nullable();
         }
-        if (("date".equals(opensearchType) || "date_nanos".equals(opensearchType))
-            && DateFormatClassifier.classify(format) == SqlTypeName.DATE) {
-            // Carry the same precision a plain TIMESTAMP column would, so the UDT serializes to an
-            // identical Substrait PrecisionTimestamp and binds against the parquet timestamp storage.
-            int precision = typeFactory.createSqlType(SqlTypeName.TIMESTAMP).getPrecision();
-            return new DateType(true, precision);
+        if ("date".equals(opensearchType) || "date_nanos".equals(opensearchType)) {
+            SqlTypeName logical = DateFormatClassifier.classify(format);
+            if (logical == SqlTypeName.DATE || logical == SqlTypeName.TIME) {
+                // Carry the same precision a plain TIMESTAMP column would, so the UDT serializes to
+                // an identical Substrait PrecisionTimestamp and binds against the parquet timestamp
+                // storage. Only the planner-side logical type differs.
+                int precision = typeFactory.createSqlType(SqlTypeName.TIMESTAMP).getPrecision();
+                return logical == SqlTypeName.DATE ? new DateType(true, precision) : new TimeType(true, precision);
+            }
         }
         SqlTypeName sqlType = mapFieldType(opensearchType);
         if (sqlType == null) {
