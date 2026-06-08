@@ -132,6 +132,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_PATTERN_PARSER_GET_TOKENS_OP, "pattern_parser_get_tokens"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
+        FunctionMappings.s(GrokAdapter.LOCAL_GROK_OP, "grok"),
         FunctionMappings.s(SqlStdOperatorTable.ITEM, "item"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),

@@ -128,6 +128,7 @@ pub mod crc32;
 pub mod date_format;
 pub mod extract;
 pub mod from_unixtime;
+pub mod grok;
 pub mod ip_to_string;
 pub mod item;
 pub mod json_append;
@@ -176,6 +177,7 @@ pub fn register_all(ctx: &SessionContext) {
     date_format::register_all(ctx);
     extract::register_all(ctx);
     from_unixtime::register_all(ctx);
+    grok::register_all(ctx);
     ip_to_string::register_all(ctx);
     item::register_all(ctx);
     json_append::register_all(ctx);

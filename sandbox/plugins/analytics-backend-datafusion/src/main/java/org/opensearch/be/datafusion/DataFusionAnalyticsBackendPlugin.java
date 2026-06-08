@@ -403,6 +403,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
         ScalarFunction.JSON_EXTRACT_ALL,
         ScalarFunction.PARSE,
+        ScalarFunction.GROK,
         ScalarFunction.ITEM,
         ScalarFunction.SAFE_CAST,
         ScalarFunction.PATTERN_PARSER
@@ -486,6 +487,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.ARG_MAX,
                             WindowFunction.DISTINCT_COUNT_APPROX,
                             WindowFunction.ROW_NUMBER,
+                            WindowFunction.RANK,
+                            WindowFunction.DENSE_RANK,
                             WindowFunction.NTH_VALUE,
                             WindowFunction.PATTERN
                         ),
@@ -704,6 +707,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
                     Map.entry(ScalarFunction.PARSE, new ParseAdapter()),
+                    Map.entry(ScalarFunction.GROK, new GrokAdapter()),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.POWER, new NumericToDoubleAdapter(SqlStdOperatorTable.POWER)),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
