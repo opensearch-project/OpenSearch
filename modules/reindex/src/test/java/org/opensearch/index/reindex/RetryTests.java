@@ -32,6 +32,7 @@
 
 package org.opensearch.index.reindex;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.bulk.BackoffPolicy;
@@ -68,7 +69,15 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Integration test for bulk retry behavior. Useful because retrying relies on the way that the
  * rest of OpenSearch throws exceptions and unit tests won't verify that.
+ *
+ * <p>{@code @SuppressCodecs("*")} is needed because we cache StoredFieldsReader instances
+ * across scroll batches for sequential access. Different batches may run on different threads
+ * (but never concurrently). Lucene's AssertingStoredFieldsFormat enforces thread affinity
+ * that rejects this valid sequential cross-thread usage.
+ *
+ * @see org.opensearch.search.internal.ScrollContext#getCachedSequentialReader(Object)
  */
+@LuceneTestCase.SuppressCodecs("*")
 public class RetryTests extends OpenSearchIntegTestCase {
 
     private static final int DOC_COUNT = 20;

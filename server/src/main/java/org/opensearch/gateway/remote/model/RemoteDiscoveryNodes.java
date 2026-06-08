@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
@@ -32,10 +33,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 public class RemoteDiscoveryNodes extends AbstractClusterMetadataWriteableBlobEntity<DiscoveryNodes> {
 
     public static final String DISCOVERY_NODES = "nodes";
-    public static final ChecksumWritableBlobStoreFormat<DiscoveryNodes> DISCOVERY_NODES_FORMAT = new ChecksumWritableBlobStoreFormat<>(
-        "nodes",
-        is -> DiscoveryNodes.readFrom(is, null)
-    );
+    public final ChecksumWritableBlobStoreFormat<DiscoveryNodes> discoveryNodesFormat;
 
     private DiscoveryNodes discoveryNodes;
     private long stateVersion;
@@ -49,11 +47,13 @@ public class RemoteDiscoveryNodes extends AbstractClusterMetadataWriteableBlobEn
         super(clusterUUID, compressor, null);
         this.discoveryNodes = discoveryNodes;
         this.stateVersion = stateVersion;
+        this.discoveryNodesFormat = new ChecksumWritableBlobStoreFormat<>("nodes", is -> DiscoveryNodes.readFrom(is, null));
     }
 
-    public RemoteDiscoveryNodes(final String blobName, final String clusterUUID, final Compressor compressor) {
+    public RemoteDiscoveryNodes(final String blobName, final String clusterUUID, final Compressor compressor, final Version version) {
         super(clusterUUID, compressor, null);
         this.blobName = blobName;
+        this.discoveryNodesFormat = new ChecksumWritableBlobStoreFormat<>("nodes", is -> DiscoveryNodes.readFrom(is, null), version);
     }
 
     @Override
@@ -88,7 +88,7 @@ public class RemoteDiscoveryNodes extends AbstractClusterMetadataWriteableBlobEn
 
     @Override
     public InputStream serialize() throws IOException {
-        return DISCOVERY_NODES_FORMAT.serialize(
+        return discoveryNodesFormat.serialize(
             (out, discoveryNode) -> discoveryNode.writeToWithAttribute(out),
             discoveryNodes,
             generateBlobFileName(),
@@ -98,6 +98,6 @@ public class RemoteDiscoveryNodes extends AbstractClusterMetadataWriteableBlobEn
 
     @Override
     public DiscoveryNodes deserialize(final InputStream inputStream) throws IOException {
-        return DISCOVERY_NODES_FORMAT.deserialize(blobName, Streams.readFully(inputStream));
+        return discoveryNodesFormat.deserialize(blobName, Streams.readFully(inputStream));
     }
 }

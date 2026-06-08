@@ -22,7 +22,6 @@ import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -89,7 +88,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
             .build();
     }
 
-    public void testWritableWarmFeatureFlagDisabled() {
+    public void testWritableWarmSettingAcceptedWhenFeatureFlagDisabled() {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, false)
@@ -105,18 +104,9 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
             .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
             .build();
 
-        try {
-            prepareCreate(INDEX_NAME).setSettings(indexSettings).get();
-            fail("Should have thrown Exception as setting should not be registered if Feature Flag is Disabled");
-        } catch (SettingsException ex) {
-            assertEquals(
-                "unknown setting ["
-                    + IndexModule.IS_WARM_INDEX_SETTING.getKey()
-                    + "] please check that any required plugins are installed, or check the "
-                    + "breaking changes documentation for removed settings",
-                ex.getMessage()
-            );
-        }
+        // Setting is now always registered (built-in), so index creation should succeed
+        // even when the feature flag is disabled
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(indexSettings).get());
     }
 
     public void testWritableWarmBasic() throws Exception {

@@ -1,0 +1,1 @@
+source = clickbench | where CounterID = 62 and EventDate >= '2013-07-01 00:00:00' and EventDate <= '2013-07-31 00:00:00' and IsRefresh = 0 and TraficSourceID in (-1, 6) and RefererHash = 3594120000172545465 | stats count() as PageViews by URLHash, EventDate | sort - PageViews | head 10 from 100

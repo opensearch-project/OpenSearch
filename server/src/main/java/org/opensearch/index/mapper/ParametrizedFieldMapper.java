@@ -127,12 +127,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
+        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name(), simpleName())));
     }
 
-    private static ContentPath parentPath(String name) {
-        int endPos = name.lastIndexOf(".");
-        if (endPos == -1) {
+    private static ContentPath parentPath(String name, String simpleName) {
+        // Use simpleName to compute the parent path so that fields whose simpleName contains dots
+        // (because of disable_objects) get the correct parent path
+        int endPos = name.length() - simpleName.length() - 1;
+        if (endPos < 0) {
             return new ContentPath(0);
         }
         return new ContentPath(name.substring(0, endPos));
@@ -619,7 +621,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 param.merge(in, conflicts);
             }
             for (Mapper newSubField : in.multiFields) {
-                multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
+                multiFieldsBuilder.update(newSubField, parentPath(newSubField.name(), newSubField.simpleName()));
             }
             this.copyTo.reset(in.copyTo);
             validate();

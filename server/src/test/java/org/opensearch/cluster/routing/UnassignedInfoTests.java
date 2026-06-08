@@ -89,7 +89,8 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
             UnassignedInfo.Reason.PRIMARY_FAILED,
             UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
             UnassignedInfo.Reason.MANUAL_ALLOCATION,
-            UnassignedInfo.Reason.INDEX_CLOSED, };
+            UnassignedInfo.Reason.INDEX_CLOSED,
+            UnassignedInfo.Reason.CHILD_SHARD_CREATED, };
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }

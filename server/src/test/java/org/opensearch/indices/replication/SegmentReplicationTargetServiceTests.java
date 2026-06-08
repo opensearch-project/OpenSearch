@@ -33,6 +33,8 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -68,6 +70,7 @@ import java.util.function.BiConsumer;
 
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -113,7 +116,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .build();
         primaryShard = newStartedShard(true, settings);
         String primaryCodec = primaryShard.getLatestReplicationCheckpoint().getCodec();
-        replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
+        replicaShard = newShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
         checkpoint = new ReplicationCheckpoint(
             replicaShard.shardId(),
@@ -409,6 +412,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // skip post replication actions so we can assert execution counts. This will continue to process bc replica's pterm is not advanced
         // post replication.
         doReturn(true).when(serviceSpy).processLatestReceivedCheckpoint(any(), any());
+        doReturn(true).when(serviceSpy).processLatestReceivedCheckpoint(any(), any(), anyBoolean());
         // Create a Mockito spy of target to stub response of few method calls.
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -476,7 +480,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         // ensure the old target is cancelled. and new iteration kicks off.
         verify(targetSpy, times(1)).cancel("Cancelling stuck target after new primary");
-        verify(serviceSpy, times(1)).startReplication(eq(replicaShard), any(), any());
+        verify(serviceSpy, times(1)).startReplication(eq(replicaShard), any(), anyBoolean(), any());
     }
 
     public void testMergedSegmentReplicating_HigherPrimaryTermReceived() throws IOException {
@@ -628,10 +632,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         SegmentReplicationTargetService spy = spy(sut);
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(i -> {
-            ((SegmentReplicationTargetService.SegmentReplicationListener) i.getArgument(2)).onReplicationDone(state);
+            ((SegmentReplicationTargetService.SegmentReplicationListener) i.getArgument(3)).onReplicationDone(state);
             latch.countDown();
             return null;
-        }).when(spy).startReplication(any(), any(), any());
+        }).when(spy).startReplication(any(), any(), anyBoolean(), any());
         doNothing().when(spy).updateVisibleCheckpoint(eq(0L), any());
         spy.afterIndexShardStarted(replicaShard);
 
@@ -671,11 +675,11 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     public void testProcessLatestCheckpointIfCheckpointAhead() {
         SegmentReplicationTargetService service = spy(sut);
-        doNothing().when(service).startReplication(any());
         doReturn(mock(SegmentReplicationTarget.class)).when(service).startReplication(any(), any(), any());
+        doReturn(mock(SegmentReplicationTarget.class)).when(service).startReplication(any(), any(), anyBoolean(), any());
         service.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
         service.processLatestReceivedCheckpoint(replicaShard, null);
-        verify(service, times(1)).startReplication(eq(replicaShard), eq(aheadCheckpoint), any());
+        verify(service, times(1)).startReplication(eq(replicaShard), eq(aheadCheckpoint), anyBoolean(), any());
     }
 
     public void testOnNewCheckpointInvokedOnClosedShardDoesNothing() throws IOException {
@@ -750,7 +754,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, replicaShard.shardId());
         when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(spyReplicaShard);
         IOException exception = new IOException("dummy failure");
-        doThrow(exception).when(spyReplicaShard).finalizeReplication(any());
+        doThrow(exception).when(spyReplicaShard).finalizeReplication(any(CatalogSnapshot.class));
 
         // prevent shard failure to avoid test setup assertion
         doNothing().when(spyReplicaShard).failShard(eq("replication failure"), any());
@@ -786,7 +790,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(spyReplicaShard);
 
         AlreadyClosedException exception = new AlreadyClosedException("shard closed");
-        doThrow(exception).when(spyReplicaShard).finalizeReplication(any());
+        doThrow(exception).when(spyReplicaShard).finalizeReplication(any(CatalogSnapshot.class));
 
         // prevent shard failure to avoid test setup assertion
         doNothing().when(spyReplicaShard).failShard(eq("replication failure"), any());

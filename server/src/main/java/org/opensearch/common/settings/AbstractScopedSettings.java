@@ -123,6 +123,14 @@ public abstract class AbstractScopedSettings {
         this.keySettings = keySettings;
     }
 
+    /**
+     *  Returns the list of setting updaters registered in this scope.
+     * @return an unmodifiable view of the setting updaters
+     */
+    public List<SettingUpdater<?>> getSettingUpdaters() {
+        return Collections.unmodifiableList(settingUpdaters);
+    }
+
     protected void validateSettingKey(Setting<?> setting) {
         if (isValidKey(setting.getKey()) == false
             && (setting.isGroupSetting() && isValidGroupKey(setting.getKey()) || isValidAffixKey(setting.getKey())) == false
@@ -765,6 +773,15 @@ public abstract class AbstractScopedSettings {
     public boolean isUnmodifiableOnRestoreSetting(String key) {
         final Setting<?> setting = get(key);
         return setting != null && setting.isUnmodifiableOnRestore();
+    }
+
+    /**
+     * Returns <code>true</code> if the setting for the given key is sensitive, meaning it requires
+     * security admin privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public boolean isSensitiveSetting(String key) {
+        final Setting<?> setting = get(key);
+        return setting != null && setting.isSensitive();
     }
 
     /**

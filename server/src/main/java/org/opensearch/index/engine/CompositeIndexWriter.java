@@ -19,6 +19,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.CheckedBiFunction;
@@ -26,7 +27,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
@@ -39,16 +39,15 @@ import org.opensearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 import static org.opensearch.index.BucketedCompositeDirectory.CHILD_DIRECTORY_PREFIX;
 
@@ -117,8 +116,6 @@ import static org.opensearch.index.BucketedCompositeDirectory.CHILD_DIRECTORY_PR
  */
 public class CompositeIndexWriter implements DocumentIndexWriter {
 
-    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
-
     private final EngineConfig engineConfig;
     private final IndexWriter accumulatingIndexWriter;
     private final CheckedBiFunction<String, CriteriaBasedIndexWriterLookup, DisposableIndexWriter, IOException> childIndexWriterFactory;
@@ -129,6 +126,20 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     private final Store store;
     private static final String DUMMY_TOMBSTONE_DOC_ID = "-2";
     private final IndexWriterFactory nativeIndexWriterFactory;
+    /**
+     * pendingNumDocs is used to track pendingNumDocs for child level IndexWriters. Since pendingNumDocs is incremented
+     * (by one) only in DocumentsWriterPerThread#reserveOneDoc for any index or update operation, we keep incrementing
+     * pendingNumDocs by one for each of these operations. We increment this value whenever we call following functions
+     * on childWriter:
+     * - softUpdateDocument
+     * - softUpdateDocuments
+     * - addDocuments
+     * - addDocument
+     *
+     * This value may overshoot during refresh temporarily due to double counting few documents in both old child
+     * IndexWriters and parent which should ok as undershooting pendingNumDocs can be problematic.
+     */
+    private final AtomicLong childWriterPendingNumDocs = new AtomicLong();
 
     public CompositeIndexWriter(
         EngineConfig engineConfig,
@@ -336,6 +347,11 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
                 boolean locked = lock.tryLock();
                 if (locked) {
                     assert addCurrentThread();
+                    if (lookup.isClosed()) {
+                        this.close();
+                        return null;
+                    }
+
                     return lookup;
                 } else {
                     return null;
@@ -473,9 +489,13 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             boolean success = false;
             CriteriaBasedIndexWriterLookup current = null;
             try {
-                current = getCurrentMap();
-                if (current == null || current.isClosed()) {
-                    throw new LookupMapLockAcquisitionException(shardId, "Unable to obtain lock on the current Lookup map", null);
+                while (current == null || current.isClosed()) {
+                    // This function acquires a first read lock on a map which does not have any write lock present. Current keeps
+                    // on getting rotated during refresh, so there will be one current on which read lock can be obtained.
+                    // Validate that no write lock is applied on the map and the map is not closed. Idea here is write lock was
+                    // never applied on this map as write lock gets only during closing time. We are doing this instead of acquire,
+                    // because acquire can also apply a read lock in case refresh completed and map is closed.
+                    current = this.current.mapReadLock.tryAcquire();
                 }
 
                 DisposableIndexWriter writer = current.computeIndexWriterIfAbsentForCriteria(criteria, indexWriterSupplier);
@@ -487,15 +507,6 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
                     current.mapReadLock.close();
                 }
             }
-        }
-
-        // This function acquires a first read lock on a map which does not have any write lock present. Current keeps
-        // on getting rotated during refresh, so there will be one current on which read lock can be obtained.
-        // Validate that no write lock is applied on the map and the map is not closed. Idea here is write lock was
-        // never applied on this map as write lock gets only during closing time. We are doing this instead of acquire,
-        // because acquire can also apply a read lock in case refresh completed and map is closed.
-        CriteriaBasedIndexWriterLookup getCurrentMap() {
-            return current.mapReadLock.tryAcquire();
         }
 
         // Used for Test Case.
@@ -532,18 +543,25 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     private void refreshDocumentsForParentDirectory(CriteriaBasedIndexWriterLookup oldMap) throws IOException {
         final Map<String, CompositeIndexWriter.DisposableIndexWriter> markForRefreshIndexWritersMap = oldMap.criteriaBasedIndexWriterMap;
         deletePreviousVersionsForUpdatedDocuments();
-        final List<Directory> directoryToCombine = new ArrayList<>();
+        Directory directoryToCombine;
         for (CompositeIndexWriter.DisposableIndexWriter childDisposableWriter : markForRefreshIndexWritersMap.values()) {
-            directoryToCombine.add(childDisposableWriter.getIndexWriter().getDirectory());
+            directoryToCombine = childDisposableWriter.getIndexWriter().getDirectory();
             childDisposableWriter.getIndexWriter().close();
-        }
-
-        if (!directoryToCombine.isEmpty()) {
-            accumulatingIndexWriter.addIndexes(directoryToCombine.toArray(new Directory[0]));
+            long pendingNumDocsByOldChildWriter = childDisposableWriter.getIndexWriter().getPendingNumDocs();
+            accumulatingIndexWriter.addIndexes(directoryToCombine);
+            Path childDirectoryPath = getLocalFSDirectory(directoryToCombine).getDirectory();
             IOUtils.closeWhileHandlingException(directoryToCombine);
+            childWriterPendingNumDocs.addAndGet(-pendingNumDocsByOldChildWriter);
+            IOUtils.rm(childDirectoryPath);
         }
 
         deleteDummyTombstoneEntry();
+    }
+
+    private FSDirectory getLocalFSDirectory(Directory localDirectory) {
+        // Since we are validating child IndexWriter directory, it will always be instance of FSDirectory.
+        assert localDirectory instanceof FSDirectory;
+        return (FSDirectory) localDirectory;
     }
 
     private void deleteDummyTombstoneEntry() throws IOException {
@@ -587,13 +605,14 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         return liveIndexWriterDeletesMap.current.mapWriteLock;
     }
 
+    // Used for unit tests.
+    CriteriaBasedIndexWriterLookup acquireNewReadLock() {
+        return liveIndexWriterDeletesMap.current.mapReadLock.acquire();
+    }
+
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
         liveIndexWriterDeletesMap = liveIndexWriterDeletesMap.invalidateOldMap();
-    }
-
-    Releasable acquireLock(BytesRef uid) {
-        return keyedLock.acquire(uid);
     }
 
     public Map<BytesRef, DeleteEntry> getLastDeleteEntrySet() {
@@ -605,19 +624,16 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     }
 
     void putCriteria(BytesRef uid, String criteria) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         liveIndexWriterDeletesMap.putCriteriaForDoc(uid, criteria);
     }
 
     DisposableIndexWriter getIndexWriterForIdFromCurrent(BytesRef uid) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         return getIndexWriterForIdFromLookup(uid, liveIndexWriterDeletesMap.current);
     }
 
     DisposableIndexWriter getIndexWriterForIdFromOld(BytesRef uid) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         return getIndexWriterForIdFromLookup(uid, liveIndexWriterDeletesMap.old);
     }
@@ -627,7 +643,7 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         boolean isCriteriaNotNull = false;
         try {
             indexWriterLookup.mapReadLock.acquire();
-            String criteria = getCriteriaForDoc(uid);
+            String criteria = indexWriterLookup.getCriteriaForDoc(uid);
             if (criteria != null) {
                 DisposableIndexWriter disposableIndexWriter = indexWriterLookup.getIndexWriterForCriteria(criteria);
                 if (disposableIndexWriter != null) {
@@ -648,13 +664,21 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         return liveIndexWriterDeletesMap.hasNewIndexingOrUpdates();
     }
 
-    String getCriteriaForDoc(BytesRef uid) {
-        return liveIndexWriterDeletesMap.getCriteriaForDoc(uid);
+    public boolean validateImmutableFieldNotUpdated(ParseContext.Document currentDocument, BytesRef currentUID) {
+        String currentCriteria = currentDocument.getGroupingCriteria();
+        String previousCriteria = getCriteriaForUID(currentUID, liveIndexWriterDeletesMap);
+        // previousCriteria may be null in case version is coming from a tombstone. In that case, we should ignore
+        // it.
+        return previousCriteria != null && previousCriteria.equals(currentCriteria) == false;
     }
 
-    boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
-        assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
-        return true;
+    private String getCriteriaForUID(BytesRef uid, LiveIndexWriterDeletesMap currentMap) {
+        String criteria = currentMap.current.getCriteriaForDoc(uid);
+        if (criteria != null) {
+            return criteria;
+        }
+
+        return currentMap.old.getCriteriaForDoc(uid);
     }
 
     DisposableIndexWriter computeIndexWriterIfAbsentForCriteria(
@@ -683,13 +707,38 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     @Override
     public long getFlushingBytes() {
         ensureOpen();
+        return getFlushingBytesUtil(liveIndexWriterDeletesMap);
+    }
+
+    /**
+     * Utility class to calculate flushingBytes. Since we are point in time current instance of
+     * LiveIndexWriterDeletesMap, we should not worry about double counting due to map rotation from current to old. Also
+     * when old will be synced with parent writer, old writer is closed so we do not need to worry about double counting
+     * in parent and old IndexWriters.
+     *
+     * @param currentLiveIndexWriterDeletesMap current point in time instance of LiveIndexWriterDeletesMap.
+     * @return flushingBytes
+     */
+    public long getFlushingBytesUtil(LiveIndexWriterDeletesMap currentLiveIndexWriterDeletesMap) {
         long flushingBytes = 0;
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        for (IndexWriter currentWriter : currentWriterSet) {
-            flushingBytes += currentWriter.getFlushingBytes();
+        for (DisposableIndexWriter disposableIndexWriter : currentLiveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+            try {
+                flushingBytes += disposableIndexWriter.getIndexWriter().getFlushingBytes();
+            } catch (AlreadyClosedException e) {
+                if (disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                    throw e;
+                }
+            }
+        }
+
+        for (DisposableIndexWriter disposableIndexWriter : currentLiveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()) {
+            try {
+                flushingBytes += disposableIndexWriter.getIndexWriter().getFlushingBytes();
+            } catch (AlreadyClosedException e) {
+                if (disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                    throw e;
+                }
+            }
         }
 
         return flushingBytes + accumulatingIndexWriter.getFlushingBytes();
@@ -698,18 +747,7 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     @Override
     public long getPendingNumDocs() {
         ensureOpen();
-        long pendingNumDocs = 0;
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        ;
-        for (IndexWriter currentWriter : currentWriterSet) {
-            pendingNumDocs += currentWriter.getPendingNumDocs();
-        }
-
-        // TODO: Should we add docs for old writer as well?
-        return pendingNumDocs + accumulatingIndexWriter.getPendingNumDocs();
+        return childWriterPendingNumDocs.get() + accumulatingIndexWriter.getPendingNumDocs();
     }
 
     @Override
@@ -733,59 +771,63 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
 
     @Override
     public Throwable getTragicException() {
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        for (IndexWriter writer : currentWriterSet) {
-            if (writer.isOpen() == false && writer.getTragicException() != null) {
-                return writer.getTragicException();
+        for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+            if (disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                return disposableIndexWriter.getIndexWriter().getTragicException();
             }
         }
 
-        Collection<IndexWriter> oldWriterSet = liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        ;
-        for (IndexWriter writer : oldWriterSet) {
-            if (writer.isOpen() == false && writer.getTragicException() != null) {
-                return writer.getTragicException();
+        for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()) {
+            if (disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                return disposableIndexWriter.getIndexWriter().getTragicException();
             }
         }
 
-        if (accumulatingIndexWriter.isOpen() == false) {
-            return accumulatingIndexWriter.getTragicException();
-        }
-
-        return null;
+        return accumulatingIndexWriter.getTragicException();
     }
 
+    /**
+     * RamBytesUsed is summation of deleteBytes, flushBytes and activeBytes.
+     *
+     * deleteBytes are increased when any updates are added to document. flushBytes are increased post indexing in case
+     * a DWPT on which indexing is happening is already marked for flush or in case we mark a dwpt for flush. ActiveBytes
+     * are increased whenever indexing completes and dwpt is not marked for flush.
+     *
+     * @return
+     */
     @Override
     public final long ramBytesUsed() {
         ensureOpen();
-        long ramBytesUsed = 0;
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
+        return ramBytesUsedUtil(liveIndexWriterDeletesMap);
+    }
 
-        try (ReleasableLock ignore = liveIndexWriterDeletesMap.current.mapWriteLock.acquire()) {
-            for (IndexWriter indexWriter : currentWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    ramBytesUsed += indexWriter.ramBytesUsed();
+    /**
+     * Utility class to calculate ramBytesUsedUtil. Since we are point in time current instance of
+     * LiveIndexWriterDeletesMap, we should not worry about double counting due to map rotation from current to old. Also
+     * when old will be synced with parent writer, old writer is closed so we do not need to worry about double counting
+     * in parent and old IndexWriters.
+     *
+     * @param currentLiveIndexWriterDeletesMap current point in time instance of LiveIndexWriterDeletesMap.
+     * @return ramBytesUsed
+     */
+    private long ramBytesUsedUtil(LiveIndexWriterDeletesMap currentLiveIndexWriterDeletesMap) {
+        long ramBytesUsed = 0;
+        for (DisposableIndexWriter disposableIndexWriter : currentLiveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+            try {
+                ramBytesUsed += disposableIndexWriter.getIndexWriter().ramBytesUsed();
+            } catch (AlreadyClosedException e) {
+                if (disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                    throw e;
                 }
             }
         }
 
-        Collection<IndexWriter> oldWriterSet = liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        try (ReleasableLock ignore = liveIndexWriterDeletesMap.old.mapWriteLock.acquire()) {
-            for (IndexWriter indexWriter : oldWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    ramBytesUsed += indexWriter.ramBytesUsed();
+        for (DisposableIndexWriter disposableIndexWriter : currentLiveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()) {
+            try {
+                ramBytesUsed += disposableIndexWriter.getIndexWriter().ramBytesUsed();
+            } catch (AlreadyClosedException e) {
+                if (disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                    throw e;
                 }
             }
         }
@@ -813,25 +855,16 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
 
     public void rollback() throws IOException {
         if (shouldClose()) {
-            Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-                .stream()
-                .map(DisposableIndexWriter::getIndexWriter)
-                .collect(Collectors.toSet());
-
-            for (IndexWriter indexWriter : currentWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    indexWriter.rollback();
-                }
+            // Though calling rollback on child level writer seems like a redundant thing, but this ensures all the
+            // child level IndexWriters are closed and there is no case of file leaks. Incase rollback throws any
+            // exception close the shard as rollback gets called in close flow. And rollback throwin exception means
+            // there is already leaks.
+            for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+                disposableIndexWriter.getIndexWriter().rollback();
             }
 
-            Collection<IndexWriter> oldWriterSet = liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()
-                .stream()
-                .map(DisposableIndexWriter::getIndexWriter)
-                .collect(Collectors.toSet());
-            for (IndexWriter indexWriter : oldWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    indexWriter.rollback();
-                }
+            for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()) {
+                disposableIndexWriter.getIndexWriter().rollback();
             }
 
             accumulatingIndexWriter.rollback();
@@ -884,18 +917,17 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     }
 
     @Override
-    public long addDocuments(Iterable<ParseContext.Document> docs, Term uid) throws IOException {
+    public long addDocuments(final List<ParseContext.Document> docs, Term uid) throws IOException {
         // We obtain a read lock on a child level IndexWriter and then return it. Post Indexing completes, we close this
         // IndexWriter.
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(docs.iterator().next());
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (
-            CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock();
-            Releasable ignore1 = acquireLock(uid.bytes())
-        ) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
-            return disposableIndexWriter.getIndexWriter().addDocuments(docs);
+            long seqNo = disposableIndexWriter.getIndexWriter().addDocuments(docs);
+            childWriterPendingNumDocs.addAndGet(docs.size());
+            return seqNo;
         }
     }
 
@@ -904,19 +936,18 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(doc);
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (
-            CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock();
-            Releasable ignore1 = acquireLock(uid.bytes())
-        ) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
-            return disposableIndexWriter.getIndexWriter().addDocument(doc);
+            long seqNo = disposableIndexWriter.getIndexWriter().addDocument(doc);
+            childWriterPendingNumDocs.incrementAndGet();
+            return seqNo;
         }
     }
 
     @Override
     public void softUpdateDocuments(
         Term uid,
-        Iterable<ParseContext.Document> docs,
+        List<ParseContext.Document> docs,
         long version,
         long seqNo,
         long primaryTerm,
@@ -925,12 +956,10 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(docs.iterator().next());
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (
-            CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock();
-            Releasable ignore1 = acquireLock(uid.bytes())
-        ) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
             disposableIndexWriter.getIndexWriter().softUpdateDocuments(uid, docs, softDeletesField);
+            childWriterPendingNumDocs.addAndGet(docs.size());
             // TODO: Do we need to add more info in delete entry like id, seqNo, primaryTerm for debugging??
             // TODO: Entry can be null for first version or if there is term bum up (validate if this is because we need to keep previous
             // version).
@@ -951,12 +980,10 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         ensureOpen();
         final String criteria = getGroupingCriteriaForDoc(doc);
         DisposableIndexWriter disposableIndexWriter = getAssociatedIndexWriterForCriteria(criteria);
-        try (
-            CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock();
-            Releasable ignore1 = acquireLock(uid.bytes())
-        ) {
+        try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignoreLock = disposableIndexWriter.getLookupMap().getMapReadLock()) {
             putCriteria(uid.bytes(), criteria);
             disposableIndexWriter.getIndexWriter().softUpdateDocument(uid, doc, softDeletesField);
+            childWriterPendingNumDocs.incrementAndGet();
             // TODO: Do we need to add more info in delete entry like id, seqNo, primaryTerm for debugging??
             // TODO: Entry can be null for first version or if there is term bum up (validate if this is because we need to keep previous
             // version).
@@ -990,29 +1017,29 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         Field... softDeletesField
     ) throws IOException {
         ensureOpen();
-        try (Releasable ignore1 = acquireLock(uid.bytes())) {
-            CompositeIndexWriter.DisposableIndexWriter currentDisposableWriter = getIndexWriterForIdFromCurrent(uid.bytes());
-            if (currentDisposableWriter != null) {
-                try (
-                    CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()
-                ) {
-                    if (currentDisposableWriter.getLookupMap().isClosed() == false && isStaleOperation == false) {
-                        addDeleteEntryToWriter(new DeleteEntry(uid, version, seqNo, primaryTerm), currentDisposableWriter.getIndexWriter());
-                    }
+        CompositeIndexWriter.DisposableIndexWriter currentDisposableWriter = getIndexWriterForIdFromCurrent(uid.bytes());
+        if (currentDisposableWriter != null) {
+            try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = currentDisposableWriter.getLookupMap().getMapReadLock()) {
+                if (currentDisposableWriter.getLookupMap().isClosed() == false && isStaleOperation == false) {
+                    addDeleteEntryToWriter(new DeleteEntry(uid, version, seqNo, primaryTerm), currentDisposableWriter.getIndexWriter());
+                    // only increment this when addDeleteEntry for child writers are called.
+                    childWriterPendingNumDocs.incrementAndGet();
                 }
             }
-
-            CompositeIndexWriter.DisposableIndexWriter oldDisposableWriter = getIndexWriterForIdFromOld(uid.bytes());
-            if (oldDisposableWriter != null) {
-                try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = oldDisposableWriter.getLookupMap().getMapReadLock()) {
-                    if (oldDisposableWriter.getLookupMap().isClosed() == false && isStaleOperation == false) {
-                        addDeleteEntryToWriter(new DeleteEntry(uid, version, seqNo, primaryTerm), oldDisposableWriter.getIndexWriter());
-                    }
-                }
-            }
-
-            deleteInLucene(uid, isStaleOperation, accumulatingIndexWriter, doc, softDeletesField);
         }
+
+        CompositeIndexWriter.DisposableIndexWriter oldDisposableWriter = getIndexWriterForIdFromOld(uid.bytes());
+        if (oldDisposableWriter != null) {
+            try (CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock ignore = oldDisposableWriter.getLookupMap().getMapReadLock()) {
+                if (oldDisposableWriter.getLookupMap().isClosed() == false && isStaleOperation == false) {
+                    addDeleteEntryToWriter(new DeleteEntry(uid, version, seqNo, primaryTerm), oldDisposableWriter.getIndexWriter());
+                    // only increment this when addDeleteEntry for child writers are called.
+                    childWriterPendingNumDocs.incrementAndGet();
+                }
+            }
+        }
+
+        deleteInLucene(uid, isStaleOperation, accumulatingIndexWriter, doc, softDeletesField);
     }
 
     private void deleteInLucene(
@@ -1027,6 +1054,8 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         } else {
             currentWriter.softUpdateDocument(uid, doc, softDeletesField);
         }
+
+        childWriterPendingNumDocs.incrementAndGet();
     }
 
     private DisposableIndexWriter getAssociatedIndexWriterForCriteria(final String criteria) throws IOException {

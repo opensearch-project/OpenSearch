@@ -49,12 +49,15 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.mapper.extrasource.BytesValue;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -542,6 +545,22 @@ public class UpdateIT extends OpenSearchIntegTestCase {
             assertThat(e.validationErrors().get(0), containsString("doc must be specified if doc_as_upsert is enabled"));
             assertThat(e.getMessage(), containsString("doc must be specified if doc_as_upsert is enabled"));
         }
+    }
+
+    public void testScriptWithExtraFieldValuesRejected() throws Exception {
+        createTestIndex();
+        ensureGreen();
+
+        Script script = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
+
+        UpdateRequest req = new UpdateRequest(indexOrAlias(), "1").script(script)
+            .upsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject());
+
+        // attach extra field values to the upsert IndexRequest (since script+doc is invalid)
+        req.upsertRequest().extraFieldValues(new ExtraFieldValues(Map.of("k", new BytesValue(new BytesArray(new byte[] { 1, 2, 3 })))));
+
+        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, () -> client().update(req).actionGet());
+        assertThat(e.getMessage(), containsString("ExtraFieldValues are not supported with scripted updates"));
     }
 
     public void testContextVariables() throws Exception {

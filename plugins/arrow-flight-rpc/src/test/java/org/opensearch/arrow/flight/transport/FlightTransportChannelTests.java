@@ -7,6 +7,7 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.lease.Releasable;
@@ -31,6 +32,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class FlightTransportChannelTests extends OpenSearchTestCase {
 
@@ -129,6 +131,10 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
     }
 
     public void testSendResponseBatchWithGenericException() throws IOException {
+        // Non-cancel exceptions must NOT release the channel here — the handler is
+        // expected to call channel.sendResponse(e) to relay the failure to the consumer,
+        // and that path releases on its own. Releasing prematurely would close the
+        // underlying TcpChannel and break the relay.
         TransportResponse response = mock(TransportResponse.class);
         RuntimeException genericException = new RuntimeException("generic error");
 
@@ -139,8 +145,23 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         assertEquals(StreamErrorCode.INTERNAL, thrown.getErrorCode());
         assertEquals("Error sending response batch", thrown.getMessage());
         assertEquals(genericException, thrown.getCause());
-        verify(mockTcpChannel).close();
-        verify(mockReleasable).close();
+        verify(mockTcpChannel, org.mockito.Mockito.never()).close();
+        verify(mockReleasable, org.mockito.Mockito.never()).close();
+    }
+
+    public void testSendResponseBatchWithNonCancelStreamExceptionDoesNotRelease() throws IOException {
+        // Same contract for non-cancel StreamException (e.g. TIMED_OUT from awaitReadyOrThrow):
+        // the channel stays open so the handler's sendResponse(e) can relay to the consumer.
+        TransportResponse response = mock(TransportResponse.class);
+        StreamException timedOut = new StreamException(StreamErrorCode.TIMED_OUT, "consumer not ready");
+
+        doThrow(timedOut).when(mockOutboundHandler)
+            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
+
+        StreamException thrown = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
+        assertSame(timedOut, thrown);
+        verify(mockTcpChannel, org.mockito.Mockito.never()).close();
+        verify(mockReleasable, org.mockito.Mockito.never()).close();
     }
 
     public void testCompleteStreamSuccess() {
@@ -168,7 +189,6 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             false,
             true,
             false,
-            null,
             null
         );
         completeTask.close();
@@ -208,5 +228,25 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         StreamException exception2 = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
         assertEquals(StreamErrorCode.UNAVAILABLE, exception1.getErrorCode());
         assertEquals(StreamErrorCode.UNAVAILABLE, exception2.getErrorCode());
+    }
+
+    public void testGetAllocator() {
+        BufferAllocator mockAllocator = mock(BufferAllocator.class);
+        FlightServerChannel mockServerChannel = mock(FlightServerChannel.class);
+        when(mockServerChannel.getAllocator()).thenReturn(mockAllocator);
+
+        FlightTransportChannel ch = new FlightTransportChannel(
+            mockOutboundHandler,
+            mockServerChannel,
+            "test-action",
+            1L,
+            Version.CURRENT,
+            Collections.emptySet(),
+            false,
+            false,
+            mockReleasable
+        );
+
+        assertSame(mockAllocator, ch.getAllocator());
     }
 }

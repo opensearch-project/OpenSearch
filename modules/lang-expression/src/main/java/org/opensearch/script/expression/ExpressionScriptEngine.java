@@ -48,7 +48,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.script.BucketAggregationScript;
 import org.opensearch.script.BucketAggregationSelectorScript;
-import org.opensearch.script.ClassPermission;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.FilterScript;
 import org.opensearch.script.NumberSortScript;
@@ -58,12 +57,10 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.TermsSetQueryScript;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -172,37 +169,16 @@ public class ExpressionScriptEngine implements ScriptEngine {
         return NAME;
     }
 
-    @SuppressWarnings("removal")
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         // classloader created here
-        final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();
-        Expression expr = AccessController.doPrivileged(new PrivilegedAction<Expression>() {
-            @Override
-            public Expression run() {
-                try {
-                    // snapshot our context here, we check on behalf of the expression
-                    AccessControlContext engineContext = AccessController.getContext();
-                    ClassLoader loader = getClass().getClassLoader();
-                    if (sm != null) {
-                        loader = new ClassLoader(loader) {
-                            @Override
-                            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-                                try {
-                                    engineContext.checkPermission(new ClassPermission(name));
-                                } catch (SecurityException e) {
-                                    throw new ClassNotFoundException(name, e);
-                                }
-                                return super.loadClass(name, resolve);
-                            }
-                        };
-                    }
-                    // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS);
-                } catch (ParseException e) {
-                    throw convertToScriptException("compile error", scriptSource, scriptSource, e);
-                }
+        Expression expr = AccessController.doPrivileged(() -> {
+            try {
+                // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
+                return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS);
+            } catch (ParseException e) {
+                throw convertToScriptException("compile error", scriptSource, scriptSource, e);
             }
         });
         if (contexts.containsKey(context) == false) {

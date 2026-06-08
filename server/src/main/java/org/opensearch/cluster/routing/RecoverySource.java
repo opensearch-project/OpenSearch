@@ -56,6 +56,7 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
+ * - {@link InPlaceSplitShardRecoverySource} recovery of child shards from a source shard on the same node
  *
  * @opensearch.api
  */
@@ -90,6 +91,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 return new SnapshotRecoverySource(in);
             case LOCAL_SHARDS:
                 return LocalShardsRecoverySource.INSTANCE;
+            case IN_PLACE_SPLIT_SHARD:
+                return InPlaceSplitShardRecoverySource.INSTANCE;
             case REMOTE_STORE:
                 return new RemoteStoreRecoverySource(in);
             default:
@@ -122,7 +125,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         PEER,
         SNAPSHOT,
         LOCAL_SHARDS,
-        REMOTE_STORE
+        REMOTE_STORE,
+        IN_PLACE_SPLIT_SHARD
     }
 
     public abstract Type getType();
@@ -245,6 +249,33 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return "local shards recovery";
         }
 
+    }
+
+    /**
+     * Recovery of child shards from a source shard on the same node during in-place shard split.
+     *
+     * @opensearch.experimental
+     */
+    public static class InPlaceSplitShardRecoverySource extends RecoverySource {
+
+        public static final InPlaceSplitShardRecoverySource INSTANCE = new InPlaceSplitShardRecoverySource();
+
+        private InPlaceSplitShardRecoverySource() {}
+
+        @Override
+        public Type getType() {
+            return Type.IN_PLACE_SPLIT_SHARD;
+        }
+
+        @Override
+        public String toString() {
+            return "in-place shard split";
+        }
+
+        @Override
+        public boolean expectEmptyRetentionLeases() {
+            return false;
+        }
     }
 
     /**

@@ -67,7 +67,7 @@ public class NestedIdentityTests extends OpenSearchTestCase {
         XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(xcontentType);
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         builder = nestedIdentity.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser parser = createParser(builder)) {
@@ -79,35 +79,34 @@ public class NestedIdentityTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         NestedIdentity nestedIdentity = new NestedIdentity("foo", 5, null);
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-            "{\n" + "  \"_nested\" : {\n" + "    \"field\" : \"foo\",\n" + "    \"offset\" : 5\n" + "  }\n" + "}",
-            builder.toString()
-        );
+        assertEquals("""
+            {
+              "_nested" : {
+                "field" : "foo",
+                "offset" : 5
+              }
+            }""", builder.toString());
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
-        builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
+        builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-            "{\n"
-                + "  \"_nested\" : {\n"
-                + "    \"field\" : \"foo\",\n"
-                + "    \"offset\" : 5,\n"
-                + "    \"_nested\" : {\n"
-                + "      \"field\" : \"bar\",\n"
-                + "      \"offset\" : 3\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            builder.toString()
-        );
+        assertEquals("""
+            {
+              "_nested" : {
+                "field" : "foo",
+                "offset" : 5,
+                "_nested" : {
+                  "field" : "bar",
+                  "offset" : 3
+                }
+              }
+            }""", builder.toString());
     }
 
     /**

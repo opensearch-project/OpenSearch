@@ -847,6 +847,180 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testValidateDisableObjectsImmutability() throws Exception {
+        // Test that disable_objects cannot be changed after index creation
+        String initialMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("_doc", new CompressedXContent(initialMapping), MergeReason.MAPPING_UPDATE);
+
+        // Try to change disable_objects from true to false
+        String updateMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperException e = expectThrows(MapperException.class, () -> {
+            mapperService.merge("_doc", new CompressedXContent(updateMapping), MergeReason.MAPPING_UPDATE);
+        });
+
+        assertThat(e.getMessage(), containsString("Cannot update parameter [disable_objects] from [true] to [false]"));
+        assertThat(e.getMessage(), containsString("for object mapping [metrics]"));
+        assertThat(e.getMessage(), containsString("The disable_objects setting is immutable after index creation"));
+    }
+
+    public void testValidateNestedObjectRejection() throws Exception {
+        // Test that nested objects cannot be added when disable_objects is enabled
+        String initialMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("_doc", new CompressedXContent(initialMapping), MergeReason.MAPPING_UPDATE);
+
+        // Try to add a nested object when disable_objects is true
+        String updateMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("cpu")
+            .field("type", "object")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperException e = expectThrows(MapperException.class, () -> {
+            mapperService.merge("_doc", new CompressedXContent(updateMapping), MergeReason.MAPPING_UPDATE);
+        });
+
+        // Test the specific validation lines: newMapper.name() and name() interpolation
+        assertThat(e.getMessage(), containsString("Field mapping conflict: Cannot add nested object field [metrics.cpu]"));
+        assertThat(e.getMessage(), containsString("when disable_objects is enabled for [metrics]"));
+        assertThat(e.getMessage(), containsString("all fields must use flat field notation"));
+    }
+
+    public void testValidateFlatFieldCompatibility() throws Exception {
+        // Test that nested objects are rejected during initial mapping creation when disable_objects is true
+        String mappingWithNestedObject = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("cpu")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("usage")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService = createIndex("test").mapperService();
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            mapperService.merge("_doc", new CompressedXContent(mappingWithNestedObject), MergeReason.MAPPING_UPDATE);
+        });
+
+        // Test the specific validation lines: childMapper.name() and name() interpolation
+        assertThat(e.getMessage(), containsString("Field mapping conflict: Cannot add nested object field [metrics.cpu]"));
+        assertThat(e.getMessage(), containsString("when disable_objects is enabled for [metrics]"));
+        assertThat(e.getMessage(), containsString("all fields must use flat field notation"));
+
+        // Test that validation only triggers for ObjectMapper instances, not FieldMapper instances
+        String mappingWithFieldMappers = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("allowed_container")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("text_field")  // FieldMapper, not ObjectMapper - should be allowed
+            .field("type", "text")
+            .endObject()
+            .startObject("keyword_field")  // Another FieldMapper - should be allowed
+            .field("type", "keyword")
+            .endObject()
+            .startObject("number_field")  // Another FieldMapper - should be allowed
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService2 = createIndex("test2").mapperService();
+
+        // This should NOT throw an exception because the child mappers are FieldMappers, not ObjectMappers
+        mapperService2.merge("_doc", new CompressedXContent(mappingWithFieldMappers), MergeReason.MAPPING_UPDATE);
+
+        // Test with deeply nested structure to ensure the name interpolation works correctly
+        String deeplyNestedMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("level1")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("level2")
+            .field("type", "object")
+            .field("disable_objects", true)  // disable_objects at level2
+            .startObject("properties")
+            .startObject("level3_object")  // This should be rejected
+            .field("type", "object")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService3 = createIndex("test3").mapperService();
+
+        MapperParsingException e2 = expectThrows(MapperParsingException.class, () -> {
+            mapperService3.merge("_doc", new CompressedXContent(deeplyNestedMapping), MergeReason.MAPPING_UPDATE);
+        });
+
+        assertThat(e2.getMessage(), containsString("Cannot add nested object field [level1.level2.level3_object]"));
+        assertThat(e2.getMessage(), containsString("when disable_objects is enabled for [level2]"));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);

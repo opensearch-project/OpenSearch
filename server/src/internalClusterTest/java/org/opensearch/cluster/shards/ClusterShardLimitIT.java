@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -657,11 +656,15 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
                 .build()
         );
 
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse healthResponse = client.admin()
+            .cluster()
+            .prepareHealth("test-index-1")
+            .setWaitForGreenStatus()
+            .execute()
+            .actionGet();
         assertFalse(healthResponse.isTimedOut());
 
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").execute().actionGet();
-        assertTrue(closeIndexResponse.isAcknowledged());
+        assertAcked(client.admin().indices().prepareClose("test-index-1"));
 
         // Fill up the cluster
         setMaxShardLimit(counts.getShardsPerNode(), getShardsPerNodeKey());
@@ -681,7 +684,7 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
             verifyException(dataNodes, counts, e);
         }
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
-        assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
+        assertEquals(IndexMetadata.State.CLOSE, clusterState.getMetadata().index("test-index-1").getState());
     }
 
     public void testIgnoreDotSettingOnMultipleNodes() throws IOException, InterruptedException {

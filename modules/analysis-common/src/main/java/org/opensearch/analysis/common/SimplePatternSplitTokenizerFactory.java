@@ -34,6 +34,9 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.pattern.SimplePatternSplitTokenizer;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -41,16 +44,17 @@ import org.opensearch.index.analysis.AbstractTokenizerFactory;
 
 public class SimplePatternSplitTokenizerFactory extends AbstractTokenizerFactory {
 
-    private final String pattern;
+    private final Automaton dfa;
 
     public SimplePatternSplitTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings, name);
 
-        pattern = settings.get("pattern", "");
+        final String pattern = settings.get("pattern", "");
+        this.dfa = Operations.determinize(new RegExp(pattern).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override
     public Tokenizer create() {
-        return new SimplePatternSplitTokenizer(pattern);
+        return new SimplePatternSplitTokenizer(dfa);
     }
 }

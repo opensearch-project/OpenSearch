@@ -78,6 +78,30 @@ public class StreamingRequest<T> {
     }
 
     /**
+     * Set the portion of an HTTP request to OpenSearch that can be
+     * manipulated without changing OpenSearch's behavior.
+     *
+     * @param options the options to be set.
+     * @throws NullPointerException if {@code options} is null.
+     */
+    public void setOptions(RequestOptions options) {
+        Objects.requireNonNull(options, "options cannot be null");
+        this.options = options;
+    }
+
+    /**
+     * Set the portion of an HTTP request to OpenSearch that can be
+     * manipulated without changing OpenSearch's behavior.
+     *
+     * @param options the options to be set.
+     * @throws NullPointerException if {@code options} is null.
+     */
+    public void setOptions(RequestOptions.Builder options) {
+        Objects.requireNonNull(options, "options cannot be null");
+        this.options = options.build();
+    }
+
+    /**
      * Add a query string parameter.
      * @param name the name of the url parameter. Must not be null.
      * @param value the value of the url url parameter. If {@code null} then

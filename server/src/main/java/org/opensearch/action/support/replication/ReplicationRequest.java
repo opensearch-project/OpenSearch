@@ -262,4 +262,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     public void onRetry() {
         // nothing by default
     }
+
+    protected void cloneProperties(ReplicationRequest<?> target) {
+        target.waitForActiveShards(waitForActiveShards());
+        target.timeout(timeout());
+        target.routedBasedOnClusterVersion(routedBasedOnClusterVersion());
+        target.setParentTask(getParentTask());
+    }
 }

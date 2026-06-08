@@ -40,7 +40,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     public void testFromProto() {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("v1").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
         Map<String, TermsQueryField> termsMap = new HashMap<>();
         termsMap.put("test-field", termsQueryField);
         TermsQuery termsQuery = TermsQuery.newBuilder().putTerms("test-field", termsQueryField).build();
@@ -89,7 +89,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     public void testFromProtoWithBoostAndQueryName() {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
 
         TermsQuery termsQuery = TermsQuery.newBuilder()
             .putTerms("test_field", termsQueryField)
@@ -116,7 +116,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("AQI=").build(); // base64 for
                                                                                                                              // {1,2}
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
 
         TermsQuery termsQuery = TermsQuery.newBuilder()
             .putTerms("bitmap_field", termsQueryField)
@@ -174,7 +174,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     public void testFromProtoWithDefaultValues() {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("default_value").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
 
         TermsQuery termsQuery = TermsQuery.newBuilder().putTerms("default_field", termsQueryField).build();
 

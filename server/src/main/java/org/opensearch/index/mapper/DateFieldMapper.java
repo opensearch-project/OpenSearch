@@ -60,6 +60,7 @@ import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -450,6 +451,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return resolution.type();
         }
 
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
@@ -814,24 +820,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String dateAsString = getFieldValue(context);
-        long timestamp;
-        if (dateAsString == null) {
-            if (nullValue == null) {
-                return;
-            }
-            timestamp = nullValue;
-        } else {
-            try {
-                timestamp = fieldType().parse(dateAsString);
-            } catch (IllegalArgumentException | OpenSearchParseException | DateTimeException | ArithmeticException e) {
-                if (ignoreMalformed().value()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
+        Long timestamp = parseTimestamp(context);
+        if (timestamp == null) {
+            return;
         }
 
         if (indexed) {
@@ -849,6 +840,38 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Long timestamp = parseTimestamp(context);
+        if (timestamp == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), timestamp);
+    }
+
+    private Long parseTimestamp(ParseContext context) throws IOException {
+        String dateAsString = getFieldValue(context);
+        long timestamp;
+        if (dateAsString == null) {
+            if (nullValue == null) {
+                return null;
+            }
+            timestamp = nullValue;
+        } else {
+            try {
+                timestamp = fieldType().parse(dateAsString);
+            } catch (IllegalArgumentException | OpenSearchParseException | DateTimeException | ArithmeticException e) {
+                if (ignoreMalformed().value()) {
+                    context.addIgnoredField(mappedFieldType.name());
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
+        }
+        return timestamp;
     }
 
     boolean isSkiplistDefaultEnabled(IndexSortConfig indexSortConfig, String fieldName) {

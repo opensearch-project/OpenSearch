@@ -39,6 +39,7 @@ import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.opensearch.search.profile.ProfilingWrapper;
 
 import java.io.IOException;
 
@@ -47,7 +48,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-final class ProfileCollector extends FilterCollector {
+final class ProfileCollector extends FilterCollector implements ProfilingWrapper<Collector> {
 
     private long time;
     private long sliceStartTime;

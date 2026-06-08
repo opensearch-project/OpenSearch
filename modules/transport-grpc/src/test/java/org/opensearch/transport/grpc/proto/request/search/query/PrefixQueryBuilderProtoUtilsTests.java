@@ -8,7 +8,6 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.PrefixQueryBuilder;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.PrefixQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -34,7 +33,7 @@ public class PrefixQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         PrefixQuery prefixQuery = PrefixQuery.newBuilder()
             .setField("name")
             .setValue("joh")
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .setCaseInsensitive(true)
             .setBoost(2.0f)
             .setXName("test_query")

@@ -8,7 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -21,7 +21,7 @@ import java.io.IOException;
 /**
  * Indicates pull-based ingestion status.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public record IngestionStatus(boolean isPaused) implements Writeable, ToXContent {
     public static final String IS_PAUSED = "is_paused";
 

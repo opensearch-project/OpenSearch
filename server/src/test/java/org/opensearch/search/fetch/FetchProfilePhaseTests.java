@@ -281,7 +281,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
             when(context.hasFetchSourceContext()).thenReturn(enableSourceLoading);
             when(context.sourceRequested()).thenReturn(enableSourceLoading);
             if (enableSourceLoading) {
-                when(context.fetchSourceContext()).thenReturn(new FetchSourceContext(true));
+                when(context.fetchSourceContext()).thenReturn(FetchSourceContext.FETCH_SOURCE);
             }
 
             // Stored fields configuration

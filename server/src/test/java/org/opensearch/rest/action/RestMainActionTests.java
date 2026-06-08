@@ -103,7 +103,7 @@ public class RestMainActionTests extends OpenSearchTestCase {
         XContentBuilder responseBuilder = JsonXContent.contentBuilder();
         if (prettyPrint) {
             // do this to mimic what the rest layer does
-            responseBuilder.prettyPrint().lfAtEnd();
+            responseBuilder = responseBuilder.prettyPrint().lfAtEnd();
         }
         mainResponse.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference xcontentBytes = BytesReference.bytes(responseBuilder);

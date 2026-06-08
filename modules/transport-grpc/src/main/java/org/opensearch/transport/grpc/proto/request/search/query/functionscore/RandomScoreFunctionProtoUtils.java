@@ -48,6 +48,8 @@ class RandomScoreFunctionProtoUtils {
             org.opensearch.protobufs.RandomScoreFunctionSeed seed = randomScore.getSeed();
             if (seed.hasInt32()) {
                 builder.seed(seed.getInt32());
+            } else if (seed.hasInt64()) {
+                builder.seed(seed.getInt64());
             } else if (seed.hasString()) {
                 builder.seed(seed.getString());
             }

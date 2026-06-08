@@ -210,6 +210,11 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+
+        }
+
+        @Override
         protected String contentType() {
             return "test_mapper";
         }

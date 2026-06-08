@@ -53,7 +53,7 @@ public class GeoPointProtoUtilsTests extends OpenSearchTestCase {
             .addDoubleArray(37.7749)    // lat
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         GeoPoint result = GeoPointProtoUtils.parseGeoPoint(geoLocation);
 
@@ -70,7 +70,7 @@ public class GeoPointProtoUtilsTests extends OpenSearchTestCase {
             .addDoubleArray(100.0)      // z (elevation)
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         // Test with ignoreZValue = true
         GeoPoint point = new GeoPoint();
@@ -90,7 +90,7 @@ public class GeoPointProtoUtilsTests extends OpenSearchTestCase {
             .addDoubleArray(0.0)        // z (elevation)
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         // Test with ignoreZValue = false and z = 0.0 (should throw OpenSearchParseException)
         GeoPoint point = new GeoPoint();
@@ -163,7 +163,7 @@ public class GeoPointProtoUtilsTests extends OpenSearchTestCase {
             .addDoubleArray(-122.4194)  // Only lon, missing lat
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -185,7 +185,7 @@ public class GeoPointProtoUtilsTests extends OpenSearchTestCase {
             .addDoubleArray(200.0)      // extra dimension
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -206,7 +206,7 @@ public class GeoPointProtoUtilsTests extends OpenSearchTestCase {
             .addDoubleArray(100.0)      // non-zero z (elevation)
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         // Test with ignoreZValue = false and non-zero z (should throw OpenSearchParseException)
         GeoPoint point = new GeoPoint();

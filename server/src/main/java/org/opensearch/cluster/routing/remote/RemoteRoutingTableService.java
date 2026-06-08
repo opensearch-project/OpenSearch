@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.routing.remote;
 
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -31,13 +32,15 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<IndexRoutingTable> latchedActionListener
+        LatchedActionListener<IndexRoutingTable> latchedActionListener,
+        Version version
     );
 
     void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<Diff<RoutingTable>> latchedActionListener
+        LatchedActionListener<Diff<RoutingTable>> latchedActionListener,
+        Version version
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(

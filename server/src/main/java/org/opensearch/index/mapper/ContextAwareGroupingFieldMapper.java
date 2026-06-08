@@ -8,6 +8,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.ContextAwareGroupingScript;
 import org.opensearch.script.Script;
 
@@ -173,6 +175,11 @@ public class ContextAwareGroupingFieldMapper extends ParametrizedFieldMapper {
         throw new MapperParsingException("context_aware_grouping cannot be ingested in the document");
     }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new MapperParsingException("context_aware_grouping cannot be ingested in the document");
+    }
+
     public ContextAwareGroupingFieldType fieldType() {
         return (ContextAwareGroupingFieldType) mappedFieldType;
     }
@@ -181,4 +188,18 @@ public class ContextAwareGroupingFieldMapper extends ParametrizedFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    /**
+     * Context Aware Segment field is not a part of an ingested document, so omitting it from Context Aware Segment
+     * validation.
+     */
+    @Override
+    public void canDeriveSource() {}
+
+    /**
+     * Context Aware Segment field is not a part of an ingested document, so omitting it from Context Aware Segment
+     * generation.
+     */
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {}
 }

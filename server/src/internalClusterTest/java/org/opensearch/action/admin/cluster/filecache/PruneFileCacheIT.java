@@ -29,6 +29,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Integration tests for File Cache Prune API.
@@ -83,13 +84,19 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
         }
 
         assertBusy(() -> {
-            long usage = getFileCacheUsage(client);
-            assertTrue("Cache should be populated after index access", usage > 0);
+            // Cloned IndexInputs can hold file cache references until they are GC'd
+            // so try to force GC and poll until active usage is less than total usage,
+            // which indicates that files are available to be pruned
+            System.gc();
+            CacheUsage usage = getFileCacheUsage(client);
+            assertThat("Cache should be populated after index access", usage.used, greaterThan(0L));
+            assertThat("There must be prunable data in the cache", usage.active, lessThan(usage.used));
         }, 30, TimeUnit.SECONDS);
 
-        long usageBefore = getFileCacheUsage(client);
-        logger.info("--> File cache usage before prune: {} bytes", usageBefore);
-        assertTrue("File cache should have data before prune", usageBefore > 0);
+        CacheUsage usageBefore = getFileCacheUsage(client);
+        logger.info("--> File cache used before prune: {}", usageBefore);
+        assertThat("Cache should be populated after index access", usageBefore.used, greaterThan(0L));
+        assertThat("There must be prunable data in the cache", usageBefore.active, lessThan(usageBefore.used));
 
         PruneFileCacheRequest request = new PruneFileCacheRequest();
         PlainActionFuture<PruneFileCacheResponse> future = new PlainActionFuture<>();
@@ -108,15 +115,15 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
         // The key assertion: pruned bytes should be > 0 (proves API actually worked)
         assertTrue("Should have pruned bytes", response.getTotalPrunedBytes() > 0);
 
-        // Verify cache usage after prune
-        long usageAfter = getFileCacheUsage(client);
-        logger.info("--> File cache usage after prune: {} bytes", usageAfter);
+        // Verify cache used after prune
+        long usageAfter = getFileCacheUsage(client).used();
+        logger.info("--> File cache used after prune: {} bytes", usageAfter);
 
         // Cache should be reduced (might not be zero if files are still referenced)
-        assertTrue("Cache usage should be reduced after prune", usageAfter <= usageBefore);
+        assertTrue("Cache used should be reduced after prune", usageAfter <= usageBefore.used());
 
         // The pruned bytes should roughly match the reduction
-        long actualReduction = usageBefore - usageAfter;
+        long actualReduction = usageBefore.used() - usageAfter;
         logger.info("--> Actual cache reduction: {} bytes, reported pruned: {} bytes", actualReduction, response.getTotalPrunedBytes());
 
         assertDocCount(restoredIndexName, 100L);
@@ -148,11 +155,11 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
         assertDocCount(restoredIndexName, 100L);
 
         assertBusy(() -> {
-            long usage = getFileCacheUsage(client);
+            long usage = getFileCacheUsage(client).used();
             assertTrue("Cache should be populated", usage > 0);
         }, 30, TimeUnit.SECONDS);
 
-        long usageBefore = getFileCacheUsage(client);
+        long usageBefore = getFileCacheUsage(client).used();
 
         PruneFileCacheRequest request = new PruneFileCacheRequest();
         PlainActionFuture<PruneFileCacheResponse> future = new PlainActionFuture<>();
@@ -170,7 +177,7 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
         assertTrue("Node should have cache capacity", nodeResponse.getCacheCapacity() > 0);
         assertTrue("Node should report pruned bytes", nodeResponse.getPrunedBytes() >= 0);
 
-        long usageAfter = getFileCacheUsage(client);
+        long usageAfter = getFileCacheUsage(client).used();
         long expectedPruned = usageBefore - usageAfter;
         assertEquals("Response should match actual cache reduction", expectedPruned, response.getTotalPrunedBytes());
     }
@@ -258,21 +265,23 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    /**
-     * Returns total file cache usage across all warm nodes in bytes.
-     */
-    private long getFileCacheUsage(Client client) {
+    record CacheUsage(long used, long active) {
+    }
+
+    private CacheUsage getFileCacheUsage(Client client) {
         NodesStatsResponse response = client.admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
 
         long totalUsage = 0L;
+        long totalActiveUsage = 0L;
         for (NodeStats stats : response.getNodes()) {
             if (stats.getNode().isWarmNode()) {
                 AggregateFileCacheStats fcStats = stats.getFileCacheStats();
                 if (fcStats != null) {
                     totalUsage += fcStats.getUsed().getBytes();
+                    totalActiveUsage += fcStats.getActive().getBytes();
                 }
             }
         }
-        return totalUsage;
+        return new CacheUsage(totalUsage, totalActiveUsage);
     }
 }

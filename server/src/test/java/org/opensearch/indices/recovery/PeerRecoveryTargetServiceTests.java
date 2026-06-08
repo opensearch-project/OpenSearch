@@ -51,6 +51,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.NoOpEngine;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -321,7 +322,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             shard,
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE),
             indexMetadata,
-            NoOpEngine::new,
+            new EngineBackedIndexerFactory(NoOpEngine::new),
             new EngineConfigFactory(shard.indexSettings()),
             null
         );

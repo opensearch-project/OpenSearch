@@ -53,6 +53,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.BinaryFieldMapper;
+import org.opensearch.index.mapper.HllFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -103,7 +104,8 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             NumberFieldMapper.NumberType.DOUBLE.typeName(), // floating points are not supported at all
             NumberFieldMapper.NumberType.FLOAT.typeName(),
             NumberFieldMapper.NumberType.HALF_FLOAT.typeName(),
-            BinaryFieldMapper.CONTENT_TYPE // binary fields are not supported because they cannot be searched
+            BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they cannot be searched
+            HllFieldMapper.CONTENT_TYPE // HLL fields are not supported for significant terms aggregation
         );
     }
 

@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -65,7 +66,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return Collections.singletonList(new MapperExtrasModulePlugin());
+        return List.of(new MapperExtrasModulePlugin());
     }
 
     @Override

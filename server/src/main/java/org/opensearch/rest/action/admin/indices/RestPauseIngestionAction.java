@@ -10,7 +10,7 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
@@ -28,9 +28,9 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 /**
  * Transport action to pause pull-based ingestion.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class RestPauseIngestionAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPauseIngestionAction.class);

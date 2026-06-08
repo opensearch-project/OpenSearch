@@ -59,7 +59,7 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
 }
 

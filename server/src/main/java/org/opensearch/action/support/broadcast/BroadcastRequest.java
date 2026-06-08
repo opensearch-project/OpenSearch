@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +46,9 @@ import java.io.IOException;
 /**
  * Transport request for broadcast operations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "3.6.0")
 public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected String[] indices;

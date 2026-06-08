@@ -84,11 +84,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
 
             return Optional.of(
                 new TaskCancellation.Reason(
-                    "heap usage exceeded ["
-                        + new ByteSizeValue((long) currentUsage)
-                        + " >= "
-                        + new ByteSizeValue((long) allowedUsage)
-                        + "]",
+                    "heap usage exceeded [" + new ByteSizeValue((long) currentUsage) + " >= " + new ByteSizeValue((long) threshold) + "]",
                     (int) (currentUsage / averageUsage)  // TODO: fine-tune the cancellation score/weight
                 )
             );

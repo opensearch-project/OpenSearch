@@ -162,4 +162,19 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final Object value;
+        if (context.externalValueSet()) {
+            value = context.externalValue();
+        } else {
+            value = context.parser().textOrNull();
+        }
+        if (value != null) {
+            final BytesRef bytes = new BytesRef(value.toString());
+            final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
+            context.documentInput().addField(fieldType(), hash);
+        }
+    }
+
 }

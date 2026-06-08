@@ -38,20 +38,11 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.junit.Before;
 
 import java.util.Collection;
+import java.util.Locale;
 
 public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCase {
-
-    IndexService indexService;
-    DocumentMapperParser parser;
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -59,6 +50,9 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testBasics() throws Exception {
+        IndexService indexService = createIndex(randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+
         String mapping = MediaTypeRegistry.JSON.contentBuilder()
             .startObject()
             .startObject("type")
@@ -82,6 +76,10 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
      * and parsing of a document fails if the document contains these meta-fields.
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(indexName);
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+
         String mapping = MediaTypeRegistry.JSON.contentBuilder().startObject().startObject("_doc").endObject().endObject().toString();
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
@@ -90,7 +88,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
         );
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(new SourceToParse("test", "1", bytes, MediaTypeRegistry.JSON))
+            () -> mapper.parse(new SourceToParse(indexName, "1", bytes, MediaTypeRegistry.JSON))
         );
         assertTrue(
             e.getCause().getMessage().contains("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")

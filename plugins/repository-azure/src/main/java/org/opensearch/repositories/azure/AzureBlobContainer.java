@@ -40,6 +40,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -134,6 +135,25 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException("Can not write blob " + blobName, e);
         }
+    }
+
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        if (cryptoMetadata != null) {
+            throw new UnsupportedOperationException(
+                "Azure Blob Storage repository does not currently support CryptoMetadata. "
+                    + "Consider using repository-level encryption settings instead."
+            );
+        }
+        // Azure does not support custom metadata, so we just delegate to writeBlob
+        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override

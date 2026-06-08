@@ -187,31 +187,28 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             final long secondBulkShardRequestSize = request.ramBytesUsed() + RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class)
                 + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
-            if (usePrimaryAsCoordinatingNode) {
-                assertBusy(() -> {
-                    assertThat(
-                        primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                        equalTo(bulkShardRequestSize + secondBulkShardRequestSize)
-                    );
-                    assertEquals(
-                        secondBulkShardRequestSize,
-                        primaryShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes()
-                    );
-                    assertThat(
-                        primaryShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes(),
-                        equalTo(bulkShardRequestSize + secondBulkShardRequestSize)
-                    );
-
-                    assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                    assertEquals(0, replicaShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes());
-                    assertEquals(0, replicaShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes());
-                });
-            } else {
-                assertThat(
+            // Poll for the second request to reach the primary (does not matter which node is coordinator)
+            assertBusy(
+                () -> assertThat(
                     primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                    equalTo(bulkShardRequestSize)
+                    equalTo(bulkShardRequestSize + secondBulkShardRequestSize)
+                )
+            );
+
+            if (usePrimaryAsCoordinatingNode) {
+                assertEquals(
+                    secondBulkShardRequestSize,
+                    primaryShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes()
+                );
+                assertThat(
+                    primaryShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes(),
+                    equalTo(bulkShardRequestSize + secondBulkShardRequestSize)
                 );
 
+                assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(0, replicaShardTracker.getCoordinatingOperationTracker().getStatsTracker().getCurrentBytes());
+                assertEquals(0, replicaShardTracker.getPrimaryOperationTracker().getStatsTracker().getCurrentBytes());
+            } else {
                 assertEquals(
                     secondBulkShardRequestSize,
                     replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes()

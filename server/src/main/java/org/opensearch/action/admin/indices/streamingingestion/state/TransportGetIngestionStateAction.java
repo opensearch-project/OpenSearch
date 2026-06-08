@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
 /**
  * Transport action for retrieving ingestion state.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAction<
     GetIngestionStateRequest,

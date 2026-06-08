@@ -340,6 +340,7 @@ public class MultiMatchQuery extends MatchQuery {
             // best effort: add clauses that are not term queries so that they have an opportunity to match
             // however their score contribution will be different
             // TODO: can we improve this?
+
             return new DisjunctionMaxQuery(queries, tieBreaker);
         }
     }

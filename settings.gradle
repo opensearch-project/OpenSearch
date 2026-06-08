@@ -9,6 +9,27 @@
  * GitHub history for details.
  */
 
+pluginManagement {
+  repositories {
+    maven {
+      url = uri("https://ci.opensearch.org/maven2/")
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    gradlePluginPortal {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+    mavenCentral {
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
+  }
+}
+
 ext.disableBuildCache = hasProperty('DISABLE_BUILD_CACHE') || System.getenv().containsKey('DISABLE_BUILD_CACHE')
 
 buildCache {
@@ -78,6 +99,7 @@ List projects = [
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
+  'distribution:tools:heap-prof-cli',
   'server',
   'server:cli',
   'test:framework',
@@ -126,7 +148,10 @@ project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugi
 addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
-addSubProjects('', new File(rootProject.projectDir, 'sandbox'))
+// Sandbox modules require JDK 25+. Include only when explicitly enabled via -Dsandbox.enabled=true.
+if (System.getProperty('sandbox.enabled', 'false') == 'true') {
+  addSubProjects('', new File(rootProject.projectDir, 'sandbox'))
+}
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 

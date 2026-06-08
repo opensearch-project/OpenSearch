@@ -1,0 +1,16 @@
+[package]
+name = "opensearch-repository-s3"
+version = "0.1.0"
+edition = "2021"
+description = "Rust S3 backend for OpenSearch tiered storage"
+license = "Apache-2.0"
+workspace = "../../../../../libs/dataformat-native/rust"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+object_store = { workspace = true, features = ["aws"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+native-bridge-common = { workspace = true }

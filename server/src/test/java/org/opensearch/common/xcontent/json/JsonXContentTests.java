@@ -32,13 +32,13 @@
 
 package org.opensearch.common.xcontent.json;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-
 import org.opensearch.common.xcontent.BaseXContentTestCase;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
+
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.json.JsonFactory;
 
 public class JsonXContentTests extends BaseXContentTestCase {
 

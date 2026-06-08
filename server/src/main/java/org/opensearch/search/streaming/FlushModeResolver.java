@@ -8,29 +8,40 @@
 
 package org.opensearch.search.streaming;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.MultiCollector;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.search.aggregations.AggregatorBase;
-import org.opensearch.search.aggregations.MultiBucketCollector;
-import org.opensearch.search.profile.aggregation.ProfilingAggregator;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
+
+import java.util.Collection;
 
 /**
- * Analyzes collector trees to determine optimal {@link FlushMode} for streaming aggregations.
- *
- * <p>Performs cost-benefit analysis by examining all collectors in the tree. Streaming is only
- * enabled when all collectors implement {@link Streamable} and the combined cost metrics
- * indicate streaming will be beneficial compared to traditional shard-level processing.
+ * Determines optimal {@link FlushMode} for streaming aggregations based on cost metrics.
  *
  * @opensearch.internal
  */
 @ExperimentalApi
 public final class FlushModeResolver {
 
-    private static final Logger logger = LogManager.getLogger(FlushModeResolver.class);
+    private FlushModeResolver() {}
+
+    /**
+     * Minimum segment-level size for streaming aggregations to ensure accuracy.
+     * This applies per-segment in streaming mode to control the topN buckets collected.
+     * Default is 1000. Can be adjusted based on accuracy requirements.
+     */
+    public static final Setting<Integer> STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING = Setting.intSetting(
+        "index.aggregation.streaming.min_segment_size",
+        1000,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
 
     /**
      * Maximum estimated bucket count allowed for streaming aggregations.
@@ -76,116 +87,82 @@ public final class FlushModeResolver {
     );
 
     /**
-     * Determines the optimal flush mode for the given collector tree.
-     *
-     * @param collector the root collector to analyze
-     * @param defaultMode fallback mode if streaming is not supported
-     * @param maxBucketCount maximum bucket count threshold
-     * @param minCardinalityRatio minimum cardinality ratio threshold
-     * @param minBucketCount minimum estimated bucket count threshold
-     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
-     */
-    public static FlushMode resolve(
-        Collector collector,
-        FlushMode defaultMode,
-        long maxBucketCount,
-        double minCardinalityRatio,
-        long minBucketCount
-    ) {
-        StreamingCostMetrics metrics = collectMetrics(collector);
-        FlushMode decision = decideFlushMode(metrics, defaultMode, maxBucketCount, minCardinalityRatio, minBucketCount);
-        logger.debug(
-            "Streaming decision: {} - Metrics: buckets={}, docs={}, topN={}, segments={}, cardinality_ratio={}, thresholds: max_buckets={}, min_buckets={}, min_cardinality_ratio={}",
-            decision,
-            metrics.estimatedBucketCount(),
-            metrics.estimatedDocCount(),
-            metrics.topNSize(),
-            metrics.segmentCount(),
-            metrics.estimatedDocCount() > 0 ? (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount() : 0.0,
-            maxBucketCount,
-            minBucketCount,
-            minCardinalityRatio
-        );
-        return decision;
-    }
-
-    /**
-     * Collects and combines streaming metrics from the collector tree.
-     *
-     * @param collector the collector to analyze
-     * @return combined metrics if all collectors support streaming, nonStreamable otherwise
-     */
-    private static StreamingCostMetrics collectMetrics(Collector collector) {
-        if (!(collector instanceof Streamable || collector instanceof MultiBucketCollector || collector instanceof MultiCollector)) {
-            return StreamingCostMetrics.nonStreamable();
-        }
-        StreamingCostMetrics nodeMetrics;
-        if (collector instanceof Streamable streamable) {
-            nodeMetrics = streamable.getStreamingCostMetrics();
-            if (!nodeMetrics.isStreamable()) {
-                return StreamingCostMetrics.nonStreamable();
-            }
-        } else {
-            return StreamingCostMetrics.nonStreamable();
-        }
-        StreamingCostMetrics childMetrics = null;
-        for (Collector child : getChildren(collector)) {
-            StreamingCostMetrics childResult = collectMetrics(child);
-            if (!childResult.isStreamable()) return StreamingCostMetrics.nonStreamable();
-
-            childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
-        }
-        return childMetrics != null ? nodeMetrics.combineWithSubAggregation(childMetrics) : nodeMetrics;
-    }
-
-    private static Collector[] getChildren(Collector collector) {
-        return switch (collector) {
-            case AggregatorBase aggregatorBase -> aggregatorBase.subAggregators();
-            case MultiCollector multiCollector -> multiCollector.getCollectors();
-            case MultiBucketCollector multiBucketCollector -> multiBucketCollector.getCollectors();
-            case ProfilingAggregator profilingAggregator -> getChildren(profilingAggregator.unwrapAggregator());
-            default -> new Collector[0];
-        };
-    }
-
-    /**
      * Evaluates cost metrics to determine if streaming is beneficial.
      *
-     * @param metrics combined cost metrics from the collector tree
+     * @param metrics combined cost metrics from the factory tree
      * @param defaultMode fallback mode when streaming is not beneficial
      * @param maxBucketCount maximum bucket count threshold
-     * @param minCardinalityRatio minimum cardinality ratio threshold
      * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
      */
-    private static FlushMode decideFlushMode(
-        StreamingCostMetrics metrics,
-        FlushMode defaultMode,
-        long maxBucketCount,
-        double minCardinalityRatio,
-        long minBucketCount
-    ) {
-        if (!metrics.isStreamable()) {
+    public static FlushMode decideFlushMode(StreamingCostMetrics metrics, FlushMode defaultMode, long maxBucketCount) {
+        if (!metrics.streamable()) {
             return defaultMode;
         }
-        // Check coordinator overhead - don't stream if too many buckets
-        if (metrics.estimatedBucketCount() > maxBucketCount) {
-            return defaultMode;
+        // Prevent coordinator overload with too many buckets
+        if (metrics.topNSize() <= maxBucketCount) {
+            return FlushMode.PER_SEGMENT;
         }
-
-        // Prevent regression for low cardinality cases
-        // Check both absolute bucket count and cardinality ratioCollapse comment
-        if (metrics.estimatedBucketCount() < minBucketCount) {
-            return defaultMode;
-        }
-
-        if (metrics.estimatedDocCount() > 0) {
-            double cardinalityRatio = (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount();
-            if (cardinalityRatio < minCardinalityRatio) {
-                return defaultMode;
-            }
-        }
-
-        return FlushMode.PER_SEGMENT;
+        return defaultMode;
     }
 
+    /**
+     * Determines if an aggregation tree is eligible for streaming based on aggregation types.
+     *
+     * <p>Streaming aggregations support:
+     * <ul>
+     *   <li>Top level: terms aggregations (string or numeric)</li>
+     *   <li>Sub-aggregations: numeric terms, cardinality, max, min, sum</li>
+     * </ul>
+     *
+     * @param aggregations the aggregation factories to validate
+     * @return true if all aggregations are eligible for streaming, false otherwise
+     */
+    public static boolean isStreamable(AggregatorFactories.Builder aggregations) {
+        if (aggregations == null || aggregations.count() == 0) {
+            return false;
+        }
+
+        Collection<AggregationBuilder> topLevelAggs = aggregations.getAggregatorFactories();
+        for (AggregationBuilder agg : topLevelAggs) {
+            if (!isTopLevelStreamable(agg)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isTopLevelStreamable(AggregationBuilder agg) {
+        if (!(agg instanceof TermsAggregationBuilder)) {
+            return false;
+        }
+
+        // Check sub-aggregations
+        Collection<AggregationBuilder> subAggs = agg.getSubAggregations();
+        for (AggregationBuilder subAgg : subAggs) {
+            if (!isSubAggregationStreamable(subAgg)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isSubAggregationStreamable(AggregationBuilder agg) {
+        if (agg instanceof TermsAggregationBuilder) {
+            // Level 2 sub-aggs can only be metrics, not more terms
+            for (AggregationBuilder nestedAgg : agg.getSubAggregations()) {
+                if (!isMetricAggregation(nestedAgg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return isMetricAggregation(agg);
+    }
+
+    private static boolean isMetricAggregation(AggregationBuilder agg) {
+        return agg instanceof CardinalityAggregationBuilder
+            || agg instanceof MaxAggregationBuilder
+            || agg instanceof MinAggregationBuilder
+            || agg instanceof SumAggregationBuilder;
+    }
 }

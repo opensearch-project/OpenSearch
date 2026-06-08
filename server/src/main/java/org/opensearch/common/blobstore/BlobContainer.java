@@ -32,6 +32,8 @@
 
 package org.opensearch.common.blobstore;
 
+import org.apache.logging.log4j.LogManager;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
@@ -172,6 +174,41 @@ public interface BlobContainer {
         @Nullable Map<String, String> metadata
     ) throws IOException {
         throw new UnsupportedOperationException("writeBlobWithMetadata is not implemented yet");
+    };
+
+    /**
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name, metadata,
+     * and optional encryption settings for index-level encryption override.
+     * This method assumes the container does not already contain a blob of the same blobName. If a blob by the
+     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   inputStream
+     *          The input stream from which to retrieve the bytes to write to the blob.
+     * @param   blobSize
+     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
+     *          this value is used in writing the blob to the repository.
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @param   metadata
+     *          The metadata to be associate with the blob upload.
+     * @param   cryptoMetadata
+     *          Optional CryptoMetadata for index-level encryption override (null = use repository defaults)
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     */
+    @ExperimentalApi
+    default void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        // Default implementation: delegate to non-crypto version
+        writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata);
     };
 
     /**
@@ -320,6 +357,7 @@ public interface BlobContainer {
         if (limit < 0) {
             throw new IllegalArgumentException("limit should not be a negative value");
         }
+        LogManager.getLogger(this.getClass()).warn("loading all blobs with prefix into memory for sorting");
         List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
         blobNames.sort(blobNameSortOrder.comparator());
         return blobNames.subList(0, Math.min(blobNames.size(), limit));

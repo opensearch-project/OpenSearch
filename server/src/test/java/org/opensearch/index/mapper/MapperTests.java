@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class MapperTests extends OpenSearchTestCase {
@@ -50,6 +51,20 @@ public class MapperTests extends OpenSearchTestCase {
 
     public void testBuilderContextWithIndexSettingsAsNull() {
         expectThrows(NullPointerException.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
+    }
+
+    public void testIsOptimisedIndexEnabledReturnsFalseByDefault() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        assertFalse(Mapper.isPluggableDataFormatEnabled(settings));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testIsOptimisedIndexEnabledReturnsTrueWhenFlagEnabled() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        assertTrue(Mapper.isPluggableDataFormatEnabled(settings));
     }
 
 }

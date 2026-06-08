@@ -34,7 +34,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         // Create a ShardSearchFailure
         ShardSearchFailure shardSearchFailure = new ShardSearchFailure(new Exception("fake exception"), searchShardTarget);
 
-        // Call the method under test
+        // Call the method under test - should call toLegacyProto for backward compatibility
         ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(shardSearchFailure);
 
         // Verify the result
@@ -42,6 +42,10 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         assertEquals("Index should match", "test_index", protoFailure.getIndex());
         assertEquals("Shard ID should match", 1, protoFailure.getShard());
         assertEquals("Node ID should match", "test_node", protoFailure.getNode());
+
+        // Verify primary field is false (default) for search failures
+        // ShardSearchFailure doesn't set primary, so it defaults to false in the legacy proto
+        assertFalse("Primary should be false for search failures", protoFailure.getPrimary());
     }
 
     public void testToProtoWithSnapshotShardFailure() throws IOException {

@@ -218,7 +218,7 @@ public class Netty4Transport extends TcpTransport {
             bootstrap.option(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
         }
 
-        bootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+        bootstrap.option(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
 
         final boolean reuseAddress = TransportSettings.TCP_REUSE_ADDRESS.get(settings);
         bootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
@@ -288,8 +288,8 @@ public class Netty4Transport extends TcpTransport {
             serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(profileSettings.receiveBufferSize.bytesAsInt()));
         }
 
-        serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
-        serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+        serverBootstrap.option(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
+        serverBootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
 
         serverBootstrap.option(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);
         serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);

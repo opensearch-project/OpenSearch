@@ -185,6 +185,10 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
         LeafFieldData loadField2 = ifd2.load(leafReaderContext);
 
+        // Force materialization so both hit the shared cache
+        loadField1.getBytesValues();
+        loadField2.getBytesValues();
+
         assertEquals(2, indicesService.getIndicesFieldDataCache().getCache().count());
 
         // Remove index
@@ -625,5 +629,27 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         } catch (AssertionError ignored) {}
         // Ensure cache fully cleared before other tests in the suite begin
         fdCacheSpy.close();
+    }
+
+    public void testSetShardIdentityResolverRejectsNull() {
+        ThreadPool threadPool = new TestThreadPool("test_set_resolver_null");
+        try {
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(
+                Settings.EMPTY,
+                null,
+                getInstanceFromNode(ClusterService.class),
+                threadPool
+            );
+            IndexFieldDataService ifds = new IndexFieldDataService(
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                cache,
+                null,
+                null,
+                threadPool
+            );
+            expectThrows(IllegalArgumentException.class, () -> ifds.setShardIdentityResolver(null));
+        } finally {
+            threadPool.shutdown();
+        }
     }
 }

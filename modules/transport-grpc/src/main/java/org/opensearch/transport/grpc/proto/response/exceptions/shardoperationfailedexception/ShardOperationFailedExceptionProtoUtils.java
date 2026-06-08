@@ -31,12 +31,15 @@ public class ShardOperationFailedExceptionProtoUtils {
      * This method is similar to {@link org.opensearch.core.action.ShardOperationFailedException#toXContent(XContentBuilder, ToXContent.Params)}
      * This method is overridden by various exception classes, which are hardcoded here.
      *
+     * This method converts to the legacy ShardFailure proto type for backward compatibility.
+     * For ShardSearchFailure, use the new failures_2 field with ShardSearchFailure proto type.
+     *
      * @param exception The ShardOperationFailedException to convert metadata from
-     * @return ShardFailure
+     * @return ShardFailure proto object
      */
     public static ShardFailure toProto(ShardOperationFailedException exception) throws IOException {
         return switch (exception) {
-            case ShardSearchFailure ssf -> ShardSearchFailureProtoUtils.toProto(ssf);
+            case ShardSearchFailure ssf -> ShardSearchFailureProtoUtils.toLegacyProto(ssf);
             case SnapshotShardFailure ssf -> SnapshotShardFailureProtoUtils.toProto(ssf);
             case DefaultShardOperationFailedException dsofe -> DefaultShardOperationFailedExceptionProtoUtils.toProto(dsofe);
             case ReplicationResponse.ShardInfo.Failure sf -> ReplicationResponseShardInfoFailureProtoUtils.toProto(sf);

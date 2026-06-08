@@ -76,6 +76,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -1245,7 +1246,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 mock(MetricsRegistry.class),
                 new SearchRequestOperationsCompositeListenerFactory(),
                 mock(Tracer.class),
-                mock(TaskResourceTrackingService.class)
+                mock(TaskResourceTrackingService.class),
+                mock(IndicesService.class)
             );
 
             // Actual test cases start here:

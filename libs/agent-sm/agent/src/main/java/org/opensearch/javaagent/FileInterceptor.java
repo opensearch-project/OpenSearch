@@ -9,6 +9,8 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.javaagent.bootstrap.internal.StackCallerClassChainExtractor;
+import org.opensearch.javaagent.bootstrap.internal.StackCallerProtectionDomainChainExtractor;
 import org.opensearch.secure_sm.policy.Policy;
 
 import java.io.FilePermission;

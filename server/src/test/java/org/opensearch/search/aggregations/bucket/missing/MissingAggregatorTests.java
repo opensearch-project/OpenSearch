@@ -374,6 +374,11 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return List.of("hll");
+    }
+
+    @Override
     protected ScriptService getMockScriptService() {
         final Map<String, Function<Map<String, Object>, Object>> deterministicScripts = new HashMap<>();
         deterministicScripts.put(VALUE_SCRIPT_PARAMS, vars -> {

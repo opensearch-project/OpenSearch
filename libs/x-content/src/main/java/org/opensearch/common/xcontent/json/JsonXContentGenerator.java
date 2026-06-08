@@ -32,16 +32,6 @@
 
 package org.opensearch.common.xcontent.json;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonStreamContext;
-import com.fasterxml.jackson.core.base.GeneratorBase;
-import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
-import com.fasterxml.jackson.core.io.SerializedString;
-import com.fasterxml.jackson.core.json.JsonWriteContext;
-import com.fasterxml.jackson.core.util.DefaultIndenter;
-import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
-
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -52,6 +42,7 @@ import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.filtering.FilterPathBasedFilter;
+import org.opensearch.tools.jackson.core.JacksonExceptionTranslator;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -61,6 +52,16 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Objects;
 import java.util.Set;
+
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.TokenStreamContext;
+import tools.jackson.core.base.GeneratorBase;
+import tools.jackson.core.filter.FilteringGeneratorDelegate;
+import tools.jackson.core.filter.TokenFilter.Inclusion;
+import tools.jackson.core.io.SerializedString;
+import tools.jackson.core.json.JsonWriteContext;
+import tools.jackson.core.util.JsonGeneratorDelegate;
 
 public class JsonXContentGenerator implements XContentGenerator {
 
@@ -84,7 +85,6 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     private boolean writeLineFeedAtEnd;
     private static final SerializedString LF = new SerializedString("\n");
-    private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
 
     public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
@@ -101,12 +101,22 @@ public class JsonXContentGenerator implements XContentGenerator {
 
         boolean hasExcludes = excludes.isEmpty() == false;
         if (hasExcludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(excludes, false), true, true);
+            generator = new FilteringGeneratorDelegate(
+                generator,
+                new FilterPathBasedFilter(excludes, false),
+                Inclusion.INCLUDE_ALL_AND_PATH,
+                true
+            );
         }
 
         boolean hasIncludes = includes.isEmpty() == false;
         if (hasIncludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(includes, true), true, true);
+            generator = new FilteringGeneratorDelegate(
+                generator,
+                new FilterPathBasedFilter(includes, true),
+                Inclusion.INCLUDE_ALL_AND_PATH,
+                true
+            );
         }
 
         if (hasExcludes || hasIncludes) {
@@ -120,12 +130,6 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public XContentType contentType() {
         return XContentType.JSON;
-    }
-
-    @Override
-    public final void usePrettyPrint() {
-        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER).withArrayIndenter(INDENTER));
-        prettyPrint = true;
     }
 
     @Override
@@ -144,10 +148,10 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     private JsonGenerator getLowLevelGenerator() {
         if (isFiltered()) {
-            JsonGenerator delegate = filter.getDelegate();
+            JsonGenerator delegate = filter.delegate();
             if (delegate instanceof JsonGeneratorDelegate jsonGeneratorDelegate) {
                 // In case of combined inclusion and exclusion filters, we have one and only one another delegating level
-                delegate = jsonGeneratorDelegate.getDelegate();
+                delegate = jsonGeneratorDelegate.delegate();
                 assert delegate instanceof JsonGeneratorDelegate == false;
             }
             return delegate;
@@ -156,179 +160,299 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     private boolean inRoot() {
-        JsonStreamContext context = generator.getOutputContext();
-        return ((context != null) && (context.inRoot() && context.getCurrentName() == null));
+        TokenStreamContext context = generator.streamWriteContext();
+        return ((context != null) && (context.inRoot() && context.currentName() == null));
     }
 
     @Override
     public void writeStartObject() throws IOException {
-        if (inRoot()) {
-            // Use the low level generator to write the startObject so that the root
-            // start object is always written even if a filtered generator is used
-            getLowLevelGenerator().writeStartObject();
-            return;
+        try {
+            if (inRoot()) {
+                // Use the low level generator to write the startObject so that the root
+                // start object is always written even if a filtered generator is used
+                getLowLevelGenerator().writeStartObject();
+                return;
+            }
+            generator.writeStartObject();
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
-        generator.writeStartObject();
     }
 
     @Override
     public void writeEndObject() throws IOException {
-        if (inRoot()) {
-            // Use the low level generator to write the startObject so that the root
-            // start object is always written even if a filtered generator is used
-            getLowLevelGenerator().writeEndObject();
-            return;
+        try {
+            if (inRoot()) {
+                // Use the low level generator to write the startObject so that the root
+                // start object is always written even if a filtered generator is used
+                getLowLevelGenerator().writeEndObject();
+                return;
+            }
+            generator.writeEndObject();
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
-        generator.writeEndObject();
     }
 
     @Override
     public void writeStartArray() throws IOException {
-        generator.writeStartArray();
+        try {
+            generator.writeStartArray();
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeEndArray() throws IOException {
-        generator.writeEndArray();
+        try {
+            generator.writeEndArray();
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeFieldName(String name) throws IOException {
-        generator.writeFieldName(name);
+        try {
+            generator.writeName(name);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNull() throws IOException {
-        generator.writeNull();
+        try {
+            generator.writeNull();
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNullField(String name) throws IOException {
-        generator.writeNullField(name);
+        try {
+            generator.writeNullProperty(name);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeBooleanField(String name, boolean value) throws IOException {
-        generator.writeBooleanField(name, value);
+        try {
+            generator.writeBooleanProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeBoolean(boolean value) throws IOException {
-        generator.writeBoolean(value);
+        try {
+            generator.writeBoolean(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumberField(String name, double value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumber(double value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumberField(String name, float value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumber(float value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumberField(String name, int value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumberField(String name, BigInteger value) throws IOException {
-        // as jackson's JsonGenerator doesn't have this method for BigInteger
-        // we have to implement it ourselves
-        generator.writeFieldName(name);
-        generator.writeNumber(value);
+        try {
+            // as jackson's JsonGenerator doesn't have this method for BigInteger
+            // we have to implement it ourselves
+            generator.writeName(name);
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumberField(String name, BigDecimal value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumber(int value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumberField(String name, long value) throws IOException {
-        generator.writeNumberField(name, value);
+        try {
+            generator.writeNumberProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumber(long value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumber(short value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumber(BigInteger value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeNumber(BigDecimal value) throws IOException {
-        generator.writeNumber(value);
+        try {
+            generator.writeNumber(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeStringField(String name, String value) throws IOException {
-        generator.writeStringField(name, value);
+        try {
+            generator.writeStringProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeString(String value) throws IOException {
-        generator.writeString(value);
+        try {
+            generator.writeString(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeString(char[] value, int offset, int len) throws IOException {
-        generator.writeString(value, offset, len);
+        try {
+            generator.writeString(value, offset, len);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeUTF8String(byte[] value, int offset, int length) throws IOException {
-        generator.writeUTF8String(value, offset, length);
+        try {
+            generator.writeUTF8String(value, offset, length);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeBinaryField(String name, byte[] value) throws IOException {
-        generator.writeBinaryField(name, value);
+        try {
+            generator.writeBinaryProperty(name, value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeBinary(byte[] value) throws IOException {
-        generator.writeBinary(value);
+        try {
+            generator.writeBinary(value);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     @Override
     public void writeBinary(byte[] value, int offset, int len) throws IOException {
-        generator.writeBinary(value, offset, len);
+        try {
+            generator.writeBinary(value, offset, len);
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     private void writeStartRaw(String name) throws IOException {
-        writeFieldName(name);
-        generator.writeRaw(':');
+        try {
+            writeFieldName(name);
+            generator.writeRaw(':');
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
+        }
     }
 
     public void writeEndRaw() {
         assert base != null : "JsonGenerator should be of instance GeneratorBase but was: " + generator.getClass();
         if (base != null) {
-            JsonStreamContext context = base.getOutputContext();
+            TokenStreamContext context = base.streamWriteContext();
             assert (context instanceof JsonWriteContext) : "Expected an instance of JsonWriteContext but was: " + context.getClass();
             ((JsonWriteContext) context).writeValue();
         }
@@ -381,7 +505,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(mediaType) == false) {
             copyRawValue(stream, mediaType.xContent());
         } else {
-            if (generator.getOutputContext().getCurrentName() != null) {
+            if (generator.streamWriteContext().currentName() != null) {
                 // If we've just started a field we'll need to add the separator
                 generator.writeRaw(':');
             }
@@ -439,10 +563,14 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        if (parser instanceof JsonXContentParser jsonXContentParser) {
-            generator.copyCurrentStructure(jsonXContentParser.parser);
-        } else {
-            copyCurrentStructure(this, parser);
+        try {
+            if (parser instanceof JsonXContentParser jsonXContentParser) {
+                generator.copyCurrentStructure(jsonXContentParser.parser);
+            } else {
+                copyCurrentStructure(this, parser);
+            }
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -452,30 +580,34 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static void copyCurrentStructure(XContentGenerator destination, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
 
-        // Let's handle field-name separately first
-        if (token == XContentParser.Token.FIELD_NAME) {
-            destination.writeFieldName(parser.currentName());
-            token = parser.nextToken();
-            // fall-through to copy the associated value
-        }
+        try {
+            // Let's handle field-name separately first
+            if (token == XContentParser.Token.FIELD_NAME) {
+                destination.writeFieldName(parser.currentName());
+                token = parser.nextToken();
+                // fall-through to copy the associated value
+            }
 
-        switch (token) {
-            case START_ARRAY:
-                destination.writeStartArray();
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    copyCurrentStructure(destination, parser);
-                }
-                destination.writeEndArray();
-                break;
-            case START_OBJECT:
-                destination.writeStartObject();
-                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    copyCurrentStructure(destination, parser);
-                }
-                destination.writeEndObject();
-                break;
-            default: // others are simple:
-                destination.copyCurrentEvent(parser);
+            switch (token) {
+                case START_ARRAY:
+                    destination.writeStartArray();
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        copyCurrentStructure(destination, parser);
+                    }
+                    destination.writeEndArray();
+                    break;
+                case START_OBJECT:
+                    destination.writeStartObject();
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        copyCurrentStructure(destination, parser);
+                    }
+                    destination.writeEndObject();
+                    break;
+                default: // others are simple:
+                    destination.copyCurrentEvent(parser);
+            }
+        } catch (final JacksonException ex) {
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -489,7 +621,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (generator.isClosed()) {
             return;
         }
-        JsonStreamContext context = generator.getOutputContext();
+        TokenStreamContext context = generator.streamWriteContext();
         if ((context != null) && (context.inRoot() == false)) {
             throw new IOException("Unclosed object or array found");
         }

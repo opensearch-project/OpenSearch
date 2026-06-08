@@ -60,9 +60,34 @@ public class SearchPhaseExecutionException extends OpenSearchException {
     }
 
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
-        super(msg, deduplicateCause(cause, shardFailures));
+        super(msg, getEffectiveCause(cause, shardFailures));
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+    }
+
+    /**
+     * Determines the effective cause for this exception. If an explicit cause is provided and not
+     * duplicated in shard failures, use it. Otherwise, use the first shard failure's cause.
+     */
+    private static Throwable getEffectiveCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+        if (shardFailures == null) {
+            throw new IllegalArgumentException("shardSearchFailures must not be null");
+        }
+        // If explicit cause provided and not duplicated in shard failures, use it
+        if (cause != null) {
+            for (ShardSearchFailure failure : shardFailures) {
+                if (failure.getCause() == cause) {
+                    // Cause is duplicated, but still return it to properly wire the chain
+                    return cause;
+                }
+            }
+            return cause;
+        }
+        // No explicit cause - use first shard failure's cause if available
+        if (shardFailures.length > 0 && shardFailures[0].getCause() != null) {
+            return shardFailures[0].getCause();
+        }
+        return null;
     }
 
     public SearchPhaseExecutionException(StreamInput in) throws IOException {
@@ -76,22 +101,6 @@ public class SearchPhaseExecutionException extends OpenSearchException {
         super.writeTo(out);
         out.writeOptionalString(phaseName);
         out.writeArray(shardFailures);
-    }
-
-    private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
-        if (shardFailures == null) {
-            throw new IllegalArgumentException("shardSearchFailures must not be null");
-        }
-        // if the cause of this exception is also the cause of one of the shard failures we don't add it
-        // to prevent duplication in stack traces rendered to the REST layer
-        if (cause != null) {
-            for (ShardSearchFailure failure : shardFailures) {
-                if (failure.getCause() == cause) {
-                    return null;
-                }
-            }
-        }
-        return cause;
     }
 
     @Override
@@ -114,18 +123,6 @@ public class SearchPhaseExecutionException extends OpenSearchException {
 
     public ShardSearchFailure[] shardFailures() {
         return shardFailures;
-    }
-
-    @Override
-    public Throwable getCause() {
-        Throwable cause = super.getCause();
-        if (cause == null) {
-            // fall back to guessed root cause
-            for (OpenSearchException rootCause : guessRootCauses()) {
-                return rootCause;
-            }
-        }
-        return cause;
     }
 
     private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {

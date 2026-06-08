@@ -162,7 +162,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         Map<String, BoolQueryBuilder> alternateVersions = new HashMap<>();
         BoolQueryBuilder tempQueryBuilder = createTestQueryBuilder();
         BoolQueryBuilder expectedQuery = new BoolQueryBuilder();
-        String contentString = "{\n" + "    \"bool\" : {\n";
+        String contentString = """
+            {
+                "bool" : {
+            """;
         if (tempQueryBuilder.must().size() > 0) {
             QueryBuilder must = tempQueryBuilder.must().get(0);
             contentString += "\"must\": " + must.toString() + ",";
@@ -184,7 +187,9 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             expectedQuery.filter(filter);
         }
         contentString = contentString.substring(0, contentString.length() - 1);
-        contentString += "    }    \n" + "}";
+        contentString += """
+                }
+            }""";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -249,55 +254,55 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testFromJson() throws IOException {
-        String query = "{"
-            + "\"bool\" : {"
-            + "  \"must\" : [ {"
-            + "    \"term\" : {"
-            + "      \"user\" : {"
-            + "        \"value\" : \"foobar\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"filter\" : [ {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"must_not\" : [ {"
-            + "    \"range\" : {"
-            + "      \"age\" : {"
-            + "        \"from\" : 10,"
-            + "        \"to\" : 20,"
-            + "        \"include_lower\" : true,"
-            + "        \"include_upper\" : true,"
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"should\" : [ {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"wow\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  }, {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"opensearch\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"adjust_pure_negative\" : true,"
-            + "  \"minimum_should_match\" : \"23\","
-            + "  \"boost\" : 42.0"
-            + "}"
-            + "}";
+        String query = """
+            {"bool" : {
+              "must" : [ {
+                "term" : {
+                  "user" : {
+                    "value" : "foobar",
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "filter" : [ {
+                "term" : {
+                  "tag" : {
+                    "value" : "tech",
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "must_not" : [ {
+                "range" : {
+                  "age" : {
+                    "from" : 10,
+                    "to" : 20,
+                    "include_lower" : true,
+                    "include_upper" : true,
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "should" : [ {
+                "term" : {
+                  "tag" : {
+                    "value" : "wow",
+                    "boost" : 1.0
+                  }
+                }
+              }, {
+                "term" : {
+                  "tag" : {
+                    "value" : "opensearch",
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "adjust_pure_negative" : true,
+              "minimum_should_match" : "23",
+              "boost" : 42.0
+            }
+            }""";
 
         BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
@@ -308,37 +313,43 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testMinimumShouldMatchNumber() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : 1 } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : 1 } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals("1", builder.minimumShouldMatch());
     }
 
     public void testMinimumShouldMatchNull() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : null } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals(null, builder.minimumShouldMatch());
     }
 
     public void testMustNull() throws IOException {
-        String query = "{\"bool\" : {\"must\" : null } }";
+        String query = """
+            {"bool" : {"must" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.must().isEmpty());
     }
 
     public void testMustNotNull() throws IOException {
-        String query = "{\"bool\" : {\"must_not\" : null } }";
+        String query = """
+            {"bool" : {"must_not" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.mustNot().isEmpty());
     }
 
     public void testShouldNull() throws IOException {
-        String query = "{\"bool\" : {\"should\" : null } }";
+        String query = """
+            {"bool" : {"should" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.should().isEmpty());
     }
 
     public void testFilterNull() throws IOException {
-        String query = "{\"bool\" : {\"filter\" : null } }";
+        String query = """
+            {"bool" : {"filter" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.filter().isEmpty());
     }
@@ -349,7 +360,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      */
     public void testFilter() throws IOException {
         // Test for non null filter
-        String query = "{\"bool\" : {\"filter\" : null } }";
+        String query = """
+            {"bool" : {"filter" : null } }""";
         QueryBuilder filter = QueryBuilders.matchAllQuery();
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertFalse(builder.filter(filter).filter().isEmpty());
@@ -364,7 +376,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      * test that unknown query names in the clauses throw an error
      */
     public void testUnknownQueryName() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
+        String query = """
+            {"bool" : {"must" : { "unknown_query" : { } } } }""";
 
         XContentParseException ex = expectThrows(XContentParseException.class, () -> parseQuery(query));
         assertEquals("[1:41] [bool] failed to parse field [must]", ex.getMessage());
@@ -374,7 +387,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testDeprecation() throws IOException {
-        String query = "{\"bool\" : {\"mustNot\" : { \"match_all\" : { } } } }";
+        String query = """
+            {"bool" : {"mustNot" : { "match_all" : { } } } }""";
         QueryBuilder q = parseQuery(query);
         QueryBuilder expected = new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder());
         assertEquals(expected, q);

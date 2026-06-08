@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -32,6 +33,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.remote.FormatBlobRouter;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -74,7 +77,7 @@ public class RemoteDirectory extends Directory {
      * Map containing the mapping of segment files that are pending download as part of the pre-copy (warm) phase of
      * {@link org.opensearch.index.engine.MergedSegmentWarmer}. The key is the local filename and value is the remote filename.
      */
-    final Map<String, String> pendingDownloadMergedSegments;
+    protected final Map<String, String> pendingDownloadMergedSegments;
 
     /**
      * Number of bytes in the segment file to store checksum
@@ -182,6 +185,22 @@ public class RemoteDirectory extends Directory {
     public void deleteFile(String name) throws IOException {
         // ToDo: Add a check for file existence
         blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(name));
+    }
+
+    /**
+     * Removes multiple existing files in the directory in a batch operation.
+     *
+     * <p>This method will not throw an exception when a file doesn't exist and simply ignores missing files.
+     * This is consistent with the behavior of {@link #deleteFile(String)}.
+     *
+     * @param names the collection of filenames to delete.
+     * @throws IOException if the files exist but could not be deleted.
+     */
+    public void deleteFiles(List<String> names) throws IOException {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        blobContainer.deleteBlobsIgnoringIfNotExists(names);
     }
 
     /**
@@ -365,6 +384,10 @@ public class RemoteDirectory extends Directory {
         blobContainer.delete();
     }
 
+    public Optional<FormatBlobRouter> getFormatBlobRouter() {
+        return Optional.empty();
+    }
+
     public boolean copyFrom(
         Directory from,
         String src,
@@ -372,11 +395,12 @@ public class RemoteDirectory extends Directory {
         IOContext context,
         Runnable postUploadRunner,
         ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -385,14 +409,29 @@ public class RemoteDirectory extends Directory {
         return false;
     }
 
-    private void uploadBlob(
+    protected void uploadBlob(
         Directory from,
         String src,
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
         ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
+    ) throws Exception {
+        uploadBlob(from, src, remoteFileName, ioContext, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata, blobContainer);
+    }
+
+    protected void uploadBlob(
+        Directory from,
+        String src,
+        String remoteFileName,
+        IOContext ioContext,
+        Runnable postUploadRunner,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata,
+        BlobContainer targetBlobContainer
     ) throws Exception {
         assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
@@ -401,7 +440,7 @@ public class RemoteDirectory extends Directory {
         try {
             contentLength = indexInput.length();
             boolean remoteIntegrityEnabled = false;
-            if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer asyncContainer) {
+            if (targetBlobContainer instanceof AsyncMultiStreamBlobContainer asyncContainer) {
                 remoteIntegrityEnabled = asyncContainer.remoteIntegrityCheckSupported();
             }
             lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
@@ -424,7 +463,9 @@ public class RemoteDirectory extends Directory {
                 lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
                 offsetRangeInputStreamSupplier,
                 expectedChecksum,
-                remoteIntegrityEnabled
+                remoteIntegrityEnabled,
+                null,
+                cryptoMetadata
             );
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
                 try {
@@ -467,7 +508,7 @@ public class RemoteDirectory extends Directory {
             });
 
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
-            ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
+            ((AsyncMultiStreamBlobContainer) targetBlobContainer).asyncBlobUpload(writeContext, completionListener);
         } catch (Exception e) {
             logger.warn("Exception while calling asyncBlobUpload, closing IndexInput to avoid leak");
             indexInput.close();
@@ -475,7 +516,7 @@ public class RemoteDirectory extends Directory {
         }
     }
 
-    private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
+    protected long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
         try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             try {
                 return checksumOfChecksum(indexInput, SEGMENT_CHECKSUM_BYTES);

@@ -8,6 +8,7 @@
 
 package org.opensearch.javaagent;
 
+import org.opensearch.javaagent.bootstrap.internal.StackCallerProtectionDomainChainExtractor;
 import org.junit.Assume;
 import org.junit.Test;
 

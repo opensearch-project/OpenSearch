@@ -43,6 +43,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -75,7 +76,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
 
         engineConfig = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .codecService(new CodecService(null, defaultIndexSettings, logger))
+            .codecService(new CodecService(null, defaultIndexSettings, logger, List.of()))
             .documentMapperForTypeSupplier(() -> documentMapperForType)
             .build();
 
@@ -183,7 +184,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
 
         engineConfig = new EngineConfig.Builder().indexSettings(derivedIndexSettings)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .codecService(new CodecService(null, derivedIndexSettings, logger))
+            .codecService(new CodecService(null, derivedIndexSettings, logger, List.of()))
             .documentMapperForTypeSupplier(() -> documentMapperForType)
             .build();
 
@@ -226,7 +227,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
 
         engineConfig = new EngineConfig.Builder().indexSettings(derivedIndexSettings)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .codecService(new CodecService(null, defaultIndexSettings, logger))
+            .codecService(new CodecService(null, defaultIndexSettings, logger, List.of()))
             .documentMapperForTypeSupplier(() -> null)
             .build();
 

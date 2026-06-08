@@ -14,6 +14,7 @@ import org.opensearch.protobufs.DateDecayPlacement;
 import org.opensearch.protobufs.DecayFunction;
 import org.opensearch.protobufs.DecayPlacement;
 import org.opensearch.protobufs.GeoDecayPlacement;
+import org.opensearch.protobufs.MultiValueMode;
 import org.opensearch.protobufs.NumericDecayPlacement;
 import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
 
@@ -49,15 +50,23 @@ class LinearDecayFunctionProtoUtils {
         String fieldName = entry.getKey();
         DecayPlacement decayPlacement = entry.getValue();
 
+        LinearDecayFunctionBuilder builder;
         if (decayPlacement.hasNumericDecayPlacement()) {
-            return parseNumericLinearDecay(fieldName, decayPlacement.getNumericDecayPlacement());
+            builder = parseNumericLinearDecay(fieldName, decayPlacement.getNumericDecayPlacement());
         } else if (decayPlacement.hasGeoDecayPlacement()) {
-            return parseGeoLinearDecay(fieldName, decayPlacement.getGeoDecayPlacement());
+            builder = parseGeoLinearDecay(fieldName, decayPlacement.getGeoDecayPlacement());
         } else if (decayPlacement.hasDateDecayPlacement()) {
-            return parseDateLinearDecay(fieldName, decayPlacement.getDateDecayPlacement());
+            builder = parseDateLinearDecay(fieldName, decayPlacement.getDateDecayPlacement());
         } else {
             throw new IllegalArgumentException("Unsupported decay placement type");
         }
+
+        // Set multi_value_mode if present
+        if (decayFunction.hasMultiValueMode() && decayFunction.getMultiValueMode() != MultiValueMode.MULTI_VALUE_MODE_UNSPECIFIED) {
+            builder.setMultiValueMode(DecayFunctionProtoUtils.parseMultiValueMode(decayFunction.getMultiValueMode()));
+        }
+
+        return builder;
     }
 
     /**
@@ -69,7 +78,7 @@ class LinearDecayFunctionProtoUtils {
      * @param numericPlacement the protobuf numeric decay placement containing origin, scale, offset, and decay
      * @return the corresponding OpenSearch LinearDecayFunctionBuilder
      */
-    private static ScoreFunctionBuilder<?> parseNumericLinearDecay(String fieldName, NumericDecayPlacement numericPlacement) {
+    private static LinearDecayFunctionBuilder parseNumericLinearDecay(String fieldName, NumericDecayPlacement numericPlacement) {
         LinearDecayFunctionBuilder builder;
         if (numericPlacement.hasDecay()) {
             builder = new LinearDecayFunctionBuilder(
@@ -100,7 +109,7 @@ class LinearDecayFunctionProtoUtils {
      * @param geoPlacement the protobuf geo decay placement containing origin (lat/lon), scale, offset, and decay
      * @return the corresponding OpenSearch LinearDecayFunctionBuilder
      */
-    private static ScoreFunctionBuilder<?> parseGeoLinearDecay(String fieldName, GeoDecayPlacement geoPlacement) {
+    private static LinearDecayFunctionBuilder parseGeoLinearDecay(String fieldName, GeoDecayPlacement geoPlacement) {
         GeoPoint geoPoint = GeoPointProtoUtils.parseGeoPoint(geoPlacement.getOrigin());
 
         LinearDecayFunctionBuilder builder;
@@ -133,7 +142,7 @@ class LinearDecayFunctionProtoUtils {
      * @param datePlacement the protobuf date decay placement containing origin (date), scale, offset, and decay
      * @return the corresponding OpenSearch LinearDecayFunctionBuilder
      */
-    private static ScoreFunctionBuilder<?> parseDateLinearDecay(String fieldName, DateDecayPlacement datePlacement) {
+    private static LinearDecayFunctionBuilder parseDateLinearDecay(String fieldName, DateDecayPlacement datePlacement) {
         Object origin = datePlacement.hasOrigin() ? datePlacement.getOrigin() : null;
 
         LinearDecayFunctionBuilder builder;

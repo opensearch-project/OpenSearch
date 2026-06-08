@@ -8,8 +8,13 @@
 
 package org.opensearch.http.reactor.netty4;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Randomness;
+import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -19,6 +24,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -26,6 +32,8 @@ import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
+import org.opensearch.http.netty4.http3.Http3Utils;
+import org.opensearch.http.netty4.http3.SecureQuicTokenHandler;
 import org.opensearch.http.reactor.netty4.ssl.SslUtils;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider.SecureHttpTransportParameters;
@@ -33,24 +41,31 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.netty4.Netty4Utils;
 import org.opensearch.transport.reactor.SharedGroupFactory;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
 
 import javax.net.ssl.KeyManagerFactory;
 
 import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.quic.QuicSslContextBuilder;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.ClientAuth;
@@ -59,9 +74,12 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.handler.timeout.ReadTimeoutException;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
+import reactor.netty.Connection;
+import reactor.netty.DisposableChannel;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.server.HttpServer;
@@ -69,6 +87,7 @@ import reactor.netty.http.server.HttpServerRequest;
 import reactor.netty.http.server.HttpServerResponse;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_CONNECT_TIMEOUT;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -87,6 +106,8 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BU
  * The HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
  */
 public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(ReactorNetty4HttpServerTransport.class);
+
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
 
@@ -104,9 +125,45 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     );
 
     /**
+     * Set the initial maximum data limit for local bidirectional streams (in bytes).
+     */
+    public static final Setting<ByteSizeValue> SETTING_H3_MAX_STREAM_LOCAL_LENGTH = Setting.byteSizeSetting(
+        "h3.max_stream_local_length",
+        new ByteSizeValue(1000000, ByteSizeUnit.BYTES),
+        Property.NodeScope
+    );
+
+    /**
+     * Set the initial maximum data limit for remote bidirectional streams (in bytes).
+     */
+    public static final Setting<ByteSizeValue> SETTING_H3_MAX_STREAM_REMOTE_LENGTH = Setting.byteSizeSetting(
+        "h3.max_stream_remote_length",
+        new ByteSizeValue(1000000, ByteSizeUnit.BYTES),
+        Property.NodeScope
+    );
+
+    /**
+     * Set the initial maximum stream limit for bidirectional streams.
+     *
+     * The HTTP/3 standard expects that each end configures at least 100
+     * concurrent bidirectional streams at a time, to avoid reducing performance
+     * by reducing parallelism.
+     */
+    public static final Setting<Long> SETTING_H3_MAX_STREAMS = Setting.longSetting("h3.max_streams", 100L, Property.NodeScope);
+
+    /**
      * The number of Reactor Netty HTTP workers
      */
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
+
+    /**
+     * Set the maximum number of HTTP/2 concurrent streams
+     */
+    public static final Setting<Long> SETTING_H2_MAX_CONCURRENT_STREAMS = Setting.longSetting(
+        "h2.max_concurrent_streams",
+        100L,
+        Property.NodeScope
+    );
 
     /**
      * The maximum number of composite components for request accumulation
@@ -154,9 +211,12 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     private volatile DisposableServer disposableServer;
     private volatile Scheduler scheduler;
+    private final Map<Channel, HostChannel> hostChannels = new ConcurrentHashMap<>();
+    private final long h2MaxConcurrentStreams;
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -194,6 +254,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -226,17 +287,19 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.h2cMaxContentLength = SETTING_H2C_MAX_CONTENT_LENGTH.get(settings);
+        this.h2MaxConcurrentStreams = SETTING_H2_MAX_CONCURRENT_STREAMS.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
     }
 
     /**
      * Binds the transport engine to the socket address
+     *
      * @param socketAddress socket address to bind to
      */
     @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
-        final HttpServer server = configure(
+        final HttpServer http11or2 = configureHttp11orHttp2(
             HttpServer.create()
                 .httpFormDecoder(builder -> builder.scheduler(scheduler))
                 .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
@@ -244,7 +307,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .runOn(sharedGroup.getLowLevelGroup())
                 .bindAddress(() -> socketAddress)
                 .compress(true)
-                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()))
+                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()).maxConcurrentStreams(h2MaxConcurrentStreams))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                         .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
@@ -255,11 +318,86 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .handle((req, res) -> incomingRequest(req, res))
         );
 
-        disposableServer = server.bindNow();
-        return new ReactorNetty4HttpServerChannel(disposableServer.channel());
+        // The HTTP/3 server binds to the same port as HTTP/2 or HTTP/1.1 since those are
+        // different protocols (UDP, TCP)
+        final Optional<DisposableServer> http3Opt = configureHttp3(socketAddress).map(HttpServer::bindNow);
+        if (http3Opt.isEmpty()) {
+            disposableServer = http11or2.bindNow();
+            return new ReactorNetty4HttpServerChannel(disposableServer.channel());
+        } else {
+            final DisposableServer http3Server = http3Opt.get();
+            final DisposableServer http11or2Server = http11or2.bindNow();
+
+            disposableServer = new DisposableServer() {
+                @Override
+                public Channel channel() {
+                    throw new UnsupportedOperationException("The channel() operation is not supported");
+                }
+
+                @Override
+                public void disposeNow() {
+                    disposeQuietly(http3Server);
+                    disposeQuietly(http11or2Server);
+                }
+            };
+
+            return new ReactorNetty4CompositeHttpServerChannel(http11or2Server.channel(), http3Server.channel());
+        }
     }
 
-    private HttpServer configure(final HttpServer server) throws Exception {
+    private Optional<HttpServer> configureHttp3(InetSocketAddress socketAddress) throws Exception {
+        // Configure SSL context if available
+        if (secureHttpTransportSettingsProvider != null) {
+            final Optional<SecureHttpTransportParameters> parameters = secureHttpTransportSettingsProvider.parameters(settings);
+
+            final KeyManagerFactory keyManagerFactory = parameters.flatMap(SecureHttpTransportParameters::keyManagerFactory)
+                .orElseThrow(() -> new OpenSearchException("The KeyManagerFactory instance is not provided"));
+
+            if (Http3Utils.isHttp3Available() && SETTING_HTTP_HTTP3_ENABLED.get(settings).booleanValue() == true) {
+                final QuicSslContextBuilder sslContextBuilder = QuicSslContextBuilder.forServer(keyManagerFactory, null);
+
+                parameters.flatMap(SecureHttpTransportParameters::trustManagerFactory).ifPresent(sslContextBuilder::trustManager);
+                parameters.flatMap(SecureHttpTransportParameters::clientAuth)
+                    .ifPresent(clientAuth -> sslContextBuilder.clientAuth(ClientAuth.valueOf(clientAuth)));
+
+                final SslContext sslContext = sslContextBuilder.applicationProtocols(
+                    io.netty.handler.codec.http3.Http3.supportedApplicationProtocols()
+                ).build();
+
+                return Optional.of(
+                    HttpServer.create()
+                        .httpFormDecoder(builder -> builder.scheduler(scheduler))
+                        .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
+                        .readTimeout(Duration.ofMillis(readTimeoutMillis))
+                        .runOn(sharedGroup.getLowLevelGroup())
+                        .bindAddress(() -> socketAddress)
+                        .compress(true)
+                        .httpRequestDecoder(
+                            spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
+                                .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
+                                .maxHeaderSize(maxHeaderSize.bytesAsInt())
+                                .maxInitialLineLength(maxInitialLineLength.bytesAsInt())
+                                .allowPartialChunks(false)
+                        )
+                        .handle((req, res) -> incomingRequest(req, res))
+                        .http3Settings(
+                            spec -> spec.tokenHandler(new SecureQuicTokenHandler(Randomness.createSecure()))
+                                .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
+                                .maxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes())
+                                .maxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
+                                .maxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(settings).getBytes())
+                                .maxStreamsBidirectional(SETTING_H3_MAX_STREAMS.get(settings).longValue())
+                        )
+                        .secure(spec -> spec.sslContext(sslContext))
+                        .protocol(HttpProtocol.HTTP3)
+                );
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private HttpServer configureHttp11orHttp2(final HttpServer server) throws Exception {
         HttpServer configured = server.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings))
             .childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
 
@@ -346,7 +484,19 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     }
 
     /**
+     * An override to be able to keep track of accepted channels by the
+     * {@link ReactorNetty4NonStreamingRequestConsumer} and {@link ReactorNetty4StreamingRequestConsumer}
+     *
+     * @param httpChannel the accepted channel
+     */
+    @Override
+    public void serverAcceptedChannel(HttpChannel httpChannel) {
+        super.serverAcceptedChannel(httpChannel);
+    }
+
+    /**
      * Handles incoming Reactor Netty request
+     *
      * @param request request instance
      * @param response response instances
      * @return response publisher
@@ -365,8 +515,11 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             method,
             request.params()
         );
+
+        final HttpResponseHeadersFactory responseHeadersFactory = HttpResponseHeadersFactories.newDefault(settings, this);
         if (dispatchHandlerOpt.map(RestHandler::supportsStreaming).orElse(false)) {
             final ReactorNetty4StreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4StreamingRequestConsumer<>(
+                this,
                 request,
                 response
             );
@@ -375,17 +528,21 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
                 .subscribe(consumer, error -> {}, () -> consumer.accept(DefaultLastHttpContent.EMPTY_LAST_CONTENT));
 
-            incomingStream(new ReactorNetty4HttpRequest(request), consumer.httpChannel());
+            incomingStream(new ReactorNetty4HttpRequest(request, responseHeadersFactory), consumer.httpChannel());
             return response.sendObject(consumer);
         } else {
             final ReactorNetty4NonStreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4NonStreamingRequestConsumer<>(
                 this,
+                responseHeadersFactory,
                 request,
                 response,
                 maxCompositeBufferComponents
             );
 
-            request.receiveContent().switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT)).subscribe(consumer);
+            request.receiveContent()
+                .concatWith(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
+                .switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
+                .subscribe(consumer);
 
             return Mono.from(consumer).flatMap(hc -> {
                 final FullHttpResponse r = (FullHttpResponse) hc;
@@ -406,6 +563,13 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
      */
     @Override
     protected void stopInternal() {
+        try {
+            CloseableChannel.closeChannels(new ArrayList<>(hostChannels.values()), true);
+        } catch (Exception e) {
+            logger.warn("unexpected exception while closing http channels", e);
+        }
+        hostChannels.clear();
+
         if (sharedGroup != null) {
             sharedGroup.shutdown();
             sharedGroup = null;
@@ -417,7 +581,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         }
 
         if (disposableServer != null) {
-            disposableServer.disposeNow();
+            disposeQuietly(disposableServer);
             disposableServer = null;
         }
     }
@@ -456,5 +620,118 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         } else {
             super.onException(channel, cause);
         }
+    }
+
+    /**
+     * Quietly disposes the channel.
+     */
+    private static void disposeQuietly(final DisposableChannel disposable) {
+        try {
+            if (disposable != null) {
+                disposable.disposeNow();
+            }
+        } catch (final RuntimeException ex) {
+            // Do nothing
+        }
+    }
+
+    /**
+     * The {@link HostChannel} abstraction binds {@link HttpChannel} instance to a single Netty channel and
+     * separate the lifecycle of those: {@link HttpChannel} is closed upon every response delivered whereas {@link HostChannel}
+     * is closed only when the Netty channel it is attached to is closed.
+     */
+    static final class HostChannel implements CloseableChannel {
+        private final Channel channel;
+        private final CompletableContext<Void> closeContext = new CompletableContext<>();
+        private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+        HostChannel(Channel channel) {
+            this.channel = channel;
+            Netty4Utils.addListener(channel.closeFuture(), closeContext);
+            closeContext.addListener((v, ex) -> { httpChannels.forEach(HttpChannel::close); });
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            closeContext.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        /**
+         * Checks if underlying Netty channel is open
+         * @return "true" if underlying Netty channel is open, "false" otherwise
+         */
+        @Override
+        public boolean isOpen() {
+            return channel.isOpen();
+        }
+
+        /**
+         * Unbinds {@link HttpChannel} instance
+         * @param httpChannel {@link HttpChannel} instance
+         */
+        void close(HttpChannel httpChannel) {
+            httpChannels.remove(httpChannel);
+        }
+
+        /**
+         * Closes this channel group
+         */
+        @Override
+        public void close() {
+            if (closeContext.isDone() == false) {
+                Netty4Utils.addListener(channel.close(), closeContext);
+            } else {
+                channel.close();
+            }
+        }
+
+        /**
+         * Creates and binds new {@link HttpChannel} instance to this channel group
+        * @param request HTTP request
+        * @param response HTTP response
+        * @param emitter {@link HttpContent} emitter
+        * @return new {@link HttpChannel} instance
+         */
+        HttpChannel newHttpChannel(HttpServerRequest request, HttpServerResponse response, FluxSink<HttpContent> emitter) {
+            final ReactorNetty4NonStreamingHttpChannel httpChannel = new ReactorNetty4NonStreamingHttpChannel(
+                this,
+                request,
+                response,
+                emitter
+            );
+            httpChannels.add(httpChannel);
+            return httpChannel;
+        }
+
+    }
+
+    /**
+     * Creates a new non-streaming {@link HttpChannel} instance. The Project Reactor creates an ephemeral connection
+     * over Netty channel all the time and runs request / response conversation over it. It does not work well with persistent
+     * connections as it leads to explosion of {@link HttpChannel} instances that are tracked by {@link AbstractHttpServerTransport}
+     * and eventually could cause out of memory.
+     *
+     * To mitigate that, the {@link HostChannel} abstraction binds {@link HttpChannel} instance to a single Netty channel and
+     * separate the lifecycle of those: {@link HttpChannel} is closed upon every response delivered whereas {@link HostChannel}
+     * is closed only when the Netty channel it is attached to is closed.
+     *
+     * @param request HTTP request
+     * @param response HTTP response
+     * @param emitter {@link HttpContent} emitter
+     * @return new {@link HttpChannel} instance
+     */
+    HttpChannel newNonStreamingHttpChannel(HttpServerRequest request, HttpServerResponse response, FluxSink<HttpContent> emitter) {
+        final Connection[] connection = new Connection[1];
+        request.withConnection(c -> connection[0] = c);
+
+        if (connection[0] == null) {
+            throw new IllegalStateException("Failed to obtain connection from HttpServerRequest");
+        }
+
+        final Channel channel = connection[0].channel();
+        final HostChannel hostChannel = hostChannels.computeIfAbsent(channel, key -> new HostChannel(key));
+        hostChannel.addCloseListener(ActionListener.wrap(() -> hostChannels.remove(channel)));
+
+        return hostChannel.newHttpChannel(request, response, emitter);
     }
 }

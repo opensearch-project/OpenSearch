@@ -12,11 +12,10 @@ import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
+import org.opensearch.http.reactor.netty4.ReactorNetty4HttpServerTransport.HostChannel;
 
 import java.net.InetSocketAddress;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
@@ -27,26 +26,33 @@ import reactor.netty.http.server.HttpServerResponse;
 class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
     private final HttpServerRequest request;
     private final HttpServerResponse response;
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
     private final FluxSink<HttpContent> emitter;
+    private final HostChannel hostChannel;
+    private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
-    ReactorNetty4NonStreamingHttpChannel(HttpServerRequest request, HttpServerResponse response, FluxSink<HttpContent> emitter) {
+    ReactorNetty4NonStreamingHttpChannel(
+        HostChannel hostChannel,
+        HttpServerRequest request,
+        HttpServerResponse response,
+        FluxSink<HttpContent> emitter
+    ) {
+        this.hostChannel = hostChannel;
         this.request = request;
         this.response = response;
         this.emitter = emitter;
-        this.request.withConnection(connection -> Netty4Utils.addListener(connection.channel().closeFuture(), closeContext));
     }
 
     @Override
     public boolean isOpen() {
-        final AtomicBoolean isOpen = new AtomicBoolean();
-        request.withConnection(connection -> isOpen.set(connection.channel().isOpen()));
-        return isOpen.get();
+        return hostChannel.isOpen();
     }
 
     @Override
     public void close() {
-        request.withConnection(connection -> connection.channel().close());
+        if (closeContext.isDone() == false) {
+            closeContext.complete(null);
+            hostChannel.close(this);
+        }
     }
 
     @Override

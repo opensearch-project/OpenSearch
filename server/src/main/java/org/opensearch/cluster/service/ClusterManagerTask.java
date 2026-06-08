@@ -37,7 +37,7 @@ public enum ClusterManagerTask {
     CREATE_PERSISTENT_TASK("create-persistent-task", 50),
     FINISH_PERSISTENT_TASK("finish-persistent-task", 50),
     REMOVE_PERSISTENT_TASK("remove-persistent-task", 50),
-    UPDATE_TASK_STATE("update-task-state", 50),
+    UPDATE_TASK_STATE("update-task-state", 300),
     CREATE_QUERY_GROUP("create-query-group", 50),
     DELETE_QUERY_GROUP("delete-query-group", 50),
     UPDATE_QUERY_GROUP("update-query-group", 50),
@@ -55,7 +55,8 @@ public enum ClusterManagerTask {
     ROLLOVER_INDEX("rollover-index", 200),
     INDEX_ALIASES("index-aliases", 200),
     PUT_MAPPING("put-mapping", 10000),
-    UPDATE_SNAPSHOT_STATE("update-snapshot-state", 5000);
+    UPDATE_SNAPSHOT_STATE("update-snapshot-state", 5000),
+    IN_PLACE_SPLIT_SHARD("in-place-split-shard", 50);
 
     private final String key;
     private final int threshold;

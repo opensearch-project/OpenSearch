@@ -12,7 +12,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
+import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -43,16 +43,29 @@ class ReactorNetty4HttpRequest implements HttpRequest {
     private final AtomicBoolean released;
     private final Exception inboundException;
     private final boolean pooled;
+    private final HttpResponseHeadersFactory responseHeadersFactory;
 
-    ReactorNetty4HttpRequest(HttpServerRequest request) {
-        this(request, new HttpHeadersMap(request.requestHeaders()), new AtomicBoolean(false), false, Unpooled.EMPTY_BUFFER);
+    ReactorNetty4HttpRequest(HttpServerRequest request, HttpResponseHeadersFactory responseHeadersFactory) {
+        this(
+            request,
+            new HttpHeadersMap(request.requestHeaders()),
+            new AtomicBoolean(false),
+            false,
+            Unpooled.EMPTY_BUFFER,
+            responseHeadersFactory
+        );
     }
 
-    ReactorNetty4HttpRequest(HttpServerRequest request, ByteBuf content) {
-        this(request, new HttpHeadersMap(request.requestHeaders()), new AtomicBoolean(false), true, content);
+    ReactorNetty4HttpRequest(HttpServerRequest request, ByteBuf content, HttpResponseHeadersFactory responseHeadersFactory) {
+        this(request, new HttpHeadersMap(request.requestHeaders()), new AtomicBoolean(false), true, content, responseHeadersFactory);
     }
 
-    ReactorNetty4HttpRequest(HttpServerRequest request, ByteBuf content, Exception inboundException) {
+    ReactorNetty4HttpRequest(
+        HttpServerRequest request,
+        ByteBuf content,
+        Exception inboundException,
+        HttpResponseHeadersFactory responseHeadersFactory
+    ) {
         this(
             request.protocol(),
             request.method(),
@@ -61,7 +74,8 @@ class ReactorNetty4HttpRequest implements HttpRequest {
             new AtomicBoolean(false),
             true,
             content,
-            inboundException
+            inboundException,
+            responseHeadersFactory
         );
     }
 
@@ -70,9 +84,10 @@ class ReactorNetty4HttpRequest implements HttpRequest {
         HttpHeadersMap headers,
         AtomicBoolean released,
         boolean pooled,
-        ByteBuf content
+        ByteBuf content,
+        HttpResponseHeadersFactory responseHeadersFactory
     ) {
-        this(request.protocol(), request.method(), request.uri(), headers, released, pooled, content, null);
+        this(request.protocol(), request.method(), request.uri(), headers, released, pooled, content, null, responseHeadersFactory);
     }
 
     private ReactorNetty4HttpRequest(
@@ -83,7 +98,8 @@ class ReactorNetty4HttpRequest implements HttpRequest {
         AtomicBoolean released,
         boolean pooled,
         ByteBuf content,
-        Exception inboundException
+        Exception inboundException,
+        HttpResponseHeadersFactory responseHeadersFactory
     ) {
 
         this.protocol = protocol;
@@ -94,6 +110,7 @@ class ReactorNetty4HttpRequest implements HttpRequest {
         this.pooled = pooled;
         this.released = released;
         this.inboundException = inboundException;
+        this.responseHeadersFactory = responseHeadersFactory;
     }
 
     @Override
@@ -127,7 +144,17 @@ class ReactorNetty4HttpRequest implements HttpRequest {
         }
         try {
             final ByteBuf copiedContent = Unpooled.copiedBuffer(content);
-            return new ReactorNetty4HttpRequest(protocol, method, uri, headers, new AtomicBoolean(false), false, copiedContent, null);
+            return new ReactorNetty4HttpRequest(
+                protocol,
+                method,
+                uri,
+                headers,
+                new AtomicBoolean(false),
+                false,
+                copiedContent,
+                null,
+                responseHeadersFactory
+            );
         } finally {
             release();
         }
@@ -158,6 +185,8 @@ class ReactorNetty4HttpRequest implements HttpRequest {
             return HttpRequest.HttpVersion.HTTP_1_1;
         } else if (protocol.equals("HTTP/2.0")) {
             return HttpRequest.HttpVersion.HTTP_2_0;
+        } else if (protocol.equals("HTTP/3.0")) {
+            return HttpRequest.HttpVersion.HTTP_3_0;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + protocol);
         }
@@ -177,18 +206,22 @@ class ReactorNetty4HttpRequest implements HttpRequest {
             released,
             pooled,
             content,
-            null
+            null,
+            responseHeadersFactory
         );
     }
 
     @Override
     public ReactorNetty4HttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new ReactorNetty4HttpResponse(
+        final ReactorNetty4HttpResponse response = new ReactorNetty4HttpResponse(
             headers.httpHeaders,
             io.netty.handler.codec.http.HttpVersion.valueOf(protocol),
             status,
             content
         );
+        responseHeadersFactory.headers(protocolVersion()).forEach(response::addHeader);
+        return response;
+
     }
 
     @Override

@@ -55,6 +55,7 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RepositoryCleanupInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -417,7 +418,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<PathType> SHARD_PATH_TYPE = new Setting<>(
         "shard_path_type",
-        PathType.HASHED_PREFIX.toString(),
+        PathType.FIXED.toString(),
         PathType::parseString
     );
 
@@ -566,7 +567,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobContainer> snapshotShardPathBlobContainer = new SetOnce<>();
 
-    private final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
+    protected final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
 
     protected final ClusterService clusterService;
 
@@ -1639,7 +1640,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         String threadPoolName,
         RemoteStorePathStrategy pathStrategy,
-        boolean forceClean
+        boolean forceClean,
+        IndexMetadata indexMetadata
     ) {
         threadpool.executor(threadPoolName)
             .execute(
@@ -1650,7 +1652,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexUUID,
                         shardId,
                         pathStrategy,
-                        forceClean
+                        forceClean,
+                        indexMetadata
                     ),
                     indexUUID,
                     shardId
@@ -1707,7 +1710,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy(),
-                false
+                false,
+                null  // V1 shallow-copy is a Lucene-only mode — DFA indices use V2 snapshots only. If a DFA index were ever associated with
+                      // a V1 snapshot, per-format files (e.g., parquet/) would leak on cleanup; tracked as a known limitation.
             );
         }
     }
@@ -2388,7 +2393,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 shard,
                                 ThreadPool.Names.REMOTE_PURGE,
                                 remoteStorePathStrategy,
-                                forceClean
+                                forceClean,
+                                prevIndexMetadata    // ← carries DFA flag through factory → DataFormatAwareRemoteDirectory
                             );
                             remoteTranslogCleanupAsync(
                                 remoteTranslogRepository,
@@ -3956,7 +3962,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        IndexMetadata indexMetadata
     ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
@@ -4141,12 +4148,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
+
+            // Resolve CryptoMetadata once for all file uploads
+            final CryptoMetadata cryptoMetadata = resolveCryptoMetadata(indexMetadata);
+
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             // Start as many workers as fit into the snapshot pool at once at the most
             final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), indexIncrementalFileCount);
             final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, workers, allFilesUploadedListener);
             for (int i = 0; i < workers; ++i) {
-                executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, filesListener);
+                executeOneFileSnapshot(
+                    store,
+                    snapshotId,
+                    indexId,
+                    snapshotStatus,
+                    filesToSnapshot,
+                    executor,
+                    filesListener,
+                    cryptoMetadata
+                );
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -4160,7 +4180,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         IndexShardSnapshotStatus snapshotStatus,
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot,
         Executor executor,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        CryptoMetadata cryptoMetadata
     ) throws InterruptedException {
         final ShardId shardId = store.shardId();
         final BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
@@ -4169,8 +4190,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             executor.execute(ActionRunnable.wrap(listener, l -> {
                 try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
-                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
-                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l);
+                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store, cryptoMetadata);
+                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l, cryptoMetadata);
                 }
             }));
         }
@@ -4797,7 +4818,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Snapshot individual file
-     * @param fileInfo file to be snapshotted
+     *
+     * @param fileInfo      file to be snapshotted
      */
     private void snapshotFile(
         BlobStoreIndexShardSnapshot.FileInfo fileInfo,
@@ -4805,9 +4827,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         SnapshotId snapshotId,
         IndexShardSnapshotStatus snapshotStatus,
-        Store store
+        Store store,
+        CryptoMetadata cryptoMetadata
     ) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
+
         final String file = fileInfo.physicalName();
         try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
@@ -4838,7 +4862,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
                 final String partName = fileInfo.partName(i);
                 logger.trace(() -> new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
-                shardContainer.writeBlob(partName, inputStream, partBytes, false);
+                // Use writeBlobWithMetadata to pass CryptoMetadata for index-level SSE-KMS override
+                shardContainer.writeBlobWithMetadata(partName, inputStream, partBytes, false, null, cryptoMetadata);
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());
@@ -4933,5 +4958,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         public String toString() {
             return name;
         }
+    }
+
+    private CryptoMetadata resolveCryptoMetadata(IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return null;
+        }
+        Settings indexSettings = indexMetadata.getSettings();
+        return CryptoMetadata.fromIndexSettings(indexSettings);
     }
 }

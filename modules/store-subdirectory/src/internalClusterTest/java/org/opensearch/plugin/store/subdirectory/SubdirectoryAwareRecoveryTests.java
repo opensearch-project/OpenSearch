@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.store.subdirectory;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -17,6 +18,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -27,6 +30,8 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.EnginePlugin;
@@ -110,10 +115,23 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
 
             if (Files.exists(subdirectoryPath)) {
                 try (Directory directory = FSDirectory.open(subdirectoryPath)) {
+                    Set<String> allFiles = new HashSet<>();
+
+                    // Get segment files
                     SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(directory);
                     Collection<String> segmentFiles = segmentInfos.files(true);
-                    if (!segmentFiles.isEmpty()) {
-                        nodeFiles.put(nodeName, new HashSet<>(segmentFiles));
+                    allFiles.addAll(segmentFiles);
+
+                    // Get non-segment files
+                    String[] filesInDir = directory.listAll();
+                    for (String fileName : filesInDir) {
+                        if (fileName.startsWith(TestEngine.NON_SEGMENT_FILE_PREFIX)) {
+                            allFiles.add(fileName);
+                        }
+                    }
+
+                    if (!allFiles.isEmpty()) {
+                        nodeFiles.put(nodeName, allFiles);
                     }
                 } catch (IOException e) {
                     // corrupt index or no commit files, skip this node
@@ -127,12 +145,16 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
             nodeFiles.size()
         );
 
-        // Verify all nodes have identical files
+        // Verify all nodes have identical files (including non-segment files)
         if (nodeFiles.size() > 1) {
             Set<String> referenceFiles = nodeFiles.values().iterator().next();
             for (Map.Entry<String, Set<String>> entry : nodeFiles.entrySet()) {
                 assertEquals("Node " + entry.getKey() + " should have identical files to other nodes", referenceFiles, entry.getValue());
             }
+
+            // Additional verification: ensure non-segment files are present
+            boolean hasNonSegmentFiles = referenceFiles.stream().anyMatch(f -> f.startsWith(TestEngine.NON_SEGMENT_FILE_PREFIX));
+            assertTrue("Non-segment files should be present in subdirectory", hasNonSegmentFiles);
         }
     }
 
@@ -181,11 +203,13 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
     static class TestEngine extends InternalEngine {
 
         static final String SUBDIRECTORY_NAME = "test_subdirectory";
+        static final String NON_SEGMENT_FILE_PREFIX = "test_metadata_";
 
         private final Path subdirectoryPath;
         private final Directory subdirectoryDirectory;
         private final IndexWriter subdirectoryWriter;
         private final EngineConfig engineConfig;
+        private int nonSegmentFileCounter = 0;
 
         TestEngine(EngineConfig config) throws IOException {
             super(config);
@@ -226,8 +250,26 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
             // Then commit the subdirectory
             try {
                 subdirectoryWriter.commit();
+                // Create a non-segment file to test non-segment file recovery
+                createNonSegmentFile();
             } catch (IOException e) {
                 throw new EngineException(shardId, "Failed to commit subdirectory during flush", e);
+            }
+        }
+
+        /**
+         * Creates a non-segment file in the subdirectory to test non-segment file metadata handling
+         */
+        private void createNonSegmentFile() throws IOException {
+            String fileName = NON_SEGMENT_FILE_PREFIX + nonSegmentFileCounter++;
+            try (IndexOutput output = subdirectoryDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+                // Write a proper Lucene file with codec header and footer
+                CodecUtil.writeHeader(output, "test_metadata", 0);
+                // Write some test data
+                output.writeString("test_data_" + System.currentTimeMillis());
+                output.writeLong(nonSegmentFileCounter);
+                // Write codec footer with checksum
+                CodecUtil.writeFooter(output);
             }
         }
 
@@ -266,6 +308,42 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
                 throw new EngineException(shardId, "Failed to acquire safe index commit", e);
             }
         }
+
+        @Override
+        public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+            final GatedCloseable<CatalogSnapshot> base = super.acquireSafeCatalogSnapshot();
+            try {
+                // Collect subdirectory file paths (prefixed with subdirectory name).
+                final SegmentInfos subInfos = SegmentInfos.readLatestCommit(subdirectoryDirectory);
+                final Set<String> extra = new HashSet<>();
+                for (String f : subInfos.files(true)) {
+                    extra.add(Path.of(SUBDIRECTORY_NAME, f).toString());
+                }
+                for (String f : subdirectoryDirectory.listAll()) {
+                    if (f.startsWith(NON_SEGMENT_FILE_PREFIX)) {
+                        extra.add(Path.of(SUBDIRECTORY_NAME, f).toString());
+                    }
+                }
+                // Reuse the SegmentInfos from the base snapshot — no redundant disk read.
+                SegmentInfos mainInfos = ((SegmentInfosCatalogSnapshot) base.get()).getSegmentInfos();
+                CatalogSnapshot wrapped = new SegmentInfosCatalogSnapshot(mainInfos) {
+                    @Override
+                    public Collection<String> getFiles(boolean includeSegmentsFile) throws IOException {
+                        Set<String> files = new HashSet<>(super.getFiles(includeSegmentsFile));
+                        files.addAll(extra);
+                        return files;
+                    }
+                };
+                return new GatedCloseable<>(wrapped, base::close);
+            } catch (Exception e) {
+                try {
+                    base.close();
+                } catch (IOException ex) {
+                    e.addSuppressed(ex);
+                }
+                throw new EngineException(shardId, "Failed to acquire safe catalog snapshot", e);
+            }
+        }
     }
 
     /**
@@ -298,6 +376,15 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
                     for (String fileName : segmentFiles) {
                         String relativePath = Path.of(TestEngine.SUBDIRECTORY_NAME, fileName).toString();
                         allFiles.add(relativePath);
+                    }
+
+                    // Add non-segment files (test_metadata_*)
+                    String[] allFilesInDir = directory.listAll();
+                    for (String fileName : allFilesInDir) {
+                        if (fileName.startsWith(TestEngine.NON_SEGMENT_FILE_PREFIX)) {
+                            String relativePath = Path.of(TestEngine.SUBDIRECTORY_NAME, fileName).toString();
+                            allFiles.add(relativePath);
+                        }
                     }
                 }
             }

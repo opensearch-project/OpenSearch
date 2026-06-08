@@ -49,7 +49,7 @@ import static org.opensearch.indices.pollingingest.StreamPoller.ResetState.RESET
  *
  * <p>This is for internal use and will not be exposed to the user directly. </p>
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class TransportUpdateIngestionStateAction extends TransportBroadcastByNodeAction<
     UpdateIngestionStateRequest,

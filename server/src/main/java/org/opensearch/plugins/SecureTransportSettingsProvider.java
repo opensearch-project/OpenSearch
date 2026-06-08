@@ -14,6 +14,7 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportAdapterProvider;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
@@ -97,6 +98,19 @@ public interface SecureTransportSettingsProvider {
     }
 
     /**
+     * If supported, returns the live in-memory {@link SSLContext} for the transport layer.
+     * Unlike {@link #buildSecureServerTransportEngine}, this returns the context itself so callers
+     * can wrap it once (e.g. in a Netty {@code JdkSslContext}) and call {@code newEngine()} per
+     * connection — picking up reloaded certs without reading files.
+     * @param settings settings
+     * @return if supported, the live {@link SSLContext} for the transport layer
+     * @throws SSLException if the context cannot be fetched
+     */
+    default Optional<SSLContext> buildSecureTransportContext(Settings settings) throws SSLException {
+        return Optional.empty();
+    }
+
+    /**
      * If supported, builds the {@link TransportExceptionHandler} instance for {@link Transport} instance
      * @param settings settings
      * @param transport {@link Transport} instance
@@ -122,4 +136,18 @@ public interface SecureTransportSettingsProvider {
      * @throws SSLException throws SSLException if the {@link SSLEngine} instance cannot be built
      */
     Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String hostname, int port) throws SSLException;
+
+    /**
+     * If supported, builds the {@link SSLEngine} instance for client transport instance
+     * @param settings settings
+     * @param serverName the name to send in the TLS Server Name Indication (SNI) extension
+     * @param hostname host name
+     * @param port port
+     * @return if supported, builds the {@link SSLEngine} instance
+     * @throws SSLException throws SSLException if the {@link SSLEngine} instance cannot be built
+     */
+    default Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String serverName, String hostname, int port)
+        throws SSLException {
+        return buildSecureClientTransportEngine(settings, hostname, port);
+    }
 }

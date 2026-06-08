@@ -49,12 +49,12 @@ jobs:
           echo "NEXT_VERSION_UNDERSCORE=$NEXT_VERSION_UNDERSCORE" >> $GITHUB_ENV
           echo "NEXT_VERSION_ID=$NEXT_VERSION_ID" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.BASE }}
 
       - name: Increment Patch Version on Major.Minor branch
-        uses: peternied/opensearch-core-version-updater@v1
+        uses: peternied/opensearch-core-version-updater@e6bec205d7759692241cf7ac96f0781b6ae73d33 # v1
         with:
           previous-version: ${{ env.CURRENT_VERSION }}
           new-version: ${{ env.NEXT_VERSION }}
@@ -62,7 +62,7 @@ jobs:
 
       - name: Create PR for BASE
         id: base_pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           base: ${{ env.BASE }}
           branch: 'create-pull-request/patch-${{ env.BASE }}'
@@ -75,12 +75,12 @@ jobs:
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.MAIN_BRANCH }}
 
       - name: Add Patch Version on main branch
-        uses: peternied/opensearch-core-version-updater@v1
+        uses: peternied/opensearch-core-version-updater@e6bec205d7759692241cf7ac96f0781b6ae73d33 # v1
         with:
           previous-version: ${{ env.CURRENT_VERSION }}
           new-version: ${{ env.NEXT_VERSION }}
@@ -88,7 +88,7 @@ jobs:
 
       - name: Create PR for MAIN_BRANCH
         id: main_branch_pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           base: ${{ env.MAIN_BRANCH }}
           branch: 'create-pull-request/patch-${{ env.MAIN_BRANCH }}'
@@ -103,7 +103,7 @@ jobs:
 
       - name: Create tracking issue
         id: create-issue
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const body = `

@@ -54,6 +54,8 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.extrasource.BytesValue;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -646,6 +648,21 @@ public class UpdateRequestTests extends OpenSearchTestCase {
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
+    public void testUpdateScriptNotSupportingExtraFieldValues() {
+        UpdateRequest req = new UpdateRequest("index", "id");
+        req.script(mockInlineScript("return"));
+
+        // Attach extra field values to the upsert request (doc cannot be set with script).
+        IndexRequest upsert = new IndexRequest("index").id("id").source("{\"f\":\"v\"}", MediaTypeRegistry.JSON);
+        upsert.extraFieldValues(new ExtraFieldValues(Map.of("k", new BytesValue(new BytesArray(new byte[] { 1, 2, 3 })))));
+
+        req.upsert(upsert);
+        ActionRequestValidationException e = req.validate();
+
+        assertNotNull(e);
+        assertThat(e.validationErrors(), contains("ExtraFieldValues are not supported with scripted updates"));
     }
 
     public void testToString() throws IOException {

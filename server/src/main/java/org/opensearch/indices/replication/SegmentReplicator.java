@@ -80,6 +80,7 @@ public class SegmentReplicator {
             shard,
             shard.getLatestReplicationCheckpoint(),
             sourceFactory.get().get(shard),
+            false,
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
@@ -105,6 +106,8 @@ public class SegmentReplicator {
      * Start a round of replication and sync to at least the given checkpoint.
      * @param indexShard - {@link IndexShard} replica shard
      * @param checkpoint - {@link ReplicationCheckpoint} checkpoint to sync to
+     * @param source - {@link SegmentReplicationSource} segment replication source
+     * @param isRetry - is it a retry after failure
      * @param listener - {@link ReplicationListener}
      * @return {@link SegmentReplicationTarget} target event orchestrating the event.
      */
@@ -112,9 +115,10 @@ public class SegmentReplicator {
         final IndexShard indexShard,
         final ReplicationCheckpoint checkpoint,
         final SegmentReplicationSource source,
+        final boolean isRetry,
         final SegmentReplicationTargetService.SegmentReplicationListener listener
     ) {
-        final SegmentReplicationTarget target = new SegmentReplicationTarget(indexShard, checkpoint, source, listener);
+        final SegmentReplicationTarget target = new SegmentReplicationTarget(indexShard, checkpoint, source, isRetry, listener);
         startReplication(target, indexShard.getRecoverySettings().activityTimeout());
         return target;
     }

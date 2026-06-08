@@ -9,12 +9,12 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Holds the ingestion settings required to update the poller. All values are optional to support partial update.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class IngestionSettings {
 
     // Indicates if poller needs to be paused or resumed.
@@ -57,7 +57,7 @@ public class IngestionSettings {
     /**
      * Builder for IngestionSettings. Only set the fields that need to be used for updating ingestion state.
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class Builder {
         @Nullable
         private Boolean isPaused;

@@ -56,7 +56,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         final Map<String, Object> transients = new HashMap<>();
         if (source.containsKey(CURRENT_SPAN)) {
             final SpanReference current = (SpanReference) source.get(CURRENT_SPAN);
-            if (current != null) {
+            if (current != null && current.getSpan() != null) {
                 transients.put(CURRENT_SPAN, new SpanReference(current.getSpan()));
             }
         }

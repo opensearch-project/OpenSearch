@@ -1,0 +1,1 @@
+source = clickbench | eval `ClientIP - 1` = ClientIP - 1, `ClientIP - 2` = ClientIP - 2, `ClientIP - 3` = ClientIP - 3 | stats count() as c by ClientIP, `ClientIP - 1`, `ClientIP - 2`, `ClientIP - 3` | sort - c | head 10

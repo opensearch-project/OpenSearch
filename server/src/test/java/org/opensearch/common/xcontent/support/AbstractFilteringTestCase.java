@@ -1278,19 +1278,13 @@ public abstract class AbstractFilteringTestCase extends OpenSearchTestCase {
     }
 
     public void testWithLfAtEnd() throws IOException {
-        final Builder sample = builder -> builder.startObject()
-            .startObject("foo")
-            .field("bar", "baz")
-            .endObject()
-            .endObject()
-            .prettyPrint()
-            .lfAtEnd();
+        final Builder sample = builder -> builder.startObject().startObject("foo").field("bar", "baz").endObject().endObject().lfAtEnd();
 
         testFilter(sample, sample, singleton("foo"), emptySet());
         testFilter(sample, sample, emptySet(), singleton("bar"));
         testFilter(sample, sample, singleton("f*"), singleton("baz"));
 
-        final Builder expected = builder -> builder.startObject().endObject().prettyPrint().lfAtEnd();
+        final Builder expected = builder -> builder.startObject().endObject().lfAtEnd();
         testFilter(expected, sample, emptySet(), singleton("foo"));
         testFilter(expected, sample, singleton("bar"), emptySet());
         testFilter(expected, sample, singleton("f*"), singleton("foo"));

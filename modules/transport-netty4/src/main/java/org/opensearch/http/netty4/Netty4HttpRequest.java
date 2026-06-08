@@ -67,36 +67,29 @@ public class Netty4HttpRequest implements HttpRequest {
     private final AtomicBoolean released;
     private final Exception inboundException;
     private final boolean pooled;
+    private final HttpResponseHeadersFactory responseHeadersFactory;
 
-    Netty4HttpRequest(FullHttpRequest request) {
-        this(
-            request,
-            new HttpHeadersMap(request.headers()),
-            new AtomicBoolean(false),
-            true,
-            Netty4Utils.toBytesReference(request.content())
-        );
-    }
-
-    Netty4HttpRequest(FullHttpRequest request, Exception inboundException) {
+    Netty4HttpRequest(FullHttpRequest request, HttpResponseHeadersFactory responseHeadersFactory) {
         this(
             request,
             new HttpHeadersMap(request.headers()),
             new AtomicBoolean(false),
             true,
             Netty4Utils.toBytesReference(request.content()),
-            inboundException
+            responseHeadersFactory
         );
     }
 
-    private Netty4HttpRequest(
-        FullHttpRequest request,
-        HttpHeadersMap headers,
-        AtomicBoolean released,
-        boolean pooled,
-        BytesReference content
-    ) {
-        this(request, headers, released, pooled, content, null);
+    Netty4HttpRequest(FullHttpRequest request, Exception inboundException, HttpResponseHeadersFactory responseHeadersFactory) {
+        this(
+            request,
+            new HttpHeadersMap(request.headers()),
+            new AtomicBoolean(false),
+            true,
+            Netty4Utils.toBytesReference(request.content()),
+            inboundException,
+            responseHeadersFactory
+        );
     }
 
     private Netty4HttpRequest(
@@ -105,7 +98,19 @@ public class Netty4HttpRequest implements HttpRequest {
         AtomicBoolean released,
         boolean pooled,
         BytesReference content,
-        Exception inboundException
+        HttpResponseHeadersFactory responseHeadersFactory
+    ) {
+        this(request, headers, released, pooled, content, null, responseHeadersFactory);
+    }
+
+    private Netty4HttpRequest(
+        FullHttpRequest request,
+        HttpHeadersMap headers,
+        AtomicBoolean released,
+        boolean pooled,
+        BytesReference content,
+        Exception inboundException,
+        HttpResponseHeadersFactory responseHeadersFactory
     ) {
         this.request = request;
         this.headers = headers;
@@ -113,6 +118,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this.pooled = pooled;
         this.released = released;
         this.inboundException = inboundException;
+        this.responseHeadersFactory = responseHeadersFactory;
     }
 
     @Override
@@ -187,7 +193,8 @@ public class Netty4HttpRequest implements HttpRequest {
                 headers,
                 new AtomicBoolean(false),
                 false,
-                Netty4Utils.toBytesReference(copiedContent)
+                Netty4Utils.toBytesReference(copiedContent),
+                responseHeadersFactory
             );
         } finally {
             release();
@@ -219,6 +226,8 @@ public class Netty4HttpRequest implements HttpRequest {
             return HttpRequest.HttpVersion.HTTP_1_1;
         } else if (request.protocolVersion().equals("HTTP/2.0")) {
             return HttpRequest.HttpVersion.HTTP_2_0;
+        } else if (request.protocolVersion().equals("HTTP/3.0")) {
+            return HttpRequest.HttpVersion.HTTP_3_0;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }
@@ -240,12 +249,21 @@ public class Netty4HttpRequest implements HttpRequest {
             headersWithoutContentTypeHeader,
             trailingHeaders
         );
-        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
+        return new Netty4HttpRequest(
+            requestWithoutHeader,
+            new HttpHeadersMap(requestWithoutHeader.headers()),
+            released,
+            pooled,
+            content,
+            responseHeadersFactory
+        );
     }
 
     @Override
     public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new Netty4HttpResponse(request.headers(), request.protocolVersion(), status, content);
+        final Netty4HttpResponse response = new Netty4HttpResponse(request.headers(), request.protocolVersion(), status, content);
+        responseHeadersFactory.headers(protocolVersion()).forEach(response::addHeader);
+        return response;
     }
 
     @Override

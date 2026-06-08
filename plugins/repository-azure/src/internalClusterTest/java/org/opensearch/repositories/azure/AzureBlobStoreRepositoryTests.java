@@ -47,6 +47,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -123,6 +124,11 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
         public TestAzureRepositoryPlugin(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            // No-op in tests — avoids interference with Reactor/Netty event loop initialization
         }
 
         @Override

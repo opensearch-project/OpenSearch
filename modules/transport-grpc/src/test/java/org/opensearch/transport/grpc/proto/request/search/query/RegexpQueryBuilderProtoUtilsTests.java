@@ -12,7 +12,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.RegexpFlag;
 import org.opensearch.index.query.RegexpQueryBuilder;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.RegexpQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -57,7 +56,7 @@ public class RegexpQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setFlags("INTERSECTION|COMPLEMENT")
             .setCaseInsensitive(true)
             .setMaxDeterminizedStates(20000)
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .build();
 
         // Convert to RegexpQueryBuilder
@@ -74,35 +73,23 @@ public class RegexpQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("test_query", builder.queryName());
     }
 
-    public void testFromProtoWithUnspecifiedRewrite() {
-        // Test that UNSPECIFIED rewrite method results in null rewrite
-        RegexpQuery proto = RegexpQuery.newBuilder()
-            .setField("test_field")
-            .setValue("test.*value")
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED)
-            .build();
-
-        RegexpQueryBuilder builder = fromProto(proto);
-        assertNull("UNSPECIFIED rewrite should result in null", builder.rewrite());
-    }
-
     public void testFromProtoWithDifferentRewriteMethods() {
         // Test all possible rewrite methods
-        MultiTermQueryRewrite[] rewriteMethods = {
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N };
+        String[] rewriteMethods = {
+            "constant_score",
+            "constant_score_boolean",
+            "scoring_boolean",
+            "top_terms_10",
+            "top_terms_blended_freqs_10",
+            "top_terms_boost_10" };
 
         String[] expectedRewriteMethods = {
             "constant_score",
             "constant_score_boolean",
             "scoring_boolean",
-            "top_terms_n",
-            "top_terms_blended_freqs_n",
-            "top_terms_boost_n" };
+            "top_terms_10",
+            "top_terms_blended_freqs_10",
+            "top_terms_boost_10" };
 
         for (int i = 0; i < rewriteMethods.length; i++) {
             RegexpQuery proto = RegexpQuery.newBuilder()
@@ -145,7 +132,7 @@ public class RegexpQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setFlags("INTERSECTION")
             .setCaseInsensitive(true)
             .setMaxDeterminizedStates(20000)
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .setBoost(2.0f)
             .setXName("test_query")
             .build();

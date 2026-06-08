@@ -14,7 +14,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.StreamingHttpChannel;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
+import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
 import java.util.List;
@@ -56,7 +56,13 @@ class ReactorNetty4StreamingHttpChannel implements StreamingHttpChannel {
 
     @Override
     public void close() {
-        request.withConnection(connection -> connection.channel().close());
+        request.withConnection(connection -> {
+            if (closeContext.isDone() == false) {
+                Netty4Utils.addListener(connection.channel().close(), closeContext);
+            } else {
+                connection.channel().close();
+            }
+        });
     }
 
     @Override
@@ -76,8 +82,10 @@ class ReactorNetty4StreamingHttpChannel implements StreamingHttpChannel {
 
     @Override
     public void prepareResponse(int status, Map<String, List<String>> headers) {
-        this.response.status(status);
-        headers.forEach((k, vs) -> vs.forEach(v -> this.response.addHeader(k, v)));
+        if (this.response.hasSentHeaders() == false) {
+            this.response.status(status);
+            headers.forEach((k, vs) -> vs.forEach(v -> this.response.addHeader(k, v)));
+        }
     }
 
     @Override

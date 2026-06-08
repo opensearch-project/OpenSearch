@@ -8,7 +8,7 @@
 
 package org.opensearch.index;
 
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -91,6 +92,59 @@ public class CriteriaBasedMergePolicyTests extends OpenSearchTestCase {
         assertEquals(1, result.merges.size());
     }
 
+    public void testFindForceMerges() throws IOException {
+        CriteriaBasedMergePolicy mergePolicy = new CriteriaBasedMergePolicy(new TieredMergePolicy());
+        SegmentInfos infos = createSegmentInfos();
+        SegmentCommitInfo sci1 = createSegmentCommitInfo("_1", "bucket1");
+        SegmentCommitInfo sci2 = createSegmentCommitInfo("_2", "bucket1");
+
+        SegmentCommitInfo sci3 = createSegmentCommitInfo("_3", "bucket2");
+        SegmentCommitInfo sci4 = createSegmentCommitInfo("_4", "bucket2");
+
+        infos.add(sci1);
+        infos.add(sci2);
+        infos.add(sci3);
+        infos.add(sci4);
+
+        final Map<SegmentCommitInfo, Boolean> segmentsToMerge = new HashMap<>();
+        BaseMergePolicyTestCase.MockMergeContext mergeContext = new BaseMergePolicyTestCase.MockMergeContext(
+            SegmentCommitInfo::getDelCount
+        );
+
+        segmentsToMerge.put(sci1, true);
+        segmentsToMerge.put(sci2, true);
+        segmentsToMerge.put(sci3, true);
+        segmentsToMerge.put(sci4, true);
+        mergeContext.setMergingSegments(Collections.emptySet());
+        MergePolicy.MergeSpecification result = mergePolicy.findForcedMerges(infos, 1, segmentsToMerge, mergeContext);
+        assertNotNull(result);
+        assertEquals(2, result.merges.size());
+
+    }
+
+    public void testFindForceMergeDeletes() throws IOException {
+        CriteriaBasedMergePolicy mergePolicy = new CriteriaBasedMergePolicy(new TieredMergePolicy());
+        SegmentInfos infos = createSegmentInfos();
+        SegmentCommitInfo sci1 = createSegmentCommitInfo("_1", "bucket1");
+        SegmentCommitInfo sci2 = createSegmentCommitInfo("_2", "bucket1");
+
+        SegmentCommitInfo sci3 = createSegmentCommitInfo("_3", "bucket2");
+        SegmentCommitInfo sci4 = createSegmentCommitInfo("_4", "bucket2");
+
+        infos.add(sci1);
+        infos.add(sci2);
+        infos.add(sci3);
+        infos.add(sci4);
+        BaseMergePolicyTestCase.MockMergeContext mergeContext = new BaseMergePolicyTestCase.MockMergeContext(
+            SegmentCommitInfo::getDelCount
+        );
+        mergeContext.setMergingSegments(Collections.emptySet());
+        MergePolicy.MergeSpecification result = mergePolicy.findForcedDeletesMerges(infos, mergeContext);
+        assertNotNull(result);
+        assertEquals(2, result.merges.size());
+
+    }
+
     private SegmentInfos createSegmentInfos() {
         return new SegmentInfos(Version.LATEST.major);
     }
@@ -106,7 +160,7 @@ public class CriteriaBasedMergePolicyTests extends OpenSearchTestCase {
             5,
             false,
             false,
-            new Lucene103Codec(),
+            new Lucene104Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),

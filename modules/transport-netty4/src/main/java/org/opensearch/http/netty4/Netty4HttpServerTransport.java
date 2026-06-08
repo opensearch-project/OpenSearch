@@ -139,6 +139,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      */
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
 
+    /**
+     * The size of the http content decompressor buffer that is going to be used with the {@link #createDecompressor()}.
+     */
+    private static final int UNLIMITED_DECOMPRESSOR_BUFFER = 0;
+
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
@@ -197,7 +202,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     /**
      * Creates new HTTP transport implementations based on Netty 4
-     * @param settings seetings
+     * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
      * @param threadPool thread pool instance
@@ -310,8 +315,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
             }
 
-            serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
-            serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.option(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
 
             final boolean reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
             serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
@@ -371,11 +376,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
+            this(transport, handlingSettings, HttpResponseHeadersFactories.newDefault());
+        }
+
+        protected HttpChannelHandler(
+            final Netty4HttpServerTransport transport,
+            final HttpHandlingSettings handlingSettings,
+            final HttpResponseHeadersFactory responseHeadersFactory
+        ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.byteBufSizer = new NettyByteBufSizer();
-            this.requestCreator = new Netty4HttpRequestCreator();
-            this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.requestCreator = new Netty4HttpRequestCreator(responseHeadersFactory);
+            this.requestHandler = new Netty4HttpRequestHandler(transport, HTTP_CHANNEL_KEY);
             this.responseCreator = new Netty4HttpResponseCreator();
         }
 
@@ -575,7 +588,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      * Used in instances to conditionally decompress depending on the outcome from header verification
      */
     protected ChannelInboundHandlerAdapter createDecompressor() {
-        return new HttpContentDecompressor();
+        return new HttpContentDecompressor(UNLIMITED_DECOMPRESSOR_BUFFER);
     }
 
     /**

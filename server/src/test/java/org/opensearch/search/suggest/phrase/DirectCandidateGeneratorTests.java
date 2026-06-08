@@ -142,7 +142,7 @@ public class DirectCandidateGeneratorTests extends OpenSearchTestCase {
             DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();
             XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                builder.prettyPrint();
+                builder = builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(shuffleXContent(builder))) {

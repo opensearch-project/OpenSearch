@@ -38,15 +38,12 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -63,6 +60,7 @@ import java.util.Collections;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
 
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -74,35 +72,28 @@ public class Netty4BadRequestTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         networkService = new NetworkService(Collections.emptyList());
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         threadPool = new TestThreadPool("test");
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         terminate(threadPool);
     }
 
     public void testBadParameterEncoding() throws Exception {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-            @Override
-            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                fail();
+        HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> fail()
+        ).withDispatchBadRequest((channel, threadContext, cause) -> {
+            try {
+                final Exception e = cause instanceof Exception ? (Exception) cause : new OpenSearchException(cause);
+                channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
             }
-
-            @Override
-            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                try {
-                    final Exception e = cause instanceof Exception ? (Exception) cause : new OpenSearchException(cause);
-                    channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
-                } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        };
-
+        }).build();
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
         try (
             HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(

@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
@@ -32,10 +33,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 public class RemoteClusterBlocks extends AbstractClusterMetadataWriteableBlobEntity<ClusterBlocks> {
 
     public static final String CLUSTER_BLOCKS = "blocks";
-    public static final ChecksumWritableBlobStoreFormat<ClusterBlocks> CLUSTER_BLOCKS_FORMAT = new ChecksumWritableBlobStoreFormat<>(
-        "blocks",
-        ClusterBlocks::readFrom
-    );
+    public final ChecksumWritableBlobStoreFormat<ClusterBlocks> clusterBlocksFormat;
 
     private ClusterBlocks clusterBlocks;
     private long stateVersion;
@@ -44,11 +42,13 @@ public class RemoteClusterBlocks extends AbstractClusterMetadataWriteableBlobEnt
         super(clusterUUID, compressor, null);
         this.clusterBlocks = clusterBlocks;
         this.stateVersion = stateVersion;
+        this.clusterBlocksFormat = new ChecksumWritableBlobStoreFormat<>("blocks", ClusterBlocks::readFrom);
     }
 
-    public RemoteClusterBlocks(final String blobName, final String clusterUUID, final Compressor compressor) {
+    public RemoteClusterBlocks(final String blobName, final String clusterUUID, final Compressor compressor, final Version version) {
         super(clusterUUID, compressor, null);
         this.blobName = blobName;
+        this.clusterBlocksFormat = new ChecksumWritableBlobStoreFormat<>("blocks", ClusterBlocks::readFrom, version);
     }
 
     @Override
@@ -83,11 +83,11 @@ public class RemoteClusterBlocks extends AbstractClusterMetadataWriteableBlobEnt
 
     @Override
     public InputStream serialize() throws IOException {
-        return CLUSTER_BLOCKS_FORMAT.serialize(clusterBlocks, generateBlobFileName(), getCompressor()).streamInput();
+        return this.clusterBlocksFormat.serialize(clusterBlocks, generateBlobFileName(), getCompressor()).streamInput();
     }
 
     @Override
     public ClusterBlocks deserialize(final InputStream inputStream) throws IOException {
-        return CLUSTER_BLOCKS_FORMAT.deserialize(blobName, Streams.readFully(inputStream));
+        return this.clusterBlocksFormat.deserialize(blobName, Streams.readFully(inputStream));
     }
 }

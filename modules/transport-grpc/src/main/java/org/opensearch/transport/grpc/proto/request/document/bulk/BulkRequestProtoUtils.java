@@ -85,6 +85,16 @@ public class BulkRequestProtoUtils {
             )
         );
 
+        // Type is a deprecated field according to the spec, thus no plans to support it
+        if (request.hasType()) {
+            throw new UnsupportedOperationException("type param is not supported");
+        }
+
+        // TODO support global_params
+        if (request.hasGlobalParams()) {
+            throw new UnsupportedOperationException("global_params param is not supported yet");
+        }
+
         return bulkRequest;
     }
 }

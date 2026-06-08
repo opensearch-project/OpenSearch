@@ -41,13 +41,13 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -149,7 +149,9 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 .indices()
                 .prepareCreate("test")
                 // to avoid normal document from being cached by BitsetFilterCache
-                .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
+                .setSettings(
+                    Settings.builder().put(IndicesBitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false)
+                )
                 .setMapping(mapping)
         );
         client().prepareIndex("test")
@@ -293,6 +295,39 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 new PercolateQueryBuilder(
                     "query",
                     BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
+                    MediaTypeRegistry.JSON
+                )
+            )
+            .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+    }
+
+    public void testMapUnmappedFieldAsTextAfterDynamicMappingUpdate() throws IOException {
+        Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
+        createIndexWithSimpleMappings("test", settings.build(), "query", "type=percolator", "title", "type=text");
+
+        // Index a document that triggers a dynamic mapping update
+        client().prepareIndex("test")
+            .setId("doc1")
+            .setSource(
+                jsonBuilder().startObject().field("title", "some document").field("new_dynamic_field", "triggers mapping").endObject()
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Now index a percolator query referencing an unmapped field — this should still work
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("query", matchQuery("unmapped_field", "value")).endObject())
+            .get();
+        client().admin().indices().prepareRefresh().get();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "query",
+                    BytesReference.bytes(jsonBuilder().startObject().field("unmapped_field", "value").endObject()),
                     MediaTypeRegistry.JSON
                 )
             )

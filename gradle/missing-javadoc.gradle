@@ -139,7 +139,6 @@ configure([
   project(":plugins:discovery-ec2:qa:amazon-ec2"),
   project(":plugins:discovery-gce"),
   project(":plugins:discovery-gce:qa:gce"),
-  project(":plugins:identity-shiro"),
   project(":plugins:ingest-attachment"),
   project(":plugins:ingestion-kafka"),
   project(":plugins:mapper-annotated-text"),
@@ -167,12 +166,17 @@ configure([
   }
 }
 
-configure([
+// Core projects — always present
+def javadocProjects = [
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),
   project(":server")
-]) {
+]
+// Sandbox projects — only present when -Dsandbox.enabled=true
+rootProject.allprojects.findAll { it.path.startsWith(':sandbox:') }.each { javadocProjects.add(it) }
+
+configure(javadocProjects) {
   project.tasks.withType(MissingJavadocTask) {
     // TODO: bump to variable missing level after increasing javadoc coverage
     javadocMissingLevel = "class"
@@ -304,7 +308,9 @@ class MissingJavadocTask extends DefaultTask {
       opts << [ '--missing-method', String.join(',', javadocMissingMethod) ]
     }
     opts << [ '-quiet' ]
-    opts << [ '--release', 21 ]
+
+    // To support modules with JDK 25 and above as well
+    opts << [ '--release', Math.max(project.java.sourceCompatibility.majorVersion.toInteger(), 21) ]
     opts << '-Xdoclint:all,-missing'
 
     // Temporary file that holds all javadoc options for the current task.

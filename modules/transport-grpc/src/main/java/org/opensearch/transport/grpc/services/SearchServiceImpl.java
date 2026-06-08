@@ -10,11 +10,17 @@ package org.opensearch.transport.grpc.services;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.protobufs.services.SearchServiceGrpc;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.SearchRequestActionListener;
 import org.opensearch.transport.grpc.proto.request.search.SearchRequestProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry;
+import org.opensearch.transport.grpc.util.CircuitBreakerStreamObserver;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import java.io.IOException;
@@ -31,23 +37,47 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     private static final Logger logger = LogManager.getLogger(SearchServiceImpl.class);
     private final Client client;
     private final AbstractQueryBuilderProtoUtils queryUtils;
+    private final AggregationBuilderProtoConverterRegistry aggregationRegistry;
+    private final AggregateProtoConverterRegistry aggregateRegistry;
+    private final CircuitBreakerService circuitBreakerService;
 
     /**
      * Creates a new SearchServiceImpl.
      *
      * @param client Client for executing actions on the local node
      * @param queryUtils Query utils instance for parsing protobuf queries
+     * @param aggregationRegistry Aggregation registry for parsing protobuf aggregations (request-side)
+     * @param aggregateRegistry Aggregate registry for converting aggregation results (response-side)
+     * @param circuitBreakerService Circuit breaker service for tracking in-flight requests
      */
-    public SearchServiceImpl(Client client, AbstractQueryBuilderProtoUtils queryUtils) {
+    public SearchServiceImpl(
+        Client client,
+        AbstractQueryBuilderProtoUtils queryUtils,
+        AggregationBuilderProtoConverterRegistry aggregationRegistry,
+        AggregateProtoConverterRegistry aggregateRegistry,
+        CircuitBreakerService circuitBreakerService
+    ) {
         if (client == null) {
             throw new IllegalArgumentException("Client cannot be null");
         }
         if (queryUtils == null) {
             throw new IllegalArgumentException("Query utils cannot be null");
         }
+        if (aggregationRegistry == null) {
+            throw new IllegalArgumentException("Aggregation registry cannot be null");
+        }
+        if (aggregateRegistry == null) {
+            throw new IllegalArgumentException("Aggregate registry cannot be null");
+        }
+        if (circuitBreakerService == null) {
+            throw new IllegalArgumentException("Circuit breaker service cannot be null");
+        }
 
         this.client = client;
         this.queryUtils = queryUtils;
+        this.aggregationRegistry = aggregationRegistry;
+        this.aggregateRegistry = aggregateRegistry;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     /**
@@ -61,12 +91,32 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         org.opensearch.protobufs.SearchRequest request,
         StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver
     ) {
+        int requestSize = request.getSerializedSize();
+        CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         try {
-            org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client, queryUtils);
-            SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver);
+            breaker.addEstimateBytesAndMaybeBreak(requestSize, "<grpc_request>");
+
+            StreamObserver<org.opensearch.protobufs.SearchResponse> wrappedObserver = new CircuitBreakerStreamObserver<>(
+                responseObserver,
+                circuitBreakerService,
+                requestSize
+            );
+
+            org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(
+                request,
+                client,
+                queryUtils,
+                aggregationRegistry
+            );
+            SearchRequestActionListener listener = new SearchRequestActionListener(wrappedObserver, aggregateRegistry);
             client.search(searchRequest, listener);
+        } catch (CircuitBreakingException e) {
+            logger.debug("Circuit breaker tripped for gRPC search request: {}", e.getMessage());
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            responseObserver.onError(grpcError);
         } catch (RuntimeException | IOException e) {
+            breaker.addWithoutBreaking(-requestSize);
             logger.debug("SearchServiceImpl failed to process search request, request=" + request + ", error=" + e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);

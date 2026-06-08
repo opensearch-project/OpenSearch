@@ -65,11 +65,21 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
+    private final DynamicPropertyFieldTypeResolver dynamicPropertyFieldTypes;
+
     FieldTypeLookup() {
         this(Collections.emptyList(), Collections.emptyList());
     }
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
+        this(fieldMappers, fieldAliasMappers, null);
+    }
+
+    FieldTypeLookup(
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        DynamicPropertyFieldTypeResolver dynamicPropertyFieldTypes
+    ) {
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -98,6 +108,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
+        this.dynamicPropertyFieldTypes = dynamicPropertyFieldTypes;
     }
 
     /**
@@ -112,7 +123,15 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         // If the mapping contains fields that support dynamic sub-key lookup, check
         // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
-        return dynamicKeyLookup.get(field);
+        fieldType = dynamicKeyLookup.get(field);
+        if (fieldType != null) {
+            return fieldType;
+        }
+
+        if (dynamicPropertyFieldTypes != null) {
+            return dynamicPropertyFieldTypes.resolve(field);
+        }
+        return null;
     }
 
     /**

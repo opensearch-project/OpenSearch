@@ -32,9 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -66,6 +63,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -74,9 +72,14 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.query.Bitmap64DocValuesQuery;
+import org.opensearch.search.query.Bitmap64IndexQuery;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -93,6 +96,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 /**
  * A {@link FieldMapper} for numeric types: byte, short, int, long, float, double and unsigned long.
@@ -1369,6 +1373,29 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public Query bitmapQuery(String field, BytesArray bitmapArray, boolean isSearchable, boolean hasDocValues) {
+                // Extract bytes safely
+                BytesRef ref = bitmapArray.toBytesRef();
+                byte[] bytes = Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
+
+                Roaring64NavigableMap bitmap64 = new Roaring64NavigableMap();
+                try {
+                    bitmap64.deserializePortable(new DataInputStream(new ByteArrayInputStream(bytes)));
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Failed to deserialize the 64-bit bitmap.", e);
+                }
+
+                // Note: bitmap64 instance is safely shared between queries as both perform read-only operations
+                if (isSearchable && hasDocValues) {
+                    return new IndexOrDocValuesQuery(new Bitmap64IndexQuery(field, bitmap64), new Bitmap64DocValuesQuery(field, bitmap64));
+                }
+                if (isSearchable) {
+                    return new Bitmap64IndexQuery(field, bitmap64);
+                }
+                return new Bitmap64DocValuesQuery(field, bitmap64);
+            }
+
+            @Override
             public Query rangeQuery(
                 String field,
                 Object lowerTerm,
@@ -1946,6 +1973,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return type.name;
         }
 
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
         public NumberType numberType() {
             return type;
         }
@@ -2149,6 +2181,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Number numericValue = getFieldValue(context);
+        if (numericValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), numericValue);
+    }
+
+    @Override
     protected Number getFieldValue(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Number value;
@@ -2161,7 +2202,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         } else {
             try {
                 value = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            } catch (JsonParseException | IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
                     return null;

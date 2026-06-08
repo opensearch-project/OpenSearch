@@ -18,7 +18,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.store.Directory;
@@ -146,8 +145,7 @@ public class DerivedSourceLeafReaderTests extends OpenSearchTestCase {
 
     public void testWithRandomDocuments() throws IOException {
         Directory randomDir = newDirectory();
-        IndexWriterConfig config = newIndexWriterConfig(random(), null).setCodec(new RandomCodec(random()))
-            .setMergePolicy(NoMergePolicy.INSTANCE); // Prevent automatic merges
+        IndexWriterConfig config = newIndexWriterConfig(random(), null).setCodec(new RandomCodec(random()));
 
         IndexWriter randomWriter = new IndexWriter(randomDir, config);
 
@@ -158,7 +156,7 @@ public class DerivedSourceLeafReaderTests extends OpenSearchTestCase {
             byte[] source = randomByteArrayOfLength(randomIntBetween(10, 50));
             docIdToSource.put(i, source);
             Document doc = new Document();
-            doc.add(new StoredField("_source", source));
+            doc.add(new StoredField("field", i));
             randomWriter.addDocument(doc);
         }
 

@@ -11,6 +11,7 @@ package org.opensearch.gateway.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -223,6 +224,7 @@ public class RemoteClusterStateService implements Closeable {
     private final Supplier<RepositoriesService> repositoriesService;
     private final Settings settings;
     private final LongSupplier relativeTimeNanosSupplier;
+    private final LongSupplier applicationDurationMsSupplier;
     private final ThreadPool threadpool;
     private final List<IndexMetadataUploadListener> indexMetadataUploadListeners;
     private BlobStoreRepository blobStoreRepository;
@@ -268,13 +270,15 @@ public class RemoteClusterStateService implements Closeable {
         LongSupplier relativeTimeNanosSupplier,
         ThreadPool threadPool,
         List<IndexMetadataUploadListener> indexMetadataUploadListeners,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        LongSupplier applicationDurationMsSupplier
     ) {
         assert isRemoteClusterStateConfigured(settings) : "Remote cluster state is not configured";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.relativeTimeNanosSupplier = relativeTimeNanosSupplier;
+        this.applicationDurationMsSupplier = applicationDurationMsSupplier;
         this.threadpool = threadPool;
         clusterSettings = clusterService.getClusterSettings();
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
@@ -1260,6 +1264,14 @@ public class RemoteClusterStateService implements Closeable {
         AtomicReference<Diff<RoutingTable>> readIndexRoutingTableDiffResults = new AtomicReference<>();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
 
+        if (manifest.getOpensearchVersion() != Version.CURRENT) {
+            logger.info(
+                "Reading cluster state on version {} from manifest uploaded with version {}",
+                Version.CURRENT,
+                manifest.getOpensearchVersion()
+            );
+        }
+
         LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
             logger.debug("Successfully read cluster state component from remote");
             readResults.add(response);
@@ -1296,7 +1308,8 @@ public class RemoteClusterStateService implements Closeable {
             remoteRoutingTableService.getAsyncIndexRoutingReadAction(
                 clusterUUID,
                 indexRouting.getUploadedFilename(),
-                routingTableLatchedActionListener
+                routingTableLatchedActionListener,
+                manifest.getOpensearchVersion()
             );
         }
 
@@ -1315,7 +1328,8 @@ public class RemoteClusterStateService implements Closeable {
             remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
                 clusterUUID,
                 manifest.getDiffManifest().getIndicesRoutingDiffPath(),
-                routingTableDiffLatchedActionListener
+                routingTableDiffLatchedActionListener,
+                manifest.getOpensearchVersion()
             );
         }
 
@@ -1392,7 +1406,8 @@ public class RemoteClusterStateService implements Closeable {
                 new RemoteDiscoveryNodes(
                     manifest.getDiscoveryNodesMetadata().getUploadedFilename(),
                     clusterUUID,
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
@@ -1404,7 +1419,8 @@ public class RemoteClusterStateService implements Closeable {
                 new RemoteClusterBlocks(
                     manifest.getClusterBlocksMetadata().getUploadedFilename(),
                     clusterUUID,
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
@@ -1416,7 +1432,8 @@ public class RemoteClusterStateService implements Closeable {
                 new RemoteHashesOfConsistentSettings(
                     manifest.getHashesOfConsistentSettings().getUploadedFilename(),
                     clusterUUID,
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
@@ -1431,7 +1448,8 @@ public class RemoteClusterStateService implements Closeable {
                     entry.getValue().getAttributeName(),
                     clusterUUID,
                     blobStoreRepository.getCompressor(),
-                    namedWriteableRegistry
+                    namedWriteableRegistry,
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
@@ -2100,11 +2118,15 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public PersistedStateStats getFullDownloadStats() {
-        return remoteStateStats.getRemoteFullDownloadStats();
+        RemoteDownloadStats stats = (RemoteDownloadStats) remoteStateStats.getRemoteFullDownloadStats();
+        stats.setCurrentApplicationDurationMs(applicationDurationMsSupplier.getAsLong());
+        return stats;
     }
 
     public PersistedStateStats getDiffDownloadStats() {
-        return remoteStateStats.getRemoteDiffDownloadStats();
+        RemoteDownloadStats stats = (RemoteDownloadStats) remoteStateStats.getRemoteDiffDownloadStats();
+        stats.setCurrentApplicationDurationMs(applicationDurationMsSupplier.getAsLong());
+        return stats;
     }
 
     public void fullDownloadFailed() {

@@ -1,0 +1,1 @@
+source=test_data | eval period_diff_val = period_diff(202612, 202601) | fields id, period_diff_val | head 1

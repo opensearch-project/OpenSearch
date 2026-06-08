@@ -9,7 +9,6 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.protobufs.TermsLookupField;
 
 /**
  * Utility class for converting TermsLookup Protocol Buffers to OpenSearch objects.
@@ -23,26 +22,26 @@ public class TermsLookupProtoUtils {
     }
 
     /**
-     * Converts a Protocol Buffer TermsLookupField to an OpenSearch TermsLookup object.
+     * Converts a Protocol Buffer TermsLookup to an OpenSearch TermsLookup object.
      * Similar to {@link TermsLookup#parseTermsLookup(XContentParser)}
      *
-     * @param termsLookupFieldProto The Protocol Buffer TermsLookupField object containing index, id, path, and optional routing/store values
+     * @param termsLookupProto The Protocol Buffer TermsLookup object containing index, id, path, and optional routing/store values
      * @return A configured TermsLookup instance with the appropriate settings
      */
-    protected static TermsLookup parseTermsLookup(TermsLookupField termsLookupFieldProto) {
+    protected static TermsLookup parseTermsLookup(org.opensearch.protobufs.TermsLookup termsLookupProto) {
 
-        String index = termsLookupFieldProto.getIndex();
-        String id = termsLookupFieldProto.getId();
-        String path = termsLookupFieldProto.getPath();
+        String index = termsLookupProto.getIndex();
+        String id = termsLookupProto.getId();
+        String path = termsLookupProto.getPath();
 
         TermsLookup termsLookup = new TermsLookup(index, id, path);
 
-        if (termsLookupFieldProto.hasRouting()) {
-            termsLookup.routing(termsLookupFieldProto.getRouting());
+        if (termsLookupProto.hasRouting()) {
+            termsLookup.routing(termsLookupProto.getRouting());
         }
 
-        if (termsLookupFieldProto.hasStore()) {
-            termsLookup.store(termsLookupFieldProto.getStore());
+        if (termsLookupProto.hasStore()) {
+            termsLookup.store(termsLookupProto.getStore());
         }
 
         return termsLookup;

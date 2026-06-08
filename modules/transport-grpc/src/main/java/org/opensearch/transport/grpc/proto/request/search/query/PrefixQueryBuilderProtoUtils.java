@@ -9,9 +9,7 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.PrefixQueryBuilder;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.PrefixQuery;
-import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
  * Utility class for converting PrefixQuery Protocol Buffers to OpenSearch objects.
@@ -52,10 +50,7 @@ class PrefixQueryBuilderProtoUtils {
         }
 
         if (prefixQueryProto.hasRewrite()) {
-            MultiTermQueryRewrite rewriteEnum = prefixQueryProto.getRewrite();
-            if (rewriteEnum != MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
-                rewrite = ProtobufEnumUtils.convertToString(rewriteEnum);
-            }
+            rewrite = prefixQueryProto.getRewrite();
         }
         if (prefixQueryProto.hasCaseInsensitive()) {
             caseInsensitive = prefixQueryProto.getCaseInsensitive();

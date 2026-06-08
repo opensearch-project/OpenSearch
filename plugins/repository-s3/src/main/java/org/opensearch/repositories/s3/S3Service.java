@@ -95,6 +95,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -104,8 +105,6 @@ class S3Service implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3Service.class);
 
     private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "aws.stsEndpointOverride";
-
-    private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = new ConcurrentHashMap<>();
 
@@ -221,23 +220,10 @@ class S3Service implements Closeable {
         builder.httpClientBuilder(buildHttpClient(clientSettings));
         builder.overrideConfiguration(buildOverrideConfiguration(clientSettings, clientExecutorService));
 
-        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : DEFAULT_S3_ENDPOINT;
-        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
-            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
-            // TODO: Remove this once fixed in the AWS SDK
-            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
-        }
-        logger.debug("using endpoint [{}] and region [{}]", endpoint, clientSettings.region);
-
-        // If the endpoint configuration isn't set on the builder then the default behaviour is to try
-        // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
-        // In contrast, directly-constructed clients use s3.amazonaws.com unless otherwise instructed. We currently
-        // use a directly-constructed client, and need to keep the existing behaviour to avoid a breaking change,
-        // so to move to using the builder we must set it explicitly to keep the existing behaviour.
-        //
-        // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
-        // so this change removes that usage of a deprecated API.
-        builder.endpointOverride(URI.create(endpoint));
+        // Only apply endpointOverride when the user explicitly configures "endpoint".
+        // If "endpoint" is absent, DO NOT override; allow the AWS SDK to resolve endpoints dynamically.
+        // This is required for ARN buckets (access points / outposts / MRAP), and is also correct for normal buckets.
+        resolveEndpointOverride(clientSettings).ifPresent(builder::endpointOverride);
         if (Strings.hasText(clientSettings.region)) {
             builder.region(Region.of(clientSettings.region));
         }
@@ -254,6 +240,28 @@ class S3Service implements Closeable {
         }
         final S3Client client = AccessController.doPrivileged(builder::build);
         return AmazonS3WithCredentials.create(client, credentials);
+    }
+
+    /**
+      * Returns an endpoint override ONLY when the user explicitly provided one.
+      * Otherwise returns Optional.empty().
+      *
+      * Package-private to allow unit testing.
+      */
+    Optional<URI> resolveEndpointOverride(final S3ClientSettings clientSettings) {
+        if (Strings.hasLength(clientSettings.endpoint) == false) {
+            return Optional.empty();
+        }
+
+        String endpoint = clientSettings.endpoint;
+        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
+            // TODO: Remove this once fixed in the AWS SDK
+            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
+        }
+
+        // Use URI.create for simplicity; if your codebase prefers checked handling, swap to new URI(endpoint).
+        return Optional.of(URI.create(endpoint));
     }
 
     // Aws v2 sdk tries to load a default profile from home path which is restricted. Hence, setting these to random

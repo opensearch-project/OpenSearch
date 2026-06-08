@@ -335,8 +335,13 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
             return true;
         }
 
-        return segmentMatchAll(context, ctx)
-            && filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, true, collectableSubAggregators);
+        try {
+            leafCollectorMode = LeafCollectionMode.FILTER_REWRITE;
+            return segmentMatchAll(context, ctx)
+                && filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, true, collectableSubAggregators);
+        } finally {
+            leafCollectorMode = LeafCollectionMode.NORMAL;
+        }
     }
 
     @Override

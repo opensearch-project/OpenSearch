@@ -193,4 +193,81 @@ public class LinearDecayFunctionProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("price", linearFunction.getFieldName());
     }
 
+    public void testFromProtoWithMultiValueModeMin() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(100.0).setScale(50.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("distance", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_MIN)
+            .build();
+
+        ScoreFunctionBuilder<?> result = LinearDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
+        LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
+
+        assertEquals("distance", linearFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.MIN, linearFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeMax() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(50.0).setScale(25.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("price", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_MAX)
+            .build();
+
+        ScoreFunctionBuilder<?> result = LinearDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
+        LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
+
+        assertEquals("price", linearFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.MAX, linearFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeAvg() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(100.0).setScale(10.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("score", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_AVG)
+            .build();
+
+        ScoreFunctionBuilder<?> result = LinearDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
+        LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
+
+        assertEquals("score", linearFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.AVG, linearFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeUnspecified() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(100.0).setScale(50.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("distance", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_UNSPECIFIED)
+            .build();
+
+        ScoreFunctionBuilder<?> result = LinearDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
+        LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
+
+        assertEquals("distance", linearFunction.getFieldName());
+        // When UNSPECIFIED, multi_value_mode should remain at default (MIN)
+        assertEquals(org.opensearch.search.MultiValueMode.MIN, linearFunction.getMultiValueMode());
+    }
+
 }

@@ -266,11 +266,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
 
         if (primaryRouting == null) {
             if (isSearchOnlyClusterBlockEnabled) {
-                if (activeShards == 0) {
-                    return ClusterHealthStatus.RED;
-                } else {
-                    return (activeShards < totalShards) ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN;
-                }
+                return (activeShards < totalShards) ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN;
             } else {
                 return ClusterHealthStatus.RED;
             }

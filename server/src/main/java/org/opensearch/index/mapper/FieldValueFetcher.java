@@ -40,7 +40,7 @@ public abstract class FieldValueFetcher {
      * Converts the field value to required representation, should be overridden by field mappers as needed
      * @param value - value to convert
      */
-    Object convert(Object value) {
+    public Object convert(Object value) {
         return value;
     }
 

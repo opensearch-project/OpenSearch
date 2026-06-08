@@ -61,6 +61,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
@@ -79,6 +80,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
@@ -309,7 +312,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * Get max sequence number from segments that are referenced by given SegmentInfos
      */
     public long getMaxSeqNoFromSegmentInfos(SegmentInfos segmentInfos) throws IOException {
-        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null)) {
+        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null, null)) {
             final IndexSearcher searcher = new IndexSearcher(innerReader);
             return getMaxSeqNoFromSearcher(searcher);
         }
@@ -335,7 +338,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
             searcher.getIndexReader(),
             uidTerm,
-            true
+            true,
+            null
         );
         assert docIdAndVersion != null;
         return docIdAndVersion.seqNo;
@@ -344,10 +348,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
-     * is enabled
+     * is enabled.
+     * This class has been deprecated. See IndexingThrottler.java
      *
      * @opensearch.internal
      */
+    @Deprecated
     protected static final class IndexThrottle {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
@@ -704,7 +710,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         final Engine.Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true, null);
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             // TODO: A better exception goes here
@@ -1056,10 +1062,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 final Directory finalDirectory = directory;
                 logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
-            if (length == 0L) {
+            if (length == 0L || extension == null) {
                 continue;
             }
-            map.put(extension, length);
+            map.merge(extension, length, Long::sum);
         }
 
         if (useCompoundFile) {
@@ -1249,8 +1255,83 @@ public abstract class Engine implements LifecycleAware, Closeable {
 
     /**
      * Snapshots the most recent safe index commit from the engine.
+     *
+     * @deprecated Use {@link #acquireSafeCatalogSnapshot()} which avoids the extra
+     *             {@code segments_N} disk read required to materialize an {@link IndexCommit}.
      */
+    @Deprecated
     public abstract GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
+
+    /**
+     * Acquires a safe {@link CatalogSnapshot} for the latest commit. Default implementation
+     * wraps {@link #acquireSafeIndexCommit()} and parses its {@link SegmentInfos} into a
+     * {@link SegmentInfosCatalogSnapshot}; engines with a native catalog should override
+     * to avoid the extra disk read.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        final GatedCloseable<IndexCommit> commitRef = acquireSafeIndexCommit();
+        try {
+            final SegmentInfos infos = Lucene.readSegmentInfos(commitRef.get());
+            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            return new GatedCloseable<>(snapshot, commitRef::close);
+        } catch (IOException e) {
+            try {
+                commitRef.close();
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw new EngineException(shardId, "Failed to materialize CatalogSnapshot from safe IndexCommit", e);
+        } catch (RuntimeException e) {
+            try {
+                commitRef.close();
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Acquires a {@link CatalogSnapshot} of the engine's current in-memory state — i.e. the
+     * latest visible-to-readers segments, including any uncommitted operations that have been
+     * refreshed. Used by replication-checkpoint listeners and any caller that wants the live
+     * search-visible state rather than the on-disk safe commit.
+     *
+     * <p>The default implementation bridges via {@link #getSegmentInfosSnapshot()} and wraps the
+     * resulting {@link SegmentInfos} as a {@link SegmentInfosCatalogSnapshot}. Engines whose
+     * native state isn't a single {@link SegmentInfos} (e.g. multi-format engines that aggregate
+     * Lucene + other formats) should override this to return their native catalog snapshot.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
+        final GatedCloseable<SegmentInfos> segmentInfosRef = getSegmentInfosSnapshot();
+        final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfosRef.get());
+        return new GatedCloseable<>(snapshot, segmentInfosRef::close);
+    }
+
+    /**
+     * Acquires a {@link CatalogSnapshot} pinned to the most recent commit on disk,
+     * regardless of retention policy. Default wraps {@link #acquireLastIndexCommit(boolean)}.
+     * Propagates {@link IOException} as-is so callers (e.g. shard-store fetch on corrupted
+     * indices) can treat read failures uniformly with the legacy commit path.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
+        final GatedCloseable<IndexCommit> commitRef = acquireLastIndexCommit(flushFirst);
+        try {
+            final SegmentInfos infos = Lucene.readSegmentInfos(commitRef.get());
+            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            return new GatedCloseable<>(snapshot, commitRef::close);
+        } catch (IOException | RuntimeException e) {
+            try {
+                commitRef.close();
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw e;
+        }
+    }
 
     /**
      * @return a summary of the contents of the current safe commit
@@ -1361,15 +1442,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * commit.
      */
     private void cleanUpUnreferencedFiles() {
-        try (
-            IndexWriter writer = new IndexWriter(
-                store.directory(),
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (store.shouldSetParentField()) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
             // do nothing except increasing metric count and close this will kick off IndexFileDeleter which will
             // remove all unreferenced files
             totalUnreferencedFileCleanUpsPerformed.inc();

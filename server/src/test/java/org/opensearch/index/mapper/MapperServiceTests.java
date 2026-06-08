@@ -38,7 +38,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -182,7 +182,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> createIndex(
                 "test1",
                 Settings.builder()
-                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_DEPTH + 1)
+                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentConstraints.DEFAULT_MAX_DEPTH + 1)
                     .build()
             )
         );
@@ -402,7 +402,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> createIndex(
                 "test1",
                 Settings.builder()
-                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_NAME_LEN + 1)
+                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentConstraints.DEFAULT_MAX_NAME_LEN + 1)
                     .build()
             )
         );
@@ -615,6 +615,41 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testReloadSearchAnalyzersWithReloadCachedResources() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
+            .build();
+
+        MapperService mapperService = createIndex("test_index", settings).mapperService();
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "text")
+                    .field("analyzer", "simple")
+                    .field("search_analyzer", "reloadableAnalyzer")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        mapperService.merge("_doc", mapping, MergeReason.MAPPING_UPDATE);
+
+        // Call with reloadCachedResources=true — exercises the reload loop and no-op default
+        List<String> reloaded = mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), true);
+        assertEquals(1, reloaded.size());
+        assertEquals("reloadableAnalyzer", reloaded.get(0));
+    }
+
     public void testMapperDynamicAllowedIgnored() {
         final List<Function<Settings.Builder, Settings.Builder>> scenarios = List.of(
             (builder) -> builder.putNull(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey()),
@@ -685,6 +720,16 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
                 }
             });
         }
+    }
+
+    /** Validates that {@code index.mapping.dynamic_properties.lucene_field.limit} is a recognized index setting. */
+    public void testDynamicPropertiesLuceneFieldLimitSettingRecognized() throws IOException {
+        long customLimit = 5_000L;
+        MapperService mapperService = createIndex(
+            "test",
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), customLimit).build()
+        ).mapperService();
+        assertEquals(customLimit, mapperService.getIndexSettings().getMappingDynamicPropertiesLuceneFieldLimit());
     }
 
 }

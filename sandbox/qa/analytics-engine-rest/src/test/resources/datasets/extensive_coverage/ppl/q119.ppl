@@ -1,0 +1,1 @@
+source=test_data | eval days_diff = datediff(timestamp, '2026-01-01') | fields timestamp, days_diff | head 3

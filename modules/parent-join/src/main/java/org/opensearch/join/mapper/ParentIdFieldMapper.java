@@ -209,6 +209,16 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        if (context.externalValueSet() == false) {
+            throw new IllegalStateException("external value not set");
+        }
+        String refId = (String) context.externalValue();
+        BytesRef binaryValue = new BytesRef(refId);
+        context.documentInput().addField(fieldType(), binaryValue);
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) other;
         this.children = parentMergeWith.children;

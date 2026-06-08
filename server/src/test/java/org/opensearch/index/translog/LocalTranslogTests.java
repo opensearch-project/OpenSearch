@@ -3873,6 +3873,66 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSnapshotReadOperationForward() throws Exception {
+        Path tempDir = createTempDir();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING.getKey(), true)
+            .build();
+        final TranslogConfig forwardConfig = getTranslogConfig(tempDir, settings);
+
+        final String translogUUID = Translog.createEmptyTranslog(
+            forwardConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get()
+        );
+
+        // Create a separate translog instance with forward reading enabled
+        try (
+            Translog forwardTranslog = new LocalTranslog(
+                forwardConfig,
+                translogUUID,
+                createTranslogDeletionPolicy(forwardConfig.getIndexSettings()),
+                () -> globalCheckpoint.get(),
+                primaryTerm::get,
+                getPersistedSeqNoConsumer(),
+                TranslogOperationHelper.DEFAULT,
+                null
+            )
+        ) {
+            final List<List<Translog.Operation>> views = new ArrayList<>();
+            views.add(new ArrayList<>());
+            final AtomicLong seqNo = new AtomicLong();
+
+            final int generations = randomIntBetween(2, 20);
+            for (int gen = 0; gen < generations; gen++) {
+                final int operations = randomIntBetween(1, 100);
+                for (int i = 0; i < operations; i++) {
+                    Translog.Index op = new Translog.Index(
+                        randomAlphaOfLength(10),
+                        seqNo.getAndIncrement(),
+                        primaryTerm.get(),
+                        new byte[] { 1 }
+                    );
+                    forwardTranslog.add(op);
+                    views.get(views.size() - 1).add(op);
+                }
+                if (frequently()) {
+                    forwardTranslog.rollGeneration();
+                    views.add(new ArrayList<>());
+                }
+            }
+            try (Translog.Snapshot snapshot = forwardTranslog.newSnapshot()) {
+                final List<Translog.Operation> expectedSeqNo = new ArrayList<>();
+                for (List<Translog.Operation> view : views) {
+                    expectedSeqNo.addAll(view);
+                }
+                assertThat(snapshot, SnapshotMatchers.equalsTo(expectedSeqNo));
+            }
+        }
+    }
+
     public void testSnapshotDedupOperations() throws Exception {
         final Map<Long, Translog.Operation> latestOperations = new HashMap<>();
         final int generations = between(2, 20);

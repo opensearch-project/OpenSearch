@@ -1,0 +1,128 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.spi;
+
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Declares the query planning capabilities of a backend plugin.
+ * Used by the coordinator-side planner to determine which backends can
+ * evaluate each operator, predicate, aggregate call, and projection expression.
+ *
+ * <p>A capability type belongs here only if a planner rule uses it to make a
+ * decision. Backend-internal optimizations (e.g. expression pushdown into scan)
+ * are not declared here.
+ *
+ * @opensearch.internal
+ */
+public interface BackendCapabilityProvider {
+
+    /** Relational operators this backend can execute as the primary operator. */
+    Set<EngineCapability> supportedEngineCapabilities();
+
+    /** Storage sources this backend can scan, scoped to storage kind, formats, and field types. */
+    default Set<ScanCapability> scanCapabilities() {
+        return Set.of();
+    }
+
+    /** Filter predicates this backend can evaluate, scoped to operator, field type, and data format. */
+    default Set<FilterCapability> filterCapabilities() {
+        return Set.of();
+    }
+
+    /** Aggregate functions this backend can evaluate, scoped to function, field type, and data format. */
+    default Set<AggregateCapability> aggregateCapabilities() {
+        return Set.of();
+    }
+
+    /** Projection expressions this backend can evaluate, scoped to function/name and data format. */
+    default Set<ProjectCapability> projectCapabilities() {
+        return Set.of();
+    }
+
+    /**
+     * Join capabilities this backend can execute. Each {@link JoinCapability} declares a
+     * set of {@link JoinCapability.JoinKind}s (INNER, LEFT, etc.) and the storage formats
+     * those joins apply to. The planner narrows viable backends to those whose
+     * capabilities cover the query's required kind. An empty set means the backend cannot
+     * execute joins.
+     */
+    default Set<JoinCapability> joinCapabilities() {
+        return Set.of();
+    }
+
+    /**
+     * Window-function capabilities this backend can execute. Each {@link WindowCapability}
+     * declares a set of {@link WindowFunction}s (ROW_NUMBER, RANK, SUM/AVG/COUNT over a
+     * frame, etc.) and the storage formats those windows apply to. The planner narrows
+     * viable backends to those whose capabilities cover every required function. An empty
+     * set means the backend cannot execute window functions.
+     */
+    default Set<WindowCapability> windowCapabilities() {
+        return Set.of();
+    }
+
+    /**
+     * Delegation types this backend can initiate — it has a custom physical operator
+     * that calls Analytics Core's delegation API to offload work to another backend.
+     */
+    default Set<DelegationType> supportedDelegations() {
+        return Set.of();
+    }
+
+    /**
+     * Delegation types this backend can accept — it can receive a delegated request
+     * (e.g., a serialized QueryBuilder) and return results (e.g., a bitset of matching docIds).
+     */
+    default Set<DelegationType> acceptedDelegations() {
+        return Set.of();
+    }
+
+    /**
+     * Per-shard preference scorer. The planner consults this when the same fragment has
+     * multiple viable backends, so this backend can declare a preference score for the
+     * resolved fragment given shard-local context. Default {@code null} = "no opinion in
+     * any case"; the selector treats this backend as a generic alternative.
+     *
+     * <p>See {@link BackendShardPreference} for the contract and the long-term migration
+     * path away from coordinator-side preference flags toward true shard-local routing.
+     */
+    default BackendShardPreference shardPreference() {
+        return null;
+    }
+
+    /**
+     * Per-function adapters for transforming backend-agnostic scalar function RexCalls
+     * into backend-compatible forms before fragment conversion. Keyed by {@link ScalarFunction}.
+     * Applied regardless of operator context (filter, project, aggregate expression).
+     * Empty map means no adaptation needed.
+     */
+    default Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+        return Map.of();
+    }
+
+    /**
+     * Per-function adapters for transforming backend-agnostic window function RexOvers
+     * into backend-compatible forms before fragment conversion. Keyed by {@link WindowFunction}.
+     * Empty map means no adaptation needed (use the original operator and operands as-is).
+     */
+    default Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
+        return Map.of();
+    }
+
+    /**
+     * Per-function serializers for delegated predicates this backend can accept.
+     * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
+     * serializer during fragment conversion when a predicate is delegated to this backend.
+     */
+    default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
+    }
+}

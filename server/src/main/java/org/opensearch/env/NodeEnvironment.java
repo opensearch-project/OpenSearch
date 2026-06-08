@@ -507,7 +507,7 @@ public final class NodeEnvironment implements Closeable {
     }
 
     public static String generateNodeId(Settings settings) {
-        Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
+        Random random = NODE_ID_SEED_SETTING.exists(settings) ? new Random(NODE_ID_SEED_SETTING.get(settings)) : Randomness.get();
         return UUIDs.randomBase64UUID(random);
     }
 

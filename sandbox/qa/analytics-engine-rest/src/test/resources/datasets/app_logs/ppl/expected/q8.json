@@ -1,0 +1,80 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      14,
+      "host3",
+      "api-service"
+    ],
+    [
+      13,
+      "host1",
+      "db-service"
+    ],
+    [
+      12,
+      "host3",
+      "db-service"
+    ],
+    [
+      11,
+      "host1",
+      "auth-service"
+    ],
+    [
+      10,
+      "host2",
+      "auth-service"
+    ],
+    [
+      10,
+      "host3",
+      "web-service"
+    ],
+    [
+      9,
+      "host3",
+      "auth-service"
+    ],
+    [
+      9,
+      "host2",
+      "web-service"
+    ],
+    [
+      8,
+      "host2",
+      "db-service"
+    ],
+    [
+      8,
+      "host1",
+      "web-service"
+    ],
+    [
+      7,
+      "host1",
+      "api-service"
+    ],
+    [
+      4,
+      "host2",
+      "api-service"
+    ]
+  ],
+  "total": 12,
+  "size": 12
+}

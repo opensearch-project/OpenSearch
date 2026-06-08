@@ -32,8 +32,6 @@
 
 package org.opensearch.rest.action;
 
-import com.fasterxml.jackson.core.io.JsonEOFException;
-
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -57,6 +55,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
+
+import tools.jackson.core.exc.UnexpectedEndOfInputException;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -107,7 +107,7 @@ public class RestActionsTests extends OpenSearchTestCase {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
                 ParsingException exception = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
                 assertEquals("Failed to parse", exception.getMessage());
-                assertEquals(JsonEOFException.class, exception.getRootCause().getClass());
+                assertEquals(UnexpectedEndOfInputException.class, exception.getRootCause().getClass());
             }
         }
     }
@@ -132,8 +132,7 @@ public class RestActionsTests extends OpenSearchTestCase {
             createShardFailureParsingException("node1", 1, "cluster2"),
             createShardFailureParsingException("node2", 2, "cluster2") };
 
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         RestActions.buildBroadcastShardsHeader(builder, ToXContent.EMPTY_PARAMS, 12, 3, 0, 9, failures);
         builder.endObject();

@@ -152,6 +152,9 @@ class HighlightBuilderProtoUtils {
             highlightBuilder.encoder(ProtobufEnumUtils.convertToString(highlightProto.getEncoder()));
         }
 
+        // TODO: Support useExplicitFieldOrder
+        // A spec fix is required and a corresponding protobuf version upgrade.
+
         if (highlightProto.getFieldsCount() > 0) {
             for (java.util.Map.Entry<String, org.opensearch.protobufs.HighlightField> entry : highlightProto.getFieldsMap().entrySet()) {
                 String fieldName = entry.getKey();
@@ -252,6 +255,22 @@ class HighlightBuilderProtoUtils {
                     fieldBuilder.forceSource(fieldProto.getForceSource());
                 }
 
+                if (fieldProto.hasOrder() && fieldProto.getOrder() == HighlighterOrder.HIGHLIGHTER_ORDER_SCORE) {
+                    fieldBuilder.order(HighlightBuilder.Order.SCORE);
+                }
+
+                if (fieldProto.hasPhraseLimit()) {
+                    fieldBuilder.phraseLimit(fieldProto.getPhraseLimit());
+                }
+
+                if (fieldProto.hasRequireFieldMatch()) {
+                    fieldBuilder.requireFieldMatch(fieldProto.getRequireFieldMatch());
+                }
+
+                if (fieldProto.hasTagsSchema() && fieldProto.getTagsSchema() != HighlighterTagsSchema.HIGHLIGHTER_TAGS_SCHEMA_UNSPECIFIED) {
+                    applyTagsSchemaToField(fieldBuilder, fieldProto.getTagsSchema());
+                }
+
                 highlightBuilder.field(fieldBuilder);
             }
         }
@@ -272,6 +291,33 @@ class HighlightBuilderProtoUtils {
                 return HighlightBuilder.BoundaryScannerType.SENTENCE;
             default:
                 throw new IllegalArgumentException("Unknown BoundaryScanner value: " + boundaryScanner);
+        }
+    }
+
+    /**
+     * Apply tags schema to a highlight field by setting pre/post tags.
+     * This mirrors the behavior of {@link HighlightBuilder#tagsSchema(String)} but for field-level settings.
+     * <p>
+     * The {@code tagsSchema} method on {@link HighlightBuilder} sets built-in pre and post tags based on a schema name.
+     * Since {@link HighlightBuilder.Field} doesn't have a {@code tagsSchema} method, this helper applies the same
+     * logic by directly setting the pre/post tags on the field.
+     *
+     * @param fieldBuilder the highlight field builder to apply the tags schema to
+     * @param tagsSchema the tags schema to apply (e.g., STYLED)
+     * @see HighlightBuilder#tagsSchema(String)
+     */
+    private static void applyTagsSchemaToField(HighlightBuilder.Field fieldBuilder, HighlighterTagsSchema tagsSchema) {
+        switch (tagsSchema) {
+            case HIGHLIGHTER_TAGS_SCHEMA_STYLED:
+                fieldBuilder.preTags(HighlightBuilder.DEFAULT_STYLED_PRE_TAG);
+                fieldBuilder.postTags(HighlightBuilder.DEFAULT_STYLED_POST_TAGS);
+                break;
+            case HIGHLIGHTER_TAGS_SCHEMA_DEFAULT:
+                fieldBuilder.preTags(HighlightBuilder.DEFAULT_PRE_TAGS);
+                fieldBuilder.postTags(HighlightBuilder.DEFAULT_POST_TAGS);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown tags schema: " + tagsSchema);
         }
     }
 }

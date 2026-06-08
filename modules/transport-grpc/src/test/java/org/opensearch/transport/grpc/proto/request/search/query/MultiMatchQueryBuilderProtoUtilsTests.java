@@ -73,7 +73,7 @@ public class MultiMatchQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setMaxExpansions(10)
             .setOperator(org.opensearch.protobufs.Operator.OPERATOR_AND)
             .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setString("2").build())
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setFuzzyRewrite("constant_score")
             .setTieBreaker(0.5f)
             .setLenient(true)
             .setZeroTermsQuery(ZeroTermsQuery.ZERO_TERMS_QUERY_ALL)
@@ -264,7 +264,7 @@ public class MultiMatchQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setMaxExpansions(10)
             .setOperator(org.opensearch.protobufs.Operator.OPERATOR_AND)
             .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setString("2").build())
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setFuzzyRewrite("constant_score")
             .setTieBreaker(0.5f)
             .setLenient(true)
             .setZeroTermsQuery(ZeroTermsQuery.ZERO_TERMS_QUERY_ALL)
@@ -428,63 +428,49 @@ public class MultiMatchQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertNull("Fuzziness should be null (EMPTY)", builderEmpty.fuzziness());
     }
 
-    public void testFromProtoWithFuzzyRewriteUnspecified() {
-        // Test that UNSPECIFIED fuzzyRewrite is treated as null
-        MultiMatchQuery proto = MultiMatchQuery.newBuilder()
-            .setQuery("test query")
-            .addFields("field1")
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED)
-            .build();
-
-        MultiMatchQueryBuilder builder = fromProto(proto);
-
-        // Verify fuzzyRewrite is null when UNSPECIFIED
-        assertNull("FuzzyRewrite should be null for UNSPECIFIED", builder.fuzzyRewrite());
-    }
-
     public void testFromProtoWithAllFuzzyRewriteValues() {
         // Test all MultiTermQueryRewrite enum values
         MultiMatchQuery protoConstantScore = MultiMatchQuery.newBuilder()
             .setQuery("test")
             .addFields("field1")
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setFuzzyRewrite("constant_score")
             .build();
         assertEquals("constant_score", fromProto(protoConstantScore).fuzzyRewrite());
 
         MultiMatchQuery protoConstantScoreBoolean = MultiMatchQuery.newBuilder()
             .setQuery("test")
             .addFields("field1")
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN)
+            .setFuzzyRewrite("constant_score_boolean")
             .build();
         assertEquals("constant_score_boolean", fromProto(protoConstantScoreBoolean).fuzzyRewrite());
 
         MultiMatchQuery protoScoringBoolean = MultiMatchQuery.newBuilder()
             .setQuery("test")
             .addFields("field1")
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN)
+            .setFuzzyRewrite("scoring_boolean")
             .build();
         assertEquals("scoring_boolean", fromProto(protoScoringBoolean).fuzzyRewrite());
 
         MultiMatchQuery protoTopTermsN = MultiMatchQuery.newBuilder()
             .setQuery("test")
             .addFields("field1")
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N)
+            .setFuzzyRewrite("top_terms_10")
             .build();
-        assertEquals("top_terms_n", fromProto(protoTopTermsN).fuzzyRewrite());
+        assertEquals("top_terms_10", fromProto(protoTopTermsN).fuzzyRewrite());
 
         MultiMatchQuery protoTopTermsBlended = MultiMatchQuery.newBuilder()
             .setQuery("test")
             .addFields("field1")
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N)
+            .setFuzzyRewrite("top_terms_blended_freqs_10")
             .build();
-        assertEquals("top_terms_blended_freqs_n", fromProto(protoTopTermsBlended).fuzzyRewrite());
+        assertEquals("top_terms_blended_freqs_10", fromProto(protoTopTermsBlended).fuzzyRewrite());
 
         MultiMatchQuery protoTopTermsBoost = MultiMatchQuery.newBuilder()
             .setQuery("test")
             .addFields("field1")
-            .setFuzzyRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N)
+            .setFuzzyRewrite("top_terms_boost_10")
             .build();
-        assertEquals("top_terms_boost_n", fromProto(protoTopTermsBoost).fuzzyRewrite());
+        assertEquals("top_terms_boost_10", fromProto(protoTopTermsBoost).fuzzyRewrite());
     }
 
     public void testFromProtoWithoutFuzzyRewrite() {

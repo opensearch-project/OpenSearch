@@ -140,6 +140,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     // This test validates shard initialization does not fail due to kafka connection errors.
+    // Warmup is disabled since we're testing error handling, not warmup behavior.
     public void testShardInitializationUsingUnknownTopic() throws Exception {
         createIndexWithMappingSource(
             indexName,

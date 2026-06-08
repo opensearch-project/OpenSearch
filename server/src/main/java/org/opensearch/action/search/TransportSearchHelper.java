@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.search.SearchPhaseResult;
@@ -56,11 +57,17 @@ final class TransportSearchHelper {
 
     private static final String INCLUDE_CONTEXT_UUID = "include_context_uuid";
 
+    public static final Version INDICES_IN_SCROLL_ID_VERSION = Version.V_3_6_0;
+
     static InternalScrollSearchRequest internalScrollSearchRequest(ShardSearchContextId id, SearchScrollRequest request) {
         return new InternalScrollSearchRequest(request, id);
     }
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
+        return buildScrollId(searchPhaseResults, null, version);
+    }
+
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, String[] originalIndices, Version version) {
         try {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeString(INCLUDE_CONTEXT_UUID);
@@ -77,6 +84,13 @@ final class TransportSearchHelper {
                 } else {
                     out.writeString(searchShardTarget.getNodeId());
                 }
+            }
+
+            if (version.onOrAfter(INDICES_IN_SCROLL_ID_VERSION)) {
+                // To keep autotagging consistent between the initial SearchRequest
+                // and subsequent SearchScrollRequests, we store exactly the original indices
+                // received during the "search" phase
+                out.writeOptionalStringArray(originalIndices);
             }
             byte[] bytes = BytesReference.toBytes(out.bytes());
             return Base64.getUrlEncoder().encodeToString(bytes);
@@ -114,10 +128,13 @@ final class TransportSearchHelper {
                 }
                 context[i] = new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
             }
+
+            final String[] originalIndices = in.getPosition() < bytes.length ? in.readOptionalStringArray() : Strings.EMPTY_ARRAY;
+
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
-            return new ParsedScrollId(scrollId, type, context);
+            return new ParsedScrollId(scrollId, type, context, originalIndices);
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
         }

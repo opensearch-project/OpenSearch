@@ -11,6 +11,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -19,12 +20,17 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregatorTestCase;
@@ -33,6 +39,8 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.Cardinality;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -1748,15 +1756,1218 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                 assertEquals("stream_long_terms", debugInfo.get("result_strategy"));
 
                 assertTrue("Should contain total_buckets", debugInfo.containsKey("total_buckets"));
-                assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
-                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
-                assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
-                assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
-                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
+            }
+        }
+    }
 
-                assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
-                assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
-                assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);
+    public void testOrderByMaxSubAggregationDescending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories with varying max values (size=3, total=10)
+                for (int i = 0; i < 10; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("category", i));
+                    doc.add(new NumericDocValuesField("value", (i + 1) * 100));
+                    indexWriter.addDocument(doc);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("max_value", false))
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(7L));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(8L));
+                    assertThat(buckets.get(2).getKeyAsNumber().longValue(), equalTo(9L));
+
+                    Max max0 = buckets.get(0).getAggregations().get("max_value");
+                    Max max1 = buckets.get(1).getAggregations().get("max_value");
+                    Max max2 = buckets.get(2).getAggregations().get("max_value");
+                    assertThat(max0.getValue(), equalTo(800.0));
+                    assertThat(max1.getValue(), equalTo(900.0));
+                    assertThat(max2.getValue(), equalTo(1000.0));
+
+                    // Verify otherDocCount: 10 categories * 1 doc = 10 total, selected 3*1=3, other=7
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(7L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByMaxSubAggregationAscending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories where TOP 3 by max ASC won't be alphabetically first
+                for (int i = 0; i < 10; i++) {
+                    int numDocs = 5;
+                    for (int j = 0; j < numDocs; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("category", i));
+                        doc.add(new NumericDocValuesField("value", (i + 1) * 100 + j));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("max_value", true))
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(0L));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(1L));
+                    assertThat(buckets.get(2).getKeyAsNumber().longValue(), equalTo(2L));
+
+                    Max max0 = buckets.get(0).getAggregations().get("max_value");
+                    Max max1 = buckets.get(1).getAggregations().get("max_value");
+                    Max max2 = buckets.get(2).getAggregations().get("max_value");
+                    assertThat(max0.getValue(), equalTo(104.0));
+                    assertThat(max1.getValue(), equalTo(204.0));
+                    assertThat(max2.getValue(), equalTo(304.0));
+
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByMinSubAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 4; i++) {
+                    for (int j = 0; j < 3; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("category", i));
+                        doc.add(new NumericDocValuesField("value", (i + 1) * 10 + j));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(2)
+                        .shardSize(2)
+                        .order(BucketOrder.aggregation("min_value", true))
+                        .subAggregation(new MinAggregationBuilder("min_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertEquals(0L, buckets.get(0).getKeyAsNumber().longValue());
+                    assertEquals(1L, buckets.get(1).getKeyAsNumber().longValue());
+
+                    assertEquals(6L, result.getSumOfOtherDocCounts());
+                }
+            }
+        }
+    }
+
+    public void testNoSortOrderWithSubAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories where alphabetical order != count order
+                // 9=10 docs (highest), 8=9, 7=8, 6=7, 5=6, 4=5, 3=4, 2=3, 1=2, 0=1 (lowest)
+                for (int i = 0; i < 10; i++) {
+                    int numDocs = 10 - i;
+                    for (int j = 0; j < numDocs; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("category", 9 - i));
+                        doc.add(new NumericDocValuesField("value", (9 - i + 1) * 100 + j));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(5)
+                        .shardSize(5)
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    // Default order is count DESC, so top 5 should be 9, 8, 7, 6, 5 (highest counts)
+                    // Returned in alphabetical order at shard level
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(5L));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(6L));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(6L));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(7L));
+                    assertThat(buckets.get(2).getKeyAsNumber().longValue(), equalTo(7L));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(8L));
+                    assertThat(buckets.get(3).getKeyAsNumber().longValue(), equalTo(8L));
+                    assertThat(buckets.get(3).getDocCount(), equalTo(9L));
+                    assertThat(buckets.get(4).getKeyAsNumber().longValue(), equalTo(9L));
+                    assertThat(buckets.get(4).getDocCount(), equalTo(10L));
+
+                    // Verify otherDocCount: total=55 docs (10+9+8+7+6+5+4+3+2+1), selected=40 (10+9+8+7+6), other=15
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(15L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByAvgSubAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Category 0: values 10, 20 (avg=15)
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("category", 0));
+                doc.add(new NumericDocValuesField("value", 10));
+                indexWriter.addDocument(doc);
+                doc = new Document();
+                doc.add(new NumericDocValuesField("category", 0));
+                doc.add(new NumericDocValuesField("value", 20));
+                indexWriter.addDocument(doc);
+
+                // Category 1: values 30, 40 (avg=35)
+                doc = new Document();
+                doc.add(new NumericDocValuesField("category", 1));
+                doc.add(new NumericDocValuesField("value", 30));
+                indexWriter.addDocument(doc);
+                doc = new Document();
+                doc.add(new NumericDocValuesField("category", 1));
+                doc.add(new NumericDocValuesField("value", 40));
+                indexWriter.addDocument(doc);
+
+                // Category 2: values 50, 60 (avg=55)
+                doc = new Document();
+                doc.add(new NumericDocValuesField("category", 2));
+                doc.add(new NumericDocValuesField("value", 50));
+                indexWriter.addDocument(doc);
+                doc = new Document();
+                doc.add(new NumericDocValuesField("category", 2));
+                doc.add(new NumericDocValuesField("value", 60));
+                indexWriter.addDocument(doc);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(2)
+                        .shardSize(2)
+                        .order(BucketOrder.aggregation("avg_value", false))
+                        .subAggregation(new AvgAggregationBuilder("avg_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertEquals(1L, buckets.get(0).getKeyAsNumber().longValue());
+                    assertEquals(35.0, ((Avg) buckets.get(0).getAggregations().get("avg_value")).getValue(), 0.001);
+                    assertEquals(2L, buckets.get(1).getKeyAsNumber().longValue());
+                    assertEquals(55.0, ((Avg) buckets.get(1).getAggregations().get("avg_value")).getValue(), 0.001);
+
+                    assertEquals(2L, result.getSumOfOtherDocCounts());
+                }
+            }
+        }
+    }
+
+    public void testOrderBySumSubAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Category 0: 3 docs with value 10 each (sum=30)
+                for (int i = 0; i < 3; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("category", 0));
+                    doc.add(new NumericDocValuesField("value", 10));
+                    indexWriter.addDocument(doc);
+                }
+
+                // Category 1: 2 docs with value 25 each (sum=50)
+                for (int i = 0; i < 2; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("category", 1));
+                    doc.add(new NumericDocValuesField("value", 25));
+                    indexWriter.addDocument(doc);
+                }
+
+                // Category 2: 4 docs with value 20 each (sum=80)
+                for (int i = 0; i < 4; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("category", 2));
+                    doc.add(new NumericDocValuesField("value", 20));
+                    indexWriter.addDocument(doc);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(2)
+                        .shardSize(2)
+                        .order(BucketOrder.aggregation("sum_value", false))
+                        .subAggregation(new SumAggregationBuilder("sum_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertEquals(1L, buckets.get(0).getKeyAsNumber().longValue());
+                    assertEquals(50.0, ((InternalSum) buckets.get(0).getAggregations().get("sum_value")).getValue(), 0.001);
+                    assertEquals(2L, buckets.get(1).getKeyAsNumber().longValue());
+                    assertEquals(80.0, ((InternalSum) buckets.get(1).getAggregations().get("sum_value")).getValue(), 0.001);
+
+                    assertEquals(3L, result.getSumOfOtherDocCounts());
+                }
+            }
+        }
+    }
+
+    public void testMinDocCount() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create categories with varying doc counts: 0=1, 1=2, 2=3, 3=4, 4=5
+                for (int i = 0; i < 5; i++) {
+                    for (int j = 0; j <= i; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("category", i));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+
+                    // Test with minDocCount=3, should only return categories 2, 3, 4
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category").minDocCount(3);
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(2L));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(3L));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(3L));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(4L));
+                    assertThat(buckets.get(2).getKeyAsNumber().longValue(), equalTo(4L));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(5L));
+
+                    // Verify otherDocCount: category 0=1 + category 1=2 = 3 docs excluded
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(3L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByCardinalitySubAggregationDescending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories with varying cardinality (size=5, total=10)
+                for (int i = 0; i < 10; i++) {
+                    int uniqueUsers = (i + 1) * 2; // cat_0=2, cat_1=4, ..., cat_9=20
+                    for (int j = 0; j < uniqueUsers; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("category", i));
+                        doc.add(new SortedSetDocValuesField("user_id", new BytesRef("user_" + (i * 100 + j))));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType userIdFieldType = new KeywordFieldMapper.KeywordFieldType("user_id");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.aggregation("unique_users", false))
+                        .subAggregation(new CardinalityAggregationBuilder("unique_users").field("user_id"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        userIdFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(5L));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(6L));
+                    assertThat(buckets.get(2).getKeyAsNumber().longValue(), equalTo(7L));
+                    assertThat(buckets.get(3).getKeyAsNumber().longValue(), equalTo(8L));
+                    assertThat(buckets.get(4).getKeyAsNumber().longValue(), equalTo(9L));
+
+                    Cardinality card0 = buckets.get(0).getAggregations().get("unique_users");
+                    Cardinality card1 = buckets.get(1).getAggregations().get("unique_users");
+                    Cardinality card2 = buckets.get(2).getAggregations().get("unique_users");
+                    Cardinality card3 = buckets.get(3).getAggregations().get("unique_users");
+                    Cardinality card4 = buckets.get(4).getAggregations().get("unique_users");
+                    assertThat(card0.getValue(), equalTo(12L));
+                    assertThat(card1.getValue(), equalTo(14L));
+                    assertThat(card2.getValue(), equalTo(16L));
+                    assertThat(card3.getValue(), equalTo(18L));
+                    assertThat(card4.getValue(), equalTo(20L));
+
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=12+14+16+18+20=80, other=30
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(30L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByCardinalitySubAggregationAscending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories where TOP 3 by cardinality ASC won't be alphabetically first
+                for (int i = 0; i < 10; i++) {
+                    int uniqueUsers = (i + 1) * 2;
+                    for (int j = 0; j < uniqueUsers; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("category", i));
+                        doc.add(new SortedSetDocValuesField("user_id", new BytesRef("user_" + (i * 100 + j))));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType userIdFieldType = new KeywordFieldMapper.KeywordFieldType("user_id");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("unique_users", true))
+                        .subAggregation(new CardinalityAggregationBuilder("unique_users").field("user_id"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        userIdFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(0L));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(1L));
+                    assertThat(buckets.get(2).getKeyAsNumber().longValue(), equalTo(2L));
+
+                    Cardinality card0 = buckets.get(0).getAggregations().get("unique_users");
+                    Cardinality card1 = buckets.get(1).getAggregations().get("unique_users");
+                    Cardinality card2 = buckets.get(2).getAggregations().get("unique_users");
+                    assertThat(card0.getValue(), equalTo(2L));
+                    assertThat(card1.getValue(), equalTo(4L));
+                    assertThat(card2.getValue(), equalTo(6L));
+
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=2+4+6=12, other=98
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(98L));
+                }
+            }
+        }
+    }
+
+    public void testDoubleTermsWithSubAggregationOrdering() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 3; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("price", NumericUtils.doubleToSortableLong(10.0 + i)));
+                    doc.add(new NumericDocValuesField("quantity", (i + 1) * 10));
+                    indexWriter.addDocument(doc);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.DOUBLE);
+                    MappedFieldType quantityFieldType = new NumberFieldMapper.NumberFieldType(
+                        "quantity",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("prices").field("price")
+                        .size(2)
+                        .shardSize(2)
+                        .order(BucketOrder.aggregation("max_qty", false))
+                        .subAggregation(new MaxAggregationBuilder("max_qty").field("quantity"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        priceFieldType,
+                        quantityFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    DoubleTerms result = (DoubleTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    List<DoubleTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.get(0).getKeyAsNumber().doubleValue(), equalTo(11.0));
+                    assertThat(buckets.get(1).getKeyAsNumber().doubleValue(), equalTo(12.0));
+
+                    Max max0 = buckets.get(0).getAggregations().get("max_qty");
+                    Max max1 = buckets.get(1).getAggregations().get("max_qty");
+                    assertThat(max0.getValue(), equalTo(20.0));
+                    assertThat(max1.getValue(), equalTo(30.0));
+                }
+            }
+        }
+    }
+
+    public void testUnsignedLongTermsWithSubAggregationOrdering() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 3; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("id", Long.MAX_VALUE - i));
+                    doc.add(new NumericDocValuesField("score", (i + 1) * 100));
+                    indexWriter.addDocument(doc);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType idFieldType = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.UNSIGNED_LONG);
+                    MappedFieldType scoreFieldType = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("ids").field("id")
+                        .size(2)
+                        .shardSize(2)
+                        .order(BucketOrder.aggregation("max_score", false))
+                        .subAggregation(new MaxAggregationBuilder("max_score").field("score"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        idFieldType,
+                        scoreFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    UnsignedLongTerms result = (UnsignedLongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    List<UnsignedLongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(Long.MAX_VALUE - 2));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(Long.MAX_VALUE - 1));
+
+                    Max max0 = buckets.get(0).getAggregations().get("max_score");
+                    Max max1 = buckets.get(1).getAggregations().get("max_score");
+                    assertThat(max0.getValue(), equalTo(300.0));
+                    assertThat(max1.getValue(), equalTo(200.0));
+                }
+            }
+        }
+    }
+
+    public void testKeyOrderWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != first 5 numerically
+                long[] terms = { 95, 94, 93, 92, 91, 1, 2, 3, 4, 5 };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("field", terms[i]));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(true));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    // Streaming aggregation does not support key-based ordering for numeric fields
+                    IllegalArgumentException exception = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> aggregator.buildAggregations(new long[] { 0 })
+                    );
+                    assertThat(
+                        exception.getMessage(),
+                        equalTo(
+                            "Streaming aggregation does not support key-based ordering for numeric fields. Use traditional aggregation approach instead."
+                        )
+                    );
+                }
+            }
+        }
+    }
+
+    public void testKeyOrderDescendingWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != last 5 numerically
+                long[] terms = { 95, 94, 93, 92, 91, 1, 2, 3, 4, 5 };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("field", terms[i]));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(false));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    // Streaming aggregation does not support key-based ordering for numeric fields
+                    IllegalArgumentException exception = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> aggregator.buildAggregations(new long[] { 0 })
+                    );
+                    assertThat(
+                        exception.getMessage(),
+                        equalTo(
+                            "Streaming aggregation does not support key-based ordering for numeric fields. Use traditional aggregation approach instead."
+                        )
+                    );
+                }
+            }
+        }
+    }
+
+    public void testLongTermsSubAggregationTieBreaking() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create buckets where all have same doc count and same max value
+                // This forces tie-breaking by key during quickselect
+                for (long key = 0; key < 20; key++) {
+                    for (int doc = 0; doc < 5; doc++) {
+                        Document d = new Document();
+                        d.add(new SortedNumericDocValuesField("number", key));
+                        d.add(new SortedNumericDocValuesField("value", 100)); // Same max for all
+                        indexWriter.addDocument(d);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType numberFieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    Settings settings = Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put("index.aggregation.streaming.min_segment_size", 1)
+                        .build();
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+                        Settings.EMPTY
+                    );
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("number")
+                        .size(5)
+                        .shardSize(5)
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"))
+                        .order(BucketOrder.aggregation("max_value", false));
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        numberFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+
+                    // Should get 5 buckets, and they should be sorted by key after coordinator reduce
+                    assertEquals(5, buckets.size());
+                    for (int i = 0; i < buckets.size() - 1; i++) {
+                        assertTrue(buckets.get(i).getKeyAsNumber().longValue() < buckets.get(i + 1).getKeyAsNumber().longValue());
+                    }
+                }
+            }
+        }
+    }
+
+    public void testDoubleTermsSubAggregationTieBreaking() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (long key = 0; key < 20; key++) {
+                    for (int doc = 0; doc < 5; doc++) {
+                        Document d = new Document();
+                        d.add(new SortedNumericDocValuesField("number", NumericUtils.doubleToSortableLong(key + 0.5)));
+                        d.add(new SortedNumericDocValuesField("value", NumericUtils.doubleToSortableLong(100.0)));
+                        indexWriter.addDocument(d);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType numberFieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.DOUBLE);
+
+                    Settings settings = Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put("index.aggregation.streaming.min_segment_size", 1)
+                        .build();
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+                        Settings.EMPTY
+                    );
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("number")
+                        .size(5)
+                        .shardSize(5)
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"))
+                        .order(BucketOrder.aggregation("max_value", false));
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        numberFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    DoubleTerms result = (DoubleTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+                    List<DoubleTerms.Bucket> buckets = result.getBuckets();
+
+                    assertEquals(5, buckets.size());
+                    for (int i = 0; i < buckets.size() - 1; i++) {
+                        assertTrue(buckets.get(i).getKeyAsNumber().doubleValue() < buckets.get(i + 1).getKeyAsNumber().doubleValue());
+                    }
+                }
+            }
+        }
+    }
+
+    public void testUnsignedLongTermsSubAggregationTieBreaking() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (long key = 0; key < 20; key++) {
+                    for (int doc = 0; doc < 5; doc++) {
+                        Document d = new Document();
+                        d.add(new SortedNumericDocValuesField("number", key));
+                        d.add(new SortedNumericDocValuesField("value", 100));
+                        indexWriter.addDocument(d);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType numberFieldType = new NumberFieldMapper.NumberFieldType(
+                        "number",
+                        NumberFieldMapper.NumberType.UNSIGNED_LONG
+                    );
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(
+                        "value",
+                        NumberFieldMapper.NumberType.UNSIGNED_LONG
+                    );
+
+                    Settings settings = Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put("index.aggregation.streaming.min_segment_size", 1)
+                        .build();
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+                        Settings.EMPTY
+                    );
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("number")
+                        .size(5)
+                        .shardSize(5)
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"))
+                        .order(BucketOrder.aggregation("max_value", false));
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        numberFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    UnsignedLongTerms result = (UnsignedLongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+                    List<UnsignedLongTerms.Bucket> buckets = result.getBuckets();
+
+                    assertEquals(5, buckets.size());
+                    for (int i = 0; i < buckets.size() - 1; i++) {
+                        assertTrue(buckets.get(i).getKeyAsNumber().longValue() < buckets.get(i + 1).getKeyAsNumber().longValue());
+                    }
+                }
             }
         }
     }

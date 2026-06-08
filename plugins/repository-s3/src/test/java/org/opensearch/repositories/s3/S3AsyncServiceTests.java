@@ -18,15 +18,20 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.repositories.s3.utils.AwsCrtUtils;
 import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.net.URI;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assume.assumeThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -171,6 +176,8 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
     }
 
     public void testBuildHttpClientWithCRT() {
+        assumeThat("AWS CRT client is not available on the target platform", AwsCrtUtils.isAwsCrtAvailable(), equalTo(true));
+
         final int port = randomIntBetween(10, 1080);
         final String userName = randomAlphaOfLength(10);
         final String password = randomAlphaOfLength(10);
@@ -203,5 +210,37 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         );
         assertNotNull(asyncClient);
         assertTrue(asyncClient instanceof AwsCrtAsyncHttpClient);
+    }
+
+    public void testResolveEndpointOverrideAbsentWhenEndpointNotProvided() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings repoSettings = Settings.builder().put("region", "us-east-1").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("no-endpoint", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata);
+        final Optional<URI> override = s3AsyncService.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected no endpoint override when endpoint setting is absent", override.isEmpty());
+    }
+
+    public void testResolveEndpointOverrideAddsSchemeWhenMissing() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings repoSettings = Settings.builder().put("region", "us-east-1").put("endpoint", "s3.us-east-1.amazonaws.com").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("endpoint-no-scheme", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata);
+        final Optional<URI> override = s3AsyncService.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected endpoint override to be present when endpoint setting is provided", override.isPresent());
+        assertEquals("https://s3.us-east-1.amazonaws.com", override.get().toString());
+    }
+
+    public void testResolveEndpointOverridePreservesExplicitScheme() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings repoSettings = Settings.builder().put("region", "us-east-1").put("endpoint", "http://localhost:9000").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("endpoint-with-scheme", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata);
+        final Optional<URI> override = s3AsyncService.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected endpoint override to be present when endpoint has explicit scheme", override.isPresent());
+        assertEquals("http://localhost:9000", override.get().toString());
     }
 }

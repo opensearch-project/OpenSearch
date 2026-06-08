@@ -10,9 +10,7 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.WildcardQuery;
-import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
  * Utility class for converting wildcardQueryProto Protocol Buffers to OpenSearch objects.
@@ -58,11 +56,7 @@ class WildcardQueryBuilderProtoUtils {
         }
 
         if (wildcardQueryProto.hasRewrite()) {
-            MultiTermQueryRewrite rewriteEnum = wildcardQueryProto.getRewrite();
-            // Skip setting rewrite method if it's UNSPECIFIED
-            if (rewriteEnum != MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
-                rewrite = ProtobufEnumUtils.convertToString(rewriteEnum);
-            }
+            rewrite = wildcardQueryProto.getRewrite();
         }
 
         if (wildcardQueryProto.hasCaseInsensitive()) {

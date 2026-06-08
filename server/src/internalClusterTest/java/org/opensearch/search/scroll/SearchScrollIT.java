@@ -34,6 +34,7 @@ package org.opensearch.search.scroll;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -64,10 +65,14 @@ import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -90,7 +95,15 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for scrolling.
+ *
+ * <p>{@code @SuppressCodecs("*")} is needed because we cache StoredFieldsReader instances
+ * across scroll batches for sequential access. Different batches may run on different threads
+ * (but never concurrently). Lucene's AssertingStoredFieldsFormat enforces thread affinity
+ * that rejects this valid sequential cross-thread usage.
+ *
+ * @see org.opensearch.search.internal.ScrollContext#getCachedSequentialReader(Object)
  */
+@LuceneTestCase.SuppressCodecs("*")
 public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchScrollIT(Settings settings) {
         super(settings);
@@ -820,6 +833,74 @@ public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));
         }
         client().prepareSearchScroll(respFromProdIndex.getScrollId()).get();
+    }
+
+    /**
+     * Tests that scroll queries with StoredFieldsReader caching return correct results
+     * across multiple batches. Verifies document order, content integrity, no duplicates,
+     * and no missing documents when using the sequential reader optimization.
+     */
+    public void testScrollWithSequentialReaderCacheReturnsCorrectResults() throws Exception {
+        int numDocs = randomIntBetween(100, 300);
+        int scrollSize = randomIntBetween(10, 35);
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .get();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(jsonBuilder().startObject().field("field", i).field("text", "document number " + i).endObject())
+                .get();
+        }
+        client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
+        Set<Integer> retrievedIds = new HashSet<>();
+        List<Integer> retrievedOrder = new ArrayList<>();
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setQuery(matchAllQuery())
+            .setSize(scrollSize)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .addSort("field", SortOrder.ASC)
+            .get();
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+            int expectedValue = 0;
+            int batchCount = 0;
+            do {
+                batchCount++;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    int docId = Integer.parseInt(hit.getId());
+                    // Verify no duplicates
+                    assertTrue("Duplicate document id: " + docId, retrievedIds.add(docId));
+                    retrievedOrder.add(docId);
+                    // Verify sort order
+                    assertThat(
+                        "Document out of order at position " + retrievedOrder.size(),
+                        ((Number) hit.getSortValues()[0]).intValue(),
+                        equalTo(expectedValue)
+                    );
+                    // Verify stored field content matches document id
+                    Map<String, Object> source = hit.getSourceAsMap();
+                    assertThat("Field value mismatch for doc " + docId, source.get("field"), equalTo(docId));
+                    assertThat("Text field mismatch for doc " + docId, source.get("text"), equalTo("document number " + docId));
+                    expectedValue++;
+                }
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
+                assertNoFailures(searchResponse);
+            } while (searchResponse.getHits().getHits().length > 0);
+            // Verify all documents retrieved
+            assertThat("Not all documents retrieved", retrievedIds.size(), equalTo(numDocs));
+            assertThat("Multiple batches should have been used", batchCount, greaterThan(1));
+            // Verify complete sequence
+            for (int i = 0; i < numDocs; i++) {
+                assertTrue("Missing document: " + i, retrievedIds.contains(i));
+            }
+        } finally {
+            clearScroll(searchResponse.getScrollId());
+        }
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

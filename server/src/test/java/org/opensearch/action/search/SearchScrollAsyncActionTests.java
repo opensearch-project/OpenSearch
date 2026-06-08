@@ -481,7 +481,7 @@ public class SearchScrollAsyncActionTests extends OpenSearchTestCase {
     private static ParsedScrollId getParsedScrollId(SearchContextIdForNode... idsForNodes) {
         List<SearchContextIdForNode> searchContextIdForNodes = Arrays.asList(idsForNodes);
         Collections.shuffle(searchContextIdForNodes, random());
-        return new ParsedScrollId("", "test", searchContextIdForNodes.toArray(new SearchContextIdForNode[0]));
+        return new ParsedScrollId("", "test", searchContextIdForNodes.toArray(new SearchContextIdForNode[0]), new String[0]);
     }
 
     private ActionListener<SearchResponse> dummyListener() {

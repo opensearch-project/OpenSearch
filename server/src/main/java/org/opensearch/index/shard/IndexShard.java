@@ -37,6 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -45,6 +46,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -103,6 +105,7 @@ import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
@@ -128,12 +131,14 @@ import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -142,6 +147,12 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.IndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
@@ -175,7 +186,10 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 import org.opensearch.index.store.RemoteStoreFileDownloader;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
@@ -230,6 +244,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -237,8 +252,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionService;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -308,8 +327,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object postRecoveryMutex = new Object();
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
-    private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
-    final EngineFactory engineFactory;
+    private final AtomicReference<Indexer> currentEngineReference = new AtomicReference<>();
+    final IndexerFactory indexerFactory;
     final EngineConfigFactory engineConfigFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
@@ -394,6 +413,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
+    // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
+    private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
+
+    private final DataFormatRegistry dataFormatRegistry;
+
+    private final Map<String, FormatChecksumStrategy> checksumStrategies;
+
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -404,7 +430,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexCache indexCache,
         final MapperService mapperService,
         final SimilarityService similarityService,
-        final EngineFactory engineFactory,
+        final IndexerFactory indexerFactory,
         final EngineConfigFactory engineConfigFactory,
         final IndexEventListener indexEventListener,
         final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
@@ -433,18 +459,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Object refreshMutex,
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
-        @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher
+        @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
+        final Map<String, FormatChecksumStrategy> checksumStrategies,
+        @Nullable final DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
-        this.codecService = new CodecService(mapperService, indexSettings, logger);
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.indexerFactory = Objects.requireNonNull(indexerFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
+        this.codecService = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
         this.store = store;
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
@@ -452,7 +480,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.translogSyncProcessor = createTranslogSyncProcessor(
             logger,
             threadPool,
-            this::getEngine,
+            this::getIndexer,
             indexSettings.isAssignedOnRemoteNode(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
@@ -523,7 +551,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final DirectoryReader wrappedReader = indexReaderWrapper == null ? reader : indexReaderWrapper.apply(reader);
                 return DerivedSourceDirectoryReader.wrap(
                     wrappedReader,
-                    getEngine().config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
+                    getIndexer().config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
                 );
             };
         } else {
@@ -559,6 +587,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 startRefreshTask();
             }
         }
+        this.dataFormatRegistry = dataFormatRegistry;
+        this.checksumStrategies = checksumStrategies;
     }
 
     /**
@@ -580,6 +610,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Store store() {
         return this.store;
+    }
+
+    public Map<String, FormatChecksumStrategy> getChecksumStrategies() {
+        return checksumStrategies;
     }
 
     public boolean isMigratingToRemote() {
@@ -690,6 +724,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return cachingPolicy;
     }
 
+    public QueryCache getQueryCache() {
+        return indexCache != null ? indexCache.query() : null;
+    }
+
     /** Only used for testing **/
     protected RemoteStoreStatsTrackerFactory getRemoteStoreStatsTrackerFactory() {
         return remoteStoreStatsTrackerFactory;
@@ -786,7 +824,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        postActivatePrimaryMode();
+                        // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload
+                        // needed) but still ensure peer recovery retention leases exist for replicas.
+                        // Reset hasAllPeerRecoveryRetentionLeases to false first to prevent assertion
+                        // failures in renewPeerRecoveryRetentionLeases() during the async window.
+                        if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+                            postActivatePrimaryMode();
+                        } else {
+                            replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+                            ensurePeerRecoveryRetentionLeasesExist();
+                        }
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -859,14 +906,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // Force update the checkpoint post engine reset.
                                 updateReplicationCheckpoint();
                             }
-
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
                                 // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
                             }
-                            postActivatePrimaryMode();
+                            // DFA warm primaries: activate primary mode (needed for initiateTracking
+                            // during replica recovery) but skip postActivatePrimaryMode (no remote
+                            // translog upload). Reset hasAllPeerRecoveryRetentionLeases and ensure
+                            // retention leases exist for replicas.
+                            if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+                                postActivatePrimaryMode();
+                            } else {
+                                replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+                                ensurePeerRecoveryRetentionLeasesExist();
+                            }
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
                              * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -875,7 +930,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                              * primary/replica re-sync completes successfully and we are now being promoted, we have to restore
                              * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                              */
-                            final Engine engine = getEngine();
+                            final Indexer engine = getIndexer();
                             engine.translogManager()
                                 .restoreLocalHistoryFromTranslog(
                                     engine.getProcessedLocalCheckpoint(),
@@ -1011,7 +1066,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 // Ensure all in-flight remote store translog upload drains, before we perform the performSegRep.
-                releasablesOnHandoffFailures.add(getEngine().translogManager().drainSync());
+                releasablesOnHandoffFailures.add(getIndexer().translogManager().drainSync());
 
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
@@ -1122,7 +1177,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         assert versionType.validateVersionForWrites(version);
         return applyIndexOperation(
-            getEngine(),
+            getIndexer(),
             UNASSIGNED_SEQ_NO,
             getOperationPrimaryTerm(),
             version,
@@ -1147,7 +1202,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         SourceToParse sourceToParse
     ) throws IOException {
         return applyIndexOperation(
-            getEngine(),
+            getIndexer(),
             seqNo,
             opPrimaryTerm,
             version,
@@ -1163,7 +1218,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.IndexResult applyIndexOperation(
-        Engine engine,
+        Indexer indexer,
         long seqNo,
         long opPrimaryTerm,
         long version,
@@ -1194,7 +1249,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 UNASSIGNED_SEQ_NO,
                 0
             );
-            return getEngine().index(index);
+            return getIndexer().index(index);
         }
         assert opPrimaryTerm <= getOperationPrimaryTerm() : "op term [ "
             + opPrimaryTerm
@@ -1204,7 +1259,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            operation = engine.prepareIndex(
+            operation = indexer.prepareIndex(
                 docMapper(),
                 sourceToParse,
                 seqNo,
@@ -1230,7 +1285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo);
         }
 
-        return index(engine, operation);
+        return index(indexer, operation);
     }
 
     /**
@@ -1274,7 +1329,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
+    private Engine.IndexResult index(Indexer indexer, Engine.Index index) throws IOException {
         active.set(true);
         final Engine.IndexResult result;
         index = indexingOperationListeners.preIndex(shardId, index);
@@ -1291,7 +1346,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     index.origin()
                 );
             }
-            result = engine.index(index);
+            result = indexer.index(index);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
@@ -1330,10 +1385,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason) throws IOException {
-        return markSeqNoAsNoop(getEngine(), seqNo, opPrimaryTerm, reason, Engine.Operation.Origin.REPLICA);
+        return markSeqNoAsNoop(getIndexer(), seqNo, opPrimaryTerm, reason, Engine.Operation.Origin.REPLICA);
     }
 
-    private Engine.NoOpResult markSeqNoAsNoop(Engine engine, long seqNo, long opPrimaryTerm, String reason, Engine.Operation.Origin origin)
+    private Engine.NoOpResult markSeqNoAsNoop(Indexer engine, long seqNo, long opPrimaryTerm, String reason, Engine.Operation.Origin origin)
         throws IOException {
         assert opPrimaryTerm <= getOperationPrimaryTerm() : "op term [ "
             + opPrimaryTerm
@@ -1346,7 +1401,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return noOp(engine, noOp);
     }
 
-    private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) throws IOException {
+    private Engine.NoOpResult noOp(Indexer engine, Engine.NoOp noOp) throws IOException {
         active.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("noop (seq# [{}])", noOp.seqNo());
@@ -1371,7 +1426,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         assert versionType.validateVersionForWrites(version);
         return applyDeleteOperation(
-            getEngine(),
+            getIndexer(),
             UNASSIGNED_SEQ_NO,
             getOperationPrimaryTerm(),
             version,
@@ -1397,10 +1452,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 UNASSIGNED_SEQ_NO,
                 0
             );
-            return getEngine().delete(delete);
+            return getIndexer().delete(delete);
         }
         return applyDeleteOperation(
-            getEngine(),
+            getIndexer(),
             seqNo,
             opPrimaryTerm,
             version,
@@ -1413,7 +1468,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.DeleteResult applyDeleteOperation(
-        Engine engine,
+        Indexer engine,
         long seqNo,
         long opPrimaryTerm,
         long version,
@@ -1454,7 +1509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
-    private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
+    private Engine.DeleteResult delete(Indexer engine, Engine.Delete delete) throws IOException {
         active.set(true);
         final Engine.DeleteResult result;
         delete = indexingOperationListeners.preDelete(shardId, delete);
@@ -1477,7 +1532,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, this::acquireSearcher);
+        return applyOnEngine(getIndexer(), engine -> engine.get(get, this::acquireSearcher));
     }
 
     /**
@@ -1488,14 +1543,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with source [{}]", source);
         }
-        getEngine().refresh(source);
+        getIndexer().refresh(source);
     }
 
     /**
      * Returns how many bytes we are currently moving from heap to disk
      */
     public long getWritingBytes() {
-        Engine engine = getEngineOrNull();
+        Indexer engine = getIndexerOrNull();
         if (engine == null) {
             return 0;
         }
@@ -1521,7 +1576,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public DocsStats docStats() {
         readAllowed();
-        return getEngine().docStats();
+        return getIndexer().docStats();
     }
 
     /**
@@ -1529,7 +1584,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws AlreadyClosedException if shard is closed
      */
     public CommitStats commitStats() {
-        return getEngine().commitStats();
+        return getIndexer().commitStats();
     }
 
     /**
@@ -1537,11 +1592,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws AlreadyClosedException if shard is closed
      */
     public SeqNoStats seqNoStats() {
-        return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        return getIndexer().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
     public IndexingStats indexingStats() {
-        Engine engine = getEngineOrNull();
+        Indexer engine = getIndexerOrNull();
         final boolean throttled;
         final long throttleTimeInMillis;
         if (engine == null) {
@@ -1574,7 +1629,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public MergeStats mergeStats() {
-        final Engine engine = getEngineOrNull();
+        final Indexer engine = getIndexerOrNull();
         if (engine == null) {
             return new MergeStats();
         }
@@ -1584,7 +1639,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
-        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+        SegmentsStats segmentsStats = getIndexer().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         // Populate remote_store stats only if the index is remote store backed
         if (indexSettings().isAssignedOnRemoteNode()) {
@@ -1607,7 +1662,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public TranslogStats translogStats() {
-        TranslogStats translogStats = getEngine().translogManager().getTranslogStats();
+        TranslogStats translogStats = getIndexer().translogManager().getTranslogStats();
         // Populate remote_store stats only if the index is remote store backed
         if (indexSettings.isAssignedOnRemoteNode()) {
             translogStats.addRemoteTranslogStats(
@@ -1620,11 +1675,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public CompletionStats completionStats(String... fields) {
         readAllowed();
-        return getEngine().completionStats(fields);
+        return getIndexer().completionStats(fields);
     }
 
     public PollingIngestStats pollingIngestStats() {
-        return getEngine().pollingIngestStats();
+        return getIndexer().pollingIngestStats();
     }
 
     /**
@@ -1643,7 +1698,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          */
         verifyNotClosed();
         final long time = System.nanoTime();
-        getEngine().flush(force, waitIfOngoing);
+        getIndexer().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
     }
 
@@ -1656,7 +1711,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         verifyNotClosed();
-        final Engine engine = getEngine();
+        final Indexer engine = getIndexer();
         engine.translogManager().trimUnreferencedTranslogFiles();
     }
 
@@ -1664,7 +1719,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Rolls the tranlog generation and cleans unneeded.
      */
     public void rollTranslogGeneration() throws IOException {
-        final Engine engine = getEngine();
+        final Indexer engine = getIndexer();
         engine.translogManager().rollTranslogGeneration();
     }
 
@@ -1673,7 +1728,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (logger.isTraceEnabled()) {
             logger.trace("force merge with {}", forceMerge);
         }
-        Engine engine = getEngine();
+        Indexer engine = getIndexer();
         engine.forceMerge(
             forceMerge.flush(),
             forceMerge.maxNumSegments(),
@@ -1694,7 +1749,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
         // we just want to upgrade the segments, not actually forge merge to a single segment
-        final Engine engine = getEngine();
+        final Indexer engine = getIndexer();
         engine.forceMerge(
             true,  // we need to flush at the end to make sure the upgrade is durable
             Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
@@ -1713,7 +1768,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
         org.apache.lucene.util.Version luceneVersion = null;
-        for (Segment segment : getEngine().segments(false)) {
+        for (Segment segment : getIndexer().segments(false)) {
+            if (segment.getVersion() == null) continue; // DFAE segments have no Lucene version
             if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
@@ -1743,19 +1799,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
+    @Deprecated
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
-            return getEngine().acquireLastIndexCommit(flushFirst);
+            return applyOnEngine(getIndexer(), engine -> engine.acquireLastIndexCommit(flushFirst));
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
     }
 
+    @Deprecated
     public GatedCloseable<IndexCommit> acquireLastIndexCommitAndRefresh(boolean flushFirst) throws EngineException {
         GatedCloseable<IndexCommit> indexCommit = acquireLastIndexCommit(flushFirst);
-        getEngine().refresh("Snapshot for Remote Store based Shard");
+        getIndexer().refresh("Snapshot for Remote Store based Shard");
         return indexCommit;
     }
 
@@ -1785,7 +1843,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
         try {
-            if (getEngine() instanceof NRTReplicationEngine nrtEngine) {
+            if (getIndexer() instanceof EngineBackedIndexer indexer && indexer.getEngine() instanceof NRTReplicationEngine nrtEngine) {
                 return Optional.of(nrtEngine);
             } else {
                 return Optional.empty();
@@ -1798,11 +1856,73 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Returns true if the current indexer is a replica engine that supports segment replication.
+     * Delegates to {@link Indexer#isReplicaIndexer()} so callers don't need to know concrete
+     * engine types (Lucene NRT vs DFA NRT).
+     */
+    @ExperimentalApi
+    public boolean isReplicationTarget() {
+        try {
+            return getIndexer().isReplicaIndexer();
+        } catch (AlreadyClosedException e) {
+            return false;
+        }
+    }
+
+    @Deprecated
     public void finalizeReplication(SegmentInfos infos) throws IOException {
-        Optional<NRTReplicationEngine> engineOptional = getReplicationEngine();
-        if (engineOptional.isPresent()) {
-            engineOptional.get().updateSegments(infos);
-            for (SegmentCommitInfo segmentCommitInfo : infos) {
+        finalizeReplication(new SegmentInfosCatalogSnapshot(infos));
+    }
+
+    /**
+     * Finalizes replication with a {@link CatalogSnapshot}. Delegates engine-level segment state
+     * updates to the {@link Indexer} (polymorphic: Lucene vs data-format-aware), then performs
+     * shard-level cleanup of {@code pendingMergedSegmentCheckpoints} and of the precomputed
+     * checksum cache (so it stays bounded to the active snapshot on the replica, mirroring
+     * the primary's {@code evictUploadedChecksums} behavior). If the engine is closed
+     * ({@link AlreadyClosedException}), the method is a no-op and no cleanup is performed.
+     */
+    @ExperimentalApi
+    public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
+        try {
+            assert getIndexer().isReplicaIndexer() : "finalizeReplication called on non-replica indexer";
+            getIndexer().finalizeReplication(catalogSnapshot);
+        } catch (AlreadyClosedException e) {
+            logger.debug("finalizeReplication skipped, indexer already closed", e);
+            return;
+        }
+        cleanupPendingMergedSegments(catalogSnapshot);
+        evictStaleDownloadedChecksums(catalogSnapshot);
+    }
+
+    /**
+     * Best-effort eviction of checksum entries for files no longer referenced by the active
+     * catalog snapshot. Keeps the replica's cache bounded in size across replication cycles,
+     * mirroring the primary's post-upload eviction in {@code RemoteStoreRefreshListener}.
+     * Failures here are logged and swallowed — cache eviction is optimization, not correctness.
+     */
+    private void evictStaleDownloadedChecksums(CatalogSnapshot catalogSnapshot) {
+        try {
+            DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(store.directory());
+            if (dfasd == null) {
+                return; // non-DFA index — no precomputed cache to evict from
+            }
+            dfasd.evictStaleChecksums(catalogSnapshot.getFiles(true));
+        } catch (AlreadyClosedException | IOException e) {
+            logger.debug("skipped precomputed checksum eviction on replica", e);
+        }
+    }
+
+    /**
+     * Removes entries from {@code pendingMergedSegmentCheckpoints} whose segment names now appear
+     * in the finalized snapshot. Only applies to Lucene-backed snapshots; merged-segment pre-copy
+     * (see {@link org.opensearch.indices.replication.MergedSegmentReplicationTarget}) produces checkpoints keyed by Lucene segment
+     * names, which only match {@link SegmentInfosCatalogSnapshot}.
+     */
+    private void cleanupPendingMergedSegments(CatalogSnapshot catalogSnapshot) {
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot siSnapshot) {
+            for (SegmentCommitInfo segmentCommitInfo : siSnapshot.getSegmentInfos()) {
                 String segmentCommitInfoName = segmentCommitInfo.info.name;
                 logger.trace(
                     () -> new ParameterizedMessage(
@@ -1884,12 +2004,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Snapshots the most recent safe index commit from the currently running engine.
      * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
+     *
+     * @deprecated Use {@link #acquireSafeCatalogSnapshot()} which avoids the extra
+     *             {@code segments_N} disk read required to materialize an {@link IndexCommit}.
      */
+    @Deprecated
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
-            return getEngine().acquireSafeIndexCommit();
+            return getIndexer().acquireSafeIndexCommit();
+        } else {
+            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
+    }
+
+    /**
+     * Snapshots the most recent safe {@link CatalogSnapshot} from the currently running engine.
+     * Preferred over {@link #acquireSafeIndexCommit()} because it does not require re-reading
+     * {@code segments_N} to materialize an {@link IndexCommit}.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        final IndexShardState state = this.state; // one time volatile read
+        if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
+            return getIndexer().acquireSafeCatalogSnapshot();
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
@@ -1964,10 +2103,48 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             segmentInfos.getGeneration(),
             segmentInfos.getVersion(),
             metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
-            getEngine().config().getCodec().getName(),
+            getIndexer().config().getCodec().getName(),
             metadataMap
         );
         logger.trace("Recomputed ReplicationCheckpoint for shard {}", checkpoint);
+        return checkpoint;
+    }
+
+    /**
+     * Compute the latest {@link ReplicationCheckpoint} from a CatalogSnapshot.
+     * This function fetches a metadata snapshot from the store that comes with an IO cost.
+     * We will reuse the existing stored checkpoint if it is at the same SI version.
+     *
+     * @param catalogSnapshot {@link CatalogSnapshot} infos to use to compute.
+     * @return {@link ReplicationCheckpoint} Checkpoint computed from the infos.
+     * @throws IOException When there is an error computing segment metadata from the store.
+     */
+    ReplicationCheckpoint computeReplicationCheckpoint(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (catalogSnapshot == null) {
+            return ReplicationCheckpoint.empty(shardId);
+        }
+        // DFA snapshots use the Lucene segments_N generation (parsed from segmentsFileName)
+        // so the replica's SegmentInfos.readCommit(bytes, segmentsGen) and commitCatalogSnapshot
+        // write the correct segments_N file. Falls back to the DFA catalog generation when
+        // segmentsFileName is not yet set.
+        final long segmentsGen = catalogSnapshot.getLastCommitGeneration();
+        final ReplicationCheckpoint latestReplicationCheckpoint = getLatestReplicationCheckpoint();
+        if (latestReplicationCheckpoint.getSegmentInfosVersion() == catalogSnapshot.getVersion()
+            && latestReplicationCheckpoint.getSegmentsGen() == segmentsGen
+            && latestReplicationCheckpoint.getPrimaryTerm() == getOperationPrimaryTerm()) {
+            return latestReplicationCheckpoint;
+        }
+        final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(catalogSnapshot);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            this.shardId,
+            getOperationPrimaryTerm(),
+            segmentsGen,
+            catalogSnapshot.getVersion(),
+            metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+            getIndexer().config().getCodec().getName(),
+            metadataMap
+        );
+        logger.trace("Recomputed ReplicationCheckpoint from CatalogSnapshot for shard {}", checkpoint);
         return checkpoint;
     }
 
@@ -1977,30 +2154,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Compute {@link ReferencedSegmentsCheckpoint}.
-     * This function fetches all segments from the store that comes with an IO cost.
+     * Compute {@link ReferencedSegmentsCheckpoint} over the active catalog snapshot.
+     *
+     * <p>The set of referenced segment names is derived from {@code .si} files present in the
+     * shard directory. This method is only invoked for non-DFA (Lucene) indices — DFA indices
+     * skip the periodic publish-referenced-segments task entirely.</p>
      *
      * @return {@link ReferencedSegmentsCheckpoint}.
      * @throws IOException When there is an error computing referenced segments.
+     * @throws UnsupportedOperationException if the catalog snapshot is not Lucene-backed (DFA).
      */
     public ReferencedSegmentsCheckpoint computeReferencedSegmentsCheckpoint() throws IOException {
-        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-            String[] allFiles = store.directory().listAll();
+        try (GatedCloseable<CatalogSnapshot> closeable = acquireSafeCatalogSnapshot()) {
+            CatalogSnapshot snapshot = closeable.get();
+            if (snapshot instanceof SegmentInfosCatalogSnapshot == false) {
+                throw new UnsupportedOperationException("computeReferencedSegmentsCheckpoint is not supported for DataFormatAware indices");
+            }
             Set<String> segmentNames = Sets.newHashSet();
-            for (String file : allFiles) {
-                // filter segment files
-                if (false == file.endsWith(".si")) {
-                    continue;
+            for (String file : store.directory().listAll()) {
+                if (file.endsWith(".si")) {
+                    segmentNames.add(IndexFileNames.parseSegmentName(file));
                 }
-                String segmentName = IndexFileNames.parseSegmentName(file);
-                segmentNames.add(segmentName);
             }
             return new ReferencedSegmentsCheckpoint(
                 shardId,
                 getOperationPrimaryTerm(),
-                segmentInfosGatedCloseable.get().getVersion(),
+                snapshot.getVersion(),
                 -1,
-                getEngine().config().getCodec().getName(),
+                getIndexer().config().getCodec().getName(),
                 Collections.emptyMap(),
                 segmentNames
             );
@@ -2031,7 +2212,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 getOperationPrimaryTerm(),
                 segmentInfosGatedCloseable.get().getVersion(),
                 segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
-                getEngine().config().getCodec().getName(),
+                getIndexer().config().getCodec().getName(),
                 segmentMetadataMap,
                 segmentCommitInfo.info.name
             );
@@ -2066,11 +2247,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             return false;
         }
-        if (getReplicationEngine().isEmpty()) {
+        if (getReplicationEngine().isEmpty() && isReplicationTarget() == false) {
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Shard does not have the correct engine type to perform segment replication {}.",
-                    getEngine().getClass()
+                    getIndexer().getClass()
                 )
             );
             return false;
@@ -2127,25 +2308,65 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         assert Thread.holdsLock(mutex) == false : "snapshotting store metadata under mutex";
-        GatedCloseable<IndexCommit> wrappedIndexCommit = null;
+        GatedCloseable<CatalogSnapshot> wrappedCatalogSnapshot = null;
         store.incRef();
         try {
             synchronized (engineMutex) {
                 // if the engine is not running, we can access the store directly, but we need to make sure no one starts
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
-                final Engine engine = getEngineOrNull();
-                if (engine != null) {
-                    wrappedIndexCommit = engine.acquireLastIndexCommit(false);
+                final Indexer indexer = getIndexerOrNull();
+                if (indexer != null) {
+                    wrappedCatalogSnapshot = indexer.acquireLastCommittedSnapshot(false);
                 }
-                if (wrappedIndexCommit == null) {
-                    return store.getMetadata(null, true);
+                if (wrappedCatalogSnapshot == null) {
+                    Store.MetadataSnapshot ms = store.getMetadata(null, true);
+                    logSnapshotStoreMetadataSummary(ms, "null-engine");
+                    return ms;
                 }
             }
-            return store.getMetadata(wrappedIndexCommit.get());
+            Store.MetadataSnapshot ms = store.getMetadata(wrappedCatalogSnapshot.get());
+            logSnapshotStoreMetadataSummary(ms, "catalog");
+            return ms;
         } finally {
             store.decRef();
-            IOUtils.close(wrappedIndexCommit);
+            IOUtils.close(wrappedCatalogSnapshot);
         }
+    }
+
+    /**
+     * Logs a one-line summary of the {@link Store.MetadataSnapshot} produced by
+     * {@link #snapshotStoreMetadata()}, including total file count, DFA-format file count
+     * (names containing a {@code "/"} path separator indicate a non-Lucene format),
+     * and a small sample of filenames. Intended for validating that DFA files are included
+     * during phase-1 peer recovery.
+     */
+    private void logSnapshotStoreMetadataSummary(Store.MetadataSnapshot metadataSnapshot, String source) {
+        if (logger.isInfoEnabled() == false) {
+            return;
+        }
+        int total = metadataSnapshot.size();
+        java.util.List<String> dfaFiles = metadataSnapshot.asMap()
+            .keySet()
+            .stream()
+            .filter(name -> name.contains("/"))
+            .sorted()
+            .collect(java.util.stream.Collectors.toList());
+        String luceneSample = metadataSnapshot.asMap()
+            .keySet()
+            .stream()
+            .filter(name -> name.contains("/") == false)
+            .sorted()
+            .limit(5)
+            .collect(java.util.stream.Collectors.joining(", "));
+        logger.debug(
+            "[DFA-RECOVERY] snapshotStoreMetadata shardId={} source={} totalFiles={} dfaFiles={} dfaList=[{}] luceneSample=[{}]",
+            shardId,
+            source,
+            total,
+            dfaFiles.size(),
+            String.join(", ", dfaFiles),
+            luceneSample
+        );
     }
 
     /**
@@ -2156,7 +2377,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException - When there is an error loading metadata from the store.
      */
     public Map<String, StoreFileMetadata> getSegmentMetadataMap() throws IOException {
-        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
+        try (GatedCloseable<CatalogSnapshot> snapshot = getCatalogSnapshot()) {
             return store.getSegmentMetadataMap(snapshot.get());
         }
     }
@@ -2167,7 +2388,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void failShard(String reason, @Nullable Exception e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
-        getEngine().failEngine(reason, e);
+        getIndexer().failEngine(reason, e);
     }
 
     /**
@@ -2179,12 +2400,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     * TODO: Mark this as deprecated once new searcher interface is integrated into the IndexShard
      */
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+        final Indexer engine = getIndexer();
+        return applyOnEngine(engine, eng -> eng.acquireSearcherSupplier(this::wrapSearcher, scope));
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2195,13 +2417,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }
 
+    /**
+     * TODO: Mark this as deprecated once new searcher interface is integrated into the IndexShard
+     */
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Engine engine = getEngine();
-        return engine.acquireSearcher(source, scope, this::wrapSearcher);
+        final Indexer indexer = getIndexer();
+        return applyOnEngine(indexer, engine -> engine.acquireSearcher(source, scope, this::wrapSearcher));
     }
 
+    /**
+     * TODO: Mark this as deprecated once new searcher interface is integrated into the IndexShard
+     */
     private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
         assert OpenSearchDirectoryReader.unwrap(searcher.getDirectoryReader()) != null
             : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
@@ -2220,6 +2448,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * TODO: Mark this as deprecated once new searcher interface is integrated into the IndexShard
+     */
     public static Engine.Searcher wrapSearcher(
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
@@ -2328,7 +2559,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.CLOSED, reason);
                 }
             } finally {
-                final Engine engine = this.currentEngineReference.getAndSet(null);
+                final Indexer engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
@@ -2378,22 +2609,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
-                    Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
-                    // verifying that all files except EXCLUDE_FILES are uploaded to the remote
-                    localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
-                    if (uploadFiles.containsAll(localFiles)) {
-                        return true;
-                    }
-                    logger.debug(
-                        () -> new ParameterizedMessage(
-                            "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
-                            localFiles.size(),
-                            uploadFiles.size()
-                        )
-                    );
+                Set<String> localFiles;
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshot()) {
+                    localFiles = new HashSet<>(catalogSnapshotRef.get().getFiles(true));
                 }
+                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
+                if (uploadFiles.containsAll(localFiles)) {
+                    return true;
+                }
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
+                        localFiles.size(),
+                        uploadFiles.size()
+                    )
+                );
             }
         } catch (AlreadyClosedException e) {
             throw e;
@@ -2464,7 +2695,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we may not expose operations that were indexed with a refresh listener that was immediately
             // responded to in addRefreshListener. The refresh must happen under the same mutex used in addRefreshListener
             // and before moving this shard to POST_RECOVERY state (i.e., allow to read from this shard).
-            getEngine().refresh("post_recovery");
+            getIndexer().refresh("post_recovery");
+
+            // Wait for ingestion warmup if enabled (pull-based ingestion only)
+            handlePullBasedIngestionWarmup(getIndexer());
+
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);
@@ -2474,6 +2709,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
                 changeState(IndexShardState.POST_RECOVERY, reason);
+            }
+        }
+    }
+
+    /**
+     * Handles warmup for pull-based ingestion (PBI) engines.
+     * When warmup is enabled, this method blocks until the shard has caught up with the streaming source
+     * or until the configured timeout is reached.
+     *
+     * @param indexer the indexer to check for warmup
+     */
+    private void handlePullBasedIngestionWarmup(Indexer indexer) {
+        if (!(indexer instanceof EngineBackedIndexer)) {
+            return;
+        }
+        Engine engine = ((EngineBackedIndexer) indexer).getEngine();
+        if (engine instanceof IngestionEngine) {
+            IngestionEngine ingestionEngine = (IngestionEngine) engine;
+            try {
+                ingestionEngine.awaitWarmupComplete();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new OpenSearchException("Interrupted waiting for ingestion warmup", e);
             }
         }
     }
@@ -2541,7 +2799,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final TranslogRecoveryRunner translogRecoveryRunner = (snapshot) -> {
                     recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
                     final int recoveredOps = runTranslogRecovery(
-                        getEngine(),
+                        getIndexer(),
                         snapshot,
                         Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
                         recoveryState.getTranslog()::incrementRecoveredOperations
@@ -2550,9 +2808,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return recoveredOps;
                 };
                 innerOpenEngineAndTranslog(() -> globalCheckpoint);
-                getEngine().translogManager()
-                    .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), globalCheckpoint);
-                logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
+                getIndexer().translogManager()
+                    .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), globalCheckpoint);
+                logger.trace("shard locally recovered up to {}", getIndexer().getSeqNoStats(globalCheckpoint));
             } finally {
                 synchronized (engineMutex) {
                     IOUtils.close(currentEngineReference.getAndSet(null));
@@ -2628,7 +2886,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
-        getEngine().translogManager().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
+        getIndexer().translogManager().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
     }
 
     /**
@@ -2638,7 +2896,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @see #updateMaxUnsafeAutoIdTimestamp(long)
      */
     public long getMaxSeenAutoIdTimestamp() {
-        return getEngine().getMaxSeenAutoIdTimestamp();
+        return getIndexer().getMaxSeenAutoIdTimestamp();
     }
 
     /**
@@ -2651,14 +2909,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * a retry append-only (without timestamp) via recovery, then an original append-only (with timestamp) via replication.
      */
     public void updateMaxUnsafeAutoIdTimestamp(long maxSeenAutoIdTimestampFromPrimary) {
-        getEngine().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampFromPrimary);
+        getIndexer().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampFromPrimary);
     }
 
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {
-        return applyTranslogOperation(getEngine(), operation, origin);
+        return applyTranslogOperation(getIndexer(), operation, origin);
     }
 
-    private Engine.Result applyTranslogOperation(Engine engine, Translog.Operation operation, Engine.Operation.Origin origin)
+    private Engine.Result applyTranslogOperation(Indexer engine, Translog.Operation operation, Engine.Operation.Origin origin)
         throws IOException {
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
@@ -2717,7 +2975,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Replays translog operations from the provided translog {@code snapshot} to the current engine using the given {@code origin}.
      * The callback {@code onOperationRecovered} is notified after each translog operation is replayed successfully.
      */
-    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin, Runnable onOperationRecovered)
+    int runTranslogRecovery(Indexer engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin, Runnable onOperationRecovered)
         throws IOException {
         int opsRecovered = 0;
         Translog.Operation operation;
@@ -2777,7 +3035,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogRecoveryStats.totalOperations(snapshot.totalOperations());
             translogRecoveryStats.totalOperationsOnStart(snapshot.totalOperations());
             return runTranslogRecovery(
-                getEngine(),
+                getIndexer(),
                 snapshot,
                 Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
                 translogRecoveryStats::incrementRecoveredOperations
@@ -2801,8 +3059,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig.setDownloadRemoteTranslogOnInit(true);
         }
 
-        getEngine().translogManager()
-            .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        getIndexer().translogManager()
+            .recoverFromTranslog(translogRecoveryRunner, getIndexer().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
     }
 
     /**
@@ -2829,7 +3087,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
         assert routingEntry().isSearchOnly() == false || translogStats().estimatedNumberOfOperations() == 0
             : "Translog is expected to be empty but holds " + translogStats().estimatedNumberOfOperations() + "Operations.";
-        getEngine().translogManager().skipTranslogRecovery();
+        getIndexer().translogManager().skipTranslogRecovery();
     }
 
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier) throws IOException {
@@ -2893,7 +3151,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            // TODO: For composite engine, this would be replaced by a separate factory.
+            final Indexer newEngine = indexerFactory.createIndexer(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
 
@@ -2911,7 +3170,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.getIndexMetadata().useIngestionSource()) {
             return;
         }
-        assert assertSequenceNumbersInCommit();
+        assert indexSettings.isPluggableDataFormatEnabled() || assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
 
@@ -2940,7 +3199,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return SegmentInfos.readLatestCommit(store.directory()).getUserData();
     }
 
-    private void onNewEngine(Engine newEngine) {
+    private void onNewEngine(Indexer newEngine) {
         assert Thread.holdsLock(engineMutex);
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine.translogManager()::getTranslogLastWriteLocation);
 
@@ -2994,7 +3253,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
-        Engine engine = getEngine();
+        Indexer engine = getIndexer();
         engine.refresh("recovery_finalization");
         engine.config().setEnableGcDeletes(true);
     }
@@ -3100,12 +3359,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
     public long getIndexBufferRAMBytesUsed() {
-        Engine engine = getEngineOrNull();
+        Indexer engine = getIndexerOrNull();
         if (engine == null) {
             return 0;
         }
         try {
-            return engine.getIndexBufferRAMBytesUsed();
+            return engine.getHeapBytesUsed();
+        } catch (AlreadyClosedException ex) {
+            return 0;
+        }
+    }
+
+    /** Returns native (off-heap) bytes used by indexing buffers for this shard, or 0 if closed. */
+    public long getNativeBytesUsed() {
+        Indexer engine = getIndexerOrNull();
+        if (engine == null) {
+            return 0;
+        }
+        try {
+            return engine.getNativeBytesUsed();
         } catch (AlreadyClosedException ex) {
             return 0;
         }
@@ -3120,7 +3392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * indexing operation, so we can flush the index.
      */
     public void flushOnIdle(long inactiveTimeNS) {
-        Engine engineOrNull = getEngineOrNull();
+        Indexer engineOrNull = getIndexerOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
@@ -3249,7 +3521,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return {@code true} if the engine should be flushed
      */
     public boolean shouldPeriodicallyFlush() {
-        final Engine engine = getEngineOrNull();
+        final Indexer engine = getIndexerOrNull();
         if (engine != null) {
             try {
                 return engine.shouldPeriodicallyFlush();
@@ -3267,7 +3539,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return {@code true} if the current generation should be rolled to a new generation
      */
     boolean shouldRollTranslogGeneration() {
-        final Engine engine = getEngineOrNull();
+        final Indexer engine = getIndexerOrNull();
         if (engine != null) {
             try {
                 return engine.translogManager().shouldRollTranslogGeneration();
@@ -3279,7 +3551,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onSettingsChanged() {
-        Engine engineOrNull = getEngineOrNull();
+        Indexer engineOrNull = getIndexerOrNull();
         if (engineOrNull != null) {
             final boolean disableTranslogRetention = indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery;
             engineOrNull.onSettingsChanged(
@@ -3317,7 +3589,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
     public Closeable acquireHistoryRetentionLock() {
-        return getEngine().acquireHistoryRetentionLock();
+        return getIndexer().acquireHistoryRetentionLock();
     }
 
     /**
@@ -3327,7 +3599,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Translog.Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo, boolean accurateCount)
         throws IOException {
-        return getEngine().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true, accurateCount);
+        return getIndexer().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true, accurateCount);
     }
 
     /**
@@ -3338,7 +3610,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Translog.Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
         assert indexSettings.isSegRepEnabledOrRemoteNode() == false
             : "unsupported operation for segment replication enabled indices or remote store backed indices";
-        return getEngine().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
+        return getIndexer().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
     }
 
     /**
@@ -3346,7 +3618,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * This method should be called after acquiring the retention lock; See {@link #acquireHistoryRetentionLock()}
      */
     public boolean hasCompleteHistoryOperations(String reason, long startingSeqNo) {
-        return getEngine().hasCompleteOperationHistory(reason, startingSeqNo);
+        return getIndexer().hasCompleteOperationHistory(reason, startingSeqNo);
     }
 
     /**
@@ -3355,7 +3627,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the minimum retained sequence number
      */
     public long getMinRetainedSeqNo() {
-        return getEngine().getMinRetainedSeqNo();
+        return getIndexer().getMinRetainedSeqNo();
     }
 
     /**
@@ -3366,7 +3638,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return           number of history operations in the sequence number range
      */
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
-        return getEngine().countNumberOfHistoryOperations(source, fromSeqNo, toSeqNo);
+        return getIndexer().countNumberOfHistoryOperations(source, fromSeqNo, toSeqNo);
     }
 
     /**
@@ -3387,15 +3659,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean requiredFullRange,
         boolean accurateCount
     ) throws IOException {
-        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, accurateCount);
+        return getIndexer().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, accurateCount);
     }
 
     public List<Segment> segments(boolean verbose) {
-        return getEngine().segments(verbose);
+        return getIndexer().segments(verbose);
     }
 
     public String getHistoryUUID() {
-        return getEngine().getHistoryUUID();
+        return getIndexer().getHistoryUUID();
     }
 
     public IndexEventListener getIndexEventListener() {
@@ -3404,7 +3676,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void activateThrottling() {
         try {
-            getEngine().activateThrottling();
+            getIndexer().activateThrottling();
         } catch (AlreadyClosedException ex) {
             // ignore
         }
@@ -3412,7 +3684,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void deactivateThrottling() {
         try {
-            getEngine().deactivateThrottling();
+            getIndexer().deactivateThrottling();
         } catch (AlreadyClosedException ex) {
             // ignore
         }
@@ -3445,7 +3717,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void writeIndexingBuffer() {
         try {
-            Engine engine = getEngine();
+            Indexer engine = getIndexer();
             engine.writeIndexingBuffer();
         } catch (Exception e) {
             handleRefreshException(e);
@@ -3729,7 +4001,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the local checkpoint
      */
     public long getLocalCheckpoint() {
-        return getEngine().getPersistedLocalCheckpoint();
+        return getIndexer().getPersistedLocalCheckpoint();
     }
 
     /**
@@ -3737,7 +4009,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Also see {@link #getLocalCheckpoint()}.
      */
     public long getProcessedLocalCheckpoint() {
-        return getEngine().getProcessedLocalCheckpoint();
+        return getIndexer().getProcessedLocalCheckpoint();
     }
 
     /**
@@ -3753,7 +4025,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
      */
     public long getLastSyncedGlobalCheckpoint() {
-        return getEngine().getLastSyncedGlobalCheckpoint();
+        return getIndexer().getLastSyncedGlobalCheckpoint();
     }
 
     /**
@@ -3779,7 +4051,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         assert assertPrimaryMode();
         // only sync if there are no operations in flight, or when using async durability
-        final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        final SeqNoStats stats = getIndexer().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final Map<String, Long> globalCheckpoints = getInSyncGlobalCheckpoints();
@@ -3881,16 +4153,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // So, we can use a stricter check where local checkpoint of new primary is checked against that of old primary.
             allocationId = primaryContext.getRoutingTable().primaryShard().allocationId().getId();
         }
+
+        // DFA warm primaries: relax checkpoint assertion. During hot-to-warm relocation after cancel+bulk+retry,
+        // the old primary's checkpoint may be ahead of the warm target which recovered from an earlier remote
+        // store state. The warm primary is read-only and will serve all data from remote store regardless of
+        // local checkpoint value.
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(allocationId).getLocalCheckpoint()
-            || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
+            || indexSettings().getTranslogDurability() == Durability.ASYNC
+            || (getIndexer() instanceof DataFormatAwareReadOnlyEngine) : "local checkpoint ["
                 + getLocalCheckpoint()
                 + "] does not match checkpoint from primary context ["
                 + primaryContext
                 + "]";
+
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
-        postActivatePrimaryMode();
+        // DFA warm primaries: skip postActivatePrimaryMode (no remote translog upload needed).
+        // Reset hasAllPeerRecoveryRetentionLeases and ensure retention leases exist for replicas.
+        if (getIndexer() instanceof DataFormatAwareReadOnlyEngine == false) {
+            postActivatePrimaryMode();
+        } else {
+            replicationTracker.resetHasAllPeerRecoveryRetentionLeases();
+            ensurePeerRecoveryRetentionLeasesExist();
+        }
     }
 
     private void postActivatePrimaryMode() {
@@ -3899,7 +4185,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // This helps to get a consistent state in remote store where both remote segment store and remote
             // translog contains data.
             try {
-                getEngine().translogManager().syncTranslog();
+                getIndexer().translogManager().syncTranslog();
             } catch (IOException e) {
                 logger.error("Failed to sync translog to remote from new primary", e);
             }
@@ -4008,8 +4294,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
-    Engine getEngine() {
-        Engine engine = getEngineOrNull();
+    Indexer getIndexer() {
+        Indexer engine = getIndexerOrNull();
         if (engine == null) {
             throw new AlreadyClosedException("engine is closed");
         }
@@ -4020,8 +4306,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
      * closed.
      */
-    protected Engine getEngineOrNull() {
+    protected Indexer getIndexerOrNull() {
         return this.currentEngineReference.get();
+    }
+
+    // Only used for initializing segment replication CopyState
+    public long getLastRefreshedCheckpoint() {
+        Indexer engine = getIndexer();
+        return engine.lastRefreshedCheckpoint();
     }
 
     public void startRecovery(
@@ -4205,7 +4497,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private SafeCommitInfo getSafeCommitInfo() {
-        final Engine engine = getEngineOrNull();
+        final Indexer engine = getIndexerOrNull();
         return engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo();
     }
 
@@ -4288,6 +4580,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
+        // After each internal refresh, update the LuceneFieldTracker with merged FieldInfos from
+        // the reader. This lets DocumentParser enforce the per-shard Lucene field-count limit for
+        // dynamic_properties without requiring access to the IndexWriter directly.
+        if (mapperService != null && indexSettings.isPluggableDataFormatEnabled() == false) {
+            internalRefreshListener.add(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {}
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    if (!didRefresh) return;
+                    // Use the engine directly (not IndexShard.acquireSearcher) so that we do NOT
+                    // go through IndexShard.wrapSearcher.
+                    try (
+                        Engine.Searcher searcher = applyOnEngine(
+                            getIndexer(),
+                            engine -> engine.acquireSearcher("lucene_field_count", Engine.SearcherScope.INTERNAL)
+                        )
+                    ) {
+                        FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
+                        mapperService.getLuceneFieldTracker().setFieldInfos(fieldInfos);
+                    } catch (AlreadyClosedException | IllegalIndexShardStateException e) {
+                        // Shard is closing or not yet readable — skip this refresh cycle.
+                    }
+                }
+            });
+        }
+
         if (isRemoteStoreEnabled() || isMigratingToRemote()) {
             internalRefreshListener.add(
                 new RemoteStoreRefreshListener(
@@ -4343,7 +4663,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> docMapper(),
             mergedSegmentWarmerFactory.get(this),
             clusterApplierService,
-            mergedSegmentTransferTracker
+            mergedSegmentTransferTracker,
+            dataFormatRegistry,
+            mapperService,
+            checksumStrategies
         );
     }
 
@@ -4694,7 +5017,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         if (currentGlobalCheckpoint < maxSeqNo && indexSettings.isSegRepEnabledOrRemoteNode() == false) {
                             resetEngineToGlobalCheckpoint();
                         } else {
-                            getEngine().translogManager().rollTranslogGeneration();
+                            getIndexer().translogManager().rollTranslogGeneration();
                         }
                     }, allowCombineOperationWithPrimaryTermUpdate ? operationListener : null);
 
@@ -4742,7 +5065,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(
         Logger logger,
         ThreadPool threadPool,
-        Supplier<Engine> engineSupplier,
+        Supplier<Indexer> engineSupplier,
         boolean bufferAsyncIoProcessor,
         Supplier<TimeValue> bufferIntervalSupplier
     ) {
@@ -4798,14 +5121,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().translogManager().syncTranslog();
+        getIndexer().translogManager().syncTranslog();
     }
 
     /**
      * Checks if the underlying storage sync is required.
      */
     public boolean isSyncNeeded() {
-        return getEngine().translogManager().isTranslogSyncNeeded();
+        return getIndexer().translogManager().isTranslogSyncNeeded();
     }
 
     /**
@@ -4920,8 +5243,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    EngineFactory getEngineFactory() {
-        return engineFactory;
+    IndexerFactory getIndexerFactory() {
+        return indexerFactory;
     }
 
     EngineConfigFactory getEngineConfigFactory() {
@@ -4941,7 +5264,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public boolean scheduledRefresh() {
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
-        if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
+        if (isReadAllowed() && (listenerNeedsRefresh || getIndexer().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
                 && isSearchIdleSupported()
                 && isSearchIdle()
@@ -4950,7 +5273,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.
-                final Engine engine = getEngine();
+                final Indexer engine = getIndexer();
                 engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                 setRefreshPending(engine);
                 return false;
@@ -4958,10 +5281,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (logger.isTraceEnabled()) {
                     logger.trace("refresh with source [schedule]");
                 }
-                return getEngine().maybeRefresh("schedule");
+                return getIndexer().maybeRefresh("schedule");
             }
         }
-        final Engine engine = getEngine();
+        final Indexer engine = getIndexer();
         engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
         return false;
     }
@@ -5007,8 +5330,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return pendingRefreshLocation.get() != null;
     }
 
-    private void setRefreshPending(Engine engine) {
-        final Translog.Location lastWriteLocation = engine.translogManager().getTranslogLastWriteLocation();
+    private void setRefreshPending(Indexer indexer) {
+        final Translog.Location lastWriteLocation = indexer.translogManager().getTranslogLastWriteLocation();
         pendingRefreshLocation.updateAndGet(curr -> {
             if (curr == null || curr.compareTo(lastWriteLocation) <= 0) {
                 return lastWriteLocation;
@@ -5024,7 +5347,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         public void beforeRefresh() {
             try {
-                lastWriteLocation = getEngine().translogManager().getTranslogLastWriteLocation();
+                lastWriteLocation = getIndexer().translogManager().getTranslogLastWriteLocation();
             } catch (AlreadyClosedException exc) {
                 // shard is closed - no location is fine
                 lastWriteLocation = null;
@@ -5158,11 +5481,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void updateReplicationCheckpoint() {
-        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = getLatestSegmentInfosAndCheckpoint();
-        try (final GatedCloseable<SegmentInfos> ignored = tuple.v1()) {
-            replicationTracker.setLatestReplicationCheckpoint(tuple.v2());
+        try (GatedCloseable<CatalogSnapshot> snapshot = getCatalogSnapshot()) {
+            replicationTracker.setLatestReplicationCheckpoint(computeReplicationCheckpoint(snapshot.get()));
+        } catch (AlreadyClosedException e) {
+            // Refresh listener may fire while the engine is concurrently closing; ignore.
+            logger.trace("Skipped replication checkpoint update — engine already closed", e);
         } catch (IOException e) {
-            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
+            throw new OpenSearchException("Error computing replication checkpoint from CatalogSnapshot", e);
         }
     }
 
@@ -5198,13 +5523,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // flush to make sure the latest commit, which will be opened by the read-only engine, includes all operations.
         flush(new FlushRequest().waitIfOngoing(true));
 
-        SetOnce<Engine> newEngineReference = new SetOnce<>();
+        SetOnce<Indexer> newEngineReference = new SetOnce<>();
         final long globalCheckpoint = getLastKnownGlobalCheckpoint();
         assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         synchronized (engineMutex) {
             verifyNotClosed();
-            // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
-            // acquireXXXCommit and close works.
+            // we must create both new read-only engine and new read-write engine under
+            // engineMutex to ensure snapshotStoreMetadata, acquireXXXCommit and close works.
+            // Delegates intentionally do NOT synchronize on engineMutex: doing so would
+            // deadlock because close holds engineMutex and waits for writeLock, while
+            // recoverFromTranslog holds readLock and a refresh listener calls a delegate.
+            // SetOnce is backed by AtomicReference so get() provides happens-before visibility.
             final Engine readOnlyEngine = new ReadOnlyEngine(
                 newEngineConfig(replicationTracker),
                 seqNoStats,
@@ -5215,40 +5544,57 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ) {
                 @Override
                 public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) {
-                    synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
-                            throw new AlreadyClosedException("engine was closed");
-                        }
-                        // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
-                        return newEngineReference.get().acquireLastIndexCommit(false);
+                    if (newEngineReference.get() == null) {
+                        throw new AlreadyClosedException("engine was closed");
                     }
+                    // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
+                    return applyOnEngine(newEngineReference.get(), engine -> engine.acquireLastIndexCommit(false));
                 }
 
                 @Override
                 public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
+                    if (newEngineReference.get() == null) {
+                        throw new AlreadyClosedException("engine was closed");
+                    }
+                    return applyOnEngine(newEngineReference.get(), Engine::acquireSafeIndexCommit);
+                }
+
+                @Override
+                public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() {
                     synchronized (engineMutex) {
                         if (newEngineReference.get() == null) {
                             throw new AlreadyClosedException("engine was closed");
                         }
-                        return newEngineReference.get().acquireSafeIndexCommit();
+                        return applyOnEngine(newEngineReference.get(), Engine::acquireSafeCatalogSnapshot);
                     }
                 }
 
                 @Override
-                public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+                public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws IOException {
+                    // flushFirst is a no-op on read-only engines — no writer to flush.
                     synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
+                        final Indexer ref = newEngineReference.get();
+                        if (ref == null) {
                             throw new AlreadyClosedException("engine was closed");
                         }
-                        return newEngineReference.get().getSegmentInfosSnapshot();
+                        return ref.acquireLastCommittedSnapshot(false);
                     }
+                }
+
+                @Override
+                public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
+                    final Indexer ref = newEngineReference.get();
+                    if (ref == null) {
+                        throw new AlreadyClosedException("engine was closed");
+                    }
+                    return ref.acquireSnapshot();
                 }
 
                 @Override
                 public void close() throws IOException {
                     assert Thread.holdsLock(engineMutex);
 
-                    Engine newEngine = newEngineReference.get();
+                    Indexer newEngine = newEngineReference.get();
                     if (newEngine == currentEngineReference.get()) {
                         // we successfully installed the new engine so do not close it.
                         newEngine = null;
@@ -5256,24 +5602,97 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     IOUtils.close(super::close, newEngine);
                 }
             };
-            IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
+            IOUtils.close(currentEngineReference.getAndSet(new EngineBackedIndexer(readOnlyEngine)));
             if (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
             if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
+            newEngineReference.set(indexerFactory.createIndexer(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
-        final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
-            newEngineReference.get(),
-            snapshot,
-            Engine.Operation.Origin.LOCAL_RESET,
-            () -> {
-                // TODO: add a dedicate recovery stats for the reset translog
+        final TranslogRecoveryRunner translogRunner = (snapshot) -> {
+            long startTime = System.currentTimeMillis();
+            Indexer engine = newEngineReference.get();
+            assert null != engine;
+            int translogRecoveryOperations;
+            int totalOperations = snapshot.totalOperations();
+            int batchSize = recoverySettings.getTranslogConcurrentRecoveryBatchSize();
+            long localCheckpoint = engine.getProcessedLocalCheckpoint();
+            final int batches = (totalOperations + batchSize - 1) / batchSize;
+            // When the total totalOperations <= batchSize, there is no need to use concurrent execution.
+            boolean isConcurrentRecovery = recoverySettings.isTranslogConcurrentRecoveryEnable()
+                && indexSettings.isSegRepEnabledOrRemoteNode()
+                && totalOperations > batchSize
+                && translogConcurrentRecoverySemaphore.tryAcquire(batches);
+            if (isConcurrentRecovery) {
+                List<Future<Integer>> translogRecoveryFutureList = new ArrayList<>();
+                try {
+                    // Since the translog does not change at this time, it is safe to re-partition the translog snapshot here.
+                    CompletionService<Integer> completionService = new ExecutorCompletionService<>(
+                        threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)
+                    );
+                    for (int i = 0; i < batches; i++) {
+                        long start = localCheckpoint + 1 + (long) i * batchSize;
+                        long end = (i == batches - 1) ? Long.MAX_VALUE : start + batchSize - 1;
+                        translogRecoveryFutureList.add(completionService.submit(() -> {
+                            try (Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false)) {
+                                return runTranslogRecovery(engine, translogSnapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
+                                    // TODO: add a dedicate recovery stats for the reset translog
+                                });
+                            }
+                        }));
+                    }
+                    Exception exception = null;
+                    int totalRecovered = 0;
+                    for (int i = 0; i < batches; i++) {
+                        try {
+                            if (exception != null) {
+                                for (Future<Integer> translogRecoveryFuture : translogRecoveryFutureList) {
+                                    FutureUtils.cancel(translogRecoveryFuture);
+                                    if (false == translogRecoveryFuture.isCancelled()) {
+                                        translogRecoveryFuture.get();
+                                    }
+                                }
+                                break;
+                            }
+                            totalRecovered += completionService.take().get();
+                        } catch (Exception e) {
+                            if (exception == null) {
+                                exception = e;
+                            } else {
+                                exception.addSuppressed(e);
+                            }
+                        }
+                    }
+                    if (exception != null) {
+                        throw new IOException("Failed to concurrent recovery translog", exception);
+                    }
+                    translogRecoveryOperations = totalRecovered;
+                } finally {
+                    translogConcurrentRecoverySemaphore.release(batches);
+                }
+            } else {
+                translogRecoveryOperations = runTranslogRecovery(
+                    newEngineReference.get(),
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_RESET,
+                    () -> {
+                        // TODO: add a dedicate recovery stats for the reset translog
+                    }
+                );
             }
-        );
+
+            logger.info(
+                "translog recovery complete, isConcurrentRecovery {}, cost {}ms, totalRecovered {}",
+                isConcurrentRecovery,
+                System.currentTimeMillis() - startTime,
+                translogRecoveryOperations
+            );
+
+            return translogRecoveryOperations;
+        };
 
         // When the new engine is created, translogs are synced from remote store onto local. Since remote store is the source
         // of truth for translog, we play all translogs that exists locally. Otherwise, the recoverUpto happens upto global checkpoint.
@@ -5407,8 +5826,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
-            .getSegmentsUploadedToRemoteStore()
+        Map<String, UploadedSegmentMetadata> uploadedSegments = remoteDirectory.getSegmentsUploadedToRemoteStore()
             .entrySet()
             .stream()
             .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
@@ -5435,11 +5853,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
 
             if (remoteSegmentMetadata != null) {
+                // Bytes are always Lucene SegmentInfos. DFA snapshots travel in userData.
                 final SegmentInfos infosSnapshot = store.buildSegmentInfos(
                     remoteSegmentMetadata.getSegmentInfosBytes(),
                     remoteSegmentMetadata.getGeneration()
                 );
-                long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().getOrDefault(LOCAL_CHECKPOINT_KEY, "-1"));
                 // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
                 // Extra segments will be wiped on engine open.
                 for (String file : List.of(store.directory().listAll())) {
@@ -5484,8 +5903,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteDirectory.init();
             remoteStore.incRef();
         }
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .getSegmentsUploadedToRemoteStore();
+        Map<String, UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory.getSegmentsUploadedToRemoteStore();
         store.incRef();
         try {
             final Directory storeDirectory;
@@ -5558,7 +5976,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Directory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
+        Map<String, UploadedSegmentMetadata> uploadedSegments,
         boolean overrideLocal,
         final Runnable onFileSync
     ) throws IOException {
@@ -5590,6 +6008,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (toDownloadSegments.isEmpty() == false) {
                 try {
                     fileDownloader.download(sourceRemoteDirectory, storeDirectory, targetRemoteDirectory, toDownloadSegments, onFileSync);
+                    // Seed the precomputed checksum cache with downloaded files' checksums.
+                    DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+                    if (dfasd != null) {
+                        Map<String, String> fileToChecksum = new HashMap<>();
+                        for (String file : toDownloadSegments) {
+                            UploadedSegmentMetadata meta = uploadedSegments.get(file);
+                            if (meta != null) {
+                                fileToChecksum.put(file, meta.getChecksum());
+                            }
+                        }
+                        dfasd.registerDownloadedChecksums(fileToChecksum);
+                    }
                 } catch (Exception e) {
                     throw new IOException("Error occurred when downloading segments from remote store", e);
                 }
@@ -5605,7 +6035,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Visible for testing
     boolean localDirectoryContains(Directory localDirectory, String file, long checksum) throws IOException {
         try (IndexInput indexInput = localDirectory.openInput(file, IOContext.READONCE)) {
-            if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
+            long localChecksum;
+            if (indexSettings.isPluggableDataFormatEnabled()) {
+                DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(localDirectory);
+                if (dfasd != null) {
+                    try {
+                        localChecksum = Long.parseLong(dfasd.calculateUploadChecksum(file));
+                    } catch (NumberFormatException e) {
+                        logger.warn("Invalid checksum format for file [{}]: {}", file, e.getMessage());
+                        return false;
+                    }
+                } else {
+                    localChecksum = CodecUtil.retrieveChecksum(indexInput);
+                }
+            } else {
+                localChecksum = CodecUtil.retrieveChecksum(indexInput);
+            }
+            if (checksum == localChecksum) {
                 return true;
             } else {
                 logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", file);
@@ -5637,7 +6083,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * executing that replication request on a replica.
      */
     public long getMaxSeqNoOfUpdatesOrDeletes() {
-        return getEngine().getMaxSeqNoOfUpdatesOrDeletes();
+        return getIndexer().getMaxSeqNoOfUpdatesOrDeletes();
     }
 
     /**
@@ -5657,7 +6103,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, long, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
-        getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+        getIndexer().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
     }
 
     /**
@@ -5666,7 +6112,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IllegalStateException if the sanity checks failed
      */
     public void verifyShardBeforeIndexClosing() throws IllegalStateException {
-        getEngine().verifyEngineBeforeIndexClosing();
+        getIndexer().verifyEngineBeforeIndexClosing();
     }
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
@@ -5679,8 +6125,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @throws EngineException - When segment infos cannot be safely retrieved
      */
+    @Deprecated
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-        return getEngine().getSegmentInfosSnapshot();
+        if (getIndexer() instanceof EngineBackedIndexer indexer) {
+            return indexer.getEngine().getSegmentInfosSnapshot();
+        }
+        throw new IllegalStateException("Cannot request SegmentInfos directly on IndexShard");
+    }
+
+    /**
+     * Returns a reference-counted {@link CatalogSnapshot} for the current shard state.
+     * If a {@link DataFormatAwareEngine} is present,
+     * acquires from there. Otherwise wraps the SegmentInfos into a {@link SegmentInfosCatalogSnapshot}.
+     *
+     * @return a {@link GatedCloseable} wrapping the catalog snapshot
+     */
+    public GatedCloseable<CatalogSnapshot> getCatalogSnapshot() {
+        return getIndexer().acquireSnapshot();
+    }
+
+    /**
+     * Returns a {@link CheckedFunction} that serializes the given {@link CatalogSnapshot} into
+     * the Lucene {@code SegmentInfos} bytes to be uploaded as remote-store metadata. Delegates
+     * to {@code getIndexer().serializeSnapshotToRemoteMetadata(...)}.
+     *
+     * <p>Passed into {@link org.opensearch.index.store.RemoteSegmentStoreDirectory#uploadMetadata}
+     * so that the final bytes are produced at the point where the upload lock is held, using
+     * the reader registered for the snapshot — eliminating the race between catalog acquisition
+     * and an on-demand {@code IndexWriter} re-capture.
+     */
+    @ExperimentalApi
+    public org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> catalogSnapshotToRemoteMetadataSerializer() {
+        assert this.shardRouting.primary() : "This should only be invoked for primary shards";
+        return cs -> getIndexer().serializeSnapshotToRemoteMetadata(cs);
     }
 
     private TimeValue getRemoteTranslogUploadBufferInterval(Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier) {
@@ -5732,7 +6209,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateShardIngestionState(IngestionSettings ingestionSettings) {
         synchronized (engineMutex) {
-            if (!(getEngineOrNull() instanceof IngestionEngine ingestionEngine)) {
+            if (!(getIndexerOrNull() instanceof EngineBackedIndexer indexer
+                && indexer.getEngine() instanceof IngestionEngine ingestionEngine)) {
                 return;
             }
             ingestionEngine.updateIngestionSettings(ingestionSettings);
@@ -5744,12 +6222,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     @Override
     public ShardIngestionState getIngestionState() {
-        Engine engine = getEngineOrNull();
-        if (indexSettings.getIndexMetadata().useIngestionSource() == false || !(engine instanceof IngestionEngine ingestionEngine)) {
+        Indexer indexer = getIndexerOrNull();
+        if (indexSettings.getIndexMetadata().useIngestionSource() == false
+            || !(indexer instanceof EngineBackedIndexer engineBackedIndexer
+                && engineBackedIndexer.getEngine() instanceof IngestionEngine ingestionEngine)) {
             throw new OpenSearchException("Unable to retrieve ingestion state as the shard does not have ingestion enabled.");
         }
 
         return ingestionEngine.getIngestionState();
+    }
+
+    public IndexReaderProvider getReaderProvider() {
+        return getIndexer();
     }
 
     /**
@@ -5872,4 +6356,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public static <T> T applyOnEngine(Indexer indexer, Function<Engine, T> applier) {
+        if (indexer instanceof EngineBackedIndexer engine) {
+            return applier.apply(engine.getEngine());
+        } else {
+            throw new IllegalStateException("Cannot apply function on indexer " + indexer.getClass() + " directly on IndexShard");
+        }
+    }
+
+    // Visible for testing
+    Object getEngineMutex() {
+        return engineMutex;
+    }
+
+    // Below methods exists for bwc only. We should never make indexshard aware of DataFormatAwareEngine directy.
+    // All interactions should happen via indexer only.
+    @Deprecated
+    public DataFormatAwareEngine getCompositeEngine() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Deprecated
+    public void setCompositeEngine(DataFormatAwareEngine unused) {
+        throw new UnsupportedOperationException();
+    }
 }

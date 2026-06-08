@@ -259,5 +259,22 @@ public final class HttpTransportSettings {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> SETTING_HTTP_REQUEST_ID_MAX_LENGTH = intSetting(
+        "http.request_id.max_length",
+        128,
+        16,
+        1024,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    // Enable HTTP/3 protocol if supported by the operating system and architecture
+    // The HTTP/3 transport is still experimental and should be used with caution.
+    public static final Setting<Boolean> SETTING_HTTP_HTTP3_ENABLED = Setting.boolSetting(
+        "http.protocol.http3.enabled",
+        false,
+        Property.NodeScope
+    );
+
     private HttpTransportSettings() {}
 }

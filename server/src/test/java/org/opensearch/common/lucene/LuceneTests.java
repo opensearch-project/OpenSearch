@@ -60,6 +60,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
@@ -156,12 +157,28 @@ public class LuceneTests extends OpenSearchTestCase {
         dir.close();
     }
 
-    public void testPruneUnreferencedFiles() throws IOException {
+    public void testPruneUnreferencedFilesWithIndexSort() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setMaxBufferedDocs(2);
+        iwc.setParentField(Lucene.PARENT_FIELD);
+        iwc.setIndexSort(new Sort(new SortedSetSortField("foo1", false)));
+        testPruneUnreferencedFiles(iwc, dir, true);
+    }
+
+    public void testPruneUnreferencedFilesWithoutIndexSort() throws IOException {
+        MockDirectoryWrapper dir = newMockDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(2);
+        testPruneUnreferencedFiles(iwc, dir, false);
+    }
+
+    private void testPruneUnreferencedFiles(IndexWriterConfig iwc, Directory dir, boolean isParentFieldEnabled) throws IOException {
+
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
         doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
@@ -191,7 +208,7 @@ public class LuceneTests extends OpenSearchTestCase {
         assertEquals(4, open.maxDoc());
         open.close();
         writer.close();
-        SegmentInfos si = Lucene.pruneUnreferencedFiles(segmentCommitInfos.getSegmentsFileName(), dir);
+        SegmentInfos si = Lucene.pruneUnreferencedFiles(segmentCommitInfos.getSegmentsFileName(), dir, isParentFieldEnabled);
         assertEquals(si.getSegmentsFileName(), segmentCommitInfos.getSegmentsFileName());
         open = DirectoryReader.open(dir);
         assertEquals(3, open.numDocs());
@@ -210,6 +227,39 @@ public class LuceneTests extends OpenSearchTestCase {
         open.close();
         dir.close();
 
+    }
+
+    public void testPruneUnreferencedFilesThrowsParentException() throws Exception {
+        MockDirectoryWrapper dir = newMockDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(2);
+        iwc.setParentField(Lucene.PARENT_FIELD);
+        iwc.setIndexSort(new Sort(new SortedSetSortField("foo1", false)));
+
+        SegmentInfos commitInfos;
+
+        try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+            Document doc1 = new Document();
+            doc1.add(new TextField("id", "1", TextField.Store.YES));
+            writer.addDocument(doc1);
+            writer.commit();
+
+            Document doc2 = new Document();
+            doc2.add(new TextField("id", "2", TextField.Store.YES));
+            writer.addDocument(doc2);
+            writer.commit();
+
+            commitInfos = SegmentInfos.readLatestCommit(dir);
+
+            writer.close();
+        }
+
+        // assert pruneUnreferencedFiles throws the nested parent exception
+        assertThrows(IllegalArgumentException.class, () -> Lucene.pruneUnreferencedFiles(commitInfos.getSegmentsFileName(), dir, false));
+
+        dir.close();
     }
 
     public void testFiles() throws IOException {

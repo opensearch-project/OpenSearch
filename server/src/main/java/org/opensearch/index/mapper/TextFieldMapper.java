@@ -81,6 +81,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.opensearch.index.mapper.Mapper.TypeParser.ParserContext;
@@ -472,7 +473,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         public TextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
-            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)) {
+            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                || context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)) {
                 fieldType.setStored(true);
             }
             return new TextFieldMapper(
@@ -710,6 +712,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -737,6 +744,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -826,6 +838,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         void setIndexPhrases() {
             this.indexPhrases = true;
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
 
         public PrefixFieldType getPrefixFieldType() {
@@ -1053,6 +1070,15 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
             }
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final String value = getFieldValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
     }
 
     @Override

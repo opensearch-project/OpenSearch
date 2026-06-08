@@ -1,0 +1,1 @@
+source=otel_logs | eval sev_band = case(severityNumber <= 5, 'low', severityNumber <= 13, 'mid' else 'high') | stats count() as c by sev_band | sort - c

@@ -325,6 +325,28 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         return activeWorkloadGroups;
     }
 
+    /**
+     * Returns the workload group with the given ID, or null if not found.
+     * @param workloadGroupId the workload group identifier
+     * @return the WorkloadGroup or null
+     */
+    public WorkloadGroup getWorkloadGroupById(String workloadGroupId) {
+        return clusterService.state().metadata().workloadGroups().get(workloadGroupId);
+    }
+
+    /**
+     * Returns the workload group attached to the calling thread context, or null if the current
+     * request does not map to a workload group (no header set, or the referenced group does not
+     * exist).
+     */
+    public WorkloadGroup getCurrentWorkloadGroup() {
+        String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
+        if (workloadGroupId == null) {
+            return null;
+        }
+        return getWorkloadGroupById(workloadGroupId);
+    }
+
     public Set<WorkloadGroup> getDeletedWorkloadGroups() {
         return deletedWorkloadGroups;
     }

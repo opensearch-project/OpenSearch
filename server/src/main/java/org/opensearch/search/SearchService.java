@@ -158,6 +158,7 @@ import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -341,6 +342,39 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // Partition strategy constants
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT = "segment";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
+
+    // Partition strategy setting
+    public static final Setting<String> CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
+        "search.concurrent_segment_search.partition_strategy",
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [segment, balanced, force]");
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // Minimum segment size for balanced partitioning (only applies when partition_strategy = balanced)
+    public static final Setting<Integer> CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "search.concurrent_segment_search.partition_min_segment_size",
+        500_000,
+        1000,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
@@ -379,6 +413,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY = Setting.boolSetting(
+        "search.query.max_query_string_length_monitor_only",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Boolean> CLUSTER_ALLOW_DERIVED_FIELD_SETTING = Setting.boolSetting(
         "search.derived_field.enabled",
         true,
@@ -398,6 +439,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Boolean> KEYWORD_INDEX_OR_DOC_VALUES_ENABLED = Setting.boolSetting(
         "search.keyword_index_or_doc_values_enabled",
         false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Long> TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY = Setting.longSetting(
+        "search.aggregations.terms.max_precompute_cardinality",
+        30_000L,
+        0L,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -481,7 +530,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
+        WorkloadGroupService workloadGroupService
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -495,7 +545,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
             settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
+            workloadGroupService
         );
         this.indexSearcherExecutor = indexSearcherExecutor;
         this.taskResourceTrackingService = taskResourceTrackingService;
@@ -537,6 +588,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         QueryStringQueryParser.setMaxQueryStringLength(SEARCH_MAX_QUERY_STRING_LENGTH.get(settings));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_MAX_QUERY_STRING_LENGTH, QueryStringQueryParser::setMaxQueryStringLength);
+        QueryStringQueryParser.setMaxQueryStringLengthMonitorMode(SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY,
+                QueryStringQueryParser::setMaxQueryStringLengthMonitorMode
+            );
 
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
@@ -1519,6 +1576,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // nothing to parse...
         if (source == null) {
             context.evaluateRequestShouldUseConcurrentSearch();
+            context.evaluateRequestShouldUseIntraSegmentSearch();
             return;
         }
 
@@ -1710,6 +1768,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.collapse(collapseContext);
         }
         context.evaluateRequestShouldUseConcurrentSearch();
+        context.evaluateRequestShouldUseIntraSegmentSearch();
         if (source.profile()) {
             final Function<Query, Collection<Supplier<ProfileMetric>>> pluginProfileMetricsSupplier = (query) -> pluginProfilers.stream()
                 .flatMap(p -> p.getQueryProfileMetrics(context, query).stream())

@@ -396,4 +396,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         doc.add(new SortedSetDocValuesField(FIELD_NAME, binaryValue));
         return doc;
     }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
 }

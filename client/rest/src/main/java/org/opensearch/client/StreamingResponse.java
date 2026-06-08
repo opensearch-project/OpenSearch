@@ -8,6 +8,7 @@
 
 package org.opensearch.client;
 
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.Message;
@@ -92,5 +93,30 @@ public class StreamingResponse<T> {
                 .onErrorResume(ResponseException.class, e -> Mono.just(e.getResponse().getHttpResponse()))
                 .block()
         );
+    }
+
+    /**
+     * Returns a list of all headers returned in the response.
+     */
+    public Header[] getHeaders() {
+        return publisher.map(Message::getHead)
+            .onErrorResume(ResponseException.class, e -> Mono.just(e.getResponse().getHttpResponse()))
+            .map(HttpResponse::getHeaders)
+            .block();
+    }
+
+    /**
+     * Returns the value of the first header with a specified name of this message.
+     * If there is more than one matching header in the message the first element is returned.
+     * If there is no matching header in the message <code>null</code> is returned.
+     *
+     * @param name header name
+     */
+    public String getHeader(String name) {
+        return publisher.map(Message::getHead)
+            .onErrorResume(ResponseException.class, e -> Mono.just(e.getResponse().getHttpResponse()))
+            .mapNotNull(response -> response.getFirstHeader(name))
+            .mapNotNull(header -> header.getValue())
+            .block();
     }
 }

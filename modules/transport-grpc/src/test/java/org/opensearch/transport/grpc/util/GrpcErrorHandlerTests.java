@@ -8,15 +8,14 @@
 
 package org.opensearch.transport.grpc.util;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.InputCoercionException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
@@ -63,7 +62,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     }
 
     public void testInputCoercionExceptionConversion() {
-        InputCoercionException exception = new InputCoercionException(null, "Cannot coerce string to number", null, String.class);
+        InputCoercionException exception = new InputCoercionException("Cannot coerce string to number");
 
         StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception);
 
@@ -75,7 +74,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     }
 
     public void testJsonParseExceptionConversion() {
-        JsonParseException exception = new JsonParseException(null, "Unexpected character");
+        JsonParseException exception = new JsonParseException("Unexpected character");
 
         StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception);
 

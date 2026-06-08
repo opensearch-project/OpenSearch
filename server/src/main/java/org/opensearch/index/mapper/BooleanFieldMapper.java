@@ -47,6 +47,7 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -342,6 +343,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             }
 
         }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        }
     }
 
     private final Boolean nullValue;
@@ -374,18 +380,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
-            }
-        }
-
+        Boolean value = parseBooleanValue(context);
         if (value == null) {
             return;
         }
@@ -400,6 +395,30 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         } else {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Boolean value = parseBooleanValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private Boolean parseBooleanValue(ParseContext context) throws IOException {
+        Boolean value = context.parseExternalValue(Boolean.class);
+        if (value == null) {
+            XContentParser.Token token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                if (nullValue != null) {
+                    value = nullValue;
+                }
+            } else {
+                value = context.parser().booleanValue();
+            }
+        }
+        return value;
     }
 
     @Override

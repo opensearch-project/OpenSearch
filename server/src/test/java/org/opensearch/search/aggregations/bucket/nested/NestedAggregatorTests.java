@@ -49,6 +49,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -76,6 +77,7 @@ import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.support.NestedScope;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -104,6 +106,7 @@ import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregati
 import org.opensearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.opensearch.search.aggregations.support.ValueType;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1132,8 +1135,17 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.nestedScope()).thenReturn(new NestedScope(indexSettings));
 
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        when(queryShardContext.bitsetFilter(any())).thenReturn(bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter()));
+        if (aggTestThreadPool == null) {
+            aggTestThreadPool = new TestThreadPool("nested_agg_test");
+            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, aggTestThreadPool);
+        }
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(
+            indexSettings,
+            aggTestIndicesBitsetFilterCache,
+            Mockito.mock(BitsetFilterCache.Listener.class)
+        );
+        BitSetProducer nonNestedFilter = bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter());
+        when(queryShardContext.bitsetFilter(any())).thenReturn(nonNestedFilter);
         when(queryShardContext.fieldMapper(anyString())).thenReturn(fieldType);
         when(queryShardContext.getSearchQuoteAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getSearchAnalyzer(any())).thenCallRealMethod();

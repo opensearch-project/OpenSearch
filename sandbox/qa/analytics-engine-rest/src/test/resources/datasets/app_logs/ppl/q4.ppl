@@ -1,0 +1,1 @@
+source=app_logs | where message like '%Exception while getting WebSocket session%' | stats count() by service_name, host

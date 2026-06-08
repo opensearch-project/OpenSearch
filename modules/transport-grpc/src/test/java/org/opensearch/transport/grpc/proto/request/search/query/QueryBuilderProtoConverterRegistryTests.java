@@ -457,7 +457,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
             .addDoubleArray(40.7589)  // lat
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
             .setXName("location")
@@ -604,7 +604,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         FieldValue fv1 = FieldValue.newBuilder().setString("electronics").build();
         FieldValue fv2 = FieldValue.newBuilder().setString("books").build();
         FieldValueArray fva = FieldValueArray.newBuilder().addFieldValueArray(fv1).addFieldValueArray(fv2).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
 
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setTerms(org.opensearch.protobufs.TermsQuery.newBuilder().putTerms("category", termsQueryField).setBoost(1.5f).build())

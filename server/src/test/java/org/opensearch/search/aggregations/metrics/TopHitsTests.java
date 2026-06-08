@@ -128,7 +128,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             }
             switch (branch) {
                 case 0:
-                    fetchSourceContext = new FetchSourceContext(randomBoolean());
+                    fetchSourceContext = randomBoolean() ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE;
                     break;
                 case 1:
                     fetchSourceContext = new FetchSourceContext(true, includes, excludes);

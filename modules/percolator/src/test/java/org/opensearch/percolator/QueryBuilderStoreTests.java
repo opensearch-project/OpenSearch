@@ -100,6 +100,12 @@ public class QueryBuilderStoreTests extends OpenSearchTestCase {
                     ParseContext parseContext = mock(ParseContext.class);
                     ParseContext.Document document = new ParseContext.Document();
                     when(parseContext.doc()).thenReturn(document);
+                    when(parseContext.indexSettings()).thenReturn(
+                        new org.opensearch.index.IndexSettings(
+                            IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+                            settings
+                        )
+                    );
                     PercolatorFieldMapper.createQueryBuilderField(version, fieldMapper, queryBuilders[i], parseContext);
                     indexWriter.addDocument(document);
                 }

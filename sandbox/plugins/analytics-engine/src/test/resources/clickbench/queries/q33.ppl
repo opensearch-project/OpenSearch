@@ -1,0 +1,8 @@
+/*
+SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth)
+FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
+*/
+source=hits
+| stats bucket_nullable=false count() as c, sum(IsRefresh), avg(ResolutionWidth) by WatchID, ClientIP
+| sort - c
+| head 10

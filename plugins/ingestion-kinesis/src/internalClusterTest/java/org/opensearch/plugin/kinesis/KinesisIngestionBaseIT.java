@@ -69,7 +69,7 @@ public class KinesisIngestionBaseIT extends OpenSearchIntegTestCase {
     Supplier<String> passwordSupplier = () -> RandomStrings.randomAsciiLettersOfLengthBetween(getRandom(), 16, 24);
 
     private void setupKinesis() throws InterruptedException {
-        localstack = new LocalStackContainer(DockerImageName.parse("localstack/localstack:latest")).withEnv(
+        localstack = new LocalStackContainer(DockerImageName.parse("localstack/localstack:4.14.0")).withEnv(
             "AWS_ACCESS_KEY_ID",
             passwordSupplier.get()
         ).withEnv("AWS_SECRET_ACCESS_KEY", passwordSupplier.get()).withServices(LocalStackContainer.Service.KINESIS);
