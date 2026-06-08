@@ -1,0 +1,1 @@
+source=%INDEX% | stats sum(price) by category, span(amount, 5)
