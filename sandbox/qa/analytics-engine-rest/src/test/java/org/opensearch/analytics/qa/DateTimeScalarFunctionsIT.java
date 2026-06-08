@@ -133,6 +133,16 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowLong(oneRow("key00") + "| eval v = extract(DAY_HOUR FROM datetime0) | fields v", 910L);
     }
 
+    /** {@code extract(<unit> FROM '<varchar literal>')} returns the unit value. */
+    public void testExtractFromVarcharLiteral() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = extract(YEAR FROM '2003-12-31 17:30:00') | fields v", 2003L);
+    }
+
+    /** {@code extract(<unit> FROM TIME('<lit>'))} returns the unit value. */
+    public void testExtractFromTimeLiteral() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = extract(HOUR FROM time('17:30:00')) | fields v", 17L);
+    }
+
     public void testFromUnixtime() throws IOException {
         assertFirstRowString(
             oneRow("key00") + "| eval v = date_format(from_unixtime(1521467703), '%Y-%m-%d %H:%i:%s') | fields v",

@@ -45,34 +45,33 @@ final class DelegatedPredicateCombiner {
     private final CapabilityRegistry registry;
     private final RexBuilder rexBuilder;
     private final List<DelegatedExpression> delegatedExpressions;
-    /**
-     * When true, dual-viable leaves are classified as correctness-delegated everywhere —
-     * the {@code delegation_possible} marker (driver-evaluates-natively + opportunistic peer
-     * consult) is not emitted under fuse=true. Result: one merged {@code delegated_predicate}
-     * ships the whole eligible subtree to the peer; the driver doesn't evaluate any
-     * delegatable arm itself. Trade-off: AND-side opportunistic optimization gone in
-     * exchange for cross-bucket merging under OR/NOT with native siblings.
-     */
-    private final boolean fuseDualViable;
 
     DelegatedPredicateCombiner(
         String operatorBackend,
         List<FieldStorageInfo> fieldStorage,
         CapabilityRegistry registry,
         RexBuilder rexBuilder,
-        List<DelegatedExpression> delegatedExpressions,
-        boolean fuseDualViable
+        List<DelegatedExpression> delegatedExpressions
     ) {
         this.operatorBackend = operatorBackend;
         this.fieldStorage = fieldStorage;
         this.registry = registry;
         this.rexBuilder = rexBuilder;
         this.delegatedExpressions = delegatedExpressions;
-        this.fuseDualViable = fuseDualViable;
     }
 
     /** Bottom-up: classify each node as Delegated (carries the RexNode subtree) or Resolved. */
     Classified classify(RexNode node, Function<OperatorAnnotation, RexNode> applyFn) {
+        return classify(node, applyFn, false);
+    }
+
+    /**
+     * @param underOrNot true when any ancestor is an OR/NOT. Performance delegation can't survive a
+     *                   disjunction, so a dual-viable leaf anywhere under an OR/NOT — even nested in
+     *                   an AND — is reclassified to correctness in combine(). Threaded so this
+     *                   happens before a mixed inner AND materializes and hides the perf marker.
+     */
+    private Classified classify(RexNode node, Function<OperatorAnnotation, RexNode> applyFn, boolean underOrNot) {
         if (node instanceof AnnotatedPredicate ap) {
             String backend = ap.getViableBackends().getFirst();
             if (!backend.equals(operatorBackend) && canSerialize(ap, backend)) {
@@ -80,10 +79,13 @@ final class DelegatedPredicateCombiner {
             } else if (!ap.getPerformanceDelegationBackends().isEmpty()) {
                 String peerBackend = ap.getPerformanceDelegationBackends().getFirst();
                 if (canSerialize(ap, peerBackend)) {
-                    // Under fuseDualViable, demote perf to correctness so the leaf merges
-                    // freely with correctness siblings and ships entirely to the peer.
-                    boolean isPerf = !fuseDualViable;
-                    return new Delegated(peerBackend, node, ap.getAnnotationId(), isPerf);
+                    // Dual-viable leaf → always performance-delegated. Demotion to correctness is
+                    // decided only by tree position in combine() (under OR/NOT), never here.
+                    // TODO: an AND-side perf leaf can still ride in a tree with a surviving OR/NOT
+                    // (e.g. tag=a AND (dual OR native)); the data node Tree-classifies the whole
+                    // tree and demotes this marker to native. Detecting that here would let the
+                    // data-node fallback be removed.
+                    return new Delegated(peerBackend, node, ap.getAnnotationId(), true);
                 }
             }
             return new Resolved(applyFn.apply(ap));
@@ -95,19 +97,23 @@ final class DelegatedPredicateCombiner {
                 return new Resolved(resolveCallChildren(call, applyFn));
             }
 
+            // Monotonic: once under an OR/NOT, every descendant is too (any depth of nested AND).
+            boolean childUnderOrNot = underOrNot || kind == SqlKind.OR || kind == SqlKind.NOT;
             List<Classified> kids = new ArrayList<>(call.getOperands().size());
             for (RexNode operand : call.getOperands()) {
-                kids.add(classify(operand, applyFn));
+                kids.add(classify(operand, applyFn, childUnderOrNot));
             }
-            return combine(call, kids, applyFn);
+            return combine(call, kids, applyFn, underOrNot);
         }
 
         return new Resolved(node);
     }
 
     /** Combines classified children of an AND/OR/NOT call into a single Classified result. */
-    private Classified combine(RexCall call, List<Classified> kids, Function<OperatorAnnotation, RexNode> applyFn) {
-        boolean isOrNot = call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
+    private Classified combine(RexCall call, List<Classified> kids, Function<OperatorAnnotation, RexNode> applyFn, boolean underOrNot) {
+        // True under any OR/NOT (including an AND nested beneath one): perf can't survive a
+        // disjunction, so perf children here are carved to correctness.
+        boolean isOrNot = underOrNot || call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
 
         List<Delegated> correctnessChildren = new ArrayList<>();
         List<Delegated> performanceChildren = new ArrayList<>();
@@ -116,21 +122,27 @@ final class DelegatedPredicateCombiner {
         boolean multiBackend = false;
 
         for (Classified c : kids) {
-            if (c instanceof Delegated d) {
-                // Under OR/NOT with fuse=false, perf-delegated leaves carve back to native:
-                // delegation_possible doesn't compose under disjunction (driver can't tell
-                // "leaf didn't match" from "no leaf matched when the peer missed"). Under
-                // fuse=true, classify() never emits perf, so this branch never fires.
-                if ((isOrNot && !fuseDualViable) && d.performanceDelegation()) {
-                    ordered.add(unwrapPreservingConnectors(d.subtree(), applyFn::apply));
-                } else {
-                    (d.performanceDelegation() ? performanceChildren : correctnessChildren).add(d);
-                    ordered.add(d);
-                    if (commonBackend == null) commonBackend = d.backend();
-                    else if (!commonBackend.equals(d.backend())) multiBackend = true;
-                }
-            } else {
+            if (c instanceof Delegated == false) {
                 ordered.add(((Resolved) c).node());
+                continue;
+            }
+            Delegated d = (Delegated) c;
+
+            // Under OR/NOT a perf child is reclassified to correctness (ships to the peer, fusing
+            // with same-backend correctness siblings); under AND it stays performance.
+            Delegated routed = (isOrNot && d.performanceDelegation())
+                ? new Delegated(d.backend(), d.subtree(), d.firstAnnotationId(), false)
+                : d;
+            if (routed.performanceDelegation()) {
+                performanceChildren.add(routed);
+            } else {
+                correctnessChildren.add(routed);
+            }
+            ordered.add(routed);
+            if (commonBackend == null) {
+                commonBackend = routed.backend();
+            } else if (!commonBackend.equals(routed.backend())) {
+                multiBackend = true;
             }
         }
 
@@ -152,10 +164,10 @@ final class DelegatedPredicateCombiner {
             int firstId = correctnessChildren.getFirst().firstAnnotationId();
             result = new Delegated(commonBackend, call, firstId, false);
         } else if (ordered.size() == performanceChildren.size() && correctnessChildren.isEmpty()) {
-            // All children performance-delegated to the same backend — bubble up so the
-            // parent can merge further up the tree before the Mixed branch flattens. Only
-            // reachable under fuse=false + AND (OR/NOT carved perf out above; fuse=true
-            // demotes perf to correctness so this branch never fires under fuse=true).
+            // All children performance-delegated to the same backend — bubble up so the parent can
+            // merge further up the tree before the Mixed branch flattens. Only reachable under AND:
+            // under OR/NOT a perf child is reclassified to correctness before this point, so it
+            // never arrives here as a performance child.
             outcome = "BUBBLE_UP PERF";
             int firstId = performanceChildren.getFirst().firstAnnotationId();
             result = new Delegated(commonBackend, call, firstId, true);
@@ -191,9 +203,8 @@ final class DelegatedPredicateCombiner {
 
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
-                "combine kind={} fuse={} kids={} (correctness={}, perf={}, multiBackend={}) → {}{}",
+                "combine kind={} kids={} (correctness={}, perf={}, multiBackend={}) → {}{}",
                 call.getKind(),
-                fuseDualViable,
                 kids.size(),
                 correctnessChildren.size(),
                 performanceChildren.size(),

@@ -24,8 +24,6 @@ import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Verifies that documents are reordered according to the sort permutation
  * from the primary data format (Parquet).
  */
-public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
+public class LuceneWriterSortedFlushTests extends LucenePluginBaseTests {
 
     private LuceneDataFormat dataFormat;
 
@@ -46,10 +44,6 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         dataFormat = new LuceneDataFormat();
-    }
-
-    private MappedFieldType mockTextField(String name) {
-        return new TextFieldMapper.TextFieldType(name);
     }
 
     /**

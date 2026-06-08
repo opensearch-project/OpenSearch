@@ -115,10 +115,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     /** How much native (off-heap) memory we allow for indexing buffers across all shards.
      *  Accepts either a percentage (of available native memory = total physical - JVM heap) or an absolute byte value.
-     *  Default is 5%. */
+     *  Default is 10%. */
     public static final Setting<ByteSizeValue> NATIVE_INDEX_BUFFER_SIZE_SETTING = Setting.nativeMemorySizeSetting(
         "indices.memory.native_index_buffer_size",
-        "5%",
+        "10%",
         Property.NodeScope
     );
 

@@ -15,12 +15,19 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
+import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelShuttle;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexSubQuery;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +37,7 @@ import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
@@ -140,6 +148,14 @@ public class PlannerImpl {
      * emission. Runs first so every later phase observes a subquery-free tree.
      */
     private static RelNode removeSubQueries(RelNode input, RuleProfilingListener listener) {
+        // The PPL frontend injects a SUBSEARCH_MAXOUT Sort(fetch=N) at the top of every subsearch.
+        // Inside an EXISTS that limit is semantically irrelevant (existence needs only one row), but
+        // it becomes a correlated Sort(fetch>1) after FILTER_SUB_QUERY_TO_CORRELATE, which
+        // RelDecorrelator refuses to decorrelate (it only handles fetch==1) — leaving a
+        // LogicalCorrelate that the marking phase rejects with "unmarked child [LogicalCorrelate]".
+        // Strip that limit while the subquery is still an identifiable EXISTS RexSubQuery so the
+        // decorrelation below can fold it into a standard join.
+        RelNode prepared = stripExistsSubqueryLimits(input);
         return HepPhase.named("subquery-remove")
             .addRuleCollection(
                 List.of(
@@ -155,10 +171,59 @@ public class PlannerImpl {
             .postProcess(
                 withCorrelates -> RelDecorrelator.decorrelateQuery(
                     withCorrelates,
-                    RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null)
+                    RelBuilder.proto(Contexts.empty()).create(prepared.getCluster(), null)
                 )
             )
-            .run(input, listener);
+            .run(prepared, listener);
+    }
+
+    /**
+     * Removes a top-level fetch-only {@link Sort} (no collation, no offset) from the body of every
+     * {@code EXISTS} {@link RexSubQuery} in the tree. The PPL frontend injects a SUBSEARCH_MAXOUT
+     * {@code Sort(fetch=N)} at the top of each subsearch; for an EXISTS that limit cannot change the
+     * boolean result (it only tests for ≥1 row), yet it blocks {@link RelDecorrelator} from
+     * decorrelating the correlated subquery. Scoped to EXISTS only — IN / scalar subqueries keep
+     * their limit, where it is semantically meaningful.
+     */
+    private static RelNode stripExistsSubqueryLimits(RelNode input) {
+        RexShuttle rexShuttle = new RexShuttle() {
+            @Override
+            public RexNode visitSubQuery(RexSubQuery subQuery) {
+                RexSubQuery rewritten = (RexSubQuery) super.visitSubQuery(subQuery);
+                if (rewritten.getOperator().getKind() == SqlKind.EXISTS) {
+                    RelNode body = stripExistsSubqueryLimits(rewritten.rel);
+                    RelNode unlimited = stripTopFetchOnlySort(body);
+                    if (unlimited != rewritten.rel) {
+                        return rewritten.clone(unlimited);
+                    }
+                    if (body != rewritten.rel) {
+                        return rewritten.clone(body);
+                    }
+                }
+                return rewritten;
+            }
+        };
+        RelShuttle relShuttle = new RelHomogeneousShuttle() {
+            @Override
+            public RelNode visit(RelNode node) {
+                RelNode visited = super.visit(node);
+                return visited.accept(rexShuttle);
+            }
+        };
+        return input.accept(relShuttle);
+    }
+
+    /**
+     * If {@code node} is a {@link Sort} that only limits row count (a {@code fetch} with no sort
+     * keys and no {@code offset}), returns its input; otherwise returns {@code node} unchanged. A
+     * sort with collation or an offset is preserved — dropping either could change which rows the
+     * EXISTS sees relative to a correlated predicate.
+     */
+    private static RelNode stripTopFetchOnlySort(RelNode node) {
+        if (node instanceof Sort sort && sort.getCollation().getFieldCollations().isEmpty() && sort.offset == null && sort.fetch != null) {
+            return sort.getInput();
+        }
+        return node;
     }
 
     /**
@@ -235,13 +300,24 @@ public class PlannerImpl {
     }
 
     /**
-     * Phase 1b: decompose AVG / STDDEV / VAR into primitive SUM/COUNT (+ SUM_SQ for variance) plus a
-     * scalar LogicalProject computing the quotient. Runs as its own HEP pass on plain LogicalAggregate
-     * before {@link OpenSearchAggregateRule} marks it; the marking phase, the Volcano split rule, and
-     * the AggregateDecompositionResolver then see correctly-typed primitives.
+     * Phase 1b: pre-marking rewrites on plain {@link org.apache.calcite.rel.logical.LogicalAggregate}.
+     * Runs before {@link OpenSearchAggregateRule} marks the aggregate so the marking phase, the
+     * Volcano split rule, and the {@code DistributedAggregateRewriter} see the rewritten shape:
+     * <ul>
+     *   <li>{@link OpenSearchDistinctCountRule} — single-arg {@code COUNT(DISTINCT x)} →
+     *       {@code APPROX_COUNT_DISTINCT(x)} so distinct counts engage the engine-native
+     *       HLL sketch merge instead of additive SUM-of-counts.</li>
+     *   <li>{@link OpenSearchAggregateReduceRule} — {@code AVG} / {@code STDDEV} / {@code VAR} →
+     *       primitive {@code SUM} / {@code COUNT} (+ {@code SUM_SQ} for variance) plus a scalar
+     *       {@link org.apache.calcite.rel.logical.LogicalProject} computing the quotient.</li>
+     * </ul>
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
-        return HepPhase.named("aggregate-decompose").bottomUp().addRuleInstance(new OpenSearchAggregateReduceRule()).run(input, listener);
+        return HepPhase.named("aggregate-decompose")
+            .bottomUp()
+            .addRuleInstance(new OpenSearchDistinctCountRule())
+            .addRuleInstance(new OpenSearchAggregateReduceRule())
+            .run(input, listener);
     }
 
     /**

@@ -225,4 +225,42 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertSame("column-valued from_tz must pass through unmodified", fromCol, call.getOperands().get(1));
         assertSame("column-valued to_tz must pass through unmodified", toCol, call.getOperands().get(2));
     }
+
+    /** Identity short-circuit with VARCHAR operand under a TIMESTAMP call → SAFE-cast. */
+    public void testIdentityShortCircuitWrapsInSafeCastWhenOperandTypeDiffers() {
+        RelDataType returnType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 9), true);
+        RexNode tsLiteral = rexBuilder.makeLiteral("2021-05-12 11:34:50");
+        RexNode fromTz = rexBuilder.makeLiteral("UTC");
+        RexNode toTz = rexBuilder.makeLiteral("UTC");
+        RexCall original = (RexCall) rexBuilder.makeCall(convertTzOp(returnType), List.of(tsLiteral, fromTz, toTz));
+
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertNotSame(tsLiteral, adapted);
+        assertEquals(original.getType(), adapted.getType());
+        assertTrue(adapted instanceof RexCall);
+        assertEquals(org.apache.calcite.sql.SqlKind.SAFE_CAST, ((RexCall) adapted).getOperator().getKind());
+    }
+
+    /** UDF fallback with VARCHAR timestamp operand → SAFE-cast slot 0 to TIMESTAMP. */
+    public void testUdfFallbackWrapsVarcharOperandInSafeCast() {
+        RelDataType returnType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 9), true);
+        RexNode tsLiteral = rexBuilder.makeLiteral("2021-05-12 11:34:50");
+        RexNode fromTz = rexBuilder.makeLiteral("UTC");
+        RexNode toTz = rexBuilder.makeLiteral("America/Los_Angeles");
+        RexCall original = (RexCall) rexBuilder.makeCall(convertTzOp(returnType), List.of(tsLiteral, fromTz, toTz));
+
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexCall);
+        RexCall call = (RexCall) adapted;
+        assertSame(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, call.getOperator());
+        assertEquals(original.getType(), call.getType());
+
+        RexNode firstArg = call.getOperands().get(0);
+        assertNotSame(tsLiteral, firstArg);
+        assertEquals(original.getType(), firstArg.getType());
+        assertTrue(firstArg instanceof RexCall);
+        assertEquals(org.apache.calcite.sql.SqlKind.SAFE_CAST, ((RexCall) firstArg).getOperator().getKind());
+    }
 }

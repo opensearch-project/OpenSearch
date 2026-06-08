@@ -137,9 +137,6 @@ public class FileBackedFailableWriter implements Writer<DocumentInput<?>> {
     }
 
     @Override
-    public void sync() {}
-
-    @Override
     public long generation() {
         return writerGeneration;
     }

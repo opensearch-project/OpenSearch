@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>{@link #initialize(String, long, ParquetSortConfig, long)} — creates the native writer with the final schema</li>
  *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
  *   <li>{@link #flush()} — finalizes the Parquet file and returns metadata</li>
- *   <li>{@link #sync()} — fsyncs the file to durable storage (calls flush if needed)</li>
  * </ol>
  *
  * <p>This class is not thread-safe. External synchronization is required
@@ -114,19 +113,6 @@ public class NativeParquetWriter {
             }
         }
         return metadata.get();
-    }
-
-    /**
-     * Syncs the Parquet file to disk.
-     * If flush has not been called yet, it will be called first.
-     *
-     * @throws IOException if the sync fails
-     */
-    public void sync() throws IOException {
-        if (!writerFlushed.get()) {
-            flush();
-        }
-        RustBridge.syncToDisk(filePath);
     }
 
     /**

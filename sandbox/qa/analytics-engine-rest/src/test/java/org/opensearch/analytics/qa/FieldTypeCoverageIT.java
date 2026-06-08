@@ -167,7 +167,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         // BINARY(varchar) placeholder (BinaryFunctionAdapter rewrites it into a VARBINARY
         // literal that DataFusion compares natively). Filter coverage lives in testIpFilters
         // — binary columns share the same code path.
-        Map<String, Object> bulk = ingest("ft_binary", "binary", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
+        Map<String, Object> bulk = ingestWithMapping("ft_binary", "binary", ", \"store\": true", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
         assertBulkSucceeded(bulk, "ft_binary");
         assertScanSucceeds("ft_binary", 3);
     }
@@ -240,7 +240,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         );
         assertFilterRowCount("source=ft_ip_project | stats count(eval(val='192.168.1.1')) as cnt", 1);
 
-        Map<String, Object> binBulk = ingest("ft_binary_project", "binary", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
+        Map<String, Object> binBulk = ingestWithMapping("ft_binary_project", "binary", ", \"store\": true", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
         assertBulkSucceeded(binBulk, "ft_binary_project");
         assertFilterRowCount("source=ft_binary_project | eval is_alice=if(val='YWxpY2U=','y','n')", 3);
         assertFilterRowCount("source=ft_binary_project | stats count(eval(val='YWxpY2U=')) as c", 1);
