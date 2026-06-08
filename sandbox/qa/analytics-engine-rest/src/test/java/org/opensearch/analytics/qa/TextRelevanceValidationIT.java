@@ -68,6 +68,30 @@ public class TextRelevanceValidationIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * Same numeric-field rejection as {@link #testQueryStringOnNumericFieldIsRejected}, but driven
+     * through PPL's explicit {@code search} command form ({@code search source=... | where ...}).
+     * Confirms the field-type validation fires regardless of which command introduces the relation.
+     */
+    public void testSearchCommandQueryStringOnNumericFieldIsRejected() {
+        String ppl = "search source=" + DATASET.indexName + " | where query_string(['severityNumber'], 'severityNumber:>15')";
+        assertErrorContains(ppl, "severityNumber");
+        assertErrorContains(ppl, "text and keyword");
+    }
+
+    /**
+     * {@code search source=... | where query_string(['body'], 'GET')} on a {@code text} field
+     * plans and executes successfully via the {@code search} command.
+     */
+    public void testSearchCommandQueryStringOnTextFieldSucceeds() throws IOException {
+        Map<String, Object> response = executePpl("search source=" + DATASET.indexName + " | where query_string(['body'], 'GET')");
+        assertNotNull("Expected a non-null response for a valid text-relevance query", response);
+        assertTrue(
+            "Expected response to carry a result shape (datarows or schema): " + response,
+            response.containsKey("datarows") || response.containsKey("schema")
+        );
+    }
+
+    /**
      * Send a PPL query expecting the planner to reject it; assert the error body contains
      * {@code expectedSubstring}.
      */

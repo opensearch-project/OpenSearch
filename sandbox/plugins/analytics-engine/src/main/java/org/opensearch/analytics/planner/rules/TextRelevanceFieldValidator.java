@@ -97,6 +97,10 @@ public final class TextRelevanceFieldValidator {
      * specifically, RexLiteral children at even indices of a nested MAP whose outer key is "fields"
      * or "field". Returns an empty list if no such names are found (e.g. zero-field functions
      * like MATCHALL or QUERY without an explicit field list).
+     *
+     * <p>TODO: Push this extraction down into the FullText function definition itself so the operand layout is
+     * owned in one spot and the planner just asks the function for its named fields rather than
+     * re-parsing the RexCall here.
      */
     public static List<String> extractLiteralFieldNames(RexCall predicate) {
         List<String> names = new ArrayList<>();

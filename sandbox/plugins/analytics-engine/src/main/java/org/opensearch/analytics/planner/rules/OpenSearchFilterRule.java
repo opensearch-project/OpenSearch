@@ -174,8 +174,16 @@ public class OpenSearchFilterRule extends RelOptRule {
                 if (TextRelevanceFieldValidator.usesLiteralFieldEncoding(function)) {
                     List<String> literalFieldNames = TextRelevanceFieldValidator.extractLiteralFieldNames(predicate);
                     if (literalFieldNames.isEmpty()) {
-                        // No field references at all — fall back to TEXT type assumption.
-                        return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
+                        // query_string / simple_query_string / multi_match always encode an explicit
+                        // field list in their MAP operand. Reaching here with no extracted names means
+                        // the RexCall shape didn't match what we expect
+                        throw new IllegalStateException(
+                            "Expected literal field names for full-text function ["
+                                + predicate.getOperator().getName()
+                                + "] but found none in predicate ["
+                                + predicate
+                                + "]"
+                        );
                     }
                     // Eagerly reject text-relevance functions invoked on non-text/non-keyword fields.
                     TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
