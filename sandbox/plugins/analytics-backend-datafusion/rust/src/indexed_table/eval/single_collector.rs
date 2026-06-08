@@ -163,14 +163,17 @@ pub struct SingleCollectorEvaluator {
     /// evaluators of a single query via `Arc::clone`), so threads racing to fill
     /// a slot do so once per (query × annotation_id) — not per chunk.
     performance_provider_locks: Arc<HashMap<i32, Arc<OnceLock<ProviderHandle>>>>,
-    /// Writer generation identifying the segment this evaluator was bound to at
-    /// factory time. Captured so `prefetch_rg` can build a per-call
-    /// `FfmSegmentCollector` lazily without re-deriving the segment from
-    /// `RowGroupInfo` (which doesn't carry it).
+    /// Pre-computed full-segment peer bitmap cache. Shared across all partitions of
+    /// the same segment via Arc<OnceLock>. Keyed by annotation_id. Lazily populated
+    /// on first access (when any partition's RG passes the selectivity gate).
+    peer_bitmap_cache: Arc<HashMap<i32, Arc<OnceLock<Option<RoaringBitmap>>>>>,
+    /// Writer generation identifying the segment this evaluator was bound to.
     writer_generation: i64,
-    /// Builds the per-RG delegated-backend collector when the gate fires. Production
-    /// wires `FfmDelegatedBackendCollectorFactory`; fuzz tests inject a mock that
-    /// replays a pre-computed bitset without an FFM call.
+    /// Global doc range [start, end) for this segment — derived from the segment's
+    /// row_groups (first RG's first_row .. last RG's first_row + num_rows).
+    segment_doc_range: (i32, i32),
+    /// Builds the delegated-backend collector. Production wires
+    /// `FfmDelegatedBackendCollectorFactory`; fuzz tests inject a mock.
     delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
     /// Per-query context identifier passed through every FFM upcall so Java can route
     /// each callback to the correct per-query `FilterDelegationHandle` and tracker.
@@ -200,7 +203,9 @@ impl SingleCollectorEvaluator {
         ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
         call_strategy: CollectorCallStrategy,
         performance_provider_locks: Arc<HashMap<i32, Arc<OnceLock<ProviderHandle>>>>,
+        peer_bitmap_cache: Arc<HashMap<i32, Arc<OnceLock<Option<RoaringBitmap>>>>>,
         writer_generation: i64,
+        segment_doc_range: (i32, i32),
         delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
         context_id: i64,
         bloom_config: Option<BloomConfig>,
@@ -214,7 +219,9 @@ impl SingleCollectorEvaluator {
             ffm_collector_calls,
             call_strategy,
             performance_provider_locks,
+            peer_bitmap_cache,
             writer_generation,
+            segment_doc_range,
             delegated_backend_collector_factory,
             context_id,
             bloom_config,
@@ -394,90 +401,82 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             }
         };
 
-        // Opportunistic peer consultation for performance-delegated leaves. Only fires
-        // when DF page-pruning kept more than the configured fraction of the RG —
-        // skipping the FFM round-trip when DF was already selective. Lazy: lock the
-        // map only if the gate fires; create the provider only once per query × leaf.
+        // Opportunistic peer consultation for performance-delegated leaves. The peer
+        // bitmap is computed ONCE per (annotation_id × segment) on first access and
+        // shared across all partitions — eliminating repeated scorer creation.
         // TODO(d3): consult ALL performance leaves whose gate fires and AND their
-        // bitsets. Today we consult the first leaf only — sufficient for AND-only
-        // single-call demo. Multi-leaf intersection is part of D3 follow-up.
+        // bitsets. Today we consult the first leaf only.
         if !self.performance_provider_locks.is_empty()
             && should_consult_lucene(&page_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD)
         {
-            // Pick the smallest annotation_id deterministically so logs/tests are stable.
-            // Avoids the Vec/sort allocation in the common single-leaf case.
             let annotation_id = *self
                 .performance_provider_locks
                 .keys()
                 .min()
                 .expect("performance_provider_locks is non-empty (just checked)");
-            // Per-RG debug log — `format!` runs unconditionally regardless of log level
-            // (the level filter happens on the Java side). Commented out to avoid
-            // per-RG allocation. Re-enable locally for debugging.
-            // log_debug!(
-            //     "[scf-rust] consulting peer for performance leaf rg={} writer_generation={} range=[{},{}) annotation_id={}",
-            //     rg.index, self.writer_generation, min_doc, max_doc, annotation_id
-            // );
-            let lock = self
-                .performance_provider_locks
-                .get(&annotation_id)
-                .expect("annotation_id was just pulled from the map's keys");
-            let context_id = self.context_id;
-            let mut just_initialized = false;
-            let provider = lock.get_or_init(|| {
-                just_initialized = true;
-                create_provider(context_id, annotation_id).expect("create_provider FFM upcall failed")
-            });
-            if just_initialized {
-                log_debug!(
-                    "[scf-rust] lazy provider initialized context_id={} annotation_id={} provider_key={}",
-                    context_id, annotation_id, provider.key()
-                );
-            }
 
-            let collector = self
-                .delegated_backend_collector_factory
-                .create(context_id, provider.key(), self.writer_generation, min_doc, max_doc)
-                .map_err(|e| {
-                    format!(
-                        "DelegatedBackendCollectorFactory::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
-                        context_id,
-                        provider.key(),
-                        self.writer_generation,
-                        min_doc,
-                        max_doc,
-                        e
-                    )
-                })?;
-            let bitset = collector
-                .collect_packed_u64_bitset(min_doc, max_doc)
-                .map_err(|e| {
-                    format!(
-                        "delegated-backend collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
-                        rg.index, min_doc, max_doc, e
-                    )
-                })?;
-            if let Some(ref c) = self.ffm_collector_calls {
-                c.add(1);
+            if let Some(bitmap_lock) = self.peer_bitmap_cache.get(&annotation_id) {
+                let (seg_start, seg_end) = self.segment_doc_range;
+                let peer_bitmap = bitmap_lock.get_or_init(|| {
+                    let provider_lock = self
+                        .performance_provider_locks
+                        .get(&annotation_id)
+                        .expect("annotation_id in performance_provider_locks");
+                    let context_id = self.context_id;
+                    let provider = provider_lock.get_or_init(|| {
+                        create_provider(context_id, annotation_id)
+                            .expect("create_provider FFM upcall failed")
+                    });
+                    let collector = match self.delegated_backend_collector_factory.create(
+                        context_id, provider.key(), self.writer_generation, seg_start, seg_end,
+                    ) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            log_debug!("[scf-rust] peer bitmap create failed: {}", e);
+                            return None;
+                        }
+                    };
+                    let bitset = match collector.collect_packed_u64_bitset(seg_start, seg_end) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            log_debug!("[scf-rust] peer collectDocs failed: {}", e);
+                            return None;
+                        }
+                    };
+                    if let Some(ref c) = self.ffm_collector_calls {
+                        c.add(1);
+                    }
+                    let seg_span = (seg_end - seg_start) as u32;
+                    let bytes: &[u8] = unsafe {
+                        std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+                    };
+                    let mut bm = RoaringBitmap::from_lsb0_bytes(0, bytes);
+                    if seg_span < u32::MAX {
+                        bm.remove_range(seg_span..);
+                    }
+                    Some(bm)
+                });
+
+                if let Some(ref full_bm) = peer_bitmap {
+                    // Slice to this RG's range. The bitmap is segment-relative (position 0 =
+                    // doc seg_start). min_doc/max_doc are global doc IDs. candidates use
+                    // offsets relative to rg.first_row (position 0 = doc rg.first_row).
+                    let rg_offset_in_seg = (min_doc - seg_start) as u32;
+                    let rg_len = (max_doc - min_doc) as u32;
+                    // candidates offset: position j = doc (rg.first_row + j). The correctness
+                    // collector inserts bits at offset (min_doc - rg.first_row) which is
+                    // typically 0 (partitions align to RG boundaries). We must produce the
+                    // same coordinate system.
+                    let candidates_base = (min_doc as i64 - rg.first_row) as u32;
+                    let mut peer_bm = RoaringBitmap::new();
+                    for d in full_bm.iter() {
+                        if d >= rg_offset_in_seg && d < rg_offset_in_seg + rg_len {
+                            peer_bm.insert(candidates_base + (d - rg_offset_in_seg));
+                        }
+                    }
+                    candidates &= peer_bm;
+                }
             }
-            let offset = (min_doc as i64 - rg.first_row) as u32;
-            let num_docs = (max_doc - min_doc) as u32;
-            let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
-            };
-            let mut peer_bm = RoaringBitmap::from_lsb0_bytes(offset, bytes);
-            let upper = offset.saturating_add(num_docs);
-            if upper < u32::MAX {
-                peer_bm.remove_range(upper..);
-            }
-            // Per-RG debug log — see note above on `format!` cost. Re-enable locally for debugging.
-            // let candidates_before = candidates.len();
-            // let peer_card = peer_bm.len();
-            candidates &= peer_bm;
-            // log_debug!(
-            //     "[scf-rust] peer bitset intersected rg={} writer_generation={} candidates_before={} peer_cardinality={} candidates_after={}",
-            //     rg.index, self.writer_generation, candidates_before, peer_card, candidates.len()
-            // );
         }
 
         if candidates.is_empty() {
@@ -690,7 +689,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
 
         let rg = RowGroupInfo {
             index: 0,
@@ -706,7 +705,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -734,7 +733,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
         assert!(eval.needs_row_mask());
     }
 
@@ -742,7 +741,7 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -762,7 +761,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), Arc::new(HashMap::new()), 0, (0, 8), Arc::new(FfmDelegatedBackendCollectorFactory), 0, None);
 
         let rg = RowGroupInfo {
             index: 0,

@@ -669,6 +669,12 @@ async unsafe fn execute_indexed_with_context_inner(
                 Arc::new(map)
             };
 
+            // Pre-computed peer bitmap cache: keyed by (annotation_id, writer_generation).
+            // Each segment gets its own lazily-computed bitmap, shared across all partitions.
+            let peer_bitmap_global: Arc<
+                std::sync::Mutex<std::collections::HashMap<(i32, i64), Arc<std::sync::OnceLock<Option<roaring::RoaringBitmap>>>>>,
+            > = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+
             // Extract the residual (non-Collector children of top-level
             // AND) as a BoolNode and convert to PhysicalExpr. Used for:
             //   - Page-stats pruning in candidate stage (via PruningPredicate).
@@ -735,6 +741,25 @@ async unsafe fn execute_indexed_with_context_inner(
                     } else {
                         None
                     };
+                    // Build per-segment bitmap cache view (shared across partitions).
+                    let per_seg_cache: Arc<std::collections::HashMap<i32, Arc<std::sync::OnceLock<Option<roaring::RoaringBitmap>>>>> = {
+                        let ann_ids: Vec<i32> = performance_provider_locks.keys().copied().collect();
+                        let mut global = peer_bitmap_global.lock().unwrap();
+                        let mut local = std::collections::HashMap::with_capacity(ann_ids.len());
+                        for ann_id in ann_ids {
+                            let lock = Arc::clone(
+                                global.entry((ann_id, segment.writer_generation))
+                                    .or_insert_with(|| Arc::new(std::sync::OnceLock::new()))
+                            );
+                            local.insert(ann_id, lock);
+                        }
+                        Arc::new(local)
+                    };
+                    // Segment's global doc range from its row_groups.
+                    let seg_doc_range = match (segment.row_groups.first(), segment.row_groups.last()) {
+                        (Some(first), Some(last)) => (first.first_row as i32, (last.first_row + last.num_rows) as i32),
+                        _ => (0, 0),
+                    };
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
@@ -745,7 +770,9 @@ async unsafe fn execute_indexed_with_context_inner(
                             stream_metrics.ffm_collector_calls.clone(),
                             call_strategy,
                             Arc::clone(&performance_provider_locks),
+                            per_seg_cache,
                             segment.writer_generation,
+                            seg_doc_range,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                             context_id,
                             bloom_config,
