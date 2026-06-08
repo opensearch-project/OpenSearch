@@ -14,7 +14,6 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
@@ -172,37 +171,47 @@ public class OpenSearchFilterRule extends RelOptRule {
             // that, e.g., query_string(['severityNumber'], ...) on an INTEGER field doesn't get
             // routed to a backend that only declared (QUERY_STRING, TEXT) capability.
             if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
-                List<String> literalFieldNames = extractLiteralFieldNames(predicate);
-                if (literalFieldNames.isEmpty()) {
-                    // No field references at all — fall back to TEXT type assumption.
-                    // This covers zero-field full-text functions like MATCHALL or QUERY (no-field variant).
-                    return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
-                }
-                // Eagerly reject text-relevance functions invoked on non-text/non-keyword fields.
-                // The downstream capability intersection would also exclude these, but a generic
-                // "no backend can evaluate" error is unhelpful — surface a precise, actionable
-                // message naming the offending field and its type so users know to use the
-                // typed comparison operator (e.g. {@code field > 15}) instead.
-                rejectNonTextFieldsForTextFunction(predicate.getOperator().getName(), literalFieldNames, fieldStorageInfos);
-                Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
-                for (String fieldName : literalFieldNames) {
-                    FieldStorageInfo storageInfo = findStorageByFieldName(fieldStorageInfos, fieldName);
-                    if (storageInfo == null) {
-                        // Unknown field — fall back to TEXT type assumption for this field.
-                        viableSet.retainAll(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
-                    } else {
-                        viableSet.retainAll(registry.filterBackendsForField(function, storageInfo));
+                if (TextRelevanceFieldValidator.usesLiteralFieldEncoding(function)) {
+                    List<String> literalFieldNames = TextRelevanceFieldValidator.extractLiteralFieldNames(predicate);
+                    if (literalFieldNames.isEmpty()) {
+                        // No field references at all — fall back to TEXT type assumption.
+                        return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
                     }
-                }
-                if (viableSet.isEmpty()) {
-                    throw new IllegalStateException(
-                        "No backend can evaluate filter predicate ["
-                            + predicate.getKind()
-                            + "] on literal-named fields "
-                            + literalFieldNames
+                    // Eagerly reject text-relevance functions invoked on non-text/non-keyword fields.
+                    TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
+                        predicate.getOperator().getName(),
+                        literalFieldNames,
+                        fieldStorageInfos
                     );
+                    Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
+                    for (String fieldName : literalFieldNames) {
+                        FieldStorageInfo storageInfo = null;
+                        for (FieldStorageInfo info : fieldStorageInfos) {
+                            if (fieldName.equals(info.getFieldName())) {
+                                storageInfo = info;
+                                break;
+                            }
+                        }
+                        if (storageInfo == null) {
+                            // Unknown field — fall back to TEXT type assumption for this field.
+                            viableSet.retainAll(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
+                        } else {
+                            viableSet.retainAll(registry.filterBackendsForField(function, storageInfo));
+                        }
+                    }
+                    if (viableSet.isEmpty()) {
+                        throw new IllegalStateException(
+                            "No backend can evaluate filter predicate ["
+                                + predicate.getKind()
+                                + "] on literal-named fields "
+                                + literalFieldNames
+                        );
+                    }
+                    return new ArrayList<>(viableSet);
                 }
-                return new ArrayList<>(viableSet);
+                // FULL_TEXT but not a literal-field-encoding function (e.g. QUERY no-field variant,
+                // MATCHALL): no explicit field list to validate — fall back to TEXT type assumption.
+                return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
             }
             // No field reference (non-deterministic, or an unfoldable constant like
             // mktime('...') > N): let any child-viable backend evaluate it.
@@ -334,113 +343,6 @@ public class OpenSearchFilterRule extends RelOptRule {
             contents.scalarFunctionCalls().add(rexCall);
             for (RexNode operand : rexCall.getOperands()) {
                 collect(operand, contents);
-            }
-        }
-    }
-
-    /**
-     * Extracts field names from the literal MAP structure of multi-field full-text RexCalls.
-     *
-     * <p>Multi-field functions like {@code query_string(['severityNumber'], 'severityNumber:>15')}
-     * encode field names as string literals in a nested MAP_VALUE_CONSTRUCTOR rather than as
-     * {@link RexInputRef}. The structure is:
-     * <pre>
-     *   func(
-     *     MAP('fields', MAP('field1':VARCHAR, boost1:DOUBLE, 'field2':VARCHAR, boost2:DOUBLE, ...)),
-     *     MAP('query', '...':VARCHAR)
-     *   )
-     * </pre>
-     * This method walks the call tree to find all string literals that represent field names —
-     * specifically, RexLiteral children at even indices of a nested MAP whose outer key is "fields"
-     * or "field". Returns an empty list if no such names are found (e.g. zero-field functions
-     * like MATCHALL or QUERY without an explicit field list).
-     */
-    private List<String> extractLiteralFieldNames(RexCall predicate) {
-        List<String> names = new ArrayList<>();
-        for (RexNode operand : predicate.getOperands()) {
-            if (operand instanceof RexCall outerMap && outerMap.getOperands().size() >= 2) {
-                // Outer MAP: MAP('key', value). Check if the key is "fields" or "field".
-                RexNode keyNode = outerMap.getOperands().get(0);
-                if (!(keyNode instanceof RexLiteral keyLit)) continue;
-                String key = keyLit.getValueAs(String.class);
-                if (!"fields".equals(key) && !"field".equals(key)) continue;
-
-                RexNode valueNode = outerMap.getOperands().get(1);
-                if (valueNode instanceof RexCall nestedMap) {
-                    // Nested MAP with field-name/boost pairs at even/odd indices.
-                    List<RexNode> nestedOperands = nestedMap.getOperands();
-                    for (int i = 0; i < nestedOperands.size(); i += 2) {
-                        RexNode fieldNode = nestedOperands.get(i);
-                        if (fieldNode instanceof RexLiteral fieldLit) {
-                            String fieldName = fieldLit.getValueAs(String.class);
-                            if (fieldName != null && !fieldName.isEmpty()) {
-                                names.add(fieldName);
-                            }
-                        }
-                    }
-                } else if (valueNode instanceof RexLiteral valueLit) {
-                    // Single-field shape: MAP('field', 'fieldName').
-                    String fieldName = valueLit.getValueAs(String.class);
-                    if (fieldName != null && !fieldName.isEmpty()) {
-                        names.add(fieldName);
-                    }
-                }
-            }
-        }
-        return names;
-    }
-
-    /**
-     * Looks up a {@link FieldStorageInfo} by field name. Returns null if no match.
-     */
-    private FieldStorageInfo findStorageByFieldName(List<FieldStorageInfo> fieldStorageInfos, String fieldName) {
-        for (FieldStorageInfo info : fieldStorageInfos) {
-            if (fieldName.equals(info.getFieldName())) {
-                return info;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Validates that all explicitly named fields used in a text-relevance function
-     * (e.g. {@code query_string}, {@code simple_query_string}, {@code multi_match})
-     * are mapped as {@code text} or {@code keyword}. Throws a descriptive
-     * {@link IllegalArgumentException} naming the offending field, its mapping type,
-     * and the function — surfaced at planning so users get a clear, actionable error
-     * instead of a generic "no backend can evaluate" failure later in the pipeline.
-     *
-     * <p>Fields whose storage info cannot be resolved (unknown columns, dynamic
-     * mappings) are skipped — they fall through to the existing capability-based
-     * matching where they get the conservative TEXT-type assumption.
-     */
-    private void rejectNonTextFieldsForTextFunction(
-        String functionName,
-        List<String> fieldNames,
-        List<FieldStorageInfo> fieldStorageInfos
-    ) {
-        Set<FieldType> allowed = new HashSet<>();
-        allowed.addAll(FieldType.text());
-        allowed.addAll(FieldType.keyword());
-        for (String fieldName : fieldNames) {
-            FieldStorageInfo storageInfo = findStorageByFieldName(fieldStorageInfos, fieldName);
-            if (storageInfo == null) {
-                continue;
-            }
-            FieldType type = storageInfo.getFieldType();
-            if (type != null && allowed.contains(type) == false) {
-                throw new IllegalArgumentException(
-                    "Text-relevance function ["
-                        + functionName
-                        + "] cannot be applied to field ["
-                        + fieldName
-                        + "] of type ["
-                        + storageInfo.getMappingType()
-                        + "]. Only text and keyword fields are supported. "
-                        + "Use a typed comparison (e.g. ["
-                        + fieldName
-                        + " > value]) for non-text fields."
-                );
             }
         }
     }

@@ -330,22 +330,10 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")));
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
-        assertTrue(
-            "Error must name the function: " + exception.getMessage(),
-            exception.getMessage().contains("QUERY_STRING")
-        );
-        assertTrue(
-            "Error must name the offending field: " + exception.getMessage(),
-            exception.getMessage().contains("severityNumber")
-        );
-        assertTrue(
-            "Error must name the field type: " + exception.getMessage(),
-            exception.getMessage().contains("long")
-        );
-        assertTrue(
-            "Error must hint at typed comparison: " + exception.getMessage(),
-            exception.getMessage().contains("typed comparison")
-        );
+        assertTrue("Error must name the function: " + exception.getMessage(), exception.getMessage().contains("QUERY_STRING"));
+        assertTrue("Error must name the offending field: " + exception.getMessage(), exception.getMessage().contains("severityNumber"));
+        assertTrue("Error must name the field type: " + exception.getMessage(), exception.getMessage().contains("long"));
+        assertTrue("Error must hint at typed comparison: " + exception.getMessage(), exception.getMessage().contains("typed comparison"));
     }
 
     /**
@@ -365,25 +353,15 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     }
 
     /**
-     * {@code query_string(['message'], 'hello')} on a {@code text} field is accepted —
-     * text fields are valid for text-relevance functions.
-     */
-    public void testQueryStringOnTextFieldIsAccepted() {
-        OpenSearchFilter result = runFilterWithDelegation(
-            "parquet",
-            Map.of("message", Map.of("type", "text", "index", true)),
-            new String[] { "message" },
-            new SqlTypeName[] { SqlTypeName.VARCHAR },
-            makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("message"), "hello")
-        );
-
-        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
-        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
-    }
-
-    /**
      * {@code query_string(['status'], '...')} on a {@code keyword} field is accepted —
      * keyword fields are valid for text-relevance functions.
+     *
+     * <p>Note: this fixture's mock DataFusion backend declares scan support only for
+     * numeric/keyword/date/boolean types (not {@code text}), and the mock Lucene backend
+     * has no value-producing scan capability, so a pure {@code text} field can't be scanned
+     * here at all — the table-scan rule throws before the filter rule runs. The {@code text}
+     * acceptance path is therefore covered directly at the validator level in
+     * {@link #testValidatorAcceptsTextField} rather than end-to-end through the planner.
      */
     public void testQueryStringOnKeywordFieldIsAccepted() {
         OpenSearchFilter result = runFilterWithDelegation(
@@ -399,29 +377,83 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     }
 
     /**
-     * {@code query_string(['message', 'severityNumber'], '...')} with a mixed field list
-     * (text + long) is rejected — every named field must be text/keyword.
+     * {@code query_string(['status', 'severityNumber'], '...')} with a mixed field list
+     * (keyword + long) is rejected — every named field must be text/keyword. The keyword
+     * field keeps the scan viable (see note on {@link #testQueryStringOnKeywordFieldIsAccepted}),
+     * so planning reaches the filter rule and the {@code long} field triggers the rejection.
      */
     public void testQueryStringOnMixedFieldsRejectsBecauseOfNonTextField() {
         RelOptTable table = mockTable(
             "test_index",
-            new String[] { "message", "severityNumber" },
+            new String[] { "status", "severityNumber" },
             new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.BIGINT }
         );
-        RexNode condition = makeMultiFieldFullTextCall(
-            fullTextSqlFunction("QUERY_STRING"),
-            List.of("message", "severityNumber"),
-            "error"
-        );
+        RexNode condition = makeMultiFieldFullTextCall(fullTextSqlFunction("QUERY_STRING"), List.of("status", "severityNumber"), "error");
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         PlannerContext context = buildContext(
             "parquet",
-            Map.of("message", Map.of("type", "text", "index", true), "severityNumber", Map.of("type", "long"))
+            Map.of("status", Map.of("type", "keyword", "index", true), "severityNumber", Map.of("type", "long"))
         );
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("severityNumber"));
         assertTrue(exception.getMessage().contains("long"));
+    }
+
+    // ---- Direct TextRelevanceFieldValidator unit tests ----
+    // These exercise the validator in isolation, independent of the scan fixture's
+    // type-support limitations (the mock backends here can't scan a pure `text` field).
+
+    /** {@code text} and {@code keyword} fields are accepted — no exception thrown. */
+    public void testValidatorAcceptsTextField() {
+        List<org.opensearch.analytics.spi.FieldStorageInfo> storage = List.of(
+            textStorage("message", "text", org.opensearch.analytics.spi.FieldType.TEXT),
+            textStorage("status", "keyword", org.opensearch.analytics.spi.FieldType.KEYWORD),
+            textStorage("title", "match_only_text", org.opensearch.analytics.spi.FieldType.MATCH_ONLY_TEXT)
+        );
+        // Should not throw for any text/keyword family field.
+        org.opensearch.analytics.planner.rules.TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
+            "QUERY_STRING",
+            List.of("message", "status", "title"),
+            storage
+        );
+    }
+
+    /** A {@code long} field is rejected with a descriptive, actionable message. */
+    public void testValidatorRejectsNonTextField() {
+        List<org.opensearch.analytics.spi.FieldStorageInfo> storage = List.of(
+            textStorage("severityNumber", "long", org.opensearch.analytics.spi.FieldType.LONG)
+        );
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> org.opensearch.analytics.planner.rules.TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
+                "QUERY_STRING",
+                List.of("severityNumber"),
+                storage
+            )
+        );
+        assertTrue(exception.getMessage().contains("QUERY_STRING"));
+        assertTrue(exception.getMessage().contains("severityNumber"));
+        assertTrue(exception.getMessage().contains("long"));
+        assertTrue(exception.getMessage().contains("typed comparison"));
+    }
+
+    /** Fields whose storage info is absent (unknown/dynamic columns) are skipped, not rejected. */
+    public void testValidatorSkipsUnknownField() {
+        // No storage entries at all — unknown fields fall through to capability-based matching.
+        org.opensearch.analytics.planner.rules.TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
+            "QUERY_STRING",
+            List.of("mysteryField"),
+            List.of()
+        );
+    }
+
+    private static org.opensearch.analytics.spi.FieldStorageInfo textStorage(
+        String name,
+        String mappingType,
+        org.opensearch.analytics.spi.FieldType fieldType
+    ) {
+        return new org.opensearch.analytics.spi.FieldStorageInfo(name, mappingType, fieldType, List.of(), List.of(), List.of(), false);
     }
 
     /**
@@ -441,11 +473,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             innerMapOperands.add(rexBuilder.makeApproxLiteral(java.math.BigDecimal.valueOf(1.0)));
         }
         RexNode innerMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, innerMapOperands);
-        RexNode fieldsMap = rexBuilder.makeCall(
-            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
-            rexBuilder.makeLiteral("fields"),
-            innerMap
-        );
+        RexNode fieldsMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, rexBuilder.makeLiteral("fields"), innerMap);
         RexNode queryMap = rexBuilder.makeCall(
             SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
             rexBuilder.makeLiteral("query"),
