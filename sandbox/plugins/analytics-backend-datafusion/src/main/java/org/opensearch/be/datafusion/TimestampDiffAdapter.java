@@ -23,6 +23,8 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -140,15 +142,26 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
     /** Standalone TIMESTAMPDIFF: {@code (to_unixtime(t2) - to_unixtime(t1))} scaled to out-unit. */
     private static RexNode rewriteStandaloneDiff(RelOptCluster cluster, RexCall original, String outUnit, RexNode start, RexNode end) {
         RexBuilder rb = cluster.getRexBuilder();
+        String upperOut = outUnit.toUpperCase(Locale.ROOT);
+        // Literal-literal fold via JDK calendar math — calendar-exact for YEAR/QUARTER/MONTH
+        // (covers DateTimeFunctionIT#testTimestampDiff with literal operands).
+        LocalDateTime startLiteral = parseTimestampLiteral(start);
+        LocalDateTime endLiteral = parseTimestampLiteral(end);
+        if (startLiteral != null && endLiteral != null) {
+            Long folded = literalDiff(upperOut, startLiteral, endLiteral);
+            if (folded != null) {
+                RexNode literal = rb.makeBigintLiteral(BigDecimal.valueOf(folded));
+                return rb.makeCast(original.getType(), literal, true);
+            }
+        }
         RexNode t1 = liftToTimestamp(rb, start, original.getType());
         RexNode t2 = liftToTimestamp(rb, end, original.getType());
         RexNode endSeconds = rb.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, t2);
         RexNode startSeconds = rb.makeCall(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, t1);
         RexNode diffSeconds = rb.makeCall(SqlStdOperatorTable.MINUS, endSeconds, startSeconds);
-        String upper = outUnit.toUpperCase(Locale.ROOT);
-        Long mult = OUT_UNIT_MULTIPLIER_FROM_SECONDS.get(upper);
-        Long div = mult == null ? OUT_UNIT_DIVISOR_FROM_SECONDS.get(upper) : null;
-        Long approxSeconds = mult == null && div == null ? VARIABLE_OUT_APPROX_SECONDS.get(upper) : null;
+        Long mult = OUT_UNIT_MULTIPLIER_FROM_SECONDS.get(upperOut);
+        Long div = mult == null ? OUT_UNIT_DIVISOR_FROM_SECONDS.get(upperOut) : null;
+        Long approxSeconds = mult == null && div == null ? VARIABLE_OUT_APPROX_SECONDS.get(upperOut) : null;
         RexNode scaled;
         if (mult != null && mult > 1L) {
             RexNode multLit = rb.makeBigintLiteral(BigDecimal.valueOf(mult));
@@ -237,6 +250,44 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
             return null;
         }
         return totalMs / outMs;
+    }
+
+    /**
+     * Parse a literal datetime operand to {@link LocalDateTime} via
+     * {@link TimestampFunctionAdapter#extractLocalDateTimeLiteral} which recognizes both
+     * raw VARCHAR literals and already-coerced shapes (TIMESTAMP-typed literals or CAST
+     * RexCalls). Returns null when the operand isn't a
+     * recognizable literal — caller falls through to the non-literal rewrite.
+     */
+    private static LocalDateTime parseTimestampLiteral(RexNode node) {
+        return TimestampFunctionAdapter.extractLocalDateTimeLiteral(node);
+    }
+
+    /**
+     * Legacy {@code TIMESTAMPDIFF} semantics for two literal timestamps. For variable-length
+     * units (YEAR / QUARTER / MONTH), uses {@link LocalDateTime#until(java.time.temporal.Temporal,
+     * java.time.temporal.TemporalUnit)} which floors toward zero — matching the SQL plugin's
+     * {@code DateTimeFunctions.exprTimestampDiff} reference. For fixed-length units, uses
+     * the unix-epoch difference scaled to the requested unit.
+     */
+    private static Long literalDiff(String upperOut, LocalDateTime t1, LocalDateTime t2) {
+        try {
+            return switch (upperOut) {
+                case "YEAR" -> t1.until(t2, ChronoUnit.YEARS);
+                case "QUARTER" -> t1.until(t2, ChronoUnit.MONTHS) / 3L;
+                case "MONTH" -> t1.until(t2, ChronoUnit.MONTHS);
+                case "WEEK" -> t1.until(t2, ChronoUnit.WEEKS);
+                case "DAY" -> t1.until(t2, ChronoUnit.DAYS);
+                case "HOUR" -> t1.until(t2, ChronoUnit.HOURS);
+                case "MINUTE" -> t1.until(t2, ChronoUnit.MINUTES);
+                case "SECOND" -> t1.until(t2, ChronoUnit.SECONDS);
+                case "MILLISECOND" -> t1.until(t2, ChronoUnit.MILLIS);
+                case "MICROSECOND" -> t1.until(t2, ChronoUnit.MICROS);
+                default -> null;
+            };
+        } catch (ArithmeticException unused) {
+            return null;
+        }
     }
 
     /** Peel a single OperatorAnnotation wrapper if present. */

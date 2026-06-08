@@ -36,6 +36,17 @@ import java.util.Set;
  * Character-family operands cast to TIMESTAMP so substrait binds the (string, precision_timestamp&lt;P&gt;) sig;
  * TIME and bare-time strings get today-UTC anchored first.
  *
+ * <p>TIME operand handling: isthmus emits Calcite's TIME as Substrait
+ * {@code precision_time<P>?}, which binds to no {@code date_part} sig in our
+ * yaml (declaring that sig directly triggers a runtime
+ * {@code ParameterizedTypeThrowsVisitor} error on every call). For TIME literals
+ * we synthesize a TIMESTAMP literal pinned to 1970-01-01 via
+ * {@link DatetimeLiteralHelper#unwrapTimeLiteralToTimestamp} (matching reference
+ * PPL semantics: bare TIME = LocalDateTime.of(epoch, time)). Non-literal TIME
+ * emits {@code CAST(CAST(time AS VARCHAR) AS TIMESTAMP)} — routing through VARCHAR
+ * avoids the simplifier-folded {@code CAST(time AS TIMESTAMP)} path Arrow rejects —
+ * landing on the yaml's {@code precision_timestamp<P>} sig.
+ *
  * @opensearch.internal
  */
 final class DatePartAdapters extends AbstractNameMappingAdapter {
@@ -154,6 +165,10 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
 
     private static boolean isCharacterOperand(RexNode operand) {
         return SqlTypeFamily.CHARACTER.contains(operand.getType());
+    }
+
+    private static boolean isTimeOperand(RexNode operand) {
+        return operand.getType().getSqlTypeName() == SqlTypeName.TIME;
     }
 
     private static RexNode castToTimestamp(RexNode operand, RelOptCluster cluster) {

@@ -19,10 +19,13 @@ import org.apache.calcite.sql.SqlIntervalQualifier;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.TimestampString;
+import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,6 +33,15 @@ import java.util.Map;
 /**
  * PPL {@code TIMESTAMPADD(unit, n, ts)} → {@code DATETIME_PLUS(CAST AS TIMESTAMP, base-unit interval)}.
  * Mirrors {@link DateAddSubAdapter}'s base-unit normalisation; MICROSECOND / unknown units pass through.
+ *
+ * <p>Literal-literal fold path: when {@code ts} is a recognizable VARCHAR literal we shift via
+ * JDK calendar math ({@link LocalDateTime#plusMonths} etc.) so MONTH / QUARTER / YEAR are
+ * calendar-exact (covers {@code timestampadd(YEAR, 15, '<lit>')}). Non-literal {@code ts} falls
+ * through to the DATETIME_PLUS interval path, which is what gives standalone TIMESTAMPADD a
+ * Substrait binding (mirrors {@link EarliestLatestAdapter}'s wired offset path).
+ *
+ * <p>TIME operand: anchored to today-UTC before lifting to TIMESTAMP, matching
+ * {@link DateAddSubAdapter}'s TIME-operand handling.
  *
  * @opensearch.internal
  */
@@ -58,9 +70,9 @@ class TimestampAddAdapter implements ScalarFunctionAdapter {
         if (!original.getOperator().getName().equalsIgnoreCase("TIMESTAMPADD") || original.getOperands().size() != 3) {
             return original;
         }
-        RexNode unitOp = original.getOperands().get(0);
-        RexNode countOp = original.getOperands().get(1);
-        RexNode tsOp = original.getOperands().get(2);
+        RexNode unitOp = unwrapAnnotation(original.getOperands().get(0));
+        RexNode countOp = unwrapAnnotation(original.getOperands().get(1));
+        RexNode tsOp = unwrapAnnotation(original.getOperands().get(2));
         if (!(unitOp instanceof RexLiteral unitLit) || !(countOp instanceof RexLiteral countLit)) {
             return original;
         }
@@ -68,10 +80,7 @@ class TimestampAddAdapter implements ScalarFunctionAdapter {
         if (unit == null) {
             return original;
         }
-        long[] baseSpec = UNIT_TO_BASE.get(unit.toUpperCase(Locale.ROOT));
-        if (baseSpec == null) {
-            return original;
-        }
+        String upperUnit = unit.toUpperCase(Locale.ROOT);
         Long n;
         try {
             n = countLit.getValueAs(BigDecimal.class) == null ? null : countLit.getValueAs(BigDecimal.class).longValueExact();
@@ -81,10 +90,34 @@ class TimestampAddAdapter implements ScalarFunctionAdapter {
         if (n == null) {
             return original;
         }
-        long baseValue = Math.multiplyExact(n, baseSpec[0]);
-        TimeUnit baseUnit = baseSpec[1] == 1L ? TimeUnit.MONTH : TimeUnit.DAY;
 
         RexBuilder rb = cluster.getRexBuilder();
+
+        // Literal-literal fold: when ts is a recognizable VARCHAR literal, shift in Java so
+        // calendar-aware YEAR / QUARTER / MONTH math is exact (LocalDateTime.plusMonths
+        // already handles month-end clamping per JDK contract).
+        LocalDateTime tsLiteral = TimestampFunctionAdapter.extractLocalDateTimeLiteral(tsOp);
+        if (tsLiteral != null) {
+            LocalDateTime shifted = shiftLiteral(tsLiteral, upperUnit, n);
+            if (shifted != null) {
+                TimestampString tsStr = TimestampFunctionAdapter.toTimestampString(shifted);
+                return rb.makeCast(original.getType(), rb.makeTimestampLiteral(tsStr, 3), true);
+            }
+            return original;  // overflow / unrecognized unit
+        }
+
+        long[] baseSpec = UNIT_TO_BASE.get(upperUnit);
+        if (baseSpec == null) {
+            return original;
+        }
+        long baseValue;
+        try {
+            baseValue = Math.multiplyExact(n, baseSpec[0]);
+        } catch (ArithmeticException unused) {
+            return original;
+        }
+        TimeUnit baseUnit = baseSpec[1] == 1L ? TimeUnit.MONTH : TimeUnit.DAY;
+
         // lift ts to call's TIMESTAMP; TIME → today-UTC anchored (matching DateAddSubAdapter)
         RelDataType targetType = original.getType();
         RexNode tsTimestamp;
@@ -110,5 +143,33 @@ class TimestampAddAdapter implements ScalarFunctionAdapter {
             return shifted;
         }
         return rb.makeAbstractCast(targetType, shifted);
+    }
+
+    private static RexNode unwrapAnnotation(RexNode node) {
+        if (node instanceof OperatorAnnotation annotation && annotation.unwrap() != null) {
+            return annotation.unwrap();
+        }
+        return node;
+    }
+
+    /** Apply {@code n} units of {@code upperUnit} to {@code base} via JDK calendar math. */
+    private static LocalDateTime shiftLiteral(LocalDateTime base, String upperUnit, long n) {
+        try {
+            return switch (upperUnit) {
+                case "MICROSECOND" -> base.plusNanos(Math.multiplyExact(n, 1_000L));
+                case "MILLISECOND" -> base.plusNanos(Math.multiplyExact(n, 1_000_000L));
+                case "SECOND" -> base.plusSeconds(n);
+                case "MINUTE" -> base.plusMinutes(n);
+                case "HOUR" -> base.plusHours(n);
+                case "DAY" -> base.plusDays(n);
+                case "WEEK" -> base.plusWeeks(n);
+                case "MONTH" -> base.plusMonths(n);
+                case "QUARTER" -> base.plusMonths(Math.multiplyExact(n, 3L));
+                case "YEAR" -> base.plusYears(n);
+                default -> null;
+            };
+        } catch (ArithmeticException | java.time.DateTimeException unused) {
+            return null;
+        }
     }
 }

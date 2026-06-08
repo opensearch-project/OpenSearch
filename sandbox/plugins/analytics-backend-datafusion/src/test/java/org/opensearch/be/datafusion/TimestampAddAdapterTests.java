@@ -45,12 +45,17 @@ public class TimestampAddAdapterTests extends OpenSearchTestCase {
         SqlFunctionCategory.TIMEDATE
     );
 
-    /** TIMESTAMPADD(YEAR, 15, ts) → DATETIME_PLUS(CAST AS TIMESTAMP, INTERVAL 180 MONTH). */
+    /**
+     * TIMESTAMPADD(YEAR, 15, ts-col) → DATETIME_PLUS(CAST AS TIMESTAMP, INTERVAL 180 MONTH).
+     * Uses a column ref (not a literal) to exercise the interval path; literal-literal hits
+     * the calendar-exact fold path which returns a TIMESTAMP literal directly.
+     */
     public void testYearUnitLowersToMonthInterval() {
         RexNode unit = rexBuilder.makeLiteral("YEAR");
         RexNode count = rexBuilder.makeBigintLiteral(BigDecimal.valueOf(15L));
-        RexNode ts = rexBuilder.makeLiteral("2001-03-06 00:00:00");
-        RexCall original = (RexCall) rexBuilder.makeCall(TIMESTAMPADD_OP, List.of(unit, count, ts));
+        RelDataType timestampType = typeFactory.createSqlType(SqlTypeName.TIMESTAMP);
+        RexNode tsCol = rexBuilder.makeInputRef(timestampType, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(TIMESTAMPADD_OP, List.of(unit, count, tsCol));
 
         RexNode adapted = adapter.adapt(original, List.of(), cluster);
 

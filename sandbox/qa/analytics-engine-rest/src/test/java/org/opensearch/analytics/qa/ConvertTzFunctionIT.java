@@ -51,13 +51,37 @@ public class ConvertTzFunctionIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * Out-of-range {@code from} offset ({@code -17:00}, beyond ±14:00) → NULL, matching reference PPL
+     * (ConvertTZFunctionIT#nullFromFieldUnder). Pins the canonicalize pass-through that lets the
+     * runtime UDF surface NULL instead of the identity short-circuit folding the call away.
+     */
+    public void testNullOnOutOfRangeFromOffset() throws IOException {
+        assertFirstRowNull(oneRow() + "| eval v = convert_tz('2021-05-30 11:34:50', '-17:00', '+08:00') | fields v");
+    }
+
+    /**
+     * Out-of-range {@code to} offset ({@code +15:00}, beyond ±14:00) → NULL, matching reference PPL
+     * (ConvertTZFunctionIT#nullToFieldOver).
+     */
+    public void testNullOnOutOfRangeToOffset() throws IOException {
+        assertFirstRowNull(oneRow() + "| eval v = convert_tz('2021-05-12 11:34:50', '-12:00', '+15:00') | fields v");
+    }
+
     private void assertFirstRowString(String ppl, String expected) throws IOException {
+        assertEquals("Value mismatch for query: " + ppl, expected, firstRowFirstCell(ppl));
+    }
+
+    private void assertFirstRowNull(String ppl) throws IOException {
+        assertNull("Expected NULL result for query: " + ppl, firstRowFirstCell(ppl));
+    }
+
+    private Object firstRowFirstCell(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'datarows' for query: " + ppl, rows);
         assertTrue("Expected at least one row for query: " + ppl, rows.size() >= 1);
-        Object cell = rows.get(0).get(0);
-        assertEquals("Value mismatch for query: " + ppl, expected, cell);
+        return rows.get(0).get(0);
     }
 }

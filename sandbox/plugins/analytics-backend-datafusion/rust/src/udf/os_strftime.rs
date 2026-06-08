@@ -499,15 +499,17 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
                 f.minute = Some(m);
                 f.second = Some(s);
             }
-            // %b / %M resolve month name into Parsed.month (so '1-May-13' parses May, not Jan)
+            // Month-name tokens back-solve to f.month (Java's `LLL`/`LLLL` formatter pattern in
+            // PPL's reference DateTimeFormatterUtil decodes month names). Accept both full and
+            // abbreviated forms regardless of which token was specified — MySQL is lenient here
+            // and PPL inherits that. Case-insensitive.
             Token::B | Token::MUpper => {
-                let end = consume_while(input_bytes, pos, |b| b.is_ascii_alphabetic());
-                if end > pos {
-                    let name = std::str::from_utf8(&input_bytes[pos..end]).ok()?;
-                    f.month = Some(month_name_to_number(name)?);
-                }
-                pos = end;
+                let (m, np) = match_month_name(input_bytes, pos)?;
+                f.month = Some(m);
+                pos = np;
             }
+            // Weekday-name tokens: consume letters without back-solving — PPL's parser doesn't
+            // derive month/day from a weekday alone (it would need a calendar context).
             Token::A | Token::W => {
                 pos = consume_while(input_bytes, pos, |b| b.is_ascii_alphabetic());
             }
@@ -519,6 +521,40 @@ pub(crate) fn parse_os_strftime(input: &str, format: &str) -> Option<Parsed> {
         }
     }
     Some(f)
+}
+
+/// Decode a month name (full or abbreviated, case-insensitive) starting at `pos`.
+/// Returns `(month, next_pos)` on a match. Tries the longer (full) name first so
+/// `September` doesn't get truncated to `Sep` with `tember` left as dangling input.
+fn match_month_name(bytes: &[u8], pos: usize) -> Option<(u32, usize)> {
+    const FULL: [&str; 12] = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ];
+    const SHORT: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let tail = bytes.get(pos..)?;
+    for (i, name) in FULL.iter().enumerate() {
+        if matches_ci(tail, name.as_bytes()) {
+            return Some((i as u32 + 1, pos + name.len()));
+        }
+    }
+    for (i, name) in SHORT.iter().enumerate() {
+        if matches_ci(tail, name.as_bytes()) {
+            return Some((i as u32 + 1, pos + name.len()));
+        }
+    }
+    None
+}
+
+fn matches_ci(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack.len() >= needle.len()
+        && haystack[..needle.len()]
+            .iter()
+            .zip(needle.iter())
+            .all(|(a, b)| a.eq_ignore_ascii_case(b))
 }
 
 fn read_am_pm(bytes: &[u8], pos: usize, f: &mut Parsed) -> Option<usize> {
@@ -551,26 +587,6 @@ fn expect_literal(bytes: &[u8], pos: usize, expected: u8) -> Option<usize> {
         return None;
     }
     Some(pos + 1)
-}
-
-/// English month name (full or 3-letter abbrev, case-insensitive) -> 1-based month number.
-fn month_name_to_number(name: &str) -> Option<u32> {
-    let lower = name.to_ascii_lowercase();
-    match lower.as_str() {
-        "jan" | "january" => Some(1),
-        "feb" | "february" => Some(2),
-        "mar" | "march" => Some(3),
-        "apr" | "april" => Some(4),
-        "may" => Some(5),
-        "jun" | "june" => Some(6),
-        "jul" | "july" => Some(7),
-        "aug" | "august" => Some(8),
-        "sep" | "sept" | "september" => Some(9),
-        "oct" | "october" => Some(10),
-        "nov" | "november" => Some(11),
-        "dec" | "december" => Some(12),
-        _ => None,
-    }
 }
 
 fn consume_while<F: Fn(u8) -> bool>(bytes: &[u8], pos: usize, pred: F) -> usize {
@@ -692,13 +708,22 @@ mod tests {
     }
 
     #[test]
-    fn parse_b_token_resolves_month_abbrev() {
-        // %b parses Jan..Dec abbreviation into Parsed.month.
+    fn parse_month_name_tokens() {
+        // %b (abbreviated) and %M (full) must back-solve to f.month — covers PPL
+        // testStrToDate's `'1-May-13'` / `%d-%b-%y` assertion. Without this, %b just
+        // consumed letters and month silently defaulted to 1.
         let p = parse_os_strftime("1-May-13", "%d-%b-%y").unwrap();
-        assert_eq!(p.to_naive().unwrap().to_string(), "2013-05-01 00:00:00");
-        // %M parses full month name; case-insensitive.
-        let p = parse_os_strftime("February 4 2020", "%M %d %Y").unwrap();
-        assert_eq!(p.to_naive().unwrap().to_string(), "2020-02-04 00:00:00");
+        let ndt = p.to_naive().unwrap();
+        assert_eq!(ndt.to_string(), "2013-05-01 00:00:00");
+
+        // Longest-first: "September" must not truncate to "Sep" with "tember…" left over.
+        let p = parse_os_strftime("September 9, 2024", "%M %d, %Y").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2024-09-09 00:00:00");
+
+        // Case-insensitive: PPL's Java `LLLL` parser tolerates lower/mixed case.
+        let p = parse_os_strftime("march 1 2020", "%M %d %Y").unwrap();
+        assert_eq!(p.to_naive().unwrap().to_string(), "2020-03-01 00:00:00");
+
         // Unknown name → None.
         assert!(parse_os_strftime("Foo 4 2020", "%M %d %Y").is_none());
     }
