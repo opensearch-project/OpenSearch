@@ -41,16 +41,9 @@ class MinuteOfDayAdapter implements ScalarFunctionAdapter {
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
-        RexNode arg = original.getOperands().get(0);
-        if (arg.getType().getSqlTypeName() == SqlTypeName.TIME) {
-            RexNode synthesized = DatetimeLiteralHelper.unwrapTimeLiteralToTimestamp(arg, rexBuilder);
-            if (synthesized != null) {
-                arg = synthesized;
-            } else {
-                RelDataType nullableVarchar = cluster.getTypeFactory().createTypeWithNullability(varchar, arg.getType().isNullable());
-                arg = rexBuilder.makeCast(nullableVarchar, arg);
-            }
-        }
+        // Coerce a character/TIME operand to TIMESTAMP at emit time so date_part's Substrait
+        // signature resolves (DATE_PART has no (string, ...) impl). Mirrors DayOfWeek/Second.
+        RexNode arg = DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster);
         RexNode hour = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, rexBuilder.makeLiteral("hour", varchar, true), arg);
         RexNode minute = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, rexBuilder.makeLiteral("minute", varchar, true), arg);
         RexNode sixty = rexBuilder.makeExactLiteral(BigDecimal.valueOf(60));

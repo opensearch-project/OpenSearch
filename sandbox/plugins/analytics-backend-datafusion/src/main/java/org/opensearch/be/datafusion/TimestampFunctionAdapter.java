@@ -292,10 +292,9 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
     }
 
     /**
-     * Recover a literal {@link LocalDateTime} from an adapter operand that may have been
-     * coerced by {@link org.opensearch.analytics.planner.rules.DatetimeOperandCoercer}
-     * (run as a pre-planning shuttle, so adapters see post-coercion shapes). Recognized
-     * shapes:
+     * Recover a literal {@link LocalDateTime} from an adapter operand that may already be a
+     * timestamp-shaped form (a raw VARCHAR literal, a folded TIMESTAMP literal, or a
+     * {@code CAST(<varchar lit> AS TIMESTAMP)}). Recognized shapes:
      * <ul>
      *   <li>VARCHAR/CHAR {@link RexLiteral} — original PPL string literal, parse via the
      *       legacy accept-set.</li>
@@ -310,8 +309,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
      * parsing fails — caller falls through to the non-literal rewrite path.
      *
      * <p>Sibling adapters (TIMESTAMPADD, TIMESTAMPDIFF) call this to recover the original
-     * literal for plan-time folds. Without it, the coercer hides the literal behind a
-     * TIMESTAMP-typed shape and the fold never fires.
+     * literal for plan-time folds. Without it, a TIMESTAMP-typed (or CAST-wrapped) shape
+     * would hide the literal and the fold would never fire.
      */
     static LocalDateTime extractLocalDateTimeLiteral(RexNode node) {
         RexNode unwrapped = node;

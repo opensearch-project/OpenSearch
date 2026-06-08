@@ -51,9 +51,9 @@ import java.util.Locale;
  * we synthesize a TIMESTAMP literal pinned to 1970-01-01 via
  * {@link DatetimeLiteralHelper#unwrapTimeLiteralToTimestamp} (matching reference
  * PPL semantics: bare TIME = LocalDateTime.of(epoch, time)). Non-literal TIME
- * falls back to {@code CAST(time AS VARCHAR)}, which the recursive
- * {@code DatetimeOperandCoercer} then re-casts to TIMESTAMP, landing on the
- * yaml's {@code precision_timestamp<P>} sig.
+ * emits {@code CAST(CAST(time AS VARCHAR) AS TIMESTAMP)} — routing through VARCHAR
+ * avoids the simplifier-folded {@code CAST(time AS TIMESTAMP)} path Arrow rejects —
+ * landing on the yaml's {@code precision_timestamp<P>} sig.
  *
  * @opensearch.internal
  */
@@ -108,10 +108,12 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
     /**
      * For TIME operands, synthesize a 1970-01-01-pinned TIMESTAMP literal when the
      * operand reduces to a VARCHAR literal (matches reference PPL semantics for
-     * bare TIME values). Falls back to {@code CAST(time AS VARCHAR)} so the
-     * recursive {@code DatetimeOperandCoercer} re-casts to TIMESTAMP, avoiding
-     * the simplifier-folded {@code CAST('HH:MM:SS' AS TIMESTAMP)} path that Arrow
-     * rejects (sub-10-char string).
+     * bare TIME values). For a non-literal TIME (e.g. a TIME column) emit the
+     * two-step {@code CAST(CAST(time AS VARCHAR) AS TIMESTAMP)}: a direct
+     * {@code CAST(time AS TIMESTAMP)} gets simplifier-folded down a path Arrow's
+     * CAST kernel rejects for sub-10-char strings, whereas routing through VARCHAR
+     * first preserves the full {@code HH:MM:SS} form. The result is a complete
+     * TIMESTAMP so the {@code date_part} signature resolves without any later pass.
      */
     private static RexNode coerceTimeOperandToTimestamp(RexNode operand, RelOptCluster cluster) {
         RexBuilder rexBuilder = cluster.getRexBuilder();
@@ -120,11 +122,11 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
             return synthesized;
         }
         RelDataTypeFactory factory = cluster.getTypeFactory();
-        RelDataType nullableVarchar = factory.createTypeWithNullability(
-            factory.createSqlType(SqlTypeName.VARCHAR),
-            operand.getType().isNullable()
-        );
-        return rexBuilder.makeCast(nullableVarchar, operand);
+        boolean nullable = operand.getType().isNullable();
+        RelDataType nullableVarchar = factory.createTypeWithNullability(factory.createSqlType(SqlTypeName.VARCHAR), nullable);
+        RexNode asVarchar = rexBuilder.makeCast(nullableVarchar, operand);
+        RelDataType nullableTimestamp = factory.createTypeWithNullability(factory.createSqlType(SqlTypeName.TIMESTAMP), nullable);
+        return rexBuilder.makeCast(nullableTimestamp, asVarchar);
     }
 
     /**

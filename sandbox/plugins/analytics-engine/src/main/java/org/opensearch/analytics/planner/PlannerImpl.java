@@ -33,7 +33,6 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
-import org.opensearch.analytics.planner.rules.DatetimeOperandCoerceShuttle;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
@@ -95,11 +94,6 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
-        // Phase 0: VARCHAR→TIMESTAMP operand coercion for datetime scalars. Must precede
-        // reduceExpressions so constant folding sees post-CAST types.
-        // Fresh shuttle per call — RelShuttleImpl maintains a stateful traversal
-        // stack and cannot be shared across concurrent planning runs.
-        modifiedRelNode = modifiedRelNode.accept(new DatetimeOperandCoerceShuttle());
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);

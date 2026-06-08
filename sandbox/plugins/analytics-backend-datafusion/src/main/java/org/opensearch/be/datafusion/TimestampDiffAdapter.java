@@ -318,8 +318,8 @@ class TimestampDiffAdapter implements ScalarFunctionAdapter {
     /**
      * Parse a literal datetime operand to {@link LocalDateTime} via
      * {@link TimestampFunctionAdapter#extractLocalDateTimeLiteral} which recognizes both
-     * raw VARCHAR literals and shapes coerced by {@code DatetimeOperandCoerceShuttle}
-     * (TIMESTAMP-typed literals or CAST RexCalls). Returns null when the operand isn't a
+     * raw VARCHAR literals and already-coerced shapes (TIMESTAMP-typed literals or CAST
+     * RexCalls). Returns null when the operand isn't a
      * recognizable literal — caller falls through to the non-literal rewrite.
      */
     private static LocalDateTime parseTimestampLiteral(RexNode node) {

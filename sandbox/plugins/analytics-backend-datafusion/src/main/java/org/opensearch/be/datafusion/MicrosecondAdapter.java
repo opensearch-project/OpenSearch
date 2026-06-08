@@ -44,7 +44,10 @@ class MicrosecondAdapter implements ScalarFunctionAdapter {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
         RexNode partLiteral = rexBuilder.makeLiteral("microsecond", varchar, true);
-        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, original.getOperands().get(0));
+        // Coerce a character/TIME operand to TIMESTAMP at emit time so date_part's Substrait
+        // signature resolves (DATE_PART has no (string, ...) impl). Mirrors DayOfWeek/Second.
+        RexNode operand = DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster);
+        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, operand);
         RexNode mod = rexBuilder.makeCall(SqlStdOperatorTable.MOD, datePart, rexBuilder.makeExactLiteral(ONE_MILLION));
         return rexBuilder.makeCast(original.getType(), mod);
     }
