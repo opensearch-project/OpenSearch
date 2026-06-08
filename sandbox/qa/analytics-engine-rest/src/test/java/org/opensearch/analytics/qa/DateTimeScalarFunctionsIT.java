@@ -313,6 +313,45 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    // date_add over a DATE() literal at the TOP LEVEL lowers fine (DateAddSubAdapter sees the
+    // DATE base). Baseline for the subquery variants below. All 17 calcs rows fall in [2004,2005).
+    public void testDateAddBoundTopLevel() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01')"
+                + " and datetime0 < date_add(date('2004-01-01'), interval 1 year) | stats count() as c",
+            17L
+        );
+    }
+
+    // Same date_add bound inside an IN subquery (TPC-H q20 shape). Decorrelation folds the PPL
+    // DATE() wrapper off the date_add ARGUMENT too, leaving DATE_ADD('2004-01-01':VARCHAR, interval)
+    // which DateAddSubAdapter rejected ("Unable to convert call DATE_ADD(string?, interval_year)")
+    // until it learned to coerce a character base back to TIMESTAMP — the same recovery the
+    // comparison adapter does for >=.
+    public void testDateAddBoundInSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where key in [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01')"
+                + " and datetime0 < date_add(date('2004-01-01'), interval 1 year) | fields key ]"
+                + " | stats count() as c",
+            17L
+        );
+    }
+
+    // Same date_add bound inside a SCALAR subquery (TPC-H q15 shape).
+    public void testDateAddBoundScalarSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where num0 = [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01')"
+                + " and datetime0 < date_add(date('2004-01-01'), interval 1 year) | stats max(num0) ]"
+                + " | stats count() as c",
+            1L
+        );
+    }
+
     private void assertFirstRowString(String ppl, String expected) throws IOException {
         Object cell = firstRowFirstCell(ppl);
         assertNotNull("Expected non-null result for query [" + ppl + "]", cell);
