@@ -65,7 +65,10 @@ public final class NativeErrorConverter {
         new ErrorPattern("Cannot reserve untracked memory budget", NativeErrorConverter::convertAdmissionRejection),
         new ErrorPattern(ADMISSION_REJECTED_MSG, NativeErrorConverter::convertAdmissionRejection),
         new ErrorPattern("[analytics_backend_datafusion] Failed to allocate", NativeErrorConverter::convertPoolLimitFromControlled),
-        new ErrorPattern("Failed to allocate", NativeErrorConverter::convertPoolLimitExceeded)
+        new ErrorPattern("Failed to allocate", NativeErrorConverter::convertPoolLimitExceeded),
+        // DataFusion's own spill-path error when an operator can't allocate and DiskManager is disabled.
+        // Semantically a memory-pressure error → CircuitBreakingException (HTTP 429).
+        new ErrorPattern("Memory Exhausted while", NativeErrorConverter::convertSpillPoolExhausted)
     );
 
     /**
@@ -125,6 +128,13 @@ public final class NativeErrorConverter {
 
     private static Exception convertAdmissionRejection(MatchedError match) {
         return new OpenSearchStatusException(ADMISSION_REJECTED_MSG, RestStatus.TOO_MANY_REQUESTS, match.original());
+    }
+
+    private static Exception convertSpillPoolExhausted(MatchedError match) {
+        // Bytes/limit aren't part of this DataFusion message; surface 0/0 to keep the type contract.
+        CircuitBreakingException cbe = new CircuitBreakingException(match.message(), 0L, 0L, CircuitBreaker.Durability.TRANSIENT);
+        cbe.initCause(match.original());
+        return cbe;
     }
 
     // ─── Message parsing ────────────────────────────────────────────────────────

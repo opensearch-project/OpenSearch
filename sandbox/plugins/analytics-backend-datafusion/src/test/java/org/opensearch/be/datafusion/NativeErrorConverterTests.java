@@ -75,6 +75,20 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertSame(original, cbe.getCause());
     }
 
+    public void testSpillPoolExhaustedConvertsToCircuitBreakingException() {
+        // DataFusion emits this when an operator can't allocate and DiskManager is disabled —
+        // happens with very small datafusion.memory_pool_limit_bytes before our own try_grow path runs.
+        String message = "Resources exhausted: Memory Exhausted while SpillPool (DiskManager is disabled)";
+        RuntimeException original = new RuntimeException(message);
+
+        Exception result = NativeErrorConverter.convert(original);
+
+        assertTrue(result instanceof CircuitBreakingException);
+        CircuitBreakingException cbe = (CircuitBreakingException) result;
+        assertEquals(CircuitBreaker.Durability.TRANSIENT, cbe.getDurability());
+        assertSame(original, cbe.getCause());
+    }
+
     public void testUnrecognizedErrorPassedThrough() {
         RuntimeException original = new RuntimeException("Some unknown error from native code");
 
