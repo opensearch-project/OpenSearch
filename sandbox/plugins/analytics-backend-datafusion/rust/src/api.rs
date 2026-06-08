@@ -32,6 +32,7 @@
 //!   concurrently on the same stream pointer.
 
 use std::collections::HashMap;
+use std::fs;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -346,6 +347,19 @@ pub struct ShardView {
 ///
 /// Returns a heap-allocated pointer (as i64) to `DataFusionRuntime`.
 /// Caller must call `close_global_runtime` exactly once to free it.
+///
+/// # Side effect: spill directory is wiped
+///
+/// When `spill_dir` is non-empty, the directory is cleared (`remove_dir_all` then
+/// `create_dir_all`) before the `DiskManager` is built. This removes spill files
+/// leaked by a prior non-graceful shutdown. The directory is OpenSearch-owned by
+/// contract — anything present at startup is stale.
+///
+/// Safe today because (a) `datafusion.spill_directory` is `NodeScope + Final`, so
+/// `DataFusionPlugin.createComponents` calls this exactly once per JVM in
+/// production, and (b) Rust unit tests pass a fresh `tempdir()` per call. Anyone
+/// adding a new caller (hot-reload, multiple runtimes sharing a directory, etc.)
+/// must rethink this — calling mid-flight will nuke active spill state.
 pub fn create_global_runtime(
     memory_pool_limit: i64,
     cache_manager_ptr: i64,
@@ -381,6 +395,27 @@ pub fn create_global_runtime(
         } else {
             spill_limit as u64
         };
+
+        // Clear leaked spill files from a prior non-graceful shutdown — see the
+        // "Side effect" section in this function's doc. The existence check is
+        // belt-and-braces in production (Java validates first); create_dir_all
+        // also covers Rust unit tests that inject a non-existent path.
+        let spill_path = PathBuf::from(spill_dir);
+        if spill_path.exists() {
+            if let Err(e) = fs::remove_dir_all(&spill_path) {
+                log::warn!(
+                    "Failed to clear leaked spill files in {}: {}; continuing — DataFusion will reuse the existing directory",
+                    spill_dir,
+                    e
+                );
+            }
+        }
+        if let Err(e) = fs::create_dir_all(&spill_path) {
+            return Err(DataFusionError::Configuration(format!(
+                "Failed to (re)create spill directory {}: {}",
+                spill_dir, e
+            )));
+        }
 
         // Register spill directory for per-query disk pressure checks
         crate::memory_guard::set_spill_dir(spill_dir);
@@ -1709,11 +1744,27 @@ mod tests {
         // budget must NOT be Disabled — set_spill_dir flips SPILL_ENABLED on. Whether
         // it's Available or Critical depends on the test host's free disk; both prove
         // the enabled-path branch is taken.
+        //
+        // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
+        // file in the directory before the call and assert it's gone after.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        // Simulate a leaked spill file from a prior non-graceful shutdown.
+        let sentinel = tmp.path().join("leaked_from_prior_run.tmp");
+        fs::write(&sentinel, b"stale spill data").expect("seed sentinel");
+        assert!(sentinel.exists(), "sentinel must exist before runtime build");
+
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
         assert!(ptr > 0);
+
+        // The startup cleanup must have removed the leaked file.
+        assert!(
+            !sentinel.exists(),
+            "leaked spill file must be removed by create_global_runtime startup cleanup"
+        );
+
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
         assert!(
             runtime.runtime_env.disk_manager.tmp_files_enabled(),
@@ -1724,6 +1775,54 @@ mod tests {
             crate::memory_guard::SpillBudget::Disabled,
             "spill-enabled runtime must NOT surface SpillBudget::Disabled"
         );
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    #[test]
+    fn create_global_runtime_clears_leaked_spill_files_recursively() {
+        // Operator-confirmed contract: the spill directory is OpenSearch-owned and any
+        // contents present at startup are leaked from a prior non-graceful shutdown.
+        // create_global_runtime must clear the directory recursively (files AND
+        // subdirectories) before constructing the DiskManager.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        // Seed both a top-level file and a nested subdirectory + file to verify
+        // recursive removal (a shallow delete would miss the nested file).
+        let top_file = tmp.path().join("top.tmp");
+        fs::write(&top_file, b"top-level leak").expect("seed top file");
+        let nested_dir = tmp.path().join("subdir/deeper");
+        fs::create_dir_all(&nested_dir).expect("seed nested subdirs");
+        let nested_file = nested_dir.join("deep.tmp");
+        fs::write(&nested_file, b"nested leak").expect("seed nested file");
+        assert!(top_file.exists());
+        assert!(nested_file.exists());
+
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        // Both seeded entries must be gone, but the spill directory itself must still
+        // exist (recreated) so the DiskManager has a place to write.
+        assert!(!top_file.exists(), "top-level leaked file must be removed");
+        assert!(!nested_file.exists(), "nested leaked file must be removed");
+        assert!(!nested_dir.exists(), "nested leaked subdir must be removed");
+        assert!(tmp.path().exists(), "spill directory itself must be recreated");
+        assert!(tmp.path().is_dir(), "spill directory must be a directory after cleanup");
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    #[test]
+    fn create_global_runtime_with_empty_spill_dir_does_not_touch_filesystem() {
+        // The cleanup logic must live entirely inside the spill-enabled branch. With
+        // spill disabled (empty path), no filesystem operation should run — even an
+        // accidental fs::create_dir_all("") would fail and break boot. This test
+        // guards against future refactors that might hoist the cleanup out of the
+        // else-branch.
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
+        assert!(ptr > 0);
         unsafe { close_global_runtime(ptr) };
     }
 
