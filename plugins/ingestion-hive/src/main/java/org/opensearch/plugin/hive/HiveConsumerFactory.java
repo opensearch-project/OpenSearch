@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.hive;
 
-import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.index.IngestionConsumerFactory;
 
 /**
@@ -17,18 +17,12 @@ import org.opensearch.index.IngestionConsumerFactory;
  */
 public class HiveConsumerFactory implements IngestionConsumerFactory<HiveShardConsumer, HivePointer> {
 
-    private HiveSourceConfig config;
-
     /** Creates a new HiveConsumerFactory instance. */
     public HiveConsumerFactory() {}
 
     @Override
-    public void initialize(IngestionSource ingestionSource) {
-        config = new HiveSourceConfig(ingestionSource.params());
-    }
-
-    @Override
-    public HiveShardConsumer createShardConsumer(String clientId, int shardId) {
+    public HiveShardConsumer createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
+        HiveSourceConfig config = new HiveSourceConfig(indexMetadata.getIngestionSource().params(), indexMetadata.getNumberOfShards());
         return new HiveShardConsumer(clientId, shardId, config);
     }
 

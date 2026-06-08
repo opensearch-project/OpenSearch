@@ -51,10 +51,6 @@ public class IngestionSource {
     private final WarmupConfig warmupConfig;
     private final SourcePartitionStrategy sourcePartitionStrategy;
 
-    // Mutable metadata map for framework-injected information (e.g., number of shards).
-    // Populated by IngestionEngine when the stream poller is initialized.
-    private final Map<String, Object> metadata = new HashMap<>();
-
     private IngestionSource(
         String type,
         PointerInitReset pointerInitReset,
@@ -101,14 +97,6 @@ public class IngestionSource {
 
     public Map<String, Object> params() {
         return params;
-    }
-
-    /**
-     * Returns the mutable metadata map for framework-injected information.
-     * This map is populated during engine initialization and is not persisted.
-     */
-    public Map<String, Object> metadata() {
-        return metadata;
     }
 
     public long getMaxPollSize() {

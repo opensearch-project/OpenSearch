@@ -41,16 +41,15 @@ public class ParquetHiveFileReaderTests extends OpenSearchTestCase {
     }
 
     public void testReadPrimitiveTypes() throws IOException {
-        MessageType schema = MessageTypeParser.parseMessageType(
-            "message test {\n"
-                + "  optional boolean flag;\n"
-                + "  optional int32 count;\n"
-                + "  optional int64 total;\n"
-                + "  optional float ratio;\n"
-                + "  optional double score;\n"
-                + "  optional binary name (UTF8);\n"
-                + "}"
-        );
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test {
+              optional boolean flag;
+              optional int32 count;
+              optional int64 total;
+              optional float ratio;
+              optional double score;
+              optional binary name (UTF8);
+            }""");
 
         File file = writeParquet(schema, factory -> {
             Group g = factory.newGroup();

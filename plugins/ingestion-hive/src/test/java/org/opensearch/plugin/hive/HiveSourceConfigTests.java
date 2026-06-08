@@ -21,7 +21,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("database", "analytics");
         params.put("table", "events");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals("thrift://metastore:9083", config.getMetastoreUri());
         assertEquals("analytics", config.getDatabase());
@@ -34,7 +34,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("database", "db");
         params.put("table", "tbl");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals(300_000L, config.getMonitorIntervalMillis());
         assertEquals(HiveSourceConfig.PartitionOrder.PARTITION_NAME, config.getPartitionOrder());
@@ -53,7 +53,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("table", "tbl");
         params.put("monitor_interval", "60s");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals(60_000L, config.getMonitorIntervalMillis());
     }
@@ -65,7 +65,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("table", "tbl");
         params.put("monitor_interval", "5m");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals(300_000L, config.getMonitorIntervalMillis());
     }
@@ -77,7 +77,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("table", "tbl");
         params.put("consume_start_offset", "dt=2026-04-01");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals("dt=2026-04-01", config.getConsumeStartOffset());
     }
@@ -87,9 +87,8 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("metastore_uri", "thrift://localhost:9083");
         params.put("database", "db");
         params.put("table", "tbl");
-        params.put("_number_of_shards", 5);
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 5);
 
         assertEquals(5, config.getNumShards());
     }
@@ -100,7 +99,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("database", "db");
         params.put("table", "tbl");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals(1, config.getNumShards());
     }
@@ -112,7 +111,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("table", "tbl");
         params.put("partition_order", "create-time");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals(HiveSourceConfig.PartitionOrder.CREATE_TIME, config.getPartitionOrder());
     }
@@ -125,7 +124,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("partition_order", "partition-time");
         params.put("partition_time_pattern", "$year-$month-$day $hour:00:00");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertEquals(HiveSourceConfig.PartitionOrder.PARTITION_TIME, config.getPartitionOrder());
         assertEquals("$year-$month-$day $hour:00:00", config.getPartitionTimePattern());
@@ -137,7 +136,7 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         params.put("database", "db");
         params.put("table", "tbl");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
 
         assertNull(config.getPartitionTimePattern());
     }

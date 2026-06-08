@@ -8,24 +8,32 @@
 
 package org.opensearch.plugin.hive;
 
-import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class HiveConsumerFactoryTests extends OpenSearchTestCase {
 
-    public void testInitialize() {
+    public void testCreateShardConsumer() {
         HiveConsumerFactory factory = new HiveConsumerFactory();
-        Map<String, Object> params = new HashMap<>();
-        params.put("metastore_uri", "thrift://metastore:9083");
-        params.put("database", "test_db");
-        params.put("table", "events");
 
-        factory.initialize(new IngestionSource.Builder("HIVE").setParams(params).build());
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.replication.type", "SEGMENT")
+                    .put("index.ingestion_source.type", "HIVE")
+                    .put("index.ingestion_source.pointer.init.reset", "earliest")
+                    .put("index.ingestion_source.param.metastore_uri", "thrift://metastore:9083")
+                    .put("index.ingestion_source.param.database", "test_db")
+                    .put("index.ingestion_source.param.table", "events")
+            )
+            .build();
 
-        HiveShardConsumer consumer = factory.createShardConsumer("client-1", 0);
+        HiveShardConsumer consumer = factory.createShardConsumer("client-1", 0, indexMetadata);
         assertNotNull(consumer);
         assertEquals(0, consumer.getShardId());
     }

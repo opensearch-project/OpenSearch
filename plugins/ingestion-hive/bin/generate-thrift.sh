@@ -1,5 +1,11 @@
 #!/bin/bash
 #
+# SPDX-License-Identifier: Apache-2.0
+#
+# The OpenSearch Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+#
 # Regenerates Thrift client code from hive_metastore.thrift IDL.
 # Uses Debian unstable's thrift-compiler via Docker.
 # The compiler version must match the libthrift runtime version in build.gradle.
@@ -50,3 +56,6 @@ for f in "${OUTPUT_DIR}"/*.java; do
 done
 
 echo "Done. Generated $(ls "${OUTPUT_DIR}"/*.java | wc -l | tr -d ' ') files in ${OUTPUT_DIR}/"
+echo "Running spotlessApply..."
+cd "${BASH_SOURCE%/*}/.."
+../../gradlew :plugins:ingestion-hive:spotlessApply -q

@@ -60,6 +60,7 @@ public class HiveSourceConfig {
      * Creates a new HiveSourceConfig from the ingestion source parameters.
      *
      * @param params the parameter map from ingestion source settings
+     * @param numberOfShards the total number of shards for partition assignment
      */
     public HiveSourceConfig(Map<String, Object> params, int numberOfShards) {
         this.metastoreUri = ConfigurationUtils.readStringProperty(params, "metastore_uri");
