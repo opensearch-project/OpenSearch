@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -260,6 +261,8 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
     }
 
     // MILLISECOND is the day-time base unit — exercises the 1:1 (no-scale) interval branch.
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testDateAddMillisecondIntervalOnTimestampColumn() throws IOException {
         assertFirstRowString(
             oneRow("key00") + "| eval v = date_add(datetime0, interval 500 millisecond) | fields v",

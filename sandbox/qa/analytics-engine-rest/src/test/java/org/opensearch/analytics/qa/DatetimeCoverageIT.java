@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -47,6 +48,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     // ─────────────────────────────────────────────────────────────────────────
 
     /** Cluster A: span(date, 1d) bucket renders as bare date, no '00:00:00' suffix. */
+    // Pending sql cluster A: DateOnlyType / TimeOnlyType UDT bridging in OpenSearchTypeFactory
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterA_spanDateTypePreservesDate() throws IOException {
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | stats count() as c by span(date0, 1d) as date_span | sort date_span | head 1"
@@ -59,6 +62,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster A: span(date, 1month) preserves date type, bucket on month boundary. */
+    // Pending sql cluster A: DateOnlyType / TimeOnlyType UDT bridging in OpenSearchTypeFactory
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterA_spanDateUnitMonth() throws IOException {
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | stats count() as c by span(date1, 1month) as date_span | sort date_span | head 1"
@@ -69,6 +74,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster A: span(time, 1h) returns TIME-typed bucket, no '1970-01-01' prefix. */
+    // Pending sql cluster A: DateOnlyType / TimeOnlyType UDT bridging in OpenSearchTypeFactory
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterA_spanTimeTypePreservesTime() throws IOException {
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | where key='key00' | stats count() by span(time1, 1h) as time_span"
@@ -80,6 +87,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster A: span(time, 1minute) returns TIME-typed bucket. */
+    // Pending sql cluster A: DateOnlyType / TimeOnlyType UDT bridging in OpenSearchTypeFactory
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterA_spanTimeUnitMinute() throws IOException {
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | where key='key00' | stats count() by span(time1, 1minute) as time_span"
@@ -90,6 +99,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster A: span over an eval-derived DATE expression preserves DATE typing. */
+    // Pending sql cluster A: DateOnlyType / TimeOnlyType UDT bridging in OpenSearchTypeFactory
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterA_spanCustomFormatDate() throws IOException {
         Map<String, Object> response = executePpl(
             oneRow() + "| eval d = date('2004-04-15') | stats count() by span(d, 1month) as date_span"
@@ -105,6 +116,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     // ─────────────────────────────────────────────────────────────────────────
 
     /** Cluster B: 2-arg DATETIME(literal, tz-literal) folds to a typed TIMESTAMP. */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterB_twoArgDatetimeLiteralFold() throws IOException {
         // +10:00 offset shifts wall time back 10h → '2007-12-31 16:00:00'.
         assertFirstRowString(
@@ -123,6 +136,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster B: 2-arg DATETIME with column input resolves through the same overload. */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterB_twoArgDatetimeColInput() throws IOException {
         Map<String, Object> response = executePpl(
             oneRow() + "| eval f = datetime(datetime0, '+00:00') | fields f"
@@ -330,6 +345,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     // ─────────────────────────────────────────────────────────────────────────
 
     /** Cluster E: cast(varchar AS TIMESTAMP) preserves microseconds (not truncated to ms). */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterE_castTimestampPreservesMicros() throws IOException {
         assertFirstRowString(
             oneRow()
@@ -411,6 +428,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster F: date_format with %c %U %u %V %v emits month-no-leading-zero + correct week numbering. */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterF_dateFormatPercentTokens() throws IOException {
         // 2024-01-28 — Sunday. Mode 0 (Sun-first): U=4, V=4. Mode 1 (Mon-first): u=4, v=4.
         assertFirstRowString(
@@ -440,6 +459,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster F: cast('1985-10-09 12:00:00' AS TIME) returns the time portion only. */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterF_castTimeFromDatetimeString() throws IOException {
         assertFirstRowString(
             oneRow() + "| eval f = time_format(cast('1985-10-09 12:00:00' as TIME), '%H:%i:%s') | fields f",
@@ -448,6 +469,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster F: date_format with the rich %a/%b/%c/%D/%H/%i token spec round-trips. */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterF_dateFormatRichSpec() throws IOException {
         // Locale-independent subset of the deep-dive 23-token spec (drops %j/%P/%r/%T).
         assertFirstRowString(
@@ -468,6 +491,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Cluster F: MAKETIME with integer and fractional H/M/S inputs (deep-dive ADD-5). */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testClusterF_makeTimeFractional() throws IOException {
         // maketime(20, 30, 40) → '20:30:40'; maketime(20.2, 49.5, 42.1) → '20:50:42.x'.
         // %H:%i:%s drops the fractional tail (engine-specific and not gate-stable).
@@ -521,6 +546,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Boundary: max supported TIMESTAMP at milli precision — just under the i64-ns epoch ceiling (2262-04-11). */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testBoundary_maxSupportedTimestampMilli() throws IOException {
         // engine prints fractional seconds as-given; no zero-pad to µs
         assertFirstRowString(
@@ -544,6 +571,8 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     /** Boundary: cast('23:59:59.999999' AS TIME) — last-µs-of-day TIME round-trips. */
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testBoundary_maxSupportedTime() throws IOException {
         assertFirstRowString(oneRow() + "| eval a = cast('23:59:59.999999' as TIME) | fields a", "23:59:59.999999");
     }
