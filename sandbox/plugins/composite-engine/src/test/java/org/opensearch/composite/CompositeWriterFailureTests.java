@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.index.LuceneWriter;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -218,10 +219,30 @@ public class CompositeWriterFailureTests extends OpenSearchTestCase {
         LuceneDataFormat luceneFormat = new LuceneDataFormat();
 
         // First, prove the failure mode
-        LuceneWriter leakedWriter = new LuceneWriter(generation, 0L, luceneFormat, baseDir, null, Codec.getDefault(), null, registry);
+        LuceneWriter leakedWriter = new LuceneWriter(
+            generation,
+            0L,
+            luceneFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            registry,
+            new LuceneShardStatsTracker()
+        );
         LockObtainFailedException lockError = expectThrows(
             LockObtainFailedException.class,
-            () -> new LuceneWriter(generation, 0L, luceneFormat, baseDir, null, Codec.getDefault(), null, registry)
+            () -> new LuceneWriter(
+                generation,
+                0L,
+                luceneFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                registry,
+                new LuceneShardStatsTracker()
+            )
         );
         assertThat(lockError.getMessage(), org.hamcrest.Matchers.containsString("Lock held by this virtual machine"));
         leakedWriter.close();
@@ -253,7 +274,8 @@ public class CompositeWriterFailureTests extends OpenSearchTestCase {
                         null,
                         Codec.getDefault(),
                         null,
-                        registry
+                        registry,
+                        new LuceneShardStatsTracker()
                     );
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -272,7 +294,17 @@ public class CompositeWriterFailureTests extends OpenSearchTestCase {
 
         // Simulate engine restart reusing same generation.
         // Without the fix, this throws LockObtainFailedException.
-        LuceneWriter retryWriter = new LuceneWriter(generation, 0L, luceneFormat, baseDir, null, Codec.getDefault(), null, registry);
+        LuceneWriter retryWriter = new LuceneWriter(
+            generation,
+            0L,
+            luceneFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            registry,
+            new LuceneShardStatsTracker()
+        );
         retryWriter.close();
     }
 
