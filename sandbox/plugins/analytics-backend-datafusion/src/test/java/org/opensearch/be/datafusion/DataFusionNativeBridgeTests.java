@@ -72,7 +72,9 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         ReaderHandle readerHandle = new ReaderHandle(
             dataDir.toString(),
             java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
-            null
+            null,
+            java.util.List.of(),
+            java.util.List.of()
         );
         assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
 
@@ -95,7 +97,9 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         ReaderHandle readerHandle = new ReaderHandle(
             dataDir.toString(),
             java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
-            null
+            null,
+            java.util.List.of(),
+            java.util.List.of()
         );
         // Create session context with table registered
         long queryConfigPtr;
@@ -184,7 +188,9 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         ReaderHandle readerHandle = new ReaderHandle(
             dataDir.toString(),
             List.of(MonoFileWriterSet.of(dataDir.toString(), 1L, "test.parquet", 0L)),
-            storeHandle
+            storeHandle,
+            List.of(),
+            List.of()
         );
         assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
 

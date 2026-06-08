@@ -20,6 +20,7 @@ import org.opensearch.plugins.NativeStoreHandle;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -42,6 +43,14 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private final String directoryPath;
     private final DataFusionService dataFusionService;
     private final NativeStoreHandle dataformatAwareStoreHandle;
+    /**
+     * Sourced from {@code index.sort.field} once at construction; passed to every
+     * {@link DatafusionReader} created on refresh so the native side can declare
+     * file sort order to DataFusion's query optimizer.
+     */
+    private final List<String> sortFields;
+    /** Parallel to {@link #sortFields}; values are {@code "asc"} or {@code "desc"}. */
+    private final List<String> sortOrders;
 
     /**
      * Creates a reader manager.
@@ -51,17 +60,23 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
      * @param dataformatAwareStoreHandle per-format native store handle for reads (null if not available).
      *                                   Pointer is extracted at reader creation time via {@code getPointer()}.
      *                                   0 means use default local file system.
+     * @param sortFields {@code index.sort.field} values, or empty if no index sort.
+     * @param sortOrders {@code index.sort.order} values ("asc"/"desc"), parallel to {@code sortFields}.
      */
     public DatafusionReaderManager(
         DataFormat dataFormat,
         ShardPath shardPath,
         DataFusionService dataFusionService,
-        NativeStoreHandle dataformatAwareStoreHandle
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders
     ) {
         this.dataFormat = dataFormat;
         this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name()).toString();
         this.dataFusionService = dataFusionService;
         this.dataformatAwareStoreHandle = dataformatAwareStoreHandle;
+        this.sortFields = sortFields == null ? List.of() : sortFields;
+        this.sortOrders = sortOrders == null ? List.of() : sortOrders;
     }
 
     @Override
@@ -106,7 +121,9 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         DatafusionReader reader = new DatafusionReader(
             directoryPath,
             catalogSnapshot.getSearchableFiles(dataFormat.name()),
-            dataformatAwareStoreHandle
+            dataformatAwareStoreHandle,
+            sortFields,
+            sortOrders
         );
         readers.put(catalogSnapshot.getId(), reader);
     }
