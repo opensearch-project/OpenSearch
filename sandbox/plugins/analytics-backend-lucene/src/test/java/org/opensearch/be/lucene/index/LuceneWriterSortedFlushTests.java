@@ -19,13 +19,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Verifies that documents are reordered according to the sort permutation
  * from the primary data format (Parquet).
  */
-public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
+public class LuceneWriterSortedFlushTests extends LucenePluginBaseTests {
 
     private LuceneDataFormat dataFormat;
 
@@ -46,10 +45,6 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         dataFormat = new LuceneDataFormat();
-    }
-
-    private MappedFieldType mockTextField(String name) {
-        return new TextFieldMapper.TextFieldType(name);
     }
 
     /**
@@ -79,7 +74,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -144,7 +140,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -191,7 +188,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             FileInfos fileInfos = writer.flush(sortedFlushInput);
@@ -221,7 +219,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < 3; i++) {
@@ -263,7 +262,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -308,7 +308,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 rowIdSort,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -372,7 +373,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 indexSort,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -427,7 +429,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 indexSort,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < oldRowIds.length; i++) {
@@ -488,7 +491,8 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -634,10 +638,30 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
      */
     private LuceneWriter newWriterWithMaxBufferedDocs(Path baseDir, Integer maxBufferedDocsOverride) throws IOException {
         if (maxBufferedDocsOverride == null) {
-            return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, ConcurrentHashMap.newKeySet());
+            return new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            );
         }
         final int override = maxBufferedDocsOverride;
-        return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, ConcurrentHashMap.newKeySet()) {
+        return new LuceneWriter(
+            1L,
+            0L,
+            dataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
+        ) {
             @Override
             protected double ramBufferSizeMB() {
                 return 1024.0;

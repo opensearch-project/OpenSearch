@@ -671,7 +671,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
                 dataFormat,
                 mock(DataFormatRegistry.class),
                 shardPath,
-                Map.of()
+                Map.of(),
+                null
             );
 
             EngineReaderManager<?> rm = LuceneSearchBackEnd.createReaderManager(settings);
@@ -688,7 +689,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             dataFormat,
             mock(DataFormatRegistry.class),
             null,
-            Map.of()
+            Map.of(),
+            null
         );
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));

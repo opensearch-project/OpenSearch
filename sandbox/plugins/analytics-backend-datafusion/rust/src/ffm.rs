@@ -189,6 +189,11 @@ pub unsafe extern "C" fn df_create_reader(
     writer_generations_ptr: *const i64,
     files_count: i64,
     store_ptr: i64,
+    sort_fields_ptr: *const *const u8,
+    sort_fields_len_ptr: *const i64,
+    sort_orders_ptr: *const *const u8,
+    sort_orders_len_ptr: *const i64,
+    sort_count: i64,
 ) -> i64 {
     let table_path = str_from_raw(table_path_ptr, table_path_len)
         .map_err(|e| format!("df_create_reader: {}", e))?;
@@ -204,8 +209,39 @@ pub unsafe extern "C" fn df_create_reader(
         );
         writer_generations.push(*writer_generations_ptr.add(i));
     }
+    // Decode parallel sort_fields / sort_orders String arrays. sort_count == 0 means no
+    // index sort configured; pass an empty Vec. The Java side guarantees
+    // sortFields.size() == sortOrders.size() (IndexSortConfig validates at index creation),
+    // so a single sort_count covers both arrays.
+    let mut sort_fields = Vec::with_capacity(sort_count as usize);
+    let mut sort_orders = Vec::with_capacity(sort_count as usize);
+    for i in 0..sort_count as usize {
+        let f_ptr = *sort_fields_ptr.add(i);
+        let f_len = *sort_fields_len_ptr.add(i);
+        sort_fields.push(
+            str_from_raw(f_ptr, f_len)
+                .map_err(|e| format!("df_create_reader: sort_field[{}]: {}", i, e))?
+                .to_string(),
+        );
+        let o_ptr = *sort_orders_ptr.add(i);
+        let o_len = *sort_orders_len_ptr.add(i);
+        sort_orders.push(
+            str_from_raw(o_ptr, o_len)
+                .map_err(|e| format!("df_create_reader: sort_order[{}]: {}", i, e))?
+                .to_string(),
+        );
+    }
     let mgr = get_rt_manager()?;
-    api::create_reader(table_path, filenames, writer_generations, &mgr, store_ptr).map_err(|e| e.to_string())
+    api::create_reader(
+        table_path,
+        filenames,
+        writer_generations,
+        sort_fields,
+        sort_orders,
+        &mgr,
+        store_ptr,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[no_mangle]
@@ -352,6 +388,37 @@ pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
     api::stream_close(stream_ptr);
+}
+
+/// Returns execution metrics as JSON bytes for the given stream.
+/// Writes the pointer to allocated bytes into `out_ptr` and the length into `out_len_ptr`.
+/// Returns 0 on success, non-zero if no metrics are available.
+/// The caller must free the returned bytes via `df_free_metrics_buf`.
+#[no_mangle]
+pub unsafe extern "C" fn df_stream_get_metrics(stream_ptr: i64, out_ptr: *mut *const u8, out_len_ptr: *mut i64) -> i64 {
+    if stream_ptr == 0 {
+        return -1;
+    }
+    let handle = &*(stream_ptr as *const api::QueryStreamHandle);
+    match handle.get_metrics_json() {
+        Some(bytes) => {
+            let len = bytes.len() as i64;
+            let boxed = bytes.into_boxed_slice();
+            let ptr = Box::into_raw(boxed) as *const u8;
+            *out_ptr = ptr;
+            *out_len_ptr = len;
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Frees a metrics buffer previously returned by `df_stream_get_metrics`.
+#[no_mangle]
+pub unsafe extern "C" fn df_free_metrics_buf(ptr: *mut u8, len: i64) {
+    if !ptr.is_null() && len > 0 {
+        let _ = Box::from_raw(std::slice::from_raw_parts_mut(ptr, len as usize));
+    }
 }
 
 #[no_mangle]

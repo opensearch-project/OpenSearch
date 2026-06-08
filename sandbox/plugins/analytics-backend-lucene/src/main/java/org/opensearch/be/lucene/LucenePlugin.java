@@ -12,7 +12,21 @@ import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
 import org.opensearch.be.lucene.index.LuceneDeleteExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
+import org.opensearch.be.lucene.stats.LuceneStatsProvider;
+import org.opensearch.be.lucene.stats.transport.LuceneNodeStatsActionType;
+import org.opensearch.be.lucene.stats.transport.LuceneNodeStatsRestAction;
+import org.opensearch.be.lucene.stats.transport.LuceneNodeStatsTransportAction;
+import org.opensearch.be.lucene.stats.transport.LuceneStatsActionType;
+import org.opensearch.be.lucene.stats.transport.LuceneStatsRestAction;
+import org.opensearch.be.lucene.stats.transport.LuceneStatsTransportAction;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.inject.Module;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -26,11 +40,15 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.store.checksum.LuceneChecksumHandler;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -51,9 +69,9 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin {
+public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin, ActionPlugin {
 
-    private static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+    public static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
 
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}
@@ -142,5 +160,39 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
     @Override
     public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
         return new LuceneDeleteExecutionEngine(DATA_FORMAT, committer);
+    }
+
+    /**
+     * Constructs the {@link LuceneStatsProvider} eagerly so engines can self-register their
+     * trackers via the static {@code getInstance()} accessor at construction time.
+     */
+    @Override
+    public Collection<Module> createGuiceModules() {
+        // Eagerly construct the singleton so LuceneIndexingExecutionEngine can register on creation.
+        new LuceneStatsProvider();
+        return List.of();
+    }
+
+    @Override
+    public
+        List<ActionPlugin.ActionHandler<? extends org.opensearch.action.ActionRequest, ? extends org.opensearch.core.action.ActionResponse>>
+        getActions() {
+        return List.of(
+            new ActionPlugin.ActionHandler<>(LuceneStatsActionType.INSTANCE, LuceneStatsTransportAction.class),
+            new ActionPlugin.ActionHandler<>(LuceneNodeStatsActionType.INSTANCE, LuceneNodeStatsTransportAction.class)
+        );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(new LuceneStatsRestAction(), new LuceneNodeStatsRestAction());
     }
 }

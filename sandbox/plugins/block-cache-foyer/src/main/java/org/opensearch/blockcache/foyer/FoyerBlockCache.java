@@ -63,6 +63,8 @@ public final class FoyerBlockCache implements BlockCache {
         long diskBytes,
         String diskDir,
         long blockSizeBytes,
+        long bufferPoolSizeBytes,
+        long submitQueueSizeThresholdBytes,
         String ioEngine,
         long sweepIntervalSecs,
         double sweepThresholdRatio,
@@ -77,6 +79,12 @@ public final class FoyerBlockCache implements BlockCache {
         }
         if (blockSizeBytes <= 0) {
             throw new IllegalArgumentException("blockSizeBytes must be > 0, got: " + blockSizeBytes);
+        }
+        if (bufferPoolSizeBytes <= 0) {
+            throw new IllegalArgumentException("bufferPoolSizeBytes must be > 0, got: " + bufferPoolSizeBytes);
+        }
+        if (submitQueueSizeThresholdBytes <= 0) {
+            throw new IllegalArgumentException("submitQueueSizeThresholdBytes must be > 0, got: " + submitQueueSizeThresholdBytes);
         }
         Objects.requireNonNull(ioEngine, "ioEngine must not be null");
         if (sweepIntervalSecs < 0) {
@@ -93,6 +101,8 @@ public final class FoyerBlockCache implements BlockCache {
             diskBytes,
             diskDir,
             blockSizeBytes,
+            bufferPoolSizeBytes,
+            submitQueueSizeThresholdBytes,
             ioEngine,
             sweepIntervalSecs,
             sweepThresholdRatio,

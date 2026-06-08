@@ -351,6 +351,27 @@ scalar_functions:
           - { value: string, name: "pattern" }
           - { value: string, name: "method" }
         return: "map<string, string>"
+  - name: "grok"
+    description: >-
+      PPL `grok <field> '<grok-pattern>'` — the grok-syntax sibling of `parse`.
+      Extracts named groups into a `map<varchar, varchar>` whose keys are the
+      grok field names (`%{HOSTNAME:host}` → key `host`) in pattern definition
+      order. Unlike `parse`, the pattern is grok syntax, not a raw regex: the
+      Rust UDF carries the 108-line default grok dictionary and recursively
+      resolves `%{NAME:field}` references before matching (the SQL plugin's grok
+      library is not on OpenSearch core's classpath). The resolved regex relies
+      on lookbehind / atomic groups (e.g. `BASE10NUM`), so matching uses
+      `fancy-regex` and is unanchored — mirroring Java grok's `Matcher.find()`
+      (substring match), in contrast to `parse`'s anchored `^…$`. Method literal
+      must be `grok`; pattern + method operands are validated as non-null string
+      literals at plan time by `GrokAdapter`. Pairs with `ITEM` downstream
+      (PPL `grok` chains `ITEM(grok(...), 'field')` per named group).
+    impls:
+      - args:
+          - { value: string, name: "input" }
+          - { value: string, name: "pattern" }
+          - { value: string, name: "method" }
+        return: "map<string, string>"
   - name: "item"
     description: >-
       Map element accessor — extracts a value by key from a `map<string, string>`.
@@ -800,15 +821,13 @@ scalar_functions:
         variadic: { min: 1 }
         return: string
 
-  - name: "extract"
+  - name: "opensearch_extract"
     description: >-
-      Pull a MySQL-style calendar component (simple or composite) out of a
-      timestamp. The unit slot is a VARCHAR literal injected by the adapter
-      (matchKey token `str`); the timestamp slot is PPL's canonical
-      `precision_timestamp<P>` / `date`. Returns BIGINT regardless of unit —
-      composite units (e.g. `DAY_SECOND`) follow MySQL's digit-concatenation
-      semantics (see rust/src/udf/extract.rs). Routes to the Rust `extract`
-      UDF, not Calcite's EXTRACT operator.
+      Pull a MySQL-style calendar component out of a timestamp. Returns BIGINT.
+      Renamed from `extract` to avoid a name collision with substrait core's
+      enum-argument `extract` (substrait-java 0.89.1 crashes on the core variant).
+      Composite units (e.g. `DAY_SECOND`) follow MySQL's digit-concatenation
+      semantics — see rust/src/udf/extract.rs.
     impls:
       - args:
           - { value: string, name: "unit" }
@@ -822,6 +841,8 @@ scalar_functions:
           - { value: string, name: "unit" }
           - { value: "time", name: "value" }
         return: i64
+      # No `precision_time<P>` overload: substrait-java 0.89.1 can't stringify it.
+      # ExtractAdapter pre-CASTs TIME(p) operands to VARCHAR to bind below.
       - args:
           - { value: string, name: "unit" }
           - { value: "string", name: "value" }

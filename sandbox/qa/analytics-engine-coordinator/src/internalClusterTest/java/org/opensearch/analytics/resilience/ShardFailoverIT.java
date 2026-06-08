@@ -25,7 +25,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -73,7 +73,7 @@ public class ShardFailoverIT extends RemoteStoreBaseIntegTestCase {
             super.nodePlugins().stream(),
             Stream.of(
                 ArrowBasePlugin.class,
-                ParquetDataFormatPlugin.class,
+                ParquetOnlyDataFormatPlugin.class,
                 CompositeDataFormatPlugin.class,
                 MockCommitterEnginePlugin.class,
                 MockTransportService.TestPlugin.class,

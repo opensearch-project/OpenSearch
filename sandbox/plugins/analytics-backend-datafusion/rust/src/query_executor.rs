@@ -53,6 +53,8 @@ pub async fn execute_query(
     context_id: i64,
     shard_store: Arc<dyn ObjectStore>,
     phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
+    sort_fields: &[String],
+    sort_orders: &[String],
 ) -> Result<i64, DataFusionError> {
     // Build per-query RuntimeEnv with list-files cache pre-populated.
     let runtime_env = build_query_runtime_env(runtime, &table_path, object_metas.as_ref())?;
@@ -135,9 +137,15 @@ pub async fn execute_query(
         _ => {
             // Baseline: use standard ListingTable
             let file_format = ParquetFormat::new();
-            let listing_options = ListingOptions::new(Arc::new(file_format))
+            let mut listing_options = ListingOptions::new(Arc::new(file_format))
                 .with_file_extension(".parquet")
                 .with_collect_stat(true);
+            // Declare per-file sort order to DataFusion if the index has `index.sort.field`.
+            // See `session_context::build_file_sort_order` for what the declaration buys us
+            // and the case/nulls/non-sort caveats.
+            if let Some(sort_exprs) = crate::session_context::build_file_sort_order(sort_fields, sort_orders) {
+                listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+            }
             let resolved_schema = listing_options
                 .infer_schema(&ctx.state(), &table_path)
                 .await
@@ -161,6 +169,7 @@ pub async fn execute_query(
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+
     // Retag any physical-plan output columns whose type tags differ from what Substrait
     // declared on bit-compatible Int↔UInt pairs (see crate::relabel_exec). The target is
     // schema_coerce::coerce_inferred_schema(physical_schema) — the same narrowing the
@@ -269,6 +278,36 @@ pub async fn execute_with_context(
     }
 
     let query_future = async {
+        // If prepare_partial_plan stored a stripped plan on this handle (engine-native-merge
+        // PARTIAL stage triggered by SETUP_PARTIAL_AGGREGATE), skip the substrait re-decode
+        // and run the prepared plan directly. This activates `force_aggregate_mode(Partial)`
+        // semantics — only AggregateExec(Mode::Partial) executes, emitting state-suffixed
+        // columns on the wire (e.g. `dc[hll_registers]: Binary` for HLL sketch state). The
+        // FINAL substrait declares VARBINARY (resolver's overrideExchangeType), so the wire
+        // matches the exchange contract. Non-engine-native paths leave `prepared_plan` as None
+        // and fall through to the standard decode + execute below.
+        if let Some(prepared) = handle.prepared_plan.as_ref() {
+            let physical_plan = std::sync::Arc::clone(prepared);
+            let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+                error!("execute_with_context: failed to execute prepared plan: {}", e);
+                e
+            })?;
+            let (cross_rt_stream, abort_handle) =
+                CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+            if let Some(h) = abort_handle {
+                crate::query_tracker::set_abort_handle(context_id, h);
+            }
+            let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+                cross_rt_stream.schema(),
+                cross_rt_stream,
+            );
+            // Prepared (engine-native PARTIAL) path carries no physical_plan handle — match the
+            // tuple shape of the other exits so the closure's return type stays consistent.
+            return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>(
+                (Box::into_raw(Box::new(wrapped)) as i64, None),
+            );
+        }
+
         let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
             DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
         })?;
@@ -301,18 +340,18 @@ pub async fn execute_with_context(
                 cross_rt_stream.schema(),
                 cross_rt_stream,
             );
-            return Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64);
+            return Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>((Box::into_raw(Box::new(wrapped)) as i64, None));
         }
 
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
         // create_physical_plan runs all registered physical optimizer rules including
         // ProjectRowIdOptimizer (registered in session_context when strategy=ListingTable).
         let physical_plan = dataframe.create_physical_plan().await?;
+
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-        log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
-        let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+        let df_stream = execute_stream(physical_plan.clone(), handle.ctx.task_ctx()).map_err(|e| {
             error!("execute_with_context: failed to create stream: {}", e);
             e
         })?;
@@ -329,10 +368,10 @@ pub async fn execute_with_context(
             cross_rt_stream,
         );
 
-        Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64)
+        Ok::<(i64, Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>), DataFusionError>((Box::into_raw(Box::new(wrapped)) as i64, Some(physical_plan)))
     };
 
-    let stream_ptr = crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
+    let (stream_ptr, physical_plan) = crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
         .await
         .map_err(|e| DataFusionError::Execution(e))?;
 
@@ -340,7 +379,10 @@ pub async fn execute_with_context(
     let stream = unsafe { *Box::from_raw(stream_ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<CrossRtStream>) };
     // Permit is held until the QueryStreamHandle is dropped (query complete).
     // If cancellation fires → stream drops → handle drops → permit drops → gate releases.
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit));
+    let stream_handle = match physical_plan {
+        Some(plan) => crate::api::QueryStreamHandle::with_physical_plan(stream, handle.query_context, handle.ctx, Some(permit), plan),
+        None => crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx, Some(permit)),
+    };
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }
 

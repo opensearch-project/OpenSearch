@@ -8,13 +8,21 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
+import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.util.List;
 
@@ -131,9 +139,34 @@ final class DateTimeAdapters {
         }
     }
 
-    static final class DatetimeAdapter extends AbstractNameMappingAdapter {
-        DatetimeAdapter() {
-            super(LOCAL_TO_TIMESTAMP_OP, List.of(), List.of());
+    /**
+     * Single-arg {@code DATETIME(string)} strips the trailing offset (+HH:MM / -HHMM / Z) so the
+     * result is wall-clock, not UTC-converted. Two-arg {@code DATETIME(string, tz)} and
+     * non-string operands route through {@code to_timestamp} unchanged.
+     *
+     * <p>This belongs in the PPL frontend ({@code PPLBuiltinOperators.DATETIME}) so every
+     * backend inherits the wall-clock semantic; lives here until the frontend owns it.
+     */
+    static final class DatetimeAdapter implements ScalarFunctionAdapter {
+
+        private static final String OFFSET_SUFFIX_PATTERN = "([+-][0-9]{2}:?[0-9]{2}|Z)$";
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            List<RexNode> operands = original.getOperands();
+            if (operands.size() == 1 && SqlTypeName.CHAR_TYPES.contains(operands.get(0).getType().getSqlTypeName())) {
+                RexNode arg = operands.get(0);
+                RexNode pattern = rexBuilder.makeLiteral(OFFSET_SUFFIX_PATTERN);
+                RexNode replacement = rexBuilder.makeLiteral("");
+                RexNode stripped = rexBuilder.makeCall(
+                    arg.getType(),
+                    SqlLibraryOperators.REGEXP_REPLACE_3,
+                    List.of(arg, pattern, replacement)
+                );
+                return rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, List.of(stripped));
+            }
+            return rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, operands);
         }
     }
 }

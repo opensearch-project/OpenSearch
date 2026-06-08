@@ -10,8 +10,11 @@ package org.opensearch.parquet.bridge;
 
 import org.opensearch.common.SetOnce;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -23,7 +26,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>{@link #initialize(String, long, ParquetSortConfig, long)} — creates the native writer with the final schema</li>
  *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
  *   <li>{@link #flush()} — finalizes the Parquet file and returns metadata</li>
- *   <li>{@link #sync()} — fsyncs the file to durable storage (calls flush if needed)</li>
  * </ol>
  *
  * <p>This class is not thread-safe. External synchronization is required
@@ -35,6 +37,7 @@ public class NativeParquetWriter {
     private final String filePath;
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
     private final SetOnce<RowIdMapping> rowIdMapping = new SetOnce<>();
+    private final ParquetShardStatsTracker stats;
     private volatile boolean initialized = false;
 
     /**
@@ -42,9 +45,20 @@ public class NativeParquetWriter {
      * call {@link #initialize(String, long, ParquetSortConfig, long)} before the first write.
      *
      * @param filePath the path to the Parquet file to write
+     * @param stats shard-level stats tracker
+     */
+    public NativeParquetWriter(String filePath, ParquetShardStatsTracker stats) {
+        this.filePath = filePath;
+        this.stats = stats;
+    }
+
+    /**
+     * Creates a new NativeParquetWriter handle without stats collection.
+     *
+     * @param filePath the path to the Parquet file to write
      */
     public NativeParquetWriter(String filePath) {
-        this.filePath = filePath;
+        this(filePath, new ParquetShardStatsTracker());
     }
 
     /**
@@ -90,7 +104,12 @@ public class NativeParquetWriter {
         if (initialized == false) {
             throw new IllegalStateException("Writer not initialized: " + filePath);
         }
-        RustBridge.write(filePath, arrayAddress, schemaAddress);
+        StatsRecorder.recordOutcome(
+            () -> RustBridge.write(filePath, arrayAddress, schemaAddress),
+            stats::addNativeWriteTimeMillis,
+            stats::incNativeWriteTotal,
+            stats::incNativeWriteFailures
+        );
     }
 
     /**
@@ -104,29 +123,26 @@ public class NativeParquetWriter {
     public ParquetFileMetadata flush() throws IOException {
         if (writerFlushed.compareAndSet(false, true)) {
             if (initialized) {
-                RustBridge.WriterFinalizeResult result = RustBridge.finalizeWriter(filePath);
-                if (result != null) {
-                    metadata.set(result.metadata());
-                    if (result.rowIdMapping() != null) {
-                        rowIdMapping.set(result.rowIdMapping());
+                long startNanos = System.nanoTime();
+                try {
+                    RustBridge.WriterFinalizeResult result = RustBridge.finalizeWriter(filePath);
+                    if (result != null) {
+                        metadata.set(result.metadata());
+                        if (result.rowIdMapping() != null) {
+                            rowIdMapping.set(result.rowIdMapping());
+                        }
                     }
+                    stats.incNativeFinalizeTotal();
+                } catch (IOException e) {
+                    stats.incNativeFinalizeFailures();
+                    throw e;
+                } finally {
+                    long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+                    stats.addNativeFinalizeTimeMillis(elapsed);
                 }
             }
         }
         return metadata.get();
-    }
-
-    /**
-     * Syncs the Parquet file to disk.
-     * If flush has not been called yet, it will be called first.
-     *
-     * @throws IOException if the sync fails
-     */
-    public void sync() throws IOException {
-        if (!writerFlushed.get()) {
-            flush();
-        }
-        RustBridge.syncToDisk(filePath);
     }
 
     /**

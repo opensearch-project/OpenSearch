@@ -75,6 +75,23 @@ public final class FragmentResources implements AutoCloseable {
         return stream;
     }
 
+    /**
+     * Extracts execution metrics from the underlying engine stream (if supported).
+     * Must be called after the stream is exhausted but before close().
+     * Returns null if the stream doesn't support metrics extraction.
+     */
+    public byte[] getExecutionMetrics() {
+        if (stream instanceof MetricsCapable mc) {
+            return mc.getMetricsJson();
+        }
+        return null;
+    }
+
+    /** Marker interface for streams that can provide execution metrics. */
+    public interface MetricsCapable {
+        byte[] getMetricsJson();
+    }
+
     @Override
     public void close() throws Exception {
         // Close the stream and engine first so any in-flight release upcalls from native

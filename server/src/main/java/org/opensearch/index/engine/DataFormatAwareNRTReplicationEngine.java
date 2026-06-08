@@ -174,7 +174,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                             }
                         };
                     }
-                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles())));
+                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles(), engineConfig.getIndexSettings())));
             }
             readerManagersRef = Map.copyOf(aggregated);
 

@@ -85,6 +85,8 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_GET_SCHEMA;
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
+    private static final MethodHandle STREAM_GET_METRICS;
+    private static final MethodHandle FREE_METRICS_BUF;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
     private static final MethodHandle REGISTER_FILTER_TREE_CALLBACKS;
     private static final MethodHandle CREATE_LOCAL_SESSION;
@@ -206,8 +208,13 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,    // files_ptr
                 ValueLayout.ADDRESS,    // files_len_ptr
                 ValueLayout.ADDRESS,    // writer_generations_ptr
-                ValueLayout.JAVA_LONG,   // count (applies to all three parallel arrays)
-                ValueLayout.JAVA_LONG // object store ptr
+                ValueLayout.JAVA_LONG,  // count (applies to filenames + writer_generations)
+                ValueLayout.JAVA_LONG,  // object store ptr
+                ValueLayout.ADDRESS,    // sort_fields_ptr (parallel String[] for index.sort.field)
+                ValueLayout.ADDRESS,    // sort_fields_len_ptr
+                ValueLayout.ADDRESS,    // sort_orders_ptr (parallel String[] for index.sort.order: "asc"|"desc")
+                ValueLayout.ADDRESS,    // sort_orders_len_ptr
+                ValueLayout.JAVA_LONG   // sort_count (0 when index has no sort)
             )
         );
 
@@ -240,6 +247,15 @@ public final class NativeBridge {
 
         STREAM_CLOSE = linker.downcallHandle(lib.find("df_stream_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
+        STREAM_GET_METRICS = linker.downcallHandle(
+            lib.find("df_stream_get_metrics").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        FREE_METRICS_BUF = linker.downcallHandle(
+            lib.find("df_free_metrics_buf").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
         // i64 df_sql_to_substrait(shard_ptr, table_ptr, table_len, sql_ptr, sql_len, runtime_ptr, out_ptr, out_cap, out_len)
         SQL_TO_SUBSTRAIT = linker.downcallHandle(
             lib.find("df_sql_to_substrait").orElseThrow(),
@@ -775,11 +791,18 @@ public final class NativeBridge {
      * @param path     shard data directory
      * @param segments per-segment metadata — each carries a single filename and writer generation
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
+     * @param sortFields index.sort.field values, or empty list if the index has no sort configured.
+     *                   Parallel to {@code sortOrders}.
+     * @param sortOrders index.sort.order values ("asc" or "desc"), parallel to {@code sortFields}.
+     *                   Used by Rust to call {@code ListingOptions.with_file_sort_order(...)} so the
+     *                   parquet scan advertises {@code output_ordering} to the DataFusion optimizer.
      */
     public static long createDatafusionReader(
         String path,
         List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
-        NativeStoreHandle dataformatAwareStoreHandle
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders
     ) {
         long storePtr = 0L;
         if (dataformatAwareStoreHandle != null) {
@@ -790,13 +813,40 @@ public final class NativeBridge {
                 storePtr = 0L;
             }
         }
+        if (sortFields == null) sortFields = List.of();
+        if (sortOrders == null) sortOrders = List.of();
+        if (sortFields.size() != sortOrders.size()) {
+            throw new IllegalArgumentException(
+                "createDatafusionReader: sortFields ("
+                    + sortFields.size()
+                    + ") and sortOrders ("
+                    + sortOrders.size()
+                    + ") must have the same length"
+            );
+        }
         try (var call = new NativeCall()) {
             var p = call.str(path);
             var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
             var gens = call.longs(
                 segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
             );
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count(), storePtr);
+            var sf = call.strArray(sortFields.toArray(String[]::new));
+            var so = call.strArray(sortOrders.toArray(String[]::new));
+            return call.invoke(
+                CREATE_READER,
+                p.segment(),
+                p.len(),
+                f.ptrs(),
+                f.lens(),
+                gens,
+                f.count(),
+                storePtr,
+                sf.ptrs(),
+                sf.lens(),
+                so.ptrs(),
+                so.lens(),
+                sf.count()
+            );
         }
     }
 
@@ -865,6 +915,31 @@ public final class NativeBridge {
 
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
+    }
+
+    /**
+     * Extracts execution metrics from the stream's physical plan as JSON bytes.
+     * Returns null if no metrics are available (e.g., plan didn't capture them).
+     * Must be called BEFORE streamClose (the stream handle must still be alive).
+     */
+    public static byte[] streamGetMetrics(long streamPtr) {
+        try (var arena = Arena.ofConfined()) {
+            var outPtr = arena.allocate(ValueLayout.ADDRESS);
+            var outLen = arena.allocate(ValueLayout.JAVA_LONG);
+            long result = (long) STREAM_GET_METRICS.invokeExact(streamPtr, outPtr, outLen);
+            if (result != 0) {
+                return null; // no metrics available
+            }
+            long len = outLen.get(ValueLayout.JAVA_LONG, 0);
+            MemorySegment dataPtr = outPtr.get(ValueLayout.ADDRESS, 0);
+            byte[] bytes = dataPtr.reinterpret(len).toArray(ValueLayout.JAVA_BYTE);
+            // Free the Rust-allocated buffer
+            FREE_METRICS_BUF.invokeExact(dataPtr, len);
+            return bytes;
+        } catch (Throwable t) {
+            logger.debug("Failed to read native stream metrics", t);
+            return null;
+        }
     }
 
     // ---- Cancellation ----

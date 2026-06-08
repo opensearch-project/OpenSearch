@@ -16,10 +16,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Filter-delegation matrix IT. Walks every enabled {@link Shape} through the
- * {@code (prefer_metadata_driver × fuse_dual_viable)} 4-cell matrix, asserts response
- * equality (against {@code ppl/expected/q{N}.json}) and per-cell {@code chosen_backend} /
- * {@code tree_shape} on the SHARD_FRAGMENT profile.
+ * Filter-delegation matrix IT. Walks every enabled {@link Shape} through both
+ * {@code prefer_metadata_driver} values, asserts response equality (against
+ * {@code ppl/expected/q{N}.json}) and per-cell {@code chosen_backend} / {@code tree_shape}
+ * on the SHARD_FRAGMENT profile.
  *
  * <p>Leaf vocabulary: <b>Dual</b> (DataFusion + Lucene, e.g. keyword EQUALS),
  * <b>Native</b> (DataFusion only, e.g. long EQUALS), <b>Delegated</b> (Lucene only,
@@ -52,10 +52,9 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        // Restore defaults so a test that toggled {prefer,fuse} doesn't leak into the next.
+        // Restore default so a test that toggled prefer_metadata_driver doesn't leak into the next.
         try {
             setPreferMetadataDriver(true);
-            setFuseDualViable(true);
         } finally {
             super.tearDown();
         }
@@ -119,190 +118,108 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
     // =====================================================================
 
     /**
-     * Per-cell matrix for {@code (prefer_metadata_driver, fuse_dual_viable)}.
-     *
-     * <p>Cell args are in the order: {@code (prefer=true,fuse=false)},
-     * {@code (true,true)}, {@code (false,false)}, {@code (false,true)}.
-     *
-     * <p>{@link ChosenBackendandTreeShape#placeholder()} disables the stage assertion for that cell
-     * (the response oracle still runs). Used for shapes whose query throws before
-     * producing a profile (the 4 known-red bug shapes).
+     * Per-shape expected (chosen_backend, tree_shape), one cell per {@code prefer_metadata_driver}
+     * value: {@code (preferTrue, preferFalse)}.
      */
     private enum Shape {
+        // Cells are (prefer_metadata_driver=true, prefer=false). prefer=true lets Lucene drive the
+        // whole stage when every arm is Lucene-viable (chosen=lucene, no tree_shape); a native arm
+        // forces datafusion. prefer=false runs the combiner, where delegation shape is decided by
+        // tree position: a dual-viable leaf stays performance-delegated under AND; under OR/NOT it's
+        // reclassified to correctness and ships to Lucene (fusing with same-backend correctness
+        // siblings). A delegated shipment beside a native arm under OR is INTERLEAVED; otherwise CONJUNCTIVE.
+
         // Single leaf (3)
-        SINGLE_DUAL(1,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        SINGLE_NATIVE(2,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
-        SINGLE_DELEGATED(3,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
+        SINGLE_DUAL(1, lucene(), df("CONJUNCTIVE")),
+        SINGLE_NATIVE(2, df(null), df(null)),
+        SINGLE_DELEGATED(3, lucene(), df("CONJUNCTIVE")),
 
         // Two-leaf AND (6)
-        AND_DUAL_DUAL(4,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_NATIVE_NATIVE(5,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
-        AND_DELEGATED_DELEGATED(6,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_DUAL_NATIVE(7,
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_DUAL_DELEGATED(8,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_NATIVE_DELEGATED(9,
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
+        AND_DUAL_DUAL(4, lucene(), df("CONJUNCTIVE")),
+        AND_NATIVE_NATIVE(5, df(null), df(null)),
+        AND_DELEGATED_DELEGATED(6, lucene(), df("CONJUNCTIVE")),
+        AND_DUAL_NATIVE(7, df("CONJUNCTIVE"), df("CONJUNCTIVE")),
+        AND_DUAL_DELEGATED(8, lucene(), df("CONJUNCTIVE")),
+        AND_NATIVE_DELEGATED(9, df("CONJUNCTIVE"), df("CONJUNCTIVE")),
 
         // Two-leaf OR (6)
-        OR_DUAL_DUAL(10,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        OR_NATIVE_NATIVE(11,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
-        OR_DELEGATED_DELEGATED(12,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        OR_DUAL_NATIVE(13,
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
-        OR_DUAL_DELEGATED(14,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        OR_NATIVE_DELEGATED(15,
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
+        OR_DUAL_DUAL(10, lucene(), df("CONJUNCTIVE")),
+        OR_NATIVE_NATIVE(11, df(null), df(null)),
+        OR_DELEGATED_DELEGATED(12, lucene(), df("CONJUNCTIVE")),
+        OR_DUAL_NATIVE(13, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
+        OR_DUAL_DELEGATED(14, lucene(), df("CONJUNCTIVE")),
+        OR_NATIVE_DELEGATED(15, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
 
         // Three-leaf AND (7)
-        AND_DUAL_DUAL_DUAL(16,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_NATIVE_NATIVE_NATIVE(17,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
-        AND_DELEGATED_DELEGATED_DELEGATED(18,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_DUAL_DUAL_DELEGATED(19,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_DUAL_DUAL_NATIVE(20,
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_DELEGATED_DELEGATED_NATIVE(21,
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        AND_DUAL_DELEGATED_NATIVE(22,
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
+        AND_DUAL_DUAL_DUAL(16, lucene(), df("CONJUNCTIVE")),
+        AND_NATIVE_NATIVE_NATIVE(17, df(null), df(null)),
+        AND_DELEGATED_DELEGATED_DELEGATED(18, lucene(), df("CONJUNCTIVE")),
+        AND_DUAL_DUAL_DELEGATED(19, lucene(), df("CONJUNCTIVE")),
+        AND_DUAL_DUAL_NATIVE(20, df("CONJUNCTIVE"), df("CONJUNCTIVE")),
+        AND_DELEGATED_DELEGATED_NATIVE(21, df("CONJUNCTIVE"), df("CONJUNCTIVE")),
+        AND_DUAL_DELEGATED_NATIVE(22, df("CONJUNCTIVE"), df("CONJUNCTIVE")),
 
         // Three-leaf OR (7)
-        OR_DUAL_DUAL_DUAL(23,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        OR_NATIVE_NATIVE_NATIVE(24,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
-        OR_DELEGATED_DELEGATED_DELEGATED(25,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        OR_DUAL_DUAL_DELEGATED(26,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        OR_DUAL_DUAL_NATIVE(27,
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
-        OR_DELEGATED_DELEGATED_NATIVE(28,
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
-        OR_DUAL_DELEGATED_NATIVE(29,
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
+        OR_DUAL_DUAL_DUAL(23, lucene(), df("CONJUNCTIVE")),
+        OR_NATIVE_NATIVE_NATIVE(24, df(null), df(null)),
+        OR_DELEGATED_DELEGATED_DELEGATED(25, lucene(), df("CONJUNCTIVE")),
+        OR_DUAL_DUAL_DELEGATED(26, lucene(), df("CONJUNCTIVE")),
+        OR_DUAL_DUAL_NATIVE(27, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
+        OR_DELEGATED_DELEGATED_NATIVE(28, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
+        OR_DUAL_DELEGATED_NATIVE(29, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
 
         // NOT(leaf) (3)
-        NOT_DUAL(30,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
-        NOT_NATIVE(31,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null)),
-        NOT_DELEGATED(32,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
+        NOT_DUAL(30, df(null), df(null)),
+        NOT_NATIVE(31, df(null), df(null)),
+        NOT_DELEGATED(32, lucene(), df("CONJUNCTIVE")),
 
         // Mixed connectors, depth 2 (6)
-        MIXED_OR_OF_ANDS_OF_DUALS(33,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        MIXED_OR_OF_ANDS_OF_DELEGATED(34,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        MIXED_OR_OF_DUAL_DELEGATED_ANDS(35,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        MIXED_AND_OF_DUAL_DELEGATED_ORS(36,
-            new ChosenBackendandTreeShape("lucene", null), new ChosenBackendandTreeShape("lucene", null),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "CONJUNCTIVE")),
-        MIXED_OR_OF_AND_OF_DUALS_AND_NATIVE(37,
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"),
-            new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION"), new ChosenBackendandTreeShape("datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION")),
-        MIXED_NOT_OF_AND_OF_DUALS(38,
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null),
-            new ChosenBackendandTreeShape("datafusion", null), new ChosenBackendandTreeShape("datafusion", null));
+        MIXED_OR_OF_ANDS_OF_DUALS(33, lucene(), df("CONJUNCTIVE")),
+        MIXED_OR_OF_ANDS_OF_DELEGATED(34, lucene(), df("CONJUNCTIVE")),
+        MIXED_OR_OF_DUAL_DELEGATED_ANDS(35, lucene(), df("CONJUNCTIVE")),
+        MIXED_AND_OF_DUAL_DELEGATED_ORS(36, lucene(), df("CONJUNCTIVE")),
+        MIXED_OR_OF_AND_OF_DUALS_AND_NATIVE(37, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
+        MIXED_NOT_OF_AND_OF_DUALS(38, df(null), df(null));
 
         final int queryNumber;
-        final Map<SettingCombination, ChosenBackendandTreeShape> cells;
+        final Map<Boolean, ChosenBackendandTreeShape> cells;
 
-        Shape(int queryNumber,
-              ChosenBackendandTreeShape preferTrue_fuseFalse,
-              ChosenBackendandTreeShape preferTrue_fuseTrue,
-              ChosenBackendandTreeShape preferFalse_fuseFalse,
-              ChosenBackendandTreeShape preferFalse_fuseTrue) {
+        Shape(int queryNumber, ChosenBackendandTreeShape preferTrue, ChosenBackendandTreeShape preferFalse) {
             this.queryNumber = queryNumber;
-            Map<SettingCombination, ChosenBackendandTreeShape> map = new LinkedHashMap<>();
-            map.put(new SettingCombination(true,  false), preferTrue_fuseFalse);
-            map.put(new SettingCombination(true,  true),  preferTrue_fuseTrue);
-            map.put(new SettingCombination(false, false), preferFalse_fuseFalse);
-            map.put(new SettingCombination(false, true),  preferFalse_fuseTrue);
+            Map<Boolean, ChosenBackendandTreeShape> map = new LinkedHashMap<>();
+            map.put(true, preferTrue);
+            map.put(false, preferFalse);
             this.cells = java.util.Collections.unmodifiableMap(map);
         }
+    }
+
+    private static ChosenBackendandTreeShape lucene() {
+        return new ChosenBackendandTreeShape("lucene", null);
+    }
+
+    private static ChosenBackendandTreeShape df(String treeShape) {
+        return new ChosenBackendandTreeShape("datafusion", treeShape);
     }
 
     // =====================================================================
     // Driver / matrix harness
     // =====================================================================
 
-    /** Cluster-setting combination: ({@code prefer_metadata_driver}, {@code fuse_dual_viable}). */
-    private record SettingCombination(boolean prefer, boolean fuse) {}
-
     /** Asserted SHARD_FRAGMENT profile fields. {@code treeShape == null} means the field
-     *  must be absent (Lucene-as-driver has no delegation instruction). A {@code null}
-     *  {@code chosenBackend} marks an unfilled placeholder cell — the harness will skip
-     *  the stage assertions for that cell, but still validate the row oracle. */
-    private record ChosenBackendandTreeShape(String chosenBackend, String treeShape) {
-        static ChosenBackendandTreeShape placeholder() { return new ChosenBackendandTreeShape(null, null); }
-        boolean isPlaceholder() { return chosenBackend == null; }
-    }
+     *  must be absent (Lucene-as-driver, or no delegation instruction). */
+    private record ChosenBackendandTreeShape(String chosenBackend, String treeShape) {}
 
     private void runShape(Shape shape) throws Exception {
         int queryNumber = shape.queryNumber;
         String ppl = DatasetProvisioner.loadResource(DATASET.queryResourcePath("ppl", "ppl", queryNumber)).trim();
         ppl = ppl.replace(DATASET.name, DATASET.indexName);
 
-        for (Map.Entry<SettingCombination, ChosenBackendandTreeShape> entry : shape.cells.entrySet()) {
-            SettingCombination key = entry.getKey();
+        for (Map.Entry<Boolean, ChosenBackendandTreeShape> entry : shape.cells.entrySet()) {
+            boolean prefer = entry.getKey();
             ChosenBackendandTreeShape expected = entry.getValue();
-            setPreferMetadataDriver(key.prefer());
-            setFuseDualViable(key.fuse());
+            setPreferMetadataDriver(prefer);
 
-            String label = shape + " prefer=" + key.prefer() + ",fuse=" + key.fuse();
+            String label = shape + " prefer=" + prefer;
 
             // Profile=false path — guards against any profile-only-induced behavior change masking a regression.
             Map<String, Object> bareResponse = executePpl(ppl, false);
@@ -318,11 +235,9 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
                 fail(label + " (profile=true) — " + validationError);
             }
 
-            if (expected.isPlaceholder() == false) {
-                Map<String, Object> stage = shardFragmentStage(response);
-                assertEquals(label + " — chosen_backend", expected.chosenBackend(), stage.get("chosen_backend"));
-                assertEquals(label + " — tree_shape", expected.treeShape(), stage.get("tree_shape"));
-            }
+            Map<String, Object> stage = shardFragmentStage(response);
+            assertEquals(label + " — chosen_backend", expected.chosenBackend(), stage.get("chosen_backend"));
+            assertEquals(label + " — tree_shape", expected.treeShape(), stage.get("tree_shape"));
         }
     }
 
@@ -356,12 +271,6 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
             if ("SHARD_FRAGMENT".equals(stage.get("execution_type"))) return stage;
         }
         throw new AssertionError("No SHARD_FRAGMENT stage in profile: " + stages);
-    }
-
-    private void setFuseDualViable(boolean value) throws Exception {
-        Request req = new Request("PUT", "/_cluster/settings");
-        req.setJsonEntity("{\"persistent\":{\"analytics.delegation.fuse_dual_viable\": " + value + "}}");
-        client().performRequest(req);
     }
 
     private void setPreferMetadataDriver(boolean value) throws Exception {

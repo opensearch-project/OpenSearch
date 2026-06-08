@@ -83,6 +83,9 @@ pub struct QueryStreamHandle {
     /// Concurrency gate permit — held for the query's entire lifetime.
     /// Released on drop, which frees partition budget for other queries.
     _concurrency_permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    /// Physical plan reference for post-execution metrics extraction.
+    /// Available after execution completes; read via `df_stream_get_metrics`.
+    physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
 }
 
 impl QueryStreamHandle {
@@ -104,6 +107,7 @@ impl QueryStreamHandle {
             _session_ctx: None,
             has_views,
             _concurrency_permit: permit,
+            physical_plan: None,
         }
     }
 
@@ -120,6 +124,51 @@ impl QueryStreamHandle {
             _session_ctx: Some(ctx),
             has_views,
             _concurrency_permit: permit,
+            physical_plan: None,
+        }
+    }
+
+    pub fn with_physical_plan(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        ctx: datafusion::prelude::SessionContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+        plan: Arc<dyn datafusion::physical_plan::ExecutionPlan>,
+    ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: Some(ctx),
+            has_views,
+            _concurrency_permit: permit,
+            physical_plan: Some(plan),
+        }
+    }
+
+    /// Returns execution metrics from ALL operators in the physical plan tree as JSON bytes.
+    /// Walks the tree recursively, collecting metrics from every node.
+    pub fn get_metrics_json(&self) -> Option<Vec<u8>> {
+        let plan = self.physical_plan.as_ref()?;
+        let mut map = serde_json::Map::new();
+        Self::collect_metrics(plan.as_ref(), &mut map);
+        if map.is_empty() {
+            return None;
+        }
+        serde_json::to_vec(&map).ok()
+    }
+
+    fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
+        if let Some(metrics) = plan.metrics() {
+            for m in metrics.iter() {
+                let name = m.value().name().to_string();
+                let value = m.value().as_usize() as i64;
+                // Later operators override earlier ones if same name — leaf (scan) metrics take priority
+                map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+            }
+        }
+        for child in plan.children() {
+            Self::collect_metrics(child.as_ref(), map);
         }
     }
 }
@@ -281,6 +330,16 @@ pub struct ShardView {
     /// this routes reads through TieredObjectStore (local + remote).
     /// When no store is provided, uses default LocalFileSystem.
     pub store: Arc<dyn ObjectStore>,
+    /// Index sort fields, in priority order. Sourced from the index's
+    /// `index.sort.field` setting on the Java side. Empty when the index has
+    /// no `index.sort.field` configured. Parallel to `sort_orders`.
+    /// Used to build `ListingOptions.with_file_sort_order(...)` so DataFusion
+    /// advertises `output_ordering` from the scan and enables the
+    /// `sort_prefix` optimization on TopK / SortPreservingMerge.
+    pub sort_fields: Vec<String>,
+    /// Index sort directions per field — values: `"asc"` or `"desc"`.
+    /// Parallel to `sort_fields`. Sourced from `index.sort.order`.
+    pub sort_orders: Vec<String>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -451,6 +510,8 @@ pub fn create_reader(
     table_path: &str,
     filenames: Vec<String>,
     writer_generations: Vec<i64>,
+    sort_fields: Vec<String>,
+    sort_orders: Vec<String>,
     tokio_rt_manager: &RuntimeManager,
     store_ptr: i64,
 ) -> Result<i64, DataFusionError> {
@@ -459,6 +520,13 @@ pub fn create_reader(
             "create_reader: filenames ({}) and writer_generations ({}) must have the same length",
             filenames.len(),
             writer_generations.len()
+        )));
+    }
+    if sort_fields.len() != sort_orders.len() {
+        return Err(DataFusionError::Execution(format!(
+            "create_reader: sort_fields ({}) and sort_orders ({}) must have the same length",
+            sort_fields.len(),
+            sort_orders.len()
         )));
     }
 
@@ -487,6 +555,8 @@ pub fn create_reader(
         writer_generations: Arc::new(writer_generations),
         file_metadata: None,
         store,
+        sort_fields,
+        sort_orders,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }
@@ -617,6 +687,8 @@ pub async unsafe fn execute_query(
                 context_id,
                 Arc::clone(&shard_view.store),
                 phantom_corrector,
+                &shard_view.sort_fields,
+                &shard_view.sort_orders,
             ).await
         }
     };
@@ -1130,6 +1202,7 @@ fn derive_schema_from_partial_plan(
     let state = SessionStateBuilder::new()
         .with_config(SessionConfig::new())
         .with_default_features()
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
@@ -1186,8 +1259,35 @@ fn derive_schema_from_partial_plan(
         let _ = ctx.register_table(&table_name, Arc::new(table));
     }
 
+    // Extract the substrait-declared output names from Plan.Root.names — these are the
+    // user-facing aliases Java wrote (e.g. "RegionID", "u") and must match what the
+    // FINAL substrait's Read.base_schema declares on the coordinator side.
+    let declared_names: Vec<String> = plan.relations.iter().find_map(|pr| {
+        if let Some(substrait::proto::plan_rel::RelType::Root(rr)) = pr.rel_type.as_ref() {
+            Some(rr.names.clone())
+        } else {
+            None
+        }
+    }).unwrap_or_default();
+
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
+
+    // Engine-native-merge (HLL): Partial has Binary fields that differ from the top (Int64).
+    // Use Partial schema + Root.names so coordinator sees the correct Binary wire type.
+    // All other plans: use top schema directly (matches main behavior).
+    if let Some(partial_schema) = crate::agg_mode::partial_aggregate_schema(&physical_plan) {
+        let has_binary = partial_schema.fields().iter().any(|f| matches!(f.data_type(), arrow::datatypes::DataType::Binary));
+        if has_binary && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
+            use arrow::datatypes::{Field, Schema};
+            let coerced = crate::schema_coerce::coerce_inferred_schema(partial_schema);
+            let fields: Vec<Field> = coerced.fields().iter().zip(declared_names.iter())
+                .map(|(f, name)| Field::new(name.as_str(), f.data_type().clone(), f.is_nullable())
+                    .with_metadata(f.metadata().clone()))
+                .collect();
+            return Ok(Arc::new(Schema::new_with_metadata(fields, coerced.metadata().clone())));
+        }
+    }
     Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
 }
 

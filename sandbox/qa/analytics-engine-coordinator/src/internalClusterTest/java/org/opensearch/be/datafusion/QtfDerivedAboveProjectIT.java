@@ -24,11 +24,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -72,7 +72,7 @@ public class QtfDerivedAboveProjectIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -199,7 +199,7 @@ public class QtfDerivedAboveProjectIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(INDEX)
             .setSettings(indexSettings)
-            .setMapping("URL", "type=keyword", "EventDate", "type=date", "CounterID", "type=integer")
+            .setMapping("URL", "type=keyword,index=false", "EventDate", "type=date", "CounterID", "type=integer")
             .get();
         assertTrue("index creation must be acknowledged", response.isAcknowledged());
         ensureGreen(INDEX);

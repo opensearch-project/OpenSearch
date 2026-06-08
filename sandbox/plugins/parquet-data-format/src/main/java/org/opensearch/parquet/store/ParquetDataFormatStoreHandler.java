@@ -68,6 +68,12 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
         if (isWarm) {
             long remotePtr = (repo != null && repo.isLive()) ? repo.getPointer() : 0L;
 
+            if (remotePtr == 0L) {
+                throw new IllegalStateException(
+                    "[" + shardId + "] remote object store is not available for this warm shard. Cannot serve read requests."
+                );
+            }
+
             // Resolve preferred cache by name; EMPTY if unavailable (hot nodes or no matching cache).
             // owned by NodeCacheService and must not be freed here.
             NativeStoreHandle cacheHandle = (cacheRegistry != null)

@@ -266,15 +266,15 @@ pub fn merge_sorted(
     }
 
     // ── Phase 5: Close ──────────────────────────────────────────────────
-    let (metadata, crc32) = ctx.finish()?;
+    let stats = ctx.finish()?;
 
     log_debug!(
         "[RUST] Merge complete ({}): {} total rows written to '{}' in {} row groups, crc32={:#010x}",
         direction_label,
-        metadata.file_metadata().num_rows(),
+        stats.metadata.file_metadata().num_rows(),
         output_path,
-        metadata.num_row_groups(),
-        crc32
+        stats.metadata.num_row_groups(),
+        stats.crc32
     );
 
     Ok(super::MergeOutput {
@@ -282,7 +282,10 @@ pub fn merge_sorted(
         gen_keys,
         gen_offsets,
         gen_sizes,
-        metadata,
-        crc32,
+        metadata: stats.metadata,
+        crc32: stats.crc32,
+        flush_and_sort_chunk_count: stats.flush_and_sort_chunk_count,
+        flush_and_sort_chunk_time_millis: stats.flush_and_sort_chunk_time_millis,
+        row_id_mapping_max: stats.row_id_mapping_max,
     })
 }

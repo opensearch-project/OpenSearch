@@ -176,6 +176,17 @@ public class AnalyticsSearchService implements AutoCloseable {
                         responseHandler.onBatch(batch);
                     }
                     long fragmentTookNanos = System.nanoTime() - startNanos;
+                    // Extract and log DataFusion execution metrics at DEBUG level
+                    if (LOGGER.isDebugEnabled()) {
+                        byte[] metricsJson = exec.resources().getExecutionMetrics();
+                        if (metricsJson != null) {
+                            LOGGER.debug(
+                                "[FragmentMetrics] shard={} metrics={}",
+                                shard.shardId(),
+                                new String(metricsJson, java.nio.charset.StandardCharsets.UTF_8)
+                            );
+                        }
+                    }
                     responseHandler.onComplete();
                     ResolvedFragment resolved = exec.resolved();
                     DelegationDescriptor delegation = resolved.plan().getDelegationDescriptor();

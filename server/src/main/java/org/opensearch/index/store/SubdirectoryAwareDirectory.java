@@ -101,14 +101,12 @@ public class SubdirectoryAwareDirectory extends FilterDirectory {
         Path indexDir = shardPath.resolveIndex();
         for (String name : names) {
             Path resolved = fsDataPath.resolve(parseFilePath(name));
+            logger.trace("Resolved path: {} for file: {}", resolved, name);
             if (resolved.startsWith(indexDir)) {
                 indexFiles.add(resolved.toString());
+                logger.trace("Added to index file: {}", resolved);
             } else {
-                Path normalized = resolved.normalize();
-                if (normalized.startsWith(fsDataPath) == false) {
-                    throw new IOException("Path traversal detected: " + name + " resolves outside shard data path");
-                }
-                IOUtils.fsync(normalized, false);
+                IOUtils.fsync(resolved, false);
             }
         }
         if (indexFiles.isEmpty() == false) {

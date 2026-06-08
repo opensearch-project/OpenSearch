@@ -150,7 +150,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
 
         List<String> viableBackends = resolveViableBackendsFromRel(rel);
 
-        LOGGER.info(
+        LOGGER.debug(
             "convert(): rel={}#{}, fromTrait={}, toTrait={}, backend={}",
             rel.getClass().getSimpleName(),
             rel.getId(),
