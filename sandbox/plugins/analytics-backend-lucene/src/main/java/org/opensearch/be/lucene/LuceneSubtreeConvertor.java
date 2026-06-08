@@ -10,6 +10,8 @@ package org.opensearch.be.lucene;
 
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegatedSubtreeConvertor;
@@ -31,6 +33,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 final class LuceneSubtreeConvertor implements DelegatedSubtreeConvertor {
+
+    private static final Logger LOGGER = LogManager.getLogger(LuceneSubtreeConvertor.class);
 
     private final Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers;
 
@@ -85,6 +89,13 @@ final class LuceneSubtreeConvertor implements DelegatedSubtreeConvertor {
         if (serializer == null) {
             throw new IllegalStateException("No serializer for [" + fn + "] inside delegated subtree");
         }
-        return ((AbstractQuerySerializer) serializer).buildQueryBuilder(call, fieldStorage);
+        QueryBuilder qb = ((AbstractQuerySerializer) serializer).buildQueryBuilder(call, fieldStorage);
+        // Breadcrumb at DEBUG so a future capability flip-on can be verified end-to-end without
+        // a debugger: enable `org.opensearch.be.lucene.LuceneSubtreeConvertor` at DEBUG and grep
+        // logs for `[analytics.delegated]` to confirm a predicate flowed through the convertor.
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("[analytics.delegated] op=[{}] queryBuilder=[{}]", fn, qb);
+        }
+        return qb;
     }
 }

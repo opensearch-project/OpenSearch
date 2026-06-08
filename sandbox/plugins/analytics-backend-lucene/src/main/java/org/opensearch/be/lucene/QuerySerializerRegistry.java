@@ -11,14 +11,20 @@ package org.opensearch.be.lucene;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.be.lucene.serializers.EqualsSerializer;
+import org.opensearch.be.lucene.serializers.InSerializer;
+import org.opensearch.be.lucene.serializers.IsNullSerializer;
+import org.opensearch.be.lucene.serializers.LikeSerializer;
 import org.opensearch.be.lucene.serializers.MatchAllSerializer;
 import org.opensearch.be.lucene.serializers.MatchBoolPrefixSerializer;
 import org.opensearch.be.lucene.serializers.MatchPhrasePrefixSerializer;
 import org.opensearch.be.lucene.serializers.MatchPhraseSerializer;
 import org.opensearch.be.lucene.serializers.MatchSerializer;
 import org.opensearch.be.lucene.serializers.MultiMatchSerializer;
+import org.opensearch.be.lucene.serializers.NotEqualsSerializer;
 import org.opensearch.be.lucene.serializers.QuerySerializer;
 import org.opensearch.be.lucene.serializers.QueryStringSerializer;
+import org.opensearch.be.lucene.serializers.RangeSerializer;
+import org.opensearch.be.lucene.serializers.RegexpSerializer;
 import org.opensearch.be.lucene.serializers.SimpleQueryStringSerializer;
 import org.opensearch.be.lucene.serializers.WildcardQuerySerializer;
 
@@ -42,7 +48,24 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.WILDCARD_QUERY, new WildcardQuerySerializer()),
         Map.entry(ScalarFunction.QUERY, new QuerySerializer()),
         Map.entry(ScalarFunction.MATCHALL, new MatchAllSerializer()),
-        Map.entry(ScalarFunction.EQUALS, new EqualsSerializer())
+        Map.entry(ScalarFunction.EQUALS, new EqualsSerializer()),
+        // Standard comparison predicates added for shard-level Lucene rewrites:
+        // LIKE → WildcardQuery, !=/IS_NULL → BoolQuery.mustNot, IN → TermsQuery,
+        // ranges → RangeQuery, REGEXP → RegexpQuery. Each runs against the term
+        // dictionary on the keyword/text exact-match subfield, which is materially
+        // faster than evaluating the same predicate row-by-row in DataFusion when the
+        // selectivity is low (e.g. ClickBench `SearchPhrase != ''` keeps only ~16 % of
+        // rows, but ships every `SearchPhrase` value to coord without delegation).
+        Map.entry(ScalarFunction.LIKE, new LikeSerializer()),
+        Map.entry(ScalarFunction.NOT_EQUALS, new NotEqualsSerializer()),
+        Map.entry(ScalarFunction.IN, new InSerializer()),
+        Map.entry(ScalarFunction.IS_NULL, new IsNullSerializer(false)),
+        Map.entry(ScalarFunction.IS_NOT_NULL, new IsNullSerializer(true)),
+        Map.entry(ScalarFunction.GREATER_THAN, new RangeSerializer()),
+        Map.entry(ScalarFunction.GREATER_THAN_OR_EQUAL, new RangeSerializer()),
+        Map.entry(ScalarFunction.LESS_THAN, new RangeSerializer()),
+        Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, new RangeSerializer()),
+        Map.entry(ScalarFunction.REGEXP, new RegexpSerializer())
     );
 
     private QuerySerializerRegistry() {}
