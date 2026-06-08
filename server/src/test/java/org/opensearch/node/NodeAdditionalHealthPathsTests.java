@@ -25,6 +25,13 @@ public class NodeAdditionalHealthPathsTests extends OpenSearchTestCase {
         Path missing = createTempDir().resolve("does_not_exist");
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> Node.assertCanWritePluginHealthPaths(List.of(missing)));
         assertTrue(ex.getMessage(), ex.getMessage().contains(missing.toString()));
+        // The Files.write call resolves "<missing>/<probe-uuid>" against a parent that does not exist;
+        // the JDK throws NoSuchFileException, which assertCanWritePluginHealthPaths must classify
+        // and surface in the operator-facing message.
+        assertTrue(
+            "expected message to classify the failure mode; got: " + ex.getMessage(),
+            ex.getMessage().contains("no such file or directory")
+        );
     }
 
     public void testAssertCanWritePluginHealthPathsRejectsRegularFile() throws Exception {

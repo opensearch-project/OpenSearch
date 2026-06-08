@@ -450,7 +450,11 @@ final class Security {
         // to (typically root), risking boot-disk exhaustion under load.
         String spillDir = environment.settings().get("datafusion.spill_directory");
         if (spillDir != null && spillDir.isEmpty() == false) {
-            Path spillPath = PathUtils.get(spillDir);
+            // Use Path.of directly: PathUtils#get(String, String[]) is on the forbidden-API list
+            // (it advises resolving paths from Environment instead). This is an operator-supplied
+            // absolute path that lives outside the Environment's tracked filesystems by design,
+            // so resolving via Environment is not applicable.
+            Path spillPath = Path.of(spillDir);
             if (Files.isDirectory(spillPath) == false) {
                 throw new IllegalStateException(
                     "datafusion.spill_directory ["

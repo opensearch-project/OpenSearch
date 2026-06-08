@@ -60,7 +60,10 @@ public final class SpillStatsCollector {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<SpillStats>) () -> {
                 Path path = Path.of(spillDirectory);
-                if (!Files.exists(path)) {
+                // isDirectory follows symlinks and returns false for regular files; using exists()
+                // here would happily return volume stats for a file that was misconfigured into
+                // place at the spill path.
+                if (!Files.isDirectory(path)) {
                     return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit);
                 }
                 FileStore fs = Environment.getFileStore(path);

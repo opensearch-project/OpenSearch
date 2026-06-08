@@ -184,7 +184,9 @@ testClusters.integTestStreaming {
 }
 
 // ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
-ext.spillItDir = "${System.getProperty('java.io.tmpdir')}/df-spill-it"
+// Use the Gradle build directory so each clean build starts with a fresh empty spill
+// directory and no stale state can leak between runs.
+ext.spillItDir = layout.buildDirectory.dir('spill-it').get().asFile.absolutePath
 
 task integTestSpillEnabled(type: RestIntegTestTask) {
     description = 'Runs spill-stats IT with spill enabled (datafusion.spill_directory configured)'
@@ -194,10 +196,16 @@ task integTestSpillEnabled(type: RestIntegTestTask) {
         includeTestsMatching 'org.opensearch.analytics.qa.SpillStatsEnabledIT'
     }
     systemProperty 'tests.security.manager', 'false'
-    // DataFusionPlugin's boot probe halts node start if the spill directory does not
-    // exist. Create it (idempotent) before the cluster starts.
+    // The boot-time core security grant requires the spill directory to already exist
+    // (no auto-create — see Security.addFilePermissions). Create it idempotently before
+    // the cluster starts and clear it after the task runs so a subsequent run starts
+    // from a known-clean state.
     doFirst {
+        delete spillItDir
         java.nio.file.Files.createDirectories(java.nio.file.Paths.get(spillItDir))
+    }
+    doLast {
+        delete spillItDir
     }
 }
 check.dependsOn(integTestSpillEnabled)
