@@ -274,7 +274,6 @@ public class PolicyFile extends Policy {
         return perms;
     }
 
-    @Override
     public PermissionCollection getPermissions(CodeSource codesource) {
         if (codesource == null) return new Permissions();
 
