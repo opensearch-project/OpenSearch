@@ -542,7 +542,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             toAugment,
             config.registry(),
             config.shardPath(),
-            config.dataformatAwareStoreHandles()
+            config.dataformatAwareStoreHandles(),
+            config.indexSettings()
         );
     }
 

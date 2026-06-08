@@ -53,6 +53,8 @@ pub async fn execute_query(
     context_id: i64,
     shard_store: Arc<dyn ObjectStore>,
     phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
+    sort_fields: &[String],
+    sort_orders: &[String],
 ) -> Result<i64, DataFusionError> {
     // Build per-query RuntimeEnv with list-files cache pre-populated.
     let runtime_env = build_query_runtime_env(runtime, &table_path, object_metas.as_ref())?;
@@ -135,9 +137,15 @@ pub async fn execute_query(
         _ => {
             // Baseline: use standard ListingTable
             let file_format = ParquetFormat::new();
-            let listing_options = ListingOptions::new(Arc::new(file_format))
+            let mut listing_options = ListingOptions::new(Arc::new(file_format))
                 .with_file_extension(".parquet")
                 .with_collect_stat(true);
+            // Declare per-file sort order to DataFusion if the index has `index.sort.field`.
+            // See `session_context::build_file_sort_order` for what the declaration buys us
+            // and the case/nulls/non-sort caveats.
+            if let Some(sort_exprs) = crate::session_context::build_file_sort_order(sort_fields, sort_orders) {
+                listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+            }
             let resolved_schema = listing_options
                 .infer_schema(&ctx.state(), &table_path)
                 .await
