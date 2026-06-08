@@ -29,12 +29,17 @@ import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.analytics.settings.PlannerSettings;
+import org.opensearch.analytics.planner.rules.TextRelevanceFieldValidator;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -406,31 +411,21 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
     /** {@code text} and {@code keyword} fields are accepted — no exception thrown. */
     public void testValidatorAcceptsTextField() {
-        List<org.opensearch.analytics.spi.FieldStorageInfo> storage = List.of(
-            textStorage("message", "text", org.opensearch.analytics.spi.FieldType.TEXT),
-            textStorage("status", "keyword", org.opensearch.analytics.spi.FieldType.KEYWORD),
-            textStorage("title", "match_only_text", org.opensearch.analytics.spi.FieldType.MATCH_ONLY_TEXT)
+        List<FieldStorageInfo> storage = List.of(
+            textStorage("message", "text", FieldType.TEXT),
+            textStorage("status", "keyword", FieldType.KEYWORD),
+            textStorage("title", "match_only_text", FieldType.MATCH_ONLY_TEXT)
         );
         // Should not throw for any text/keyword family field.
-        org.opensearch.analytics.planner.rules.TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
-            "QUERY_STRING",
-            List.of("message", "status", "title"),
-            storage
-        );
+        TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction("QUERY_STRING", List.of("message", "status", "title"), storage);
     }
 
     /** A {@code long} field is rejected with a descriptive, actionable message. */
     public void testValidatorRejectsNonTextField() {
-        List<org.opensearch.analytics.spi.FieldStorageInfo> storage = List.of(
-            textStorage("severityNumber", "long", org.opensearch.analytics.spi.FieldType.LONG)
-        );
+        List<FieldStorageInfo> storage = List.of(textStorage("severityNumber", "long", FieldType.LONG));
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> org.opensearch.analytics.planner.rules.TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
-                "QUERY_STRING",
-                List.of("severityNumber"),
-                storage
-            )
+            () -> TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction("QUERY_STRING", List.of("severityNumber"), storage)
         );
         assertTrue(exception.getMessage().contains("QUERY_STRING"));
         assertTrue(exception.getMessage().contains("severityNumber"));
@@ -441,19 +436,11 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     /** Fields whose storage info is absent (unknown/dynamic columns) are skipped, not rejected. */
     public void testValidatorSkipsUnknownField() {
         // No storage entries at all — unknown fields fall through to capability-based matching.
-        org.opensearch.analytics.planner.rules.TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
-            "QUERY_STRING",
-            List.of("mysteryField"),
-            List.of()
-        );
+        TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction("QUERY_STRING", List.of("mysteryField"), List.of());
     }
 
-    private static org.opensearch.analytics.spi.FieldStorageInfo textStorage(
-        String name,
-        String mappingType,
-        org.opensearch.analytics.spi.FieldType fieldType
-    ) {
-        return new org.opensearch.analytics.spi.FieldStorageInfo(name, mappingType, fieldType, List.of(), List.of(), List.of(), false);
+    private static FieldStorageInfo textStorage(String name, String mappingType, FieldType fieldType) {
+        return new FieldStorageInfo(name, mappingType, fieldType, List.of(), List.of(), List.of(), false);
     }
 
     /**
@@ -467,10 +454,10 @@ public class FilterRuleTests extends BasePlannerRulesTests {
      * </pre>
      */
     private RexNode makeMultiFieldFullTextCall(SqlFunction function, List<String> fieldNames, String query) {
-        java.util.List<RexNode> innerMapOperands = new java.util.ArrayList<>();
+        List<RexNode> innerMapOperands = new ArrayList<>();
         for (String fieldName : fieldNames) {
             innerMapOperands.add(rexBuilder.makeLiteral(fieldName));
-            innerMapOperands.add(rexBuilder.makeApproxLiteral(java.math.BigDecimal.valueOf(1.0)));
+            innerMapOperands.add(rexBuilder.makeApproxLiteral(BigDecimal.valueOf(1.0)));
         }
         RexNode innerMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, innerMapOperands);
         RexNode fieldsMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, rexBuilder.makeLiteral("fields"), innerMap);
