@@ -240,6 +240,19 @@ public class OpenSearchSchemaBuilder {
      * the same shape they did before.
      */
     public static RelDataType buildLeafType(String opensearchType, RelDataTypeFactory typeFactory) {
+        return buildLeafType(opensearchType, null, typeFactory);
+    }
+
+    /**
+     * Format-aware variant. For a {@code date}/{@code date_nanos} field whose mapping {@code format}
+     * is date-only (e.g. {@code basic_date}, {@code year_month_day}, {@code yyyy-MM-dd}) this returns
+     * a {@link DateType} UDT so the column surfaces as a SQL {@code DATE} rather than a
+     * {@code TIMESTAMP}. Time-only and datetime/epoch formats keep the existing {@code TIMESTAMP}
+     * mapping (a dedicated {@code TIME} type follows in a later phase).
+     *
+     * @param format the OpenSearch mapping {@code format} string for this field, or {@code null}
+     */
+    public static RelDataType buildLeafType(String opensearchType, String format, RelDataTypeFactory typeFactory) {
         if (opensearchType == null) {
             return null;
         }
@@ -248,6 +261,13 @@ public class OpenSearchSchemaBuilder {
         }
         if (BinaryType.NAME.equals(opensearchType)) {
             return BinaryType.nullable();
+        }
+        if (("date".equals(opensearchType) || "date_nanos".equals(opensearchType))
+            && DateFormatClassifier.classify(format) == SqlTypeName.DATE) {
+            // Carry the same precision a plain TIMESTAMP column would, so the UDT serializes to an
+            // identical Substrait PrecisionTimestamp and binds against the parquet timestamp storage.
+            int precision = typeFactory.createSqlType(SqlTypeName.TIMESTAMP).getPrecision();
+            return new DateType(true, precision);
         }
         SqlTypeName sqlType = mapFieldType(opensearchType);
         if (sqlType == null) {
@@ -291,7 +311,8 @@ public class OpenSearchSchemaBuilder {
             if ("nested".equals(fieldType)) {
                 continue;
             }
-            RelDataType columnType = buildLeafType(fieldType, typeFactory);
+            String format = (String) fieldProps.get("format");
+            RelDataType columnType = buildLeafType(fieldType, format, typeFactory);
             if (columnType == null) {
                 // Unsupported (geo_point/shape/completion/…) or unknown plugin type. Drop the
                 // column; a query referencing it surfaces a Calcite "column not found" via the
