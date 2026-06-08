@@ -31,7 +31,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -68,7 +68,7 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -117,7 +117,7 @@ public class AnalyticsSearchSlowLogIT extends OpenSearchIntegTestCase {
         try (MockLogAppender appender = MockLogAppender.createForLoggers(queryLogger)) {
             appender.addExpectation(expectQuery("has took", ".*took\\[.*\\].*took_millis\\[\\d+\\].*"));
             appender.addExpectation(expectQuery("has planning_time_millis", ".*planning_time_millis\\[\\d+\\].*"));
-            appender.addExpectation(expectQuery("has stage_took_millis", ".*stage_took_millis\\[\\{.*StageExecution.*\\}\\].*"));
+            appender.addExpectation(expectQuery("has stage_took_millis", ".*stage_took_millis\\[\\{.*\\}\\].*"));
             appender.addExpectation(expectQuery("has query_id", ".*query_id\\[[a-f0-9-]+\\].*"));
             appender.addExpectation(expectQuery("has total_rows > 0", ".*total_rows\\[(?!0\\])\\d+\\].*"));
             appender.addExpectation(expectQuery("has source field", ".*source\\[.*\\].*"));

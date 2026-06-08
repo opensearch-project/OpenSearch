@@ -35,7 +35,6 @@ public class RustBridge {
     private static final MethodHandle CREATE_WRITER;
     private static final MethodHandle WRITE;
     private static final MethodHandle FINALIZE_WRITER;
-    private static final MethodHandle SYNC_TO_DISK;
     private static final MethodHandle GET_FILE_METADATA;
     private static final MethodHandle GET_COLUMN_METADATA;
     private static final MethodHandle GET_FILTERED_BYTES;
@@ -94,10 +93,6 @@ public class RustBridge {
                 ValueLayout.ADDRESS,                           // sort_perm_ptr_out
                 ValueLayout.ADDRESS                            // sort_perm_len_out
             )
-        );
-        SYNC_TO_DISK = linker.downcallHandle(
-            lib.find("parquet_sync_to_disk").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
         GET_FILE_METADATA = linker.downcallHandle(
             lib.find("parquet_get_file_metadata").orElseThrow(),
@@ -347,13 +342,6 @@ public class RustBridge {
             }
 
             return new WriterFinalizeResult(metadata, rowIdMapping);
-        }
-    }
-
-    static void syncToDisk(String file) throws IOException {
-        try (var call = new NativeCall()) {
-            var f = call.str(file);
-            call.invokeIO(SYNC_TO_DISK, f.segment(), f.len());
         }
     }
 

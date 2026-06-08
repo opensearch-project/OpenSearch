@@ -229,7 +229,15 @@ impl WriterPropertiesBuilder {
                 }
                 Some(parsed)
             } else {
-                None
+                // Metadata field defaults by name, then type-based defaults
+                match field_name {
+                    "__row_id__" | "_seq_no" | "_primary_term" | "_version" => Some(Encoding::DELTA_BINARY_PACKED),
+                    "_id" => Some(Encoding::PLAIN),
+                    _ => match type_key {
+                        Some("timestamp") => Some(Encoding::DELTA_BINARY_PACKED),
+                        _ => None,
+                    },
+                }
             };
 
             if let Some(enc) = encoding {
@@ -261,7 +269,15 @@ impl WriterPropertiesBuilder {
             } else if let Some(comp) = type_key.and_then(|t| config.type_compression_configs.as_ref()?.get(t).map(|s| s.as_str())) {
                 Some(Self::parse_compression_type(comp, level)?)
             } else {
-                None
+                // Metadata field defaults by name, then type-based defaults
+                match field_name {
+                    "_primary_term" | "_version" => Some(Compression::UNCOMPRESSED),
+                    "_id" => Some(Self::parse_compression_type("LZ4_RAW", 0)?),
+                    _ => match type_key {
+                        Some("utf8") | Some("binary") => Some(Self::parse_compression_type("ZSTD", 3)?),
+                        _ => None,
+                    },
+                }
             };
 
             if let Some(comp) = compression {
@@ -295,6 +311,7 @@ impl WriterPropertiesBuilder {
             Encoding::RLE => matches!(dt, Boolean),
             Encoding::DELTA_BINARY_PACKED => matches!(dt,
                 Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64
+                | Timestamp(_, _) | Date32 | Date64 | Time32(_) | Time64(_) | Duration(_)
             ),
             Encoding::DELTA_LENGTH_BYTE_ARRAY => matches!(dt,
                 Utf8 | LargeUtf8 | Binary | LargeBinary
@@ -1036,14 +1053,15 @@ mod tests {
 
         assert!(matches!(props.compression(&age_path), Compression::ZSTD(_)),
             "int32 type-level ZSTD should override global SNAPPY");
-        assert!(matches!(props.compression(&name_path), Compression::SNAPPY),
-            "utf8 has no type-level, should use global SNAPPY");
+        assert!(matches!(props.compression(&name_path), Compression::ZSTD(_)),
+            "utf8 has type-level set to ZSTD");
     }
 
     #[test]
     fn test_build_stamps_format_version() {
         let config = NativeSettings::default();
-        let props = WriterPropertiesBuilder::build(&config);
+        let schema = ArrowSchema::new(Vec::<Field>::new());
+        let props = WriterPropertiesBuilder::build(&config, &schema).expect("build failed");
         let kv = props.key_value_metadata().expect("KV metadata missing");
         let found = kv.iter().find(|k| k.key == FORMAT_VERSION_KEY);
         let entry = found.expect("format_version KV entry missing");
@@ -1053,7 +1071,8 @@ mod tests {
     #[test]
     fn test_build_with_generation_stamps_both() {
         let config = NativeSettings::default();
-        let props = WriterPropertiesBuilder::build_with_generation(&config, Some(42));
+        let schema = ArrowSchema::new(Vec::<Field>::new());
+        let props = WriterPropertiesBuilder::build_with_generation(&config, Some(42), &schema).expect("build failed");
         let kv = props.key_value_metadata().expect("KV metadata missing");
         let has_format = kv.iter().any(|k| k.key == FORMAT_VERSION_KEY && k.value.as_deref() == Some(FORMAT_VERSION));
         let has_gen = kv.iter().any(|k| k.key == WRITER_GENERATION_KEY && k.value.as_deref() == Some("42"));

@@ -3032,9 +3032,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void sync() {}
-
-        @Override
         public long generation() {
             return writerGeneration;
         }
@@ -3086,9 +3083,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         public org.opensearch.index.engine.dataformat.FileInfos flush(org.opensearch.index.engine.dataformat.FlushInput flushInput) {
             return org.opensearch.index.engine.dataformat.FileInfos.empty();
         }
-
-        @Override
-        public void sync() {}
 
         @Override
         public long generation() {

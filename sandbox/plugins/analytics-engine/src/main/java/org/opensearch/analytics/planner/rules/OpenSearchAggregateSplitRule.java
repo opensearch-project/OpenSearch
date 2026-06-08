@@ -10,7 +10,10 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.volcano.RelSubset;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Project;
@@ -28,6 +31,8 @@ import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAg
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
+import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
@@ -56,14 +61,16 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     /** Skip the PARTIAL/FINAL split when it would emit a row type that fails Volcano's typeMatchesInferred. */
     private static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
-            // Aggregates that don't decompose additively across shards: APPROXIMATE
-            // (APPROX_COUNT_DISTINCT), STATE_EXPANDING (TAKE/FIRST/LAST/LIST/VALUES/
-            // PERCENTILE_APPROX/PATTERN), and any residual DISTINCT (e.g. multi-arg
-            // COUNT(DISTINCT a, b) that survived rewriting). Gather and aggregate once.
+            // STATE_EXPANDING aggregates (TAKE/FIRST/LAST/LIST/VALUES/PERCENTILE_APPROX/PATTERN)
+            // can't decompose into per-shard partials reduced additively. APPROXIMATE goes through
+            // the structural split — its engine-native merge (sketch state, reducer == self) is
+            // wired at DistributedAggregateRewriter.overrideExchangeType.
             AggregateFunction.Type type = aggregateType(aggCall.getAggregation());
-            if (type == AggregateFunction.Type.STATE_EXPANDING || type == AggregateFunction.Type.APPROXIMATE) {
+            if (type == AggregateFunction.Type.STATE_EXPANDING) {
                 return true;
             }
+            // Residual DISTINCT (e.g. multi-arg COUNT(DISTINCT a, b) that didn't match the
+            // OpenSearchDistinctCountRule single-arg rewrite) gathers to the coordinator.
             if (aggCall.isDistinct()) {
                 return true;
             }
@@ -119,7 +126,17 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getCallAnnotations()
         );
 
-        if (shouldSkipPartialFinalSplit(aggregate)) {
+        // Exchange placement is deterministic on partitioning, not cost: a SINGLE aggregate over
+        // partitioned (RANDOM) input is incorrect — each shard would aggregate in isolation and the
+        // results would never merge. So when the input is partitioned and the aggregate is
+        // splittable, emit ONLY the PARTIAL/FINAL split; don't also register the gather-everything
+        // singleOnSingleton alternative for Volcano to cost-compare against (that comparison is what
+        // streamed the whole table to the coordinator, and biasing it back via row-count estimates
+        // perturbs the global cost model for unrelated query shapes). For unpartitioned input
+        // (1 shard / already gathered) or a non-splittable aggregate, the single-stage plan is the
+        // correct and only choice.
+        boolean partitioned = isPartitioned(child);
+        if (!partitioned || childGatheredByWindow(child) || shouldSkipPartialFinalSplit(aggregate)) {
             call.transformTo(singleOnSingleton);
             return;
         }
@@ -170,8 +187,66 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         // Empty-group nullability gap (COUNT→SUM swap): wrap FINAL so its row type matches SINGLE's.
         RelNode finalAlternative = wrapWithCastIfNeeded(finalAggregate, aggregate);
 
-        call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
+        // Partitioned + splittable: the split is the only correct plan, so don't register the
+        // gather-everything alternative. Volcano has nothing to cost-compare — placement is fixed.
         call.transformTo(finalAlternative);
+    }
+
+    /**
+     * True when the input is partitioned across shards (distribution type RANDOM), i.e. a SINGLE
+     * aggregate over it would be incorrect. Reads the input's distribution trait directly — the
+     * same deterministic, shard-count-driven signal the Join/Union split rules use, no cost model
+     * involved. Returns false for SINGLETON (1 shard / already gathered) or when no distribution
+     * trait is present yet (Volcano still exploring — the cost gate on SINGLE is the backstop).
+     */
+    private static boolean isPartitioned(RelNode input) {
+        for (int i = 0; i < input.getTraitSet().size(); i++) {
+            RelTrait trait = input.getTraitSet().getTrait(i);
+            if (trait instanceof OpenSearchDistribution dist) {
+                return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when a window (a {@code RexOver}-bearing Project) sits between this aggregate and its
+     * scan. A global-frame window has infinite cost unless its input is SINGLETON, so the planner
+     * gathers below it — meaning this aggregate's input is already on one node and splitting it
+     * would add a redundant PARTIAL/FINAL pass.
+     *
+     * <p>This only runs after {@link #isPartitioned} confirmed {@code node} carries the RANDOM
+     * trait, i.e. {@code node} is on the shard-side (pre-gather) segment of the plan. The
+     * window's gather is a not-yet-materialized converter and the FINAL aggregate of any
+     * lower split outputs SINGLETON (which {@code isPartitioned} would have screened out), so
+     * there is no {@link OpenSearchExchangeReducer} between {@code node} and its scan to walk
+     * past — the descent stays within this one RANDOM segment. The walk simply looks for a
+     * window over the single-input chain down to the scan; a multi-input op (join/union) ends it.
+     */
+    private static boolean childGatheredByWindow(RelNode node) {
+        RelNode cur = unwrapForWalk(node);
+        while (cur != null) {
+            if (cur instanceof OpenSearchProject project && project.containsOver()) {
+                return true; // window forces a gather above its input → our input is already singleton
+            }
+            if (cur.getInputs().size() != 1) {
+                return false; // scan (no inputs) or a multi-input op (join/union) — no single window gather
+            }
+            cur = unwrapForWalk(cur.getInput(0));
+        }
+        return false;
+    }
+
+    /**
+     * Resolves a node to its concrete rel for the {@link #childGatheredByWindow} walk. During
+     * Volcano, {@code getInput(0)} returns a {@link RelSubset}, not a concrete rel — its
+     * {@code getInputs()} is empty, which would end the walk one hop below the aggregate and miss a
+     * window sitting behind an intermediate op (e.g. a {@code where} Filter). Unwrap the HEP vertex,
+     * then resolve a subset to its representative rel via {@code getBestOrOriginal()}.
+     */
+    private static RelNode unwrapForWalk(RelNode node) {
+        RelNode unwrapped = RelNodeUtils.unwrapHep(node);
+        return unwrapped instanceof RelSubset subset ? subset.getBestOrOriginal() : unwrapped;
     }
 
     /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */

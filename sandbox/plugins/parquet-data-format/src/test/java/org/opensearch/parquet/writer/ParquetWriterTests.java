@@ -22,13 +22,13 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -37,11 +37,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
+public class ParquetWriterTests extends ParquetBaseTests {
 
-public class ParquetWriterTests extends OpenSearchTestCase {
-
+    private final ParquetDataFormat parquetFormat = new ParquetDataFormat();
     private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     private MappedFieldType idField;
@@ -61,6 +59,9 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
+        assignTestCapabilities(idField, parquetFormat);
+        assignTestCapabilities(nameField, parquetFormat);
+        assignTestCapabilities(scoreField, parquetFormat);
         schema = buildSchema(List.of(idField, nameField, scoreField));
         Settings indexSettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -195,35 +196,6 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             null
         );
         assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
-    }
-
-    public void testSyncAfterFlush() throws Exception {
-        String filePath = createTempDir().resolve("sync.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(
-            filePath,
-            1L,
-            1L,
-            new ParquetDataFormat(),
-            schema,
-            () -> schema,
-            bufferPool,
-            indexSettings,
-            threadPool,
-            null
-        );
-
-        ParquetDocumentInput doc = new ParquetDocumentInput();
-        populateMetadataFields(doc);
-        doc.addField(idField, 1);
-        doc.addField(nameField, "alice");
-        doc.addField(scoreField, 100L);
-        doc.setRowId("__row_id__", 0);
-        writer.addDoc(doc);
-        doc.close();
-
-        writer.flush(FlushInput.EMPTY);
-        writer.sync();
-        assertTrue(Files.exists(Path.of(filePath)));
     }
 
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {

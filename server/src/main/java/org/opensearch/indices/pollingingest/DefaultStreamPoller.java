@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.CounterMetric;
@@ -58,8 +59,8 @@ public class DefaultStreamPoller implements StreamPoller {
     // flag to indicate if consumer needs to be reinitialized
     private volatile boolean reinitializeConsumer;
 
-    // the ingestion source used to create the consumer; updated on settings changes
-    private volatile IngestionSource currentIngestionSource;
+    // the index metadata used to create the consumer; updated on settings changes
+    private volatile IndexMetadata currentIndexMetadata;
 
     private volatile long lastPolledMessageTimestamp = 0;
     private volatile long cachedPointerBasedLag = -1; // -1 indicates poller has not consumed any message yet
@@ -122,7 +123,7 @@ public class DefaultStreamPoller implements StreamPoller {
         Map<String, Object> mapperSettings,
         IngestPipelineExecutor pipelineExecutor,
         IngestionSource.WarmupConfig warmupConfig,
-        IngestionSource ingestionSource
+        IndexMetadata indexMetadata
     ) {
         this(
             startPointer,
@@ -147,7 +148,7 @@ public class DefaultStreamPoller implements StreamPoller {
             ingestionEngine.config().getIndexSettings(),
             IngestionMessageMapper.create(mapperType.getName(), shardId, mapperSettings),
             warmupConfig,
-            ingestionSource
+            indexMetadata
         );
     }
 
@@ -170,7 +171,7 @@ public class DefaultStreamPoller implements StreamPoller {
         IndexSettings indexSettings,
         IngestionMessageMapper messageMapper,
         IngestionSource.WarmupConfig warmupConfig,
-        IngestionSource ingestionSource
+        IndexMetadata indexMetadata
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -190,7 +191,7 @@ public class DefaultStreamPoller implements StreamPoller {
         this.indexName = indexSettings.getIndex().getName();
         this.messageMapper = Objects.requireNonNull(messageMapper);
         this.warmupConfig = Objects.requireNonNull(warmupConfig);
-        this.currentIngestionSource = Objects.requireNonNull(ingestionSource);
+        this.currentIndexMetadata = Objects.requireNonNull(indexMetadata);
 
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
@@ -627,17 +628,17 @@ public class DefaultStreamPoller implements StreamPoller {
 
     /**
      * Mark the poller's consumer for reinitialization. A new consumer will be initialized and start consuming from the
-     * latest batchStartPointer using the updated ingestion source.
-     * @param updatedIngestionSource the updated ingestion source with new configuration parameters
+     * latest batchStartPointer using the updated index metadata.
+     * @param updatedIndexMetadata the updated index metadata with new configuration parameters
      */
     @Override
-    public synchronized void requestConsumerReinitialization(IngestionSource updatedIngestionSource) {
+    public synchronized void requestConsumerReinitialization(IndexMetadata updatedIndexMetadata) {
         if (closed) {
             logger.warn("Cannot reinitialize consumer for closed poller of shard {}", shardId);
             return;
         }
 
-        this.currentIngestionSource = updatedIngestionSource;
+        this.currentIndexMetadata = updatedIndexMetadata;
         logger.info("Configuration parameters updated for index {} shard {}, requesting consumer reinitialization", indexName, shardId);
         reinitializeConsumer = true;
     }
@@ -728,7 +729,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private synchronized void initializeConsumer() {
         try {
             reinitializeConsumer = false;
-            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId, currentIngestionSource);
+            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId, currentIndexMetadata);
             logger.info("Successfully initialized consumer for shard {}", shardId);
         } catch (Exception e) {
             logger.warn("Failed to create consumer for shard {}: {}", shardId, e.getMessage());
@@ -779,7 +780,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private IngestPipelineExecutor pipelineExecutor;
         // Warmup configuration - default matches IndexMetadata settings
         private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
-        private IngestionSource ingestionSource;
+        private IndexMetadata indexMetadata;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -904,10 +905,10 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
-         * Set the ingestion source used to create the consumer.
+         * Set the index metadata used to create the consumer.
          */
-        public Builder ingestionSource(IngestionSource ingestionSource) {
-            this.ingestionSource = Objects.requireNonNull(ingestionSource);
+        public Builder indexMetadata(IndexMetadata indexMetadata) {
+            this.indexMetadata = Objects.requireNonNull(indexMetadata);
             return this;
         }
 
@@ -934,7 +935,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 mapperSettings,
                 pipelineExecutor,
                 warmupConfig,
-                ingestionSource
+                indexMetadata
             );
         }
     }

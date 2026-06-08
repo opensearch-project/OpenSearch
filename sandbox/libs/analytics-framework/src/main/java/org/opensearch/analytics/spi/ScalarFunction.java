@@ -114,6 +114,19 @@ public enum ScalarFunction {
      */
     PARSE(Category.STRING, SqlKind.OTHER_FUNCTION),
 
+    /**
+     * PPL {@code grok <field> '<grok-pattern>'} — like {@link #PARSE} but the pattern
+     * is grok syntax ({@code %{HOSTNAME:host}}) rather than a raw regex. Shares the
+     * {@code ParseFunction} UDF in the SQL plugin (3rd operand {@code 'grok'}) and the
+     * same {@code MAP<VARCHAR, VARCHAR>} return type, so it pairs with {@link #ITEM}
+     * downstream just like {@code parse}. Resolves by identifier-name "GROK" through
+     * {@link #fromSqlFunction(SqlFunction)}. The grok-pattern dictionary and its
+     * recursive resolution live entirely in the {@code grok} Rust UDF (the SQL plugin's
+     * grok library is not on OpenSearch core's classpath), so no Java-side resolution
+     * is needed here.
+     */
+    GROK(Category.STRING, SqlKind.OTHER_FUNCTION),
+
     // TODO: Frontend/lang-specific functions (NUM/AUTO/MEMK/MKTIME etc.) shouldn't
     // live in the shared analytics-framework SPI — they couple the framework to PPL
     // vocabulary. Replace with a registration-at-startup mechanism where each frontend
@@ -258,6 +271,20 @@ public enum ScalarFunction {
      * rewrites the call into a DataFusion-native interval-add expression.
      */
     TIMESTAMPADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_ADD(<date|timestamp|time>, INTERVAL n unit)} — shift a temporal value
+     * forward by an interval, returning TIMESTAMP. Resolves through the SQL plugin's
+     * {@code DateAddSubFunction} UDF named {@code "DATE_ADD"}. The analytics-backend-datafusion
+     * adapter rewrites the call into {@code DATETIME_PLUS(base, interval)}, which binds through
+     * Substrait's standard {@code add(timestamp, interval)} to DataFusion's native interval add.
+     */
+    DATE_ADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_SUB(<date|timestamp|time>, INTERVAL n unit)} — the subtract counterpart of
+     * {@link #DATE_ADD}. Lowered to {@code DATETIME_PLUS(base, -interval)} by the
+     * analytics-backend-datafusion adapter.
+     */
+    DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
