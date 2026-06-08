@@ -23,6 +23,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
+
 /**
  * Unit tests for {@link LuceneQueryConversionUtils#rewriteFieldExistsForSecondary} — the
  * interim rewrite that turns {@link FieldExistsQuery} (needs doc_values/norms, absent on the
