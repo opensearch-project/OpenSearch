@@ -42,6 +42,16 @@ public final class DelegationBlockList {
 
     private static final Logger LOGGER = LogManager.getLogger(DelegationBlockList.class);
 
+    /**
+     * Built-in default block-list, seeded for any acceptor namespace the operator has not explicitly
+     * configured. LIKE delegation to Lucene is blocked by default: leading-wildcard LIKE on a plain
+     * term dictionary is a full term-dictionary sweep (the LIKE-on-URL ~6x regression), so we keep it
+     * on the driving engine until an opt-in (e.g. a wildcard/trigram subfield) makes it worthwhile.
+     * Operators can re-enable by explicitly clearing the namespace: {@code
+     * analytics.delegation.lucene.blocked_predicates: []}.
+     */
+    private static final Map<String, EnumSet<ScalarFunction>> DEFAULT_BLOCKED = Map.of("lucene", EnumSet.of(ScalarFunction.LIKE));
+
     /** backendName -> blocked predicate functions. Absent/empty entry ⇒ nothing blocked. */
     private final Map<String, EnumSet<ScalarFunction>> blockedByBackend;
 
@@ -73,9 +83,14 @@ public final class DelegationBlockList {
         Map<String, EnumSet<ScalarFunction>> map = new ConcurrentHashMap<>();
         DelegationBlockList blockList = new DelegationBlockList(map);
         Map<String, List<ScalarFunction>> initial = AnalyticsQuerySettings.DELEGATION_BLOCKED_PREDICATES.getAsMap(initialSettings);
+        // Built-in defaults first, so an operator's explicit value for the same namespace (incl. an
+        // explicit empty list, which clears the default) wins below.
+        seedDefaults(registry, map, initial.keySet());
         for (Map.Entry<String, List<ScalarFunction>> e : initial.entrySet()) {
             validate(registry, e.getKey(), e.getValue());
-            if (!e.getValue().isEmpty()) {
+            if (e.getValue().isEmpty()) {
+                map.remove(e.getKey()); // explicit empty list overrides any built-in default
+            } else {
                 map.put(e.getKey(), toEnumSet(e.getValue()));
             }
         }
@@ -85,6 +100,31 @@ public final class DelegationBlockList {
             (backendName, predicates) -> validate(registry, backendName, predicates)
         );
         return blockList;
+    }
+
+    /**
+     * Seeds {@link #DEFAULT_BLOCKED} for every acceptor namespace the operator has <em>not</em>
+     * explicitly configured ({@code explicitlyConfigured}). Best-effort: a default that doesn't
+     * validate against the runtime registry (backend isn't a FILTER acceptor, or has no serializer
+     * for the predicate) is skipped with a debug log rather than failing node startup.
+     */
+    private static void seedDefaults(
+        CapabilityRegistry registry,
+        Map<String, EnumSet<ScalarFunction>> map,
+        Set<String> explicitlyConfigured
+    ) {
+        for (Map.Entry<String, EnumSet<ScalarFunction>> e : DEFAULT_BLOCKED.entrySet()) {
+            if (explicitlyConfigured.contains(e.getKey())) {
+                continue; // operator owns this namespace; their value (set below) takes precedence
+            }
+            try {
+                validate(registry, e.getKey(), List.copyOf(e.getValue()));
+            } catch (IllegalArgumentException ex) {
+                LOGGER.debug("Skipping default delegation block-list for backend [{}]: {}", e.getKey(), ex.getMessage());
+                continue;
+            }
+            map.put(e.getKey(), EnumSet.copyOf(e.getValue()));
+        }
     }
 
     /**

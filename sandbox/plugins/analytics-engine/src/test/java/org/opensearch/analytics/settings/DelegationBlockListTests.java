@@ -81,15 +81,34 @@ public class DelegationBlockListTests extends OpenSearchTestCase {
         assertTrue("case-insensitive token parsed", blockList.isBlocked(LUCENE, ScalarFunction.EQUALS));
     }
 
+    public void testDefaultBlocksLikeOnLucene() {
+        // No operator configuration → the built-in default blocks LIKE delegation to lucene.
+        DelegationBlockList blockList = DelegationBlockList.create(clusterSettings(Settings.EMPTY), Settings.EMPTY, registry());
+        assertFalse(blockList.isEmpty());
+        assertTrue("LIKE blocked on lucene by default", blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
+        assertFalse("only LIKE is blocked by default", blockList.isBlocked(LUCENE, ScalarFunction.EQUALS));
+    }
+
+    public void testExplicitEmptyListOverridesDefault() {
+        // An operator clearing the namespace (explicit empty list) re-enables LIKE delegation.
+        Settings settings = Settings.builder().putList("analytics.delegation.lucene.blocked_predicates").build();
+        DelegationBlockList blockList = DelegationBlockList.create(clusterSettings(settings), settings, registry());
+        assertTrue(blockList.isEmpty());
+        assertFalse(blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
+    }
+
     public void testDynamicUpdate() {
         ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
         DelegationBlockList blockList = DelegationBlockList.create(clusterSettings, Settings.EMPTY, registry());
-        assertTrue(blockList.isEmpty());
+        assertTrue("LIKE blocked on lucene by default", blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
 
-        clusterSettings.applySettings(Settings.builder().putList("analytics.delegation.lucene.blocked_predicates", "LIKE").build());
+        clusterSettings.applySettings(
+            Settings.builder().putList("analytics.delegation.lucene.blocked_predicates", "LIKE", "equals").build()
+        );
         assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
+        assertTrue(blockList.isBlocked(LUCENE, ScalarFunction.EQUALS));
 
-        // Clearing the list removes the backend's block entry.
+        // Clearing the list removes the backend's block entry (and overrides the built-in default).
         clusterSettings.applySettings(Settings.builder().putList("analytics.delegation.lucene.blocked_predicates").build());
         assertFalse(blockList.isBlocked(LUCENE, ScalarFunction.LIKE));
         assertTrue(blockList.isEmpty());

@@ -16,10 +16,11 @@ import java.util.Map;
 
 /**
  * End-to-end coverage for SQL/PPL {@code LIKE} delegation to Lucene (prefix + wildcard) and the
- * per-backend delegation block-list. Asserts correct counts for each LIKE shape, then blocks LIKE
- * via {@code analytics.delegation.lucene.blocked_predicates} and asserts identical counts (delegation
- * off ⇒ DataFusion path) — same results, different execution path. Also checks a non-{@code lucene}
- * namespace is rejected.
+ * per-backend delegation block-list. LIKE delegation to Lucene is blocked by default, so these tests
+ * first clear {@code analytics.delegation.lucene.blocked_predicates} (an explicit empty list overrides
+ * the built-in default) to exercise the delegated Lucene path, assert correct counts for each LIKE
+ * shape, then re-block LIKE and assert identical counts (delegation off ⇒ DataFusion path) — same
+ * results, different execution path. Also checks a non-{@code lucene} namespace is rejected.
  */
 public class LikeDelegationIT extends AnalyticsRestTestCase {
 
@@ -30,27 +31,30 @@ public class LikeDelegationIT extends AnalyticsRestTestCase {
         createIndex();
         indexDocs();
 
-        // Ground truth over the corpus (see indexDocs): str0 ∈
-        //   "apple" ×4, "applesauce" ×3, "banana" ×2, "cherry pie" ×1 (a multi-token value).
-        // SQL LIKE is a whole-value match over the raw keyword (DataFusion semantics, which the
-        // delegated Lucene query must reproduce). The values are chosen so each pattern is unambiguous.
-        assertLikeCount("xyz%", 0);          // nothing starts with xyz
-        assertLikeCount("apple%", 7);        // prefix: "apple"×4 + "applesauce"×3
-        assertLikeCount("%sauce%", 3);       // contains: only "applesauce"×3
-        assertLikeCount("banan_", 2);        // underscore: "banana"×2 ("banan" + one char)
-        assertLikeCount("%pie", 1);          // suffix on a multi-token value: "cherry pie"×1
-        // Case-insensitivity: PPL like() is ILIKE — uppercase pattern still matches lowercase data.
-        assertPplLikeCount("APPLE%", 7);
-
-        // Now block LIKE delegation to Lucene cluster-wide; results must be identical (DataFusion path).
-        setBlockedPredicates("\"LIKE\"");
+        // LIKE delegation to Lucene is blocked by default; clear the namespace (explicit empty list
+        // overrides the built-in default) so this phase actually exercises the delegated Lucene path.
+        setBlockedPredicates("");
         try {
+            // Ground truth over the corpus (see indexDocs): str0 ∈
+            //   "apple" ×4, "applesauce" ×3, "banana" ×2, "cherry pie" ×1 (a multi-token value).
+            // SQL LIKE is a whole-value match over the raw keyword (DataFusion semantics, which the
+            // delegated Lucene query must reproduce). The values are chosen so each pattern is unambiguous.
+            assertLikeCount("xyz%", 0);          // nothing starts with xyz
+            assertLikeCount("apple%", 7);        // prefix: "apple"×4 + "applesauce"×3
+            assertLikeCount("%sauce%", 3);       // contains: only "applesauce"×3
+            assertLikeCount("banan_", 2);        // underscore: "banana"×2 ("banan" + one char)
+            assertLikeCount("%pie", 1);          // suffix on a multi-token value: "cherry pie"×1
+            // Case-insensitivity: PPL like() is ILIKE — uppercase pattern still matches lowercase data.
+            assertPplLikeCount("APPLE%", 7);
+
+            // Now block LIKE delegation to Lucene cluster-wide; results must be identical (DataFusion path).
+            setBlockedPredicates("\"LIKE\"");
             assertLikeCount("apple%", 7);
             assertLikeCount("%sauce%", 3);
             assertLikeCount("banan_", 2);
             assertPplLikeCount("APPLE%", 7);
         } finally {
-            setBlockedPredicates(""); // clear
+            setBlockedPredicates(""); // restore: leave delegation enabled for the cluster
         }
     }
 
@@ -64,9 +68,15 @@ public class LikeDelegationIT extends AnalyticsRestTestCase {
         createIndex();
         indexDocs();
 
-        assertMsgLikeCount("Service%", 9);   // both "Service ..." families: 7 + 2
-        assertMsgLikeCount("%timeout%", 1);  // only "Gateway timeout error"
-        assertMsgLikeCount("%alpha%", 7);    // only the alpha family
+        // Clear the default LIKE block so the text-field LIKE is delegated against msg.keyword.
+        setBlockedPredicates("");
+        try {
+            assertMsgLikeCount("Service%", 9);   // both "Service ..." families: 7 + 2
+            assertMsgLikeCount("%timeout%", 1);  // only "Gateway timeout error"
+            assertMsgLikeCount("%alpha%", 7);    // only the alpha family
+        } finally {
+            setBlockedPredicates("");
+        }
     }
 
     /** The block-list only accepts the {@code lucene} namespace (the sole FILTER-delegation acceptor). */
