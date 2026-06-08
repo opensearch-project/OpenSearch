@@ -2683,12 +2683,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 String cimFile = IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION);
                 boolean hasStarTreeFiles = false;
                 try {
-                    for (String file : commitInfo.files()) {
-                        if (file.equals(cimFile)) {
-                            hasStarTreeFiles = true;
-                            break;
-                        }
-                    }
+                    hasStarTreeFiles = commitInfo.files().contains(cimFile);
                 } catch (IOException e) {
                     logger.warn("Failed to check files for segment {}", segName, e);
                     continue;

@@ -31,6 +31,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -287,6 +288,16 @@ public class StarTreeUpgradeService {
         IndexOutput metaOut = null;
         DocValuesConsumer compositeDocValuesConsumer = null;
 
+        String dataFileName = IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.DATA_EXTENSION);
+        String metaFileName = IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.META_EXTENSION);
+        String dataDocValuesFileName = IndexFileNames.segmentFileName(
+            segmentName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION
+        );
+        String metaDocValuesFileName = IndexFileNames.segmentFileName(
+            segmentName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
+        );
+        boolean success = false;
+
         try {
             // Open a DirectoryReader and find the matching SegmentReader by segment name
             directoryReader = DirectoryReader.open(directory);
@@ -312,7 +323,7 @@ public class StarTreeUpgradeService {
             // null when DirectoryReader wraps with SoftDeletesDirectoryReaderWrapper.
             Bits liveDocs = buildLiveDocsBitset(segmentReader, commitInfo);
             int numLiveDocs = liveDocs != null
-                ? ((org.apache.lucene.util.FixedBitSet) liveDocs).cardinality()
+                ? ((FixedBitSet) liveDocs).cardinality()
                 : segmentReader.maxDoc();
             if (liveDocs != null) {
                 docValuesProducer = new LiveDocsFilteredDocValuesProducer(
@@ -364,7 +375,6 @@ public class StarTreeUpgradeService {
             );
 
             // Open IndexOutput for .cid and .cim files with proper CodecUtil headers
-            String dataFileName = IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.DATA_EXTENSION);
             dataOut = directory.createOutput(dataFileName, IOContext.DEFAULT);
             CodecUtil.writeIndexHeader(
                 dataOut,
@@ -374,7 +384,6 @@ public class StarTreeUpgradeService {
                 ""
             );
 
-            String metaFileName = IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.META_EXTENSION);
             metaOut = directory.createOutput(metaFileName, IOContext.DEFAULT);
             CodecUtil.writeIndexHeader(
                 metaOut,
@@ -429,10 +438,12 @@ public class StarTreeUpgradeService {
             CodecUtil.writeFooter(metaOut);
             CodecUtil.writeFooter(dataOut);
 
-            logger.info(
+            success = true;
+
+            logger.debug(
                 "Star tree files written for segment [{}]: directory listing = {}",
                 segmentName,
-                java.util.Arrays.toString(directory.listAll())
+                Arrays.toString(directory.listAll())
             );
 
         } finally {
@@ -464,6 +475,13 @@ public class StarTreeUpgradeService {
                 } catch (Exception e) {
                     logger.warn("Failed to close DirectoryReader for segment [{}]", segmentName, e);
                 }
+            }
+            // If build failed, delete partially written star tree files to avoid corrupt data on disk.
+            if (success == false) {
+                deleteFileSilently(directory, dataFileName, segmentName);
+                deleteFileSilently(directory, metaFileName, segmentName);
+                deleteFileSilently(directory, dataDocValuesFileName, segmentName);
+                deleteFileSilently(directory, metaDocValuesFileName, segmentName);
             }
         }
     }
@@ -500,7 +518,7 @@ public class StarTreeUpgradeService {
             return null;
         }
 
-        org.apache.lucene.util.FixedBitSet liveBits = new org.apache.lucene.util.FixedBitSet(maxDoc);
+        FixedBitSet liveBits = new FixedBitSet(maxDoc);
         liveBits.set(0, maxDoc);
 
         // Apply hard deletes from .liv file
@@ -514,7 +532,7 @@ public class StarTreeUpgradeService {
         }
 
         // Apply soft deletes via segmentReader.getNumericDocValues() which routes to the update file.
-        String softDeleteField = org.opensearch.common.lucene.Lucene.SOFT_DELETES_FIELD;
+        String softDeleteField = Lucene.SOFT_DELETES_FIELD;
         if (softDeleteCount > 0) {
             NumericDocValues softDeleteValues = segmentReader.getNumericDocValues(softDeleteField);
             if (softDeleteValues != null) {
@@ -535,9 +553,29 @@ public class StarTreeUpgradeService {
         return liveBits;
     }
 
-    public static void rewriteSegmentInfos(Directory directory, Set<String> upgradedSegmentNames) throws IOException {
-        Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
+    /**
+     * Adds star tree file names to the given file set for a segment.
+     */
+    private static void addStarTreeFiles(Set<String> files, String segmentName) {
+        files.add(IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.DATA_EXTENSION));
+        files.add(IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.META_EXTENSION));
+        files.add(IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION));
+        files.add(IndexFileNames.segmentFileName(segmentName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
+    }
+
+    /**
+     * Deletes a file from the directory, logging a warning on failure instead of throwing.
+     */
+    private static void deleteFileSilently(Directory directory, String fileName, String segmentName) {
         try {
+            directory.deleteFile(fileName);
+        } catch (Exception e) {
+            logger.warn("Failed to delete partial file [{}] for segment [{}]", fileName, segmentName, e);
+        }
+    }
+
+    public static void rewriteSegmentInfos(Directory directory, Set<String> upgradedSegmentNames) throws IOException {
+        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             SegmentInfos originalInfos = SegmentInfos.readLatestCommit(directory);
         SegmentInfos newSegmentInfos = originalInfos.clone();
         newSegmentInfos.clear();
@@ -558,10 +596,7 @@ public class StarTreeUpgradeService {
                     SegmentInfo oldInfo = commitInfo.info;
                     Set<String> files = new HashSet<>(oldInfo.files());
                     String segName = oldInfo.name;
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_EXTENSION));
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION));
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION));
-                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
+                    addStarTreeFiles(files, segName);
                     oldInfo.setFiles(files);
 
                     // Rewrite .si to persist expanded file set on disk.
@@ -595,10 +630,7 @@ public class StarTreeUpgradeService {
                 // Add star tree files to the file set (original files + star tree files)
                 Set<String> files = new HashSet<>(oldInfo.files());
                 String segName = oldInfo.name;
-                files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_EXTENSION));
-                files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION));
-                files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION));
-                files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
+                addStarTreeFiles(files, segName);
                 newInfo.setFiles(files);
 
                 // Assertions to verify no state is lost
@@ -643,16 +675,14 @@ public class StarTreeUpgradeService {
         directory.sync(newSegmentInfos.files(true));
         directory.syncMetaData();
 
-        logger.info(
+        logger.debug(
             "SegmentInfos rewrite complete — committed new segment infos for {} upgraded segments. "
                 + "Generation: {}, files: {}, directory listing: {}",
             upgradedSegmentNames.size(),
             newSegmentInfos.getGeneration(),
             newSegmentInfos.files(true),
-            java.util.Arrays.toString(directory.listAll())
+            Arrays.toString(directory.listAll())
         );
-        } finally {
-            writeLock.close();
         }
     }
 }
