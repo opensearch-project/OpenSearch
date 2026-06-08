@@ -108,6 +108,33 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    /**
+     * Window, then an intermediate {@code where}, then {@code stats} (PPL:
+     * {@code eventstats sum(x) as w | where w > 0 | stats count() by k}). The Filter between the
+     * window Project and the aggregate forces the {@code childGatheredByWindow} walk to take a
+     * {@code getInput(0)} hop — which in Volcano is a RelSubset, not a concrete rel. The walk must
+     * resolve the subset (getBestOrOriginal) to still find the window below the Filter; otherwise the
+     * aggregate would split PARTIAL/FINAL redundantly over already-gathered rows. Asserts the
+     * aggregate stays SINGLE.
+     */
+    public void testAggregateAfterWindowBehindFilter_2shard_staysSingle() {
+        RelNode windowed = projectWithSumOverEmpty();
+        // where s > 0 — s is the window output at column index 2.
+        RelNode filter = makeFilter(windowed, makeEquals(2, SqlTypeName.BIGINT, 0));
+        RelNode plan = makeAggregate(filter, countStarCall(filter));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[mock-parquet], =($2, 0))], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
     public void testSumOverEmpty_2shard() {
         RelNode plan = projectWithSumOverEmpty();
         assertPlanShape("""

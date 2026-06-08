@@ -12,6 +12,7 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -209,34 +210,43 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     }
 
     /**
-     * True when a window (a {@code RexOver}-bearing Project) sits between this aggregate and the
-     * data source with no exchange in between. A global-frame window forces a coordinator gather
-     * (the windowed Project has infinite cost unless its input is SINGLETON), so the aggregate's
-     * input is already on one node even though the child still carries the scan's RANDOM trait at
-     * match time (the gathering ER is a not-yet-materialized converter). Splitting here would add a
-     * redundant PARTIAL/FINAL pass over already-gathered rows.
+     * True when a window (a {@code RexOver}-bearing Project) sits between this aggregate and its
+     * scan. A global-frame window has infinite cost unless its input is SINGLETON, so the planner
+     * gathers below it — meaning this aggregate's input is already on one node and splitting it
+     * would add a redundant PARTIAL/FINAL pass.
      *
-     * <p>The walk stops at the first {@link OpenSearchExchangeReducer}: a window <em>below</em> a
-     * shuffle doesn't gather <em>this</em> aggregate's input, so a partitioned aggregate sitting
-     * above that exchange (e.g. the lower {@code stats} in {@code stats ... | eval w=..OVER() |
-     * stats ..}) still splits correctly. Only the aggregate directly above the window-induced
-     * gather skips. Mirrors the chain walk in {@code OpenSearchLateMaterializationRewriter}.
+     * <p>This only runs after {@link #isPartitioned} confirmed {@code node} carries the RANDOM
+     * trait, i.e. {@code node} is on the shard-side (pre-gather) segment of the plan. The
+     * window's gather is a not-yet-materialized converter and the FINAL aggregate of any
+     * lower split outputs SINGLETON (which {@code isPartitioned} would have screened out), so
+     * there is no {@link OpenSearchExchangeReducer} between {@code node} and its scan to walk
+     * past — the descent stays within this one RANDOM segment. The walk simply looks for a
+     * window over the single-input chain down to the scan; a multi-input op (join/union) ends it.
      */
     private static boolean childGatheredByWindow(RelNode node) {
-        RelNode cur = RelNodeUtils.unwrapHep(node);
+        RelNode cur = unwrapForWalk(node);
         while (cur != null) {
-            if (cur instanceof OpenSearchExchangeReducer) {
-                return false; // gather boundary — anything below is a different stage
-            }
             if (cur instanceof OpenSearchProject project && project.containsOver()) {
                 return true; // window forces a gather above its input → our input is already singleton
             }
             if (cur.getInputs().size() != 1) {
                 return false; // scan (no inputs) or a multi-input op (join/union) — no single window gather
             }
-            cur = RelNodeUtils.unwrapHep(cur.getInput(0));
+            cur = unwrapForWalk(cur.getInput(0));
         }
         return false;
+    }
+
+    /**
+     * Resolves a node to its concrete rel for the {@link #childGatheredByWindow} walk. During
+     * Volcano, {@code getInput(0)} returns a {@link RelSubset}, not a concrete rel — its
+     * {@code getInputs()} is empty, which would end the walk one hop below the aggregate and miss a
+     * window sitting behind an intermediate op (e.g. a {@code where} Filter). Unwrap the HEP vertex,
+     * then resolve a subset to its representative rel via {@code getBestOrOriginal()}.
+     */
+    private static RelNode unwrapForWalk(RelNode node) {
+        RelNode unwrapped = RelNodeUtils.unwrapHep(node);
+        return unwrapped instanceof RelSubset subset ? subset.getBestOrOriginal() : unwrapped;
     }
 
     /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */
