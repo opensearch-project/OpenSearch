@@ -253,14 +253,22 @@ public class OpenSearchSchemaBuilder {
         if (sqlType == null) {
             return null;
         }
-        // date / date_nanos both map to TIMESTAMP, but their sub-second precision differs and must
-        // be carried on the Calcite type (fractional-seconds digits): date → millis (3), date_nanos
-        // → nanos (9). Without an explicit precision, createSqlType(TIMESTAMP) defaults to 0, which
-        // downstream lowers to Timestamp(Second)→Millisecond; the parquet read of a date_nanos field
-        // then produces Timestamp(Nanosecond), and the reduce-stage RowConverter rejects the mismatch.
+        // TIMESTAMP must carry sub-second precision: date → millis (3), date_nanos → nanos (9).
+        // Without it the type defaults to precision 0 (→ millis downstream) and clashes with the
+        // parquet read's Timestamp(Nanosecond) for date_nanos. Switch (not default) so an unforeseen
+        // type mapping to TIMESTAMP fails loudly rather than silently inheriting 3.
         RelDataType base;
         if (sqlType == SqlTypeName.TIMESTAMP) {
-            int precision = "date_nanos".equals(opensearchType) ? 9 : 3;
+            int precision = switch (opensearchType) {
+                case "date" -> 3;
+                case "date_nanos" -> 9;
+                default -> throw new IllegalStateException(
+                    "OpenSearch type '"
+                        + opensearchType
+                        + "' maps to TIMESTAMP but has no declared sub-second "
+                        + "precision; add a case in buildLeafType"
+                );
+            };
             base = typeFactory.createSqlType(sqlType, precision);
         } else {
             base = typeFactory.createSqlType(sqlType);

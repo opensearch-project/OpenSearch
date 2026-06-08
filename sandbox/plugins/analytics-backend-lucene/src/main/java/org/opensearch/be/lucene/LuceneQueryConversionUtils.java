@@ -8,7 +8,6 @@
 
 package org.opensearch.be.lucene;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -111,21 +110,20 @@ public final class LuceneQueryConversionUtils {
     static boolean containsFieldExists(Query query) {
         boolean[] found = { false };
         query.visit(new QueryVisitor() {
+            // FieldExistsQuery reports itself only via visitLeaf, gated by acceptField.
+            @Override
+            public boolean acceptField(String field) {
+                return true;
+            }
+
             @Override
             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                return this; // descend into every clause regardless of occur
+                return this;
             }
 
             @Override
             public void visitLeaf(Query leaf) {
                 if (leaf instanceof FieldExistsQuery) {
-                    found[0] = true;
-                }
-            }
-
-            @Override
-            public void consumeTerms(Query q, Term... terms) {
-                if (q instanceof FieldExistsQuery) {
                     found[0] = true;
                 }
             }
