@@ -26,7 +26,6 @@ else
         "geospatial" # "opensearch-geospatial"
         "opensearch-index-management"
         "opensearch-knn"
-        "opensearch-ml-plugin" # "opensearch-ml"
         "neural-search"        # "opensearch-neural-search"
         "opensearch-observability"
         "opensearch-security"
