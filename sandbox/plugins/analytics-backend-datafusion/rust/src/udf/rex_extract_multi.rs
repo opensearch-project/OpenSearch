@@ -23,7 +23,6 @@
 //! `rex_extract`). Group resolution semantics match `rex_extract`: numeric
 //! string → 1-based index, otherwise named-group lookup.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, ArrayRef, Int32Array, ListBuilder, StringBuilder};
@@ -65,9 +64,6 @@ impl Default for RexExtractMultiUdf {
 }
 
 impl ScalarUDFImpl for RexExtractMultiUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "rex_extract_multi"
     }

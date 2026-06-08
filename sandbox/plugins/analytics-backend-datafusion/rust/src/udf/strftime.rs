@@ -8,7 +8,6 @@
 
 //! `strftime(value, format)` — POSIX-style datetime formatter mirroring PPL `StrftimeFunction`.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Timelike, Utc, Weekday};
@@ -50,10 +49,6 @@ impl StrftimeUdf {
 udf_identity!(StrftimeUdf, "strftime");
 
 impl ScalarUDFImpl for StrftimeUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "strftime"
     }

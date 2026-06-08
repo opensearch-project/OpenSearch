@@ -181,7 +181,7 @@ mod tests {
     use super::*;
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow_array::{Int32Array, RecordBatch, StringArray};
-    use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
+    use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
     use object_store::{local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt};

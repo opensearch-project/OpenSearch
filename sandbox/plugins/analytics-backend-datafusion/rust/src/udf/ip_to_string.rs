@@ -23,7 +23,6 @@
 //! Buffers that aren't 16 bytes (defensive — should never happen for parquet-
 //! encoded ip columns) yield NULL rather than panic.
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::sync::Arc;
@@ -77,10 +76,6 @@ impl Hash for IpToStringUdf {
 }
 
 impl ScalarUDFImpl for IpToStringUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "ip_to_string"
     }

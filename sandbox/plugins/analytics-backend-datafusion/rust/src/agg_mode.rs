@@ -60,7 +60,7 @@ fn force_aggregate_mode(
     plan: Arc<dyn ExecutionPlan>,
     target: AggregateMode,
 ) -> Result<Arc<dyn ExecutionPlan>> {
-    if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+    if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
         // Treat `FinalPartitioned` as `Final`: DataFusion picks `FinalPartitioned` for
         // grouped aggregates that consume hash-partitioned input and `Final` for scalar /
         // un-partitioned ones. Both are the FINAL half of the Partial/Final pair we strip.
@@ -100,7 +100,7 @@ fn force_aggregate_mode(
 
         // DataFusion's ProjectionMapping::try_new asserts col.name() == input_schema.field(i).name();
         // with_new_children triggers it. Remap columns to the post-strip schema so it passes.
-        if let Some(proj) = plan.as_any().downcast_ref::<ProjectionExec>() {
+        if let Some(proj) = plan.downcast_ref::<ProjectionExec>() {
             if old_child.schema() != new_child.schema() {
                 let new_schema = &new_child.schema();
                 let remapped: Vec<(Arc<dyn PhysicalExpr>, String)> = proj.expr().iter()
@@ -122,7 +122,7 @@ fn force_aggregate_mode(
 /// AggregateExec(Partial) and returns the entire Partial subtree (the
 /// AggregateExec node itself, not just its input).
 fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionPlan>> {
-    if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+    if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
         if *agg.mode() == AggregateMode::Partial {
             return Some(plan);
         }
@@ -139,7 +139,7 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
 
 /// Updates Column expression names to match the given schema (by index). Recurses into children.
 fn remap_column(expr: Arc<dyn PhysicalExpr>, schema: &arrow::datatypes::SchemaRef) -> Arc<dyn PhysicalExpr> {
-    if let Some(col) = expr.as_any().downcast_ref::<Column>() {
+    if let Some(col) = expr.downcast_ref::<Column>() {
         return Arc::new(Column::new(schema.field(col.index()).name(), col.index()));
     }
     let children = expr.children();
@@ -215,7 +215,7 @@ mod tests {
 
     fn find_agg_modes(plan: &Arc<dyn ExecutionPlan>) -> Vec<AggregateMode> {
         let mut modes = Vec::new();
-        if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+        if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
             modes.push(*agg.mode());
         }
         for child in plan.children() {

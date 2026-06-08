@@ -28,7 +28,6 @@ pub fn register_all(ctx: &SessionContext) {
 struct ReduceEvalUdf;
 
 impl ScalarUDFImpl for ReduceEvalUdf {
-    fn as_any(&self) -> &dyn std::any::Any { self }
     fn name(&self) -> &str { "reduce_eval" }
 
     fn signature(&self) -> &Signature {

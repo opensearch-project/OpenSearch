@@ -371,9 +371,6 @@ impl PartialEq for IndexFilterUdf {
 impl Eq for IndexFilterUdf {}
 
 impl ScalarUDFImpl for IndexFilterUdf {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         COLLECTOR_FUNCTION_NAME
     }
@@ -433,9 +430,6 @@ impl PartialEq for DelegationPossibleUdf {
 impl Eq for DelegationPossibleUdf {}
 
 impl ScalarUDFImpl for DelegationPossibleUdf {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         DELEGATION_POSSIBLE_FUNCTION_NAME
     }
