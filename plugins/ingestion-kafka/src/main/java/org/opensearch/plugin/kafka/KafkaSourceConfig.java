@@ -21,7 +21,7 @@ public class KafkaSourceConfig {
     private final String PROP_TOPIC = "topic";
     private final String PROP_BOOTSTRAP_SERVERS = "bootstrap_servers";
     private static final String PROP_TOPIC_METADATA_FETCH_TIMEOUT_MS = "topic_metadata_fetch_timeout_ms";
-    private static final int DEFAULT_TOPIC_METADATA_FETCH_TIMEOUT_MS = 1000;
+    private static final int DEFAULT_TOPIC_METADATA_FETCH_TIMEOUT_MS = 30000;
 
     private final String topic;
     private final String bootstrapServers;

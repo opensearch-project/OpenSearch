@@ -10,9 +10,12 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
-import org.opensearch.be.datafusion.action.DataFusionStatsAction;
+import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
+import org.opensearch.be.datafusion.action.stats.RestDataFusionStatsAction;
+import org.opensearch.be.datafusion.action.stats.TransportDataFusionStatsAction;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -22,6 +25,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -53,11 +57,13 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import io.substrait.extension.DefaultExtensionCatalog;
@@ -169,6 +175,47 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Spill directory used by DataFusion's {@code DiskManager} for intermediate state when
+     * operators (HashAggregate, Sort, TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}.
+     *
+     * <p>Optional. When set, DataFusion uses {@code DiskManagerMode::Directories} to spill
+     * to the configured path. When unset (empty), DataFusion runs in
+     * {@code DiskManagerMode::Disabled} — spill is off and queries that exceed
+     * {@link #DATAFUSION_MEMORY_POOL_LIMIT} fail with a clear "DiskManager is disabled" error
+     * rather than silently spilling somewhere unexpected.
+     *
+     * <p>{@code Final} because DataFusion's {@code DiskManager} is built once at runtime
+     * startup; changing the directory mid-flight would orphan in-progress spill files.
+     */
+    public static final Setting<String> DATAFUSION_SPILL_DIRECTORY = new Setting<>(
+        "datafusion.spill_directory",
+        "",
+        Function.identity(),
+        DataFusionPlugin::validateSpillDirectory,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * Validates {@link #DATAFUSION_SPILL_DIRECTORY}. Empty (the unset sentinel) is accepted
+     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path};
+     * existence and writability are intentionally not checked because the directory may be
+     * created later by a host boot script (first-boot mount), and runtime spill writes will
+     * surface any permission issues at first spill with a clear DataFusion error.
+     */
+    static String validateSpillDirectory(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        try {
+            Path.of(value).toAbsolutePath().normalize();
+        } catch (java.nio.file.InvalidPathException e) {
+            throw new IllegalArgumentException("Setting [datafusion.spill_directory] is not a valid path: [" + value + "]", e);
+        }
+        return value;
+    }
+
+    /**
      * Computes the default for {@link #DATAFUSION_SPILL_MEMORY_LIMIT} as 50% of physical RAM.
      * Returns the bytes-as-string representation expected by the {@link Setting} parser.
      *
@@ -196,6 +243,20 @@ public class DataFusionPlugin extends Plugin
         "datafusion.min_target_partitions",
         1,
         1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Number of partitions used by the coordinator-reduce DataFusion plan.
+     * More partitions = more parallelism = more memory (each partition holds its own hash table).
+     * Lower values reduce peak memory at the cost of slower single-query latency.
+     */
+    public static final Setting<Integer> DATAFUSION_REDUCE_TARGET_PARTITIONS = Setting.intSetting(
+        "datafusion.reduce.target_partitions",
+        4,
+        1,
+        32,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -323,7 +384,7 @@ public class DataFusionPlugin extends Plugin
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
-        String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
+        String spillDir = DATAFUSION_SPILL_DIRECTORY.get(settings);
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)
@@ -346,6 +407,8 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
         clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_REDUCE_TARGET_PARTITIONS, NativeBridge::setReduceTargetPartitions);
+        clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD, v -> updateMemoryGuardThresholds());
@@ -356,6 +419,7 @@ public class DataFusionPlugin extends Plugin
 
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
+        NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
         NativeBridge.setMemoryGuardThresholds(
             DATAFUSION_MEMORY_GUARD_ADMISSION_THROTTLE_THRESHOLD.get(settings),
             DATAFUSION_MEMORY_GUARD_ADMISSION_REJECT_THRESHOLD.get(settings),
@@ -560,6 +624,11 @@ public class DataFusionPlugin extends Plugin
     }
 
     @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(new ActionHandler<>(DataFusionStatsActionType.INSTANCE, TransportDataFusionStatsAction.class));
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,
@@ -572,7 +641,7 @@ public class DataFusionPlugin extends Plugin
         if (dataFusionService == null) {
             return Collections.emptyList();
         }
-        return List.of(new DataFusionStatsAction(dataFusionService));
+        return List.of(new RestDataFusionStatsAction());
     }
 
     @Override

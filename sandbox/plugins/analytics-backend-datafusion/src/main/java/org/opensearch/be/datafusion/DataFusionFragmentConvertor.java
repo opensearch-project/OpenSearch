@@ -45,6 +45,7 @@ import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
+import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
@@ -110,19 +111,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
-    /** TopK reduce expression: evaluates opaque aggregate state to a sortable scalar. */
-    static final SqlOperator REDUCE_EVAL_OP = new SqlFunction(
-        "reduce_eval",
-        SqlKind.OTHER_FUNCTION,
-        ReturnTypes.BIGINT_NULLABLE,
-        null,
-        OperandTypes.ANY_ANY,
-        SqlFunctionCategory.USER_DEFINED_FUNCTION
-    );
-
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
-        FunctionMappings.s(REDUCE_EVAL_OP, "reduce_eval"),
+        FunctionMappings.s(AggregateFunction.REDUCE_EVAL_OP, "reduce_eval"),
         FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
@@ -149,7 +140,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_TRUNC_OP, "date_trunc"),
-        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "opensearch_extract"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKEDATE_OP, "makedate"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKETIME_OP, "maketime"),
@@ -412,7 +403,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
             fieldNames(partialAggFragment)
         );
-        return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
+        return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewired));
     }
 
     /**
@@ -447,7 +438,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             .setRoot(io.substrait.proto.RelRoot.newBuilder().setInput(inputRel).addAllNames(rowType.getFieldNames()).build())
             .build();
 
-        byte[] bytes = io.substrait.proto.Plan.newBuilder().addRelations(planRel).build().toByteArray();
+        byte[] bytes = SubstraitPlanProtoRewriter.rewrite(io.substrait.proto.Plan.newBuilder().addRelations(planRel).build()).toByteArray();
         LOGGER.debug("Schema-only Read for stage [{}]: {} bytes", childStageId, bytes.length);
         return bytes;
     }
@@ -459,7 +450,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
         // Rewriter must run on the assembled plan so wrapper literals get rewritten alongside the inner.
-        return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
+        return serializePlan(SubstraitPlanPojoRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
     private byte[] convertToSubstrait(RelNode fragment) {
@@ -483,9 +474,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
 
-        plan = SubstraitPlanRewriter.rewrite(plan);
+        plan = SubstraitPlanPojoRewriter.rewrite(plan);
 
-        io.substrait.proto.Plan protoPlan = new PlanProtoConverter().toProto(plan);
+        io.substrait.proto.Plan protoPlan = SubstraitPlanProtoRewriter.rewrite(new PlanProtoConverter().toProto(plan));
         byte[] bytes = protoPlan.toByteArray();
         LOGGER.debug("Substrait plan: {} bytes", bytes.length);
         return bytes;
@@ -733,7 +724,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Serializes a model-level {@link Plan} to proto bytes. */
     private static byte[] serializePlan(Plan plan) {
-        return new PlanProtoConverter().toProto(plan).toByteArray();
+        return SubstraitPlanProtoRewriter.rewrite(new PlanProtoConverter().toProto(plan)).toByteArray();
     }
 
     // ── Calcite TableScan wrappers for OpenSearchStageInputScan rewrite ─────────

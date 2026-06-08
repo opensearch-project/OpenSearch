@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 /**
  * Rex command testing PPL integration test.
@@ -20,8 +19,13 @@ public class RexCommandPplIT extends BasePplIT {
         return RexCommandTestHelper.DATASET;
     }
 
-    @AwaitsFix(bugUrl = "Failing due to unsupported operations")
     public void testRexCommandPplQueries() throws Exception {
         runPplQueries();
+    }
+
+    /** Queries that fail at 1 shard: rex unsupported / value mismatch. Skipped so the rest run and are visible. */
+    @Override
+    protected java.util.Set<Integer> getSkipQueries() {
+        return java.util.Set.of(1, 5, 7, 8, 13, 18);
     }
 }

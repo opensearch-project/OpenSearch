@@ -21,7 +21,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -55,7 +55,7 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -228,7 +228,7 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("http_logs")
             .setSettings(indexSettings)
-            .setMapping("verb", "type=keyword", "size", "type=integer")
+            .setMapping("verb", "type=keyword,index=false", "size", "type=integer")
             .get();
         assertTrue("http_logs creation must be acknowledged", response.isAcknowledged());
         ensureGreen("http_logs");

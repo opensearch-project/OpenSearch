@@ -244,6 +244,7 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SearchStatsContributor;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TaskManagerClientPlugin;
@@ -1232,6 +1233,11 @@ public class Node implements Closeable {
                 .filter(Objects::nonNull)
                 .findFirst()
                 .ifPresent(supplier -> monitorService.memoryReportingService().setNativeStatsSupplier(supplier));
+
+            List<SearchStatsContributor> searchStatsContributors = pluginsService.filterPlugins(SearchStatsContributor.class);
+            if (searchStatsContributors.isEmpty() == false) {
+                indicesService.setSearchStatsContributors(searchStatsContributors);
+            }
 
             if (nodeCacheService != null) {
                 nodeCacheService.registerProviders(blockCacheProviders);

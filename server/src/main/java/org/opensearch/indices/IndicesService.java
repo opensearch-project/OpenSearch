@@ -174,6 +174,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchStatsContributor;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -481,6 +482,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int maxSizeInRequestCache;
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
+    private volatile List<SearchStatsContributor> searchStatsContributors = Collections.emptyList();
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
     private final DataFormatRegistry dataFormatRegistry;
     private final Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories;
@@ -896,6 +898,12 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
                 case Search:
                     commonStats.search.add(oldShardsStats.searchStats);
+                    for (SearchStatsContributor contributor : searchStatsContributors) {
+                        SearchStats contributed = contributor.contributeSearchStats();
+                        if (contributed != null) {
+                            commonStats.search.add(contributed);
+                        }
+                    }
                     break;
                 case Merge:
                     commonStats.merge.add(oldShardsStats.mergeStats);
@@ -2469,6 +2477,13 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public void setFixedRefreshIntervalSchedulingEnabled(boolean fixedRefreshIntervalSchedulingEnabled) {
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
+    }
+
+    /**
+     * Sets the list of search stats contributors. Called by {@code Node} after plugin discovery.
+     */
+    public void setSearchStatsContributors(List<SearchStatsContributor> contributors) {
+        this.searchStatsContributors = contributors;
     }
 
     private boolean isFixedRefreshIntervalSchedulingEnabled() {

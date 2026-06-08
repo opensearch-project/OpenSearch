@@ -304,7 +304,7 @@ public final class DistributedAggregateRewriter {
                 call.ignoreNulls(),
                 call.rexList,
                 List.copyOf(argList),
-                call.filterArg,
+                -1,  // filterArg dropped: FILTER consumed by PARTIAL on raw rows; FINAL only merges states.
                 call.distinctKeys,
                 call.collation,
                 hasEmptyGroup,

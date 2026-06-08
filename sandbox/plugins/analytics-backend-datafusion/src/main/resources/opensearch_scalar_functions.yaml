@@ -800,15 +800,13 @@ scalar_functions:
         variadic: { min: 1 }
         return: string
 
-  - name: "extract"
+  - name: "opensearch_extract"
     description: >-
-      Pull a MySQL-style calendar component (simple or composite) out of a
-      timestamp. The unit slot is a VARCHAR literal injected by the adapter
-      (matchKey token `str`); the timestamp slot is PPL's canonical
-      `precision_timestamp<P>` / `date`. Returns BIGINT regardless of unit —
-      composite units (e.g. `DAY_SECOND`) follow MySQL's digit-concatenation
-      semantics (see rust/src/udf/extract.rs). Routes to the Rust `extract`
-      UDF, not Calcite's EXTRACT operator.
+      Pull a MySQL-style calendar component out of a timestamp. Returns BIGINT.
+      Renamed from `extract` to avoid a name collision with substrait core's
+      enum-argument `extract` (substrait-java 0.89.1 crashes on the core variant).
+      Composite units (e.g. `DAY_SECOND`) follow MySQL's digit-concatenation
+      semantics — see rust/src/udf/extract.rs.
     impls:
       - args:
           - { value: string, name: "unit" }
@@ -822,6 +820,8 @@ scalar_functions:
           - { value: string, name: "unit" }
           - { value: "time", name: "value" }
         return: i64
+      # No `precision_time<P>` overload: substrait-java 0.89.1 can't stringify it.
+      # ExtractAdapter pre-CASTs TIME(p) operands to VARCHAR to bind below.
       - args:
           - { value: string, name: "unit" }
           - { value: "string", name: "value" }

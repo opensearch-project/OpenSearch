@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -677,17 +676,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
     }
 
-    /**
-     * Syncs all files in the temp directory to durable storage.
-     *
-     * @throws IOException if the sync fails
-     */
-    @Override
-    public void sync() throws IOException {
-        directory.sync(Arrays.asList(directory.listAll()));
-        directory.syncMetaData();
-    }
-
     /** {@inheritDoc} Returns the writer generation number assigned at construction. */
     @Override
     public long generation() {
@@ -747,6 +735,19 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             registry.remove(this);
             if (flushed == false) IOUtils.rm(tempDirectory);
             state = WriterState.CLOSED;
+        }
+    }
+
+    /**
+     * Deletes the temporary directory created by this writer. Called externally by the
+     * engine after {@code addIndexes} has hardlinked the segment files into the shared
+     * writer's directory, making the originals safe to remove.
+     */
+    public void cleanupTempDirectory() {
+        try {
+            IOUtils.rm(tempDirectory);
+        } catch (IOException e) {
+            logger.warn("Failed to delete lucene temp directory [{}]: {}", tempDirectory, e.getMessage());
         }
     }
 

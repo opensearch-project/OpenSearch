@@ -273,18 +273,30 @@ public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
 
     // ── adapt(): Shape F — column ref → DATETIME_ADAPTER ──────────────────
 
-    public void testAdaptShapeFColumnRefRoutesToDatetimeAdapter() {
+    public void testAdaptShapeFTimestampColumnRoutesToDatetimeAdapter() {
+        // TIMESTAMP-typed column falls through to DatetimeAdapter rename.
+        RelDataType tsType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
+        RexNode columnRef = rexBuilder.makeInputRef(tsType, 0);
+        RexCall call = buildOneArgCall(columnRef);
+        RexNode adapted = adapter.adapt(call, List.of(), cluster);
+
+        RexNode unwrapped = unwrapCast(adapted);
+        assertTrue("expected RexCall, got " + unwrapped.getClass().getSimpleName(), unwrapped instanceof RexCall);
+        assertSame("expected rename to LOCAL_TO_TIMESTAMP_OP", DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, ((RexCall) unwrapped).getOperator());
+    }
+
+    public void testAdaptShapeFDateColumnLiftsViaCast() {
+        // DATE-typed column emits a native CAST(Date → TIMESTAMP) instead of to_timestamp(Date32).
         RelDataType dateType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DATE), true);
         RexNode columnRef = rexBuilder.makeInputRef(dateType, 0);
         RexCall call = buildOneArgCall(columnRef);
         RexNode adapted = adapter.adapt(call, List.of(), cluster);
 
-        // Fold did NOT catch — adapter emitted a RexCall over LOCAL_TO_TIMESTAMP_OP
-        // (possibly wrapped in a CAST to align with the call's declared type).
-        RexNode unwrapped = unwrapCast(adapted);
-        assertTrue("expected RexCall, got " + unwrapped.getClass().getSimpleName(), unwrapped instanceof RexCall);
-        SqlOperator op = ((RexCall) unwrapped).getOperator();
-        assertSame("expected rename to LOCAL_TO_TIMESTAMP_OP", DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, op);
+        assertTrue("expected CAST, got " + adapted.getClass().getSimpleName(), adapted instanceof RexCall);
+        RexCall castCall = (RexCall) adapted;
+        assertEquals(SqlKind.CAST, castCall.getKind());
+        assertEquals(SqlTypeName.TIMESTAMP, castCall.getType().getSqlTypeName());
+        assertSame("CAST operand must be the original DATE column ref", columnRef, castCall.getOperands().get(0));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────

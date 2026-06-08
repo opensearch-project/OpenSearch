@@ -179,9 +179,6 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void sync() {}
-
-        @Override
         public void close() {}
 
         @Override

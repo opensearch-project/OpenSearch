@@ -13,6 +13,9 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
@@ -31,6 +34,7 @@ import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.IntegerReturnWideningCastAdapter;
 import org.opensearch.analytics.spi.IntegerRoundingCastAdapter;
 import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.NumericToDoubleAdapter;
@@ -40,7 +44,6 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
-import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.analytics.spi.WindowFunctionAdapter;
@@ -67,6 +70,8 @@ import java.util.Set;
  * creates per-shard execution engines.
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
+
+    private static final Logger LOGGER = LogManager.getLogger(DataFusionAnalyticsBackendPlugin.class);
 
     private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.VALUES);
 
@@ -350,7 +355,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // TIMESTAMPADD('MINUTE', 1, @timestamp)))}. Both PPL UDFs are unknown to isthmus's
         // default catalog, so adapters rewrite to DF-native interval arithmetic.
         ScalarFunction.TIMESTAMPDIFF,
-        ScalarFunction.TIMESTAMPADD
+        ScalarFunction.TIMESTAMPADD,
+        ScalarFunction.DATE_ADD,
+        ScalarFunction.DATE_SUB
     );
 
     /**
@@ -416,7 +423,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.LAST,
         AggregateFunction.LIST,
         AggregateFunction.VALUES,
-        AggregateFunction.PATTERN
+        AggregateFunction.PATTERN,
+        AggregateFunction.ARG_MIN,
+        AggregateFunction.ARG_MAX
     );
 
     private final DataFusionPlugin plugin;
@@ -593,6 +602,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
+                    Map.entry(ScalarFunction.ARRAY_LENGTH, new IntegerReturnWideningCastAdapter()),
                     Map.entry(ScalarFunction.ARRAY_SLICE, new ArraySliceAdapter()),
                     Map.entry(ScalarFunction.ITEM, new ArrayElementAdapter()),
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
@@ -626,6 +636,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CURTIME, currentTime),
                     Map.entry(ScalarFunction.DATE, new DateTimeAdapters.DateAdapter()),
                     Map.entry(ScalarFunction.DATETIME, new DateTimeAdapters.DatetimeAdapter()),
+                    Map.entry(ScalarFunction.DATE_ADD, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.DATE_SUB, new DateAddSubAdapter(false)),
                     Map.entry(ScalarFunction.DATE_FORMAT, new RustUdfDateTimeAdapters.DateFormatAdapter()),
                     Map.entry(ScalarFunction.DAY, day),
                     Map.entry(ScalarFunction.DAYOFMONTH, day),
@@ -633,7 +645,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.DAYOFYEAR, dayOfYear),
                     Map.entry(ScalarFunction.DAY_OF_WEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
-                    Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
+                    Map.entry(ScalarFunction.DIVIDE, new DivideAdapter()),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
                     Map.entry(ScalarFunction.EARLIEST, new EarliestLatestAdapter.EarliestAdapter()),
                     // Math functions whose substrait yaml impls are fp64-only — wrap integer/float
@@ -669,7 +681,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
-                    Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
+                    Map.entry(ScalarFunction.MINUS, new MinusAdapter()),
+                    Map.entry(ScalarFunction.MOD, new ModAdapter()),
                     Map.entry(ScalarFunction.MONTH, month),
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
@@ -823,11 +836,27 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         };
     }
 
+    /**
+     * Context-aware override: registers the handle and tracker under {@code contextId}
+     * so that concurrent queries each have their own isolated FFM callback binding.
+     * Returns a cleanup action that removes the binding when execution finishes.
+     */
     @Override
-    public void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
-        // Install the handle as the FFM upcall target. All Rust callbacks
-        // (createProvider, createCollector, collectDocs, release*) route to it.
-        FilterTreeCallbacks.setHandle(handle);
+    public Runnable configureFilterDelegation(
+        long contextId,
+        FilterDelegationHandle handle,
+        DelegationThreadTracker tracker,
+        BackendExecutionContext backendContext
+    ) {
+        FilterTreeCallbacks.register(contextId, handle, tracker);
+        return () -> {
+            FilterTreeCallbacks.unregister(contextId);
+            try {
+                handle.close();
+            } catch (Exception e) {
+                LOGGER.warn(new ParameterizedMessage("FilterDelegationHandle.close() failed for contextId={}", contextId), e);
+            }
+        };
     }
 
     @Override
@@ -839,7 +868,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
+    public EngineResultStream fetchByRowIds(
+        Reader reader,
+        BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator,
+        long contextId
+    ) {
         DataFusionService dataFusionService = plugin.getDataFusionService();
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionService not initialized");
@@ -867,18 +902,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 bufAddr,
                 count,
                 columns,
-                dataFusionService.getNativeRuntime().get()
+                dataFusionService.getNativeRuntime().get(),
+                contextId
             );
         } else {
             throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
         }
         StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
         return new DatafusionResultStream(streamHandle, allocator);
-    }
-
-    @Override
-    public void setDelegationThreadTracker(DelegationThreadTracker tracker) {
-        FilterTreeCallbacks.setThreadTracker(tracker);
     }
 
     public Exception convertException(Exception original) {

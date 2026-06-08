@@ -75,19 +75,41 @@ public final class FragmentResources implements AutoCloseable {
         return stream;
     }
 
+    /**
+     * Extracts execution metrics from the underlying engine stream (if supported).
+     * Must be called after the stream is exhausted but before close().
+     * Returns null if the stream doesn't support metrics extraction.
+     */
+    public byte[] getExecutionMetrics() {
+        if (stream instanceof MetricsCapable mc) {
+            return mc.getMetricsJson();
+        }
+        return null;
+    }
+
+    /** Marker interface for streams that can provide execution metrics. */
+    public interface MetricsCapable {
+        byte[] getMetricsJson();
+    }
+
     @Override
     public void close() throws Exception {
-        Exception first = null;
+        // Close the stream and engine first so any in-flight release upcalls from native
+        // code (e.g. ProviderHandle::drop -> releaseProvider) can still find their
+        // per-query binding in FilterTreeCallbacks. Running onClose first would unregister
+        // the binding while release upcalls are still pending, causing the eager release
+        // of Lucene resources to be skipped.
+        Exception first = closeQuietly(stream, null);
+        first = closeQuietly(engine, first);
+        first = closeQuietly(rowIdVector, first);
         if (onClose != null) {
             try {
                 onClose.run();
             } catch (Exception e) {
-                first = e;
+                if (first == null) first = e;
+                else first.addSuppressed(e);
             }
         }
-        first = closeQuietly(stream, first);
-        first = closeQuietly(engine, first);
-        first = closeQuietly(rowIdVector, first);
         // Release (not close) — the store's reaper closes after keepAlive, and the QTF
         // fetch phase may still need this reader before then.
         if (readerContext != null) {

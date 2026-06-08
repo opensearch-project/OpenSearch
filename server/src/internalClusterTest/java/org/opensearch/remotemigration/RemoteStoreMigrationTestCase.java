@@ -19,6 +19,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.transport.client.Client;
@@ -26,6 +27,7 @@ import org.opensearch.transport.client.Client;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
@@ -215,8 +217,48 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
 
     public void testRemoteSettingPropagatedToIndexShardAfterMigration() throws Exception {
         testEndToEndRemoteMigration();
-        IndexShard indexShard = getIndexShard(primaryNodeName("test"), "test");
+        assertRuntimeRemoteStoreSettings("test", primaryNodeName("test"));
+    }
+
+    public void testRemoteMigrationPrimaryFailoverKeepsRemoteStoreActive() throws Exception {
+        testEndToEndRemoteMigration();
+        final String indexName = "test";
+        final long docsBeforeFailover = client().prepareSearch(indexName)
+            .setSize(0)
+            .setTrackTotalHits(true)
+            .get()
+            .getHits()
+            .getTotalHits()
+            .value();
+
+        String oldPrimaryNode = primaryNodeName(indexName);
+        String promotedPrimaryNode = replicaNodeName(indexName);
+        assertRuntimeRemoteStoreSettings(indexName, oldPrimaryNode);
+        assertRuntimeRemoteStoreSettings(indexName, promotedPrimaryNode);
+
+        logger.info("---> Stopping remote primary [{}] so remote replica [{}] is promoted", oldPrimaryNode, promotedPrimaryNode);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(oldPrimaryNode));
+        ensureStableCluster(3);
+        ensureYellowAndNoInitializingShards(indexName);
+        assertBusy(() -> assertEquals(promotedPrimaryNode, primaryNodeName(indexName)), 30, TimeUnit.SECONDS);
+        assertRuntimeRemoteStoreSettings(indexName, promotedPrimaryNode);
+
+        int indexedAfterFailover = randomIntBetween(10, 50);
+        logger.info("---> Indexing {} docs on promoted remote primary", indexedAfterFailover);
+        indexBulk(indexName, indexedAfterFailover);
+
+        refresh(indexName);
+        OpenSearchAssertions.assertHitCount(
+            client().prepareSearch(indexName).setTrackTotalHits(true).get(),
+            docsBeforeFailover + indexedAfterFailover
+        );
+    }
+
+    private void assertRuntimeRemoteStoreSettings(String indexName, String nodeName) throws Exception {
+        IndexShard indexShard = getIndexShard(nodeName, indexName);
         assertTrue(indexShard.indexSettings().isRemoteStoreEnabled());
+        assertFalse(indexShard.indexSettings().isDocumentReplication());
+        assertTrue(indexShard.indexSettings().isSegRepEnabledOrRemoteNode());
         assertEquals(MigrationBaseTestCase.REPOSITORY_NAME, indexShard.indexSettings().getRemoteStoreRepository());
         assertEquals(MigrationBaseTestCase.REPOSITORY_2_NAME, indexShard.indexSettings().getRemoteStoreTranslogRepository());
     }

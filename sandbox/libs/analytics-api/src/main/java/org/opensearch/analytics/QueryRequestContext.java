@@ -24,5 +24,9 @@ import org.opensearch.cluster.ClusterState;
  *
  * @opensearch.internal
  */
-public record QueryRequestContext(ClusterState clusterState, SchemaPlus schema) {
+public record QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource) {
+
+    public QueryRequestContext(ClusterState clusterState, SchemaPlus schema) {
+        this(clusterState, schema, null);
+    }
 }

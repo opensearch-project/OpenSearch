@@ -152,18 +152,18 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Number of Rayon threads for parallel column encoding during merge (default num_cores/8, min 1). */
+    /** Number of Rayon threads for parallel column encoding during merge (default num_cores/2, min 1). */
     public static final Setting<Integer> MERGE_RAYON_THREADS = Setting.intSetting(
         "parquet.merge_rayon_threads",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
         1,
         Setting.Property.NodeScope
     );
 
-    /** Number of Tokio IO threads for async disk writes during merge (default num_cores/8, min 1). */
+    /** Number of Tokio IO threads for async disk writes during merge (default num_cores/2, min 1). */
     public static final Setting<Integer> MERGE_IO_THREADS = Setting.intSetting(
         "parquet.merge_io_threads",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
         1,
         Setting.Property.NodeScope
     );
@@ -208,9 +208,9 @@ public final class ParquetSettings {
         "RLE",
         Set.of(ArrowType.Bool.class),
         "DELTA_BINARY_PACKED",
-        Set.of(ArrowType.Int.class),
+        Set.of(ArrowType.Int.class, ArrowType.Timestamp.class, ArrowType.Date.class, ArrowType.Time.class, ArrowType.Duration.class),
         "DELTA",
-        Set.of(ArrowType.Int.class),
+        Set.of(ArrowType.Int.class, ArrowType.Timestamp.class, ArrowType.Date.class, ArrowType.Time.class, ArrowType.Duration.class),
         "DELTA_LENGTH_BYTE_ARRAY",
         Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class),
         "DELTA_BYTE_ARRAY",

@@ -240,6 +240,7 @@ struct MockDelegatedBackendCollectorFactory {
 impl DelegatedBackendCollectorFactory for MockDelegatedBackendCollectorFactory {
     fn create(
         &self,
+        _context_id: i64,
         provider_key: i32,
         _writer_generation: i64,
         _doc_min: i32,
@@ -420,6 +421,8 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
                 Arc::clone(&provider_locks),
                 segment.writer_generation,
                 Arc::clone(&factory),
+                0,
+                None,
             ));
             Ok(eval)
         })

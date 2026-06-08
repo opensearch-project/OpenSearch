@@ -42,6 +42,7 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -52,6 +53,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -63,10 +65,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
 import io.substrait.proto.Plan;
+import io.substrait.proto.ReadRel;
+import io.substrait.proto.Rel;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -99,8 +104,8 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         fields.put("CounterID", Map.of("type", "integer"));
         fields.put("UserID", Map.of("type", "long"));
-        fields.put("URL", Map.of("type", "keyword"));
-        fields.put("Title", Map.of("type", "keyword"));
+        fields.put("URL", Map.of("type", "keyword", "index", "false"));
+        fields.put("Title", Map.of("type", "keyword", "index", "false"));
         fields.put("EventDate", Map.of("type", "date"));
 
         ClusterState clusterState = clusterStateWith(INDEX, fields, "parquet", 2);
@@ -158,11 +163,25 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         byte[] bytes = scan.getPlanAlternatives().getFirst().convertedBytes();
         Plan plan = Plan.parseFrom(bytes);
 
-        List<String> baseSchemaNames = plan.getRelations(0).getRoot().getInput().getRead().getBaseSchema().getNamesList();
+        // The Read may be wrapped by the per-shard Sort/Fetch that sort pushdown inserts; find it.
+        List<String> baseSchemaNames = findRead(plan.getRelations(0).getRoot().getInput()).getBaseSchema().getNamesList();
         assertTrue(
             "Stage 0 base_schema must include __row_id__; got " + baseSchemaNames,
             baseSchemaNames.contains("__row_id__")
         );
+    }
+
+    /** Walks single-input Substrait rels (Fetch/Sort/Project/Filter/Aggregate) down to the ReadRel. */
+    private static ReadRel findRead(Rel rel) {
+        return switch (rel.getRelTypeCase()) {
+            case READ -> rel.getRead();
+            case FETCH -> findRead(rel.getFetch().getInput());
+            case SORT -> findRead(rel.getSort().getInput());
+            case PROJECT -> findRead(rel.getProject().getInput());
+            case FILTER -> findRead(rel.getFilter().getInput());
+            case AGGREGATE -> findRead(rel.getAggregate().getInput());
+            default -> throw new AssertionError("no ReadRel found, hit " + rel.getRelTypeCase());
+        };
     }
 
     /**
@@ -173,8 +192,8 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         fields.put("CounterID", Map.of("type", "integer"));
         fields.put("UserID", Map.of("type", "long"));
-        fields.put("URL", Map.of("type", "keyword"));
-        fields.put("Title", Map.of("type", "keyword"));
+        fields.put("URL", Map.of("type", "keyword", "index", "false"));
+        fields.put("Title", Map.of("type", "keyword", "index", "false"));
         fields.put("EventDate", Map.of("type", "date"));
         ClusterState clusterState = clusterStateWith(INDEX, fields, "parquet", 2);
 
@@ -269,7 +288,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                         .put("index.composite.primary_data_format", primaryDataFormat)
-                        .putList("index.composite.secondary_data_formats", "lucene")
+                        .putList("index.composite.secondary_data_formats")
                 )
                 .numberOfShards(shardCount)
                 .numberOfReplicas(0)
@@ -309,6 +328,8 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }
 }

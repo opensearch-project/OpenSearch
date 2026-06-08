@@ -70,6 +70,8 @@ pub struct DatafusionQueryConfig {
     /// Only consulted when the plan requests row IDs (contains _global_row_id() UDF
     /// or projects ___row_id).
     pub query_strategy: QueryStrategy,
+    /// Whether to use bloom filters for row group pruning on the indexed read path.
+    pub bloom_filter_on_read: bool,
 }
 
 /// FFM wire format. Must stay in lockstep with the Java `MemoryLayout`.
@@ -101,6 +103,8 @@ pub struct WireDatafusionQueryConfig {
     pub tree_collector_strategy: i32,
     /// 0 = None (baseline), 1 = ListingTable, 2 = IndexedPredicateOnly
     pub query_strategy: i32,
+    /// 0 = false, 1 = true
+    pub bloom_filter_on_read: i32,
 }
 
 impl DatafusionQueryConfig {
@@ -124,6 +128,7 @@ impl DatafusionQueryConfig {
             single_collector_strategy: CollectorCallStrategy::PageRangeSplit,
             tree_collector_strategy: CollectorCallStrategy::TightenOuterBounds,
             query_strategy: QueryStrategy::None,
+            bloom_filter_on_read: true,
         }
     }
 
@@ -194,6 +199,7 @@ impl DatafusionQueryConfig {
                 2 => QueryStrategy::IndexedPredicateOnly,
                 _ => QueryStrategy::None,
             },
+            bloom_filter_on_read: w.bloom_filter_on_read != 0,
         }
     }
 }
@@ -258,6 +264,10 @@ impl DatafusionQueryConfigBuilder {
         self.0.tree_collector_strategy = v;
         self
     }
+    pub fn bloom_filter_on_read(mut self, v: bool) -> Self {
+        self.0.bloom_filter_on_read = v;
+        self
+    }
     pub fn build(self) -> DatafusionQueryConfig {
         self.0
     }
@@ -305,6 +315,7 @@ mod tests {
             single_collector_strategy: 2,
             tree_collector_strategy: 1,
             query_strategy: 1,
+            bloom_filter_on_read: 1,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
@@ -338,6 +349,7 @@ mod tests {
             single_collector_strategy: 2,
             tree_collector_strategy: 1,
             query_strategy: 0,
+            bloom_filter_on_read: 0,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };

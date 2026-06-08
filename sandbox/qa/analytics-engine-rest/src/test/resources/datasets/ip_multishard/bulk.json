@@ -1,0 +1,20 @@
+{"index": {"_id": "0"}}
+{"id": 0, "client_ip": "10.0.0.0", "status_code": 200}
+{"index": {"_id": "1"}}
+{"id": 1, "client_ip": "10.0.0.1", "status_code": 201}
+{"index": {"_id": "2"}}
+{"id": 2, "client_ip": "10.0.0.2", "status_code": 202}
+{"index": {"_id": "3"}}
+{"id": 3, "client_ip": "10.0.0.3", "status_code": 200}
+{"index": {"_id": "4"}}
+{"id": 4, "client_ip": "10.0.0.4", "status_code": 201}
+{"index": {"_id": "5"}}
+{"id": 5, "client_ip": "10.0.0.5", "status_code": 202}
+{"index": {"_id": "6"}}
+{"id": 6, "client_ip": "10.0.0.6", "status_code": 200}
+{"index": {"_id": "7"}}
+{"id": 7, "client_ip": "10.0.0.7", "status_code": 201}
+{"index": {"_id": "8"}}
+{"id": 8, "client_ip": "10.0.0.8", "status_code": 202}
+{"index": {"_id": "9"}}
+{"id": 9, "client_ip": "10.0.0.9", "status_code": 200}

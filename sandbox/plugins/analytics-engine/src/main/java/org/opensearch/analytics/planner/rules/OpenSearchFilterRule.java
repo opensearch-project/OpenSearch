@@ -15,7 +15,6 @@ import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -170,18 +169,9 @@ public class OpenSearchFilterRule extends RelOptRule {
             if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
                 return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
             }
-            // Non-deterministic predicates (e.g. RAND() > 0) have no field references but
-            // ReduceExpressionsRule deliberately leaves them alone — folding them would
-            // change semantics. Any filter-capable backend that supports the operator can
-            // evaluate them as-is.
-            if (!RexUtil.isDeterministic(predicate)) {
-                return new ArrayList<>(childViableBackends);
-            }
-            throw new UnsupportedOperationException(
-                "Constant predicate with no field references reached the filter rule: ["
-                    + predicate
-                    + "]. ReduceExpressionsRule in PlannerImpl should have eliminated it."
-            );
+            // No field reference (non-deterministic, or an unfoldable constant like
+            // mktime('...') > N): let any child-viable backend evaluate it.
+            return new ArrayList<>(childViableBackends);
         }
 
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());

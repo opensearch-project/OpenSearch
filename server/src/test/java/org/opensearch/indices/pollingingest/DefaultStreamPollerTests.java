@@ -14,6 +14,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -69,6 +70,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     private PartitionedBlockingQueueContainer partitionedBlockingQueueContainer;
     private IngestionEngine engine;
     private IndexSettings indexSettings;
+    private IndexMetadata indexMetadata;
 
     @Before
     public void setUp() throws Exception {
@@ -83,6 +85,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         partitionedBlockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         engine = mock(IngestionEngine.class);
         indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        indexMetadata = indexSettings.getIndexMetadata();
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             fakeConsumerFactory,
@@ -99,7 +102,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
     }
@@ -175,7 +178,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -211,7 +214,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Set up latch to wait for 2 messages to be processed
@@ -255,7 +258,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -293,11 +296,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void testDropErrorIngestionStrategy() throws TimeoutException, InterruptedException {
         messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
         messages.add("{\"_id\":\"4\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
-        FakeIngestionSource.FakeIngestionConsumer fakeConsumer = fakeConsumerFactory.createShardConsumer(
-            "",
-            0,
-            new IngestionSource.Builder("FAKE").build()
-        );
+        FakeIngestionSource.FakeIngestionConsumer fakeConsumer = fakeConsumerFactory.createShardConsumer("", 0, indexMetadata);
         List<
             IngestionShardConsumer.ReadResult<
                 FakeIngestionSource.FakeIngestionShardPointer,
@@ -329,7 +328,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         blockingQueueContainer.startProcessorThreads();
 
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
@@ -347,7 +346,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -363,11 +362,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void testBlockErrorIngestionStrategy() throws TimeoutException, InterruptedException {
         messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
         messages.add("{\"_id\":\"4\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
-        FakeIngestionSource.FakeIngestionConsumer fakeConsumer = fakeConsumerFactory.createShardConsumer(
-            "",
-            0,
-            new IngestionSource.Builder("FAKE").build()
-        );
+        FakeIngestionSource.FakeIngestionConsumer fakeConsumer = fakeConsumerFactory.createShardConsumer("", 0, indexMetadata);
         List<
             IngestionShardConsumer.ReadResult<
                 FakeIngestionSource.FakeIngestionShardPointer,
@@ -398,7 +393,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         blockingQueueContainer.startProcessorThreads();
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
@@ -416,7 +411,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -455,7 +450,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -479,11 +474,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void testPersistedBatchStartPointer() throws TimeoutException, InterruptedException {
         messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
         messages.add("{\"_id\":\"4\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
-        FakeIngestionSource.FakeIngestionConsumer fakeConsumer = fakeConsumerFactory.createShardConsumer(
-            "",
-            0,
-            new IngestionSource.Builder("FAKE").build()
-        );
+        FakeIngestionSource.FakeIngestionConsumer fakeConsumer = fakeConsumerFactory.createShardConsumer("", 0, indexMetadata);
         List<
             IngestionShardConsumer.ReadResult<
                 FakeIngestionSource.FakeIngestionShardPointer,
@@ -516,7 +507,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(readResultsBatch2).thenReturn(Collections.emptyList());
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
@@ -534,7 +525,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -568,7 +559,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         blockingQueueContainer.add(createShardUpdateMessage(5, "1"));
@@ -622,7 +613,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         when(reinitializedConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(initialConsumer)
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(initialConsumer)
             .thenReturn(reinitializedConsumer);
 
         poller = new DefaultStreamPoller(
@@ -641,13 +632,13 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         poller.start();
         assertBusy(() -> assertEquals(queuedPointer, poller.getBatchStartPointer()), 30, TimeUnit.SECONDS);
 
-        poller.requestConsumerReinitialization(new IngestionSource.Builder("FAKE").build());
+        poller.requestConsumerReinitialization(indexMetadata);
 
         assertBusy(() -> verify(reinitializedConsumer).readNext(eq(queuedPointer), eq(true), anyLong(), anyInt()), 30, TimeUnit.SECONDS);
         blockingQueueContainer.close();
@@ -695,7 +686,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         // Create a mock consumer factory that fails on first call but succeeds on second call
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
-        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenThrow(
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenThrow(
             new RuntimeException("Simulated consumer initialization failure")
         ).thenReturn(mockConsumer);
 
@@ -716,7 +707,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         poller.start();
@@ -727,7 +718,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         }, 30, TimeUnit.SECONDS);
 
         // Verify the consumer factory was called twice (once for failure, once for success)
-        verify(mockConsumerFactory, times(2)).createShardConsumer(anyString(), anyInt(), any());
+        verify(mockConsumerFactory, times(2)).createShardConsumer(anyString(), anyInt(), (IndexMetadata) any());
         assertNotNull(poller.getConsumer());
     }
 
@@ -761,7 +752,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Start and wait for 2 messages to be processed
@@ -776,9 +767,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             return null;
         }).when(processor).process(any(), any());
 
-        // Create a mock ingestion source for reinitialization
-        IngestionSource mockIngestionSource = new IngestionSource.Builder("test").build();
-        poller.requestConsumerReinitialization(mockIngestionSource);
+        poller.requestConsumerReinitialization(indexMetadata);
 
         // Add a 3rd message
         messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"charlie\", \"age\": 30}}".getBytes(StandardCharsets.UTF_8));
@@ -819,7 +808,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Start poller
@@ -831,8 +820,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         // Request consumer reinitialization and wait for it to complete before adding messages
         IngestionShardConsumer oldConsumer = poller.getConsumer();
-        IngestionSource mockIngestionSource = new IngestionSource.Builder("test").build();
-        poller.requestConsumerReinitialization(mockIngestionSource);
+        poller.requestConsumerReinitialization(indexMetadata);
 
         assertBusy(() -> {
             IngestionShardConsumer currentConsumer = poller.getConsumer();
@@ -872,7 +860,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // When all queues return null and initialBatchStartPointer is null, getBatchStartPointer should return null
@@ -903,7 +891,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Warmup should be considered complete when disabled
@@ -930,7 +918,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Initially warmup is not complete
@@ -951,7 +939,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer factory that always reports high lag
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L); // High lag
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
@@ -971,7 +959,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         warmupPoller.start();
@@ -1001,7 +989,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Initial state should be NONE
@@ -1024,7 +1012,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer factory that returns negative pointer-based lag (unsupported)
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(-1L); // Negative means unsupported
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
@@ -1044,7 +1032,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         warmupPoller.start();
@@ -1060,7 +1048,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer factory that reports lag slightly above threshold then drops to threshold
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         // Return lag of 50 which is below threshold of 100
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(50L);
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
@@ -1081,7 +1069,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(30000), 100),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         warmupPoller.start();
@@ -1112,7 +1100,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Should return immediately without blocking since warmup is disabled
@@ -1130,7 +1118,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a poller with warmup enabled but starting in PAUSED state
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L);
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
@@ -1150,7 +1138,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Start the poller - it will be paused, so warmup should be skipped
@@ -1185,7 +1173,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             enabledConfig,
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Warmup should not be complete yet
@@ -1205,7 +1193,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a mock consumer that always reports high lag so warmup never completes on its own
         IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
-        when(mockFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(mockConsumer);
+        when(mockFactory.createShardConsumer(anyString(), anyInt(), (IndexMetadata) any())).thenReturn(mockConsumer);
         when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L);
         when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
 
@@ -1225,7 +1213,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 100L),
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Start the poller
@@ -1261,7 +1249,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             initialConfig,
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Warmup should not be complete yet
@@ -1296,7 +1284,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             indexSettings,
             new DefaultIngestionMessageMapper(),
             disabledConfig,
-            new IngestionSource.Builder("FAKE").build()
+            indexMetadata
         );
 
         // Warmup should be complete since it was disabled

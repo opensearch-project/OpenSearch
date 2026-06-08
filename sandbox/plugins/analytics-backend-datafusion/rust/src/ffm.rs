@@ -20,6 +20,10 @@ use parking_lot::RwLock;
 /// Only log block_on durations exceeding this threshold.
 const BLOCK_ON_LOG_THRESHOLD: Duration = Duration::from_millis(1);
 
+/// `df_sender_send` return code when the consumer dropped the receiver. Positive so it rides the
+/// success half of the FFM contract. MUST match `NativeBridge.SENDER_SEND_RECEIVER_DROPPED`.
+const SENDER_SEND_RECEIVER_DROPPED: i64 = 1;
+
 /// Times a block_on call and logs a warning if it exceeds the threshold.
 #[inline(always)]
 fn timed_block_on<F: std::future::Future>(
@@ -68,6 +72,7 @@ fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
         .clone()
         .ok_or_else(|| "Runtime manager not initialized".to_string())
 }
+
 
 #[no_mangle]
 pub extern "C" fn df_init_runtime_manager(cpu_threads: i32, datanode_multiplier: f64, coordinator_multiplier: f64) {
@@ -155,6 +160,11 @@ pub unsafe extern "C" fn df_set_memory_pool_limit(runtime_ptr: i64, new_limit: i
 #[no_mangle]
 pub extern "C" fn df_set_min_target_partitions(value: i64) {
     api::set_min_target_partitions(value);
+}
+
+#[no_mangle]
+pub extern "C" fn df_set_reduce_target_partitions(value: i64) {
+    api::set_reduce_target_partitions(value);
 }
 
 /// Sets memory guard thresholds. Values are thresholds multiplied by 1000
@@ -277,6 +287,7 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
     col_names_len_ptr: *const i64,
     col_names_count: i64,
     runtime_ptr: i64,
+    context_id: i64,
 ) -> i64 {
     // Hard FFM-boundary checks (UB risk if violated): pointers must be non-zero before any deref.
     // Always-on `assert!` (not debug_assert!) — these protect against use-after-close from Java.
@@ -319,6 +330,7 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
             &mgr,
             row_ids,
             columns,
+            context_id,
         ))
         .map_err(|e| e.to_string())
 }
@@ -342,9 +354,47 @@ pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
     api::stream_close(stream_ptr);
 }
 
+/// Returns execution metrics as JSON bytes for the given stream.
+/// Writes the pointer to allocated bytes into `out_ptr` and the length into `out_len_ptr`.
+/// Returns 0 on success, non-zero if no metrics are available.
+/// The caller must free the returned bytes via `df_free_metrics_buf`.
+#[no_mangle]
+pub unsafe extern "C" fn df_stream_get_metrics(stream_ptr: i64, out_ptr: *mut *const u8, out_len_ptr: *mut i64) -> i64 {
+    if stream_ptr == 0 {
+        return -1;
+    }
+    let handle = &*(stream_ptr as *const api::QueryStreamHandle);
+    match handle.get_metrics_json() {
+        Some(bytes) => {
+            let len = bytes.len() as i64;
+            let boxed = bytes.into_boxed_slice();
+            let ptr = Box::into_raw(boxed) as *const u8;
+            *out_ptr = ptr;
+            *out_len_ptr = len;
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Frees a metrics buffer previously returned by `df_stream_get_metrics`.
+#[no_mangle]
+pub unsafe extern "C" fn df_free_metrics_buf(ptr: *mut u8, len: i64) {
+    if !ptr.is_null() && len > 0 {
+        let _ = Box::from_raw(std::slice::from_raw_parts_mut(ptr, len as usize));
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn df_cancel_query(context_id: i64) {
     api::cancel_query(context_id);
+}
+
+/// Sets the cancellation stats threshold in milliseconds.
+/// Queries cancelled for less than this duration are not counted in stats.
+#[no_mangle]
+pub extern "C" fn df_set_cancel_stats_threshold_ms(millis: i64) {
+    crate::query_tracker::set_cancel_stats_threshold(millis as u64);
 }
 
 // ---------------------------------------------------------------------------
@@ -547,8 +597,17 @@ pub unsafe extern "C" fn df_execute_local_plan(
 pub unsafe extern "C" fn df_sender_send(sender_ptr: i64, array_ptr: i64, schema_ptr: i64) -> i64 {
     let mgr = get_rt_manager()?;
     api::sender_send(sender_ptr, array_ptr, schema_ptr, mgr.io_runtime.handle())
-        .map(|_| 0)
+        .map(send_outcome_to_code)
         .map_err(|e| e.to_string())
+}
+
+/// Maps a send outcome to the `df_sender_send` return code: normal send `0`, dropped receiver
+/// [`SENDER_SEND_RECEIVER_DROPPED`] so the Java side can latch early-termination.
+fn send_outcome_to_code(outcome: crate::partition_stream::SendOutcome) -> i64 {
+    match outcome {
+        crate::partition_stream::SendOutcome::Sent => 0,
+        crate::partition_stream::SendOutcome::ReceiverDropped => SENDER_SEND_RECEIVER_DROPPED,
+    }
 }
 
 #[no_mangle]
@@ -1148,4 +1207,23 @@ pub unsafe extern "C" fn df_execute_local_prepared_plan(
     // (the QTF coordinator-reduce path runs synchronously inside the SEARCH-thread FFM
     // call and gating it can deadlock).
     api::execute_local_prepared_plan(session_ptr, &mgr, context_id, None).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::partition_stream::SendOutcome;
+
+    #[test]
+    fn send_outcome_maps_sent_to_zero() {
+        assert_eq!(send_outcome_to_code(SendOutcome::Sent), 0);
+    }
+
+    #[test]
+    fn send_outcome_maps_receiver_dropped_to_sentinel() {
+        // Must surface the sentinel, not collapse to 0 like a normal send, or Java never latches
+        // isConsumerDone().
+        assert_eq!(send_outcome_to_code(SendOutcome::ReceiverDropped), SENDER_SEND_RECEIVER_DROPPED);
+        assert_eq!(SENDER_SEND_RECEIVER_DROPPED, 1);
+    }
 }

@@ -21,6 +21,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.ArrowValues;
+import org.opensearch.analytics.exec.FragmentResources;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -42,7 +43,7 @@ import static org.apache.arrow.c.Data.importField;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DatafusionResultStream implements EngineResultStream {
+public class DatafusionResultStream implements EngineResultStream, FragmentResources.MetricsCapable {
 
     private final StreamHandle streamHandle;
     private final BufferAllocator allocator;
@@ -62,6 +63,11 @@ public class DatafusionResultStream implements EngineResultStream {
             iteratorInstance = new BatchIterator(streamHandle, allocator, dictionaryProvider);
         }
         return iteratorInstance;
+    }
+
+    @Override
+    public byte[] getMetricsJson() {
+        return NativeBridge.streamGetMetrics(streamHandle.getPointer());
     }
 
     @Override
