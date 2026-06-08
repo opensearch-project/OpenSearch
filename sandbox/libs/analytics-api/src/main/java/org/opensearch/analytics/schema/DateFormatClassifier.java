@@ -28,6 +28,9 @@ public final class DateFormatClassifier {
         TIMESTAMP
     }
 
+    // TODO: replace with constants from OpenSearch core's DateFormatters registry once they're
+    // exposed for external use; today we mirror the well-known names locally to avoid coupling
+    // to internal APIs.
     /** Named formats with year/month/day only. */
     private static final Set<String> NAMED_DATE_FORMATS = setOf(
         "basic_date",

@@ -456,6 +456,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     private byte[] convertToSubstrait(RelNode fragment) {
+        // TODO: move rewriters that don't touch substrait-specific classes up to the analytics-engine
+        // layer so other backends can reuse them.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);

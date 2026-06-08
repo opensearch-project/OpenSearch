@@ -18,6 +18,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 /** Pre-isthmus pass that rejects malformed CAST(string-lit AS DATE/TIME/TIMESTAMP) and TIMESTAMPADD/DIFF string args. */
+// TODO: fold into BackendPlanAdaption alongside CastToVarcharRewriter (unified rejection/coercion model).
 final class CastTemporalLiteralValidator {
 
     private CastTemporalLiteralValidator() {}

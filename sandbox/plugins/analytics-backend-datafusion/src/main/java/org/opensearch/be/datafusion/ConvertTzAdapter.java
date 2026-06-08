@@ -25,7 +25,9 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.time.DateTimeException;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -79,9 +81,11 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
         String value = literal.getValueAs(String.class);
         if (value == null) return null;
         try {
-            java.time.LocalDateTime.parse(value.replace(' ', 'T'));
+            LocalDateTime.parse(value.replace(' ', 'T'));
             return null;
-        } catch (java.time.format.DateTimeParseException ignored) {}
+        } catch (DateTimeParseException ignored) {
+            // unparseable timestamp literal -> NULL row (in line with sql opensearch plugin contract; see ConvertTZFunctionIT)
+        }
         return rexBuilder.makeNullLiteral(resultType);
     }
 

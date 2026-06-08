@@ -18,6 +18,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 /** Plan-time validation for string-literal datetime operands; rejects malformed input with the format-hint message. */
+// TODO: move this validation into the analytics-engine Marking phase so it runs once across the whole plan with full operator context.
 final class DatetimeLiteralValidator {
 
     private DatetimeLiteralValidator() {}
