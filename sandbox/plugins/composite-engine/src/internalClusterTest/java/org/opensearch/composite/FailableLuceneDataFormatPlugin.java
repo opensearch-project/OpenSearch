@@ -21,6 +21,7 @@ import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneWriter;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -112,7 +113,8 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
             Analyzer analyzer,
             Codec codec,
             Sort indexSort,
-            Set<LuceneWriter> registry
+            Set<LuceneWriter> registry,
+            LuceneShardStatsTracker stats
         ) throws IOException {
             return new FaultInjectingLuceneWriter(
                 writerGeneration,
@@ -122,7 +124,8 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
                 analyzer,
                 codec,
                 indexSort,
-                registry
+                registry,
+                stats
             );
         }
     }
@@ -142,9 +145,10 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
             Analyzer analyzer,
             Codec codec,
             Sort indexSort,
-            Set<LuceneWriter> registry
+            Set<LuceneWriter> registry,
+            LuceneShardStatsTracker stats
         ) throws IOException {
-            super(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry);
+            super(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry, stats);
         }
 
         @Override

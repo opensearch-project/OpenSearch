@@ -27,6 +27,8 @@ import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
+import org.opensearch.be.lucene.stats.LuceneStatsProvider;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -42,6 +44,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.Store;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -53,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
@@ -79,6 +83,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
 
+    private final LuceneShardStatsTracker stats = new LuceneShardStatsTracker();
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
@@ -120,18 +125,39 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
 
-        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
+        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex(), stats);
 
         // Create the lucene subdirectory if it doesn't exist, or clear stale contents
         // from a prior engine lifecycle. Any data here is either already hardlinked into
         // index/ (via addIndexes) or will be replayed from the translog on recovery.
-        if (Files.isDirectory(baseDirectory)) {
-            tryDeleteDirectory(baseDirectory);
-        }
+        boolean registered = false;
+        LuceneStatsProvider provider = null;
         try {
-            Files.createDirectories(baseDirectory);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
+            if (Files.isDirectory(baseDirectory)) {
+                tryDeleteDirectory(baseDirectory);
+            }
+            try {
+                Files.createDirectories(baseDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create lucene base directory: " + baseDirectory, e);
+            }
+            // Register this shard's tracker with the format-wide stats provider so the
+            // /_plugins/lucene/{index}/_stats and /_plugins/lucene/_nodes/{nodeId}/_stats
+            // REST endpoints can read live counters. Unregistered in close().
+            provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(LuceneStatsProvider.FORMAT_NAME);
+            if (provider != null) {
+                provider.register(store.shardId(), stats);
+                registered = true;
+            }
+        } catch (Throwable t) {
+            if (registered && provider != null) {
+                try {
+                    provider.unregister(store.shardId());
+                } catch (Throwable rollbackErr) {
+                    logger.warn("Failed to unregister lucene stats tracker during constructor rollback", rollbackErr);
+                }
+            }
+            throw t;
         }
     }
 
@@ -182,7 +208,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 analyzer,
                 codec,
                 getChildWriterSortConfiguration(),
-                activeWriters
+                activeWriters,
+                stats
             );
             pendingCleanup.put(config.writerGeneration(), writer);
             return writer;
@@ -205,9 +232,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         Analyzer analyzer,
         Codec codec,
         Sort indexSort,
-        Set<LuceneWriter> registry
+        Set<LuceneWriter> registry,
+        LuceneShardStatsTracker stats
     ) throws IOException {
-        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry);
+        return new LuceneWriter(writerGeneration, mappingVersion, dataFormat, baseDirectory, analyzer, codec, indexSort, registry, stats);
     }
 
     private Sort getChildWriterSortConfiguration() {
@@ -274,80 +302,90 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             return new RefreshResult(List.of());
         }
 
-        List<Segment> resultSegments = new ArrayList<>(refreshInput.existingSegments());
+        long refreshStart = System.nanoTime();
+        try {
+            List<Segment> resultSegments = new ArrayList<>(refreshInput.existingSegments());
 
-        // Collect all source directories and their paths for a single batched addIndexes call
-        List<Directory> sourceDirectories = new ArrayList<>();
-        Set<Long> writerGenerations = new HashSet<>();
+            // Collect all source directories and their paths for a single batched addIndexes call
+            List<Directory> sourceDirectories = new ArrayList<>();
+            Set<Long> writerGenerations = new HashSet<>();
 
-        for (Segment segment : refreshInput.writerFiles()) {
-            WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
-            if (wfs == null) {
-                continue;
+            for (Segment segment : refreshInput.writerFiles()) {
+                WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+                if (wfs == null) {
+                    continue;
+                }
+
+                Path dirPath = Path.of(wfs.directory());
+                if (Files.isDirectory(dirPath) == false) {
+                    logger.warn("Lucene writer directory does not exist: {}", dirPath);
+                    continue;
+                }
+
+                sourceDirectories.add(new HardlinkCopyDirectoryWrapper(new MMapDirectory(dirPath)));
+                writerGenerations.add(wfs.writerGeneration());
             }
 
-            Path dirPath = Path.of(wfs.directory());
-            if (Files.isDirectory(dirPath) == false) {
-                logger.warn("Lucene writer directory does not exist: {}", dirPath);
-                continue;
-            }
-
-            sourceDirectories.add(new HardlinkCopyDirectoryWrapper(new MMapDirectory(dirPath)));
-            writerGenerations.add(wfs.writerGeneration());
-        }
-
-        // Single batched addIndexes call for all source directories
-        if (sourceDirectories.isEmpty() == false) {
-            try {
-                sharedWriter.addIndexes(sourceDirectories.toArray(new Directory[0]));
-                logger.debug("Incorporated {} Lucene segments into shared writer in a single addIndexes call", sourceDirectories.size());
-            } finally {
-                // Close all source directories
-                for (Directory dir : sourceDirectories) {
-                    try {
-                        dir.close();
-                    } catch (IOException e) {
-                        logger.warn("Failed to close source directory after addIndexes", e);
+            // Single batched addIndexes call for all source directories
+            if (sourceDirectories.isEmpty() == false) {
+                long addIndexesStart = System.nanoTime();
+                try {
+                    sharedWriter.addIndexes(sourceDirectories.toArray(new Directory[0]));
+                    logger.debug(
+                        "Incorporated {} Lucene segments into shared writer in a single addIndexes call",
+                        sourceDirectories.size()
+                    );
+                } finally {
+                    stats.addRefreshAddIndexesTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - addIndexesStart));
+                    // Close all source directories
+                    for (Directory dir : sourceDirectories) {
+                        try {
+                            dir.close();
+                        } catch (IOException e) {
+                            logger.warn("Failed to close source directory after addIndexes", e);
+                        }
                     }
                 }
-            }
 
-            // After addIndexes, open an NRT reader to discover the actual file names
-            // for the newly added segments. Lucene renames files during addIndexes,
-            // so the original temp directory file names are no longer valid.
-            Path sharedDir = store.shardPath().resolveIndex();
+                // After addIndexes, open an NRT reader to discover the actual file names
+                // for the newly added segments. Lucene renames files during addIndexes,
+                // so the original temp directory file names are no longer valid.
+                Path sharedDir = store.shardPath().resolveIndex();
 
-            try (DirectoryReader reader = DirectoryReader.open(sharedWriter)) {
-                List<LeafReaderContext> leaves = reader.leaves();
+                try (DirectoryReader reader = DirectoryReader.open(sharedWriter)) {
+                    List<LeafReaderContext> leaves = reader.leaves();
 
-                for (int i = 0; i < leaves.size(); i++) {
-                    LeafReaderContext ctx = leaves.get(i);
-                    if (ctx.reader() instanceof SegmentReader segReader) {
-                        SegmentCommitInfo segInfo = segReader.getSegmentInfo();
-                        String genAttr = segInfo.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE);
-                        if (genAttr == null) {
-                            continue;
+                    for (int i = 0; i < leaves.size(); i++) {
+                        LeafReaderContext ctx = leaves.get(i);
+                        if (ctx.reader() instanceof SegmentReader segReader) {
+                            SegmentCommitInfo segInfo = segReader.getSegmentInfo();
+                            String genAttr = segInfo.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE);
+                            if (genAttr == null) {
+                                continue;
+                            }
+
+                            long writerGen = Long.parseLong(genAttr);
+                            if (!writerGenerations.contains(writerGen)) {
+                                continue;
+                            }
+                            long numDocs = segReader.maxDoc();
+
+                            WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
+                                .directory(sharedDir)
+                                .writerGeneration(writerGen)
+                                .addNumRows(numDocs);
+
+                            for (String file : segInfo.files()) {
+                                wfsBuilder.addFile(file);
+                            }
+
+                            resultSegments.add(Segment.builder(writerGen).addSearchableFiles(dataFormat, wfsBuilder.build()).build());
+                            writerGenerations.remove(writerGen);
+                            stats.incRefreshSegmentsIncorporatedTotal();
                         }
-
-                        long writerGen = Long.parseLong(genAttr);
-                        if (!writerGenerations.contains(writerGen)) {
-                            continue;
-                        }
-                        long numDocs = segReader.maxDoc();
-
-                        WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
-                            .directory(sharedDir)
-                            .writerGeneration(writerGen)
-                            .addNumRows(numDocs);
-
-                        for (String file : segInfo.files()) {
-                            wfsBuilder.addFile(file);
-                        }
-
-                        resultSegments.add(Segment.builder(writerGen).addSearchableFiles(dataFormat, wfsBuilder.build()).build());
-                        writerGenerations.remove(writerGen);
                     }
                 }
+                assert writerGenerations.isEmpty() : "Could not get segments from all writers";
             }
             assert writerGenerations.isEmpty() : "Could not get segments from all writers";
 
@@ -362,9 +400,12 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                     }
                 }
             }
-        }
 
-        return new RefreshResult(List.copyOf(resultSegments));
+            return new RefreshResult(List.copyOf(resultSegments));
+        } finally {
+            stats.incRefreshTotal();
+            stats.addRefreshTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - refreshStart));
+        }
     }
 
     @Override
@@ -406,6 +447,11 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     /** No-op — the {@link LuceneCommitter} owns the shared IndexWriter lifecycle. */
     @Override
     public void close() throws IOException {
+        // Unregister this shard's tracker from the stats provider before tearing down.
+        LuceneStatsProvider provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(LuceneStatsProvider.FORMAT_NAME);
+        if (provider != null) {
+            provider.unregister(store.shardId());
+        }
         // LuceneCommitter owns the shared IndexWriter lifecycle
     }
 
