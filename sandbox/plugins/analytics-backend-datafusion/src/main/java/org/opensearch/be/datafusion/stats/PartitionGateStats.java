@@ -21,8 +21,8 @@ import java.util.Objects;
  * Stats for a partition budget gate — a node-level semaphore that limits
  * concurrent {@code stream_next} batch fetches across all active queries.
  *
- * <p>Contains 4 metrics: the semaphore capacity, current utilization, cumulative
- * wait time, and cumulative batch count.
+ * <p>Contains 6 metrics: the semaphore capacity, current utilization, cumulative
+ * wait time, cumulative batch count, poison permits held, and target max permits.
  *
  * <p>Two instances exist at runtime: one for the datanode gate (shard-scan partitions)
  * and one for the coordinator gate (reduce partitions).
@@ -44,21 +44,39 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
     /** Cumulative count of batches started (permits granted) since startup. */
     public final long totalBatchesStarted;
 
+    /** Number of poison permits currently held to reduce effective capacity. */
+    public final long poisonPermits;
+
+    /** Target max permits during an in-progress resize; equals maxPermits when idle. */
+    public final long targetMaxPermits;
+
     /**
      * Construct from explicit field values.
      *
-     * @param name                JSON key for this gate (e.g. "datanode_gate", "coordinator_gate")
+     * @param name                JSON key for this gate (e.g. "fragment_executor_gate", "reduce_executor_gate")
      * @param maxPermits          total semaphore capacity
      * @param activePermits       currently held permits
      * @param totalWaitDurationMs cumulative wait time in milliseconds
      * @param totalBatchesStarted cumulative batches started
+     * @param poisonPermits       number of poison permits held
+     * @param targetMaxPermits    target max permits during resize
      */
-    public PartitionGateStats(String name, long maxPermits, long activePermits, long totalWaitDurationMs, long totalBatchesStarted) {
+    public PartitionGateStats(
+        String name,
+        long maxPermits,
+        long activePermits,
+        long totalWaitDurationMs,
+        long totalBatchesStarted,
+        long poisonPermits,
+        long targetMaxPermits
+    ) {
         this.name = name;
         this.maxPermits = maxPermits;
         this.activePermits = activePermits;
         this.totalWaitDurationMs = totalWaitDurationMs;
         this.totalBatchesStarted = totalBatchesStarted;
+        this.poisonPermits = poisonPermits;
+        this.targetMaxPermits = targetMaxPermits;
     }
 
     /**
@@ -73,6 +91,8 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
         this.activePermits = in.readVLong();
         this.totalWaitDurationMs = in.readVLong();
         this.totalBatchesStarted = in.readVLong();
+        this.poisonPermits = in.readVLong();
+        this.targetMaxPermits = in.readVLong();
     }
 
     @Override
@@ -82,6 +102,8 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
         out.writeVLong(activePermits);
         out.writeVLong(totalWaitDurationMs);
         out.writeVLong(totalBatchesStarted);
+        out.writeVLong(poisonPermits);
+        out.writeVLong(targetMaxPermits);
     }
 
     @Override
@@ -91,6 +113,8 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
         builder.field("active_permits", activePermits);
         builder.field("total_wait_duration_ms", totalWaitDurationMs);
         builder.field("total_batches_started", totalBatchesStarted);
+        builder.field("poison_permits", poisonPermits);
+        builder.field("target_max_permits", targetMaxPermits);
         builder.endObject();
         return builder;
     }
@@ -109,11 +133,13 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
             && activePermits == that.activePermits
             && totalWaitDurationMs == that.totalWaitDurationMs
             && totalBatchesStarted == that.totalBatchesStarted
+            && poisonPermits == that.poisonPermits
+            && targetMaxPermits == that.targetMaxPermits
             && Objects.equals(name, that.name);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, maxPermits, activePermits, totalWaitDurationMs, totalBatchesStarted);
+        return Objects.hash(name, maxPermits, activePermits, totalWaitDurationMs, totalBatchesStarted, poisonPermits, targetMaxPermits);
     }
 }

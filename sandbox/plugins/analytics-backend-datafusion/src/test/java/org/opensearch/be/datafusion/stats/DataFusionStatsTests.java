@@ -34,11 +34,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22));
         taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25));
         taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
-        return new DataFusionStats(
-            new NativeExecutorsStats(io, cpu, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
-        );
+        return new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors), null, null);
     }
 
     private static String toJsonString(DataFusionStats stats) throws IOException {
@@ -119,11 +115,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
         taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
 
-        DataFusionStats stats = new DataFusionStats(
-            new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
-        );
+        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors), null, null);
         assertNull(stats.getNativeExecutorsStats().getCpuRuntime());
 
         String json = toJsonString(stats);
@@ -198,11 +190,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
         taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
 
-        DataFusionStats stats = new DataFusionStats(
-            new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
-        );
+        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors), null, null);
         String json = toJsonString(stats);
 
         assertTrue(json.contains("\"io_runtime\""));
