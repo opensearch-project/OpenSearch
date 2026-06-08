@@ -71,8 +71,7 @@ public final class HashShuffleDAGRewriter {
         Stage leftProducer,
         Stage rightProducer,
         List<String> targetWorkerNodeIds,
-        CapabilityRegistry registry,
-        boolean fuseDualViable
+        CapabilityRegistry registry
     ) {
         // 1) Find the OpenSearchJoin inside the consumer fragment. Its children carry the
         // OpenSearchShuffleExchange wrappers around StageInputScans that the convertor will
@@ -152,7 +151,7 @@ public final class HashShuffleDAGRewriter {
         // 8) Re-run fragment conversion. The worker stage hasn't been converted yet, and the
         // consumer's fragment changed, so its conversion needs refresh too. convertAll
         // re-converts the entire DAG; cheap on the JVM side and avoids partial-update bugs.
-        FragmentConversionDriver.convertAll(rewrittenDag, registry, fuseDualViable);
+        FragmentConversionDriver.convertAll(rewrittenDag, registry);
 
         return new Rewritten(rewrittenDag, newRoot, worker, rewrittenConsumer);
     }

@@ -505,6 +505,42 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     }
 
     /**
+     * {@code COUNT(DISTINCT $1)} — single-arg distinct. The HEP {@code OpenSearchDistinctCountRule}
+     * rewrites this to {@code APPROX_COUNT_DISTINCT($1)} before {@code OpenSearchAggregateRule}
+     * marks the aggregate.
+     */
+    protected AggregateCall countDistinctCall(RelNode input) {
+        return AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            true,
+            List.of(1),
+            -1,
+            input,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+    }
+
+    /** {@code APPROX_COUNT_DISTINCT($1)} — direct (skips the rewrite for tests that pre-stage the operator). */
+    protected AggregateCall approxCountDistinctCall(RelNode input) {
+        return AggregateCall.create(
+            SqlStdOperatorTable.APPROX_COUNT_DISTINCT,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(1),
+            -1,
+            null,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            1,
+            input,
+            null,
+            "dc"
+        );
+    }
+
+    /**
      * AVG over the second column. Uses the long-form {@link AggregateCall#create} with a
      * {@code null} return type so Calcite infers AVG's canonical type; the short-form
      * overload passes an explicit type and would trip {@code Aggregate.typeMatchesInferred}.

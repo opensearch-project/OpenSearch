@@ -45,6 +45,7 @@ public class PlannerContext {
     private final OpenSearchDistributionTraitDef distributionTraitDef;
     private final boolean profilingEnabled;
     private final boolean preferMetadataDriver;
+    private double oversamplingFactor;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
 
@@ -193,6 +194,14 @@ public class PlannerContext {
      */
     public ToLongFunction<String> getTableRowCounts() {
         return tableRowCounts;
+    }
+
+    public double getOversamplingFactor() {
+        return oversamplingFactor;
+    }
+
+    public void setOversamplingFactor(double oversamplingFactor) {
+        this.oversamplingFactor = oversamplingFactor;
     }
 
     public OpenSearchDistributionTraitDef getDistributionTraitDef() {

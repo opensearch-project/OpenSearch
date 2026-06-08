@@ -81,7 +81,7 @@ public class HashShuffleAggregateDAGRewriterTests extends BasePlannerRulesTests 
         // so the FINAL aggregate the rewriter lifts from the consumer fragment is still un-adapted.
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
         Stage producer = findStageByRole(dag.rootStage(), Stage.StageRole.SHUFFLE_SCAN_AGG);
         assertNotNull("expected a SHUFFLE_SCAN_AGG producer stage — CBO must have picked the shuffle path", producer);
@@ -112,8 +112,7 @@ public class HashShuffleAggregateDAGRewriterTests extends BasePlannerRulesTests 
             consumer,
             producer,
             targets,
-            context.getCapabilityRegistry(),
-            false
+            context.getCapabilityRegistry()
         );
 
         // The worker stage holds the lifted FINAL aggregate. Its plan alternatives must have been

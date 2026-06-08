@@ -589,15 +589,6 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    @Override
-    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        final String value = getTextValue(context);
-        if (value == null) {
-            return;
-        }
-        context.documentInput().addField(fieldType(), value);
-    }
-
     private String getTextValue(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             return context.externalValue().toString();

@@ -53,6 +53,7 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
@@ -112,8 +113,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile long perQueryBufferLimit;
     private volatile int maxShardsPerQuery;
     private volatile int maxConcurrentShardRequestsPerNode;
-    private volatile boolean fuseDualViable;
     private volatile boolean preferMetadataDriver;
+    private volatile double oversamplingFactor;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
@@ -169,11 +170,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
                 v -> maxConcurrentShardRequestsPerNode = v
             );
-        this.fuseDualViable = AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE, v -> fuseDualViable = v);
         this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
+        this.oversamplingFactor = AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR, v -> oversamplingFactor = v);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.analyticsSearchSlowLog = analyticsSearchSlowLog;
     }
@@ -274,18 +276,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // default 100 rows and broadcast loses the cost race against SINGLETON gather even
         // for tiny dimensions. See IndexRowCountFetcher's class javadoc for the full story.
         ToLongFunction<String> tableRowCounts = IndexRowCountFetcher.fetchFor(logicalFragment, client);
-        RelNode plan = PlannerImpl.createPlan(
-            logicalFragment,
-            new PlannerContext(
-                capabilityRegistry,
-                planningState,
-                indexNameExpressionResolver,
-                false,
-                preferMetadataDriver,
-                perQuerySettings,
-                tableRowCounts
-            )
+        PlannerContext plannerContext = new PlannerContext(
+            capabilityRegistry,
+            planningState,
+            indexNameExpressionResolver,
+            false,
+            preferMetadataDriver,
+            perQuerySettings,
+            tableRowCounts
         );
+        plannerContext.setOversamplingFactor(oversamplingFactor);
+        RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
 
@@ -345,7 +346,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Collapse multi-backend stages to a single chosen alternative before conversion
         // so the convertor runs once per stage and the wire request carries one PlanAlternative.
         PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
-        FragmentConversionDriver.convertAll(dag, capabilityRegistry, fuseDualViable);
+        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         final long planningTimeNanos = System.nanoTime() - planStartNanos;
         final long planningTimeMs = profile ? TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);

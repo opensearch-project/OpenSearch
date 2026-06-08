@@ -154,7 +154,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
         // Find the leaf stage (shard scan with filter)
         Stage leaf = dag.rootStage();

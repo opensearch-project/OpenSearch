@@ -286,7 +286,7 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": [\"lucene\"]"
             + "},"
             + "\"mappings\": { \"properties\": " + mappingProperties + " }"
             + "}";

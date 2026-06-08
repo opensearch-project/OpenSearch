@@ -18,6 +18,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
@@ -160,8 +161,7 @@ public final class HashShuffleDispatch {
             leftProducer,
             rightProducer,
             targetWorkerNodeIds,
-            capabilityRegistry,
-            org.opensearch.analytics.AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE.get(clusterService.getSettings())
+            capabilityRegistry
         );
         Stage workerStage = rewritten.worker();
 
@@ -177,8 +177,24 @@ public final class HashShuffleDispatch {
         // targets and side label; the WORKER stage (not the original consumer) gets the
         // per-side ShuffleScan instructions plus a SETUP_SHUFFLE_WORKER instruction at the
         // head to bootstrap a worker-mode session context.
-        enrichProducerAlternatives(leftProducer, ctx.queryId(), workerStage.getStageId(), partitionCount, targetWorkerNodeIds, "left");
-        enrichProducerAlternatives(rightProducer, ctx.queryId(), workerStage.getStageId(), partitionCount, targetWorkerNodeIds, "right");
+        enrichProducerAlternatives(
+            leftProducer,
+            ctx.queryId(),
+            workerStage.getStageId(),
+            partitionCount,
+            targetWorkerNodeIds,
+            "left",
+            capabilityRegistry
+        );
+        enrichProducerAlternatives(
+            rightProducer,
+            ctx.queryId(),
+            workerStage.getStageId(),
+            partitionCount,
+            targetWorkerNodeIds,
+            "right",
+            capabilityRegistry
+        );
         enrichWorkerAlternatives(
             workerStage,
             partitionCount,
@@ -263,18 +279,44 @@ public final class HashShuffleDispatch {
         int consumerStageId,
         int partitionCount,
         List<String> targetWorkerNodeIds,
-        String side
+        String side,
+        CapabilityRegistry registry
     ) {
         List<Integer> hashKeys = producerStage.getExchangeInfo().partitionKeyIndices();
         List<StagePlan> enriched = new ArrayList<>(producerStage.getPlanAlternatives().size());
         for (StagePlan sp : producerStage.getPlanAlternatives()) {
+            // Only a backend that can serialize+ship hash partitions (declares
+            // DataTransferCapability(PRODUCER)) can run SHUFFLE_PRODUCER. A scan-only alternative
+            // (e.g. Lucene, kept viable for a keyword scan under prefer_metadata_driver) is dropped
+            // here — keeping it would let PlanAlternativeSelector pick a driver that throws
+            // "Lucene driver does not handle instruction type: SHUFFLE_PRODUCER" at execution.
+            if (canDriveShuffleProducer(registry, sp.backendId()) == false) {
+                continue;
+            }
             List<InstructionNode> existing = sp.instructions();
             List<InstructionNode> merged = new ArrayList<>(existing.size() + 1);
             merged.addAll(existing);
             merged.add(new ShuffleProducerInstructionNode(hashKeys, partitionCount, targetWorkerNodeIds, queryId, consumerStageId, side));
             enriched.add(sp.withInstructions(merged));
         }
+        if (enriched.isEmpty()) {
+            throw new IllegalStateException(
+                "No shuffle-producer-capable plan alternative on producer stage "
+                    + producerStage.getStageId()
+                    + " (side="
+                    + side
+                    + "); none of its backends declare DataTransferCapability(PRODUCER)."
+            );
+        }
         producerStage.setPlanAlternatives(enriched);
+    }
+
+    private static boolean canDriveShuffleProducer(CapabilityRegistry registry, String backendId) {
+        return registry.getBackend(backendId)
+            .getCapabilityProvider()
+            .dataTransferCapabilities()
+            .stream()
+            .anyMatch(cap -> cap.kind() == DataTransferCapability.Kind.PRODUCER);
     }
 
     /**

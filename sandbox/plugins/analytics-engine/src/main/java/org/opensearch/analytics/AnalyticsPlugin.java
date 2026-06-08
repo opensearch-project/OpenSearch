@@ -39,6 +39,8 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.stats.AnalyticsStats;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.analytics.stats.RestAnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.AnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.TransportAnalyticsStatsAction;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.ClusterState;
@@ -108,25 +110,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         "analytics.coordinator.buffer_limit",
         256L * 1024 * 1024,
         0L,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * When {@code true} (default), performance-delegated leaves (driver natively evaluable,
-     * peer also viable) fuse with their correctness-delegated siblings even under {@code OR}
-     * / {@code NOT}. The combiner ships the entire boolean structure as a single delegated
-     * expression rather than throwing the dual-viable leaves back to native.
-     *
-     * <p>Default {@code true} — Lucene's term-dictionary random access typically beats
-     * managing per-leaf bitsets in DataFusion, so fusing the OR/NOT into one peer call is
-     * the favorable choice for the common workload. Flip to {@code false} for A/B comparison
-     * or to roll back if a workload regresses (e.g. very wide OR over highly-selective
-     * leaves where the driver's column scan would short-circuit before Lucene completes).
-     */
-    public static final Setting<Boolean> DELEGATION_FUSE_DUAL_VIABLE = Setting.boolSetting(
-        "analytics.delegation.fuse_dual_viable",
-        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -248,7 +231,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestMppStrategyStatsAction(mppStrategyMetrics), new RestAnalyticsStatsAction(statsCollector));
+        return List.of(new RestMppStrategyStatsAction(mppStrategyMetrics), new RestAnalyticsStatsAction());
     }
 
     @Override
@@ -276,7 +259,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
-            new ActionHandler<>(AnalyticsShuffleDataAction.INSTANCE, TransportAnalyticsShuffleDataAction.class)
+            new ActionHandler<>(AnalyticsShuffleDataAction.INSTANCE, TransportAnalyticsShuffleDataAction.class),
+            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
         );
     }
 
@@ -284,7 +268,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>(AnalyticsSettings.ALL_SETTINGS);
         settings.add(COORDINATOR_BUFFER_LIMIT);
-        settings.add(DELEGATION_FUSE_DUAL_VIABLE);
         settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
         settings.addAll(AnalyticsApproximationSettings.all());

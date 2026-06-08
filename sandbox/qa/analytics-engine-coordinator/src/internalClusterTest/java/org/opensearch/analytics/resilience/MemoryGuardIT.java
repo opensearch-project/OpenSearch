@@ -26,7 +26,7 @@ import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -70,7 +70,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -95,6 +95,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
+            .put("datafusion.spill_directory", createTempDir().toString())
             .build();
     }
 
@@ -103,7 +104,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             .startObject()
             .startObject("properties")
             .startObject("user_id").field("type", "long").endObject()
-            .startObject("url").field("type", "keyword").endObject()
+            .startObject("url").field("type", "keyword").field("index", "false").endObject()
             .startObject("count").field("type", "integer").endObject()
             .endObject()
             .endObject();

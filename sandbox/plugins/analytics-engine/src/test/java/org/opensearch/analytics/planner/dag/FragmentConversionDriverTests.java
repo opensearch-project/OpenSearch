@@ -112,7 +112,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         LOGGER.info("QueryDAG after conversion:\n{}", dag);
         return dag;
     }
@@ -323,7 +323,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
         Stage root = dag.rootStage();
         assertNotNull("root alternative must have convertedBytes", root.getPlanAlternatives().getFirst().convertedBytes());
@@ -677,26 +677,6 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         SqlTypeName[] fieldTypes,
         Map<String, Map<String, Object>> fields
     ) {
-        return buildDelegationDag(condition, dfConvertor, serializer, fieldNames, fieldTypes, fields, false);
-    }
-
-    /**
-     * Like the non-fused overload but threads {@code fuseDualViable} through to
-     * {@link FragmentConversionDriver#convertAll(QueryDAG, CapabilityRegistry, boolean)} so
-     * tests can flip the {@code analytics.delegation.fuse_dual_viable} cluster setting
-     * deterministically. With {@code fuse=true}, performance-delegated leaves under OR/NOT
-     * stay in the delegation pool instead of being thrown back to native — the entire boolean
-     * ships to the peer as one delegated expression.
-     */
-    private QueryDAG buildDelegationDag(
-        RexNode condition,
-        RecordingConvertor dfConvertor,
-        RecordingSerializer serializer,
-        String[] fieldNames,
-        SqlTypeName[] fieldTypes,
-        Map<String, Map<String, Object>> fields,
-        boolean fuseDualViable
-    ) {
         var backends = delegationBackends(dfConvertor, serializer);
         var context = buildContext("parquet", fields, backends);
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", fieldNames, fieldTypes)), condition);
@@ -704,7 +684,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), fuseDualViable);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         return dag;
     }
 
@@ -730,16 +710,6 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
      *   - field 2 = amount   (integer, NOT indexed) — SINGLE-VIABLE to DataFusion only.
      */
     private QueryDAG buildTwoFieldDelegationDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
-        return buildTwoFieldDelegationDag(condition, dfConvertor, serializer, false);
-    }
-
-    /** {@link #buildTwoFieldDelegationDag} with the {@code fuse_dual_viable} setting threaded through. */
-    private QueryDAG buildTwoFieldDelegationDag(
-        RexNode condition,
-        RecordingConvertor dfConvertor,
-        RecordingSerializer serializer,
-        boolean fuseDualViable
-    ) {
         return buildDelegationDag(
             condition,
             dfConvertor,
@@ -753,8 +723,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
                 Map.of("type", "keyword", "index", true),
                 "amount",
                 Map.of("type", "integer", "index", false)
-            ),
-            fuseDualViable
+            )
         );
     }
 
@@ -764,12 +733,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
      * Mirrors prod Lucene's {@code STANDARD_TYPES = {KEYWORD, TEXT, MATCH_ONLY_TEXT}} —
      * EQUALS-on-int is NOT a Lucene cap in prod even when the field has BKD points.
      */
-    private QueryDAG buildKeywordPlusNativeDag(
-        RexNode condition,
-        RecordingConvertor dfConvertor,
-        RecordingSerializer serializer,
-        boolean fuseDualViable
-    ) {
+    private QueryDAG buildKeywordPlusNativeDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
         return buildDelegationDag(
             condition,
             dfConvertor,
@@ -783,8 +747,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
                 Map.of("type", "keyword", "index", true),
                 "amount",
                 Map.of("type", "integer", "index", false)
-            ),
-            fuseDualViable
+            )
         );
     }
 
@@ -992,7 +955,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
         // Should produce 1 combined DelegatedExpression (not 2 individual ones)
@@ -1052,7 +1015,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
         // OR siblings targeting same backend should be combined into 1 DelegatedExpression
@@ -1113,7 +1076,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
         assertEquals("Pure Lucene nested OR(AND,leaf) should produce 1 expression", 1, plan.delegatedExpressions().size());
@@ -1165,7 +1128,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
         assertEquals("OR(AND,AND) pure Lucene should produce 1 expression", 1, plan.delegatedExpressions().size());
@@ -1218,7 +1181,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
         assertEquals("AND(OR(AND,leaf),leaf) pure Lucene should produce 1 expression", 1, plan.delegatedExpressions().size());
@@ -1283,7 +1246,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
         // All 4 Lucene predicates combined into 1, native amount=200 stays separate
@@ -1374,7 +1337,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
         return new CombiningResult(plan, dfConvertor, serializer);
     }
@@ -1561,127 +1524,83 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertTrue("AND structure should be preserved", strippedPlan.contains("AND"));
     }
 
-    // ---- fuse_dual_viable cluster setting ----
+    // ---- Dual-viable leaves stay performance-based by default ----
 
     /**
-     * Two performance-delegated leaves plus a correctness-delegated one under OR, with the
-     * {@code analytics.delegation.fuse_dual_viable} cluster setting governing how the perf
-     * leaves are emitted.
+     * Dual AND Dual: both leaves stay performance-based. The two same-backend perf leaves fuse into
+     * one shipped expression; the plan carries delegation_possible (DataFusion prunes natively +
+     * opportunistic peer consult) and NO delegated_predicate (nothing shipped wholesale to the peer).
      *
-     * <ul>
-     *   <li>{@code fuse=false} — combiner's OR/NOT carve-out throws each performance-delegated
-     *       leaf back individually: each becomes its own {@code delegation_possible} marker in
-     *       the driver plan AND its own entry in {@code delegatedExpressions}. So 3 leaves →
-     *       3 expressions and 2 separate {@code delegation_possible} markers (one per perf
-     *       leaf), the correctness one converts via the combine path.</li>
-     *   <li>{@code fuse=true} — combiner aggregates both perf leaves into a single perf
-     *       bucket and the correctness leaf into one correctness bucket. The perf bucket
-     *       emits ONE {@code delegation_possible} marker wrapping the combined perf subtree.
-     *       Total: 2 delegated expressions, 1 {@code delegation_possible}, 1
-     *       {@code delegated_predicate}.</li>
-     * </ul>
-     *
-     * <p>Setup: {@code status} is index=true (indexed integer) and {@code message} is keyword
-     * indexed — EQUALS on both is dual-viable (performance-delegation candidate). FUZZY on
-     * message is correctness-delegated to Lucene. Two distinct fields are used so Calcite's
-     * SEARCH/Sarg rewrite doesn't fold the two EQUALS into a single sargable predicate.
+     * <p>Regression guard for the perf-demotion bug: previously every dual-viable leaf was demoted to
+     * correctness-based delegation and shipped wholesale to Lucene — even under a plain AND where
+     * nothing forces it — so DataFusion never evaluated it. A demoted result here would show a bare
+     * delegated_predicate and zero delegation_possible.
      */
-    public void testOrPerformanceLeavesAndCorrectness_fuseDualViable_explicitFalse() {
-        var ctx = buildFuseTestSetup();
-        QueryDAG dag = buildKeywordFuseDag(ctx.condition, ctx.dfConvertor, ctx.serializer, /* fuseDualViable */ false);
-        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-
-        assertEquals("fuse=false: 3 delegated expressions (2 perf leaves + 1 correctness)", 3, plan.delegatedExpressions().size());
-        String strippedPlan = RelOptUtil.toString(ctx.dfConvertor.shardScanFragment);
-        // Two separate delegation_possible markers — one per individually thrown-back perf leaf.
-        assertEquals(
-            "fuse=false: 2 separate delegation_possible markers in plan",
-            2,
-            countOccurrences(strippedPlan, "delegation_possible")
+    public void testAndTwoDual_defaultsToPerformanceDelegation() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        // tag, message both keyword(indexed) → dual-viable for EQUALS; amount int(not indexed) = native.
+        RexNode tagEq = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
+            rexBuilder.makeLiteral("alpha")
         );
-        assertTrue("OR structure preserved", strippedPlan.contains("OR"));
+        RexNode msgEq = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 1),
+            rexBuilder.makeLiteral("hello")
+        );
+        QueryDAG dag = buildKeywordPlusNativeDag(makeAnd(tagEq, msgEq), dfConvertor, serializer);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        String stripped = RelOptUtil.toString(dfConvertor.shardScanFragment);
+
+        assertTrue(
+            "Dual AND Dual must stay performance-based (delegation_possible present). Plan: " + stripped,
+            stripped.contains(DelegationPossibleFunction.NAME)
+        );
+        assertFalse(
+            "Dual AND Dual must NOT be demoted to correctness (no delegated_predicate). Plan: " + stripped,
+            stripped.contains(DelegatedPredicateFunction.NAME)
+        );
     }
 
-    public void testOrPerformanceLeavesAndCorrectness_fuseDualViable_explicitTrue() {
+    // ---- OR with mixed correctness + performance delegation ----
+
+    /**
+     * {@code OR(perf-tag, perf-message, FUZZY-correctness)} — two dual-viable leaves plus a
+     * correctness-delegated leaf, all same-backend, under OR. Performance delegation can't survive
+     * a disjunction, and a correctness sibling is present, so the combiner fuses the entire OR into
+     * ONE {@code delegated_predicate} shipped to the peer: 1 delegated expression, 1
+     * delegated_predicate marker, 0 delegation_possible markers.
+     */
+    public void testOrPerformanceLeavesAndCorrectness_fusesToOneDelegated() {
         var ctx = buildFuseTestSetup();
-        QueryDAG dag = buildKeywordFuseDag(ctx.condition, ctx.dfConvertor, ctx.serializer, /* fuseDualViable */ true);
+        QueryDAG dag = buildKeywordFuseDag(ctx.condition, ctx.dfConvertor, ctx.serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
-        // Under OR with mixed correctness+perf children, the driver can't decompose the boolean
-        // (delegation_possible only composes under AND). Combiner fuses ALL delegated children
-        // into a single delegated_predicate placeholder — peer evaluates the whole OR.
-        // Post-combiner shape: delegated_predicate(...) — one bare collector at top.
-        assertEquals(
-            "fuse=true under OR: 1 delegated expression (correctness + perf fused into one peer subtree)",
-            1,
-            plan.delegatedExpressions().size()
-        );
         String strippedPlan = RelOptUtil.toString(ctx.dfConvertor.shardScanFragment);
-        // No delegation_possible markers — OR with mixed kinds collapses to a single
-        // correctness-style placeholder so the data-node classifier sees a bare Collector
-        // (CONJUNCTIVE → SingleCollector evaluator), not OR(delegated, delegation_possible).
+        assertEquals("1 delegated expression (whole OR ships as one peer subtree)", 1, plan.delegatedExpressions().size());
         assertEquals(
-            "fuse=true under OR with correctness sibling: 0 delegation_possible markers",
+            "0 delegation_possible markers — performance delegation doesn't compose under OR",
             0,
             countOccurrences(strippedPlan, "delegation_possible")
         );
-        assertEquals(
-            "fuse=true: exactly 1 delegated_predicate marker at the top of the post-combiner tree",
-            1,
-            countOccurrences(strippedPlan, "delegated_predicate")
-        );
+        assertEquals("exactly 1 delegated_predicate marker at top", 1, countOccurrences(strippedPlan, "delegated_predicate"));
     }
 
     /**
-     * Randomized: picks {@code fuse} at random, asserts the discriminating invariant —
-     * perf-leaf count in the AST changes with the setting. Surfaces non-obvious combiner
-     * regressions across both branches over many test runs.
-     */
-    public void testOrPerformanceLeavesAndCorrectness_fuseDualViable_randomized() {
-        boolean fuse = randomBoolean();
-        var ctx = buildFuseTestSetup();
-        QueryDAG dag = buildKeywordFuseDag(ctx.condition, ctx.dfConvertor, ctx.serializer, fuse);
-        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-
-        String strippedPlan = RelOptUtil.toString(ctx.dfConvertor.shardScanFragment);
-        int delegationPossibleMarkers = countOccurrences(strippedPlan, "delegation_possible");
-        int delegatedPredicateMarkers = countOccurrences(strippedPlan, "delegated_predicate");
-        if (fuse) {
-            // Under OR with mixed correctness+perf, fuse=true collapses the entire boolean to
-            // ONE delegated_predicate (peer evaluates whole OR). No delegation_possible because
-            // the driver can't decompose OR into independently-evaluable arms.
-            assertEquals("fuse=true: 0 delegation_possible markers (OR with correctness sibling fuses all)", 0, delegationPossibleMarkers);
-            assertEquals("fuse=true: 1 delegated_predicate marker at top of post-combiner tree", 1, delegatedPredicateMarkers);
-            assertEquals(
-                "fuse=true: 1 delegated expression (correctness + perf fused into one peer subtree)",
-                1,
-                plan.delegatedExpressions().size()
-            );
-        } else {
-            assertEquals("fuse=false: perf leaves carved out individually → 2 delegation_possible markers", 2, delegationPossibleMarkers);
-            assertEquals("fuse=false: 3 delegated expressions (2 perf leaves + correctness)", 3, plan.delegatedExpressions().size());
-        }
-    }
-
-    /**
-     * Regression: the exact prod bug shape — 2-leaf {@code OR(MATCH-correctness, EQUALS-perf)}.
-     * Pre-fix, the combiner Mixed branch emitted
-     * {@code OR(delegated_predicate(matchId), delegation_possible(EQUALS, eqId))}; the data-node
-     * Java deriver returned CONJUNCTIVE, the Rust classifier override forced SingleCollector,
-     * and {@code single_collector_id} on the OR top returned None — the residual extraction
-     * fell into the OR-passthrough arm and evaluated as {@code true} for every row, returning
-     * 100% match instead of the actual count (observed end-to-end on the ClickBench dataset:
-     * fuse=true returned 99,997,497 = total docs, fuse=false returned 28,313,573).
+     * Regression for the prod "all-docs" disjunction bug — 2-leaf {@code OR(MATCH-correctness,
+     * EQUALS-perf)}. Previously the combiner emitted {@code OR(delegated_predicate(matchId),
+     * delegation_possible(EQUALS, eqId))} while the tree-shape deriver labelled it CONJUNCTIVE; the
+     * data node trusted the label, forced the single-collector path onto a tree containing an OR,
+     * failed to apply the filter, and returned every row (ClickBench: 99,997,497 vs. the correct
+     * 28,313,573).
      *
-     * <p>Post-fix the combiner under OR/NOT with mixed correctness+perf same-backend children
-     * collapses both into one {@code delegated_predicate} placeholder. Post-combiner shape is a
-     * bare delegated leaf — Rust's {@code is_and_only_collector_tree} accepts it, and the
-     * SingleCollector evaluator routes the whole BoolQuery to Lucene.
-     *
-     * <p>This test pins the post-combiner shape: under fuse=true, exactly 1 delegated_predicate
-     * marker, zero delegation_possible markers, exactly 1 DelegatedExpression entry.
+     * <p>Now the combiner collapses an OR/NOT with a same-backend correctness sibling into one
+     * {@code delegated_predicate} — a bare delegated leaf the data node routes wholesale to Lucene.
+     * Pins: exactly 1 delegated_predicate marker, zero delegation_possible markers, 1 expression.
      */
-    public void testOrCorrectnessPlusPerf_twoLeaves_fuseDualViable_collapsesToOneDelegated() {
+    public void testOrCorrectnessPlusPerf_twoLeaves_collapsesToOneDelegated() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
         RecordingSerializer serializer = new RecordingSerializer();
         // OR(MATCH(message,'hello') correctness-delegated, EQUALS(tag='alpha') perf-delegated)
@@ -1694,52 +1613,44 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
                 rexBuilder.makeLiteral("alpha")
             )
         );
-        QueryDAG dag = buildKeywordFuseDag(condition, dfConvertor, serializer, /* fuseDualViable */ true);
+        QueryDAG dag = buildKeywordFuseDag(condition, dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
 
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         assertEquals(
-            "fuse=true 2-leaf OR(correctness, perf): 1 delegated expression (whole OR ships as one peer subtree)",
+            "2-leaf OR(correctness, perf): 1 delegated expression (whole OR ships as one peer subtree)",
             1,
             plan.delegatedExpressions().size()
         );
         assertEquals(
-            "fuse=true 2-leaf OR(correctness, perf): 0 delegation_possible markers — "
-                + "delegation_possible doesn't compose with disjunction",
+            "2-leaf OR(correctness, perf): 0 delegation_possible markers — doesn't compose under disjunction",
             0,
             countOccurrences(strippedPlan, "delegation_possible")
         );
         assertEquals(
-            "fuse=true 2-leaf OR(correctness, perf): exactly 1 delegated_predicate marker at top",
+            "2-leaf OR(correctness, perf): exactly 1 delegated_predicate marker at top",
             1,
             countOccurrences(strippedPlan, "delegated_predicate")
         );
     }
 
     /**
-     * Combiner shape matrix across AND/OR/NOT × fuse modes × native sibling presence.
-     * Each row pins the post-combiner shape via three counters:
+     * Combiner shape matrix across AND/OR/NOT × native-sibling presence. Each row pins the
+     * post-combiner shape via three counters:
      * <ol>
-     *   <li>number of {@code DelegatedExpression} entries the data node receives,</li>
-     *   <li>number of {@code delegated_predicate(annotationId)} markers in the rebuilt
-     *       RexCall (peer evaluates these subtrees end-to-end),</li>
-     *   <li>number of {@code delegation_possible(original, annotationId)} markers (driver
-     *       evaluates the wrapped predicate natively, peer consulted opportunistically).</li>
+     *   <li>{@code DelegatedExpression} entries the data node receives,</li>
+     *   <li>{@code delegated_predicate(id)} markers (peer evaluates these end-to-end),</li>
+     *   <li>{@code delegation_possible(original, id)} markers (driver evaluates natively, peer
+     *       consulted opportunistically).</li>
      * </ol>
      *
-     * <p>fuse=true contract: dual-viable leaves classify as correctness everywhere, so
-     * {@code delegation_possible} never appears under fuse=true. Cross-bucket merging
-     * (correctness + dual-viable in the same boolean) collapses to a single
-     * {@code delegated_predicate} regardless of native siblings.
-     *
-     * <p>fuse=false contract: dual-viable leaves stay as performance-delegated under AND
-     * (one {@code delegation_possible} per leaf) but get carved back to native individually
-     * under OR/NOT. Native-only siblings stay native at the top of the rebuilt boolean.
+     * <p>Rule: a dual-viable leaf is performance-delegated under AND (one delegation_possible per
+     * leaf); under OR/NOT it's reclassified to correctness, fusing with any same-backend correctness
+     * siblings into one delegated_predicate. Native-only siblings stay native at the top.
      *
      * <p>Field setup (from {@code buildKeywordPlusNativeDag}, prod-Lucene-shaped):
-     * tag:keyword(index=true) and message:keyword(index=true) → both dual-viable for EQUALS
-     * (perf-delegated to Lucene); message also handles MATCH/FUZZY (Lucene-correctness);
-     * amount:int(index=false) → no Lucene format, native-only.
+     * tag/message:keyword(index=true) → dual-viable for EQUALS; message also handles MATCH/FUZZY
+     * (Lucene-correctness); amount:int(index=false) → native-only.
      */
     public void testCombinerShapeMatrix_andOrNot_withAndWithoutNativeSibling() {
         // ── shapes ──────────────────────────────────────────────────────────
@@ -1762,64 +1673,68 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         // amount has index=false → no Lucene format → native-only.
         RexNode nativeArm = makeEquals(2, SqlTypeName.INTEGER, 42);
 
-        // (label, condition, fuse=false expectation, fuse=true expectation)
+        // (label, condition, expectation) — expectation = {delegatedExpressions,
+        // delegated_predicate markers, delegation_possible markers}. Single expectation per shape:
+        // delegation is now decided purely by tree position.
+        //
+        // Rules: a dual-viable (perf) leaf stays performance-delegated (delegation_possible) under
+        // AND. Under OR/NOT it cannot stay perf (perf delegation is AND-only in the data node), so
+        // it's reclassified to correctness and ships to the peer, fusing with same-backend siblings.
         Object[][] cases = {
-            // ── AND: dual-viable stays as delegation_possible per-leaf under fuse=false ──
-            { "AND(MATCH, EQUALS-perf)", makeAnd(match, eqPerf), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
-            { "AND(MATCH, EQUALS-perf, native)", makeAnd(match, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
-            { "AND(MATCH, native)", makeAnd(match, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+            // ── AND: perf stays perf (delegation_possible per perf leaf) ──
+            { "AND(MATCH, EQUALS-perf)", makeAnd(match, eqPerf), new int[] { 2, 1, 1 } },
+            { "AND(MATCH, EQUALS-perf, native)", makeAnd(match, eqPerf, nativeArm), new int[] { 2, 1, 1 } },
+            { "AND(MATCH, native)", makeAnd(match, nativeArm), new int[] { 1, 1, 0 } },
 
-            // ── OR: dual-viable carves back to native under fuse=false ─────────
-            { "OR(MATCH, FUZZY)", or(match, fuzzy), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
-            { "OR(EQUALS-perf, EQUALS-perf2)", or(eqPerf, eqPerf2), new int[] { 2, 0, 2 }, new int[] { 1, 1, 0 } },
-            { "OR(EQUALS-perf, EQUALS-perf2, native)", or(eqPerf, eqPerf2, nativeArm), new int[] { 2, 0, 2 }, new int[] { 1, 1, 0 } },
-            { "OR(MATCH, EQUALS-perf)", or(match, eqPerf), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
-            { "OR(MATCH, EQUALS-perf, native)", or(match, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
-            { "OR(MATCH, FUZZY, native)", or(match, fuzzy, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
-            { "OR(MATCH, native)", or(match, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
+            // ── OR perf-only: perf reclassified to correctness, fused into one peer shipment ──
+            { "OR(EQUALS-perf, EQUALS-perf2)", or(eqPerf, eqPerf2), new int[] { 1, 1, 0 } },
+            { "OR(EQUALS-perf, EQUALS-perf2, native)", or(eqPerf, eqPerf2, nativeArm), new int[] { 1, 1, 0 } },
+
+            // ── OR/NOT with a same-backend correctness sibling: perf fuses into it → 1 delegated_predicate ──
+            { "OR(MATCH, FUZZY)", or(match, fuzzy), new int[] { 1, 1, 0 } },
+            { "OR(MATCH, EQUALS-perf)", or(match, eqPerf), new int[] { 1, 1, 0 } },
+            { "OR(MATCH, EQUALS-perf, native)", or(match, eqPerf, nativeArm), new int[] { 1, 1, 0 } },
+            { "OR(MATCH, FUZZY, native)", or(match, fuzzy, nativeArm), new int[] { 1, 1, 0 } },
+            { "OR(MATCH, native)", or(match, nativeArm), new int[] { 1, 1, 0 } },
 
             // ── NOT shapes (Calcite folds NOT(=) → ≠ pre-combiner, so no perf survives there) ──
-            { "NOT(MATCH)", rexBuilder.makeCall(SqlStdOperatorTable.NOT, match), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
-            { "NOT(EQUALS-perf)", rexBuilder.makeCall(SqlStdOperatorTable.NOT, eqPerf), new int[] { 0, 0, 0 }, new int[] { 0, 0, 0 } },
+            { "NOT(MATCH)", rexBuilder.makeCall(SqlStdOperatorTable.NOT, match), new int[] { 1, 1, 0 } },
+            { "NOT(EQUALS-perf)", rexBuilder.makeCall(SqlStdOperatorTable.NOT, eqPerf), new int[] { 0, 0, 0 } },
 
-            // ── NOT inside boolean — the prod-bug shape from the OR-fuse fix ───
-            { "OR(NOT(MATCH), EQUALS-perf)", or(notMatch, eqPerf), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
-            { "OR(NOT(MATCH), EQUALS-perf, native)", or(notMatch, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
-            { "AND(NOT(MATCH), EQUALS-perf, native)", makeAnd(notMatch, eqPerf, nativeArm), new int[] { 2, 1, 1 }, new int[] { 1, 1, 0 } },
-            { "OR(NOT(MATCH), native)", or(notMatch, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } },
-            { "AND(NOT(MATCH), native)", makeAnd(notMatch, nativeArm), new int[] { 1, 1, 0 }, new int[] { 1, 1, 0 } }, };
+            // ── NOT inside boolean — the prod-bug shape from the OR-disjunction fix ───
+            { "OR(NOT(MATCH), EQUALS-perf)", or(notMatch, eqPerf), new int[] { 1, 1, 0 } },
+            { "OR(NOT(MATCH), EQUALS-perf, native)", or(notMatch, eqPerf, nativeArm), new int[] { 1, 1, 0 } },
+            { "AND(NOT(MATCH), EQUALS-perf, native)", makeAnd(notMatch, eqPerf, nativeArm), new int[] { 2, 1, 1 } },
+            { "OR(NOT(MATCH), native)", or(notMatch, nativeArm), new int[] { 1, 1, 0 } },
+            { "AND(NOT(MATCH), native)", makeAnd(notMatch, nativeArm), new int[] { 1, 1, 0 } }, };
 
         for (Object[] testCase : cases) {
             String label = (String) testCase[0];
             RexNode condition = (RexNode) testCase[1];
-            int[] expectedFalse = (int[]) testCase[2];
-            int[] expectedTrue = (int[]) testCase[3];
-            assertCombinerShape(label, condition, false, expectedFalse[0], expectedFalse[1], expectedFalse[2]);
-            assertCombinerShape(label, condition, true, expectedTrue[0], expectedTrue[1], expectedTrue[2]);
+            int[] expected = (int[]) testCase[2];
+            assertCombinerShape(label, condition, expected[0], expected[1], expected[2]);
         }
     }
 
     private void assertCombinerShape(
         String label,
         RexNode condition,
-        boolean fuse,
         int expDelegatedExprs,
         int expDelegatedPredicate,
         int expDelegationPossible
     ) {
         RecordingConvertor c = new RecordingConvertor();
-        QueryDAG d = buildKeywordPlusNativeDag(condition, c, new RecordingSerializer(), fuse);
+        QueryDAG d = buildKeywordPlusNativeDag(condition, c, new RecordingSerializer());
         StagePlan p = leafStage(d).getPlanAlternatives().getFirst();
         String stripped = RelOptUtil.toString(c.shardScanFragment);
-        String prefix = label + " fuse=" + fuse;
-        assertEquals(prefix + " — delegatedExpressions (plan: " + stripped + ")", expDelegatedExprs, p.delegatedExpressions().size());
+        assertEquals(label + " — delegatedExpressions (plan: " + stripped + ")", expDelegatedExprs, p.delegatedExpressions().size());
         assertEquals(
-            prefix + " — delegated_predicate markers (plan: " + stripped + ")",
+            label + " — delegated_predicate markers (plan: " + stripped + ")",
             expDelegatedPredicate,
             countOccurrences(stripped, "delegated_predicate")
         );
         assertEquals(
-            prefix + " — delegation_possible markers (plan: " + stripped + ")",
+            label + " — delegation_possible markers (plan: " + stripped + ")",
             expDelegationPossible,
             countOccurrences(stripped, "delegation_possible")
         );
@@ -1856,22 +1771,16 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     private record FuseTestSetup(RecordingConvertor dfConvertor, RecordingSerializer serializer, RexNode condition) {
     }
 
-    /** Two-keyword-field delegation helper for the fuse tests. Both fields are dual-viable;
-     *  no integer field is involved, so this stays consistent with prod Lucene caps. */
-    private QueryDAG buildKeywordFuseDag(
-        RexNode condition,
-        RecordingConvertor dfConvertor,
-        RecordingSerializer serializer,
-        boolean fuseDualViable
-    ) {
+    /** Two-keyword-field delegation helper. Both fields are dual-viable; no integer field is
+     *  involved, so this stays consistent with prod Lucene caps. */
+    private QueryDAG buildKeywordFuseDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
         return buildDelegationDag(
             condition,
             dfConvertor,
             serializer,
             new String[] { "tag", "message" },
             new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.VARCHAR },
-            Map.of("tag", Map.of("type", "keyword", "index", true), "message", Map.of("type", "keyword", "index", true)),
-            fuseDualViable
+            Map.of("tag", Map.of("type", "keyword", "index", true), "message", Map.of("type", "keyword", "index", true))
         );
     }
 
@@ -1929,7 +1838,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false)
+            () -> FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry())
         );
         assertTrue(exception.getMessage().contains("No DelegatedPredicateSerializer"));
     }
@@ -1973,7 +1882,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
         // Only MATCH_PHRASE delegated; EQUALS stays native (no serializer)
         assertEquals("Only serializable predicates delegated", 1, plan.delegatedExpressions().size());
@@ -2020,7 +1929,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode cboOutput = runPlanner(filter, context);
         QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
         // Correctness and performance delegated stay separate — 2 DelegatedExpressions
         assertEquals("Correctness and performance delegated stay separate", 2, plan.delegatedExpressions().size());
@@ -2106,8 +2015,9 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     }
 
     /**
-     * match(Title,'ru') OR Referer='google' AND URL='US' AND GoodEvent=1
-     * Under OR, perf-delegated stays native (resolved via applyFn).
+     * match(Title,'ru') OR (Referer='google' AND URL='US' AND GoodEvent=1)
+     * Under OR the Referer/URL perf leaves ship to Lucene (reclassified to correctness), so the plan
+     * carries delegated_predicate but no delegation_possible. GoodEvent is native.
      */
     public void testOrCorrectnessWithPerfAndNative() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
@@ -2139,12 +2049,11 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             )
         );
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        // match is correctness-delegated (1 expression), perf under AND already combined (1 expression)
         assertEquals(2, plan.delegatedExpressions().size());
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         LOGGER.info("Plan (OR correctness with perf+native):\n{}", strippedPlan);
-        assertTrue("Should have delegated_predicate for match", strippedPlan.contains(DelegatedPredicateFunction.NAME));
-        assertTrue("Should have delegation_possible for perf", strippedPlan.contains(DelegationPossibleFunction.NAME));
+        assertTrue("Should have delegated_predicate", strippedPlan.contains(DelegatedPredicateFunction.NAME));
+        assertFalse("perf ships to Lucene under OR — no delegation_possible", strippedPlan.contains(DelegationPossibleFunction.NAME));
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, treeShapeOf(plan));
     }
 
@@ -2183,7 +2092,10 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         LOGGER.info("Plan (AND correctness OR perf + native):\n{}", strippedPlan);
         assertTrue("Should have delegated_predicate", strippedPlan.contains(DelegatedPredicateFunction.NAME));
-        assertTrue("Should have delegation_possible", strippedPlan.contains(DelegationPossibleFunction.NAME));
+        assertFalse(
+            "perf can't survive under OR — must not have delegation_possible",
+            strippedPlan.contains(DelegationPossibleFunction.NAME)
+        );
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, treeShapeOf(plan));
     }
 

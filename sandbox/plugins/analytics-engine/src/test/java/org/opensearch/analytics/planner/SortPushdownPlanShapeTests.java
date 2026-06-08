@@ -37,6 +37,79 @@ public class SortPushdownPlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    /** A collation-free LIMIT — PPL {@code head N} / SQL {@code LIMIT N} with no {@code ORDER BY}. */
+    private RelNode bareLimit(RelNode input, int fetch) {
+        return LogicalSort.create(
+            input,
+            RelCollations.EMPTY,
+            null,
+            rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+    }
+
+    /**
+     * Bare {@code head N} (no ORDER BY): a collation-free fetch must still be pushed below the ER so
+     * each shard caps locally at N rows. Without this, every shard streams its <em>entire</em> scan to
+     * the coordinator, which then trims to N — fetching every row defeats the limit. A limit without an
+     * order is always safe to push: the coordinator's N-row result is a subset of the union of each
+     * shard's N-row result, regardless of which rows each shard keeps.
+     */
+    public void testBareLimit_2shard_pushed() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode result = runPlanner(bareLimit(scan, 10), multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                    OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /** Bare LIMIT, single shard: no ER to push below — coordinator keeps the only Sort. */
+    public void testBareLimit_singleShard_notPushed() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode result = runPlanner(bareLimit(scan, 10), singleShardContext());
+        assertEquals(1, RelOptUtil.toString(result).lines().filter(l -> l.contains("OpenSearchSort")).count());
+    }
+
+    /** Bare LIMIT with OFFSET: shard fetch widens to offset+fetch, offset stays on the coordinator. */
+    public void testBareLimitOffset_2shard_widenedFetch() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = LogicalSort.create(
+            scan,
+            RelCollations.EMPTY,
+            rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        String p = RelOptUtil.toString(runPlanner(plan, multiShardContext()));
+        assertEquals("coord + shard Sort", 2, p.lines().filter(l -> l.contains("OpenSearchSort")).count());
+        assertTrue("coordinator keeps offset=5", p.contains("offset=[5]"));
+        int erIdx = p.indexOf("ExchangeReducer");
+        int widenedIdx = p.indexOf("fetch=[15]");
+        assertTrue("shard Sort widened to offset+fetch=15 below ER", erIdx >= 0 && widenedIdx > erIdx);
+        assertFalse("shard Sort must not carry an offset", p.substring(widenedIdx).contains("offset="));
+    }
+
+    /** Bare LIMIT over UNION ALL: the collation-free fetch is pushed below each arm's ER. */
+    public void testBareLimitUnionAll_2shard_pushedIntoBothArms() {
+        RelNode union = LogicalUnion.create(
+            List.of(stubScan(mockTable("test_index", "status", "size")), stubScan(mockTable("test_index", "status", "size"))),
+            true
+        );
+        String p = RelOptUtil.toString(runPlanner(bareLimit(union, 10), unionContext("test_index", 2)));
+        assertEquals("coordinator + one Sort per arm, plan:\n" + p, 3, p.lines().filter(l -> l.contains("OpenSearchSort")).count());
+        assertEquals("one ER per arm, plan:\n" + p, 2, p.lines().filter(l -> l.contains("ExchangeReducer")).count());
+        String[] lines = p.split("\n", -1);
+        for (int i = 0; i + 1 < lines.length; i++) {
+            if (lines[i].contains("ExchangeReducer")) {
+                assertTrue("a Sort must be pushed below each arm ER, plan:\n" + p, lines[i + 1].contains("OpenSearchSort"));
+            }
+        }
+    }
+
     /** SQL shape: single Sort(collation, fetch) → identical Sort pushed below ER.
      *  (A LateMaterialization node wraps the top for scans with stored fields — incidental.) */
     public void testSqlSortLimit_2shard_pushed() {

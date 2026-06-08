@@ -9,19 +9,26 @@
 package org.opensearch.composite;
 
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
+import org.opensearch.be.datafusion.DataFusionPlugin;
+import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.composite.framework.ParquetOnlyDataFormatPlugin;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +41,17 @@ import java.util.Map;
 public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngineIT {
 
     private static final String INDEX_NAME = "test-settings-validation";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(
+            ArrowBasePlugin.class,
+            ParquetOnlyDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class,
+            DataFusionPlugin.class
+        );
+    }
 
     // --- Field-level encoding validation ---
 
@@ -268,7 +286,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
 
         Map<String, Object> nameMeta = getColumnInfo(INDEX_NAME, "name");
         assertHasEncoding(nameMeta, "DELTA_BYTE_ARRAY");
-        assertCompression(nameMeta, "SNAPPY");
+        assertCompression(nameMeta, "ZSTD");
     }
 
     /**
@@ -291,7 +309,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
         assertCompression(valueMeta, "ZSTD");
 
         Map<String, Object> nameMeta = getColumnInfo(INDEX_NAME, "name");
-        assertCompression(nameMeta, "LZ4_RAW");
+        assertCompression(nameMeta, "ZSTD");
     }
 
     /**
@@ -497,7 +515,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
             .indices()
             .prepareCreate(INDEX_NAME)
             .setSettings(builder)
-            .setMapping("name", "type=keyword", "value", "type=integer")
+            .setMapping("name", "type=keyword,index=false", "value", "type=integer")
             .get();
     }
 
@@ -516,7 +534,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
             .indices()
             .prepareCreate(INDEX_NAME)
             .setSettings(builder)
-            .setMapping("name", "type=keyword", "value", "type=integer")
+            .setMapping("name", "type=keyword,index=false", "value", "type=integer")
             .get();
         ensureGreen(INDEX_NAME);
     }

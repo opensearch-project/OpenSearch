@@ -8,9 +8,13 @@
 
 package org.opensearch.analytics.exec.join;
 
+import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.dag.ExchangeInfo;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
@@ -18,6 +22,10 @@ import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
+import java.util.Set;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link HashShuffleDispatch}'s plan-mutation steps. The end-to-end dispatch
@@ -51,7 +59,8 @@ public class HashShuffleDispatchTests extends OpenSearchTestCase {
             /* consumerStageId */ 9,
             /* partitionCount */ 3,
             List.of("node-0", "node-1", "node-2"),
-            "left"
+            "left",
+            shuffleCapableRegistry("df")
         );
 
         List<StagePlan> enriched = producer.getPlanAlternatives();
@@ -126,5 +135,19 @@ public class HashShuffleDispatchTests extends OpenSearchTestCase {
 
     private static Stage newProducerStage(int stageId, int partitionCount, List<Integer> hashKeys) {
         return new Stage(stageId, null, List.of(), ExchangeInfo.hashDistributed(hashKeys, partitionCount), null, null);
+    }
+
+    /** A registry whose named backend declares DataTransferCapability(PRODUCER), so its plan
+     *  alternatives survive enrichProducerAlternatives' shuffle-capability filter. */
+    private static CapabilityRegistry shuffleCapableRegistry(String backendName) {
+        BackendCapabilityProvider caps = mock(BackendCapabilityProvider.class);
+        when(caps.dataTransferCapabilities()).thenReturn(
+            Set.of(new DataTransferCapability(DataTransferCapability.Kind.PRODUCER, "arrow-ipc-partitioned"))
+        );
+        AnalyticsSearchBackendPlugin backend = mock(AnalyticsSearchBackendPlugin.class);
+        when(backend.getCapabilityProvider()).thenReturn(caps);
+        CapabilityRegistry registry = mock(CapabilityRegistry.class);
+        when(registry.getBackend(backendName)).thenReturn(backend);
+        return registry;
     }
 }

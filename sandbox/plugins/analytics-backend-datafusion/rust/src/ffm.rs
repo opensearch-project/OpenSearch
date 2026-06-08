@@ -287,6 +287,7 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
     col_names_len_ptr: *const i64,
     col_names_count: i64,
     runtime_ptr: i64,
+    context_id: i64,
 ) -> i64 {
     // Hard FFM-boundary checks (UB risk if violated): pointers must be non-zero before any deref.
     // Always-on `assert!` (not debug_assert!) — these protect against use-after-close from Java.
@@ -329,6 +330,7 @@ pub unsafe extern "C" fn df_fetch_by_row_ids(
             &mgr,
             row_ids,
             columns,
+            context_id,
         ))
         .map_err(|e| e.to_string())
 }
@@ -350,6 +352,37 @@ pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
     api::stream_close(stream_ptr);
+}
+
+/// Returns execution metrics as JSON bytes for the given stream.
+/// Writes the pointer to allocated bytes into `out_ptr` and the length into `out_len_ptr`.
+/// Returns 0 on success, non-zero if no metrics are available.
+/// The caller must free the returned bytes via `df_free_metrics_buf`.
+#[no_mangle]
+pub unsafe extern "C" fn df_stream_get_metrics(stream_ptr: i64, out_ptr: *mut *const u8, out_len_ptr: *mut i64) -> i64 {
+    if stream_ptr == 0 {
+        return -1;
+    }
+    let handle = &*(stream_ptr as *const api::QueryStreamHandle);
+    match handle.get_metrics_json() {
+        Some(bytes) => {
+            let len = bytes.len() as i64;
+            let boxed = bytes.into_boxed_slice();
+            let ptr = Box::into_raw(boxed) as *const u8;
+            *out_ptr = ptr;
+            *out_len_ptr = len;
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Frees a metrics buffer previously returned by `df_stream_get_metrics`.
+#[no_mangle]
+pub unsafe extern "C" fn df_free_metrics_buf(ptr: *mut u8, len: i64) {
+    if !ptr.is_null() && len > 0 {
+        let _ = Box::from_raw(std::slice::from_raw_parts_mut(ptr, len as usize));
+    }
 }
 
 #[no_mangle]

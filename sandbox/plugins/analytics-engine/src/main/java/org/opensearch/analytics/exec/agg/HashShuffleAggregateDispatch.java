@@ -18,6 +18,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
@@ -112,14 +113,20 @@ public final class HashShuffleAggregateDispatch {
             consumer,
             producer,
             targetWorkerNodeIds,
-            capabilityRegistry,
-            org.opensearch.analytics.AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE.get(clusterService.getSettings())
+            capabilityRegistry
         );
         Stage workerStage = rewritten.worker();
 
         int expectedSenders = expectedSendersFor(producer);
 
-        enrichProducerAlternatives(producer, ctx.queryId(), workerStage.getStageId(), partitionCount, targetWorkerNodeIds);
+        enrichProducerAlternatives(
+            producer,
+            ctx.queryId(),
+            workerStage.getStageId(),
+            partitionCount,
+            targetWorkerNodeIds,
+            capabilityRegistry
+        );
         enrichWorkerAlternatives(workerStage, partitionCount, expectedSenders, ctx.queryId(), producer.getStageId());
 
         LOGGER.debug(
@@ -169,16 +176,35 @@ public final class HashShuffleAggregateDispatch {
         String queryId,
         int consumerStageId,
         int partitionCount,
-        List<String> targetWorkerNodeIds
+        List<String> targetWorkerNodeIds,
+        CapabilityRegistry registry
     ) {
         List<Integer> hashKeys = producerStage.getExchangeInfo().partitionKeyIndices();
         List<StagePlan> enriched = new ArrayList<>(producerStage.getPlanAlternatives().size());
         for (StagePlan sp : producerStage.getPlanAlternatives()) {
+            // Drop scan-only alternatives (e.g. Lucene under prefer_metadata_driver on a keyword
+            // key): only a backend declaring DataTransferCapability(PRODUCER) can run
+            // SHUFFLE_PRODUCER. See HashShuffleDispatch.enrichProducerAlternatives.
+            boolean canProduce = registry.getBackend(sp.backendId())
+                .getCapabilityProvider()
+                .dataTransferCapabilities()
+                .stream()
+                .anyMatch(cap -> cap.kind() == DataTransferCapability.Kind.PRODUCER);
+            if (canProduce == false) {
+                continue;
+            }
             List<InstructionNode> existing = sp.instructions();
             List<InstructionNode> merged = new ArrayList<>(existing.size() + 1);
             merged.addAll(existing);
             merged.add(new ShuffleProducerInstructionNode(hashKeys, partitionCount, targetWorkerNodeIds, queryId, consumerStageId, "left"));
             enriched.add(sp.withInstructions(merged));
+        }
+        if (enriched.isEmpty()) {
+            throw new IllegalStateException(
+                "No shuffle-producer-capable plan alternative on aggregate producer stage "
+                    + producerStage.getStageId()
+                    + "; none of its backends declare DataTransferCapability(PRODUCER)."
+            );
         }
         producerStage.setPlanAlternatives(enriched);
     }

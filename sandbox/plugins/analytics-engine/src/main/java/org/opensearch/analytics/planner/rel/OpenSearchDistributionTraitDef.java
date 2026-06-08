@@ -230,13 +230,18 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
                         + toTrait
                 );
             }
+            // A shuffle producer must serialize + ship hash partitions, which only a backend that
+            // declares DataTransferCapability(PRODUCER) can do. Prune scan-only backends (e.g.
+            // Lucene, kept viable for a keyword scan under prefer_metadata_driver) so the producer
+            // never lands on a driver that throws SHUFFLE_PRODUCER UOE at execution.
+            List<String> shuffleViable = CapabilityResolutionUtils.filterByShuffleProducerCapability(registry, viableBackends);
             result = new OpenSearchShuffleExchange(
                 rel.getCluster(),
                 rel.getTraitSet().replace(toTrait),
                 rel,
                 toTrait.getKeys(),
                 toTrait.getPartitionCount(),
-                viableBackends
+                shuffleViable
             );
         } else if (toTrait.getType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
             // Broadcast demand: the build side gets replicated to every probe node. The split

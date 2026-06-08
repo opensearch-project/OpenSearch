@@ -10,11 +10,13 @@
 
 use std::sync::Arc;
 
-use datafusion::physical_expr::Partitioning;
+use datafusion::physical_expr::{Partitioning, PhysicalExpr};
 use datafusion::physical_optimizer::combine_partial_final_agg::CombinePartialFinalAggregate;
 use datafusion::physical_optimizer::optimizer::{PhysicalOptimizer, PhysicalOptimizerRule};
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
+use datafusion::physical_plan::expressions::Column;
+use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::physical_plan::repartition::RepartitionExec;
 use datafusion::physical_plan::streaming::StreamingTableExec;
 use datafusion::physical_plan::ExecutionPlan;
@@ -53,6 +55,12 @@ pub(crate) fn apply_aggregate_mode(
     }
 }
 
+/// Returns the output schema of the Partial aggregate without rebuilding the plan tree.
+/// Used by `derive_schema_from_partial_plan` where we only need types, not an executable plan.
+pub(crate) fn partial_aggregate_schema(plan: &Arc<dyn ExecutionPlan>) -> Option<arrow::datatypes::SchemaRef> {
+    find_partial_input(Arc::clone(plan)).map(|p| p.schema())
+}
+
 /// Walks the plan tree and strips the half that doesn't match `target`.
 ///
 /// `AggregateMode::Final` matches both `Final` (single-partition merge) and
@@ -65,6 +73,10 @@ fn force_aggregate_mode(
     target: AggregateMode,
 ) -> Result<Arc<dyn ExecutionPlan>> {
     if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+        // Treat `FinalPartitioned` as `Final` (see mode_matches_target): DataFusion picks
+        // `FinalPartitioned` for grouped aggregates that consume hash-partitioned input and
+        // `Final` for scalar / un-partitioned ones. Both are the FINAL half of the Partial/Final
+        // pair we strip.
         if mode_matches_target(*agg.mode(), target) {
             // Keep this node, recurse into children
             let new_children: Vec<Arc<dyn ExecutionPlan>> = agg
@@ -92,21 +104,26 @@ fn force_aggregate_mode(
             }
             _ => Ok(plan),
         }
-    } else if plan.as_any().downcast_ref::<RepartitionExec>().is_some()
-        || plan
-            .as_any()
-            .downcast_ref::<CoalescePartitionsExec>()
-            .is_some()
-    {
-        // Transparent — recurse through
-        let new_children: Vec<Arc<dyn ExecutionPlan>> = plan
-            .children()
-            .into_iter()
-            .map(|c| force_aggregate_mode(Arc::clone(c), target))
-            .collect::<Result<_>>()?;
-        plan.with_new_children(new_children)
+    } else if plan.children().len() == 1 {
+        // Single-input wrapper — recurse transparently.
+        let old_child = Arc::clone(plan.children()[0]);
+        let new_child = force_aggregate_mode(old_child.clone(), target)?;
+
+        // DataFusion's ProjectionMapping::try_new asserts col.name() == input_schema.field(i).name();
+        // with_new_children triggers it. Remap columns to the post-strip schema so it passes.
+        if let Some(proj) = plan.as_any().downcast_ref::<ProjectionExec>() {
+            if old_child.schema() != new_child.schema() {
+                let new_schema = &new_child.schema();
+                let remapped: Vec<(Arc<dyn PhysicalExpr>, String)> = proj.expr().iter()
+                    .map(|pe| (remap_column(pe.expr.clone(), new_schema), pe.alias.clone()))
+                    .collect();
+                return Ok(Arc::new(ProjectionExec::try_new(remapped, new_child)?));
+            }
+        }
+
+        plan.with_new_children(vec![new_child])
     } else {
-        // Leaf or unrelated node — return as-is
+        // Leaf or multi-input node — return as-is
         Ok(plan)
     }
 }
@@ -157,7 +174,8 @@ fn strip_redundant_shuffle_repartition(
     plan.with_new_children(new_children)
 }
 
-/// Walks down through RepartitionExec/CoalescePartitionsExec to find an
+/// Walks down through any single-input wrapper (RelabelExec / RepartitionExec /
+/// CoalescePartitionsExec / ProjectionExec / etc.) to find an
 /// AggregateExec(Partial) and returns the entire Partial subtree (the
 /// AggregateExec node itself, not just its input).
 fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionPlan>> {
@@ -165,21 +183,29 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
         if *agg.mode() == AggregateMode::Partial {
             return Some(plan);
         }
-        return None;
+        // Non-Partial aggregate (Final/FinalPartitioned) — look into its input for Partial
+        return find_partial_input(Arc::clone(agg.input()));
     }
-    if plan.as_any().downcast_ref::<RepartitionExec>().is_some()
-        || plan
-            .as_any()
-            .downcast_ref::<CoalescePartitionsExec>()
-            .is_some()
-    {
-        let children = plan.children();
-        if children.len() == 1 {
-            return find_partial_input(Arc::clone(children[0]));
-        }
+    let children = plan.children();
+    if children.len() == 1 {
+        return find_partial_input(Arc::clone(children[0]));
     }
     None
 }
+
+
+/// Updates Column expression names to match the given schema (by index). Recurses into children.
+fn remap_column(expr: Arc<dyn PhysicalExpr>, schema: &arrow::datatypes::SchemaRef) -> Arc<dyn PhysicalExpr> {
+    if let Some(col) = expr.as_any().downcast_ref::<Column>() {
+        return Arc::new(Column::new(schema.field(col.index()).name(), col.index()));
+    }
+    let children = expr.children();
+    if children.is_empty() { return expr; }
+    let new_children: Vec<_> = children.into_iter().map(|c| remap_column(c.clone(), schema)).collect();
+    let fallback = expr.clone();
+    expr.with_new_children(new_children).unwrap_or(fallback)
+}
+
 
 #[cfg(test)]
 mod tests {

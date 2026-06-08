@@ -80,6 +80,61 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    /**
+     * Two aggregates with a global window between them (PPL: {@code stats count() by k | eval
+     * w = sum(..) over () | stats ...}). The split rule must treat each aggregate independently:
+     * the LOWER aggregate scans partitioned shard data → splits PARTIAL/FINAL; the UPPER aggregate
+     * sits above the window's gather → stays SINGLE (childGatheredByWindow stops the walk before it
+     * would reach the lower split's exchange). Proves the window-skip is per-aggregate, not global.
+     */
+    public void testAggregateWindowAggregate_2shard_onlyLowerSplits() {
+        RelNode lowerAgg = makeAggregate(stubScan(mockTable("test_index", "status", "size")), countStarCall());
+        RelNode windowed = projectWithSumOverEmpty(lowerAgg);
+        RelNode plan = makeAggregate(windowed, countStarCall(windowed));
+        RelNode result = runPlanner(plan, multiShardContext());
+        // Upper aggregate stays SINGLE (its input is gathered by the window); lower aggregate splits
+        // PARTIAL/FINAL over the partitioned scan. The window's SINGLETON demand is already met by the
+        // lower FINAL's coordinator output, so no extra exchange is inserted below the window.
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                        OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Window, then an intermediate {@code where}, then {@code stats} (PPL:
+     * {@code eventstats sum(x) as w | where w > 0 | stats count() by k}). The Filter between the
+     * window Project and the aggregate forces the {@code childGatheredByWindow} walk to take a
+     * {@code getInput(0)} hop — which in Volcano is a RelSubset, not a concrete rel. The walk must
+     * resolve the subset (getBestOrOriginal) to still find the window below the Filter; otherwise the
+     * aggregate would split PARTIAL/FINAL redundantly over already-gathered rows. Asserts the
+     * aggregate stays SINGLE.
+     */
+    public void testAggregateAfterWindowBehindFilter_2shard_staysSingle() {
+        RelNode windowed = projectWithSumOverEmpty();
+        // where s > 0 — s is the window output at column index 2.
+        RelNode filter = makeFilter(windowed, makeEquals(2, SqlTypeName.BIGINT, 0));
+        RelNode plan = makeAggregate(filter, countStarCall(filter));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[mock-parquet], =($2, 0))], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
     public void testSumOverEmpty_2shard() {
         RelNode plan = projectWithSumOverEmpty();
         assertPlanShape("""
@@ -652,6 +707,10 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                 StubTableScan(table=[[test_index]])
             """, plan);
         RelNode result = runPlanner(plan, multiShardContext());
+        // The window's global frame (SUM OVER ()) forces a gather (ER) directly below the Project, so
+        // the aggregate's input is already on one node. The split rule detects the window-induced
+        // gather (childGatheredByWindow) and keeps the aggregate SINGLE — no redundant PARTIAL/FINAL
+        // pass over already-gathered rows.
         assertPlanShape(
             """
                 OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
