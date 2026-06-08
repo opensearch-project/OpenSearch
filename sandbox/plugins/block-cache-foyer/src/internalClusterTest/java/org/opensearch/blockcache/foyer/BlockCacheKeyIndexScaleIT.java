@@ -21,6 +21,7 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequ
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
@@ -120,7 +121,9 @@ public class BlockCacheKeyIndexScaleIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("[scale-01] restarting warm node '{}'", getWarmNodeName());
         internalCluster().restartNode(getWarmNodeName());
-        ensureGreen();
+        // Use an extended timeout: after restart, 25 REMOTE_SNAPSHOT shards (5 indices × 5 shards)
+        // must re-open before the cluster goes GREEN. The default 60s is insufficient under load.
+        ensureGreen(TimeValue.timeValueSeconds(120));
 
         Path cacheDir = findFoyerCacheDir();
         assertNotNull("foyer-block-cache directory must exist on warm node after restart", cacheDir);
@@ -185,7 +188,8 @@ public class BlockCacheKeyIndexScaleIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("[scale-04] restarting warm node to trigger key_index recovery");
         internalCluster().restartNode(getWarmNodeName());
-        ensureGreen();
+        // Extended timeout: 25 REMOTE_SNAPSHOT shards must re-open after warm node restart.
+        ensureGreen(TimeValue.timeValueSeconds(120));
 
         Path cacheDir = findFoyerCacheDir();
         assertNotNull("foyer-block-cache directory must exist after restart", cacheDir);

@@ -23,6 +23,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -66,7 +67,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             int numDocs = randomIntBetween(5, 20);
@@ -108,7 +110,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -146,7 +149,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
@@ -167,7 +171,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             assertThat(writer.generation(), equalTo(gen));
@@ -195,7 +200,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             LuceneDocumentInput input = new LuceneDocumentInput();
@@ -230,7 +236,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             LuceneDocumentInput input = new LuceneDocumentInput();
@@ -265,7 +272,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             LuceneDocumentInput input = new LuceneDocumentInput();
@@ -288,7 +296,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             int numDocs = randomIntBetween(5, 15);
@@ -326,7 +335,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {
@@ -387,7 +397,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         LuceneWriter writer2 = new LuceneWriter(
             gen2,
@@ -397,7 +408,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
             null,
             Codec.getDefault(),
             null,
-            ConcurrentHashMap.newKeySet()
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
         );
         try {
             for (int i = 0; i < numDocs1; i++) {
@@ -458,7 +470,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             Optional<Writer<?>> result = writer.getWriterForFormat("lucene");
@@ -479,7 +492,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             Optional<Writer<?>> parquetResult = writer.getWriterForFormat("parquet");
@@ -522,7 +536,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 indexSort,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             MappedFieldType textField = mockTextField("content");
@@ -570,7 +585,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                     null,
                     Codec.getDefault(),
                     sort,
-                    ConcurrentHashMap.newKeySet()
+                    ConcurrentHashMap.newKeySet(),
+                    new LuceneShardStatsTracker()
                 )
             ) {
                 MappedFieldType textField = mockTextField("content");
@@ -602,7 +618,8 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
                 null,
                 Codec.getDefault(),
                 null,
-                ConcurrentHashMap.newKeySet()
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
             )
         ) {
             LuceneDocumentInput input = new LuceneDocumentInput();
@@ -620,7 +637,17 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
     public void testGetHeapBytesUsedZeroAfterCloseWithoutFlush() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("content");
-        LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, ConcurrentHashMap.newKeySet());
+        LuceneWriter writer = new LuceneWriter(
+            1L,
+            0L,
+            dataFormat,
+            baseDir,
+            null,
+            Codec.getDefault(),
+            null,
+            ConcurrentHashMap.newKeySet(),
+            new LuceneShardStatsTracker()
+        );
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.addField(textField, "hello world");
         input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
