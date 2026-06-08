@@ -116,6 +116,13 @@ public class PluginPropertiesExtension {
         this.versionRange = versionRange;
     }
 
+    public String getOpenSearchCompatibility(String opensearchVersion) {
+        if (versionRange == null || versionRange.isBlank()) {
+            return "opensearch.version=" + opensearchVersion;
+        }
+        return "dependencies={ opensearch: \"" + versionRange + "\" }";
+    }
+
     public String getDescription() {
         return description;
     }
