@@ -162,20 +162,14 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         List<IntermediateField> intermediateFields = FinalAggCallBuilder.classify(aggregate.getAggCallList());
 
         // Build FINAL's aggCalls against gathered's row type so typeMatchesInferred passes.
-        int groupCount = aggregate.getGroupSet().cardinality();
         List<AggregateCall> finalAggCalls = FinalAggCallBuilder.buildFinalCalls(
             aggregate.getAggCallList(),
             intermediateFields,
-            groupCount,
+            aggregate.getGroupSet().cardinality(),
             gathered,
             aggregate.getGroupSet().isEmpty()
         );
 
-        // The original groupSet is passed through; the OpenSearchAggregate constructor fronts it to
-        // the prefix range for mode==FINAL, because PARTIAL has already moved the group keys to the
-        // front (Calcite contract) and FINAL reads that gathered output. See
-        // OpenSearchAggregate#frontGroupSetForFinal — this keeps the FINAL key-fronting invariant in
-        // one place rather than at every FINAL construction site.
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             finalTraits,
