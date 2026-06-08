@@ -44,27 +44,28 @@ public class FinalAggregateInstructionHandler implements FragmentInstructionHand
         ExchangeSinkContext ctx = (ExchangeSinkContext) commonContext;
 
         DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());
-        List<DatafusionPartitionSender> senders = new ArrayList<>(ctx.childInputs().size());
+        List<DatafusionPartitionSender[]> senders = new ArrayList<>(ctx.childInputs().size());
         List<Schema> inputSchemas = new ArrayList<>(ctx.childInputs().size());
         try {
             for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
-                String inputId = "input-" + child.childStageId();
-                NativeBridge.RegisteredInput registered = NativeBridge.registerPartitionStream(
+                NativeBridge.RegisteredInputMulti registered = NativeBridge.registerPartitionStream(
                     session.getPointer(),
-                    inputId,
-                    child.producerPlanBytes()
+                    "input-" + child.childStageId(),
+                    child.producerPlanBytes(),
+                    child.numInputPartitions()
                 );
-                senders.add(new DatafusionPartitionSender(registered.pointer()));
+                senders.add(DatafusionPartitionSender.wrap(registered.pointers()));
                 inputSchemas.add(ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
             }
             NativeBridge.prepareFinalPlan(session.getPointer(), ctx.fragmentBytes());
         } catch (RuntimeException e) {
-            for (DatafusionPartitionSender sender : senders) {
-                try {
-                    sender.close();
-                } catch (Exception ignored) {}
+            // Reuse the state's close() shape so the cleanup path stays in lockstep with
+            // the happy-path lifecycle (close all sender lanes, then session).
+            try {
+                new DataFusionReduceState(session, runtimeHandle, senders, inputSchemas).close();
+            } catch (Exception cleanupFailure) {
+                e.addSuppressed(cleanupFailure);
             }
-            session.close();
             throw e;
         }
         return new DataFusionReduceState(session, runtimeHandle, senders, inputSchemas);

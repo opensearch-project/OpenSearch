@@ -167,6 +167,14 @@ pub extern "C" fn df_set_reduce_target_partitions(value: i64) {
     api::set_reduce_target_partitions(value);
 }
 
+/// Sets the cluster-dynamic per-channel mpsc capacity for coordinator-reduce
+/// streaming partition inputs. `0` means "use the Rust default" (4); any
+/// positive value sets an explicit capacity. Negative values are clamped to 0.
+#[no_mangle]
+pub extern "C" fn df_set_reduce_partition_stream_capacity(value: i64) {
+    api::set_reduce_partition_stream_capacity(value);
+}
+
 /// Sets memory guard thresholds. Values are thresholds multiplied by 1000
 /// (e.g., 700 = 0.70, 850 = 0.85, 950 = 0.95).
 #[no_mangle]
@@ -559,11 +567,12 @@ pub unsafe extern "C" fn df_destroy_custom_cache_manager(ptr: i64) {
     }
 }
 
-/// Registers a streaming partition input on the session. Schema is derived by
-/// lowering the producer-side substrait `partial_plan_bytes`; the resulting
-/// IPC-encoded schema is written into the caller-allocated `out_ptr/out_cap`
-/// buffer with the byte count written through `out_len`. Returns the sender
-/// pointer (negated error pointer on failure).
+/// Registers a `num_partitions`-partition streaming input. Schema is derived by
+/// lowering `partial_plan_bytes` and IPC-encoded into `out_ptr/out_cap/out_len`.
+/// Sender pointers are written into the caller-allocated `out_senders[num_partitions]`.
+/// `capacity = 0` uses the default; positive values set per-channel mpsc bound.
+/// Returns the first sender pointer (back-compat for single-partition callers);
+/// negated error pointer on failure.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_register_partition_stream(
@@ -575,14 +584,40 @@ pub unsafe extern "C" fn df_register_partition_stream(
     out_ptr: *mut u8,
     out_cap: i64,
     out_len: *mut i64,
+    out_senders: *mut i64,
+    num_partitions: i64,
+    capacity: i64,
 ) -> i64 {
     let input_id = str_from_raw(input_id_ptr, input_id_len)
         .map_err(|e| format!("df_register_partition_stream: input_id: {}", e))?;
+    if num_partitions <= 0 {
+        return Err(format!(
+            "df_register_partition_stream: num_partitions must be > 0, got {}",
+            num_partitions
+        ));
+    }
+    if capacity < 0 {
+        return Err(format!(
+            "df_register_partition_stream: capacity must be >= 0 (0 = default), got {}",
+            capacity
+        ));
+    }
+    if out_senders.is_null() {
+        return Err(
+            "df_register_partition_stream: out_senders must not be null".to_string(),
+        );
+    }
+    let cap_arg = if capacity == 0 { None } else { Some(capacity as usize) };
     let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
-    let (sender_ptr, schema_ipc) =
-        api::register_partition_stream(session_ptr, input_id, partial_plan).map_err(|e| e.to_string())?;
+    let (sender_ptrs, schema_ipc) =
+        api::register_partition_stream(session_ptr, input_id, partial_plan, num_partitions as usize, cap_arg)
+            .map_err(|e| e.to_string())?;
+    debug_assert_eq!(sender_ptrs.len(), num_partitions as usize);
     write_out_buffer(&schema_ipc, out_ptr, out_cap, out_len, "register_partition_stream schema IPC")?;
-    Ok(sender_ptr)
+    // Write sender pointers into the caller-allocated array.
+    std::ptr::copy_nonoverlapping(sender_ptrs.as_ptr(), out_senders, sender_ptrs.len());
+    // Return first pointer for backwards compatibility with single-partition callers.
+    Ok(*sender_ptrs.first().expect("at least one sender"))
 }
 
 #[ffm_safe]

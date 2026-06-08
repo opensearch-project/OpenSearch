@@ -50,10 +50,21 @@ public record ExchangeSinkContext(String queryId, int stageId, long taskId, byte
     ChildInput> childInputs, ExchangeSink downstream) implements CommonExecutionContext {
 
     /**
-     * Per-child input descriptor: the child stage id and the producer-side plan bytes the
-     * backend lowers when it registers the child's input partition. The actual Arrow schema
-     * is learned at registration time, not declared here.
+     * Per-child input descriptor. {@code numInputPartitions} is the lane count to
+     * register on this child's input (typically the resolved producer-task count after
+     * the planner's lane policy applies). Schema is learned at registration time, not
+     * declared here. Must be {@code >= 1}; the two-arg constructor defaults to 1.
      */
-    public record ChildInput(int childStageId, byte[] producerPlanBytes) {
+    public record ChildInput(int childStageId, byte[] producerPlanBytes, int numInputPartitions) {
+
+        public ChildInput(int childStageId, byte[] producerPlanBytes) {
+            this(childStageId, producerPlanBytes, 1);
+        }
+
+        public ChildInput {
+            if (numInputPartitions < 1) {
+                throw new IllegalArgumentException("numInputPartitions must be >= 1, got " + numInputPartitions);
+            }
+        }
     }
 }

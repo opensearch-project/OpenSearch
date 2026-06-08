@@ -15,28 +15,31 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Backend-specific execution context for the coordinator-reduce path when a final-aggregate
- * plan has been prepared. Carries the local session (with the prepared plan stored on the
- * Rust side), the runtime handle, the partition senders used to feed Arrow batches into the
- * streaming input partitions, and the schemas the native session settled on for each input
- * (parallel to {@code senders}; same order as {@code ctx.childInputs()}).
- *
- * <p>Produced by {@link FinalAggregateInstructionHandler} and consumed by
- * {@link DatafusionReduceSink} via the {@link org.opensearch.analytics.spi.ExchangeSinkProvider}
- * contract.
+ * Backend-specific execution context carrying a prepared final-aggregate plan: the
+ * local session, runtime handle, per-input sender lanes (one array per child input,
+ * each lane = one {@code StreamingTable} partition), and the per-input schemas the
+ * native session settled on. Produced by {@link FinalAggregateInstructionHandler},
+ * consumed by {@link DatafusionReduceSink}.
  *
  * @opensearch.internal
  */
 public record DataFusionReduceState(DatafusionLocalSession session, NativeRuntimeHandle runtimeHandle, List<
-    DatafusionPartitionSender> senders, List<Schema> inputSchemas) implements BackendExecutionContext {
+    DatafusionPartitionSender[]> senders, List<Schema> inputSchemas) implements BackendExecutionContext {
+
+    /** Returns the parallel sender lanes for input position {@code idx} in {@link #senders}. */
+    public DatafusionPartitionSender[] sendersForInput(int idx) {
+        return senders.get(idx);
+    }
 
     @Override
     public void close() throws IOException {
-        // Close senders first, then session.
-        for (DatafusionPartitionSender sender : senders) {
-            try {
-                sender.close();
-            } catch (Exception ignored) {}
+        // Close all sender lanes for every input first, then session.
+        for (DatafusionPartitionSender[] lanes : senders) {
+            for (DatafusionPartitionSender sender : lanes) {
+                try {
+                    sender.close();
+                } catch (Exception ignored) {}
+            }
         }
         session.close();
     }

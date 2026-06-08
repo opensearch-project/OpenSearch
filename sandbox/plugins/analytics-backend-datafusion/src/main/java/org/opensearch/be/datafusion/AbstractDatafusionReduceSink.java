@@ -61,6 +61,9 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
     /** Per-child producer plan bytes (childStageId → bytes), iteration order = ctx.childInputs(). */
     protected final Map<Integer, byte[]> childInputs;
 
+    /** Per-child lane count (childStageId → number of native partition lanes to register). */
+    protected final Map<Integer, Integer> childInputPartitions;
+
     /** Per-child declared schema, populated lazily from native registration replies. */
     protected final Map<Integer, Schema> childSchemas;
 
@@ -84,10 +87,13 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
         this.preparedState = preparedState;
         this.session = preparedState != null ? preparedState.session() : new DatafusionLocalSession(runtimeHandle.get());
         Map<Integer, byte[]> inputs = new LinkedHashMap<>(ctx.childInputs().size());
+        Map<Integer, Integer> partitions = new LinkedHashMap<>(ctx.childInputs().size());
         for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
             inputs.put(child.childStageId(), child.producerPlanBytes());
+            partitions.put(child.childStageId(), child.numInputPartitions());
         }
         this.childInputs = inputs;
+        this.childInputPartitions = partitions;
         this.childSchemas = new LinkedHashMap<>(ctx.childInputs().size());
     }
 

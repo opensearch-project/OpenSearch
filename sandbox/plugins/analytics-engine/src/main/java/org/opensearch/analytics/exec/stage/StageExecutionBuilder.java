@@ -60,7 +60,7 @@ public class StageExecutionBuilder {
     public StageExecutionBuilder(ClusterService clusterService, AnalyticsSearchTransportService dispatcher) {
         this.factories = new HashMap<>();
         registerFactory(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageExecutionFactory(clusterService, dispatcher));
-        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new ReduceStageExecutionFactory());
+        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new ReduceStageExecutionFactory(clusterService));
         registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, config, sink));
         registerFactory(StageExecutionType.LOCAL_COMPUTE, new LocalComputeStageExecutionFactory());
         // QTF (late-materialization) Scatter-Gather. Skeleton today —

@@ -189,6 +189,21 @@ public final class NativeCall implements AutoCloseable {
         return arena.allocate(ValueLayout.JAVA_LONG);
     }
 
+    /**
+     * Allocate an out-array for {@code n} longs (zero-initialised). Native code writes
+     * the array contents; read back with {@code seg.toArray(ValueLayout.JAVA_LONG)}.
+     */
+    public MemorySegment longArrayOut(int n) {
+        ensureOpen();
+        if (n < 0) {
+            throw new IllegalArgumentException("n must be >= 0, got " + n);
+        }
+        if (n == 0) {
+            return arena.allocate(0);
+        }
+        return arena.allocate(ValueLayout.JAVA_LONG, n);
+    }
+
     /** Allocate a byte buffer of the given size. */
     public MemorySegment buf(int size) {
         ensureOpen();

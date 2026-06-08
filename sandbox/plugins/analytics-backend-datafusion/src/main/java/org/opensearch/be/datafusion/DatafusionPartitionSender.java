@@ -42,6 +42,15 @@ public final class DatafusionPartitionSender extends NativeHandle {
         super(senderPtr);
     }
 
+    /** Wraps an array of native sender pointers into typed senders (one per partition lane). */
+    public static DatafusionPartitionSender[] wrap(long[] pointers) {
+        DatafusionPartitionSender[] lanes = new DatafusionPartitionSender[pointers.length];
+        for (int i = 0; i < pointers.length; i++) {
+            lanes[i] = new DatafusionPartitionSender(pointers[i]);
+        }
+        return lanes;
+    }
+
     /**
      * Sends one exported batch. Returns {@code 0} on a normal send or
      * {@link NativeBridge#SENDER_SEND_RECEIVER_DROPPED} if the consumer already dropped the
