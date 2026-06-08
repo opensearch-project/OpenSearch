@@ -185,8 +185,16 @@ testClusters.integTestStreaming {
 
 // ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
 // Use the Gradle build directory so each clean build starts with a fresh empty spill
-// directory and no stale state can leak between runs.
+// directory and no stale state can leak between runs (`./gradlew clean` wipes build/).
 ext.spillItDir = layout.buildDirectory.dir('spill-it').get().asFile.absolutePath
+
+// Create the directory at configuration time, before any task action runs. Cluster start
+// happens in TestClustersPlugin's TaskActionListener.beforeActions, which fires *before*
+// `doFirst` actions — putting the create in `doFirst` would race the cluster boot and
+// (since Security.addFilePermissions fails loudly on a missing spill directory) crash
+// the node immediately. Configuration-phase creation runs once per Gradle invocation,
+// before any task starts, with no possible race.
+java.nio.file.Files.createDirectories(java.nio.file.Paths.get(spillItDir))
 
 task integTestSpillEnabled(type: RestIntegTestTask) {
     description = 'Runs spill-stats IT with spill enabled (datafusion.spill_directory configured)'
@@ -196,17 +204,6 @@ task integTestSpillEnabled(type: RestIntegTestTask) {
         includeTestsMatching 'org.opensearch.analytics.qa.SpillStatsEnabledIT'
     }
     systemProperty 'tests.security.manager', 'false'
-    // The boot-time core security grant requires the spill directory to already exist
-    // (no auto-create — see Security.addFilePermissions). Create it idempotently before
-    // the cluster starts and clear it after the task runs so a subsequent run starts
-    // from a known-clean state.
-    doFirst {
-        delete spillItDir
-        java.nio.file.Files.createDirectories(java.nio.file.Paths.get(spillItDir))
-    }
-    doLast {
-        delete spillItDir
-    }
 }
 check.dependsOn(integTestSpillEnabled)
 
