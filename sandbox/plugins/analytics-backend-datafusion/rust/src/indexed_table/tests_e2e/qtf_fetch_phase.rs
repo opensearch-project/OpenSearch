@@ -62,7 +62,9 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -123,7 +125,10 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true, prune_tree_config: None,
+        emit_row_ids: true,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
