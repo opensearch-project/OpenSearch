@@ -369,7 +369,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.TIMESTAMPDIFF,
         ScalarFunction.TIMESTAMPADD,
         ScalarFunction.DATE_ADD,
-        ScalarFunction.DATE_SUB
+        ScalarFunction.DATE_SUB,
+        // ADDDATE/SUBDATE share the DateAddSubAdapter rewrite (interval form) and additionally
+        // accept INTEGER days, which the adapter rebuilds as INTERVAL n DAY before lowering.
+        ScalarFunction.ADDDATE,
+        ScalarFunction.SUBDATE
     );
 
     /**
@@ -618,6 +622,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 // Stateless adapter shared across the six comparison operators.
                 ComparisonTemporalCoercionAdapter comparisonTemporalCoercion = new ComparisonTemporalCoercionAdapter();
                 return Map.ofEntries(
+                    // ADDDATE/SUBDATE alias DATE_ADD/DATE_SUB but additionally accept INTEGER days;
+                    // shared adapter — see DateAddSubAdapter.
+                    Map.entry(ScalarFunction.ADDDATE, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.SUBDATE, new DateAddSubAdapter(false)),
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
                     Map.entry(ScalarFunction.ARRAY_LENGTH, new IntegerReturnWideningCastAdapter()),

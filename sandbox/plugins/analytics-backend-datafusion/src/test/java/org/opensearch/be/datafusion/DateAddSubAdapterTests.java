@@ -31,7 +31,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Covers {@link DateAddSubAdapter}: TIME base anchors to today UTC before DATETIME_PLUS. */
+/** Covers {@link DateAddSubAdapter}: TIME base anchors to today UTC; integer-days form rebuilds as INTERVAL DAY. */
 public class DateAddSubAdapterTests extends OpenSearchTestCase {
 
     private final RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
@@ -40,6 +40,24 @@ public class DateAddSubAdapterTests extends OpenSearchTestCase {
 
     private static final SqlFunction DATE_ADD_OP = new SqlFunction(
         "DATE_ADD",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TIMESTAMP,
+        null,
+        OperandTypes.VARIADIC,
+        SqlFunctionCategory.TIMEDATE
+    );
+
+    private static final SqlFunction ADDDATE_OP = new SqlFunction(
+        "ADDDATE",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TIMESTAMP,
+        null,
+        OperandTypes.VARIADIC,
+        SqlFunctionCategory.TIMEDATE
+    );
+
+    private static final SqlFunction SUBDATE_OP = new SqlFunction(
+        "SUBDATE",
         SqlKind.OTHER_FUNCTION,
         ReturnTypes.TIMESTAMP,
         null,
@@ -69,5 +87,44 @@ public class DateAddSubAdapterTests extends OpenSearchTestCase {
         assertEquals(SqlKind.CAST, castNode.getKind());
         RexCall concat = (RexCall) castNode.getOperands().get(0);
         assertEquals("||", concat.getOperator().getName());
+    }
+
+    /** ADDDATE(DATE-col, 1) → DATETIME_PLUS(CAST(date AS …), INTERVAL 1 DAY). The integer 1 is rebuilt as a DAY interval. */
+    public void testAddDateIntegerDaysOnDateRebuiltAsIntervalDay() {
+        RelDataType dateType = typeFactory.createSqlType(SqlTypeName.DATE);
+        RexNode dateCol = rexBuilder.makeInputRef(dateType, 0);
+        RexNode oneInt = rexBuilder.makeLiteral(1, typeFactory.createSqlType(SqlTypeName.INTEGER), false);
+        RexCall original = (RexCall) rexBuilder.makeCall(ADDDATE_OP, List.of(dateCol, oneInt));
+
+        RexNode adapted = new DateAddSubAdapter(true).adapt(original, List.of(), cluster);
+
+        RexCall outer = adapted instanceof RexCall && ((RexCall) adapted).getKind() == SqlKind.CAST
+            ? (RexCall) ((RexCall) adapted).getOperands().get(0)
+            : (RexCall) adapted;
+        assertSame(SqlStdOperatorTable.DATETIME_PLUS, outer.getOperator());
+        RexNode shiftedInterval = outer.getOperands().get(1);
+        assertTrue(SqlTypeName.INTERVAL_TYPES.contains(shiftedInterval.getType().getSqlTypeName()));
+        assertEquals(TimeUnit.DAY, shiftedInterval.getType().getIntervalQualifier().getUnit());
+        // INTERVAL DAY values are stored in millis after the unit-rebuild step; +1 day = +86400000.
+        long signed = ((org.apache.calcite.rex.RexLiteral) shiftedInterval).getValueAs(Long.class);
+        assertEquals(86_400_000L, signed);
+    }
+
+    /** SUBDATE(TIMESTAMP-col, 5) → DATETIME_PLUS(ts, INTERVAL -5 DAY). Sign folded for SUB. */
+    public void testSubDateIntegerDaysFoldsSign() {
+        RelDataType tsType = typeFactory.createSqlType(SqlTypeName.TIMESTAMP);
+        RexNode tsCol = rexBuilder.makeInputRef(tsType, 0);
+        RexNode fiveInt = rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), false);
+        RexCall original = (RexCall) rexBuilder.makeCall(SUBDATE_OP, List.of(tsCol, fiveInt));
+
+        RexNode adapted = new DateAddSubAdapter(false).adapt(original, List.of(), cluster);
+
+        RexCall outer = adapted instanceof RexCall && ((RexCall) adapted).getKind() == SqlKind.CAST
+            ? (RexCall) ((RexCall) adapted).getOperands().get(0)
+            : (RexCall) adapted;
+        assertSame(SqlStdOperatorTable.DATETIME_PLUS, outer.getOperator());
+        long signed = ((org.apache.calcite.rex.RexLiteral) outer.getOperands().get(1)).getValueAs(Long.class);
+        // 5 days in millis, negated for SUB.
+        assertEquals(-5L * 86_400_000L, signed);
     }
 }

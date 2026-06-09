@@ -285,6 +285,10 @@ public enum ScalarFunction {
      * analytics-backend-datafusion adapter.
      */
     DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code ADDDATE(base, INTERVAL n unit)} / {@code ADDDATE(base, days)} — alias of {@link #DATE_ADD} with integer-days overload. */
+    ADDDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code SUBDATE(base, INTERVAL n unit)} / {@code SUBDATE(base, days)} — alias of {@link #DATE_SUB} with integer-days overload. */
+    SUBDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UTC_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UTC_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UTC_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
