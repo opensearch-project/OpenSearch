@@ -48,7 +48,7 @@ jobs:
       - name: Set Cargo build jobs
         run: echo "CARGO_BUILD_JOBS=$(nproc)" >> $GITHUB_ENV
       - name: Run sandbox check
-        run: ./gradlew check -p sandbox -Dsandbox.enabled=true -PrustDebug
+        run: ./gradlew check -p sandbox -Dsandbox.enabled=true -PrustDebug --no-build-cache
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
