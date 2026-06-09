@@ -43,6 +43,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ runner.os }}-cargo-${{ hashFiles('sandbox/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - name: Set Cargo build jobs
         run: echo "CARGO_BUILD_JOBS=$(nproc)" >> $GITHUB_ENV
       - name: Run sandbox check
