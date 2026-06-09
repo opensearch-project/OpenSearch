@@ -8,30 +8,25 @@
 
 package org.opensearch.analytics.planner.rules;
 
-import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexLiteral;
-import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
 
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
 /**
  * Validates that explicitly-named fields in multi-field text-relevance functions are mapped as
- * {@code text} or {@code keyword}, and extracts literal field names from the MAP operand structure
- * those functions use to encode their field list.
+ * {@code text} or {@code keyword}.
  *
  * <p>Multi-field full-text functions ({@code multi_match}, {@code query_string},
- * {@code simple_query_string}) don't reference their fields through {@link
- * org.apache.calcite.rex.RexInputRef}; instead they encode field names as string literals inside a
- * nested {@code MAP_VALUE_CONSTRUCTOR}. This class extracts those literal field names and rejects
- * any that resolve to a non-text/keyword mapping so users get a precise, actionable planning error
- * (naming the field and its type) instead of a generic "no backend can evaluate" failure later in
- * the pipeline.
+ * {@code simple_query_string}) encode field names as string literals inside a nested
+ * {@code MAP_VALUE_CONSTRUCTOR} rather than through {@link org.apache.calcite.rex.RexInputRef}.
+ * The backend's {@code FieldReferenceExtractor} surfaces those names; this class rejects any that
+ * resolve to a non-text/keyword mapping so users get a precise, actionable planning error (naming
+ * the field and its type) instead of a generic "no backend can evaluate" failure later in the
+ * pipeline.
  *
  * <p>Extracted from {@link OpenSearchFilterRule} to keep that rule focused on predicate annotation
  * and viable-backend computation.
@@ -73,69 +68,12 @@ public final class TextRelevanceFieldValidator {
     /**
      * Returns whether {@code function} encodes its field list as string literals in a nested MAP
      * (i.e. is one of {@code query_string}, {@code simple_query_string}, {@code multi_match}). Only
-     * for these functions should {@link #extractLiteralFieldNames} and {@link
-     * #rejectNonTextFieldsForTextFunction} be applied; other full-text functions either reference
-     * fields via {@code RexInputRef} or carry no explicit field list.
+     * for these functions should {@link #rejectNonTextFieldsForTextFunction} be applied; other
+     * full-text functions either reference fields via {@code RexInputRef} or carry no explicit
+     * field list.
      */
     public static boolean usesLiteralFieldEncoding(ScalarFunction function) {
         return LITERAL_FIELD_TEXT_FUNCTIONS.contains(function);
-    }
-
-    /**
-     * Extracts field names from the literal MAP structure of multi-field full-text RexCalls.
-     *
-     * <p>Multi-field functions like {@code query_string(['severityNumber'], 'severityNumber:>15')}
-     * encode field names as string literals in a nested MAP_VALUE_CONSTRUCTOR rather than as
-     * {@link org.apache.calcite.rex.RexInputRef}. The structure is:
-     * <pre>
-     *   func(
-     *     MAP('fields', MAP('field1':VARCHAR, boost1:DOUBLE, 'field2':VARCHAR, boost2:DOUBLE, ...)),
-     *     MAP('query', '...':VARCHAR)
-     *   )
-     * </pre>
-     * This method walks the call tree to find all string literals that represent field names —
-     * specifically, RexLiteral children at even indices of a nested MAP whose outer key is "fields"
-     * or "field". Returns an empty list if no such names are found (e.g. zero-field functions
-     * like MATCHALL or QUERY without an explicit field list).
-     *
-     * <p>TODO: Push this extraction down into the FullText function definition itself so the operand layout is
-     * owned in one spot and the planner just asks the function for its named fields rather than
-     * re-parsing the RexCall here.
-     */
-    public static List<String> extractLiteralFieldNames(RexCall predicate) {
-        List<String> names = new ArrayList<>();
-        for (RexNode operand : predicate.getOperands()) {
-            if (operand instanceof RexCall outerMap && outerMap.getOperands().size() >= 2) {
-                // Outer MAP: MAP('key', value). Check if the key is "fields" or "field".
-                RexNode keyNode = outerMap.getOperands().get(0);
-                if (!(keyNode instanceof RexLiteral keyLit)) continue;
-                String key = keyLit.getValueAs(String.class);
-                if (!"fields".equals(key) && !"field".equals(key)) continue;
-
-                RexNode valueNode = outerMap.getOperands().get(1);
-                if (valueNode instanceof RexCall nestedMap) {
-                    // Nested MAP with field-name/boost pairs at even/odd indices.
-                    List<RexNode> nestedOperands = nestedMap.getOperands();
-                    // Guard against odd sizes: only read complete (field name at i, boost at i+1) pairs.
-                    for (int i = 0; i + 1 < nestedOperands.size(); i += 2) {
-                        RexNode fieldNode = nestedOperands.get(i);
-                        if (fieldNode instanceof RexLiteral fieldLit) {
-                            String fieldName = fieldLit.getValueAs(String.class);
-                            if (fieldName != null && !fieldName.isEmpty()) {
-                                names.add(fieldName);
-                            }
-                        }
-                    }
-                } else if (valueNode instanceof RexLiteral valueLit) {
-                    // Single-field shape: MAP('field', 'fieldName').
-                    String fieldName = valueLit.getValueAs(String.class);
-                    if (fieldName != null && !fieldName.isEmpty()) {
-                        names.add(fieldName);
-                    }
-                }
-            }
-        }
-        return names;
     }
 
     /**

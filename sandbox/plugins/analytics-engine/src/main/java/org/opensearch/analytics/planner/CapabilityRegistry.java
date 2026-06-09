@@ -14,6 +14,7 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FieldReferenceExtractor;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
@@ -73,6 +74,10 @@ public class CapabilityRegistry {
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
 
+    // Per-function field-reference extractors, aggregated across backends (first declaration wins).
+    // Full-text is Lucene-only today, so a single function -> extractor map suffices.
+    private final Map<ScalarFunction, FieldReferenceExtractor> fieldReferenceExtractors = new HashMap<>();
+
     private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     // Backends that declared any capability for each operator — O(1) membership check
@@ -91,6 +96,10 @@ public class CapabilityRegistry {
             String name = backend.name();
             backendsByName.put(name, backend);
             BackendCapabilityProvider caps = backend.getCapabilityProvider();
+
+            for (Map.Entry<ScalarFunction, FieldReferenceExtractor> entry : caps.fieldReferenceExtractors().entrySet()) {
+                fieldReferenceExtractors.putIfAbsent(entry.getKey(), entry.getValue());
+            }
 
             for (EngineCapability cap : caps.supportedEngineCapabilities()) {
                 operatorIndex.computeIfAbsent(cap, k -> new ArrayList<>()).add(name);
@@ -301,6 +310,16 @@ public class CapabilityRegistry {
 
     public List<String> opaqueBackendsAnyFormat(String name) {
         return allBackends(opaqueIndex.getOrDefault(name, Map.of()));
+    }
+
+    /**
+     * The {@link FieldReferenceExtractor} registered for {@code function}, or {@code null} if no
+     * backend declared one. Used by full-text field-type validation to enumerate the fields a
+     * relevance predicate references (including in-query-string fields). When {@code null}, the
+     * planner falls back to its built-in MAP-literal extraction.
+     */
+    public FieldReferenceExtractor fieldReferenceExtractor(ScalarFunction function) {
+        return fieldReferenceExtractors.get(function);
     }
 
     // ---- Annotation handling ----

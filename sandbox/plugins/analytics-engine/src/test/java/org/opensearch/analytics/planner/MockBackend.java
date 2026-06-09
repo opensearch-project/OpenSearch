@@ -111,6 +111,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
                 return self.delegatedPredicateSerializers();
             }
+
+            @Override
+            public Map<ScalarFunction, org.opensearch.analytics.spi.FieldReferenceExtractor> fieldReferenceExtractors() {
+                return self.fieldReferenceExtractors();
+            }
         };
     }
 
@@ -161,6 +166,10 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
 
     @Override
     public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
+    }
+
+    protected Map<ScalarFunction, org.opensearch.analytics.spi.FieldReferenceExtractor> fieldReferenceExtractors() {
         return Map.of();
     }
 

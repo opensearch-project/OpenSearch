@@ -125,4 +125,15 @@ public interface BackendCapabilityProvider {
     default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
         return Map.of();
     }
+
+    /**
+     * Per-function extractors for the fields a relevance predicate explicitly references, keyed by
+     * {@link ScalarFunction}. The planner consults the matching extractor at planning time to
+     * validate field types for full-text predicates whose fields may live inside the query string
+     * (e.g. {@code query_string}) rather than only in a {@code fields} operand. An empty map means
+     * the planner falls back to its built-in MAP-literal extraction (no behavior change).
+     */
+    default Map<ScalarFunction, FieldReferenceExtractor> fieldReferenceExtractors() {
+        return Map.of();
+    }
 }

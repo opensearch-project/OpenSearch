@@ -26,6 +26,8 @@ import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.FieldReferenceExtractor;
+import org.opensearch.analytics.spi.FieldReferences;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
@@ -172,23 +174,36 @@ public class OpenSearchFilterRule extends RelOptRule {
             // routed to a backend that only declared (QUERY_STRING, TEXT) capability.
             if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
                 if (TextRelevanceFieldValidator.usesLiteralFieldEncoding(function)) {
-                    List<String> literalFieldNames = TextRelevanceFieldValidator.extractLiteralFieldNames(predicate);
+                    // A backend that declares full-text capability for these multi-field functions
+                    // MUST register a FieldReferenceExtractor so the planner can see fields named
+                    // inside the query string (not just the `fields` MAP). Missing extractor is a
+                    // wiring error, not a query error — fail explicitly rather than under-validating.
+                    FieldReferenceExtractor extractor = registry.fieldReferenceExtractor(function);
+                    if (extractor == null) {
+                        throw new IllegalStateException(
+                            "No FieldReferenceExtractor registered for full-text function ["
+                                + predicate.getOperator().getName()
+                                + "]. A backend declaring this function's filter capability must also provide an extractor."
+                        );
+                    }
+                    FieldReferences refs = extractor.referencedFields(predicate, fieldStorageInfos);
+                    List<String> literalFieldNames = refs.literalFields();
+                    boolean lenient = refs.lenient();
                     if (literalFieldNames.isEmpty()) {
-                        // Field-less form, e.g. query_string('category:A') — produced by the PPL
-                        // `search` command (search source=idx category=A) and by query_string calls
-                        // that omit the field list. Here the field references live inside the Lucene
-                        // query-string syntax ('category:A') rather than in a `fields` MAP, so there
-                        // are no literal field names to type-check. Fall back to the TEXT-type
-                        // assumption and let the full-text-capable backend handle it.
-                        // Limitation: non-text fields named in the query string or via wildcard/regex field expansion aren't caught.
+                        // No explicit literal fields to type-check: only patterns and/or default-field
+                        // fan-out, which OpenSearch resolves best-effort at execution. Fall back to the
+                        // TEXT-type assumption and let the full-text-capable backend handle it.
                         return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
                     }
-                    // Eagerly reject text-relevance functions invoked on non-text/non-keyword fields.
-                    TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
-                        predicate.getOperator().getName(),
-                        literalFieldNames,
-                        fieldStorageInfos
-                    );
+                    // Eagerly reject text-relevance functions on non-text/keyword fields, unless the
+                    // caller explicitly set lenient=true (see design decision 3, Option B).
+                    if (lenient == false) {
+                        TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(
+                            predicate.getOperator().getName(),
+                            literalFieldNames,
+                            fieldStorageInfos
+                        );
+                    }
                     Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
                     for (String fieldName : literalFieldNames) {
                         FieldStorageInfo storageInfo = null;

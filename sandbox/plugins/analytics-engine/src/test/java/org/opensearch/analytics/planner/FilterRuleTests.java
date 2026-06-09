@@ -36,6 +36,8 @@ import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
+import org.opensearch.analytics.spi.FieldReferenceExtractor;
+import org.opensearch.analytics.spi.FieldReferences;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.math.BigDecimal;
@@ -364,9 +366,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
      * <p>Note: this fixture's mock DataFusion backend declares scan support only for
      * numeric/keyword/date/boolean types (not {@code text}), and the mock Lucene backend
      * has no value-producing scan capability, so a pure {@code text} field can't be scanned
-     * here at all — the table-scan rule throws before the filter rule runs. The {@code text}
-     * acceptance path is therefore covered directly at the validator level in
-     * {@link #testValidatorAcceptsTextField} rather than end-to-end through the planner.
+     * here at all — the table-scan rule throws before the filter rule runs. This test therefore
+     * exercises the {@code keyword} acceptance path.
      */
     public void testQueryStringOnKeywordFieldIsAccepted() {
         OpenSearchFilter result = runFilterWithDelegation(
@@ -425,42 +426,94 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
     }
 
-    // ---- Direct TextRelevanceFieldValidator unit tests ----
-    // These exercise the validator in isolation, independent of the scan fixture's
-    // type-support limitations (the mock backends here can't scan a pure `text` field).
+    // ---- FieldReferenceExtractor-driven validation (Wave 4) ----
 
-    /** {@code text} and {@code keyword} fields are accepted — no exception thrown. */
-    public void testValidatorAcceptsTextField() {
-        List<FieldStorageInfo> storage = List.of(
-            textStorage("message", "text", FieldType.TEXT),
-            textStorage("status", "keyword", FieldType.KEYWORD),
-            textStorage("title", "match_only_text", FieldType.MATCH_ONLY_TEXT)
-        );
-        // Should not throw for any text/keyword family field.
-        TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction("QUERY_STRING", List.of("message", "status", "title"), storage);
-    }
+    /**
+     * With a backend-registered {@link FieldReferenceExtractor}, a field named only inside the
+     * query string (no {@code fields} MAP) is now validated. The stub reports a literal {@code long}
+     * field with {@code lenient=false}, so the planner rejects it — coverage the old MAP-literal
+     * path missed (field-less queries previously fell back to the TEXT assumption and were accepted).
+     */
+    public void testInStringLiteralNonTextRejectedViaExtractor() {
+        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), false, false);
+        RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
+        RexNode condition = makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "severityNumber:>15");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")), backendsWithExtractor(refs));
 
-    /** A {@code long} field is rejected with a descriptive, actionable message. */
-    public void testValidatorRejectsNonTextField() {
-        List<FieldStorageInfo> storage = List.of(textStorage("severityNumber", "long", FieldType.LONG));
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction("QUERY_STRING", List.of("severityNumber"), storage)
-        );
-        assertTrue(exception.getMessage().contains("QUERY_STRING"));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("severityNumber"));
-        assertTrue(exception.getMessage().contains("long"));
-        assertTrue(exception.getMessage().contains("typed comparison"));
+        assertTrue(exception.getMessage().contains("text and keyword"));
     }
 
-    /** Fields whose storage info is absent (unknown/dynamic columns) are skipped, not rejected. */
-    public void testValidatorSkipsUnknownField() {
-        // No storage entries at all — unknown fields fall through to capability-based matching.
-        TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction("QUERY_STRING", List.of("mysteryField"), List.of());
+    /**
+     * An explicit {@code lenient=true} (reported by the extractor) suppresses the eager type
+     * rejection. The query still fails — no backend supports {@code query_string} on a {@code long}
+     * field — but via the capability-viability path, not the friendly type-rejection. The distinct
+     * error proves the lenient gate skipped {@code rejectNonTextFieldsForTextFunction}.
+     */
+    public void testLenientTrueSuppressesEagerRejectionViaExtractor() {
+        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), false, true);
+        RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
+        RexNode condition = makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "severityNumber:>15");
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        PlannerContext context = buildContext("parquet", Map.of("severityNumber", Map.of("type", "long")), backendsWithExtractor(refs));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        assertTrue(
+            "Should fail via viability, not eager rejection: " + exception.getMessage(),
+            exception.getMessage().contains("No backend can evaluate")
+        );
+        assertFalse(
+            "Eager type-rejection must have been skipped: " + exception.getMessage(),
+            exception.getMessage().contains("text and keyword")
+        );
     }
 
-    private static FieldStorageInfo textStorage(String name, String mappingType, FieldType fieldType) {
-        return new FieldStorageInfo(name, mappingType, fieldType, List.of(), List.of(), List.of(), false);
+    /**
+     * A field named only inside the query string that resolves to a {@code keyword} field is
+     * accepted via the extractor path and routes to the full-text backend — the extractor surfaces
+     * {@code category} as a literal, which the planner type-checks as keyword (valid).
+     */
+    public void testInStringLiteralKeywordAcceptedViaExtractor() {
+        FieldReferences refs = new FieldReferences(List.of("category"), List.of(), false, false);
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("category", Map.of("type", "keyword", "index", true)),
+            new String[] { "category" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "category:A"),
+            backendsWithExtractor(refs),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
+    /**
+     * DataFusion (FILTER delegation) + Lucene (accepts FILTER delegation, registers a stub
+     * {@link FieldReferenceExtractor} for {@code QUERY_STRING} returning {@code refs}).
+     */
+    private List<AnalyticsSearchBackendPlugin> backendsWithExtractor(FieldReferences refs) {
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+        };
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            protected Map<ScalarFunction, FieldReferenceExtractor> fieldReferenceExtractors() {
+                return Map.of(ScalarFunction.QUERY_STRING, (call, fieldStorage) -> refs);
+            }
+        };
+        return List.of(df, lucene);
     }
 
     /**
