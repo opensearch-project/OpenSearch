@@ -54,8 +54,8 @@ final class PackedLongArray extends AbstractPackedArray implements LongArrayValu
         if (v != null) {
             return v[i];
         }
-        ensureBytes();
-        return decodeLongLEAt(bytesOffset + i * Long.BYTES);
+        ResolvedBytes resolved = ensureBytes();
+        return decodeLongLEAt(resolved.bytes, resolved.offset + i * Long.BYTES);
     }
 
     @Override
@@ -63,12 +63,12 @@ final class PackedLongArray extends AbstractPackedArray implements LongArrayValu
         long[] v = cached;
         if (v != null) return v;
 
-        ensureBytes();
+        ResolvedBytes resolved = ensureBytes();
 
         v = new long[dimension];
-        int p = bytesOffset;
+        int p = resolved.offset;
         for (int i = 0; i < dimension; i++) {
-            v[i] = decodeLongLEAt(p);
+            v[i] = decodeLongLEAt(resolved.bytes, p);
             p += Long.BYTES;
         }
 

@@ -22,20 +22,32 @@ import java.util.Objects;
  * being modeled with generics. Java generics would require boxed values such as
  * {@code Integer}, {@code Long}, {@code Float}, and {@code Double}; keeping
  * type-specific accessors avoids that overhead on indexing paths.</p>
+ *
+ * <p>The repeated {@code get(int)} and array materialization loops in subclasses are
+ * deliberate. Extracting them into a generic or callback-based helper would add boxing
+ * or per-element indirection in hot indexing paths.</p>
  */
 abstract class AbstractPackedArray {
 
+    protected static final class ResolvedBytes {
+        final byte[] bytes;
+        final int offset;
+
+        private ResolvedBytes(byte[] bytes, int offset) {
+            this.bytes = bytes;
+            this.offset = offset;
+        }
+    }
+
     protected final int dimension;
-    protected volatile byte[] bytes;
-    protected volatile int bytesOffset;
 
     private final BytesReference packed;
+    private volatile ResolvedBytes resolvedBytes;
 
     AbstractPackedArray(BytesReference packed, int dimension, byte[] bytes, int bytesOffset, int bytesPerElement, String valueType) {
         this.packed = Objects.requireNonNull(packed, "packed must not be null");
         this.dimension = dimension;
-        this.bytes = bytes;
-        this.bytesOffset = bytesOffset;
+        this.resolvedBytes = bytes == null ? null : new ResolvedBytes(bytes, bytesOffset);
         validate(packed.length(), dimension, bytesPerElement, valueType);
     }
 
@@ -56,9 +68,10 @@ abstract class AbstractPackedArray {
         out.writeBytesReference(packed);
     }
 
-    protected final void ensureBytes() {
-        if (bytes != null) {
-            return;
+    protected final ResolvedBytes ensureBytes() {
+        ResolvedBytes view = resolvedBytes;
+        if (view != null) {
+            return view;
         }
 
         byte[] arr;
@@ -71,8 +84,9 @@ abstract class AbstractPackedArray {
             off = 0;
         }
 
-        bytesOffset = off;
-        bytes = arr;
+        view = new ResolvedBytes(arr, off);
+        resolvedBytes = view;
+        return view;
     }
 
     protected final void checkIndex(int i) {
@@ -81,25 +95,22 @@ abstract class AbstractPackedArray {
         }
     }
 
-    protected final int decodeIntLEAt(final int p) {
-        return decodeIntLEAt(bytes, p);
-    }
-
-    private static int decodeIntLEAt(final byte[] a, final int p) {
+    protected static int decodeIntLEAt(final byte[] a, final int p) {
         return (a[p] & 0xFF) | ((a[p + 1] & 0xFF) << 8) | ((a[p + 2] & 0xFF) << 16) | ((a[p + 3] & 0xFF) << 24);
     }
 
-    protected final long decodeLongLEAt(final int p) {
-        final byte[] a = bytes;
-        return (decodeIntLEAt(a, p) & 0xFFFFFFFFL) | ((decodeIntLEAt(a, p + Integer.BYTES) & 0xFFFFFFFFL) << 32);
+    protected static long decodeLongLEAt(final byte[] a, final int p) {
+        // cast makes the int-to-long promotion explicit; the mask treats each chunk as unsigned.
+        return (((long) decodeIntLEAt(a, p)) & 0xFFFFFFFFL) | ((((long) decodeIntLEAt(a, p + Integer.BYTES)) & 0xFFFFFFFFL)
+            << Integer.SIZE);
     }
 
-    protected final float decodeFloatLEAt(final int p) {
-        return Float.intBitsToFloat(decodeIntLEAt(p));
+    protected static float decodeFloatLEAt(final byte[] a, final int p) {
+        return Float.intBitsToFloat(decodeIntLEAt(a, p));
     }
 
-    protected final double decodeDoubleLEAt(final int p) {
-        return Double.longBitsToDouble(decodeLongLEAt(p));
+    protected static double decodeDoubleLEAt(final byte[] a, final int p) {
+        return Double.longBitsToDouble(decodeLongLEAt(a, p));
     }
 
     private static void validate(int byteLen, int dim, int bytesPerElement, String valueType) {

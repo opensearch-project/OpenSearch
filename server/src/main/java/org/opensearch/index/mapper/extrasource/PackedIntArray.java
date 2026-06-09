@@ -54,8 +54,8 @@ final class PackedIntArray extends AbstractPackedArray implements IntArrayValue 
         if (v != null) {
             return v[i];
         }
-        ensureBytes();
-        return decodeIntLEAt(bytesOffset + i * Integer.BYTES);
+        ResolvedBytes resolved = ensureBytes();
+        return decodeIntLEAt(resolved.bytes, resolved.offset + i * Integer.BYTES);
     }
 
     @Override
@@ -63,12 +63,12 @@ final class PackedIntArray extends AbstractPackedArray implements IntArrayValue 
         int[] v = cached;
         if (v != null) return v;
 
-        ensureBytes();
+        ResolvedBytes resolved = ensureBytes();
 
         v = new int[dimension];
-        int p = bytesOffset;
+        int p = resolved.offset;
         for (int i = 0; i < dimension; i++) {
-            v[i] = decodeIntLEAt(p);
+            v[i] = decodeIntLEAt(resolved.bytes, p);
             p += Integer.BYTES;
         }
 

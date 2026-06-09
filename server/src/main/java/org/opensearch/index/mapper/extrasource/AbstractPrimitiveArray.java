@@ -17,6 +17,10 @@ import org.opensearch.core.common.bytes.BytesReference;
  * generic base class. Java generics would require boxed values such as {@code Integer},
  * {@code Long}, {@code Float}, and {@code Double}; keeping primitive arrays and
  * type-specific accessors avoids that overhead on indexing paths.</p>
+ *
+ * <p>The small amount of repeated primitive-specific code is deliberate. Sharing it
+ * through generic helpers would require boxed values or indirect callbacks where callers
+ * currently use primitive arrays directly.</p>
  */
 abstract class AbstractPrimitiveArray {
 

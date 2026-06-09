@@ -54,8 +54,8 @@ final class PackedDoubleArray extends AbstractPackedArray implements DoubleArray
         if (v != null) {
             return v[i];
         }
-        ensureBytes();
-        return decodeDoubleLEAt(bytesOffset + i * Double.BYTES);
+        ResolvedBytes resolved = ensureBytes();
+        return decodeDoubleLEAt(resolved.bytes, resolved.offset + i * Double.BYTES);
     }
 
     @Override
@@ -63,12 +63,12 @@ final class PackedDoubleArray extends AbstractPackedArray implements DoubleArray
         double[] v = cached;
         if (v != null) return v;
 
-        ensureBytes();
+        ResolvedBytes resolved = ensureBytes();
 
         v = new double[dimension];
-        int p = bytesOffset;
+        int p = resolved.offset;
         for (int i = 0; i < dimension; i++) {
-            v[i] = decodeDoubleLEAt(p);
+            v[i] = decodeDoubleLEAt(resolved.bytes, p);
             p += Double.BYTES;
         }
 

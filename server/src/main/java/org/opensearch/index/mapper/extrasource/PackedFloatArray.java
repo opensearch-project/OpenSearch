@@ -65,8 +65,8 @@ final class PackedFloatArray extends AbstractPackedArray implements FloatArrayVa
         if (v != null) {
             return v[i];
         }
-        ensureBytes();
-        return decodeFloatLEAt(bytesOffset + i * Float.BYTES);
+        ResolvedBytes resolved = ensureBytes();
+        return decodeFloatLEAt(resolved.bytes, resolved.offset + i * Float.BYTES);
     }
 
     @Override
@@ -74,12 +74,12 @@ final class PackedFloatArray extends AbstractPackedArray implements FloatArrayVa
         float[] v = cached;
         if (v != null) return v;
 
-        ensureBytes();
+        ResolvedBytes resolved = ensureBytes();
 
         v = new float[dimension];
-        int p = bytesOffset;
+        int p = resolved.offset;
         for (int i = 0; i < dimension; i++) {
-            v[i] = decodeFloatLEAt(p);
+            v[i] = decodeFloatLEAt(resolved.bytes, p);
             p += Float.BYTES;
         }
 
