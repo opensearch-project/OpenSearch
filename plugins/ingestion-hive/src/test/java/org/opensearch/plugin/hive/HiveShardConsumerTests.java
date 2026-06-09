@@ -12,6 +12,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -264,5 +265,18 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         HiveShardConsumer consumer = createConsumer();
         RuntimeException ex = expectThrows(RuntimeException.class, () -> consumer.readNext(10, 1000));
         assertNotNull(ex.getCause());
+    }
+
+    public void testOpenNextFileDoesNotSkipOnFailure() {
+        HiveShardConsumer consumer = createConsumer();
+        consumer.partitionKeys = List.of("dt");
+        consumer.pendingWork.add(
+            new HiveShardConsumer.PartitionWork("dt=2024-01-01", "", List.of("/nonexistent/file.parquet"), 100)
+        );
+        consumer.currentWorkIndex = 0;
+
+        expectThrows(IOException.class, consumer::openNextFile);
+        // currentFileIndex must not have advanced, so a retry would attempt the same file
+        assertEquals(0, consumer.pendingWork.getFirst().currentFileIndex);
     }
 }

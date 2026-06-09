@@ -423,15 +423,15 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Opens the next data file from the pending work queue. When all files in a partition
      * are consumed, updates the watermark and advances to the next partition.
      */
-    private boolean openNextFile() throws IOException {
+    boolean openNextFile() throws IOException {
         while (currentWorkIndex < pendingWork.size()) {
             PartitionWork work = pendingWork.get(currentWorkIndex);
             if (work.currentFileIndex < work.files.size()) {
                 // More files in current partition: open the next one
                 currentFile = work.files.get(work.currentFileIndex);
-                work.currentFileIndex++;
                 currentRowIndex = 0;
                 currentFileReader = createFileReader(currentFile);
+                work.currentFileIndex++;
                 return true;
             } else {
                 // All files in this partition are consumed. Advance watermark so that
