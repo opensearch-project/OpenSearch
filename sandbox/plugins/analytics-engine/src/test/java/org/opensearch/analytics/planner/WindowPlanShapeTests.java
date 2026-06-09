@@ -928,7 +928,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchProject(status=[$0], size=[$1], rank_per_status=[RANK() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -968,7 +968,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchProject(status=[$0], size=[$1], dense_rank_per_status=[DENSE_RANK() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
