@@ -127,61 +127,10 @@ impl MemoryPool for DynamicLimitPool {
         reservation: &MemoryReservation,
         additional: usize,
     ) -> Result<(), DataFusionError> {
-        // Two-tier RSS guard for in-flight queries:
-        //
-        // - operator (85%): reject to trigger spill. The operator will flush its hash
-        //   table to disk and retry. This is recoverable — the query continues.
-        // - critical (95%): hard reject to prevent OOM. Last resort — even spill can't
-        //   save the node at this pressure level.
-        //
-        // Between 85-95%, the override (below) ensures spill sort buffers can still
-        // allocate: when the CAS fails and RSS has dropped below operator threshold
-        // (because the hash table was freed during spill), the override fires and
-        // allows the sort allocation through.
-        //
-        // The adaptive cache (cached_resident_bytes) bypasses the 100ms cache when
-        // the last value was above operator threshold — so the override sees the
-        // fresh (lower) RSS after spill frees memory, not a stale peak.
-        let limit = self.dynamic_limit.load(Ordering::Acquire);
-        let resident = crate::memory_guard::cached_resident_bytes();
-        if resident > 0 && limit >= 16 * 1024 * 1024 {
-            let thresholds = crate::memory_guard::get_thresholds();
-            let critical_bytes = (limit as f64 * thresholds.execution_critical) as usize;
-            let spill_bytes = (limit as f64 * thresholds.execution_spill) as usize;
-            let resident_usize = resident as usize;
-
-            // Critical (95%): hard reject — OOM imminent, protect the node.
-            if resident_usize > critical_bytes {
-                self.tripped_count.fetch_add(1, Ordering::Relaxed);
-                let used = self.used.load(Ordering::Relaxed);
-                return Err(crate::native_error::pool_limit_error(
-                    additional,
-                    reservation.consumer().name(),
-                    reservation.size(),
-                    0,
-                    limit,
-                ));
-            }
-
-            // Operator (85%): soft reject — triggers spill. The operator will
-            // flush to disk, free memory, then retry. Spill sort buffers will
-            // succeed on retry because RSS drops and the override allows them.
-            if resident_usize > spill_bytes {
-                self.tripped_count.fetch_add(1, Ordering::Relaxed);
-                let used = self.used.load(Ordering::Relaxed);
-                return Err(crate::native_error::pool_limit_error(
-                    additional,
-                    reservation.consumer().name(),
-                    reservation.size(),
-                    0,
-                    limit,
-                ));
-            }
-        }
-
+        // Decision order: CAS → override (stale fill) → RSS-critical → pool-fill.
         let dynamic_limit = &self.dynamic_limit;
 
-        // Fast path: try the normal CAS against the pool limit.
+        // 1. Try the pool-limit CAS. Succeeds when accounting has room.
         let cas_result = self.used
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
                 let limit = dynamic_limit.load(Ordering::Acquire);
@@ -193,20 +142,13 @@ impl MemoryPool for DynamicLimitPool {
             return Ok(());
         }
 
-        // Pool accounting says "full". Before failing the operator (which
-        // triggers spill), consult jemalloc as ground truth. If actual process
-        // memory is below the override threshold, the pool's "full" state is
-        // from stale phantoms or accounting drift — allow the grow.
-        //
-        // This gives already-executing operators a higher effective limit,
-        // preventing unnecessary spills when phantoms from finished queries
-        // haven't been released yet.
         let limit = dynamic_limit.load(Ordering::Acquire);
         let used = self.used.load(Ordering::Relaxed);
-        // Only attempt override if the allocation is plausible (won't overflow).
+
+        // 2. Pool says full. Forgive if jemalloc reports physical headroom
+        //    (pool view stale from accounting drift).
         if used.checked_add(additional).is_some() {
             if crate::memory_guard::should_override(limit, crate::memory_guard::OverrideContext::Execution) {
-                // jemalloc confirms headroom — allow the grow
                 let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
                     u.checked_add(additional)
                 });
@@ -214,24 +156,29 @@ impl MemoryPool for DynamicLimitPool {
             }
         }
 
-        // Both pool and jemalloc confirm pressure. Check if RSS is critical —
-        // if so, cancel the query rather than spilling (spill can't help at 95%+).
+        // 3. RSS-critical ceiling: physical memory is genuinely pressured.
+        //    Cancel the allocation rather than spilling — recovery isn't possible.
         if crate::memory_guard::should_cancel_query(limit) {
+            self.tripped_count.fetch_add(1, Ordering::Relaxed);
+            let resident = crate::memory_guard::cached_resident_bytes();
             native_bridge_common::log_info!(
-                "Memory CANCEL: RSS exceeds critical threshold for consumer [{}]. Cancelling query to protect node.",
+                "Memory RSS-CRITICAL: RSS={}B exceeds critical threshold for consumer [{}]. Cancelling allocation to protect node.",
+                resident,
                 reservation.consumer().name()
             );
-            return Err(DataFusionError::ResourcesExhausted(format!(
-                "Query cancelled: native memory RSS exceeds critical threshold ({}% of pool limit {}B). \
-                 Reduce query concurrency or increase datafusion.memory_pool_limit_bytes.",
-                (crate::memory_guard::get_thresholds().execution_critical * 100.0) as u32,
-                limit
-            )));
+            return Err(crate::native_error::rss_critical_error(
+                additional,
+                reservation.consumer().name(),
+                reservation.size(),
+                limit,
+                used,
+                resident,
+            ));
         }
 
-        // RSS between operator (85%) and critical (95%) — reject (operator will spill)
+        // 4. Pool legitimately full but RSS is fine — return pool-fill error
+        //    so DataFusion's spill-capable operators can flush state to disk.
         self.tripped_count.fetch_add(1, Ordering::Relaxed);
-        let used = self.used.load(Ordering::Relaxed);
         Err(crate::native_error::pool_limit_error(
             additional,
             reservation.consumer().name(),
@@ -478,59 +425,95 @@ mod tests {
     }
 
     #[test]
-    fn test_hard_guard_rejects_when_rss_exceeds_critical() {
-        // Create a pool with a limit smaller than the current process RSS.
-        // A Rust test process typically uses 50-200MB RSS, so 20MB should
-        // always trigger the hard guard (RSS > 95% of 20MB = 19MB).
+    fn test_rss_critical_rejects_after_cas_fail_when_rss_exceeds_critical() {
+        // 20MB pool (above MIN_POOL_FOR_OVERRIDE), pre-filled so the next
+        // try_grow CAS-fails. Test process RSS typically 50-200MB, so
+        // RSS > 95% of 20MB and the rejection arrives via rss_critical_error.
         let (pool, handle) = new_pool(20 * 1024 * 1024); // 20MB
 
         let resident = crate::memory_guard::cached_resident_bytes();
         if resident <= 0 {
             return; // jemalloc not available in this test env
         }
-
         let critical_bytes = (20.0 * 1024.0 * 1024.0 * 0.95) as i64;
         if resident < critical_bytes {
             return; // RSS unexpectedly low — skip rather than false-fail
         }
 
-        let consumer = MemoryConsumer::new("hard_guard_test");
+        // Fill the pool so the CAS for the test allocation must fail.
+        let filler = MemoryConsumer::new("filler");
+        let mut filler_res = filler.register(&pool);
+        assert!(filler_res.try_grow(20 * 1024 * 1024).is_ok());
+
+        let consumer = MemoryConsumer::new("rss_critical_test");
         let mut reservation = consumer.register(&pool);
 
-        // The hard guard fires before the CAS — even a tiny grow should be rejected
         let result = reservation.try_grow(1024);
         assert!(
             result.is_err(),
-            "try_grow should fail when RSS ({}) exceeds critical threshold (95% of 20MB)",
+            "try_grow should fail when CAS fails and RSS ({}) exceeds critical (95% of 20MB)",
             resident
         );
+        if let Err(DataFusionError::ResourcesExhausted(msg)) = result {
+            assert!(
+                msg.contains("Native RSS pressure"),
+                "expected RSS-critical error, got: {}",
+                msg
+            );
+        }
         assert!(
             handle.tripped_count() >= 1,
-            "tripped_count should increment on hard guard rejection"
+            "tripped_count should increment on RSS-critical rejection"
         );
     }
 
     #[test]
-    fn test_hard_guard_passes_when_rss_below_critical() {
-        // Create a pool with a huge limit (1TB). The test process RSS is well
-        // below 95% of 1TB, so the hard guard should NOT fire.
+    fn test_rss_critical_passes_when_rss_below_critical() {
+        // 1TB pool; test process RSS is far below 95% of 1TB so a small
+        // allocation succeeds via CAS without engaging the RSS-critical path.
         let limit = 1024 * 1024 * 1024 * 1024_usize; // 1TB
         let (pool, handle) = new_pool(limit);
 
         let consumer = MemoryConsumer::new("large_pool_test");
         let mut reservation = consumer.register(&pool);
 
-        // A small allocation should succeed — RSS is far below 95% of 1TB
         let result = reservation.try_grow(4096);
         assert!(
             result.is_ok(),
-            "try_grow should succeed when RSS is well below 95% of 1TB pool limit"
+            "try_grow should succeed via CAS on a 1TB pool"
         );
         assert_eq!(
             handle.tripped_count(),
             0,
-            "tripped_count should remain 0 when hard guard does not fire"
+            "tripped_count should remain 0 when CAS succeeds"
         );
         assert_eq!(pool.reserved(), 4096);
+    }
+
+    #[test]
+    fn test_pool_fill_rejection_emits_pool_limit_error_not_rss_error() {
+        // 1KB pool — below MIN_POOL_FOR_OVERRIDE so override and RSS-critical
+        // skip. Asserts pool-fill rejections use pool_limit_error, not the
+        // RSS variant — locks the error-message contract for the Java parser.
+        let (pool, _handle) = new_pool(1024);
+        let consumer = MemoryConsumer::new("pool_fill_test");
+        let mut reservation = consumer.register(&pool);
+
+        let result = reservation.try_grow(2048);
+        assert!(result.is_err(), "exceeds pool limit, should fail");
+        if let Err(DataFusionError::ResourcesExhausted(msg)) = result {
+            assert!(
+                msg.contains("Failed to allocate"),
+                "expected pool_limit_error, got: {}",
+                msg
+            );
+            assert!(
+                msg.contains("Native RSS pressure") == false,
+                "pool-fill rejection must NOT use rss_critical_error: {}",
+                msg
+            );
+        } else {
+            panic!("expected ResourcesExhausted variant");
+        }
     }
 }

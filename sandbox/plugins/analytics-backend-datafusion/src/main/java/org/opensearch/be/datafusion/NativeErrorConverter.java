@@ -55,6 +55,7 @@ public final class NativeErrorConverter {
      */
     private static final List<ErrorPattern> PATTERNS = List.of(
         new ErrorPattern("Cannot reserve untracked memory budget", NativeErrorConverter::convertAdmissionRejection),
+        new ErrorPattern("Native RSS pressure", NativeErrorConverter::convertRssCritical),
         new ErrorPattern("Failed to allocate", NativeErrorConverter::convertPoolLimitExceeded)
     );
 
@@ -109,6 +110,24 @@ public final class NativeErrorConverter {
         return rejection;
     }
 
+    /**
+     * Converts an RSS-critical native error into a {@link CircuitBreakingException}
+     * (HTTP 429). Best-effort byte parsing — falls back to {@code limit=0/used=0}
+     * when the format regex doesn't match, since the key phrase has already
+     * classified the event.
+     */
+    private static Exception convertRssCritical(MatchedError match) {
+        long[] parsed = parseRssCriticalBytes(match.message());
+        long bytesRequested = parsed != null ? parsed[0] : 0L;
+        long limit = parsed != null ? parsed[1] : 0L;
+        String message = match.message().contains("[analytics_backend_datafusion]")
+            ? match.message()
+            : "[analytics_backend_datafusion] " + match.message();
+        CircuitBreakingException cbe = new CircuitBreakingException(message, bytesRequested, limit, CircuitBreaker.Durability.TRANSIENT);
+        cbe.initCause(match.original());
+        return cbe;
+    }
+
     // ─── Message parsing ────────────────────────────────────────────────────────
 
     /**
@@ -125,6 +144,29 @@ public final class NativeErrorConverter {
      */
     private static long[] parsePoolLimitBytes(String msg) {
         Matcher m = POOL_LIMIT_PATTERN.matcher(msg);
+        if (m.find() == false) {
+            return null;
+        }
+        try {
+            long bytesRequested = Long.parseLong(m.group(1));
+            long limit = Long.parseLong(m.group(2));
+            return new long[] { bytesRequested, limit };
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Matches the RSS-critical error format from native_error.rs:
+     * "Native RSS pressure: failed to allocate {N} bytes for {consumer} ({reserved} already reserved). Native resident bytes {rss} exceed critical threshold of pool ({used} used / {limit} limit). Cause: native memory pressure, not pool fill."
+     */
+    private static final Pattern RSS_CRITICAL_PATTERN = Pattern.compile(
+        "Native RSS pressure: failed to allocate (\\d+) bytes for .+ \\(\\d+ already reserved\\)\\. "
+            + "Native resident bytes -?\\d+ exceed critical threshold of pool \\(\\d+ used / (\\d+) limit\\)"
+    );
+
+    private static long[] parseRssCriticalBytes(String msg) {
+        Matcher m = RSS_CRITICAL_PATTERN.matcher(msg);
         if (m.find() == false) {
             return null;
         }
