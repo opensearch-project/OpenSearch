@@ -254,6 +254,19 @@ public class OpenSearchFilterRule extends RelOptRule {
             viableSet.retainAll(registry.scalarBackendsAnyFormat(scalarFunc, returnType));
         }
 
+        // Engine-native-merge gate: when the query contains APPROX_COUNT_DISTINCT (dc()),
+        // prevent filter predicates from becoming dual-viable. The delegation_possible UDF
+        // wrapper causes plan-shape divergence between derive_schema_from_partial_plan and
+        // the data-node execution, triggering Binary/Int64 schema mismatch at the reduce sink.
+        // Restricting to the driving backend avoids the wrapper entirely.
+        if (context.hasEngineNativeMergeAggregate() && viableSet.size() > 1) {
+            List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.FILTER);
+            boolean drivingBackendSurvives = viableSet.stream().anyMatch(b -> !delegationAcceptors.contains(b));
+            if (drivingBackendSurvives) {
+                viableSet.removeAll(delegationAcceptors);
+            }
+        }
+
         // Per-backend delegation block-list. Drop backends that block this predicate so it is never
         // marked viable for them — but only when a non-blocked backend survives: blocking is a
         // delegation knob and must never make a predicate unexecutable.

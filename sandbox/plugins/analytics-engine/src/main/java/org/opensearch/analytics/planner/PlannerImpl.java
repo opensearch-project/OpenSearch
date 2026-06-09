@@ -94,13 +94,17 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
+        LOGGER.info("[dc-plan] Raw input:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
+        LOGGER.info("[dc-plan] After pushdown:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
+        LOGGER.info("[dc-plan] After decomposeAggregates:\n{}", RelOptUtil.toString(modifiedRelNode));
+        context.setHasEngineNativeMergeAggregate(containsEngineNativeMergeAggregate(modifiedRelNode));
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        LOGGER.info("[dc-plan] After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:
@@ -337,6 +341,26 @@ public class PlannerImpl {
      * <p>TODO: add SortPushdown rule here — pushes Sort below Exchange to data nodes for top-K
      * optimization.
      */
+    /**
+     * True if the plan contains an aggregate with engine-native-merge semantics (intermediate
+     * wire type differs from output type, e.g. APPROX_COUNT_DISTINCT emits Binary HLL state).
+     * When present, filter delegation must be suppressed to avoid plan-shape divergence between
+     * derive_schema_from_partial_plan and the data-node execution.
+     */
+    private static boolean containsEngineNativeMergeAggregate(RelNode node) {
+        if (node instanceof org.apache.calcite.rel.core.Aggregate agg) {
+            for (org.apache.calcite.rel.core.AggregateCall call : agg.getAggCallList()) {
+                if (org.opensearch.analytics.spi.AggregateFunction.isEngineNativeMerge(call)) {
+                    return true;
+                }
+            }
+        }
+        for (RelNode child : node.getInputs()) {
+            if (containsEngineNativeMergeAggregate(child)) return true;
+        }
+        return false;
+    }
+
     private static RelNode mark(RelNode input, PlannerContext context, RuleProfilingListener listener) {
         return HepPhase.named("marking")
             .bottomUp()

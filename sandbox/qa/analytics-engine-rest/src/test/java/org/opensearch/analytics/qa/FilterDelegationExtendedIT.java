@@ -35,8 +35,12 @@ public class FilterDelegationExtendedIT extends AnalyticsRestTestCase {
         new Case("where str0 != 'apple' | stats count() as c", 7, false),
         // NOT_EQUALS — sum (non-count agg, exercises non-fast-path)
         new Case("where str0 != 'apple' | stats sum(num0) as c", 490, false),
-        // NOT_EQUALS — dc (exercises HLL partial/final merge)
-        new Case("where str0 != 'apple' | stats dc(str0) as c", 3, false),
+        // IS_NOT_NULL — dc (exercises HLL partial/final merge with dual-viable predicate)
+        new Case("where isnotnull(str1) | stats dc(str0) as c", 4, false),
+        // NOT_EQUALS — avg (statistical aggregate)
+        new Case("where str0 != 'apple' | stats avg(num0) as c", 70, false),
+        // NOT_EQUALS — avg (statistical aggregate, exercises decompose to SUM/COUNT)
+        new Case("where str0 != 'date' | stats avg(num0) as c", 45, false),
         // NOT_EQUALS — fields (non-agg path)
         new Case("where str0 != 'banana' | fields str0", 7, true),
         // IS_NOT_NULL — count
