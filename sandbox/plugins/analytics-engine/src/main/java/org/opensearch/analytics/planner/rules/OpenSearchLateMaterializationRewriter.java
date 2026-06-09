@@ -16,6 +16,7 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,8 +48,8 @@ import java.util.Set;
  * <ol>
  *   <li><b>Detect</b> ({@link #detect}) — read-only walk that runs the allow-list checks,
  *       computes the {@link Detection} bundle ({@code aboveAnchorPhysicalFields},
- *       {@code belowAnchorPhysicalFields}, {@code anchorSlotToPhysicalField}), and applies
- *       the skip predicate. Returns {@code null} when QTF doesn't apply.</li>
+ *       {@code belowAnchorPhysicalFields}), and applies the skip predicate. Returns
+ *       {@code null} when QTF doesn't apply.</li>
  *   <li><b>Rewrite</b> ({@link #applyRewrite}) — pure transform consuming a {@link Detection}.
  *       Builds the narrowed Scan, walks the below chain, declares {@code ___ugsi} on the
  *       ExchangeReducer, swaps the wrapper in for the anchor, and remaps RexNodes in the
@@ -132,7 +133,7 @@ public final class OpenSearchLateMaterializationRewriter {
             return null;
         }
 
-        BelowChain belowChain = analyzeBelow(anchorCtx.anchor.getInput());
+        BelowChain belowChain = analyzeBelow(anchorCtx.anchor);
         if (belowChain == null) {
             LOGGER.debug("[QTF] below-anchor allow-list rejected; skipping rewrite");
             return null;
@@ -157,15 +158,12 @@ public final class OpenSearchLateMaterializationRewriter {
             return null;
         }
 
-        List<String> anchorSlotToPhysicalField = buildAnchorSlotToPhysicalField(belowChain);
-
         return new Detection(
             anchorCtx.anchor,
             anchorCtx.aboveAnchorOperators,
             belowChain,
             belowAnchorPhysicalFields,
-            aboveAnchorPhysicalFields,
-            anchorSlotToPhysicalField
+            aboveAnchorPhysicalFields
         );
     }
 
@@ -214,12 +212,12 @@ public final class OpenSearchLateMaterializationRewriter {
      * when an op falls outside the below-allow-list, when a below-Project is non-passthrough,
      * or when there's no Scan at the bottom.
      */
-    private static BelowChain analyzeBelow(RelNode subtree) {
+    private static BelowChain analyzeBelow(OpenSearchSort anchor) {
         List<RelNode> chain = new ArrayList<>();
         int[] belowProjOutToScan = null;
         OpenSearchTableScan scan = null;
         boolean hasExchangeReducer = false;
-        RelNode n = RelNodeUtils.unwrapHep(subtree);
+        RelNode n = RelNodeUtils.unwrapHep(anchor.getInput());
         while (n != null) {
             if (n instanceof OpenSearchTableScan s) {
                 scan = s;
@@ -232,19 +230,21 @@ public final class OpenSearchLateMaterializationRewriter {
                     LOGGER.debug("[QTF] multiple Projects below anchor — skipping");
                     return null;
                 }
-                int[] outToScan = passthroughMap(p);
-                if (outToScan == null) {
-                    // TODO: derived below-Project lost-opportunity case. Today's algorithm
-                    // declines plans like:
-                    // SELECT description FROM hits ORDER BY UPPER(URL) LIMIT 10
-                    // → Project(description) ← Sort($1 ASC) ← Project(description, UPPER(URL)) ← Scan
-                    // The derived col (UPPER(URL)) is consumed only by the anchor's collation; we
-                    // *could* push the derived expression above the wrapper, narrow the Scan to
-                    // {URL}, sort below, and fetch {description} for survivors. Skipping for now —
-                    // adding requires threading the derived RexNode into Detection and emitting
-                    // a synthesized above-Project during rewrite. Separate slice. The non-QTF
-                    // path remains correct in the meantime.
-                    LOGGER.debug("[QTF] expression below-Project — skipping (derived-pushup not yet implemented)");
+                // A RexOver (window function) below the anchor cannot be relocated above the
+                // wrapper: window semantics need the full pre-Limit input, but above the wrapper
+                // only the K survivors remain. Decline (matches the above-anchor RexOver rule).
+                if (p.containsOver()) {
+                    LOGGER.debug("[QTF] window function in below-Project — skipping (cannot relocate above wrapper)");
+                    return null;
+                }
+                // Per-slot scan mapping: passthrough refs resolve to a scan column index;
+                // expression slots map to -1 (display-only, reproduced above the wrapper during
+                // rewrite). A -1 at a slot the anchor's collation references is a DERIVED SORT
+                // KEY — still declines (sort can't order on a value computed from columns that
+                // QTF would defer; sorting on the raw column ≠ sorting on the expression).
+                int[] outToScan = belowProjectSlotMap(p);
+                if (collationReferencesDerivedSlot(anchor, outToScan)) {
+                    LOGGER.debug("[QTF] anchor sorts on a derived below-Project column — skipping (derived sort key)");
                     return null;
                 }
                 belowProjOutToScan = outToScan;
@@ -257,14 +257,26 @@ public final class OpenSearchLateMaterializationRewriter {
         return new BelowChain(chain, belowProjOutToScan, scan, hasExchangeReducer);
     }
 
-    /** Returns output→scanIdx map iff every project is a {@link RexInputRef}; else null. */
-    private static int[] passthroughMap(OpenSearchProject p) {
+    /**
+     * Per-output-slot scan-column index for a below-Project: {@code out[i]} = scan column index
+     * when slot {@code i} is a passthrough {@link RexInputRef}, else {@code -1} for an expression
+     * slot (display-only; its physical deps are fetched and the expression is reproduced above
+     * the wrapper during rewrite).
+     */
+    private static int[] belowProjectSlotMap(OpenSearchProject p) {
         int[] out = new int[p.getProjects().size()];
         for (int i = 0; i < p.getProjects().size(); i++) {
-            if (!(p.getProjects().get(i) instanceof RexInputRef ref)) return null;
-            out[i] = ref.getIndex();
+            out[i] = (p.getProjects().get(i) instanceof RexInputRef ref) ? ref.getIndex() : -1;
         }
         return out;
+    }
+
+    /** True iff any anchor collation index lands on an expression ({@code -1}) slot of the below-Project. */
+    private static boolean collationReferencesDerivedSlot(OpenSearchSort anchor, int[] belowProjOutToScan) {
+        for (RelFieldCollation fc : anchor.getCollation().getFieldCollations()) {
+            if (belowProjOutToScan[fc.getFieldIndex()] < 0) return true;
+        }
+        return false;
     }
 
     /**
@@ -312,24 +324,6 @@ public final class OpenSearchLateMaterializationRewriter {
         return fields;
     }
 
-    /**
-     * Builds {@code anchorSlotToPhysicalField}: for each slot in {@code anchor.rowType},
-     * the physical field name it ultimately reads from. Used during rewrite for above-op
-     * RexInputRef remapping (anchor.slot → physicalName → wrapperOut.idx).
-     */
-    private static List<String> buildAnchorSlotToPhysicalField(BelowChain belowChain) {
-        // anchor.rowType inherits from belowChain.chain[0]'s rowType (which inherits ER → Filter → Scan).
-        RelNode topBelowOp = belowChain.chain.isEmpty() ? belowChain.scan : belowChain.chain.get(0);
-        int slotCount = topBelowOp.getRowType().getFieldCount();
-        List<RelDataTypeField> scanFields = belowChain.scan.getRowType().getFieldList();
-        List<String> out = new ArrayList<>(slotCount);
-        for (int slot = 0; slot < slotCount; slot++) {
-            int scanIdx = (belowChain.belowProjOutToScan == null) ? slot : belowChain.belowProjOutToScan[slot];
-            out.add(scanFields.get(scanIdx).getName());
-        }
-        return out;
-    }
-
     // ── Phase 2 — Rewrite ──────────────────────────────────────────────
 
     /**
@@ -352,11 +346,122 @@ public final class OpenSearchLateMaterializationRewriter {
         // 2d. Wrapper. Output rowType = aboveAnchorPhysicalFields in iteration order.
         OpenSearchLateMaterialization wrapper = buildWrapper(newAnchor, detection.aboveAnchorPhysicalFields, origScan, detection.anchor);
 
+        // 2f. SELECT projection above the wrapper. Without SORT_PROJECT_TRANSPOSE the SELECT-list
+        // Project sits BELOW the anchor; its display columns (URL, Title, …) are deferred to the
+        // fetch phase, so the projection — expressions and aliases included — is reproduced ABOVE
+        // the wrapper with RexInputRefs rebased from scan space to wrapper-output space. Passthrough
+        // slots of sort-only columns (not fetched, absent from the wrapper output) are dropped; the
+        // above-chain never references them. When there's no below-Project, the wrapper stands alone.
+        RelNode aboveWrapper = buildProjectAboveWrapper(wrapper, detection);
+
         // 2e. Above chain: every op's RexInputRefs remapped by column name from its origChild's
         // rowType to its newChild's rowType. Pass-through ops (Filter, Sort) leak the narrowed
         // rowType upward, so a single immediate-parent remap is insufficient — every above op
         // needs the same treatment, recursively.
-        return rebuildAboveChain(RelNodeUtils.unwrapHep(root), detection.anchor, wrapper);
+        RelNode rewritten = rebuildAboveChain(RelNodeUtils.unwrapHep(root), detection.anchor, aboveWrapper);
+
+        // 2g. Collapse adjacent Projects at the top. The reproduced below-Project (2f) is a bridge
+        // exposing the anchor's output schema so the above-chain can graft on by name; when the
+        // immediate above-op is itself a Project (the SELECT prune), the two stack. Compose them
+        // into one — substituting the bridge's expressions into the outer Project's refs — so the
+        // SELECT prune drops to a single Project and no bridge-only column (e.g. a refetched sort
+        // key the outer doesn't select) leaks through an intermediate node.
+        return mergeAdjacentTopProjects(rewritten);
+    }
+
+    /** While the top node is a Project over a Project, compose the two into one. */
+    private static RelNode mergeAdjacentTopProjects(RelNode top) {
+        while (top instanceof OpenSearchProject outer && RelNodeUtils.unwrapHep(outer.getInput()) instanceof OpenSearchProject inner) {
+            List<RexNode> innerExprs = inner.getProjects();
+            RexShuttle substitute = new RexShuttle() {
+                @Override
+                public RexNode visitInputRef(RexInputRef ref) {
+                    return innerExprs.get(ref.getIndex());
+                }
+            };
+            List<RexNode> composed = new ArrayList<>(outer.getProjects().size());
+            for (RexNode expr : outer.getProjects()) {
+                composed.add(expr.accept(substitute));
+            }
+            top = new OpenSearchProject(
+                outer.getCluster(),
+                outer.getTraitSet(),
+                inner.getInput(),
+                composed,
+                outer.getRowType(),
+                outer.getViableBackends()
+            );
+        }
+        return top;
+    }
+
+    /**
+     * Reproduces the below-anchor SELECT Project ABOVE the wrapper. Each below-Project output slot
+     * becomes one output here, with the SAME name (preserving aliases) and its RexNode rebased from
+     * scan-column space to wrapper-output (physical-field) space:
+     * <ul>
+     *   <li>passthrough ref to a fetched column → ref to that column's wrapper-output index;</li>
+     *   <li>passthrough ref to a sort-only column (not fetched, absent from the wrapper) → dropped;</li>
+     *   <li>expression → same RexCall with operands rebased (all its physical deps are fetched, so
+     *       every operand resolves into the wrapper output).</li>
+     * </ul>
+     * Returns the bare {@code wrapper} when there is no below-Project to reproduce.
+     */
+    private static RelNode buildProjectAboveWrapper(OpenSearchLateMaterialization wrapper, Detection detection) {
+        OpenSearchProject innerProject = null;
+        for (RelNode op : detection.belowChain.chain) {
+            if (op instanceof OpenSearchProject p) {
+                innerProject = p;
+                break;
+            }
+        }
+        if (innerProject == null) return wrapper;
+
+        RelDataTypeFactory typeFactory = wrapper.getCluster().getTypeFactory();
+        List<RelDataTypeField> scanFields = detection.belowChain.scan.getRowType().getFieldList();
+        List<RelDataTypeField> wrapperFields = wrapper.getRowType().getFieldList();
+
+        // scan-column index → wrapper-output index, by physical name; -1 when that column was not fetched.
+        Map<String, Integer> wrapperIdxByName = new HashMap<>(wrapperFields.size());
+        for (int i = 0; i < wrapperFields.size(); i++) {
+            wrapperIdxByName.put(wrapperFields.get(i).getName(), i);
+        }
+        int[] scanToWrapper = new int[scanFields.size()];
+        for (int k = 0; k < scanFields.size(); k++) {
+            Integer w = wrapperIdxByName.get(scanFields.get(k).getName());
+            scanToWrapper[k] = (w == null) ? -1 : w;
+        }
+        IndexRemapShuttle toWrapper = new IndexRemapShuttle(scanToWrapper, wrapper.getRowType());
+
+        List<RexNode> projects = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        List<RelDataTypeField> innerFields = innerProject.getRowType().getFieldList();
+        for (int slot = 0; slot < innerProject.getProjects().size(); slot++) {
+            RexNode expr = innerProject.getProjects().get(slot);
+            RexNode rebased;
+            if (expr instanceof RexInputRef ref) {
+                int w = scanToWrapper[ref.getIndex()];
+                if (w < 0) continue; // sort-only passthrough column — not fetched, drop
+                rebased = new RexInputRef(w, wrapperFields.get(w).getType());
+            } else {
+                rebased = expr.accept(toWrapper); // expression: all physical deps are fetched
+            }
+            projects.add(rebased);
+            names.add(innerFields.get(slot).getName());
+        }
+
+        RelDataTypeFactory.Builder rowType = typeFactory.builder();
+        for (int i = 0; i < projects.size(); i++) {
+            rowType.add(names.get(i), projects.get(i).getType());
+        }
+        return new OpenSearchProject(
+            wrapper.getCluster(),
+            wrapper.getTraitSet(),
+            wrapper,
+            projects,
+            rowType.build(),
+            innerProject.getViableBackends()
+        );
     }
 
     // ── 2a. Narrowed Scan ─────────────────────────────────────────────
@@ -443,18 +548,18 @@ public final class OpenSearchLateMaterializationRewriter {
         int[] scanIdxRemap,
         RelDataTypeFactory typeFactory
     ) {
-        // Below-Project is passthrough; its output→scan map was captured during analyzeBelow,
-        // but we recompute here from p's projects since each project is a RexInputRef.
-        int[] origOutToScan = new int[p.getProjects().size()];
-        for (int i = 0; i < p.getProjects().size(); i++) {
-            origOutToScan[i] = ((RexInputRef) p.getProjects().get(i)).getIndex();
-        }
+        // Below-Project output→scan map: passthrough slots give a scan index; expression slots
+        // give -1 (display-only; reproduced above the wrapper, never rebuilt below). Both kinds
+        // are dropped from the rebuilt below-Project — only sort/filter passthrough cols that
+        // survive into the narrowed Scan are kept.
+        int[] origOutToScan = belowProjectSlotMap(p);
 
         List<RexNode> newProjects = new ArrayList<>();
         List<String> newNames = new ArrayList<>();
         int[] outputRemap = new int[origOutToScan.length];
         Arrays.fill(outputRemap, -1);
         for (int origOut = 0; origOut < origOutToScan.length; origOut++) {
+            if (origOutToScan[origOut] < 0) continue; // expression slot — pulled up above the wrapper
             int newScanIdx = scanIdxRemap[origOutToScan[origOut]];
             if (newScanIdx < 0) continue; // source dropped (now fetched, not in narrowed Scan)
             RelDataTypeField field = newChild.getRowType().getFieldList().get(newScanIdx);
@@ -553,19 +658,20 @@ public final class OpenSearchLateMaterializationRewriter {
     // ── 2e. Above chain rebuild ───────────────────────────────────────
 
     /**
-     * Walks down the above chain, swapping the anchor's slot with {@code wrapper}, then on
-     * the way up rewrites every op's RexInputRefs via a by-name remap from {@code origChild}'s
-     * rowType to {@code newChild}'s rowType. Names are the stable identity that survives
-     * narrowing — they exist in both rowTypes verbatim for kept columns, and resolve to -1
-     * (rejected by {@link IndexRemapShuttle}) for dropped ones.
+     * Walks down the above chain, swapping the anchor's slot with {@code wrapperOrProject}
+     * (the wrapper, or the SELECT Project sitting above it), then on the way up rewrites every
+     * op's RexInputRefs via a by-name remap from {@code origChild}'s rowType to {@code newChild}'s
+     * rowType. Names are the stable identity that survives narrowing — they exist in both rowTypes
+     * verbatim for kept columns, and resolve to -1 (rejected by {@link IndexRemapShuttle}) for
+     * dropped ones.
      */
-    private static RelNode rebuildAboveChain(RelNode current, OpenSearchSort origAnchor, OpenSearchLateMaterialization wrapper) {
-        if (current == origAnchor) return wrapper;
+    private static RelNode rebuildAboveChain(RelNode current, OpenSearchSort origAnchor, RelNode wrapperOrProject) {
+        if (current == origAnchor) return wrapperOrProject;
         if (current.getInputs().size() != 1) {
             throw new IllegalStateException("Multi-input parent in QTF chain: " + current.getClass().getSimpleName());
         }
         RelNode origChild = RelNodeUtils.unwrapHep(current.getInput(0));
-        RelNode newChild = rebuildAboveChain(origChild, origAnchor, wrapper);
+        RelNode newChild = rebuildAboveChain(origChild, origAnchor, wrapperOrProject);
 
         int[] remap = buildByNameRemap(origChild.getRowType(), newChild.getRowType());
         IndexRemapShuttle shuttle = new IndexRemapShuttle(remap, newChild.getRowType());
@@ -621,7 +727,7 @@ public final class OpenSearchLateMaterializationRewriter {
      * the original plan to recover any of these fields.
      */
     private record Detection(OpenSearchSort anchor, List<RelNode> aboveAnchorOperators, BelowChain belowChain, Set<
-        String> belowAnchorPhysicalFields, LinkedHashSet<String> aboveAnchorPhysicalFields, List<String> anchorSlotToPhysicalField) {
+        String> belowAnchorPhysicalFields, LinkedHashSet<String> aboveAnchorPhysicalFields) {
     }
 
     private record AnchorContext(OpenSearchSort anchor, List<RelNode> aboveAnchorOperators) {

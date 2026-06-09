@@ -122,7 +122,8 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         double rows = mq.getRowCount(getInput());
-        return planner.getCostFactory().makeCost(SETUP_COST + rows, SETUP_COST + rows, 0);
+        double widthFactor = getRowType().getFieldCount();
+        return planner.getCostFactory().makeCost(SETUP_COST + rows * widthFactor, SETUP_COST + rows * widthFactor, 0);
     }
 
     @Override

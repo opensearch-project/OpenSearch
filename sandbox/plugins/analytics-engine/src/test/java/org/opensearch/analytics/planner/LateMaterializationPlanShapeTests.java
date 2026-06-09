@@ -78,6 +78,66 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
         );
     }
 
+    public void testQtfFires_aliasPreserved() {
+        // SELECT URL AS u, EventDate FROM hits ORDER BY EventDate LIMIT 10
+        // Wrapper output is physical-named [URL, EventDate]; the Project above the wrapper
+        // re-applies the SELECT alias so the result column is `u`, not `URL`.
+        assertQtfFired(
+            "SELECT URL AS u, EventDate FROM hits ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("URL", "EventDate"),
+            Expect.outerProjectNames("u", "EventDate")
+        );
+    }
+
+    public void testQtfFires_multiKeySortMixedDirection() {
+        // SELECT URL, EventDate, CounterID FROM hits ORDER BY EventDate ASC, CounterID DESC LIMIT 10
+        // Two collation indices, mixed direction — exercises collationReferencesDerivedSlot over
+        // multiple keys and the collation rebuild preserving per-key direction.
+        assertQtfFired(
+            "SELECT URL, EventDate, CounterID FROM hits ORDER BY EventDate ASC, CounterID DESC LIMIT 10",
+            2,
+            Expect.scanCols("CounterID", "EventDate"),
+            Expect.aboveAnchorPhysicalFields("URL", "EventDate", "CounterID"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("URL", "EventDate", "CounterID"),
+            Expect.collationDirections(RelFieldCollation.Direction.ASCENDING, RelFieldCollation.Direction.DESCENDING)
+        );
+    }
+
+    public void testQtfFires_expressionOperandIsSortKey() {
+        // URL is BOTH the sort key (BelowAnchor → narrowed scan) AND an expression operand
+        // (refetched into the wrapper, v2 no-passthrough) — exercises the scan→wrapper rebase for a
+        // col in both roles, and the merged top Project dropping URL so only `combined` surfaces.
+        // AboveAnchor deps = [Title, URL]; BelowAnchor = {URL}; FetchOnly = {Title} → fire.
+        assertQtfFired(
+            "SELECT Title || '-' || URL AS combined FROM hits ORDER BY URL LIMIT 10",
+            2,
+            Expect.scanCols("URL"),
+            Expect.aboveAnchorPhysicalFields("Title", "URL"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("Title", "URL"),
+            Expect.outerProjectNames("combined")
+        );
+    }
+
+    public void testQtfFires_expressionOnNeverDisplayedCol() {
+        // Title appears ONLY inside the expression — never selected alone, not a sort/filter col.
+        // AboveAnchor = [Title]; BelowAnchor = {EventDate}; FetchOnly = {Title} → fire.
+        assertQtfFired(
+            "SELECT UPPER(Title) AS tup FROM hits ORDER BY EventDate LIMIT 10",
+            2,
+            Expect.scanCols("EventDate"),
+            Expect.aboveAnchorPhysicalFields("Title"),
+            Expect.erHasUgsi(true),
+            Expect.wrapperOutput("Title"),
+            Expect.outerProjectNames("tup")
+        );
+    }
+
     public void testQtfFires_sortColAlsoProjected() {
         // SELECT EventDate, URL FROM hits ORDER BY EventDate LIMIT 10
         // Wrapper output is in topmost-op (SELECT) order, NOT scan order.
@@ -164,7 +224,8 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
             Expect.scanCols("EventDate"),
             Expect.aboveAnchorPhysicalFields("URL"),
             Expect.erHasUgsi(true),
-            Expect.wrapperOutput("URL")
+            Expect.wrapperOutput("URL"),
+            Expect.outerProjectNames("combined", "upper_url")
         );
     }
 
@@ -178,7 +239,8 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
             Expect.scanCols("EventDate"),
             Expect.aboveAnchorPhysicalFields("URL", "Title"),
             Expect.erHasUgsi(true),
-            Expect.wrapperOutput("URL", "Title")
+            Expect.wrapperOutput("URL", "Title"),
+            Expect.outerProjectNames("combined")
         );
     }
 
@@ -300,8 +362,8 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
 
     public void testQtfDeclined_expressionProjectBelowAnchor() {
         // SELECT URL FROM hits ORDER BY (CounterID + 1) LIMIT 10
-        // The sort key (CounterID + 1) gets materialized via a derived below-Project.
-        // Today's algorithm declines (TODO in passthroughMap — derived-pushup not yet supported).
+        // Derived sort key → declines (collation references a derived below-Project slot; can't
+        // sort above the wrapper on it). Display-only expressions DO fire — see compositeExpression*.
         assertQtfDeclined("SELECT URL FROM hits ORDER BY (CounterID + 1) LIMIT 10", 2);
     }
 
@@ -465,6 +527,37 @@ public class LateMaterializationPlanShapeTests extends BasePlannerRulesTests {
                                 + Arrays.toString(expectedIndices)
                                 + "\n  actual:   "
                                 + Arrays.toString(actual)
+                                + "\nSQL: "
+                                + sql
+                                + "\nPlan:\n"
+                                + plan
+                        );
+                    }
+                }
+            };
+        }
+
+        /**
+         * Outer Project (immediately above wrapper) output field names, in order. Asserts the
+         * SELECT contract — aliases re-applied by the Project even though the wrapper output is
+         * physical-named.
+         */
+        static Expect outerProjectNames(String... expectedNamesInOrder) {
+            return new Expect() {
+                @Override
+                void check(Inspector ctx, String sql, String plan) {
+                    if (ctx.outerProject == null) {
+                        fail("No outer Project above wrapper.\nSQL: " + sql + "\nPlan:\n" + plan);
+                        return;
+                    }
+                    List<String> actual = fieldNames(ctx.outerProject.getRowType().getFieldList());
+                    List<String> expected = Arrays.asList(expectedNamesInOrder);
+                    if (!expected.equals(actual)) {
+                        fail(
+                            "Outer Project output names mismatch.\n  expected: "
+                                + expected
+                                + "\n  actual:   "
+                                + actual
                                 + "\nSQL: "
                                 + sql
                                 + "\nPlan:\n"

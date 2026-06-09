@@ -53,6 +53,8 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.Optional;
 
@@ -277,15 +279,16 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("pushdown-rules")
             .bottomUp()
-            // Transposes (filter-into-* and sort-into-project) cascade together within
-            // one fixpoint, alongside PROJECT_MERGE which collapses the intermediate
-            // adjacent Projects that SORT_PROJECT_TRANSPOSE produces. FILTER_MERGE
-            // runs as its own instruction so it only fires after the transposes have
-            // settled — that way any auto-injected NOT NULL collapses with the user's
-            // WHERE on the post-pushdown filter, not on a half-pushed intermediate.
-            // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE feed the QTF (late-materialization)
-            // rewriter by lifting Project above Sort so it sees a single Project layer
-            // above the anchor.
+            // Transposes (filter-into-*) cascade together within one fixpoint, alongside
+            // PROJECT_MERGE which collapses adjacent Projects. FILTER_MERGE runs as its own
+            // instruction so it only fires after the transposes have settled — that way any
+            // auto-injected NOT NULL collapses with the user's WHERE on the post-pushdown filter,
+            // not on a half-pushed intermediate.
+            //
+            // SORT_PROJECT_TRANSPOSE is intentionally omitted: lifting Project above Sort puts it
+            // above the Exchange, defeating projection pushdown. Keeping it below lets DataFusion
+            // prune the scan. QTF relocates the below-Sort Project above its wrapper itself.
+            //
             // SORT_REMOVE_REDUNDANT drops a Sort/LIMIT whose input is provably bounded to
             // within the limit (e.g. a collation-less `head N` or a sort over a scalar
             // aggregate, getMaxRowCount <= 1): a no-op that the marking rule must not have to
@@ -297,7 +300,6 @@ public class PlannerImpl {
                     CoreRules.FILTER_PROJECT_TRANSPOSE,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
-                    CoreRules.SORT_PROJECT_TRANSPOSE,
                     CoreRules.PROJECT_MERGE,
                     CoreRules.LIMIT_MERGE,
                     CoreRules.SORT_REMOVE_REDUNDANT
@@ -389,7 +391,13 @@ public class PlannerImpl {
             if (!copied.getTraitSet().equals(desiredTraits)) {
                 volcanoPlanner.setRoot(volcanoPlanner.changeTraits(copied, desiredTraits));
             }
-            return volcanoPlanner.findBestExp();
+            RelNode best = volcanoPlanner.findBestExp();
+            if (LOGGER.isDebugEnabled()) {
+                StringWriter sw = new StringWriter();
+                volcanoPlanner.dump(new PrintWriter(sw));
+                LOGGER.debug("Volcano memo:\n{}", sw);
+            }
+            return best;
         } finally {
             if (listener != null) listener.endPhase("cbo");
         }
