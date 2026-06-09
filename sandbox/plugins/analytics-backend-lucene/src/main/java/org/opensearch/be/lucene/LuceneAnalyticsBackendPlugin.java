@@ -63,9 +63,22 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     // registered in QuerySerializerRegistry — declaring a capability without a matching
     // DelegatedPredicateSerializer makes the marking layer pick Lucene as viable for
     // operators it can't actually translate, and the failure surfaces at convert time as
-    // an IllegalStateException ("No Lucene serializer for [..]"). Today only EQUALS has
-    // a serializer; range ops, NOT_EQUALS, IS_NULL, IS_NOT_NULL, IN, LIKE are deferred
-    // until their serializers land.
+    // an IllegalStateException ("No Lucene serializer for [..]").
+    //
+    // Serializers for NOT_EQUALS, LIKE, IN, IS_NULL, IS_NOT_NULL, the four range comparisons,
+    // and REGEXP are wired up in QuerySerializerRegistry so the convertor path is ready, but
+    // they are intentionally NOT advertised here yet because two upstream gaps make
+    // unconditional delegation regress:
+    //   1. The planner has no shard-level cost model — declaring a backend viable for an
+    //      operator picks Lucene whenever it can answer the predicate, even when DataFusion
+    //      would scan the parquet column faster (e.g. LIKE '%substr%' on a 30 M-cardinality
+    //      URL field).
+    //   2. The partial→final aggregate split for {@code approx_distinct} fails with
+    //      "expected Binary state" when filter delegation rearranges the operator chain on
+    //      {@code dc(...)} queries.
+    // When either lands, flip the advertisement on per-operator (or gate it behind an
+    // {@code analytics.delegation.lucene_filter_predicates} cluster setting).
+    //
     // TODO: have CapabilityRegistry intersect declared FilterCapability against the
     // backend's serializer keyset at startup so this list can't drift again. The TODO in
     // OpenSearchFilterRule.resolveViableBackends references the same constraint.

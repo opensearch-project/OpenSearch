@@ -28,6 +28,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
+use roaring::RoaringBitmap;
 
 use datafusion::arrow::array::Array;
 use datafusion::common::ScalarValue;
@@ -408,8 +409,30 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
         let factory = Arc::clone(&factory);
         let provider_locks = Arc::clone(&provider_locks);
         let schema = loaded.schema.clone();
+        // Mirror production: global cache keyed by (annotation_id, writer_generation).
+        let bitmap_global: Arc<std::sync::Mutex<HashMap<(i32, i64), Arc<OnceLock<Option<RoaringBitmap>>>>>> =
+            Arc::new(std::sync::Mutex::new(HashMap::new()));
         Arc::new(move |segment, _chunk, stream_metrics| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            // Build per-segment bitmap cache view.
+            let per_seg_cache: Arc<HashMap<i32, Arc<OnceLock<Option<RoaringBitmap>>>>> = {
+                let ann_ids: Vec<i32> = provider_locks.keys().copied().collect();
+                let mut global = bitmap_global.lock().unwrap();
+                let mut local = HashMap::with_capacity(ann_ids.len());
+                for ann_id in ann_ids {
+                    let lock = Arc::clone(
+                        global.entry((ann_id, segment.writer_generation))
+                            .or_insert_with(|| Arc::new(OnceLock::new()))
+                    );
+                    local.insert(ann_id, lock);
+                }
+                Arc::new(local)
+            };
+            // Segment's global doc range from its row_groups.
+            let seg_range = match (segment.row_groups.first(), segment.row_groups.last()) {
+                (Some(first), Some(last)) => (first.first_row as i32, (last.first_row + last.num_rows) as i32),
+                _ => (0, 0),
+            };
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&correctness)),
                 pruner,
@@ -419,7 +442,9 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
                 stream_metrics.ffm_collector_calls.clone(),
                 CollectorCallStrategy::FullRange,
                 Arc::clone(&provider_locks),
+                per_seg_cache,
                 segment.writer_generation,
+                seg_range,
                 Arc::clone(&factory),
                 0,
                 None,
