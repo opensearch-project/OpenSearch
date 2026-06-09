@@ -348,6 +348,14 @@ pub async fn execute_with_context(
         // ProjectRowIdOptimizer (registered in session_context when strategy=ListingTable).
         let physical_plan = dataframe.create_physical_plan().await?;
 
+        // If SETUP_PARTIAL_AGGREGATE fired but prepare_partial_plan failed to pre-build,
+        // apply mode stripping here so the data node emits Partial state (Binary HLL sketch).
+        let physical_plan = if handle.aggregate_mode == crate::agg_mode::Mode::Partial {
+            crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?
+        } else {
+            physical_plan
+        };
+
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
 
