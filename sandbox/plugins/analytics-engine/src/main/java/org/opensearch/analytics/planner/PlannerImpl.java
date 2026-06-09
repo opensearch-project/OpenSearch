@@ -292,7 +292,8 @@ public class PlannerImpl {
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
                     CoreRules.SORT_PROJECT_TRANSPOSE,
-                    CoreRules.PROJECT_MERGE
+                    CoreRules.PROJECT_MERGE,
+                    CoreRules.LIMIT_MERGE
                 )
             )
             .addRuleInstance(CoreRules.FILTER_MERGE)

@@ -15,6 +15,7 @@ import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
@@ -138,5 +139,83 @@ public class SortRuleTests extends BasePlannerRulesTests {
             types,
             10
         );
+    }
+
+    private static final List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> SORT_AGG_SCAN = List.of(
+        OpenSearchSort.class,
+        OpenSearchAggregate.class,
+        OpenSearchTableScan.class
+    );
+
+    /** Asserts the planned pipeline has NO OpenSearchSort root and bottoms out at a scalar Aggregate. */
+    private void assertLimitDropped(RelNode result) {
+        logger.info("Plan:\n{}", RelOptUtil.toString(result));
+        assertFalse("limit must be dropped (no OpenSearchSort)", result instanceof OpenSearchSort);
+        assertTrue("root must be the scalar OpenSearchAggregate", result instanceof OpenSearchAggregate);
+        assertTrue("scalar aggregate has empty group set", ((OpenSearchAggregate) result).getGroupSet().isEmpty());
+    }
+
+    private RelNode scalarAgg() {
+        return makeAggregate(
+            stubScan(mockTable("test_index", "status", "size")),
+            org.apache.calcite.util.ImmutableBitSet.of(),
+            countStarCall()
+        );
+    }
+
+    private RelNode groupedAgg() {
+        // makeAggregate(input, aggCalls) defaults to group set {0} — a grouped aggregate.
+        return makeAggregate(stubScan(mockTable("test_index", "status", "size")), sumCall());
+    }
+
+    /** Grouped agg, head N: kept — the limit caps the number of groups (user-visible). */
+    public void testHeadOnGroupedAggregatePreservesFetch() {
+        assertSortPipeline(runPlanner(makeLimit(groupedAgg(), 5), defaultContext()), SORT_AGG_SCAN, 5);
+    }
+
+    /** Scalar agg, collation-less head N: dropped — LIMIT over one row is a no-op. */
+    public void testHeadOnScalarAggregateDropsLimit() {
+        assertLimitDropped(runPlanner(makeLimit(scalarAgg(), 5), defaultContext()));
+    }
+
+    /** Scalar agg, ORDER BY + fetch (non-empty collation): kept — guard (A) restricts the drop to collation-less limits. */
+    public void testSortFetchOnScalarAggregatePreserved() {
+        RelNode result = runPlanner(makeSort(scalarAgg(), 5), defaultContext());
+        logger.info("Plan:\n{}", RelOptUtil.toString(result));
+        assertTrue("collated Sort must be preserved", result instanceof OpenSearchSort);
+        assertNotNull("fetch preserved", ((OpenSearchSort) result).fetch);
+    }
+
+    /** Scalar agg, OFFSET (no collation): kept — OFFSET 1 over one row yields zero rows, so it is NOT a no-op. */
+    public void testOffsetOnScalarAggregatePreserved() {
+        RelNode offsetLimit = org.apache.calcite.rel.logical.LogicalSort.create(
+            scalarAgg(),
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            rexBuilder.makeLiteral(1, typeFactory.createSqlType(SqlTypeName.INTEGER), true),
+            rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode result = runPlanner(offsetLimit, defaultContext());
+        logger.info("Plan:\n{}", RelOptUtil.toString(result));
+        assertTrue("offset-bearing Sort must be preserved", result instanceof OpenSearchSort);
+        assertNotNull("offset preserved", ((OpenSearchSort) result).offset);
+    }
+
+    /**
+     * Stacked collation-less limits over a grouped aggregate — a user {@code head 5} above the
+     * frontend's system size-cap {@code fetch=10000} — collapse to a SINGLE {@code OpenSearchSort}
+     * carrying the tighter fetch (5), via {@code CoreRules.LIMIT_MERGE}. The grouped aggregate is
+     * many-row so the limit is preserved (not dropped); the point here is one Sort, not two.
+     */
+    public void testStackedLimitsOverGroupedAggregateMergeToOne() {
+        // head 5 over system-cap 10000 over `stats sum(x) by k`.
+        RelNode input = makeLimit(makeLimit(groupedAgg(), 10000), 5);
+        RelNode result = runPlanner(input, defaultContext());
+        logger.info("Plan:\n{}", RelOptUtil.toString(result));
+
+        assertTrue("root must be an OpenSearchSort", result instanceof OpenSearchSort);
+        OpenSearchSort sort = (OpenSearchSort) result;
+        assertEquals("merged fetch must be the tighter limit (5)", 5, RexLiteral.intValue(sort.fetch));
+        assertFalse("no second stacked OpenSearchSort below", sort.getInput() instanceof OpenSearchSort);
+        assertTrue("Sort sits directly over the Aggregate", sort.getInput() instanceof OpenSearchAggregate);
     }
 }
