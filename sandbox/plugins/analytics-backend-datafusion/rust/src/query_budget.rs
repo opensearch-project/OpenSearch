@@ -75,8 +75,11 @@ use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
 use parquet::file::metadata::ParquetMetaData;
 
-/// Configurable minimum target_partitions floor. Updated from Java when the
-/// cluster setting `datafusion.min_target_partitions` changes.
+/// Configurable minimum target_partitions floor for adaptive reduction.
+/// Updated from Java when the cluster setting `datafusion.min_target_partitions`
+/// changes. The floor is clamped per-call to the configured target_partitions,
+/// so it cannot raise the starting value above what the caller requested
+/// (e.g. derived from `search.concurrent.max_slice_count`).
 static MIN_TARGET_PARTITIONS_SETTING: AtomicUsize = AtomicUsize::new(1);
 
 /// Set the minimum target partitions floor at runtime. Called from Java when
@@ -205,8 +208,12 @@ fn acquire_budget_inner(
     configured_target_partitions: usize,
     configured_batch_size: usize,
 ) -> Result<QueryMemoryBudget, DataFusionError> {
-    let min_partitions = get_min_target_partitions();
-    let mut target_partitions = configured_target_partitions.max(min_partitions);
+    // The setting acts purely as a floor for adaptive reduction. It must never
+    // raise target_partitions above what the caller already configured (e.g.
+    // derived from `search.concurrent.max_slice_count`). Clamp so a configured
+    // value below the setting is left untouched.
+    let min_partitions = get_min_target_partitions().min(configured_target_partitions.max(1));
+    let mut target_partitions = configured_target_partitions.max(1);
     let mut batch_size = configured_batch_size.max(MIN_BATCH_SIZE);
 
     // Proactive admission guard: only consult jemalloc RSS when the pool's own
@@ -529,6 +536,10 @@ mod tests {
     use super::*;
     use datafusion::arrow::datatypes::{Field, Schema};
     use std::num::NonZeroUsize;
+    use std::sync::Mutex;
+
+    /// Serializes tests that mutate the process-global MIN_TARGET_PARTITIONS_SETTING.
+    static MIN_PARTITIONS_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn schema_of(fields: Vec<(&str, DataType)>) -> SchemaRef {
         Arc::new(Schema::new(
@@ -736,6 +747,44 @@ mod tests {
         assert!(result.is_some());
         let budget = result.unwrap();
         assert!(budget.target_partitions < 4, "expected partitions < 4, got {}", budget.target_partitions);
+    }
+
+    #[test]
+    fn min_target_partitions_setting_does_not_raise_configured_value() {
+        // Reproduces the bug where `datafusion.min_target_partitions=8` would
+        // override a lower configured target_partitions (derived from
+        // search.concurrent.max_slice_count). The setting is a floor for
+        // adaptive reduction, so it must be a no-op when configured ≤ floor.
+        let _guard = MIN_PARTITIONS_TEST_LOCK.lock().unwrap();
+        let prev = get_min_target_partitions();
+        set_min_target_partitions(8);
+
+        let pool = test_pool(1_000_000_000);
+        let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
+
+        // Caller asks for 2 partitions; setting is 8. Result must stay at 2.
+        let budget = acquire_budget(&pool, &schema, 2, 8192).unwrap();
+        assert_eq!(budget.target_partitions, 2);
+
+        set_min_target_partitions(prev);
+    }
+
+    #[test]
+    fn min_target_partitions_setting_still_acts_as_reduction_floor() {
+        // When the configured target is above the floor and memory pressure
+        // forces reduction, target_partitions must not drop below the floor.
+        let _guard = MIN_PARTITIONS_TEST_LOCK.lock().unwrap();
+        let prev = get_min_target_partitions();
+        set_min_target_partitions(2);
+
+        let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
+        let pool = test_pool(2_000_000);
+
+        let budget = acquire_budget(&pool, &schema, 8, 8192).unwrap();
+        assert!(budget.target_partitions < 8);
+        assert!(budget.target_partitions >= 2);
+
+        set_min_target_partitions(prev);
     }
 
     #[test]

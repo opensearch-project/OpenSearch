@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.calcite.avatica.util.TimeUnit;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
@@ -24,6 +25,8 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -38,11 +41,11 @@ import java.util.List;
  * {@link TimeUnit#DAY} or {@link TimeUnit#MONTH} qualifier) and folds the {@code DATE_SUB} sign in,
  * the same way {@link EarliestLatestAdapter} does.
  *
- * <p>Only DATE and TIMESTAMP bases are lowered. TIME bases (the PPL UDF anchors them to the
- * query-start date, which this adapter can't reproduce) and sub-millisecond units (MICROSECOND,
- * unrepresentable in Arrow's millisecond-granular interval) are left on the UDF path, as is any
- * unexpected shape — the call is returned unchanged so Substrait conversion raises a loud
- * "unrecognized function" error rather than mis-lowering.
+ * <p>DATE / TIMESTAMP / TIME / character bases are all lowered. TIME anchors to today-UTC at plan
+ * time, which can drift from the PPL UDF's query-start anchor across UTC midnight or cached plans
+ * (TODO: thread {@code FunctionProperties#getQueryStartClock} through to adapters). MICROSECOND
+ * intervals can't be represented in Arrow's millisecond IntervalDayTime; the call is returned
+ * unchanged so the UDF path raises a loud error rather than mis-lowering.
  *
  * @opensearch.internal
  */
@@ -79,37 +82,21 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
 
         RexBuilder rexBuilder = cluster.getRexBuilder();
 
-        // PPL DATE_ADD/DATE_SUB accept DATE / TIMESTAMP / TIME bases, but we only lower DATE and
-        // TIMESTAMP. A DATE base casts to midnight UTC of the call's declared TIMESTAMP type and a
-        // TIMESTAMP base passes through; a TIME base, however, is anchored to the query-start DATE
-        // by the PPL UDF before the interval is added — a plain CAST(time AS TIMESTAMP) would anchor
-        // it to the epoch instead, silently shifting the result onto 1970-01-01. We can't reproduce
-        // query-date anchoring here, so leave TIME (and any other base type) for the UDF path:
-        // returning the original call surfaces a loud "Unrecognized scalar function" error rather
-        // than a wrong date.
-        //
-        // A CHARACTER base appears when subquery decorrelation constant-folds the PPL DATE() UDF
-        // wrapper off the literal (e.g. `date_add(date('1994-01-01'), interval 1 year)` inside an
-        // EXISTS / IN / scalar subsearch becomes `DATE_ADD('1994-01-01':VARCHAR, interval)`). Coerce
-        // it back to TIMESTAMP so the same DATETIME_PLUS lowering applies — mirrors the comparison
-        // path's recovery. See ComparisonTemporalCoercionAdapter for the broader rationale.
+        // Character base appears post-decorrelation when the PPL DATE() wrapper is folded off a
+        // literal inside EXISTS/IN/scalar subqueries — coerce back to plain Calcite TIMESTAMP (not
+        // the UDT) so isthmus sees precision_timestamp.
         SqlTypeName baseSqlType = base.getType().getSqlTypeName();
-        // A character base coerces to a plain Calcite TIMESTAMP (isthmus reads it as
-        // precision_timestamp); feed that straight to DATETIME_PLUS rather than re-casting it to the
-        // EXPR_TIMESTAMP UDT, whose VARCHAR storage isthmus would otherwise see as a string operand
-        // ("Unable to convert call +(string, interval)").
         boolean characterBase = SqlTypeFamily.CHARACTER.contains(base.getType());
         if (characterBase) {
             base = DatePartAdapters.coerceCharacterOperandToTimestamp(base, cluster);
         } else if (baseSqlType != SqlTypeName.DATE
             && baseSqlType != SqlTypeName.TIMESTAMP
-            && baseSqlType != SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+            && baseSqlType != SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE
+            && baseSqlType != SqlTypeName.TIME) {
                 return original;
             }
         long signedLeading = (isAdd ? 1L : -1L) * leadingValue.longValueExact();
 
-        // Convert the leading-field value into the backend's base unit (millis for day-time, months
-        // for the month family) and emit a normalized qualifier — see class javadoc.
         long baseValue;
         TimeUnit baseUnit;
         switch (qualifier.getUnit()) {
@@ -149,19 +136,13 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
                 baseValue = signedLeading * 12L;
                 baseUnit = TimeUnit.MONTH;
             }
+            // MICROSECOND and unknown units fall through to the UDF path — see class javadoc.
             default -> {
-                // MICROSECOND (and any sub-millisecond unit) can't be represented exactly in
-                // Arrow's millisecond-granular IntervalDayTime, so don't silently truncate — fall
-                // through to the UDF path, which surfaces a loud error rather than a wrong result.
                 return original;
             }
         }
 
-        // PPL DATE_ADD/DATE_SUB return TIMESTAMP; lift the (possibly DATE) base to that type so
-        // DATETIME_PLUS yields a TIMESTAMP and the surrounding rowType matches the call's type. A
-        // character base is already a plain Calcite TIMESTAMP (see above) — keep it as-is so isthmus
-        // sees precision_timestamp, not the UDT's VARCHAR storage.
-        RexNode baseTimestamp = characterBase ? base : rexBuilder.makeAbstractCast(original.getType(), base);
+        RexNode baseTimestamp = liftToTimestamp(base, baseSqlType, characterBase, original.getType(), rexBuilder);
         RexNode interval = rexBuilder.makeIntervalLiteral(
             BigDecimal.valueOf(baseValue),
             new SqlIntervalQualifier(baseUnit, null, SqlParserPos.ZERO)
@@ -172,6 +153,28 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
             return shifted;
         }
         return rexBuilder.makeAbstractCast(original.getType(), shifted);
+    }
+
+    /** Lift the base to the call's TIMESTAMP type. TIME prepends today-UTC; character base passes through. */
+    private static RexNode liftToTimestamp(
+        RexNode base,
+        SqlTypeName baseSqlType,
+        boolean characterBase,
+        RelDataType targetType,
+        RexBuilder rexBuilder
+    ) {
+        if (characterBase) {
+            return base;
+        }
+        if (baseSqlType == SqlTypeName.TIME) {
+            RelDataType varchar = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
+            RelDataType nullableVarchar = rexBuilder.getTypeFactory().createTypeWithNullability(varchar, base.getType().isNullable());
+            RexNode timeAsVarchar = rexBuilder.makeCast(nullableVarchar, base);
+            RexNode prefixLit = rexBuilder.makeLiteral(LocalDate.now(ZoneOffset.UTC) + " ", varchar, false);
+            RexNode concat = rexBuilder.makeCall(nullableVarchar, SqlStdOperatorTable.CONCAT, List.of(prefixLit, timeAsVarchar));
+            return rexBuilder.makeAbstractCast(targetType, concat);
+        }
+        return rexBuilder.makeAbstractCast(targetType, base);
     }
 
     private static RexNode stripOperatorAnnotation(RexNode node) {
