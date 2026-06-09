@@ -130,4 +130,62 @@ public class RustUdfDateTimeAdaptersTests extends OpenSearchTestCase {
         RexCall adaptedCall = (RexCall) adapted;
         assertSame(tsVal, adaptedCall.getOperands().get(1));
     }
+
+    /** DAYNAME with a valid date literal lowers without throwing. */
+    public void testDaynameAdapterAcceptsValidDateLiteral() {
+        RexCall original = makeDateFormatCall("2020-08-26");
+        RexNode adapted = new RustUdfDateTimeAdapters.DaynameAdapter().adapt(original, List.of(), cluster);
+        assertTrue(adapted instanceof RexCall);
+    }
+
+    /** DAYNAME with an invalid date literal rejects at plan time with the format-hint message. */
+    public void testDaynameAdapterRejectsInvalidDateLiteral() {
+        RexCall original = makeDateFormatCall("2025-13-02");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RustUdfDateTimeAdapters.DaynameAdapter().adapt(original, List.of(), cluster)
+        );
+        assertTrue(
+            "expected unsupported-format hint, got: " + e.getMessage(),
+            e.getMessage().contains("2025-13-02") && e.getMessage().contains("unsupported format")
+        );
+    }
+
+    /** DAYNAME rejects out-of-range time-of-day in a full datetime literal. */
+    public void testDaynameAdapterRejectsInvalidDatetimeLiteral() {
+        RexCall original = makeDateFormatCall("2025-12-01 15:02:61");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RustUdfDateTimeAdapters.DaynameAdapter().adapt(original, List.of(), cluster)
+        );
+        assertTrue(e.getMessage().contains("unsupported format"));
+    }
+
+    /** MONTHNAME with a valid date literal lowers without throwing. */
+    public void testMonthnameAdapterAcceptsValidDateLiteral() {
+        RexCall original = makeDateFormatCall("2020-08-26");
+        RexNode adapted = new RustUdfDateTimeAdapters.MonthnameAdapter().adapt(original, List.of(), cluster);
+        assertTrue(adapted instanceof RexCall);
+    }
+
+    /** MONTHNAME with an invalid date literal rejects at plan time with the format-hint message. */
+    public void testMonthnameAdapterRejectsInvalidDateLiteral() {
+        RexCall original = makeDateFormatCall("2025-13-02");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RustUdfDateTimeAdapters.MonthnameAdapter().adapt(original, List.of(), cluster)
+        );
+        assertTrue(
+            "expected unsupported-format hint, got: " + e.getMessage(),
+            e.getMessage().contains("2025-13-02") && e.getMessage().contains("unsupported format")
+        );
+    }
+
+    /** Builds a {@code date_format(<varchar-literal>, <fmt>)} call shaped like the rewritten DAYNAME / MONTHNAME input. */
+    private RexCall makeDateFormatCall(String literal) {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode operand = rexBuilder.makeLiteral(literal, varchar, true);
+        RexNode fmt = rexBuilder.makeLiteral("%W", varchar, true);
+        return (RexCall) rexBuilder.makeCall(varchar, RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, List.of(operand, fmt));
+    }
 }

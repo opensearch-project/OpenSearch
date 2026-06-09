@@ -325,6 +325,16 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
         assertErrorContains(oneRow() + "| eval a = hour('99:99:99') | fields a", "99:99:99");
     }
 
+    /** Cluster C: DAYNAME('2025-13-02') rejects at plan time with the format hint (no StreamException). */
+    public void testClusterC_daynameBadStringRejects() throws IOException {
+        assertErrorContains(oneRow() + "| eval a = dayname('2025-13-02') | fields a", "unsupported format");
+    }
+
+    /** Cluster C: MONTHNAME('2025-13-02') rejects at plan time with the format hint (no StreamException). */
+    public void testClusterC_monthnameBadStringRejects() throws IOException {
+        assertErrorContains(oneRow() + "| eval a = monthname('2025-13-02') | fields a", "unsupported format");
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Cluster D — Datetime stringification: space separator, no epoch prefix (5 methods)
     // commit 6988b804646
