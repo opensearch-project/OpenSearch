@@ -119,6 +119,7 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
     private static final MethodHandle FETCH_BY_ROW_IDS;
+    private static final MethodHandle UPDATE_CONCURRENCY_GATE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -549,6 +550,12 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG
             )
         );
+
+        // i64 df_update_concurrency_gate(gate_name_ptr, gate_name_len, new_max_permits)
+        UPDATE_CONCURRENCY_GATE = linker.downcallHandle(
+            lib.find("df_update_concurrency_gate").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
+        );
     }
 
     private NativeBridge() {}
@@ -662,6 +669,17 @@ public final class NativeBridge {
 
     public static void shutdownTokioRuntimeManager() {
         NativeCall.invokeVoid(SHUTDOWN_RUNTIME_MANAGER);
+    }
+
+    /**
+     * Updates the effective permit count of a concurrency gate at runtime.
+     * Gate names: "fragment_executor" or "reduce".
+     */
+    public static void updateConcurrencyGate(String gateName, int newMaxPermits) {
+        try (var call = new NativeCall()) {
+            var name = call.str(gateName);
+            call.invoke(UPDATE_CONCURRENCY_GATE, name.segment(), name.len(), newMaxPermits);
+        }
     }
 
     // ---- DataFusion runtime (confined Arena for spillDir string only) ----
@@ -985,8 +1003,8 @@ public final class NativeBridge {
             }
 
             // Partition gates
-            var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
-            var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
+            var datanodeGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "datanode_gate");
+            var coordinatorGate = StatsLayout.readPartitionGate(seg, "reduce_executor_gate", "coordinator_gate");
 
             return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
         }

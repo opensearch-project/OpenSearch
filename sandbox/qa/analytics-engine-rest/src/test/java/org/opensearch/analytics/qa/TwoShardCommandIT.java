@@ -31,7 +31,6 @@ public class TwoShardCommandIT extends TwoShardReduceTestCase {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("cmd_search", "search numeric comparison lowers to a Lucene query_string that matches zero docs on numeric fields (wrong result)");
         m.put("cmd_appendcols", "not in the PPL grammar (SyntaxCheckException)");
-        m.put("cmd_timechart", "requires an @timestamp default field");
         return m;
     }
 }

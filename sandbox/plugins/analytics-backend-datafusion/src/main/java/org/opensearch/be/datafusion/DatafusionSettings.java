@@ -191,22 +191,24 @@ public final class DatafusionSettings {
 
     // ── Concurrency gate settings ──
 
-    /** Datanode concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    /** Fragment executor concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
     public static final Setting<Double> CONCURRENCY_DATANODE_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.datanode_multiplier",
+        "datafusion.concurrency.fragment_executor_multiplier",
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
-    /** Coordinator concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    /** Reduce concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
     public static final Setting<Double> CONCURRENCY_COORDINATOR_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.coordinator_multiplier",
+        "datafusion.concurrency.reduce_executor_multiplier",
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // Query strategy constants
