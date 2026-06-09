@@ -432,9 +432,7 @@ final class SubstraitPlanProtoRewriter {
                 return t.toBuilder().setIntervalDay(t.getIntervalDay().toBuilder().setNullability(nullable).build()).build();
             case INTERVAL_COMPOUND:
                 if (t.getIntervalCompound().getNullability() == nullable) return t;
-                return t.toBuilder()
-                    .setIntervalCompound(t.getIntervalCompound().toBuilder().setNullability(nullable).build())
-                    .build();
+                return t.toBuilder().setIntervalCompound(t.getIntervalCompound().toBuilder().setNullability(nullable).build()).build();
             case TIMESTAMP_TZ:
                 if (t.getTimestampTz().getNullability() == nullable) return t;
                 return t.toBuilder().setTimestampTz(t.getTimestampTz().toBuilder().setNullability(nullable).build()).build();
@@ -458,9 +456,7 @@ final class SubstraitPlanProtoRewriter {
                 return t.toBuilder().setPrecisionTime(t.getPrecisionTime().toBuilder().setNullability(nullable).build()).build();
             case PRECISION_TIMESTAMP:
                 if (t.getPrecisionTimestamp().getNullability() == nullable) return t;
-                return t.toBuilder()
-                    .setPrecisionTimestamp(t.getPrecisionTimestamp().toBuilder().setNullability(nullable).build())
-                    .build();
+                return t.toBuilder().setPrecisionTimestamp(t.getPrecisionTimestamp().toBuilder().setNullability(nullable).build()).build();
             case PRECISION_TIMESTAMP_TZ:
                 if (t.getPrecisionTimestampTz().getNullability() == nullable) return t;
                 return t.toBuilder()
