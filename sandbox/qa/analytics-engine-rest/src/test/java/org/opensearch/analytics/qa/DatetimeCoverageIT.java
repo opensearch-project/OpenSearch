@@ -156,6 +156,24 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
         assertNull("out-of-range tz must fold to NULL post-fix", cell);
     }
 
+    /** Cluster B: 2-arg DATETIME with null string operands returns TIMESTAMP-typed null rows.
+     * Mirrors {@code CalcitePPLBuiltinFunctionsNullIT.testDatetimeNullString}; the SAFE-cast in
+     * {@link org.opensearch.be.datafusion.ConvertTzAdapter} keeps the lowering well-typed when
+     * arg0 is a typed-null string ({@code precision_timestamp(9)?} mismatch pre-fix). */
+    public void testClusterB_twoArgDatetimeNullOperandsReturnNull() throws IOException {
+        // nullif(x, x) → typed-null string, mirroring null `name` / `state` columns in the SQL fixture.
+        Map<String, Object> response = executePpl(
+            oneRow()
+                + "| eval n = nullif(key, key), t = nullif(key, key) "
+                + "| eval d1 = DATETIME(n, '+10:00'), d2 = datetime('2004-02-28 23:00:00-10:00', t) "
+                + "| fields d1, d2"
+        );
+        assertSchemaType(response, "d1", "timestamp");
+        assertSchemaType(response, "d2", "timestamp");
+        assertNull("DATETIME(null, '+10:00') must be NULL", firstRowOf(response, "d1"));
+        assertNull("datetime('2004-02-28 23:00:00-10:00', null) must be NULL", firstRowOf(response, "d2"));
+    }
+
     /** Cluster B: now(0)/sysdate(0) FSP-arg overload resolves. Asserts type+nonnull only. */
     public void testClusterB_nowFspVariant() throws IOException {
         Map<String, Object> response = executePpl(oneRow() + "| eval f = sysdate(0) | fields f");
