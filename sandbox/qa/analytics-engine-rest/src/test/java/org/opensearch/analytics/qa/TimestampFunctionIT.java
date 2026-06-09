@@ -227,12 +227,36 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
         );
     }
 
-    // Pending sql cluster A+D: combined UDT bridging + value rendering
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
-    public void testTimeEqualsDateDoesNotCrash() throws IOException {
-        // Pre-fix this lowered to to_timestamp(Date32) which DataFusion rejected at runtime.
+    // ── TIME-vs-{DATE,TIMESTAMP} comparison routes through ComparisonTemporalCoercionAdapter ──
+    // Pre-fix every shape failed plan-time with "Unable to convert call to_timestamp(precision_time<9>?)".
+
+    /** TIME = DATE — today-anchored midnight is not 2004-07-09. */
+    public void testTimeEqualsDate() throws IOException {
         Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = time('00:00:00') = date('2004-07-09') | fields v");
-        assertTrue("Expected boolean result, got: " + cell, cell instanceof Boolean);
+        assertEquals(Boolean.FALSE, cell);
+    }
+
+    /** {@code DATE < TIME} — TIME lifts to today-anchored TIMESTAMP, so a past DATE is less than today. */
+    public void testDateLessThanTime() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = date('2020-09-16') < time('09:07:00') | fields v");
+        assertEquals(Boolean.TRUE, cell);
+    }
+
+    /** TIME = TIMESTAMP — same time-of-day on today's date holds. */
+    public void testTimeEqualsTimestampSameTimeOfDay() throws IOException {
+        String today = LocalDate.now(ZoneOffset.UTC).toString();
+        Object cell = firstRowFirstCell(
+            oneRow("key00") + "| eval v = time('10:20:30') = timestamp('" + today + " 10:20:30') | fields v"
+        );
+        assertEquals(Boolean.TRUE, cell);
+    }
+
+    /** TIMESTAMP != TIME — opposite direction. */
+    public void testTimestampNotEqualsTime() throws IOException {
+        Object cell = firstRowFirstCell(
+            oneRow("key00") + "| eval v = timestamp('1984-12-15 10:20:30') != time('10:20:30') | fields v"
+        );
+        assertEquals(Boolean.TRUE, cell);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────
