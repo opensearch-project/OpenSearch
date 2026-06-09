@@ -255,6 +255,30 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
         assertEquals("timestampdiff(MONTH,...) over 6m14d must be 6", 6L, ((Number) firstRowFirstCell(response)).longValue());
     }
 
+    /** Cluster A: TIMEDIFF(time-typed-col, time-typed-col) dispatches without TIMESTAMP collapse. */
+    // Pending: needs a dedicated `time_diff` Rust UDF — the Calcite-side maketime lowering
+    // works at plan time but DataFusion fails at runtime (StreamException).
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/<TBD>")
+    public void testClusterA_timediffOnTimeOnlyColumn() throws IOException {
+        Map<String, Object> response = executePpl(
+            oneRow() + "| eval td = timediff(time1, time1) | fields td"
+        );
+        Object cell = firstRowFirstCell(response);
+        assertEquals("timediff(t, t) over equal times must be 00:00:00", "00:00:00", cell);
+        assertSchemaType(response, "td", "time");
+    }
+
+    /** Cluster A: TIMEDIFF on a NULL TIME operand returns a TIME-typed null row (NullPolicy.ANY). */
+    // Pending: same blocker as testClusterA_timediffOnTimeOnlyColumn.
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/<TBD>")
+    public void testClusterA_timediffNullOperandReturnsNull() throws IOException {
+        Map<String, Object> response = executePpl(
+            oneRow() + "| eval n = nullif(time1, time1) | eval td = timediff(n, n) | fields td"
+        );
+        assertNull("timediff(NULL, NULL) must be NULL", firstRowFirstCell(response));
+        assertSchemaType(response, "td", "time");
+    }
+
     /** Cluster B: HOUR(TIME(...)) resolves through the DATE_PART(unit, TIME) overload. */
     public void testClusterB_datePartTimeHour() throws IOException {
         Map<String, Object> response = executePpl(oneRow() + "| eval f = hour(time('17:30:45')) | fields f");
