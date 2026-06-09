@@ -86,6 +86,23 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
         return (RexCall) rexBuilder.makeCall(boolType, latestUdf, List.of(lit, tsRef));
     }
 
+    /**
+     * Regression: when the timestamp operand is NOT NULL (e.g. {@code earliest('now', utc_timestamp())}
+     * where utc_timestamp() and the folded literal are both non-null), the comparison's inferred
+     * return type is {@code BOOLEAN NOT NULL}, but the EARLIEST call was declared nullable BOOLEAN.
+     * The adapter must pin the result to the call's declared type or the enclosing Project/Filter
+     * trips Calcite's {@code BOOLEAN vs BOOLEAN NOT NULL} assertion at execution time.
+     */
+    public void testNotNullTimestampOperandPinsResultType() {
+        RelDataType notNullTs = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3), false);
+        RexNode notNullTsRef = rexBuilder.makeInputRef(notNullTs, 0);
+        RelDataType nullableBool = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
+        RexCall call = (RexCall) rexBuilder.makeCall(nullableBool, earliestUdf, List.of(rexBuilder.makeLiteral("now"), notNullTsRef));
+
+        RexNode result = earliestAdapter.adapt(call, List.of(), cluster);
+        assertEquals("rewrite must preserve the call's declared (nullable BOOLEAN) type", call.getType(), result.getType());
+    }
+
     // ── Absolute literal: emits TIMESTAMP_LITERAL, no symbolic now() ───────────
 
     public void testAbsoluteIsoDateEmitsTimestampLiteral() {

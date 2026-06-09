@@ -394,6 +394,216 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── New PPL datetime scalars (ADDDATE/SUBDATE, DATEDIFF, TO_DAYS/TO_SECONDS/FROM_DAYS, ──────
+    //    TIME_TO_SEC/SEC_TO_TIME, WEEKDAY, PERIOD_ADD/PERIOD_DIFF, GET_FORMAT, ADDTIME/SUBTIME/
+    //    TIMEDIFF, LAST_DAY, YEARWEEK) — pin MySQL semantics that the q-suite smoke tests don't.
+
+    /** ADDTIME(timestamp, time) crossing midnight rolls the date forward (matches legacy SQL). */
+    public void testAddTimeCrossesMidnight() throws IOException {
+        // datetime0 = 2004-07-09 10:17:35Z; +14:00:00 → 2004-07-10 00:17:35.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(addtime(datetime0, time('14:00:00')), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2004-07-10 00:17:35"
+        );
+    }
+
+    /** SUBTIME on a TIMESTAMP that wraps backwards into the previous day. */
+    public void testSubTimeWrapsToPreviousDay() throws IOException {
+        // datetime0 = 2004-07-09 10:17:35Z; -11:00:00 → 2004-07-08 23:17:35.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(subtime(datetime0, time('11:00:00')), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2004-07-08 23:17:35"
+        );
+    }
+
+    /** ADDTIME(time, time) returns a TIME — exercises the maketime branch (not from_unixtime). */
+    public void testAddTimeOnTimeReturnsTime() throws IOException {
+        // 19:36:22 + 02:30:00 → 22:06:22.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = time_format(addtime(time1, time('02:30:00')), '%H:%i:%s') | fields v",
+            "22:06:22"
+        );
+    }
+
+    /** DATEDIFF discards time-of-day — DATEDIFF('2000-01-02 00:00:00', '2000-01-01 23:59:59') = 1 not 0. */
+    public void testDateDiffIgnoresTimeOfDay() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval d = datediff('2000-01-02 00:00:00', '2000-01-01 23:59:59') | fields d",
+            1L
+        );
+    }
+
+    /**
+     * DATEDIFF on two TIME operands: both anchor to the same (today's UTC) date, so their day-counts
+     * cancel — matches MySQL's documented behavior of returning 0 even when the time-of-day values
+     * span a notional day boundary. Pins the DateDiffAdapter TIME-anchoring path end-to-end.
+     */
+    public void testDateDiffOnTimeOperandsReturnsZero() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval d = datediff(time('23:59:59'), time('00:00:00')) | fields d",
+            0L
+        );
+    }
+
+    /** TO_DAYS('1970-01-01') = 719528 — pins the MySQL day-1 origin (year 0000-01-01). */
+    public void testToDaysEpochAnchor() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval d = to_days('1970-01-01') | fields d", 719_528L);
+    }
+
+    /** TO_SECONDS('1970-01-01 00:00:00') = 62167219200 — same anchor, second-resolution. */
+    public void testToSecondsEpochAnchor() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval s = to_seconds('1970-01-01 00:00:00') | fields s", 62_167_219_200L);
+    }
+
+    /** FROM_DAYS round-trip: TO_DAYS('1970-01-01') back through FROM_DAYS yields 1970-01-01. */
+    public void testFromDaysRoundTripsThroughEpochAnchor() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(from_days(719528), '%Y-%m-%d') | fields d",
+            "1970-01-01"
+        );
+    }
+
+    /** TIME_TO_SEC on a full TIMESTAMP — modulus discards the date, returning seconds-of-day. */
+    public void testTimeToSecOnTimestamp() throws IOException {
+        // datetime0 at key00 = 10:17:35 → 10*3600 + 17*60 + 35 = 37055.
+        assertFirstRowLong(oneRow("key00") + "| eval s = time_to_sec(datetime0) | fields s", 37_055L);
+    }
+
+    /** SEC_TO_TIME(123456) wraps past one day → MySQL 10:17:36 (123456 % 86400 = 37056). */
+    public void testSecToTimeWrapsOverOneDay() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval t = time_format(sec_to_time(123456), '%H:%i:%s') | fields t",
+            "10:17:36"
+        );
+    }
+
+    /** WEEKDAY remap: 2004-07-09 was a Friday → MySQL 4 (Mon=0..Sun=6). */
+    public void testWeekdayMatchesMySql() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval w = weekday(datetime0) | fields w", 4L);
+    }
+
+    /** PERIOD_ADD(202612, 1) rolls into the next year: → 202701. */
+    public void testPeriodAddRollsAcrossYearBoundary() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval p = period_add(202612, 1) | fields p", 202_701L);
+    }
+
+    /** PERIOD_DIFF(202612, 202601) = 11 — months between two YYYYMM periods within the same year. */
+    public void testPeriodDiffWithinYear() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval d = period_diff(202612, 202601) | fields d", 11L);
+    }
+
+    /** GET_FORMAT(DATE, 'EUR') folds to '%d.%m.%Y' at plan time. */
+    public void testGetFormatDateEurFoldsAtPlanTime() throws IOException {
+        assertFirstRowString(oneRow("key00") + "| eval f = get_format(DATE, 'EUR') | fields f", "%d.%m.%Y");
+    }
+
+    /** LAST_DAY in February of a leap year resolves to the 29th, not the 28th. */
+    public void testLastDayLeapYearFebruary() throws IOException {
+        // Use a TIMESTAMP literal so the operand-typing path matches the dataset use.
+        assertFirstRowString(
+            oneRow("key00") + "| eval ld = date_format(last_day('2024-02-15'), '%Y-%m-%d') | fields ld",
+            "2024-02-29"
+        );
+    }
+
+    /** YEARWEEK mode 0 vs mode 3 differ for 2003-10-03 (200339 vs 200340) — pins the mode arg path. */
+    public void testYearweekModeArgChangesResult() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval y = yearweek('2003-10-03') | fields y", 200_339L);
+        assertFirstRowLong(oneRow("key00") + "| eval y = yearweek('2003-10-03', 3) | fields y", 200_340L);
+    }
+
+    /** ADDDATE shares DATE_ADD's lowering — INTERVAL form on a DATE column. */
+    public void testAddDateIntervalForm() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(adddate(date0, interval 7 day), '%Y-%m-%d') | fields d",
+            "2004-04-22"
+        );
+    }
+
+    /** ADDDATE integer form — per SPI: integer N is treated as INTERVAL N DAY. */
+    public void testAddDateIntegerForm() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(adddate(date0, 7), '%Y-%m-%d') | fields d",
+            "2004-04-22"
+        );
+    }
+
+    /** SUBDATE shares DATE_SUB's lowering — INTERVAL form on a DATE column. */
+    public void testSubDateIntervalForm() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(subdate(date0, interval 1 month), '%Y-%m-%d') | fields d",
+            "2004-03-15"
+        );
+    }
+
+    /** SUBDATE integer form — per SPI: integer N is treated as INTERVAL N DAY. */
+    public void testSubDateIntegerForm() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(subdate(date0, 5), '%Y-%m-%d') | fields d",
+            "2004-04-10"
+        );
+    }
+
+    /** TIMEDIFF returns a TIME — value of '23:59:59' minus '13:00:00' is '10:59:59'. */
+    public void testTimeDiffReturnsTime() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval td = time_format(timediff(time('23:59:59'), time('13:00:00')), '%H:%i:%s') | fields td",
+            "10:59:59"
+        );
+    }
+
+    /**
+     * TIME_TO_SEC on a bare TIME literal exercises the today-anchor path
+     * ({@code DatePartAdapters#coerceCharacterOperandToTimestamp}) end-to-end. The MOD 86400
+     * discards the date, so result equals the time-of-day's second count regardless of the anchor.
+     */
+    public void testTimeToSecOnTimeLiteral() throws IOException {
+        // 19:36:22 → 19*3600 + 36*60 + 22 = 70582.
+        assertFirstRowLong(oneRow("key00") + "| eval s = time_to_sec(time('19:36:22')) | fields s", 70_582L);
+    }
+
+    /** YEARWEEK on a TIMESTAMP column (not literal) exercises the os_yearweek column path. */
+    public void testYearweekOnTimestampColumn() throws IOException {
+        // datetime0 at key00 = 2004-07-09 (Fri); mode 0 (Sun-first) → week 27 of 2004 → 200427.
+        assertFirstRowLong(oneRow("key00") + "| eval y = yearweek(datetime0) | fields y", 200_427L);
+    }
+
+    /**
+     * {@code time_format(time_column, fmt)} against a TIME column — distinct from the
+     * {@code time_format(maketime(...), fmt)} path covered by {@link #testAddTimeOnTimeReturnsTime}.
+     * The {@code time1} column at key00 is {@code 19:36:22}.
+     */
+    public void testTimeFormatOnTimeColumn() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = time_format(time1, '%H:%i:%s') | fields v",
+            "19:36:22"
+        );
+    }
+
+    /**
+     * ADDTIME with a TIMESTAMP column + TIME column (both non-literals) exercises the column-vs-column
+     * branch — distinct from the literal-time branch covered by {@link #testAddTimeCrossesMidnight}.
+     */
+    public void testAddTimeTimestampPlusTimeColumn() throws IOException {
+        // datetime0 at key00 = 2004-07-09 10:17:35; time1 = 19:36:22 → 2004-07-10 05:53:57.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(addtime(datetime0, time1), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2004-07-10 05:53:57"
+        );
+    }
+
+    /**
+     * LAST_DAY over a DATE column — exercises the no-anchor DATE branch end-to-end. The
+     * {@code testLastDayLeapYearFebruary} IT only covers a string literal.
+     */
+    public void testLastDayOnDateColumn() throws IOException {
+        // date0 at key00 = 2004-04-15 → last day of April 2004 = 2004-04-30.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(last_day(date0), '%Y-%m-%d') | fields v",
+            "2004-04-30"
+        );
+    }
+
     private void assertFirstRowString(String ppl, String expected) throws IOException {
         Object cell = firstRowFirstCell(ppl);
         assertNotNull("Expected non-null result for query [" + ppl + "]", cell);

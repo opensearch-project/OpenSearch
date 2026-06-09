@@ -66,6 +66,9 @@ final class RustUdfDateTimeAdapters {
     /** WEEK(date [, mode]) target — MySQL semantics, accepts 1- and 2-arg forms. */
     static final SqlOperator LOCAL_OS_WEEK_OP = udf("os_week", ReturnTypes.INTEGER_NULLABLE, OperandTypes.VARIADIC);
 
+    /** YEARWEEK(date [, mode]) target — routes to the Rust {@code os_yearweek} UDF. */
+    static final SqlOperator LOCAL_OS_YEARWEEK_OP = udf("os_yearweek", ReturnTypes.INTEGER_NULLABLE, OperandTypes.VARIADIC);
+
     /**
      * Adapter for PPL {@code extract(<unit> FROM <expr>)}.
      * <p>For TIME(p) operands, CASTs to VARCHAR so the call binds to the {@code (string, string)}
@@ -177,6 +180,20 @@ final class RustUdfDateTimeAdapters {
         @Override
         public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
             validateFirstArgIfStringLiteral(original, DatetimeLiteralValidator.Kind.TIMESTAMP);
+            // Calcite-stock TIME serialises to substrait precision_time<P>, which has no yaml
+            // signature (substrait-java 0.89.1 lacks ToTypeString for PrecisionTime, so the yaml
+            // can't even declare one). Anchor a TIME first operand to a TIMESTAMP via the shared
+            // coercion path so isthmus binds the precision_timestamp<P> arm — same workaround
+            // DatePartAdapters uses for hour/minute/second.
+            if (!original.getOperands().isEmpty() && original.getOperands().get(0).getType().getSqlTypeName() == SqlTypeName.TIME) {
+                RexBuilder rexBuilder = cluster.getRexBuilder();
+                List<RexNode> coerced = new java.util.ArrayList<>(original.getOperands().size());
+                coerced.add(DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster));
+                for (int i = 1; i < original.getOperands().size(); i++) {
+                    coerced.add(original.getOperands().get(i));
+                }
+                return rexBuilder.makeCall(original.getType(), LOCAL_TIME_FORMAT_OP, coerced);
+            }
             return super.adapt(original, fieldStorage, cluster);
         }
     }
@@ -284,6 +301,33 @@ final class RustUdfDateTimeAdapters {
                 coerced.add(originalOperands.get(i));
             }
             return rexBuilder.makeCall(original.getType(), LOCAL_OS_WEEK_OP, coerced);
+        }
+    }
+
+    /**
+     * PPL {@code YEARWEEK(date[, mode])} — routes to the {@code os_yearweek} Rust UDF (year*100+week
+     * with MySQL year-boundary semantics). The first operand is coerced to TIMESTAMP via the shared
+     * {@link DatePartAdapters#coerceCharacterOperandToTimestamp} helper (handling character/TIME forms
+     * the same way {@code WEEKDAY}/{@code os_week} do) so it binds the yaml {@code precision_timestamp<P>}
+     * signature; an optional {@code mode} operand passes through unchanged.
+     */
+    static final class OsYearweekAdapter extends AbstractNameMappingAdapter {
+        OsYearweekAdapter() {
+            super(LOCAL_OS_YEARWEEK_OP, List.of(), List.of());
+        }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            if (original.getOperands().isEmpty()) {
+                return super.adapt(original, fieldStorage, cluster);
+            }
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            List<RexNode> coerced = new java.util.ArrayList<>(original.getOperands().size());
+            coerced.add(DatePartAdapters.coerceCharacterOperandToTimestamp(original.getOperands().get(0), cluster));
+            for (int i = 1; i < original.getOperands().size(); i++) {
+                coerced.add(original.getOperands().get(i));
+            }
+            return rexBuilder.makeCall(original.getType(), LOCAL_OS_YEARWEEK_OP, coerced);
         }
     }
 

@@ -285,12 +285,57 @@ public enum ScalarFunction {
      * analytics-backend-datafusion adapter.
      */
     DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code ADDDATE(<date|timestamp>, N | INTERVAL n unit)} — shift a temporal value forward.
+     * Shares the {@code DATE_ADD} lowering: the integer form is treated as {@code INTERVAL N DAY}.
+     * TIME bases (anchored to the query-start date by the PPL UDF) are left on the UDF path.
+     */
+    ADDDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code SUBDATE(<date|timestamp>, N | INTERVAL n unit)} — the subtract counterpart of
+     * {@link #ADDDATE}, sharing the {@code DATE_SUB} lowering.
+     */
+    SUBDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UTC_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UTC_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UTC_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     DAYNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     MONTHNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     MINUTE_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATEDIFF(a, b)} — whole-day difference between the calendar dates of two temporal
+     * values ({@code arg1 - arg2}, time-of-day discarded), returning BIGINT. Lowered to a
+     * day-index subtraction by the analytics-backend-datafusion adapter.
+     */
+    DATEDIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TO_DAYS(x)} — days since {@code 0000-01-01} (BIGINT). Epoch-arithmetic lowering. */
+    TO_DAYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TO_SECONDS(x)} — seconds since {@code 0000-01-01} (BIGINT). Epoch-arithmetic lowering. */
+    TO_SECONDS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code FROM_DAYS(n)} — inverse of {@link #TO_DAYS}, returns DATE. Epoch-arithmetic lowering. */
+    FROM_DAYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TIME_TO_SEC(x)} — seconds-of-day of a TIME/TIMESTAMP (BIGINT). Epoch-arithmetic lowering. */
+    TIME_TO_SEC(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code SEC_TO_TIME(n)} — time-of-day n seconds past midnight (TIME). from_unixtime-based lowering. */
+    SEC_TO_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code WEEKDAY(x)} — day-of-week Mon=0..Sun=6 (INTEGER). date_part('dow') remap lowering. */
+    WEEKDAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code PERIOD_ADD(P, n)} — add n months to a YYYYMM period (INTEGER). Integer-arithmetic lowering. */
+    PERIOD_ADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code PERIOD_DIFF(P1, P2)} — months between two YYYYMM periods (INTEGER). Integer-arithmetic lowering. */
+    PERIOD_DIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code GET_FORMAT(type, region)} — constant MySQL format string (VARCHAR). Plan-time literal fold. */
+    GET_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code ADDTIME(a, b)} — a plus b's time-of-day (TIME if a is TIME, else TIMESTAMP). */
+    ADDTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code SUBTIME(a, b)} — a minus b's time-of-day (TIME if a is TIME, else TIMESTAMP). */
+    SUBTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TIMEDIFF(a, b)} (engine label TIME_DIFF) — difference of two times as a TIME. */
+    TIME_DIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code LAST_DAY(x)} — last day of x's month (DATE). date_trunc('month')+1mo-1day lowering. */
+    LAST_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code YEARWEEK(x[, mode])} — year*100+week (INTEGER) via the os_yearweek Rust UDF. */
+    YEARWEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),

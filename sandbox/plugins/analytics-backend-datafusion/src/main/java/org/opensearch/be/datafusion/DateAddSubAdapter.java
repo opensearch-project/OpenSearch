@@ -35,6 +35,10 @@ import java.util.List;
  * {@code add(timestamp, interval)} that DataFusion executes natively. The raw PPL UDFs have no
  * Substrait binding, so isthmus rejects them.
  *
+ * <p>Also handles ADDDATE/SUBDATE's integer form: {@code ADDDATE(base, N)} is treated as
+ * {@code INTERVAL N DAY} per MySQL semantics — the integer second operand is normalized to a
+ * day-interval literal before the standard lowering proceeds.
+ *
  * <p>PPL's interval literal carries the leading-field value (e.g. {@code 90} for
  * {@code INTERVAL 90 day}), but Substrait/DataFusion expect day-time intervals in milliseconds and
  * year-month intervals in months. This adapter rebuilds the interval in those base units (under a
@@ -68,19 +72,26 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
         if (original.getOperands().size() != 2) {
             return original;
         }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
         RexNode base = original.getOperands().get(0);
         RexNode intervalOperand = stripOperatorAnnotation(original.getOperands().get(1));
-        if (!(intervalOperand instanceof RexLiteral intervalLiteral)
-            || !SqlTypeName.INTERVAL_TYPES.contains(intervalLiteral.getType().getSqlTypeName())) {
+
+        SqlIntervalQualifier qualifier;
+        BigDecimal leadingValue;
+        if (intervalOperand instanceof RexLiteral intervalLiteral
+            && SqlTypeName.INTERVAL_TYPES.contains(intervalLiteral.getType().getSqlTypeName())) {
+            qualifier = intervalLiteral.getType().getIntervalQualifier();
+            leadingValue = intervalLiteral.getValueAs(BigDecimal.class);
+        } else if (SqlTypeFamily.NUMERIC.contains(intervalOperand.getType()) && intervalOperand instanceof RexLiteral numericLiteral) {
+            // ADDDATE/SUBDATE integer form: ADDDATE(base, N) is treated as INTERVAL N DAY.
+            qualifier = new SqlIntervalQualifier(TimeUnit.DAY, null, SqlParserPos.ZERO);
+            leadingValue = numericLiteral.getValueAs(BigDecimal.class);
+        } else {
             return original;
         }
-        SqlIntervalQualifier qualifier = intervalLiteral.getType().getIntervalQualifier();
-        BigDecimal leadingValue = intervalLiteral.getValueAs(BigDecimal.class);
         if (qualifier == null || leadingValue == null) {
             return original;
         }
-
-        RexBuilder rexBuilder = cluster.getRexBuilder();
 
         // Character base appears post-decorrelation when the PPL DATE() wrapper is folded off a
         // literal inside EXISTS/IN/scalar subqueries — coerce back to plain Calcite TIMESTAMP (not
