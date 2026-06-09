@@ -61,6 +61,33 @@ public final class DatafusionSettings {
     );
 
     /**
+     * Whether to use parquet bloom filters for row-group pruning on the indexed read path.
+     * When true, equality predicates are checked against the SBBF (Split Block Bloom Filter)
+     * embedded in the parquet footer before invoking the expensive FFM collector call.
+     * If the bloom filter proves absence, the row group is skipped entirely.
+     */
+    public static final Setting<Boolean> INDEXED_BLOOM_FILTER_ON_READ = Setting.boolSetting(
+        "datafusion.indexed.bloom_filter_on_read",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Whether the indexed scan accepts runtime dynamic filters (TopK / join)
+     * pushed down via physical filter pushdown and uses them to prune row groups
+     * whose parquet statistics cannot satisfy the tightening predicate. On by
+     * default; turn off to A/B the performance impact. When off, the scan
+     * declines the pushdown and behaves exactly as before this feature.
+     */
+    public static final Setting<Boolean> INDEXED_DYNAMIC_FILTER_PUSHDOWN = Setting.boolSetting(
+        "datafusion.indexed.dynamic_filter_pushdown",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Default minimum run length (in rows) below which the indexed stream skips
      * row-selection optimizations and falls back to sequential decode. Shorter runs
      * have higher per-row overhead from selection vector maintenance.
@@ -164,22 +191,24 @@ public final class DatafusionSettings {
 
     // ── Concurrency gate settings ──
 
-    /** Datanode concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    /** Fragment executor concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
     public static final Setting<Double> CONCURRENCY_DATANODE_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.datanode_multiplier",
+        "datafusion.concurrency.fragment_executor_multiplier",
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
-    /** Coordinator concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    /** Reduce concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
     public static final Setting<Double> CONCURRENCY_COORDINATOR_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.coordinator_multiplier",
+        "datafusion.concurrency.reduce_executor_multiplier",
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // Query strategy constants
@@ -230,6 +259,7 @@ public final class DatafusionSettings {
         // Runtime settings — memory pool, spill, reduce input mode, and budget tuning
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
+        DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
         DataFusionPlugin.DATAFUSION_REDUCE_TARGET_PARTITIONS,
         DataFusionPlugin.DATAFUSION_MIN_TARGET_PARTITIONS,
@@ -253,12 +283,14 @@ public final class DatafusionSettings {
         // Indexed query settings — per-query tuning knobs for the indexed execution path
         INDEXED_BATCH_SIZE,
         INDEXED_PARQUET_PUSHDOWN_FILTERS,
+        INDEXED_BLOOM_FILTER_ON_READ,
         INDEXED_MIN_SKIP_RUN_DEFAULT,
         INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD,
         INDEXED_SINGLE_COLLECTOR_STRATEGY,
         INDEXED_TREE_COLLECTOR_STRATEGY,
         INDEXED_MAX_COLLECTOR_PARALLELISM,
-        INDEXED_QUERY_STRATEGY
+        INDEXED_QUERY_STRATEGY,
+        INDEXED_DYNAMIC_FILTER_PUSHDOWN
     );
 
     // ── Snapshot management ──
@@ -294,12 +326,14 @@ public final class DatafusionSettings {
             .batchSize(INDEXED_BATCH_SIZE.get(settings))
             .targetPartitions(deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount))
             .parquetPushdownFilters(INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings))
+            .bloomFilterOnRead(INDEXED_BLOOM_FILTER_ON_READ.get(settings))
             .minSkipRunDefault(INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings))
             .minSkipRunSelectivityThreshold(INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings))
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
+            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
             .build();
 
         registerListeners(clusterSettings);
@@ -317,12 +351,14 @@ public final class DatafusionSettings {
             .batchSize(INDEXED_BATCH_SIZE.get(settings))
             .targetPartitions(deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount))
             .parquetPushdownFilters(INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings))
+            .bloomFilterOnRead(INDEXED_BLOOM_FILTER_ON_READ.get(settings))
             .minSkipRunDefault(INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings))
             .minSkipRunSelectivityThreshold(INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings))
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
+            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
             .build();
     }
 
@@ -333,6 +369,10 @@ public final class DatafusionSettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_PARQUET_PUSHDOWN_FILTERS, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).parquetPushdownFilters(newValue).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_BLOOM_FILTER_ON_READ, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).bloomFilterOnRead(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_MIN_SKIP_RUN_DEFAULT, newValue -> {
@@ -357,6 +397,10 @@ public final class DatafusionSettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_QUERY_STRATEGY, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).queryStrategy(queryStrategyToWireValue(newValue)).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_DYNAMIC_FILTER_PUSHDOWN, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).indexedDynamicFilterPushdown(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {

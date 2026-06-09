@@ -42,6 +42,9 @@ use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties};
 use datafusion_common::DataFusionError;
 
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use futures::StreamExt;
+
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
 use super::partitioning::{compute_assignments, PartitionAssignment, SegmentChunk, SegmentLayout};
@@ -294,6 +297,7 @@ impl TableProvider for IndexedTableProvider {
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::new(std::sync::Mutex::new(Vec::new())),
             row_id_output_index,
+            dynamic_filters: Vec::new(),
         }))
     }
 
@@ -322,6 +326,16 @@ pub struct QueryShardExec {
     /// Column index in the OUTPUT schema where computed `___row_id` should be
     /// injected. `None` means no row ID computation (normal data path).
     row_id_output_index: Option<usize>,
+    /// Runtime dynamic filters accepted from a parent operator (typically a
+    /// `SortExec`-TopK `DynamicFilterPhysicalExpr`) via physical filter
+    /// pushdown. Each is read per row-group at execution time to prune RGs
+    /// whose parquet statistics cannot satisfy the (tightening) predicate.
+    /// Empty unless `handle_child_pushdown_result` accepted one.
+    ///
+    /// These reference only the SORT columns, never the WHERE clause — so they
+    /// are orthogonal to the Lucene/parquet boolean split. See
+    /// `docs/dynamic-filters-indexed-table-impl.md` §4b.
+    dynamic_filters: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
 }
 
 impl fmt::Debug for QueryShardExec {
@@ -382,6 +396,63 @@ impl ExecutionPlan for QueryShardExec {
         Some(combined)
     }
 
+    /// Accept runtime dynamic filters (TopK / join) pushed from a parent.
+    ///
+    /// `QueryShardExec` is a leaf (no children), so the default
+    /// `gather_filters_for_pushdown` already returns an empty description — the
+    /// parent's self-filter arrives here as `parent_filters`. We accept a filter
+    /// only in the `Post` phase and only when every column it references is a
+    /// readable parquet column in our schema (so per-RG statistics pruning is
+    /// possible). Anything else is declined, leaving the parent's safety-net
+    /// `FilterExec` in place — declining is always correctness-safe.
+    fn handle_child_pushdown_result(
+        &self,
+        phase: datafusion::physical_plan::filter_pushdown::FilterPushdownPhase,
+        child_pushdown_result: datafusion::physical_plan::filter_pushdown::ChildPushdownResult,
+        _config: &datafusion::config::ConfigOptions,
+    ) -> Result<
+        datafusion::physical_plan::filter_pushdown::FilterPushdownPropagation<
+            Arc<dyn ExecutionPlan>,
+        >,
+    > {
+        use datafusion::physical_plan::filter_pushdown::{
+            FilterPushdownPhase, FilterPushdownPropagation, PushedDown,
+        };
+
+        // Feature gate: when disabled, decline everything so behaviour is
+        // identical to before this feature (parent keeps its FilterExec).
+        if !self.config.query_config.indexed_dynamic_filter_pushdown {
+            return Ok(FilterPushdownPropagation::if_all(child_pushdown_result));
+        }
+
+        // Only the Post phase carries dynamic filters; in Pre we own static
+        // WHERE semantics via the BoolNode tree and want no interference.
+        if phase != FilterPushdownPhase::Post {
+            return Ok(FilterPushdownPropagation::if_all(child_pushdown_result));
+        }
+
+        let mut statuses = Vec::with_capacity(child_pushdown_result.parent_filters.len());
+        let mut accepted: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
+        for f in &child_pushdown_result.parent_filters {
+            if self.dynamic_filter_is_acceptable(&f.filter) {
+                statuses.push(PushedDown::Yes);
+                accepted.push(Arc::clone(&f.filter));
+            } else {
+                statuses.push(PushedDown::No);
+            }
+        }
+
+        if accepted.is_empty() {
+            return Ok(FilterPushdownPropagation::with_parent_pushdown_result(statuses));
+        }
+
+        let new_self = self.clone_with_dynamic_filters(accepted);
+        Ok(
+            FilterPushdownPropagation::with_parent_pushdown_result(statuses)
+                .with_updated_node(Arc::new(new_self) as Arc<dyn ExecutionPlan>),
+        )
+    }
+
     fn execute(
         &self,
         partition: usize,
@@ -395,8 +466,22 @@ impl ExecutionPlan for QueryShardExec {
         let stream_metrics =
             pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
 
-        // Build one IndexedExec per SegmentChunk, chain via UnionExec-style concatenation.
-        let mut execs: Vec<Arc<dyn ExecutionPlan>> = Vec::with_capacity(assignment.chunks.len());
+        // Conjoin any accepted runtime dynamic filters into one predicate,
+        // shared (by Arc) across every chunk's IndexedExec. The inner
+        // DynamicFilterPhysicalExpr state is shared with the producing TopK, so
+        // all streams observe the same runtime tightening.
+        let dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
+            (!self.dynamic_filters.is_empty())
+                .then(|| datafusion::physical_expr::utils::conjunction(self.dynamic_filters.clone()));
+
+        // Build one IndexedExec per SegmentChunk and execute it immediately,
+        // collecting per-chunk streams. We then chain them sequentially into
+        // a single stream for this partition. This avoids the
+        // UnionExec + CoalescePartitionsExec wrapping (which would re-shape
+        // partitioning and add an extra coalesce hop) — chunks here are
+        // already serialized within one partition assignment.
+        let mut streams: Vec<SendableRecordBatchStream> =
+            Vec::with_capacity(assignment.chunks.len());
         for chunk in &assignment.chunks {
             let segment = self.config.segments.get(chunk.segment_idx).ok_or_else(|| {
                 DataFusionError::Internal(format!("segment_idx {} out of range", chunk.segment_idx))
@@ -446,29 +531,81 @@ impl ExecutionPlan for QueryShardExec {
                 global_base: segment.global_base,
                 emit_row_ids: self.config.emit_row_ids,
                 row_id_output_index: self.row_id_output_index,
+                dynamic_filter: dynamic_filter.clone(),
             };
-            execs.push(Arc::new(exec));
+            streams.push(exec.execute(0, Arc::clone(&context))?);
         }
 
-        if execs.is_empty() {
-            // No work — empty stream
-            let empty =
-                datafusion::physical_plan::empty::EmptyExec::new(self.projected_schema.clone());
-            return empty.execute(0, context);
+        match streams.len() {
+            0 => {
+                let empty = datafusion::physical_plan::empty::EmptyExec::new(
+                    self.projected_schema.clone(),
+                );
+                empty.execute(0, context)
+            }
+            1 => Ok(streams.into_iter().next().unwrap()),
+            _ => {
+                let schema = self.projected_schema.clone();
+                let chained = futures::stream::iter(streams).flatten();
+                Ok(Box::pin(RecordBatchStreamAdapter::new(schema, chained)))
+            }
         }
+    }
+}
 
-        if execs.len() == 1 {
-            return execs.remove(0).execute(0, context);
+impl QueryShardExec {
+    /// True if `filter` can be used for per-RG statistics pruning: every column
+    /// it references must exist in our full (parquet) schema. Dynamic filters
+    /// reference sort columns; a sort on a Lucene-only / computed column (not in
+    /// the parquet file) is declined so we never try to prune on absent stats.
+    ///
+    /// Conservative by design — a `false` here just keeps the parent's
+    /// `FilterExec` and forgoes the optimization; it can never drop a row.
+    fn dynamic_filter_is_acceptable(
+        &self,
+        filter: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+    ) -> bool {
+        use datafusion::common::tree_node::{TreeNode, TreeNodeRecursion};
+        use datafusion::physical_expr::expressions::Column;
+
+        let mut all_cols_known = true;
+        let mut saw_column = false;
+        let _ = filter.apply(|e| {
+            if let Some(c) = e.as_any().downcast_ref::<Column>() {
+                saw_column = true;
+                if self.full_schema.index_of(c.name()).is_err() {
+                    all_cols_known = false;
+                    return Ok(TreeNodeRecursion::Stop);
+                }
+            }
+            Ok(TreeNodeRecursion::Continue)
+        });
+        // Require at least one resolved column — a column-free predicate (e.g.
+        // the bare `true` placeholder) carries no pruning signal.
+        saw_column && all_cols_known
+    }
+
+    /// Rebuild this exec with accepted dynamic filters attached. `QueryShardExec`
+    /// holds a non-`Clone` `ExecutionPlanMetricsSet`; we mint a fresh one (the
+    /// pushdown rewrite happens before execution, so no metrics are lost) and
+    /// reuse the shared `Arc` fields verbatim.
+    fn clone_with_dynamic_filters(
+        &self,
+        dynamic_filters: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+    ) -> Self {
+        QueryShardExec {
+            config: Arc::clone(&self.config),
+            full_schema: self.full_schema.clone(),
+            projected_schema: self.projected_schema.clone(),
+            projection: self.projection.clone(),
+            assignments: self.assignments.clone(),
+            properties: Arc::clone(&self.properties),
+            predicate: self.predicate.clone(),
+            metrics: ExecutionPlanMetricsSet::new(),
+            inner_parquet_metrics: Arc::clone(&self.inner_parquet_metrics),
+            row_id_output_index: self.row_id_output_index,
+            dynamic_filters,
         }
-
-        // Multiple chunks in one partition — concatenate via UnionExec
-        let union: Arc<dyn ExecutionPlan> =
-            datafusion::physical_plan::union::UnionExec::try_new(execs)?;
-        // UnionExec exposes sum-of-partitions; we want exactly one stream per our partition,
-        // so wrap in CoalescePartitionsExec.
-        let coalesced =
-            datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec::new(union);
-        coalesced.execute(0, context)
     }
 }
 

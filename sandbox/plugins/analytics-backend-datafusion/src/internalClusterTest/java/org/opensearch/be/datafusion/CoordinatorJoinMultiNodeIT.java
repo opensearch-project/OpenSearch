@@ -59,7 +59,7 @@ import java.util.function.IntUnaryOperator;
  * <ul>
  *   <li>Lock-free {@code feed(int inputIndex, batch)} contention from many
  *       concurrent shard responses fanning into the two input channels.</li>
- *   <li>{@link DatafusionReduceSink#closeUnderLock}'s in-flight-feeds barrier
+ *   <li>{@code DatafusionReduceSink#closeUnderLock}'s in-flight-feeds barrier
  *       under realistic shutdown timing.</li>
  *   <li>Asymmetric per-side cardinality + many-to-many fan-out on duplicates.</li>
  *   <li>Empty-side and no-overlap edge cases (build or probe side empty must
@@ -325,7 +325,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
         CreateIndexResponse response = client().admin()
             .indices()

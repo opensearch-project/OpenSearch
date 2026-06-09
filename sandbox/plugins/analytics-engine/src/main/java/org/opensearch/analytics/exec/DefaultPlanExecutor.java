@@ -36,8 +36,11 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.ClusterState;
@@ -89,6 +92,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
+    private volatile int maxShardsPerQuery;
+    private volatile int maxConcurrentShardRequestsPerNode;
+    private volatile boolean preferMetadataDriver;
+    private volatile double oversamplingFactor;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
@@ -126,8 +133,37 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
+
+        // TODO: These should be honored as query params, but requires front-end changes to pass request options.
+        this.maxShardsPerQuery = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY, v -> maxShardsPerQuery = v);
+        this.maxConcurrentShardRequestsPerNode = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE.get(
+            clusterService.getSettings()
+        );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
+                v -> maxConcurrentShardRequestsPerNode = v
+            );
+        this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
+        this.oversamplingFactor = AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR, v -> oversamplingFactor = v);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.analyticsSearchSlowLog = analyticsSearchSlowLog;
+    }
+
+    /** Visible for testing: the live per-node concurrent-shard-request limit (reflects dynamic updates). */
+    public int maxConcurrentShardRequestsPerNode() {
+        return maxConcurrentShardRequestsPerNode;
+    }
+
+    /** Visible for testing: the live max-shards-per-query limit (reflects dynamic updates). */
+    public int maxShardsPerQuery() {
+        return maxShardsPerQuery;
     }
 
     @Override
@@ -193,17 +229,25 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // TODO: remove the null fallback once every front-end (test-ppl-frontend,
         // dsl-query-executor) threads an EngineContextProvider.getContext() snapshot through.
         ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
-        RelNode plan = PlannerImpl.createPlan(
-            logicalFragment,
-            new PlannerContext(capabilityRegistry, planningState, indexNameExpressionResolver, false)
+        PlannerContext plannerContext = new PlannerContext(
+            capabilityRegistry,
+            planningState,
+            indexNameExpressionResolver,
+            false,
+            preferMetadataDriver
         );
+        plannerContext.setOversamplingFactor(oversamplingFactor);
+        RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
+        // Collapse multi-backend stages to a single chosen alternative before conversion
+        // so the convertor runs once per stage and the wire request carries one PlanAlternative.
+        PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         final long planningTimeNanos = System.nanoTime() - planStartNanos;
-        final long planningTimeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos);
+        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
@@ -234,7 +278,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // ─── Build query context ──────────────────────────────────────────
         final QueryContext context;
         try {
-            context = new QueryContext(dag, threadPool, queryTask, queryAllocator, ownsAllocator, List.of(queryListener));
+            context = new QueryContext(
+                dag,
+                threadPool,
+                queryTask,
+                queryAllocator,
+                ownsAllocator,
+                maxConcurrentShardRequestsPerNode,
+                maxShardsPerQuery,
+                List.of(queryListener)
+            );
         } catch (Exception e) {
             if (ownsAllocator) queryAllocator.close();
             throw e;

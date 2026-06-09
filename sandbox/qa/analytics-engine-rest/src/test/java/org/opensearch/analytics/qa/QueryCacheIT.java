@@ -188,10 +188,18 @@ public class QueryCacheIT extends AnalyticsRestTestCase {
      */
     private void configureCacheSettings(int minFrequency, int costlyMinFrequency) throws Exception {
         Request settings = new Request("PUT", "/_cluster/settings");
+        // Force prefer_metadata_driver=false so the predicate goes through DataFusion's
+        // FilterDelegationHandle / Lucene Collector path — which is what populates the
+        // query cache. Under prefer=true (the default), single-MATCH count fragments take the
+        // Lucene-as-driver shortcut via IndexSearcher.count, bypassing the cache-tracking
+        // collector entirely.
         settings.setJsonEntity("{"
             + "\"transient\": {"
             + "  \"indices.queries.cache.min_frequency\": " + minFrequency + ","
             + "  \"indices.queries.cache.costly_min_frequency\": " + costlyMinFrequency
+            + "},"
+            + "\"persistent\": {"
+            + "  \"analytics.planner.prefer_metadata_driver\": false"
             + "}"
             + "}");
         client().performRequest(settings);

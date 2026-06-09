@@ -93,7 +93,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchProjectRule", 1L),
                 Map.entry("OpenSearchTableScanRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                Map.entry("OpenSearchAggregateSplitRule", 4L),
+                Map.entry("OpenSearchAggregateSplitRule", 1L),
                 Map.entry("OpenSearchDistributionDeriveRule", 3L),
                 Map.entry("ExpandConversionRule", 5L)
             )

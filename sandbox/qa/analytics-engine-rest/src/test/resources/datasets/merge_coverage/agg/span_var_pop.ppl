@@ -1,0 +1,1 @@
+source=%INDEX% | stats var_pop(price) by span(amount, 5)

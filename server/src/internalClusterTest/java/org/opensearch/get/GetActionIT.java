@@ -828,6 +828,10 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                             },
                             "ip_field": {
                                 "type": "ip"
+                            },
+                            "binary_field": {
+                                "type": "binary",
+                                "store": true
                             }
                         }
                     }
@@ -849,6 +853,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                     .field("bool_field", true)
                     .field("text_field", "test text")
                     .field("ip_field", "1.2.3.4")
+                    .field("binary_field", "bGlkaHQtd29rfx4=")
                     .endObject()
             )
             .get();
@@ -883,14 +888,16 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertEquals(2, source.size());
         assertEquals("test_keyword", source.get("keyword_field"));
         assertEquals(123, source.get("numeric_field"));
+        assertFalse(source.containsKey("binary_field"));
 
         // Test get with field exclusion
         getResponse = client().prepareGet("test_derive", "1").setFetchSource(null, new String[] { "text_field", "date_field" }).get();
         assertTrue(getResponse.isExists());
         source = getResponse.getSourceAsMap();
-        assertEquals(5, source.size());
+        assertEquals(6, source.size());
         assertFalse(source.containsKey("text_field"));
         assertFalse(source.containsKey("date_field"));
+        assertTrue(source.containsKey("binary_field"));
     }
 
     public void testDerivedSource_MultiValuesAndComplexField() throws Exception {
@@ -1088,6 +1095,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertEquals(true, source.get("bool_field"));
         assertEquals("test text", source.get("text_field"));
         assertEquals("1.2.3.4", source.get("ip_field"));
+        assertEquals("bGlkaHQtd29rfx4=", source.get("binary_field"));
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -115,6 +116,8 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
 
     // ── Shape C: TIMESTAMP(TIME('<lit>')) → fold with today's UTC date ───────────
 
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testShapeCTimeLiteralFoldsWithTodayUtc() throws IOException {
         // Today's date varies, so we extract the time-of-day component and assert that
         // (year(v) >= 2020) AND time_format(v) == '10:20:30'. The combination pins the
@@ -212,6 +215,24 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
                 + "| eval neq2 = (timestamp('1984-12-15 22:15:08') != timestamp('1984-12-15 22:15:07')) | fields neq2"
         );
         assertEquals("neq2 between adjacent-second TIMESTAMP literals must be true", Boolean.TRUE, cell);
+    }
+
+    // ── Shape F-DATE: TIMESTAMP(<date column>) lifts via native CAST, not to_timestamp ──
+
+    public void testShapeFDateColumnLiftsToTimestamp() throws IOException {
+        // date0 at key00 → 2004-04-15; midnight UTC.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(timestamp(date0), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2004-04-15 00:00:00"
+        );
+    }
+
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
+    public void testTimeEqualsDateDoesNotCrash() throws IOException {
+        // Pre-fix this lowered to to_timestamp(Date32) which DataFusion rejected at runtime.
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = time('00:00:00') = date('2004-07-09') | fields v");
+        assertTrue("Expected boolean result, got: " + cell, cell instanceof Boolean);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

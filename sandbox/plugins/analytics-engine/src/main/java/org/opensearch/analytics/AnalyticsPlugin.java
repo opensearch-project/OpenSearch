@@ -32,6 +32,8 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.stats.AnalyticsStats;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.analytics.stats.RestAnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.AnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.TransportAnalyticsStatsAction;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.ClusterState;
@@ -101,6 +103,27 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         "analytics.coordinator.buffer_limit",
         256L * 1024 * 1024,
         0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Controls the metadata-only driver vs. value-producing peer choice when both are viable
+     * for a stage:
+     *
+     * <ul>
+     *   <li>{@code true} (default) — collapse to the metadata-only alternative (e.g. Lucene)
+     *       whenever it can run the stage end-to-end (today: count fast path). Stage ships
+     *       exactly one {@link org.opensearch.analytics.planner.dag.StagePlan}; convertor
+     *       runs once per stage; data node skips per-request alternative selection.</li>
+     *   <li>{@code false} — force the value-producing backend (DataFusion). All metadata-only
+     *       alternatives are dropped from every stage. A/B comparison knob and regression
+     *       escape hatch.</li>
+     * </ul>
+     */
+    public static final Setting<Boolean> PREFER_METADATA_DRIVER = Setting.boolSetting(
+        "analytics.planner.prefer_metadata_driver",
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -182,7 +205,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestAnalyticsStatsAction(statsCollector));
+        return List.of(new RestAnalyticsStatsAction());
     }
 
     @Override
@@ -203,15 +226,20 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+        return List.of(
+            new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
+            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
+        );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new java.util.ArrayList<>();
         settings.add(COORDINATOR_BUFFER_LIMIT);
+        settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
         settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
+        settings.addAll(org.opensearch.analytics.settings.AnalyticsQuerySettings.all());
         return List.copyOf(settings);
     }
 

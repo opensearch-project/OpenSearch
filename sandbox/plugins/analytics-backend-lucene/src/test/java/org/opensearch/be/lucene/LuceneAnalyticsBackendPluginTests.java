@@ -29,12 +29,15 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegatedExpression;
@@ -62,6 +65,7 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
@@ -143,7 +147,13 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
 
         RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        // Mirror DefaultPlanExecutor.executeInternal: forker → adapter → selector → convertor.
+        // preferMetadataDriver=false drops the Lucene alternative and forces the DataFusion
+        // peer; the surviving plan exercises the DF→Lucene filter delegation path, which is
+        // what this test is asserting on.
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+        PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
         // Find the leaf stage (shard scan with filter)
@@ -151,7 +161,11 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         while (!leaf.getChildStages().isEmpty()) {
             leaf = leaf.getChildStages().getFirst();
         }
-        StagePlan plan = leaf.getPlanAlternatives().getFirst();
+        StagePlan plan = leaf.getPlanAlternatives()
+            .stream()
+            .filter(p -> "mock-parquet".equals(p.backendId()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No mock-parquet driver alternative found"));
 
         // Verify delegation happened
         assertFalse("delegatedExpressions should not be empty", plan.delegatedExpressions().isEmpty());
@@ -218,6 +232,8 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }
 

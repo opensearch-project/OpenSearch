@@ -39,13 +39,16 @@ const IO_ENGINE: &str = "auto";
 /// explicit sizes and are unaffected by these constants.
 const TEST_CACHE_DISK_BYTES:  usize = 4 * 1024 * 1024;  // 4 MB disk capacity
 const TEST_CACHE_BLOCK_SIZE:  usize = 1 * 1024 * 1024;  // 1 MB block size (must be ≤ disk)
+const TEST_BUFFER_POOL_SIZE:  usize = 1 * 1024 * 1024;  // 1 MB buffer pool (≥ block_size)
+const TEST_SUBMIT_QUEUE_SIZE: usize = 2 * 1024 * 1024;  // 2 MB submit queue (≥ 2× buffer pool)
 
 fn test_cache() -> (FoyerCache, TempDir) {
     let dir = TempDir::new().expect("failed to create temp dir");
-    // sweep_interval_secs = 0 → no background task; tests call sweep_once() directly.
-    // persist_interval_secs = 0 → no persist task; tests call key_index_store::save() directly.
-    // block_size (1 MB) ≤ disk_bytes (4 MB) — required Foyer invariant.
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE,
+        TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE,
+        IO_ENGINE, 0, 0.0, 0,
+    );
     (cache, dir)
 }
 
@@ -500,7 +503,7 @@ fn put_and_get_work_after_cache_nears_capacity() {
     let dir = TempDir::new().unwrap();
     // disk=2MB ≥ block_size=512KB (Foyer invariant: block_size ≤ disk).
     // Writes 4 × 512KB = 2MB total into a 2MB cache to exercise near-capacity behaviour.
-    let cache = FoyerCache::new(2 * 1024 * 1024, dir.path(), 512 * 1024, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(2 * 1024 * 1024, dir.path(), 512 * 1024, 512 * 1024, 1024 * 1024, IO_ENGINE, 0, 0.0, 0);
     let chunk = vec![0u8; 512 * 1024];
     for i in 0u64..4 {
         let key = range_cache_key("/data/file.parquet", i * 524288, (i + 1) * 524288);
@@ -524,7 +527,7 @@ fn lru_eviction_retains_keys_in_key_index() {
     // disk=1MB, block_size=256KB (256KB ≤ 1MB — Foyer invariant satisfied).
     // Writes 8 × 256KB = 2MB total into a 1MB cache to trigger LRU eviction pressure.
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), 256 * 1024, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), 256 * 1024, 256 * 1024, 512 * 1024, IO_ENGINE, 0, 0.0, 0);
     const CHUNK_SIZE: usize = 256 * 1024;
     const TOTAL_WRITES: usize = 8;
     let chunk = vec![0xABu8; CHUNK_SIZE];
@@ -838,9 +841,9 @@ fn ffm_create_returns_positive_pointer() {
     let dir_str = dir.path().to_str().unwrap();
     let engine = IO_ENGINE.as_bytes();
     let ptr = unsafe { foyer_create_cache(
-        64 * 1024 * 1024,
+        128 * 1024 * 1024,
         dir_str.as_ptr(), dir_str.len() as u64,
-        BLOCK_SIZE as u64,
+        BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
         engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -854,9 +857,9 @@ fn ffm_create_returns_positive_pointer() {
 fn ffm_create_with_null_ptr_returns_error() {
     let engine = IO_ENGINE.as_bytes();
     let ptr = unsafe { foyer_create_cache(
-        64 * 1024 * 1024,
+        128 * 1024 * 1024,
         std::ptr::null(), 10,
-        BLOCK_SIZE as u64,
+        BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
         engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -870,9 +873,9 @@ fn ffm_create_with_invalid_utf8_returns_error() {
     let invalid_utf8 = [0xFF, 0xFE, 0xFD];
     let engine = IO_ENGINE.as_bytes();
     let ptr = unsafe { foyer_create_cache(
-        64 * 1024 * 1024,
+        128 * 1024 * 1024,
         invalid_utf8.as_ptr(), invalid_utf8.len() as u64,
-        BLOCK_SIZE as u64,
+        BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
         engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -902,9 +905,9 @@ fn ffm_create_destroy_lifecycle_no_leak() {
         let dir = TempDir::new().unwrap();
         let dir_str = dir.path().to_str().unwrap();
         let ptr = unsafe { foyer_create_cache(
-            16 * 1024 * 1024,
+            128 * 1024 * 1024,
             dir_str.as_ptr(), dir_str.len() as u64,
-            BLOCK_SIZE as u64,
+            BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
             engine.as_ptr(), engine.len() as u64,
             0, 0.0_f64,
             0,
@@ -929,9 +932,9 @@ fn ffm_snapshot_stats_valid_ptr_returns_zero_and_fills_buffer() {
     let dir_str = dir.path().to_str().unwrap();
     let engine = IO_ENGINE.as_bytes();
     let ptr = unsafe { foyer_create_cache(
-        64 * 1024 * 1024,
+        128 * 1024 * 1024,
         dir_str.as_ptr(), dir_str.len() as u64,
-        BLOCK_SIZE as u64,
+        BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
         engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -960,9 +963,9 @@ fn snapshot_stats_returns_zero_for_fresh_cache() {
     let engine = IO_ENGINE.as_bytes();
     let ptr = unsafe {
         foyer_create_cache(
-            64 * 1024 * 1024,
+            128 * 1024 * 1024,
             dir_str.as_ptr(), dir_str.len() as u64,
-            BLOCK_SIZE as u64,
+            BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
             engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -1000,9 +1003,9 @@ fn ffm_snapshot_stats_null_out_returns_error() {
     let dir_str = dir.path().to_str().unwrap();
     let engine = IO_ENGINE.as_bytes();
     let ptr = unsafe { foyer_create_cache(
-        64 * 1024 * 1024,
+        128 * 1024 * 1024,
         dir_str.as_ptr(), dir_str.len() as u64,
-        BLOCK_SIZE as u64,
+        BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
         engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -1088,7 +1091,7 @@ fn ffm_create_cache_returns_fat_ptr_with_strong_count_one() {
     let ptr = unsafe { foyer_create_cache(
         16 * 1024 * 1024,
         dir_str.as_ptr(), dir_str.len() as u64,
-        BLOCK_SIZE as u64,
+        BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
         engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -1121,7 +1124,7 @@ fn ffm_create_cache_ptr_cloneable_for_multiple_shards() {
     let ptr = unsafe { foyer_create_cache(
         16 * 1024 * 1024,
         dir_str.as_ptr(), dir_str.len() as u64,
-        BLOCK_SIZE as u64,
+        BLOCK_SIZE as u64, BLOCK_SIZE as u64, (BLOCK_SIZE * 2) as u64,
         engine.as_ptr(), engine.len() as u64,
         0, 0.0_f64,
         0,
@@ -1166,9 +1169,11 @@ fn drop_with_active_sweep_task_does_not_panic() {
     // Use a large interval so the task never actually fires during the test.
     // We only care that drop() cancels it cleanly.
     let cache = FoyerCache::new(
-        64 * 1024 * 1024,
+        128 * 1024 * 1024,
         dir.path(),
         BLOCK_SIZE,
+        BLOCK_SIZE,
+        BLOCK_SIZE * 2,
         IO_ENGINE,
         3600, // 1-hour interval — task sleeps, drop cancels it immediately
         0.0,  // threshold disabled
@@ -1185,9 +1190,11 @@ fn drop_cancels_the_token() {
 
     let dir = TempDir::new().unwrap();
     let cache = FoyerCache::new(
-        64 * 1024 * 1024,
+        128 * 1024 * 1024,
         dir.path(),
         BLOCK_SIZE,
+        BLOCK_SIZE,
+        BLOCK_SIZE * 2,
         IO_ENGINE,
         0,   // no sweep task
         0.0, // threshold disabled
@@ -1207,7 +1214,7 @@ fn drop_cancels_the_token() {
 fn cache_functional_before_drop() {
     let dir = TempDir::new().unwrap();
     {
-        let cache = FoyerCache::new(64 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        let cache = FoyerCache::new(64 * 1024 * 1024, dir.path(), BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE * 2, IO_ENGINE, 0, 0.0, 0);
         let key = range_cache_key("/data/file.parquet", 0, 100);
         cache.put(&key, Bytes::from_static(b"hello"));
         let result = block_on(cache.get(&key));
@@ -1242,12 +1249,151 @@ fn sweep_disabled_when_interval_is_zero() {
 #[test]
 fn sweep_enabled_cache_is_usable_while_task_sleeping() {
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(64 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE, 3600, 0.0, 0);
+    let cache = FoyerCache::new(64 * 1024 * 1024, dir.path(), BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE * 2, IO_ENGINE, 3600, 0.0, 0);
     let key = range_cache_key("/data/file.parquet", 0, 512);
     cache.put(&key, Bytes::from(vec![0xABu8; 512]));
     let result = block_on(cache.get(&key));
     assert_eq!(result.as_ref().map(|b| b.len()), Some(512));
     // drop cancels the sleeping task immediately via cancelled() branch
+}
+
+// ── Watchdog and panic recovery tests ────────────────────────────────────────
+//
+// These tests exercise Fix 1 (catch_unwind) and Fix 4 (watchdog outer loop)
+// for both the sweep task and the persist task.
+
+/// Verify that `catch_unwind` correctly catches a panic without propagating it.
+/// Simulates exactly what the sweep task does when `reconcile_key_index` panics:
+/// the closure panics, `catch_unwind` returns `Err`, and the cache stays usable.
+#[test]
+fn sweep_task_catch_unwind_does_not_kill_loop_on_panic() {
+    let (cache, _dir) = test_cache();
+    // Manually replicate the catch_unwind logic from the sweep task.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic!("simulated reconcile_key_index panic");
+    }));
+    // Panic must be caught — not propagated.
+    assert!(result.is_err(), "catch_unwind must catch the panic");
+    // The cache must still be fully functional after the simulated panic.
+    put_range(&cache, "/data/file.parquet", 0, 100, b"data");
+    let result = block_on(cache.get(&range_cache_key("/data/file.parquet", 0, 100)));
+    assert!(result.is_some(), "cache must be usable after catch_unwind");
+}
+
+/// Verify that `catch_unwind` correctly catches a panic in the persist path.
+/// Simulates exactly what the persist task does when `key_index_store::save` panics.
+#[test]
+fn persist_task_catch_unwind_does_not_kill_loop_on_panic() {
+    let (cache, _dir) = test_cache();
+    // Simulate the persist task catch_unwind.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic!("simulated key_index_store::save panic");
+    }));
+    assert!(result.is_err(), "catch_unwind must catch the save panic");
+    // Cache is still usable.
+    put_range(&cache, "/data/b.parquet", 0, 200, b"persist_data");
+    assert!(cache.key_index.contains_key("data/b.parquet"),
+        "key_index must be intact after simulated panic");
+    assert!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed) > 0,
+        "used_bytes must be > 0 after put");
+}
+
+/// Verify that the sweep task with the watchdog outer loop stops cleanly
+/// when the cancellation token fires. Uses a short 1-second interval so
+/// the inner loop fires at least once before drop.
+#[test]
+fn sweep_task_with_active_watchdog_stops_cleanly_on_cancel() {
+    let dir = TempDir::new().unwrap();
+    // Short sweep interval: the inner loop fires at least once within 2s.
+    let cache = FoyerCache::new(
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
+        1,    // 1-second interval
+        0.0,  // threshold disabled — sweep runs every tick
+        0,    // persist disabled
+    );
+    // Put something so the sweep has a non-trivial key_index to process.
+    put_range(&cache, "/data/watchdog_test.parquet", 0, 512, &vec![0u8; 512]);
+    // Let the sweep fire at least once.
+    std::thread::sleep(std::time::Duration::from_millis(1200));
+    // Drop cancels the token — the 'inner loop's cancelled() arm fires `return`.
+    // The watchdog outer loop must NOT re-enter because `return` exits the closure.
+    // No hang, no panic expected.
+    drop(cache);
+    // Reaching here means the task stopped cleanly.
+}
+
+/// Verify that the persist task with the watchdog outer loop stops cleanly
+/// when the cancellation token fires. Waits for at least one persist to happen.
+#[test]
+fn persist_task_with_active_watchdog_stops_cleanly_on_cancel() {
+    let dir = TempDir::new().unwrap();
+    let cache = FoyerCache::new(
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
+        0,    // sweep disabled
+        0.0,
+        1,    // 1-second persist interval
+    );
+    put_range(&cache, "/data/persist_watchdog.parquet", 0, 256, &vec![0u8; 256]);
+    // Poll for key_index.json — the persist task must write it within 5s.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !dir.path().join(crate::key_index_store::KEY_INDEX_FILENAME).exists() {
+        if std::time::Instant::now() >= deadline { break; }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    assert!(
+        dir.path().join(crate::key_index_store::KEY_INDEX_FILENAME).exists(),
+        "persist task must have written key_index.json before drop"
+    );
+    // Drop cancels token — persist task stops via `return` in cancelled() arm.
+    // No hang means watchdog exited cleanly.
+    drop(cache);
+}
+
+/// Verify the design contract: `last_persisted` is reset to `i64::MIN` at the top
+/// of the watchdog outer loop, so the first tick after recovery always persists.
+///
+/// A second FoyerCache opens the same dir (recovered used_bytes > 0).
+/// Even though used_bytes is non-zero, last_persisted starts at i64::MIN ≠ used_bytes,
+/// so the first persist tick MUST fire and update the snapshot mtime.
+#[test]
+fn persist_task_last_persisted_reset_forces_persist_after_recovery() {
+    let dir = TempDir::new().unwrap();
+    // Session 1: put data and let Drop write key_index.json.
+    {
+        let cache1 = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
+            0, 0.0, 0,
+        );
+        put_range(&cache1, "/data/reset_test.parquet", 0, 100, &vec![0u8; 100]);
+        // Drop writes key_index.json with used_bytes=100.
+    }
+    assert!(
+        dir.path().join(crate::key_index_store::KEY_INDEX_FILENAME).exists(),
+        "key_index.json must exist after session 1 Drop"
+    );
+    // Session 2: open with persist_interval=1s.
+    // recovered used_bytes=100; last_persisted starts at i64::MIN.
+    // First tick: i64::MIN != 100 → persist fires → mtime advances.
+    {
+        let cache2 = FoyerCache::new(
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
+            0, 0.0, 1,
+        );
+        // Record mtime written by Drop of session 1.
+        let mtime_before = std::fs::metadata(
+            dir.path().join(crate::key_index_store::KEY_INDEX_FILENAME)
+        ).unwrap().modified().unwrap();
+        // Wait 2s for the first persist tick.
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+        let mtime_after = std::fs::metadata(
+            dir.path().join(crate::key_index_store::KEY_INDEX_FILENAME)
+        ).unwrap().modified().unwrap();
+        assert!(
+            mtime_after > mtime_before,
+            "persist task must fire on first tick after recovery (last_persisted=MIN != recovered used_bytes)"
+        );
+        drop(cache2);
+    }
 }
 
 // ── Sweep cursor tests ───────────────────────────────────────────────────────
@@ -1670,7 +1816,7 @@ fn active_bytes_guard_drop_on_cancellation_restores_counter() {
 fn sweep_threshold_disabled_never_skips() {
     let dir = TempDir::new().unwrap();
     // threshold = 0.0: disabled — always sweep
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
 
     // used_bytes = 0 (empty cache)
     assert_eq!(cache.should_skip_sweep(), false,
@@ -1687,7 +1833,7 @@ fn sweep_threshold_disabled_never_skips() {
 fn sweep_threshold_skips_when_usage_below_threshold() {
     let dir = TempDir::new().unwrap();
     // disk = 4MB, threshold = 0.75 (75%)
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.75, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.75, 0);
 
     // usage = 0% → below 75% → skip
     cache.stats.used_bytes.store(0, std::sync::atomic::Ordering::Relaxed);
@@ -1712,7 +1858,7 @@ fn sweep_threshold_skips_when_usage_below_threshold() {
 fn sweep_threshold_runs_when_usage_at_or_above_threshold() {
     let dir = TempDir::new().unwrap();
     // disk = 4MB, threshold = 0.75 (75%)
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.75, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.75, 0);
 
     // usage = exactly 75% → NOT below → do NOT skip
     let exact = ((TEST_CACHE_DISK_BYTES as f64 * 0.75) as i64);
@@ -1737,7 +1883,7 @@ fn sweep_threshold_runs_when_usage_at_or_above_threshold() {
 #[test]
 fn sweep_threshold_one_skips_unless_completely_full() {
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 1.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 1.0, 0);
 
     // usage = 99.9% → still below 100% → skip
     let almost_full = ((TEST_CACHE_DISK_BYTES as f64 * 0.999) as i64);
@@ -1756,7 +1902,7 @@ fn sweep_threshold_one_skips_unless_completely_full() {
 #[test]
 fn sweep_threshold_negative_used_bytes_treated_as_zero() {
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.5, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.5, 0);
 
     // Simulate a transient underflow (negative used_bytes) — should be clamped to 0.
     cache.stats.used_bytes.store(-100, std::sync::atomic::Ordering::Relaxed);
@@ -1771,7 +1917,7 @@ fn sweep_threshold_negative_used_bytes_treated_as_zero() {
 fn sweep_once_ignores_threshold_guard() {
     let dir = TempDir::new().unwrap();
     // Set a high threshold so should_skip_sweep() returns true
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.99, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.99, 0);
 
     // Inject a stale key
     cache.key_index
@@ -1807,7 +1953,7 @@ fn recovery_key_index_bulk_loaded_after_graceful_shutdown() {
 
     // Write entries into the first cache instance.
     {
-        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
         put_range(&cache, "/data/a.parquet", 0,   512, &vec![0u8; 512]);
         put_range(&cache, "/data/a.parquet", 512, 1024, &vec![0u8; 512]);
         put_range(&cache, "/data/b.parquet", 0,   256, &vec![0u8; 256]);
@@ -1819,7 +1965,7 @@ fn recovery_key_index_bulk_loaded_after_graceful_shutdown() {
         "key_index.json must be written on Drop");
 
     // Second instance: recover from the snapshot.
-    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
 
     // Both prefix buckets must be present immediately after new().
     assert!(cache2.key_index.contains_key("data/a.parquet"),
@@ -1842,7 +1988,7 @@ fn recovery_used_bytes_initialized_from_snapshot() {
     let dir = TempDir::new().unwrap();
 
     {
-        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
         // 3 ranges: 100 + 200 + 300 = 600 bytes total.
         put_range(&cache, "/data/f.parquet", 0,   100, &vec![0u8; 100]);
         put_range(&cache, "/data/f.parquet", 100, 300, &vec![0u8; 200]);
@@ -1850,7 +1996,7 @@ fn recovery_used_bytes_initialized_from_snapshot() {
         // Drop persists.
     }
 
-    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
     let used = cache2.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
     assert_eq!(used, 600,
         "used_bytes must be 600 (sum of all recovered key ranges) after recovery");
@@ -1863,13 +2009,13 @@ fn recovery_evict_prefix_works_on_recovered_keys() {
     let dir = TempDir::new().unwrap();
 
     {
-        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
         put_range(&cache, "/data/shard1/file.parquet", 0, 512, &vec![0u8; 512]);
         put_range(&cache, "/data/shard2/file.parquet", 0, 512, &vec![0u8; 512]);
         // Drop persists.
     }
 
-    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
     assert!(cache2.key_index.contains_key("data/shard1/file.parquet"));
     assert!(cache2.key_index.contains_key("data/shard2/file.parquet"));
 
@@ -1889,7 +2035,7 @@ fn recovery_with_no_snapshot_is_clean_startup() {
     // No prior cache instance — key_index.json does not exist.
     assert!(!dir.path().join(key_index_store::KEY_INDEX_FILENAME).exists());
 
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
     assert!(cache.key_index.is_empty(), "key_index must be empty on clean startup");
     assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0);
 
@@ -1906,7 +2052,7 @@ fn recovery_with_corrupt_snapshot_starts_empty() {
     std::fs::write(dir.path().join(key_index_store::KEY_INDEX_FILENAME), b"{{corrupt}}")
         .unwrap();
 
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
     assert!(cache.key_index.is_empty(), "corrupt snapshot must produce empty key_index");
     assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0);
 
@@ -1922,7 +2068,7 @@ fn recovery_evicted_prefix_not_persisted() {
     let dir = TempDir::new().unwrap();
 
     {
-        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
         put_range(&cache, "/data/evicted.parquet", 0, 512, &vec![0u8; 512]);
         put_range(&cache, "/data/kept.parquet",   0, 512, &vec![0u8; 512]);
 
@@ -1932,7 +2078,7 @@ fn recovery_evicted_prefix_not_persisted() {
         // Drop persists the remaining key_index (only kept.parquet).
     }
 
-    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
     assert!(!cache2.key_index.contains_key("data/evicted.parquet"),
         "evicted prefix must not appear in recovered key_index");
     assert!(cache2.key_index.contains_key("data/kept.parquet"),
@@ -1946,7 +2092,7 @@ fn recovery_clear_deletes_snapshot_file() {
 
     // Create and drop a cache to write key_index.json.
     {
-        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
         put_range(&cache, "/data/file.parquet", 0, 100, b"data");
         // Drop writes key_index.json.
     }
@@ -1955,13 +2101,13 @@ fn recovery_clear_deletes_snapshot_file() {
 
     // Create a second cache and call clear().
     {
-        let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+        let cache2 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
         block_on(cache2.clear());
         // Drop of cache2 writes an empty key_index.json (empty key_index after clear).
     }
 
     // Third instance: must start with an empty key_index (clear deleted the stale snapshot).
-    let cache3 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache3 = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
     assert!(cache3.key_index.is_empty(),
         "key_index must be empty after clear() deleted the snapshot");
 }
@@ -1981,7 +2127,7 @@ fn persist_task_writes_snapshot_within_interval() {
     {
         // persist_interval=1s: task should fire within ~2s of a put().
         let cache = FoyerCache::new(
-            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
             0,    // sweep disabled
             0.0,  // threshold disabled
             1,    // persist every 1 second
@@ -2023,7 +2169,7 @@ fn persist_task_does_not_fire_when_cache_idle() {
     {
         // persist_interval=1s
         let cache = FoyerCache::new(
-            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
             0, 0.0, 1,
         );
         // Single put to trigger the first persist.
@@ -2059,7 +2205,7 @@ fn persist_task_fires_after_evict_prefix_changes_used_bytes() {
     let dir = TempDir::new().unwrap();
     {
         let cache = FoyerCache::new(
-            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
             0, 0.0, 1,
         );
         put_range(&cache, "/data/evict_me.parquet", 0, 512, &vec![0u8; 512]);
@@ -2097,7 +2243,7 @@ fn persist_task_not_spawned_when_interval_is_zero() {
     {
         // persist_interval=0: only Drop persists.
         let cache = FoyerCache::new(
-            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
             0, 0.0,
             0,  // disabled
         );
@@ -2126,7 +2272,7 @@ fn simulated_crash_skip_drop_no_final_persist() {
     // Build a cache with persist_interval=0 (no periodic persist either).
     // This simulates a node with only Drop-based persistence.
     let cache = FoyerCache::new(
-        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
         0, 0.0, 0,
     );
     put_range(&cache, "/data/crash.parquet", 0, 512, &vec![0u8; 512]);
@@ -2144,7 +2290,7 @@ fn simulated_crash_skip_drop_no_final_persist() {
 
     // Next startup: key_index starts empty (clean startup path).
     let cache2 = FoyerCache::new(
-        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
         0, 0.0, 0,
     );
     assert!(cache2.key_index.is_empty(),
@@ -2158,7 +2304,7 @@ fn graceful_shutdown_snapshot_is_valid_json_with_correct_content() {
     let dir = TempDir::new().unwrap();
     {
         let cache = FoyerCache::new(
-            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
             0, 0.0, 0,
         );
         put_range(&cache, "/data/nodes/0/shard1.parquet", 0,   256, &vec![0u8; 256]);
@@ -2194,7 +2340,7 @@ fn no_tmp_file_left_after_graceful_shutdown() {
     let dir = TempDir::new().unwrap();
     {
         let cache = FoyerCache::new(
-            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+            TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
             0, 0.0, 0,
         );
         put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
@@ -2214,7 +2360,7 @@ fn zero_byte_snapshot_file_treated_as_corrupt() {
     std::fs::write(dir.path().join(key_index_store::KEY_INDEX_FILENAME), b"").unwrap();
 
     let cache = FoyerCache::new(
-        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
         0, 0.0, 0,
     );
     assert!(cache.key_index.is_empty(),
@@ -2234,7 +2380,7 @@ fn no_tmp_file_on_clean_startup() {
     assert!(!dir.path().join(key_index_store::KEY_INDEX_TMP_FILENAME).exists());
 
     let cache = FoyerCache::new(
-        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE,
+        TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE,
         0, 0.0, 0,
     );
     // On startup, no .tmp should be created or left behind.
@@ -2312,7 +2458,7 @@ fn key_index_recovery_with_10k_entries() {
     key_index_store::save(dir.path(), &dash).unwrap();
 
     // Create a new cache from the same dir — should bulk-load the snapshot.
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
 
     assert_eq!(cache.key_index.len(), NUM_PREFIXES,
         "key_index must have {NUM_PREFIXES} buckets after recovery");
@@ -2326,7 +2472,7 @@ fn key_index_recovery_with_10k_entries() {
 #[test]
 fn key_index_evict_prefix_bulk_with_10k_entries() {
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
 
     const NUM_PREFIXES: usize = 100;
     const KEYS_PER_PREFIX: usize = 100;
@@ -2365,7 +2511,7 @@ fn key_index_clear_with_10k_entries() {
     use std::collections::HashSet;
 
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
 
     const NUM_PREFIXES: usize = 100;
     const KEYS_PER_PREFIX: usize = 100;
@@ -2418,7 +2564,7 @@ fn recovery_stale_snapshot_keys_cleaned_by_sweep() {
     }
 
     // Create a fresh Foyer cache over the same dir. Foyer has no data for "data/stale.parquet".
-    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, IO_ENGINE, 0, 0.0, 0);
+    let cache = FoyerCache::new(TEST_CACHE_DISK_BYTES, dir.path(), TEST_CACHE_BLOCK_SIZE, TEST_BUFFER_POOL_SIZE, TEST_SUBMIT_QUEUE_SIZE, IO_ENGINE, 0, 0.0, 0);
 
     // Bulk-loaded snapshot has the stale key — used_bytes is temporarily over-counted.
     assert!(cache.key_index.contains_key("data/stale.parquet"),

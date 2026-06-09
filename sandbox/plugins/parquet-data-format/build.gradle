@@ -9,7 +9,7 @@
 opensearchplugin {
   description = 'Parquet data format plugin for OpenSearch.'
   classname = 'org.opensearch.parquet.ParquetDataFormatPlugin'
-  extendedPlugins = ['arrow-base']
+  extendedPlugins = ['arrow-base', 'composite-engine']
 }
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
@@ -18,6 +18,9 @@ dependencies {
   // arrow-base provides ArrowNativeAllocator at runtime (shared classloader)
   compileOnly project(':plugins:arrow-base')
   testImplementation project(':plugins:arrow-base')
+
+  // Plugin stats SPI interfaces
+  compileOnly project(":sandbox:libs:plugin-stats-spi")
 
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')

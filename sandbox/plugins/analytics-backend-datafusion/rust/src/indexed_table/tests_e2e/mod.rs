@@ -38,6 +38,8 @@ use super::stream::{FilterStrategy, RowGroupInfo};
 use super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFileInfo};
 
 mod boolean_algebra;
+mod constant_predicate;
+mod dynamic_filter_pushdown;
 mod fuzz;
 mod metrics;
 mod multi_segment;

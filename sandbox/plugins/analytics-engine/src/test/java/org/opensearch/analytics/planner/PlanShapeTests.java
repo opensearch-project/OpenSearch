@@ -294,13 +294,15 @@ public class PlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(limit, buildContext("parquet", 3, fields));
         // SORT_PROJECT_TRANSPOSE pushes the outer pure-LIMIT Sort below the identity Project,
         // producing the QTF-friendly two-Sort shape Project(identity) ← Sort(fetch) ← Sort(coll) ← ER.
+        // The sort-pushdown rewriter then copies the collated Sort (with the outer fetch) below the ER.
         assertPlanShape(
             """
                 OpenSearchProject(name=[$0], score=[$1], viableBackends=[[mock-parquet]])
                   OpenSearchSort(fetch=[3], viableBackends=[[mock-parquet]])
                     OpenSearchSort(sort0=[$1], dir0=[ASC], viableBackends=[[mock-parquet]])
                       OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                        OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[3], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -325,7 +327,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{1}], s=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])

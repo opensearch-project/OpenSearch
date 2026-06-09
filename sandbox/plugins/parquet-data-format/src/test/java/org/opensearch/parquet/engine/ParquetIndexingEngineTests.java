@@ -8,9 +8,7 @@
 
 package org.opensearch.parquet.engine;
 
-import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
@@ -25,38 +23,29 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
-import org.opensearch.index.engine.exec.PrimaryTermFieldType;
-import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
-import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.parquet.engine.ParquetDataFormatAwareEngineTests.ID_FIELD;
-import static org.opensearch.parquet.engine.ParquetDataFormatAwareEngineTests.SEQ_NO_FIELD;
-import static org.opensearch.parquet.engine.ParquetDataFormatAwareEngineTests.VERSION_FIELD;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ParquetIndexingEngineTests extends OpenSearchTestCase {
+public class ParquetIndexingEngineTests extends ParquetBaseTests {
 
     private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
     private MappedFieldType idField;
@@ -73,9 +62,11 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
         RustBridge.initLogger();
         nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
         nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
-        idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
-        nameField = new KeywordFieldMapper.KeywordFieldType("name");
-        scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
+
+        idField = createNumberField("id", NumberFieldMapper.NumberType.INTEGER);
+        nameField = createKeywordField("name");
+        scoreField = createNumberField("score", NumberFieldMapper.NumberType.LONG);
+
         schema = buildSchema(List.of(idField, nameField, scoreField));
         tempDir = createTempDir();
         Settings settings = Settings.builder().put("node.name", "parquetengine-test").build();
@@ -250,21 +241,5 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
         when(mapperService.documentMapper()).thenReturn(null);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         return mapperService;
-    }
-
-    public static List<Field> metadataFields() {
-        List<Field> fields = new ArrayList<>();
-        fields.add(new Field(VersionFieldMapper.NAME, FieldType.notNullable(new ArrowType.Int(64, true)), null));
-        fields.add(new Field(SeqNoFieldMapper.NAME, FieldType.notNullable(new ArrowType.Int(64, true)), null));
-        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, FieldType.notNullable(new ArrowType.Int(64, true)), null));
-        fields.add(new Field(IdFieldMapper.NAME, FieldType.notNullable(new ArrowType.Binary()), null));
-        return fields;
-    }
-
-    public static void populateMetadataFields(ParquetDocumentInput input) {
-        input.addField(SEQ_NO_FIELD, 100L);
-        input.addField(ID_FIELD, "id".getBytes(StandardCharsets.UTF_8));
-        input.addField(VERSION_FIELD, 1L);
-        input.addField(PrimaryTermFieldType.INSTANCE, 1L);
     }
 }

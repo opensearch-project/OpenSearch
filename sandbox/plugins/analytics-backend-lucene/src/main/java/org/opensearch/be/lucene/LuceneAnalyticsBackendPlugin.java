@@ -12,8 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.spi.AggregateCapability;
+import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.BackendShardPreference;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
@@ -23,7 +26,11 @@ import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
+import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.ScanCapability;
+import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -52,18 +59,17 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     private static final String LUCENE_FORMAT = LuceneDataFormat.LUCENE_FORMAT_NAME;
     private static final Set<String> LUCENE_FORMATS = Set.of(LUCENE_FORMAT);
 
-    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(
-        ScalarFunction.EQUALS,
-        ScalarFunction.NOT_EQUALS,
-        ScalarFunction.GREATER_THAN,
-        ScalarFunction.GREATER_THAN_OR_EQUAL,
-        ScalarFunction.LESS_THAN,
-        ScalarFunction.LESS_THAN_OR_EQUAL,
-        ScalarFunction.IS_NULL,
-        ScalarFunction.IS_NOT_NULL,
-        ScalarFunction.IN,
-        ScalarFunction.LIKE
-    );
+    // Lucene's STANDARD filter capabilities must stay in lockstep with the serializers
+    // registered in QuerySerializerRegistry — declaring a capability without a matching
+    // DelegatedPredicateSerializer makes the marking layer pick Lucene as viable for
+    // operators it can't actually translate, and the failure surfaces at convert time as
+    // an IllegalStateException ("No Lucene serializer for [..]"). Today only EQUALS has
+    // a serializer; range ops, NOT_EQUALS, IS_NULL, IS_NOT_NULL, IN, LIKE are deferred
+    // until their serializers land.
+    // TODO: have CapabilityRegistry intersect declared FilterCapability against the
+    // backend's serializer keyset at startup so this list can't drift again. The TODO in
+    // OpenSearchFilterRule.resolveViableBackends references the same constraint.
+    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(ScalarFunction.EQUALS);
 
     private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
         ScalarFunction.MATCH,
@@ -112,6 +118,27 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         FILTER_CAPS = caps;
     }
 
+    /**
+     * Lucene-secondary indexes the term dictionary (inverted index) for the same field
+     * types it accepts filters on — keyword / text / match_only_text. The Index
+     * scan capability lets the planner mark Lucene viable as a driver for metadata-only
+     * operations (count today, group-by-count and top-K terms in future) over scans whose
+     * fields are listed here. It does NOT imply Lucene can deliver row values; consumers
+     * needing values (Project, Sort) consult value-producing scan capabilities separately
+     * and self-restrict, which the chain-agreement filter at PlanForker enforces.
+     */
+    private static final Set<ScanCapability> SCAN_CAPS = Set.of(new ScanCapability.Index(LUCENE_FORMATS, STANDARD_TYPES));
+
+    /**
+     * Lucene drives count(*) and (in a follow-up) count(col) over fields it indexes.
+     * Coupled with the Index scan capability above, this lets PlanForker emit a
+     * Lucene-driver StagePlan alternative for count-shaped fragments without bypassing
+     * the existing engine path.
+     */
+    private static final Set<AggregateCapability> AGGREGATE_CAPS = Set.of(
+        AggregateCapability.simple(AggregateFunction.COUNT, STANDARD_TYPES, LUCENE_FORMATS)
+    );
+
     private final LucenePlugin plugin;
 
     public LuceneAnalyticsBackendPlugin(LucenePlugin plugin) {
@@ -137,6 +164,16 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             }
 
             @Override
+            public Set<ScanCapability> scanCapabilities() {
+                return SCAN_CAPS;
+            }
+
+            @Override
+            public Set<AggregateCapability> aggregateCapabilities() {
+                return AGGREGATE_CAPS;
+            }
+
+            @Override
             public Set<DelegationType> acceptedDelegations() {
                 return Set.of(DelegationType.FILTER);
             }
@@ -145,8 +182,15 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
                 return QuerySerializerRegistry.getSerializers();
             }
+
+            @Override
+            public BackendShardPreference shardPreference() {
+                return SHARD_PREFERENCE;
+            }
         };
     }
+
+    private static final BackendShardPreference SHARD_PREFERENCE = new LuceneShardPreference();
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneAnalyticsBackendPlugin.class);
 
@@ -155,13 +199,9 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
         IndexReaderProvider.Reader reader = shardCtx.getReader();
         LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
-        IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
-        if (shardCtx.getQueryCache() != null) {
-            searcher.setQueryCache(shardCtx.getQueryCache());
-        }
-        if (shardCtx.getQueryCachingPolicy() != null) {
-            searcher.setQueryCachingPolicy(shardCtx.getQueryCachingPolicy());
-        }
+        // Shared per-reader searcher (see LuceneReader#searcher) — a fresh one here crashes the node
+        // on self-union delegated scans.
+        IndexSearcher searcher = luceneReader.searcher(shardCtx.getQueryCache(), shardCtx.getQueryCachingPolicy());
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
         BooleanSupplier isCancelled = () -> {
             Task task = shardCtx.getTask();
@@ -177,7 +217,35 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         );
     }
 
-    private QueryShardContext buildMinimalQueryShardContext(ShardScanExecutionContext ctx, IndexSearcher searcher) {
+    // ── Lucene-as-driver execution path (count fast path) ──
+
+    @Override
+    public FragmentConvertor getFragmentConvertor() {
+        return new LuceneFragmentConvertor(QuerySerializerRegistry.getSerializers());
+    }
+
+    @Override
+    public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+        return new LuceneInstructionHandlerFactory(plugin);
+    }
+
+    @Override
+    public SearchExecEngineProvider getSearchExecEngineProvider() {
+        return (ctx, backendContext) -> {
+            if (!(backendContext instanceof LuceneSearcherState state)) {
+                throw new IllegalStateException(
+                    "Lucene SearchExecEngineProvider expected LuceneSearcherState but got "
+                        + (backendContext == null ? "null" : backendContext.getClass().getName())
+                );
+            }
+            LuceneSearchExecEngine engine = new LuceneSearchExecEngine(state);
+            engine.prepare(ctx);
+            return engine;
+        };
+    }
+
+    /** Package-private — also reused by {@link LuceneScanInstructionHandler} in driver mode. */
+    static QueryShardContext buildMinimalQueryShardContext(ShardScanExecutionContext ctx, IndexSearcher searcher) {
         return new QueryShardContext(
             0,
             ctx.getIndexSettings(),

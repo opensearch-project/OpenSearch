@@ -169,7 +169,7 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
         List<Setting<?>> settings = plugin.getSettings();
         // DATA_TO_CACHE_RATIO_SETTING removed — ratio now read from cluster.filecache.remote_data_ratio
         // KEY_INDEX_PERSIST_INTERVAL_SETTING added for independent periodic key_index persistence
-        assertEquals(6, settings.size());
+        assertEquals(8, settings.size());
         assertTrue(settings.contains(FoyerBlockCacheSettings.CACHE_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.BLOCK_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.IO_ENGINE_SETTING));

@@ -22,7 +22,7 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-use super::mysql_format::parse_mysql_format;
+use super::os_strftime::parse_os_strftime;
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(StrToDateUdf::new()));
@@ -131,7 +131,7 @@ fn utf8_at(array: &ArrayRef, i: usize) -> Result<Option<String>> {
 }
 
 fn parse_to_micros(input: &str, format: &str) -> Option<i64> {
-    let parsed = parse_mysql_format(input, format)?;
+    let parsed = parse_os_strftime(input, format)?;
     let ndt = parsed.to_naive()?;
     Some(ndt.and_utc().timestamp_micros())
 }

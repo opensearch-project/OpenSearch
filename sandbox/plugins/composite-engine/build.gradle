@@ -13,6 +13,8 @@ opensearchplugin {
 
 apply plugin: 'opensearch.internal-cluster-test'
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
 // Test compilation needs JDK 25 to consume parquet-data-format (which targets JDK 25)
 tasks.named('compileTestJava').configure {
   sourceCompatibility = JavaVersion.toVersion(25)
@@ -37,12 +39,17 @@ internalClusterTest {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  // Disable OpenSearch's Netty4Utils.setAvailableProcessors() so randomized node.processors values
+  // across test methods do not collide on Netty's process-wide NettyRuntime static.
+  // See Netty4Utils.java: opensearch.set.netty.runtime.available.processors flag.
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
 dependencies {
   api project(':libs:opensearch-concurrent-queue')
+  implementation project(':sandbox:libs:plugin-stats-spi')
   compileOnly project(':server')
   testImplementation project(':test:framework')
   testImplementation project(':sandbox:plugins:parquet-data-format')
@@ -53,4 +60,7 @@ dependencies {
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
   internalClusterTestImplementation project(':sandbox:libs:analytics-framework')
+  internalClusterTestImplementation project(':sandbox:plugins:native-repository-fs')
+  // Netty4 HTTP transport for ITs that use the low-level RestClient (e.g., DataFormatStatsIT, *DataFormatApi*IT).
+  internalClusterTestImplementation project(':modules:transport-netty4')
 }

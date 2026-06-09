@@ -176,6 +176,17 @@ public class AnalyticsSearchService implements AutoCloseable {
                         responseHandler.onBatch(batch);
                     }
                     long fragmentTookNanos = System.nanoTime() - startNanos;
+                    // Extract and log DataFusion execution metrics at DEBUG level
+                    if (LOGGER.isDebugEnabled()) {
+                        byte[] metricsJson = exec.resources().getExecutionMetrics();
+                        if (metricsJson != null) {
+                            LOGGER.debug(
+                                "[FragmentMetrics] shard={} metrics={}",
+                                shard.shardId(),
+                                new String(metricsJson, java.nio.charset.StandardCharsets.UTF_8)
+                            );
+                        }
+                    }
                     responseHandler.onComplete();
                     ResolvedFragment resolved = exec.resolved();
                     DelegationDescriptor delegation = resolved.plan().getDelegationDescriptor();
@@ -310,7 +321,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                 rowIdVector.set(i, rowIds[i]);
             }
             rowIdVector.setValueCount(rowIds.length);
-            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
             resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
@@ -358,15 +369,7 @@ public class AnalyticsSearchService implements AutoCloseable {
             ShardScanExecutionContext ctx = buildContext(request, readerContext.getReader(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
-            // Apply instruction handlers in order — each builds upon the previous handler's backend context
-            List<InstructionNode> instructions = resolved.plan.getInstructions();
-            if (!instructions.isEmpty()) {
-                FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
-                for (InstructionNode node : instructions) {
-                    FragmentInstructionHandler handler = factory.createHandler(node);
-                    backendContext = handler.apply(node, ctx, backendContext);
-                }
-            }
+            backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);
 
             // Handle exchange — if plan has delegation, ask accepting backend for handle and pass to driving
             // TODO: currently assumes single accepting backend. When multiple accepting backends exist
@@ -443,6 +446,26 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
+    /**
+     * Applies each instruction handler in order. Each handler reads the previous handler's
+     * {@link BackendExecutionContext} and returns the next one. Returns {@code null} when the
+     * instruction list is empty.
+     */
+    private static BackendExecutionContext applyInstructionHandlers(
+        AnalyticsSearchBackendPlugin backend,
+        List<InstructionNode> instructions,
+        ShardScanExecutionContext ctx
+    ) {
+        if (instructions.isEmpty()) return null;
+        FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
+        BackendExecutionContext backendContext = null;
+        for (InstructionNode node : instructions) {
+            FragmentInstructionHandler handler = factory.createHandler(node);
+            backendContext = handler.apply(node, ctx, backendContext);
+        }
+        return backendContext;
+    }
+
     private record ResolvedFragment(IndexReaderProvider readerProvider, FragmentExecutionRequest.PlanAlternative plan, String queryId,
         int stageId, String shardIdStr) {
     }
@@ -453,8 +476,10 @@ public class AnalyticsSearchService implements AutoCloseable {
             throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
         }
 
-        // Select the first available plan alternative whose backend is registered on this node.
-        // TODO: smarter selection based on data node capabilities/load
+        // Backend selection happens on the coordinator (PlanAlternativeSelector), so the
+        // request typically carries a single alternative. We still iterate to handle the
+        // case where a stage genuinely has multiple value-producing alternatives — pick the
+        // first one whose backend is registered locally.
         FragmentExecutionRequest.PlanAlternative selectedPlan = null;
         for (FragmentExecutionRequest.PlanAlternative alt : request.getPlanAlternatives()) {
             if (backends.containsKey(alt.getBackendId())) {

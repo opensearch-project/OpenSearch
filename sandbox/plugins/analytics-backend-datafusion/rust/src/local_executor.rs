@@ -186,6 +186,7 @@ impl LocalSession {
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
+
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
         let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
         datafusion::physical_plan::execute_stream(physical_plan, self.ctx.task_ctx())
@@ -217,16 +218,19 @@ impl LocalSession {
             ))
         })?;
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
-        log_debug!("DataFusion logical plan (reduce):\n{}", logical_plan.display_indent());
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
-        let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
-        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-        log_debug!("DataFusion physical plan (reduce):\n{}", displayable(physical_plan.as_ref()).indent(true));
+        // Strip first so `force_aggregate_mode(Final)` can find the Final/Partial pair
+        // through the raw plan; then derive `target_schema` and wrap with RelabelExec from
+        // the stripped output (otherwise the relabel target would carry the pre-strip Final
+        // output type tag and fail when wrapping the stripped tree).
         let stripped = crate::agg_mode::apply_aggregate_mode(
             physical_plan,
             crate::agg_mode::Mode::Final,
         )?;
+
+        let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
+        let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
         self.prepared_plan = Some(stripped);
         Ok(())
     }
@@ -330,9 +334,8 @@ mod tests {
         let handle = Handle::current();
         let producer = std::thread::spawn(move || {
             for chunk in &[vec![1i64, 2, 3], vec![4, 5, 6], vec![7, 8, 9]] {
-                sender
-                    .send_blocking(Ok(i64_batch(&producer_schema, chunk)), &handle)
-                    .expect("send");
+                let outcome = sender.send_blocking(Ok(i64_batch(&producer_schema, chunk)), &handle);
+                assert!(matches!(outcome, crate::partition_stream::SendOutcome::Sent));
             }
             drop(sender); // EOF
         });

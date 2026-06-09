@@ -259,6 +259,21 @@ public class CapabilityRegistry {
         return result;
     }
 
+    /**
+     * All backends that can scan this field's inverted index across all its formats. A backend
+     * is returned only if it declares an {@link ScanCapability.Index} cap whose
+     * {@code supportedFieldTypes} includes the field's type — so e.g. Lucene appears for
+     * keyword/text fields but not numeric fields, even when both have {@code indexFormats=[lucene]}.
+     */
+    public List<String> indexScanBackendsForField(FieldStorageInfo field) {
+        FieldType fieldType = field.getFieldType();
+        List<String> result = new ArrayList<>();
+        for (String format : field.getIndexFormats()) {
+            result.addAll(scanBackends(ScanCapability.Index.class, fieldType, format));
+        }
+        return result;
+    }
+
     // ---- Any-format lookups ----
 
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
