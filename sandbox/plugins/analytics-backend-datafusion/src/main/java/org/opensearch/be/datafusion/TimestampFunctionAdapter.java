@@ -185,13 +185,9 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
             if (value == null) {
                 return null;
             }
-            // Folding at the resolved precision is correct here. Sub-millisecond fidelity is
-            // a separate, lower-level concern: SubstraitPlanRewriter#visit(PrecisionTimestampLiteral)
-            // renormalizes everything to precision 3 because the parquet write path stores
-            // {@code Timestamp(MILLISECOND)}, so bumping the fold precision would not survive
-            // the wire. testMicrosecond's {@code .123456 → 123000} is owned by that path, not
-            // by this adapter — see SubstraitPlanRewriter.toMillis.
-            return rexBuilder.makeTimestampLiteral(parseTimestamp(value), precision);
+            // Sub-ms inputs need precision ≥6 — makeTimestampLiteral truncates the value to the precision.
+            TimestampString ts = parseTimestamp(value);
+            return rexBuilder.makeTimestampLiteral(ts, foldPrecision(ts, precision));
         }
 
         // Shapes B and C: TIMESTAMP(DATE/TIME(<varchar literal>)). After bottom-up
@@ -215,7 +211,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
                 } catch (DateTimeParseException e) {
                     return null;
                 }
-                return rexBuilder.makeTimestampLiteral(toTimestampString(date.atStartOfDay()), precision);
+                TimestampString ts = toTimestampString(date.atStartOfDay());
+                return rexBuilder.makeTimestampLiteral(ts, foldPrecision(ts, precision));
             }
 
             // Shape C: TIMESTAMP(TIME('lit')) — combine time with today's UTC date.
@@ -227,7 +224,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
                     return null;
                 }
                 LocalDate today = LocalDate.now(ZoneOffset.UTC);
-                return rexBuilder.makeTimestampLiteral(toTimestampString(LocalDateTime.of(today, time)), precision);
+                TimestampString ts = toTimestampString(LocalDateTime.of(today, time));
+                return rexBuilder.makeTimestampLiteral(ts, foldPrecision(ts, precision));
             }
         }
 
@@ -262,8 +260,6 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
         } catch (DateTimeParseException e) {
             return null;
         }
-        // Compose: take tsStr, advance by addTime's nano-of-day. Use LocalDateTime
-        // for arithmetic, then re-render to TimestampString.
         LocalDateTime base;
         try {
             base = LocalDateTime.parse(tsStr.toString().replace(' ', 'T'));
@@ -271,7 +267,31 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
             return null;
         }
         LocalDateTime sum = base.plusNanos(addTime.toNanoOfDay());
-        return rexBuilder.makeTimestampLiteral(toTimestampString(sum), precision);
+        TimestampString tsOut = toTimestampString(sum);
+        return rexBuilder.makeTimestampLiteral(tsOut, foldPrecision(tsOut, precision));
+    }
+
+    /** Bump fold precision to 6 only when the input carries non-zero sub-millisecond digits. */
+    private static int foldPrecision(TimestampString ts, int resolved) {
+        return subSecondNanos(ts) % 1_000_000 == 0 ? resolved : Math.max(resolved, 6);
+    }
+
+    /** Extract the fractional-second nanos from a {@code yyyy-MM-dd HH:mm:ss[.fff...]} string. */
+    private static int subSecondNanos(TimestampString ts) {
+        String s = ts.toString();
+        int dot = s.indexOf('.');
+        if (dot < 0) {
+            return 0;
+        }
+        String frac = s.substring(dot + 1);
+        if (frac.length() > 9) {
+            frac = frac.substring(0, 9);
+        }
+        StringBuilder padded = new StringBuilder(frac);
+        while (padded.length() < 9) {
+            padded.append('0');
+        }
+        return Integer.parseInt(padded.toString());
     }
 
     private static LocalTime parseTimeOfDay(String input) {
