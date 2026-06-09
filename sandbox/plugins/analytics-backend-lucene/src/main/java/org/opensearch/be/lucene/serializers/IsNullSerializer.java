@@ -39,9 +39,7 @@ public class IsNullSerializer extends AbstractQuerySerializer {
         }
 
         FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
-        String fieldName = field.getExactMatchSubfield() != null
-            ? field.getFieldName() + "." + field.getExactMatchSubfield()
-            : field.getFieldName();
+        String fieldName = resolveFieldName(field);
 
         if (negated) {
             return new ExistsQueryBuilder(fieldName);

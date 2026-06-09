@@ -49,9 +49,7 @@ public class NotEqualsSerializer extends AbstractQuerySerializer {
         }
 
         FieldStorageInfo field = FieldStorageInfo.resolve(fieldStorage, columnRef.getIndex());
-        String fieldName = field.getExactMatchSubfield() != null
-            ? field.getFieldName() + "." + field.getExactMatchSubfield()
-            : field.getFieldName();
+        String fieldName = resolveFieldName(field);
         Object value = CalciteToOSMapperConversionUtils.literalToOpenSearchValue(valueLit);
         return new BoolQueryBuilder().mustNot(new TermQueryBuilder(fieldName, value));
     }
