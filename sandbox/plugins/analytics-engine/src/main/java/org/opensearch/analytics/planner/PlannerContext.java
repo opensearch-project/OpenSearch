@@ -10,6 +10,7 @@ package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.Nullable;
@@ -30,12 +31,12 @@ public class PlannerContext {
     private final OpenSearchDistributionTraitDef distributionTraitDef;
     private final boolean profilingEnabled;
     private final boolean preferMetadataDriver;
-    private double oversamplingFactor;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
-    // Per-backend delegation block-list. Defaults to empty (nothing blocked); DefaultPlanExecutor
-    // injects the live, settings-backed instance via setDelegationBlockList before planning.
-    private DelegationBlockList delegationBlockList = DelegationBlockList.empty();
+    // Cluster settings the planner consults at planning time (oversampling factor + delegation
+    // block-list). Defaults to planner defaults; DefaultPlanExecutor injects the live, settings-backed
+    // instance via setPlannerSettings before planning.
+    private PlannerSettings plannerSettings = PlannerSettings.defaults();
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
         this(capabilityRegistry, clusterState, null, false, true);
@@ -106,12 +107,12 @@ public class PlannerContext {
 
     /** Per-backend delegation block-list consulted at marking time. Never null (defaults to empty). */
     public DelegationBlockList getDelegationBlockList() {
-        return delegationBlockList;
+        return plannerSettings.getDelegationBlockList();
     }
 
-    /** Inject the live, settings-backed block-list. Called by {@code DefaultPlanExecutor} before planning. */
-    public void setDelegationBlockList(DelegationBlockList delegationBlockList) {
-        this.delegationBlockList = delegationBlockList;
+    /** Inject the live, settings-backed planner settings. Called by {@code DefaultPlanExecutor} before planning. */
+    public void setPlannerSettings(PlannerSettings plannerSettings) {
+        this.plannerSettings = plannerSettings;
     }
 
     public ClusterState getClusterState() {
@@ -119,11 +120,7 @@ public class PlannerContext {
     }
 
     public double getOversamplingFactor() {
-        return oversamplingFactor;
-    }
-
-    public void setOversamplingFactor(double oversamplingFactor) {
-        this.oversamplingFactor = oversamplingFactor;
+        return plannerSettings.getOversamplingFactor();
     }
 
     public OpenSearchDistributionTraitDef getDistributionTraitDef() {
