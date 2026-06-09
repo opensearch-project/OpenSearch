@@ -141,9 +141,6 @@ impl OsYearweekUdf {
 udf_identity!(OsYearweekUdf, "os_yearweek");
 
 impl ScalarUDFImpl for OsYearweekUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "os_yearweek"
     }
