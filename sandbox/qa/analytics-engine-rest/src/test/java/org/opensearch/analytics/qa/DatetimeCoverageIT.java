@@ -588,6 +588,45 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Cluster X — DatetimeUdtNormalizeRule must skip Sort to preserve Calcite's
+    // Sort.accept(RexShuttle) identity invariant on collation RexInputRefs.
+    // Pre-fix symptom: AssertionError("Sort node does not support modification of
+    // input field expressions. Old expressions: [$0], new ones: [$0]") at
+    // Sort.java:223 when Sort sat over a Project this rule normalized (UDT->std).
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Cluster X: sort over an eval-derived DATE Project — was AssertionError pre-fix. */
+    public void testClusterX_sortOverEvalDerivedDate() throws IOException {
+        Map<String, Object> response = executePpl(
+            oneRow() + "| eval d = date('2004-04-15') | fields d | sort d | head 1"
+        );
+        assertEquals("eval-derived sorted DATE must round-trip", "2004-04-15", firstRowOf(response, "d"));
+        assertSchemaType(response, "d", "date");
+    }
+
+    /** Cluster X: sort over an eval-derived TIMESTAMP Project — was AssertionError pre-fix. */
+    public void testClusterX_sortOverEvalDerivedTimestamp() throws IOException {
+        Map<String, Object> response = executePpl(
+            oneRow() + "| eval ts = timestamp('2004-04-15 12:34:56') | fields ts | sort ts | head 1"
+        );
+        assertEquals("eval-derived sorted TIMESTAMP must round-trip",
+            "2004-04-15 12:34:56", firstRowOf(response, "ts"));
+        assertSchemaType(response, "ts", "timestamp");
+    }
+
+    /** Cluster X: bin TIMESTAMP-column followed by sort — same plan shape as PPL bin/sort regression. */
+    public void testClusterX_binTimestampSpanWithSort() throws IOException {
+        // The original PPL `bin @timestamp span=Nday | sort` regression hits the same Sort identity
+        // assertion. We use span=1h here because the Nday lowering also depends on the DATEDIFF
+        // backend wiring (separate gap, see DataFusionAnalyticsBackendPlugin's supported list).
+        // span=1h exercises the Sort-over-bin shape end-to-end without that dependency.
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | bin datetime1 span=1h | fields datetime1 | sort datetime1 | head 1"
+        );
+        assertSchemaType(response, "datetime1", "timestamp");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Cherry-pick (PR 22014, ecfd145baed) — TIMESTAMP composition + HOUR fold (2 methods)
     // ─────────────────────────────────────────────────────────────────────────
 
