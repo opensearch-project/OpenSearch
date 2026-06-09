@@ -113,7 +113,10 @@ pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
 
 fn has_aggregate_or_window_below(plan: &LogicalPlan) -> bool {
     match plan {
-        LogicalPlan::Aggregate(_) | LogicalPlan::Window(_) => true,
+        LogicalPlan::Aggregate(_)
+        | LogicalPlan::Window(_)
+        | LogicalPlan::Join(_)
+        | LogicalPlan::Union(_) => true,
         LogicalPlan::Projection(p) => has_aggregate_or_window_below(&p.input),
         LogicalPlan::Sort(s) => has_aggregate_or_window_below(&s.input),
         LogicalPlan::SubqueryAlias(s) => has_aggregate_or_window_below(&s.input),

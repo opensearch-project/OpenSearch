@@ -102,9 +102,9 @@ public class FilterDelegationExtendedIT extends AnalyticsRestTestCase {
     @SuppressWarnings("unchecked")
     private void assertAggCount(String pplSuffix, long expected) throws Exception {
         String ppl = "source = " + DATASET.indexName + " | " + pplSuffix;
-        Map<String, Object> result = executePplViaShim(ppl);
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
-        assertNotNull("rows null for [" + pplSuffix + "]", rows);
+        Map<String, Object> result = executePpl(ppl);
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertNotNull("datarows null for [" + pplSuffix + "]", rows);
         assertEquals("expected 1 agg row for [" + pplSuffix + "]", 1, rows.size());
         assertEquals("[" + pplSuffix + "]", expected, ((Number) rows.get(0).get(0)).longValue());
     }
@@ -112,9 +112,9 @@ public class FilterDelegationExtendedIT extends AnalyticsRestTestCase {
     @SuppressWarnings("unchecked")
     private void assertRowCount(String pplSuffix, int expected) throws Exception {
         String ppl = "source = " + DATASET.indexName + " | " + pplSuffix;
-        Map<String, Object> result = executePplViaShim(ppl);
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
-        assertNotNull("rows null for [" + pplSuffix + "]", rows);
+        Map<String, Object> result = executePpl(ppl);
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertNotNull("datarows null for [" + pplSuffix + "]", rows);
         assertEquals("[" + pplSuffix + "] row count", expected, rows.size());
     }
 }

@@ -39,7 +39,10 @@ import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
+import org.apache.calcite.rel.core.Aggregate;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
+import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
@@ -345,9 +348,9 @@ public class PlannerImpl {
      * derive_schema_from_partial_plan and the data-node execution.
      */
     private static boolean containsEngineNativeMergeAggregate(RelNode node) {
-        if (node instanceof org.apache.calcite.rel.core.Aggregate agg) {
-            for (org.apache.calcite.rel.core.AggregateCall call : agg.getAggCallList()) {
-                if (org.opensearch.analytics.spi.AggregateFunction.isEngineNativeMerge(call)) {
+        if (node instanceof Aggregate agg) {
+            for (AggregateCall call : agg.getAggCallList()) {
+                if (AggregateFunction.isEngineNativeMerge(call)) {
                     return true;
                 }
             }
