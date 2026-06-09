@@ -62,8 +62,8 @@ public class DataFusionStatsNodesResponseTests extends OpenSearchTestCase {
         taskMonitors.put("plan_setup", new TaskMonitorStats(100, 110, 120));
         return new DataFusionStats(
             new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 3, 100, 500),
-            new PartitionGateStats("coordinator_gate", 8, 1, 50, 200),
+            new PartitionGateStats("datanode_gate", 12, 3, 100, 500, 0, 12),
+            new PartitionGateStats("coordinator_gate", 8, 1, 50, 200, 0, 8),
             null
         );
     }

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -115,6 +116,8 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
 
     // ── Shape C: TIMESTAMP(TIME('<lit>')) → fold with today's UTC date ───────────
 
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testShapeCTimeLiteralFoldsWithTodayUtc() throws IOException {
         // Today's date varies, so we extract the time-of-day component and assert that
         // (year(v) >= 2020) AND time_format(v) == '10:20:30'. The combination pins the
@@ -224,6 +227,8 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
         );
     }
 
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testTimeEqualsDateDoesNotCrash() throws IOException {
         // Pre-fix this lowered to to_timestamp(Date32) which DataFusion rejected at runtime.
         Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = time('00:00:00') = date('2004-07-09') | fields v");

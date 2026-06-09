@@ -36,8 +36,8 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
         return new DataFusionStats(
             new NativeExecutorsStats(io, cpu, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
             new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L)
         );
     }
@@ -122,8 +122,8 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
 
         DataFusionStats stats = new DataFusionStats(
             new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
             null
         );
         assertNull(stats.getNativeExecutorsStats().getCpuRuntime());
@@ -202,8 +202,8 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
 
         DataFusionStats stats = new DataFusionStats(
             new NativeExecutorsStats(io, null, taskMonitors),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
             null
         );
         String json = toJsonString(stats);

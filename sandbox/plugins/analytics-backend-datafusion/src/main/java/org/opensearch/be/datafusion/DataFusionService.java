@@ -71,6 +71,14 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return new Builder();
     }
 
+    /**
+     * Returns the number of available CPU threads used for the dedicated executor.
+     * This is the value used to compute concurrency gate permit counts (cpu_threads × multiplier).
+     */
+    public static int cpuThreadCount() {
+        return Runtime.getRuntime().availableProcessors();
+    }
+
     @Override
     protected void doStart() {
         logger.debug("Starting DataFusion service");
