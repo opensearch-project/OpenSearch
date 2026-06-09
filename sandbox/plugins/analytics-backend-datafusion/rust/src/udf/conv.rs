@@ -10,7 +10,6 @@
 //! `Long.toString(Long.parseLong(n, fromBase), toBase)`. See
 //! `sql/core/.../ConvFunction.java`. NULL for invalid input / unsupported base.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, ArrayRef, Int64Array, StringBuilder};
@@ -45,10 +44,6 @@ impl ConvUdf {
 udf_identity!(ConvUdf, "conv");
 
 impl ScalarUDFImpl for ConvUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "conv"
     }

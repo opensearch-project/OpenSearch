@@ -133,17 +133,15 @@ fn eval_row(node: &BoolNode, corpus: &Corpus, row: i32, collector_sets: &[HashSe
 fn eval_predicate(expr: &std::sync::Arc<dyn PhysicalExpr>, corpus: &Corpus, row: usize) -> Tri {
     use datafusion::physical_expr::expressions::{InListExpr, IsNullExpr, LikeExpr};
 
-    let any = expr.as_any();
+    let any = expr.as_ref();
 
     if let Some(bin) = any.downcast_ref::<BinaryExpr>() {
         let col = bin
             .left()
-            .as_any()
             .downcast_ref::<Column>()
             .expect("oracle: BinaryExpr lhs must be Column");
         let lit = bin
             .right()
-            .as_any()
             .downcast_ref::<Literal>()
             .expect("oracle: BinaryExpr rhs must be Literal");
         let cell = get_cell(corpus, col.name(), row);
@@ -153,7 +151,6 @@ fn eval_predicate(expr: &std::sync::Arc<dyn PhysicalExpr>, corpus: &Corpus, row:
     if let Some(in_list) = any.downcast_ref::<InListExpr>() {
         let col = in_list
             .expr()
-            .as_any()
             .downcast_ref::<Column>()
             .expect("oracle: InList target must be Column");
         let cell = get_cell(corpus, col.name(), row);
@@ -170,7 +167,6 @@ fn eval_predicate(expr: &std::sync::Arc<dyn PhysicalExpr>, corpus: &Corpus, row:
                 let mut found = false;
                 for lit_expr in in_list.list() {
                     let lit = lit_expr
-                        .as_any()
                         .downcast_ref::<Literal>()
                         .expect("oracle: InList list entry must be Literal");
                     match compare_cell_lit(cell, Operator::Eq, lit.value()) {
@@ -200,7 +196,6 @@ fn eval_predicate(expr: &std::sync::Arc<dyn PhysicalExpr>, corpus: &Corpus, row:
     if let Some(is_null) = any.downcast_ref::<IsNullExpr>() {
         let col = is_null
             .arg()
-            .as_any()
             .downcast_ref::<Column>()
             .expect("oracle: IsNull target must be Column");
         let cell = get_cell(corpus, col.name(), row);
@@ -215,12 +210,10 @@ fn eval_predicate(expr: &std::sync::Arc<dyn PhysicalExpr>, corpus: &Corpus, row:
     if let Some(like) = any.downcast_ref::<LikeExpr>() {
         let col = like
             .expr()
-            .as_any()
             .downcast_ref::<Column>()
             .expect("oracle: Like target must be Column");
         let pat_lit = like
             .pattern()
-            .as_any()
             .downcast_ref::<Literal>()
             .expect("oracle: Like pattern must be Literal");
         let cell = get_cell(corpus, col.name(), row);

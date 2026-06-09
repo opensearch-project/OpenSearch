@@ -11,7 +11,6 @@
 //! NULL / non-array / malformed → NULL. Only plan-time arity / type failures
 //! surface as `plan_err!`; runtime input of any content never errors.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, Int32Builder};
@@ -51,9 +50,6 @@ impl Default for JsonArrayLengthUdf {
 }
 
 impl ScalarUDFImpl for JsonArrayLengthUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "json_array_length"
     }

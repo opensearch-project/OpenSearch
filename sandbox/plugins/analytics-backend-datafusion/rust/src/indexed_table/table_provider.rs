@@ -24,7 +24,6 @@
 //!             └── IndexedExec(chunk_N) ── IndexedStream ── RowGroupBitsetSource
 //! ```
 
-use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -160,9 +159,6 @@ impl IndexedTableProvider {
 
 #[async_trait]
 impl TableProvider for IndexedTableProvider {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.config.schema.clone()
     }
@@ -361,9 +357,6 @@ impl DisplayAs for QueryShardExec {
 impl ExecutionPlan for QueryShardExec {
     fn name(&self) -> &str {
         "QueryShardExec"
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
     }
     fn schema(&self) -> SchemaRef {
         self.projected_schema.clone()
@@ -571,7 +564,7 @@ impl QueryShardExec {
         let mut all_cols_known = true;
         let mut saw_column = false;
         let _ = filter.apply(|e| {
-            if let Some(c) = e.as_any().downcast_ref::<Column>() {
+            if let Some(c) = e.downcast_ref::<Column>() {
                 saw_column = true;
                 if self.full_schema.index_of(c.name()).is_err() {
                     all_cols_known = false;
@@ -660,7 +653,6 @@ mod tests {
             .await
             .expect("scan");
         let shard = plan
-            .as_any()
             .downcast_ref::<QueryShardExec>()
             .expect("scan returns QueryShardExec");
         shard.test_predicate().cloned()

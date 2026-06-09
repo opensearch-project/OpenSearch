@@ -9,7 +9,6 @@
 //! `from_unixtime(seconds)` — UNIX seconds (fractional ok) → `Timestamp(us)`. Negative / ≥ MySQL
 //! upper bound / non-finite → NULL. 2-arg `(seconds, format)` overload deferred to date_format.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -47,10 +46,6 @@ impl FromUnixtimeUdf {
 udf_identity!(FromUnixtimeUdf, "from_unixtime");
 
 impl ScalarUDFImpl for FromUnixtimeUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "from_unixtime"
     }
