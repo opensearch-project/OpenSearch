@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion;
 
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
@@ -201,6 +202,14 @@ final class DateTimeAdapters {
                 );
                 return rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, List.of(stripped));
             }
+            // 1-arg DATETIME with a TIME operand — Calcite emits stock TIME as substrait
+            // precision_time<P>, which has no to_timestamp yaml binding. Anchor to a TIMESTAMP
+            // first via the shared coercion path so isthmus binds the precision_timestamp<P> arm.
+            // Same workaround TimeFormatAdapter / DatePartAdapters use.
+            if (operands.size() == 1 && operands.get(0).getType().getSqlTypeName() == SqlTypeName.TIME) {
+                RexNode anchored = DatePartAdapters.coerceCharacterOperandToTimestamp(operands.get(0), cluster);
+                return rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, List.of(anchored));
+            }
             return rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, operands);
         }
 
@@ -218,8 +227,9 @@ final class DateTimeAdapters {
                 return foldTwoArgLiteral(valLit.getValueAs(String.class), tzLit.getValueAs(String.class), original, cluster);
             }
 
-            // column input: strip offset via regex, treat as UTC source (legacy SQL plugin parity)
-            String fromTzLiteral = "+00:00";
+            // Column input with no embedded TZ in the value: tz arg is the SOURCE zone (MySQL
+            // semantics — value is interpreted AT the given tz, then expressed in UTC). The legacy
+            // SQL plugin path treated tz as target, which inverted the offset direction.
             RexNode strippedValue;
             if (SqlTypeName.CHAR_TYPES.contains(value.getType().getSqlTypeName())) {
                 RexNode pattern = rexBuilder.makeLiteral(OFFSET_SUFFIX_PATTERN);
@@ -233,8 +243,12 @@ final class DateTimeAdapters {
                 strippedValue = value;
             }
             RexNode asTimestamp = rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, List.of(strippedValue));
-            RexNode fromTz = rexBuilder.makeLiteral(fromTzLiteral);
-            return rexBuilder.makeCall(original.getType(), ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, List.of(asTimestamp, fromTz, tzArg));
+            // makeLiteral(String) infers CHAR(N) from the literal's length; the convert_tz yaml
+            // binds the 2nd/3rd operands as `string` (unbounded VARCHAR), so a CHAR(6) "+00:00"
+            // would fail isthmus signature lookup (`convert_tz(precision_timestamp, char<6>, string)`).
+            RelDataType varchar = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
+            RexNode toTz = rexBuilder.makeLiteral("+00:00", varchar, true);
+            return rexBuilder.makeCall(original.getType(), ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, List.of(asTimestamp, tzArg, toTz));
         }
 
         /** Plan-time fold of DATETIME(value-literal, tz-literal). Returns a typed TIMESTAMP literal or NULL on invalid input. */
@@ -243,13 +257,20 @@ final class DateTimeAdapters {
             if (value == null || tz == null) {
                 return rexBuilder.makeNullLiteral(original.getType());
             }
-            // extract source offset (default UTC)
-            String sourceTz = "+00:00";
+            // MySQL DATETIME semantics: when value has an embedded offset, that's the source zone
+            // and the user's tz arg is the target. When value has NO embedded offset, the user's tz
+            // arg is the SOURCE (value is interpreted AT that tz) and the target is UTC.
+            String sourceTz;
+            String targetTz;
             String stripped = value;
             java.util.regex.Matcher m = OFFSET_SUFFIX_REGEX.matcher(value);
             if (m.find()) {
                 sourceTz = "Z".equals(m.group()) ? "+00:00" : m.group();
+                targetTz = tz;
                 stripped = value.substring(0, m.start());
+            } else {
+                sourceTz = tz;
+                targetTz = "+00:00";
             }
             java.time.LocalDateTime ldt;
             try {
@@ -262,7 +283,7 @@ final class DateTimeAdapters {
             String canonicalTo;
             try {
                 canonicalFrom = ConvertTzAdapter.canonicalizeTz(sourceTz);
-                canonicalTo = ConvertTzAdapter.canonicalizeTz(tz);
+                canonicalTo = ConvertTzAdapter.canonicalizeTz(targetTz);
             } catch (IllegalArgumentException invalidTz) {
                 return rexBuilder.makeNullLiteral(original.getType());
             }
