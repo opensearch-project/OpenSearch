@@ -101,7 +101,11 @@ public class SortRuleTests extends BasePlannerRulesTests {
 
     /** Sort(Agg(Filter(Scan))) with and without fetch — full OLAP pipeline.
      *  Single-shard: SOURCE(SINGLETON) scan satisfies root RESULT(SINGLETON), aggregate
-     *  stays SINGLE (no split), no ER. Expect Sort → Agg → Filter → Scan. */
+     *  stays SINGLE (no split), no ER. Expect Sort → Agg → Filter → Scan.
+     *  The filter pins {@code size} (field 1, a non-group column) so the aggregate keeps an
+     *  unbounded group count — otherwise filtering the group key {@code status} to a single
+     *  value would bound it to one row and {@code SORT_REMOVE_REDUNDANT} would correctly drop
+     *  the now-redundant Sort (covered by {@link #testSortFetchOnScalarAggregateDropped}). */
     public void testSortOnAggregateOnFilteredScan() {
         List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> types = List.of(
             OpenSearchSort.class,
@@ -114,7 +118,7 @@ public class SortRuleTests extends BasePlannerRulesTests {
             runPlanner(
                 makeSort(
                     makeAggregate(
-                        makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                        makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(1, SqlTypeName.INTEGER, 200)),
                         sumCall()
                     ),
                     -1
@@ -129,7 +133,7 @@ public class SortRuleTests extends BasePlannerRulesTests {
             runPlanner(
                 makeSort(
                     makeAggregate(
-                        makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                        makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(1, SqlTypeName.INTEGER, 200)),
                         sumCall()
                     ),
                     10
@@ -178,12 +182,11 @@ public class SortRuleTests extends BasePlannerRulesTests {
         assertLimitDropped(runPlanner(makeLimit(scalarAgg(), 5), defaultContext()));
     }
 
-    /** Scalar agg, ORDER BY + fetch (non-empty collation): kept — guard (A) restricts the drop to collation-less limits. */
-    public void testSortFetchOnScalarAggregatePreserved() {
-        RelNode result = runPlanner(makeSort(scalarAgg(), 5), defaultContext());
-        logger.info("Plan:\n{}", RelOptUtil.toString(result));
-        assertTrue("collated Sort must be preserved", result instanceof OpenSearchSort);
-        assertNotNull("fetch preserved", ((OpenSearchSort) result).fetch);
+    /** Scalar agg, ORDER BY + fetch (non-empty collation): dropped — a 1-row relation is already
+     *  sorted and a fetch >= 1 cannot remove its single row, so the whole Sort is redundant
+     *  (Calcite SORT_REMOVE_REDUNDANT). */
+    public void testSortFetchOnScalarAggregateDropped() {
+        assertLimitDropped(runPlanner(makeSort(scalarAgg(), 5), defaultContext()));
     }
 
     /** Scalar agg, OFFSET (no collation): kept — OFFSET 1 over one row yields zero rows, so it is NOT a no-op. */

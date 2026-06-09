@@ -286,6 +286,12 @@ public class PlannerImpl {
             // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE feed the QTF (late-materialization)
             // rewriter by lifting Project above Sort so it sees a single Project layer
             // above the anchor.
+            // SORT_REMOVE_REDUNDANT drops a Sort/LIMIT whose input is provably bounded to
+            // within the limit (e.g. a collation-less `head N` or a sort over a scalar
+            // aggregate, getMaxRowCount <= 1): a no-op that the marking rule must not have to
+            // special-case. Runs here, pre-marking, on plain Logical* so marking stays a pure
+            // Logical* -> OpenSearch* conversion. Cascades with LIMIT_MERGE in the same
+            // fixpoint so stacked limits collapse first, then any now-redundant Sort is removed.
             .addRuleCollection(
                 List.of(
                     CoreRules.FILTER_PROJECT_TRANSPOSE,
@@ -293,7 +299,8 @@ public class PlannerImpl {
                     CoreRules.FILTER_INTO_JOIN,
                     CoreRules.SORT_PROJECT_TRANSPOSE,
                     CoreRules.PROJECT_MERGE,
-                    CoreRules.LIMIT_MERGE
+                    CoreRules.LIMIT_MERGE,
+                    CoreRules.SORT_REMOVE_REDUNDANT
                 )
             )
             .addRuleInstance(CoreRules.FILTER_MERGE)

@@ -53,13 +53,6 @@ public class OpenSearchSortRule extends RelOptRule {
             throw new IllegalStateException("Sort rule encountered unmarked child [" + child.getClass().getSimpleName() + "]");
         }
 
-        // A collation-less, offset-less LIMIT over a provably single-row input (e.g. a scalar
-        // aggregate) is a no-op, drop it.
-        if (sort.getCollation().getFieldCollations().isEmpty() && sort.offset == null && isAtMostOneRow(call, child)) {
-            call.transformTo(child);
-            return;
-        }
-
         List<String> childViableBackends = openSearchChild.getViableBackends();
         List<String> sortCapable = context.getCapabilityRegistry().operatorBackends(EngineCapability.SORT);
 
@@ -82,11 +75,5 @@ public class OpenSearchSortRule extends RelOptRule {
                 viableBackends
             )
         );
-    }
-
-    /** True when {@code child} is provably at most one row (Calcite {@code getMaxRowCount}); false if unknown. */
-    private static boolean isAtMostOneRow(RelOptRuleCall call, RelNode child) {
-        Double maxRows = call.getMetadataQuery().getMaxRowCount(RelNodeUtils.unwrapHep(child));
-        return maxRows != null && maxRows <= 1.0;
     }
 }
