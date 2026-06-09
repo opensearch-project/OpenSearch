@@ -18,7 +18,6 @@
 
 #![cfg(test)]
 
-use std::any::Any;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
@@ -89,9 +88,6 @@ impl ExecutionPlan for RecordingLeaf {
     fn name(&self) -> &str {
         "RecordingLeaf"
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -132,7 +128,7 @@ impl ExecutionPlan for RecordingLeaf {
             let mut is_dynamic = false;
             f.filter
                 .apply(|e| {
-                    if e.as_any().downcast_ref::<DynamicFilterPhysicalExpr>().is_some() {
+                    if e.downcast_ref::<DynamicFilterPhysicalExpr>().is_some() {
                         is_dynamic = true;
                     }
                     Ok(TreeNodeRecursion::Continue)

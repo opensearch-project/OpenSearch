@@ -564,7 +564,7 @@ impl QueryShardExec {
         let mut all_cols_known = true;
         let mut saw_column = false;
         let _ = filter.apply(|e| {
-            if let Some(c) = e.as_any().downcast_ref::<Column>() {
+            if let Some(c) = e.downcast_ref::<Column>() {
                 saw_column = true;
                 if self.full_schema.index_of(c.name()).is_err() {
                     all_cols_known = false;
