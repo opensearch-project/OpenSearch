@@ -163,12 +163,24 @@ final class RustUdfDateTimeAdapters {
         DaynameAdapter() {
             super(LOCAL_DATE_FORMAT_OP, List.of(), List.of("%W"));
         }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            validateFirstArgIfStringLiteral(original, DatetimeLiteralValidator.Kind.TIMESTAMP);
+            return super.adapt(original, fieldStorage, cluster);
+        }
     }
 
     // MONTHNAME(x) → date_format(x, '%M'). %M renders full month name (e.g. "September").
     static final class MonthnameAdapter extends AbstractNameMappingAdapter {
         MonthnameAdapter() {
             super(LOCAL_DATE_FORMAT_OP, List.of(), List.of("%M"));
+        }
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            validateFirstArgIfStringLiteral(original, DatetimeLiteralValidator.Kind.TIMESTAMP);
+            return super.adapt(original, fieldStorage, cluster);
         }
     }
 
