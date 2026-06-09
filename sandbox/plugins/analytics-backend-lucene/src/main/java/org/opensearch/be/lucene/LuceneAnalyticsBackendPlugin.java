@@ -69,7 +69,13 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     // TODO: have CapabilityRegistry intersect declared FilterCapability against the
     // backend's serializer keyset at startup so this list can't drift again. The TODO in
     // OpenSearchFilterRule.resolveViableBackends references the same constraint.
-    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(ScalarFunction.EQUALS);
+    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(
+        ScalarFunction.EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL
+    );
 
     private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
         ScalarFunction.MATCH,

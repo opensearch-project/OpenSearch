@@ -10,6 +10,7 @@ package org.opensearch.be.lucene;
 
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.be.lucene.serializers.ComparisonSerializer;
 import org.opensearch.be.lucene.serializers.EqualsSerializer;
 import org.opensearch.be.lucene.serializers.MatchAllSerializer;
 import org.opensearch.be.lucene.serializers.MatchBoolPrefixSerializer;
@@ -42,7 +43,11 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.WILDCARD_QUERY, new WildcardQuerySerializer()),
         Map.entry(ScalarFunction.QUERY, new QuerySerializer()),
         Map.entry(ScalarFunction.MATCHALL, new MatchAllSerializer()),
-        Map.entry(ScalarFunction.EQUALS, new EqualsSerializer())
+        Map.entry(ScalarFunction.EQUALS, new EqualsSerializer()),
+        Map.entry(ScalarFunction.GREATER_THAN, new ComparisonSerializer()),
+        Map.entry(ScalarFunction.GREATER_THAN_OR_EQUAL, new ComparisonSerializer()),
+        Map.entry(ScalarFunction.LESS_THAN, new ComparisonSerializer()),
+        Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, new ComparisonSerializer())
     );
 
     private QuerySerializerRegistry() {}
