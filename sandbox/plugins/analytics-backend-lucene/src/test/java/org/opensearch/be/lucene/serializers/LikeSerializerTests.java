@@ -68,11 +68,7 @@ public class LikeSerializerTests extends OpenSearchTestCase {
     }
 
     public void testLikeSingleCharWildcard() {
-        RexNode call = rexBuilder.makeCall(
-            SqlLibraryOperators.ILIKE,
-            rexBuilder.makeInputRef(varchar, 0),
-            rexBuilder.makeLiteral("te_t")
-        );
+        RexNode call = rexBuilder.makeCall(SqlLibraryOperators.ILIKE, rexBuilder.makeInputRef(varchar, 0), rexBuilder.makeLiteral("te_t"));
         QueryBuilder qb = serializer.buildQueryBuilder((RexCall) call, FIELD_STORAGE);
         WildcardQueryBuilder wqb = (WildcardQueryBuilder) qb;
         assertEquals("te?t", wqb.value());

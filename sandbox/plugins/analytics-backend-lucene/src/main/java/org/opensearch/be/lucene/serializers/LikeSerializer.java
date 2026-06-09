@@ -61,7 +61,10 @@ public class LikeSerializer extends AbstractQuerySerializer {
                     case '%' -> result.append('%');
                     case '_' -> result.append('_');
                     case ESCAPE -> result.append(ESCAPE);
-                    default -> { result.append(ESCAPE); result.append(c); }
+                    default -> {
+                        result.append(ESCAPE);
+                        result.append(c);
+                    }
                 }
                 escaped = false;
             } else if (c == ESCAPE) {
