@@ -20,7 +20,9 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A token filter that performs prefix and suffix stripping on Tamil tokens.
@@ -39,11 +41,14 @@ public final class TamilStemmer extends TokenFilter {
     private final int minStemLength;
     private final boolean stripPrefixes;
     private final boolean stripSuffixes;
+    private final boolean applySandhi;
     private final String[] suffixes;
     private final String[] prefixes;
+    private final Map<String, String> sandhiMap;
 
     private static final String DEFAULT_SUFFIXES_FILE = "tamil_suffixes.txt";
     private static final String DEFAULT_PREFIXES_FILE = "tamil_prefixes.txt";
+    private static final String DEFAULT_SANDHI_FILE = "tamil_sandhi.txt";
 
     /**
      * Creates a new TamilStemmer with default settings.
@@ -51,7 +56,7 @@ public final class TamilStemmer extends TokenFilter {
      * @param input the input token stream
      */
     public TamilStemmer(TokenStream input) {
-        this(input, 2, true, true, (List<String>) null, (List<String>) null);
+        this(input, 2, true, true, true, (List<String>) null, (List<String>) null);
     }
 
     /**
@@ -61,11 +66,11 @@ public final class TamilStemmer extends TokenFilter {
      * @param minStemLength minimum length a stem must have after affix removal
      */
     public TamilStemmer(TokenStream input, int minStemLength) {
-        this(input, minStemLength, true, true, (List<String>) null, (List<String>) null);
+        this(input, minStemLength, true, true, true, (List<String>) null, (List<String>) null);
     }
 
     /**
-     * Creates a new TamilStemmer with the specified settings.
+     * Creates a new TamilStemmer with the specified settings (backwards compatible).
      *
      * @param input the input token stream
      * @param minStemLength minimum length a stem must have after affix removal
@@ -76,10 +81,28 @@ public final class TamilStemmer extends TokenFilter {
      */
     public TamilStemmer(TokenStream input, int minStemLength, boolean stripPrefixes,
                         boolean stripSuffixes, List<String> customSuffixes, List<String> customPrefixes) {
+        this(input, minStemLength, stripPrefixes, stripSuffixes, true, customSuffixes, customPrefixes);
+    }
+
+    /**
+     * Creates a new TamilStemmer with the specified settings including sandhi normalization.
+     *
+     * @param input the input token stream
+     * @param minStemLength minimum length a stem must have after affix removal
+     * @param stripPrefixes whether to strip prefixes
+     * @param stripSuffixes whether to strip suffixes
+     * @param applySandhi whether to apply sandhi normalization after stemming
+     * @param customSuffixes custom suffix list (null to use defaults)
+     * @param customPrefixes custom prefix list (null to use defaults)
+     */
+    public TamilStemmer(TokenStream input, int minStemLength, boolean stripPrefixes,
+                        boolean stripSuffixes, boolean applySandhi,
+                        List<String> customSuffixes, List<String> customPrefixes) {
         super(input);
         this.minStemLength = minStemLength;
         this.stripPrefixes = stripPrefixes;
         this.stripSuffixes = stripSuffixes;
+        this.applySandhi = applySandhi;
 
         // Load suffixes
         if (customSuffixes != null && !customSuffixes.isEmpty()) {
@@ -94,6 +117,9 @@ public final class TamilStemmer extends TokenFilter {
         } else {
             this.prefixes = loadDefaultAffixes(DEFAULT_PREFIXES_FILE);
         }
+
+        // Load sandhi mappings
+        this.sandhiMap = loadSandhiMappings(DEFAULT_SANDHI_FILE);
     }
 
     /**
@@ -112,6 +138,7 @@ public final class TamilStemmer extends TokenFilter {
         this.minStemLength = minStemLength;
         this.stripPrefixes = stripPrefixes;
         this.stripSuffixes = stripSuffixes;
+        this.applySandhi = true;
 
         // Load suffixes
         if (suffixReader != null) {
@@ -126,6 +153,9 @@ public final class TamilStemmer extends TokenFilter {
         } else {
             this.prefixes = loadDefaultAffixes(DEFAULT_PREFIXES_FILE);
         }
+
+        // Load sandhi mappings
+        this.sandhiMap = loadSandhiMappings(DEFAULT_SANDHI_FILE);
     }
 
     /**
@@ -185,6 +215,39 @@ public final class TamilStemmer extends TokenFilter {
             .toArray(String[]::new);
     }
 
+    /**
+     * Load sandhi mappings from the default resource file.
+     * Format: transformed_stem=normalized_stem
+     */
+    private Map<String, String> loadSandhiMappings(String filename) {
+        Map<String, String> mappings = new HashMap<>();
+        try (InputStream is = getClass().getResourceAsStream(filename)) {
+            if (is == null) {
+                return mappings;
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    // Skip empty lines and comments
+                    if (!line.isEmpty() && !line.startsWith("#")) {
+                        int eqIndex = line.indexOf('=');
+                        if (eqIndex > 0) {
+                            String key = line.substring(0, eqIndex).trim();
+                            String value = line.substring(eqIndex + 1).trim();
+                            if (!key.isEmpty() && !value.isEmpty()) {
+                                mappings.put(key, value);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // Return empty map on error
+        }
+        return mappings;
+    }
+
     @Override
     public boolean incrementToken() throws IOException {
         if (!input.incrementToken()) {
@@ -211,10 +274,48 @@ public final class TamilStemmer extends TokenFilter {
             stemmed = stripSuffix(stemmed);
         }
 
+        // Apply sandhi normalization (if enabled)
+        if (applySandhi && sandhiMap != null && !sandhiMap.isEmpty()) {
+            stemmed = applySandhiNormalization(stemmed);
+        }
+
         // Update the term if changed
         if (!stemmed.equals(term)) {
             termAtt.setEmpty().append(stemmed);
         }
+    }
+
+    /**
+     * Apply sandhi normalization to restore the original root form.
+     * First checks for exact match, then checks for suffix-based patterns.
+     */
+    private String applySandhiNormalization(String stem) {
+        // Check for exact match first
+        if (sandhiMap.containsKey(stem)) {
+            return sandhiMap.get(stem);
+        }
+
+        // Check for suffix-based sandhi patterns (longest match first)
+        String bestMatch = null;
+        String bestReplacement = null;
+        int bestLength = 0;
+
+        for (Map.Entry<String, String> entry : sandhiMap.entrySet()) {
+            String pattern = entry.getKey();
+            if (stem.endsWith(pattern) && pattern.length() > bestLength) {
+                bestMatch = pattern;
+                bestReplacement = entry.getValue();
+                bestLength = pattern.length();
+            }
+        }
+
+        if (bestMatch != null) {
+            // Replace the ending with the normalized form
+            String prefix = stem.substring(0, stem.length() - bestMatch.length());
+            return prefix + bestReplacement;
+        }
+
+        return stem;
     }
 
     private String stripPrefix(String term) {
@@ -253,5 +354,12 @@ public final class TamilStemmer extends TokenFilter {
      */
     String[] getPrefixes() {
         return prefixes;
+    }
+
+    /**
+     * Get the loaded sandhi mappings (for testing).
+     */
+    Map<String, String> getSandhiMap() {
+        return sandhiMap;
     }
 }

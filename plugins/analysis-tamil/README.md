@@ -105,13 +105,16 @@ PUT /my-index
 
 **Parameters:**
 - `min_stem_length` (integer, default: 3) - Minimum length a stem must have after suffix removal. Prevents over-stemming short words.
+- `strip_prefixes` (boolean, default: false) - Whether to strip prefixes.
+- `strip_suffixes` (boolean, default: true) - Whether to strip suffixes.
+- `apply_sandhi` (boolean, default: true) - Whether to apply sandhi normalization after stemming.
 
 **Examples:**
 | Input | Output | Suffix Stripped |
 |-------|--------|-----------------|
 | பள்ளிக்கு | பள்ளி | க்கு (dative) |
 | குழந்தைகள் | குழந்தை | கள் (plural) |
-| வீட்டில் | வீட்ட | ில் (locative) |
+| வீட்டில் | வீடு | ில் (locative) + sandhi |
 | மாணவர்களுக்கு | மாணவர் | களுக்கு (plural+dative) |
 
 #### Tamil Stop Filter
@@ -176,12 +179,66 @@ The stemmer handles common Tamil inflectional patterns:
 - **Plural marker**: கள்
 - **Accusative**: யை (after vowels)
 - **Postpositions**: உடன், வரை, போல், இடம்
+- **Possessive suffixes**: டையார் (one who has), டைமை (having)
+- **Verb tenses**: கிறார் (present), தார் (past), வார் (future)
+
+## Sandhi Normalization (புணர்ச்சி)
+
+Tamil words undergo sound changes (sandhi) when morphemes combine. The stemmer applies sandhi normalization after suffix stripping to restore the original root form.
+
+### How Sandhi Works
+
+```
+Input: "வீட்டில்" (in the house)
+         ↓
+Step 1: Suffix stripping
+         "வீட்டில்" - "இல்" = "வீட்ட"
+         ↓
+Step 2: Sandhi normalization
+         "வீட்ட" → "வீடு" (lookup table)
+         ↓
+Output: "வீடு" (house)
+```
+
+### Sandhi Examples
+
+| Input | After Suffix Strip | After Sandhi | Rule |
+|-------|-------------------|--------------|------|
+| வீட்டில் | வீட்ட | வீடு | Consonant doubling (ட் → டு) |
+| நாட்டில் | நாட்ட | நாடு | Consonant doubling (ட் → டு) |
+| மரங்கள் | மரங் | மரம் | Consonant insertion (ங் → ம்) |
+| கண்ணில் | கண்ண | கண் | Consonant doubling (ண் → ண்) |
+
+### Why Sandhi Matters for Search
+
+Without sandhi normalization:
+- Search for "வீடு" would NOT match "வீட்டில்" (stems to வீட்ட)
+- Search for "மரம்" would NOT match "மரங்கள்" (stems to மரங்)
+
+With sandhi normalization:
+- Search for "வீடு" matches "வீட்டில்" (both normalize to வீடு)
+- Search for "மரம்" matches "மரங்கள்" (both normalize to மரம்)
+
+### Configuration
+
+Sandhi normalization is enabled by default. To disable:
+
+```json
+{
+  "filter": {
+    "tamil_stem_no_sandhi": {
+      "type": "tamil_stemmer",
+      "apply_sandhi": false
+    }
+  }
+}
+```
 
 ## Limitations
 
 1. **Suffix stripping, not morphological analysis**: This stemmer uses rule-based suffix stripping, not a full morphological analyzer. It may under-strip rare suffixes or occasionally over-strip.
 
-2. **Sandhi not handled**: Tamil sandhi (morphophonemic changes at word boundaries) is not resolved. For better handling, use `icu_tokenizer`.
+2. **Sandhi coverage**: Sandhi normalization uses a lookup table approach. Common patterns are covered, but rare sandhi forms may not be normalized. The lookup table can be extended as needed.
 
 3. **Stopwords are task-dependent**: The bundled stopword list is a reasonable starting point but may need customization for specific use cases.
 
