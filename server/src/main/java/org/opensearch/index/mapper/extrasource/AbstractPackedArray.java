@@ -104,13 +104,8 @@ abstract class AbstractPackedArray {
 
     protected static long decodeLongLEAt(final byte[] a, final int p) {
         // Decode bytes directly; mask each signed byte as unsigned before shifting.
-        return ((long) a[p] & 0xFFL)
-            | (((long) a[p + 1] & 0xFFL) << 8)
-            | (((long) a[p + 2] & 0xFFL) << 16)
-            | (((long) a[p + 3] & 0xFFL) << 24)
-            | (((long) a[p + 4] & 0xFFL) << 32)
-            | (((long) a[p + 5] & 0xFFL) << 40)
-            | (((long) a[p + 6] & 0xFFL) << 48)
+        return ((long) a[p] & 0xFFL) | (((long) a[p + 1] & 0xFFL) << 8) | (((long) a[p + 2] & 0xFFL) << 16) | (((long) a[p + 3] & 0xFFL)
+            << 24) | (((long) a[p + 4] & 0xFFL) << 32) | (((long) a[p + 5] & 0xFFL) << 40) | (((long) a[p + 6] & 0xFFL) << 48)
             | (((long) a[p + 7] & 0xFFL) << 56);
     }
 
