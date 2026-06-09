@@ -181,6 +181,38 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
         assertEquals("date_sub(time, -30min) wall time must be 08:30:00", "08:30:00", firstRowFirstCell(response));
     }
 
+    /** Cluster B: ADDDATE(DATE, integer days) lowers via DateAddSubAdapter integer-days form. */
+    public void testClusterB_addDateIntegerDaysOnDate() throws IOException {
+        assertFirstRowString(
+            oneRow() + "| eval f = adddate(date('2020-08-26'), 1) | fields f",
+            "2020-08-27"
+        );
+    }
+
+    /** Cluster B: SUBDATE(DATE, integer days) — sign folded by adapter. */
+    public void testClusterB_subDateIntegerDaysOnDate() throws IOException {
+        assertFirstRowString(
+            oneRow() + "| eval f = subdate(date('2020-08-26'), 1) | fields f",
+            "2020-08-25"
+        );
+    }
+
+    /** Cluster B: ADDDATE(TIMESTAMP, integer days) — promotes to TIMESTAMP wall time. */
+    public void testClusterB_addDateIntegerDaysOnTimestamp() throws IOException {
+        assertFirstRowString(
+            oneRow() + "| eval f = adddate(timestamp('2020-09-16 17:30:00'), 1) | fields f",
+            "2020-09-17 17:30:00"
+        );
+    }
+
+    /** Cluster B: ADDDATE(DATE, INTERVAL n DAY) — interval form sharing the DATE_ADD path. */
+    public void testClusterB_addDateIntervalOnDate() throws IOException {
+        assertFirstRowString(
+            oneRow() + "| eval f = adddate(date('2020-08-26'), interval 3 day) | fields f",
+            "2020-08-29 00:00:00"
+        );
+    }
+
     /** Cluster B: TIMESTAMPADD standalone string-overload resolves. */
     public void testClusterB_timestampAddStandalone() throws IOException {
         assertFirstRowString(

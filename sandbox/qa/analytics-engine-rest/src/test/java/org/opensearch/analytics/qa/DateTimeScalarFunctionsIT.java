@@ -544,6 +544,44 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    /** ADDDATE with a non-DAY interval unit — exercises the adapter's HOUR branch on a TIMESTAMP base. */
+    public void testAddDateIntervalHourOnTimestamp() throws IOException {
+        // datetime0 at key00 = 2004-07-09 10:17:35 → +5 hours = 2004-07-09 15:17:35.
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(adddate(datetime0, interval 5 hour), '%Y-%m-%d %H:%i:%s') | fields d",
+            "2004-07-09 15:17:35"
+        );
+    }
+
+    /** SUBDATE with a non-DAY interval unit — exercises the adapter's MINUTE branch with sign-flip. */
+    public void testSubDateIntervalMinuteOnTimestamp() throws IOException {
+        // datetime0 = 2004-07-09 10:17:35 → -30 minutes = 2004-07-09 09:47:35.
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(subdate(datetime0, interval 30 minute), '%Y-%m-%d %H:%i:%s') | fields d",
+            "2004-07-09 09:47:35"
+        );
+    }
+
+    /** ADDDATE on a TIMESTAMP column (not literal) — exercises the column-base lowering for ADDDATE. */
+    public void testAddDateIntegerDaysOnTimestampColumn() throws IOException {
+        // datetime0 = 2004-07-09 10:17:35 → +30 days = 2004-08-08 10:17:35.
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(adddate(datetime0, 30), '%Y-%m-%d %H:%i:%s') | fields d",
+            "2004-08-08 10:17:35"
+        );
+    }
+
+    /**
+     * ADDDATE with a VARCHAR base — exercises the {@code characterBase} branch in
+     * {@code DateAddSubAdapter} that routes through {@code coerceCharacterOperandToTimestamp}.
+     */
+    public void testAddDateVarcharBaseCoerces() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval d = date_format(adddate('2020-08-26', interval 7 day), '%Y-%m-%d %H:%i:%s') | fields d",
+            "2020-09-02 00:00:00"
+        );
+    }
+
     /** TIMEDIFF returns a TIME — value of '23:59:59' minus '13:00:00' is '10:59:59'. */
     public void testTimeDiffReturnsTime() throws IOException {
         assertFirstRowString(
