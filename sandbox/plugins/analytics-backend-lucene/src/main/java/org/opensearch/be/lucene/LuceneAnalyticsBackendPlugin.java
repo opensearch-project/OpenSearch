@@ -73,7 +73,8 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ScalarFunction.EQUALS,
         ScalarFunction.NOT_EQUALS,
         ScalarFunction.IS_NULL,
-        ScalarFunction.IS_NOT_NULL
+        ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.LIKE
     );
 
     private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
@@ -109,11 +110,17 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         FULL_TEXT_TYPES.addAll(FieldType.text());
     }
 
+    private static final Set<FieldType> KEYWORD_ONLY = Set.of(FieldType.KEYWORD);
+
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
         for (ScalarFunction op : STANDARD_OPS) {
-            caps.add(new FilterCapability.Standard(op, STANDARD_TYPES, LUCENE_FORMATS));
+            if (op == ScalarFunction.LIKE) {
+                caps.add(new FilterCapability.Standard(op, KEYWORD_ONLY, LUCENE_FORMATS));
+            } else {
+                caps.add(new FilterCapability.Standard(op, STANDARD_TYPES, LUCENE_FORMATS));
+            }
         }
         for (ScalarFunction op : FULL_TEXT_OPS) {
             for (FieldType type : FULL_TEXT_TYPES) {

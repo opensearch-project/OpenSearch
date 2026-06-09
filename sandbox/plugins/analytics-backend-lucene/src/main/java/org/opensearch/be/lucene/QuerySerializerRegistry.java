@@ -12,6 +12,7 @@ import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.be.lucene.serializers.EqualsSerializer;
 import org.opensearch.be.lucene.serializers.IsNullSerializer;
+import org.opensearch.be.lucene.serializers.LikeSerializer;
 import org.opensearch.be.lucene.serializers.MatchAllSerializer;
 import org.opensearch.be.lucene.serializers.MatchBoolPrefixSerializer;
 import org.opensearch.be.lucene.serializers.MatchPhrasePrefixSerializer;
@@ -47,7 +48,8 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.EQUALS, new EqualsSerializer()),
         Map.entry(ScalarFunction.NOT_EQUALS, new NotEqualsSerializer()),
         Map.entry(ScalarFunction.IS_NULL, new IsNullSerializer(false)),
-        Map.entry(ScalarFunction.IS_NOT_NULL, new IsNullSerializer(true))
+        Map.entry(ScalarFunction.IS_NOT_NULL, new IsNullSerializer(true)),
+        Map.entry(ScalarFunction.LIKE, new LikeSerializer())
     );
 
     private QuerySerializerRegistry() {}
