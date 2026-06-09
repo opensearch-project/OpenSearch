@@ -224,4 +224,21 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         assertNotNull("fromSqlFunction must resolve known names", resolved);
         assertSame(ScalarFunction.UPPER, resolved);
     }
+
+    // ── fromToken: case-insensitive token resolution ───────────────────────────────────────
+
+    public void testFromTokenCaseInsensitive() {
+        // fromToken trims surrounding whitespace and upper-cases before valueOf.
+        assertSame(ScalarFunction.LIKE, ScalarFunction.fromToken("like"));
+        assertSame(ScalarFunction.LIKE, ScalarFunction.fromToken("LIKE"));
+        assertSame(ScalarFunction.EQUALS, ScalarFunction.fromToken("  Equals "));
+    }
+
+    public void testFromTokenRejectsUnknown() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ScalarFunction.fromToken("NOPE"));
+        assertTrue(
+            "exception message must mention the failure, got: " + e.getMessage(),
+            e.getMessage().contains("Unknown scalar function")
+        );
+    }
 }
