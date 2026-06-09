@@ -115,16 +115,43 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
     /**
      * {@code microsecond(timestamp('<lit>'))} extracts the sub-second component. MicrosecondAdapter
      * coerces the operand and computes {@code MOD(date_part('microsecond', ts), 1_000_000)}.
-     *
-     * <p>The AE/parquet store keeps {@code Timestamp(MILLISECOND)} (see TimestampFunctionAdapter
-     * precision notes), so sub-millisecond digits are truncated on this path: {@code .123456} reads
-     * back as {@code 123000}. This asserts the millisecond-precise value the engine produces today;
-     * full microsecond fidelity is a separate, pre-existing precision limitation.
+     * Millisecond-aligned input keeps the resolved (precision-3) fold, so {@code .123 → 123000}.
      */
     public void testMicrosecondOnTimestamp() throws IOException {
         assertFirstRowLong(
             oneRow("key00") + "| eval v = microsecond(timestamp('2020-09-16 17:30:00.123')) | fields v",
             123000L
+        );
+    }
+
+    /**
+     * Sub-ms input ({@code .123456}) preserves all 6 µs digits — the TimestampFunctionAdapter
+     * fold bumps precision to 6 when the input carries non-zero sub-ms digits. Pre-fix this
+     * silently truncated to {@code 123000}.
+     */
+    public void testMicrosecondOnTimestampPreservesMicroseconds() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval v = microsecond(timestamp('2020-09-16 17:30:00.123456')) | fields v",
+            123456L
+        );
+    }
+
+    /**
+     * Boundary: a single µs digit ({@code .000001}) must round-trip as {@code 1}, not be lost to
+     * the ms-aligned fast path. The {@code subSecondNanos % 1_000_000 != 0} check pins this.
+     */
+    public void testMicrosecondOnTimestampSingleMicrosecond() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval v = microsecond(timestamp('2020-09-16 17:30:00.000001')) | fields v",
+            1L
+        );
+    }
+
+    /** {@code date_format(_, '%f')} renders the 6-digit fractional second — pins the µs-preservation end-to-end. */
+    public void testDateFormatPercentFOnTimestampMicros() throws IOException {
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(timestamp('2020-09-16 17:30:00.123456'), '%f') | fields v",
+            "123456"
         );
     }
 

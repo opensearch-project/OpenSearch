@@ -28,9 +28,9 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
 
     private static final TypeCreator R = TypeCreator.of(false);
 
-    public void testTimestampPrecision6Preserved() {
-        // preserve µs precision so cast('… .123456' AS TIMESTAMP) keeps the microsecond fraction
-        long epochMicros = 1704067200123456L;
+    /** precision-6 literal passes through unchanged — DataFusion handles coercion against ms columns. */
+    public void testTimestampPrecision6PassThrough() {
+        long epochMicros = 1704067200000000L;
 
         Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder()
             .value(epochMicros)
@@ -38,64 +38,23 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
             .nullable(false)
             .build();
 
-        Plan plan = buildFilterPlan(literal);
-        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(buildFilterPlan(literal));
 
-        Expression condition = getFilterCondition(rewritten);
-        assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
-        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) condition;
+        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) getFilterCondition(rewritten);
         assertEquals(6, pts.precision());
         assertEquals(epochMicros, pts.value());
     }
 
-    public void testTimestampPrecision9ConvertedTo3() {
-        long epochNanos = 1704067200000000000L; // 2024-01-01T00:00:00Z in nanos
-        long expectedMillis = 1704067200000L;
+    public void testTimestampPrecision9PassThrough() {
+        long epochNanos = 1704067200000000000L;
 
         Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder().value(epochNanos).precision(9).nullable(false).build();
 
-        Plan plan = buildFilterPlan(literal);
-        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(buildFilterPlan(literal));
 
-        Expression condition = getFilterCondition(rewritten);
-        assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
-        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) condition;
-        assertEquals(3, pts.precision());
-        assertEquals(expectedMillis, pts.value());
-    }
-
-    public void testTimestampPrecision6PreservedInsideScalarFunction() {
-        // µs literals inside e.g. cast(varchar -> timestamp) projections must keep their precision
-        long epochMicros = 1696161600123456L;
-
-        Expression tsLiteral = ImmutableExpression.PrecisionTimestampLiteral.builder()
-            .value(epochMicros)
-            .precision(6)
-            .nullable(false)
-            .build();
-
-        FieldReference fieldRef = FieldReference.newRootStructReference(0, R.precisionTimestamp(3));
-
-        SimpleExtension.ExtensionCollection extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION;
-        SimpleExtension.ScalarFunctionVariant gtFunc = extensions.getScalarFunction(
-            SimpleExtension.FunctionAnchor.of(DefaultExtensionCatalog.FUNCTIONS_COMPARISON, "gt:any_any")
-        );
-
-        Expression gtCall = Expression.ScalarFunctionInvocation.builder()
-            .declaration(gtFunc)
-            .addArguments(fieldRef, tsLiteral)
-            .outputType(R.BOOLEAN)
-            .build();
-
-        Plan plan = buildFilterPlan(gtCall);
-        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
-
-        Expression condition = getFilterCondition(rewritten);
-        Expression.ScalarFunctionInvocation rewrittenGt = (Expression.ScalarFunctionInvocation) condition;
-        Expression arg1 = (Expression) rewrittenGt.arguments().get(1);
-        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) arg1;
-        assertEquals(6, pts.precision());
-        assertEquals(epochMicros, pts.value());
+        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) getFilterCondition(rewritten);
+        assertEquals(9, pts.precision());
+        assertEquals(epochNanos, pts.value());
     }
 
     public void testTimestampPrecision3Unchanged() {
@@ -107,24 +66,20 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
             .nullable(false)
             .build();
 
-        Plan plan = buildFilterPlan(literal);
-        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(buildFilterPlan(literal));
 
-        Expression condition = getFilterCondition(rewritten);
-        assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
-        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) condition;
+        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) getFilterCondition(rewritten);
         assertEquals(3, pts.precision());
         assertEquals(epochMillis, pts.value());
     }
 
-    public void testTimestampPrecision9InsideScalarFunctionConvertedTo3() {
-        // ns-precision literal in a function arg is still coerced to ms — DataFusion can't compare ns against parquet ms storage
-        long epochNanos = 1704067200123456789L;
-        long expectedMillis = 1704067200123L;
+    public void testTimestampInsideScalarFunction() {
+        // Rewriter walks into scalar-function arguments but no longer touches timestamp literals.
+        long epochMicros = 1704067200000000L;
 
         Expression tsLiteral = ImmutableExpression.PrecisionTimestampLiteral.builder()
-            .value(epochNanos)
-            .precision(9)
+            .value(epochMicros)
+            .precision(6)
             .nullable(false)
             .build();
 
@@ -141,17 +96,12 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
             .outputType(R.BOOLEAN)
             .build();
 
-        Plan plan = buildFilterPlan(gtCall);
-        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
+        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(buildFilterPlan(gtCall));
 
-        Expression condition = getFilterCondition(rewritten);
-        assertTrue(condition instanceof Expression.ScalarFunctionInvocation);
-        Expression.ScalarFunctionInvocation rewrittenGt = (Expression.ScalarFunctionInvocation) condition;
-        Expression arg1 = (Expression) rewrittenGt.arguments().get(1);
-        assertTrue(arg1 instanceof Expression.PrecisionTimestampLiteral);
-        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) arg1;
-        assertEquals(3, pts.precision());
-        assertEquals(expectedMillis, pts.value());
+        Expression.ScalarFunctionInvocation rewrittenGt = (Expression.ScalarFunctionInvocation) getFilterCondition(rewritten);
+        Expression.PrecisionTimestampLiteral arg1 = (Expression.PrecisionTimestampLiteral) rewrittenGt.arguments().get(1);
+        assertEquals(6, arg1.precision());
+        assertEquals(epochMicros, arg1.value());
     }
 
     public void testBareNameUnchanged() {
@@ -165,20 +115,6 @@ public class SubstraitPlanPojoRewriterTests extends OpenSearchTestCase {
 
         NamedScan rewrittenScan = (NamedScan) rewritten.getRoots().get(0).getInput();
         assertEquals(List.of("parquet_dates"), rewrittenScan.getNames());
-    }
-
-    public void testNonStandardPrecisionUnchanged() {
-        // only precision 9 is rewritten now; other precisions pass through untouched
-        Expression literal = ImmutableExpression.PrecisionTimestampLiteral.builder().value(12345L).precision(0).nullable(false).build();
-
-        Plan plan = buildFilterPlan(literal);
-        Plan rewritten = SubstraitPlanPojoRewriter.rewrite(plan);
-
-        Expression condition = getFilterCondition(rewritten);
-        assertTrue(condition instanceof Expression.PrecisionTimestampLiteral);
-        Expression.PrecisionTimestampLiteral pts = (Expression.PrecisionTimestampLiteral) condition;
-        assertEquals(0, pts.precision());
-        assertEquals(12345L, pts.value());
     }
 
     // --- VarCharLiteral → StrLiteral tests ---
