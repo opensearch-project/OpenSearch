@@ -348,32 +348,33 @@ pub struct ShardView {
 /// Returns a heap-allocated pointer (as i64) to `DataFusionRuntime`.
 /// Caller must call `close_global_runtime` exactly once to free it.
 ///
-/// # Side effect: spill directory is wiped
+/// # Side effect: spill directory contents are wiped
 ///
-/// When `spill_dir` is non-empty, the directory is cleared (`remove_dir_all`)
-/// before the `DiskManager` is built. DataFusion does not sweep stale entries
-/// itself — `create_local_dirs` in `datafusion-execution` only creates a fresh
-/// `datafusion-XXXXXX/` subdirectory and never touches siblings — so a prior
-/// non-graceful shutdown (kill -9, OOM-kill, container restart) leaves orphaned
-/// `datafusion-*/` trees that accumulate forever. The directory is
-/// OpenSearch-owned by contract, so wiping is safe.
+/// When `spill_dir` is non-empty, every immediate child is removed before the
+/// `DiskManager` is built. This sweeps `datafusion-*/` orphans left by a
+/// non-graceful shutdown (kill -9, OOM-kill, container restart) which would
+/// otherwise accumulate forever — `create_local_dirs` in `datafusion-execution`
+/// only creates a fresh `datafusion-XXXXXX/` and never touches siblings.
 ///
-/// We do not recreate the directory here. DataFusion's `create_local_dirs` will
-/// recreate the root via `std::fs::create_dir` and provision a fresh `TempDir`
-/// inside it during `DiskManagerBuilder::build()`.
+/// The spill directory itself is preserved. It may be a pre-existing mount
+/// point whose parent the JVM user does not own; rmdir'ing the root would
+/// fail with `EACCES` in that topology. Top-level symlinks are unlinked
+/// rather than descended into, so a stray symlink cannot redirect the wipe
+/// outside the spill mount.
 ///
-/// Any cleanup failure (permission denied, read-only filesystem, I/O error,
-/// etc.) is operator-actionable and aborts boot with `DataFusionError::Configuration`
-/// — the spill directory being in an unrecoverable state implies queries that
-/// need to spill would also fail later, so we surface the problem at boot time
-/// with full error context instead of letting orphans accumulate silently and
-/// failing later mid-query.
+/// Cleanup failure aborts boot with `DataFusionError::Configuration` — if we
+/// cannot wipe orphans now, queries that need to spill would fail later
+/// mid-query anyway. Better to surface it once at boot than silently leak.
 ///
-/// Safe today because (a) `datafusion.spill_directory` is `NodeScope + Final`, so
-/// `DataFusionPlugin.createComponents` calls this exactly once per JVM in
-/// production, and (b) Rust unit tests pass a fresh `tempdir()` per call. Anyone
-/// adding a new caller (hot-reload, multiple runtimes sharing a directory, etc.)
-/// must rethink this — calling mid-flight will nuke active spill state.
+/// # Operator contract
+///
+/// The OpenSearch process must own `spill_dir` with `rwx`. Write on the
+/// parent is **not** required — `spill_dir` is treated as a pre-existing
+/// mount point. Callers wanting auto-creation must grant write on the parent.
+///
+/// Safe today because `datafusion.spill_directory` is `NodeScope + Final`, so
+/// this runs exactly once per JVM. A future caller invoking it mid-flight
+/// would nuke active spill state — rethink before adding one.
 pub fn create_global_runtime(
     memory_pool_limit: i64,
     cache_manager_ptr: i64,
@@ -410,24 +411,53 @@ pub fn create_global_runtime(
             spill_limit as u64
         };
 
-        // Clear leaked spill files from a prior non-graceful shutdown. Any failure
-        // here (permission denied, read-only filesystem, I/O error, etc.) is
-        // operator-actionable and signals that the spill directory is in a state
-        // where DataFusion cannot reliably write either — fail boot loudly with
-        // full error context so the operator fixes it before the node joins the
-        // cluster, instead of accumulating orphan files and inflating
-        // disk_used_bytes silently.
+        // Wipe leaked entries from a prior non-graceful shutdown. We touch
+        // children only — the spill directory itself may be a mount point we
+        // cannot rmdir. Top-level symlinks are unlinked, never followed.
+        // Any failure aborts boot; see the rustdoc above for rationale.
         let spill_path = PathBuf::from(spill_dir);
         if spill_path.exists() {
-            if let Err(e) = fs::remove_dir_all(&spill_path) {
+            let entries = fs::read_dir(&spill_path).map_err(|e| {
                 let msg = format!(
-                    "Failed to clear leaked spill files in {} (io kind={:?}): {}. \
-                     Verify the OpenSearch process owns the spill directory and the volume \
-                     is mounted read-write before restarting.",
+                    "Failed to enumerate spill directory {} (io kind={:?}): {}. \
+                     Verify the process owns the spill directory before restarting.",
                     spill_dir, e.kind(), e
                 );
                 log::error!("{}", msg);
-                return Err(DataFusionError::Configuration(msg));
+                DataFusionError::Configuration(msg)
+            })?;
+            for entry in entries {
+                let entry = entry.map_err(|e| {
+                    let msg = format!(
+                        "Failed to read spill directory entry in {} (io kind={:?}): {}",
+                        spill_dir, e.kind(), e
+                    );
+                    log::error!("{}", msg);
+                    DataFusionError::Configuration(msg)
+                })?;
+                let path = entry.path();
+                let ft = entry.file_type().map_err(|e| {
+                    let msg = format!(
+                        "Failed to read file type of spill entry {} (io kind={:?}): {}",
+                        path.display(), e.kind(), e
+                    );
+                    log::error!("{}", msg);
+                    DataFusionError::Configuration(msg)
+                })?;
+                let result = if ft.is_symlink() || !ft.is_dir() {
+                    fs::remove_file(&path)
+                } else {
+                    fs::remove_dir_all(&path)
+                };
+                if let Err(e) = result {
+                    let msg = format!(
+                        "Failed to clear leaked spill entry {} (io kind={:?}): {}. \
+                         Verify the process owns the spill directory before restarting.",
+                        path.display(), e.kind(), e
+                    );
+                    log::error!("{}", msg);
+                    return Err(DataFusionError::Configuration(msg));
+                }
             }
         }
 
@@ -1816,15 +1846,15 @@ mod tests {
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
         assert!(ptr > 0);
 
-        // Both seeded entries must be gone. The directory itself ends up existing again
-        // because DataFusion's create_local_dirs recreates the root (and provisions a
-        // fresh datafusion-XXXXXX/ inside it) during DiskManagerBuilder::build() — our
-        // cleanup only wipes; DataFusion handles recreation.
+        // Both seeded entries must be gone, and the spill root itself must still exist.
+        // The cleanup wipes children only — it never rmdir's the root — and DataFusion's
+        // create_local_dirs sees the existing root, skips create_dir, and provisions a
+        // fresh datafusion-XXXXXX/ inside it via tempdir_in.
         assert!(!top_file.exists(), "top-level leaked file must be removed");
         assert!(!nested_file.exists(), "nested leaked file must be removed");
         assert!(!nested_dir.exists(), "nested leaked subdir must be removed");
-        assert!(tmp.path().exists(), "DataFusion's create_local_dirs must have recreated the root");
-        assert!(tmp.path().is_dir(), "spill root must be a directory after DataFusion provisioning");
+        assert!(tmp.path().exists(), "spill root must be preserved across cleanup");
+        assert!(tmp.path().is_dir(), "spill root must remain a directory after cleanup");
 
         unsafe { close_global_runtime(ptr) };
     }
@@ -1846,8 +1876,8 @@ mod tests {
         // Cleanup failure is operator-actionable (permissions, RO mount, I/O) and
         // implies the runtime would fail later mid-query anyway. Surface the failure
         // at boot with full context. Trigger the failure path by pointing spill_dir
-        // at a regular file: spill_path.exists() returns true, but remove_dir_all
-        // refuses to operate on a non-directory.
+        // at a regular file: spill_path.exists() returns true, but read_dir refuses
+        // to enumerate a non-directory and returns ErrorKind::NotADirectory.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().expect("tempdir");
         let bad_path = tmp.path().join("regular_file");
@@ -1863,10 +1893,122 @@ mod tests {
         assert!(msg.contains(bad_path_str), "error must reference the offending path; got: {}", msg);
         assert!(msg.contains("io kind="), "error must include the io::ErrorKind for diagnosis; got: {}", msg);
         assert!(
-            msg.contains("Failed to clear leaked spill files"),
+            msg.contains("Failed to enumerate spill directory")
+                || msg.contains("Failed to clear leaked spill entry"),
             "error must identify it as a cleanup failure; got: {}",
             msg
         );
+    }
+
+    /// Spill directory is owned by the JVM but its parent isn't (mount-point
+    /// topology). `fs::remove_dir_all(spill_dir)` would fail at the final
+    /// rmdir; the fix wipes contents only.
+    ///
+    /// Skipped under EUID 0 — root has CAP_DAC_OVERRIDE (or the macOS equivalent)
+    /// and bypasses the chmod 0o555 we use to simulate the locked parent, so the
+    /// pre-fix code path would silently succeed and the test would assert nothing.
+    /// CI runs as a non-root user; if you need to verify under root, run the
+    /// test in a user namespace or container that drops the capability.
+    #[test]
+    #[cfg(unix)]
+    fn create_global_runtime_succeeds_when_jvm_does_not_own_spill_parent() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // SAFETY: geteuid() is async-signal-safe and has no preconditions.
+        let euid = unsafe { libc::geteuid() };
+        if euid == 0 {
+            eprintln!(
+                "skipping create_global_runtime_succeeds_when_jvm_does_not_own_spill_parent: \
+                 EUID 0 bypasses chmod 0o555 via DAC override; the pre-fix code path \
+                 would silently succeed and the test would assert nothing"
+            );
+            return;
+        }
+
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let parent = tempfile::tempdir().expect("parent tempdir");
+        let spill_path = parent.path().join("spill");
+        fs::create_dir(&spill_path).expect("create spill mount-point dir");
+
+        // Seed leaked entries: a datafusion-* subtree (kill -9 leftover) and a loose file.
+        let leaked_dir = spill_path.join("datafusion-aB3kF7");
+        fs::create_dir(&leaked_dir).expect("create leaked subdir");
+        let leaked_file = leaked_dir.join("tmp_spill_001.arrow");
+        fs::write(&leaked_file, b"stale spill data").expect("seed leaked file");
+        let loose_file = spill_path.join("stray.txt");
+        fs::write(&loose_file, b"loose top-level file").expect("seed loose file");
+
+        // Lock parent to r+x only — simulates the mount-point parent the JVM doesn't own.
+        let original_parent_mode = fs::metadata(parent.path()).expect("stat parent").permissions().mode();
+        let mut locked = fs::metadata(parent.path()).expect("stat parent").permissions();
+        locked.set_mode(0o555);
+        fs::set_permissions(parent.path(), locked).expect("chmod parent 555");
+
+        let spill_str = spill_path.to_str().expect("utf-8 path");
+        let result = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0);
+
+        // Restore parent perms via RAII so tempdir cleanup runs even on assertion failure.
+        struct RestorePerms<'a> {
+            path: &'a std::path::Path,
+            mode: u32,
+        }
+        impl Drop for RestorePerms<'_> {
+            fn drop(&mut self) {
+                if let Ok(metadata) = fs::metadata(self.path) {
+                    let mut perms = metadata.permissions();
+                    perms.set_mode(self.mode);
+                    let _ = fs::set_permissions(self.path, perms);
+                }
+            }
+        }
+        let _restore = RestorePerms { path: parent.path(), mode: original_parent_mode };
+
+        let ptr = result.expect("runtime build must succeed when only the parent is read-only");
+        assert!(ptr > 0);
+
+        assert!(!leaked_file.exists(), "leaked file under leaked subdir must be removed");
+        assert!(!leaked_dir.exists(), "leaked datafusion-* subdir must be removed");
+        assert!(!loose_file.exists(), "loose top-level file must be removed");
+        assert!(spill_path.exists(), "spill mount-point dir must be preserved");
+        assert!(spill_path.is_dir(), "spill mount-point must remain a directory");
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    /// Top-level symlinks must be unlinked, not followed — otherwise the wipe
+    /// could escape the spill directory and delete files elsewhere.
+    #[test]
+    #[cfg(unix)]
+    fn create_global_runtime_unlinks_top_level_symlink_without_following() {
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().join("spill");
+        fs::create_dir(&spill_path).expect("create spill dir");
+
+        // outside_target sits next to spill/. If cleanup followed the symlink, it would be deleted.
+        let outside = tmp.path().join("outside_target.txt");
+        fs::write(&outside, b"must NOT be touched").expect("seed outside file");
+
+        let link = spill_path.join("escape_link");
+        std::os::unix::fs::symlink(&outside, &link).expect("create symlink");
+        assert!(link.is_symlink(), "precondition: link is a symlink");
+
+        let spill_str = spill_path.to_str().expect("utf-8 path");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        assert!(!link.exists(), "symlink itself must be unlinked");
+        assert!(
+            outside.exists(),
+            "symlink target outside spill dir must NOT be touched (cleanup must not follow symlinks)"
+        );
+        assert_eq!(
+            fs::read(&outside).expect("read outside file"),
+            b"must NOT be touched",
+            "symlink target contents must be preserved verbatim"
+        );
+
+        unsafe { close_global_runtime(ptr) };
     }
 
     #[test]
