@@ -30,6 +30,7 @@ final class PackedDoubleArray extends AbstractPackedArray implements DoubleArray
     }
 
     static PackedDoubleArray fromPackedArray(byte[] packedArray, int dimension) {
+        Objects.requireNonNull(packedArray, "packedArray must not be null");
         return fromPackedArray(packedArray, 0, packedArray.length, dimension);
     }
 

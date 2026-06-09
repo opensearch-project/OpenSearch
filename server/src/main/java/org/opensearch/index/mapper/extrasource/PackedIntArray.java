@@ -30,6 +30,7 @@ final class PackedIntArray extends AbstractPackedArray implements IntArrayValue 
     }
 
     static PackedIntArray fromPackedArray(byte[] packedArray, int dimension) {
+        Objects.requireNonNull(packedArray, "packedArray must not be null");
         return fromPackedArray(packedArray, 0, packedArray.length, dimension);
     }
 

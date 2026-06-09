@@ -47,6 +47,9 @@ abstract class AbstractPackedArray {
     AbstractPackedArray(BytesReference packed, int dimension, byte[] bytes, int bytesOffset, int bytesPerElement, String valueType) {
         this.packed = Objects.requireNonNull(packed, "packed must not be null");
         this.dimension = dimension;
+        if (bytes != null) {
+            Objects.checkFromIndexSize(bytesOffset, packed.length(), bytes.length);
+        }
         this.resolvedBytes = bytes == null ? null : new ResolvedBytes(bytes, bytesOffset);
         validate(packed.length(), dimension, bytesPerElement, valueType);
     }

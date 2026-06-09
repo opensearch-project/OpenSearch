@@ -173,6 +173,20 @@ public class NumericArrayValueTests extends OpenSearchTestCase {
         assertThat(doubleError.getMessage(), containsString("values must not be null"));
     }
 
+    public void testPackedArrayFactoriesRejectNull() {
+        NullPointerException floatError = expectThrows(NullPointerException.class, () -> FloatArrayValue.fromPackedArray(null, 1));
+        assertThat(floatError.getMessage(), containsString("packedArray must not be null"));
+
+        NullPointerException intError = expectThrows(NullPointerException.class, () -> IntArrayValue.fromPackedArray(null, 1));
+        assertThat(intError.getMessage(), containsString("packedArray must not be null"));
+
+        NullPointerException longError = expectThrows(NullPointerException.class, () -> LongArrayValue.fromPackedArray(null, 1));
+        assertThat(longError.getMessage(), containsString("packedArray must not be null"));
+
+        NullPointerException doubleError = expectThrows(NullPointerException.class, () -> DoubleArrayValue.fromPackedArray(null, 1));
+        assertThat(doubleError.getMessage(), containsString("packedArray must not be null"));
+    }
+
     private static byte[] packIntLE(int[] vals) {
         ByteBuffer buffer = ByteBuffer.allocate(vals.length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int value : vals) {

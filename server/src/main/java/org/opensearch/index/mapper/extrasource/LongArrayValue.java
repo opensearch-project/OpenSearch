@@ -76,8 +76,10 @@ public non-sealed interface LongArrayValue extends ExtraFieldValue {
     long get(int i);
 
     /**
-     * Convenience; may allocate/copy for packed (allocating long[] is unavoidable).
-     * Packed implementation must NOT perform an extra byte[] compaction copy.
+     * Convenience; allocates a long array for packed values.
+     * Zero-copy decoding is used when the packed value is backed by a usable byte array.
+     * For other BytesReference implementations, decoding may lazily materialize one cached
+     * byte array.
      */
     long[] asLongArray();
 

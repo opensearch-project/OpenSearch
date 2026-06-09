@@ -41,6 +41,7 @@ final class PackedFloatArray extends AbstractPackedArray implements FloatArrayVa
     }
 
     public static PackedFloatArray fromPackedArray(byte[] packedArray, int dimension) {
+        Objects.requireNonNull(packedArray, "packedArray must not be null");
         return fromPackedArray(packedArray, 0, packedArray.length, dimension);
     }
 
