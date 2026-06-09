@@ -34,7 +34,12 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22));
         taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25));
         taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
-        return new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors), null, null);
+        return new DataFusionStats(
+            new NativeExecutorsStats(io, cpu, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L)
+        );
     }
 
     private static String toJsonString(DataFusionStats stats) throws IOException {
@@ -115,7 +120,12 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
         taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
 
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors), null, null);
+        DataFusionStats stats = new DataFusionStats(
+            new NativeExecutorsStats(io, null, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null
+        );
         assertNull(stats.getNativeExecutorsStats().getCpuRuntime());
 
         String json = toJsonString(stats);
@@ -190,7 +200,12 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
         taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
 
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors), null, null);
+        DataFusionStats stats = new DataFusionStats(
+            new NativeExecutorsStats(io, null, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null
+        );
         String json = toJsonString(stats);
 
         assertTrue(json.contains("\"io_runtime\""));
@@ -212,5 +227,30 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         assertTrue(monitors.containsKey("query_execution"));
         assertTrue(monitors.containsKey("stream_next"));
         assertTrue(monitors.containsKey("plan_setup"));
+    }
+
+    public void testSpillFragmentRendersUnderDiskSpillKey() throws IOException {
+        DataFusionStats stats = sequentialStats();
+        String json = toJsonString(stats);
+
+        assertTrue("missing disk_spill object: " + json, json.contains("\"disk_spill\":{"));
+        assertTrue(json.contains("\"directory\":\"/mnt/spill\""));
+        assertTrue(json.contains("\"disk_total_bytes\":100"));
+        assertTrue(json.contains("\"disk_available_bytes\":60"));
+        assertTrue(json.contains("\"disk_used_bytes\":40"));
+        assertTrue(json.contains("\"disk_reserved_bytes\":80"));
+    }
+
+    public void testSpillFragmentRoundTripsThroughDataFusionStatsWriteable() throws IOException {
+        DataFusionStats original = sequentialStats();
+
+        org.opensearch.common.io.stream.BytesStreamOutput out = new org.opensearch.common.io.stream.BytesStreamOutput();
+        original.writeTo(out);
+
+        try (org.opensearch.core.common.io.stream.StreamInput in = out.bytes().streamInput()) {
+            DataFusionStats roundTripped = new DataFusionStats(in);
+            assertNotNull(roundTripped.getSpillStats());
+            assertEquals(original.getSpillStats(), roundTripped.getSpillStats());
+        }
     }
 }

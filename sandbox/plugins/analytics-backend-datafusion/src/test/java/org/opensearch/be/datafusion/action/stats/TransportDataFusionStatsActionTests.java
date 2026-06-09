@@ -15,6 +15,7 @@ import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.SpillStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -84,7 +85,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         NativeExecutorsStats nativeStats = new NativeExecutorsStats(io, cpu, taskMonitors);
         PartitionGateStats datanodeGate = new PartitionGateStats("datanode_gate", 64, 3, 150, 500, 0, 64);
         PartitionGateStats coordinatorGate = new PartitionGateStats("coordinator_gate", 32, 1, 75, 250, 0, 32);
-        return new DataFusionStats(nativeStats, datanodeGate, coordinatorGate);
+        return new DataFusionStats(nativeStats, datanodeGate, coordinatorGate, null);
     }
 
     // ---- Test 1: nodeOperation calls dataFusionService.getStats() ----
@@ -210,5 +211,33 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         assertNotNull(response);
         assertEquals(localNode, response.getNode());
         assertNull(response.getStats());
+    }
+
+    // ---- Helper: build DataFusionStats with only a populated SpillStats section ----
+
+    private static DataFusionStats statsWithSpill() {
+        return new DataFusionStats(null, null, null, new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L));
+    }
+
+    // ---- Test: filter with "disk_spill" includes SpillStats ----
+
+    public void testFilterIncludesSpillWhenRequested() {
+        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of("disk_spill"));
+        assertNotNull(filtered.getSpillStats());
+        assertEquals("/mnt/spill", filtered.getSpillStats().getDirectory());
+    }
+
+    // ---- Test: filter without "disk_spill" excludes SpillStats ----
+
+    public void testFilterExcludesSpillWhenNotRequested() {
+        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of("io_runtime"));
+        assertNull(filtered.getSpillStats());
+    }
+
+    // ---- Test: empty filter returns all sections including spill ----
+
+    public void testEmptyFilterReturnsAllSectionsIncludingSpill() {
+        DataFusionStats filtered = TransportDataFusionStatsAction.filteredStats(statsWithSpill(), Set.of());
+        assertNotNull(filtered.getSpillStats());
     }
 }
