@@ -122,6 +122,8 @@ final class Bootstrap {
      * Plugins that legitimately require Java serialization (e.g., security plugin's user attribute caching)
      * can opt in by calling {@code ObjectInputStream.setObjectInputFilter()} on their specific stream,
      * which overrides the JVM-wide filter for that stream.
+     * <p>
+     * Gated behind the {@code bootstrap.serial_filter} setting (disabled by default).
      */
     static void initializeSerialFilter() {
         try {
@@ -203,7 +205,9 @@ final class Bootstrap {
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
         Settings settings = environment.settings();
 
-        initializeSerialFilter();
+        if (BootstrapSettings.SERIAL_FILTER_SETTING.get(settings)) {
+            initializeSerialFilter();
+        }
 
         try {
             spawner.spawnNativeControllers(environment, true);
