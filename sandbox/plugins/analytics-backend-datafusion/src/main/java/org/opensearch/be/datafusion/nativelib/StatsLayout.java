@@ -27,8 +27,8 @@ import java.lang.invoke.VarHandle;
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
  * <p>The layout contains 10 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields
- * + 2 partition gate × 6 fields + 1 cache stats × 10 fields + 1 search stats × 15 fields
- * = 67 longs = 536 bytes).
+ * + 2 partition gate × 6 fields + 1 cache stats × 10 fields + 1 search stats × 16 fields
+ * = 68 longs = 544 bytes).
  */
 public final class StatsLayout {
 
@@ -73,7 +73,8 @@ public final class StatsLayout {
         "elapsed_compute_ms",
         "build_mask_time_ms",
         "on_batch_mask_time_ms",
-        "filter_record_batch_time_ms" };
+        "filter_record_batch_time_ms",
+        "object_store_read_time_ms" };
 
     /** The struct layout mirroring Rust's {@code DfStatsBuffer}. */
     public static final StructLayout LAYOUT = MemoryLayout.structLayout(
@@ -90,8 +91,8 @@ public final class StatsLayout {
     );
 
     static {
-        if (LAYOUT.byteSize() != 67 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (67 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 68 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (68 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -183,6 +184,7 @@ public final class StatsLayout {
     private static final VarHandle SS_BUILD_MASK_TIME_MS = handle("search_stats", "build_mask_time_ms");
     private static final VarHandle SS_ON_BATCH_MASK_TIME_MS = handle("search_stats", "on_batch_mask_time_ms");
     private static final VarHandle SS_FILTER_RECORD_BATCH_TIME_MS = handle("search_stats", "filter_record_batch_time_ms");
+    private static final VarHandle SS_OBJECT_STORE_READ_TIME_MS = handle("search_stats", "object_store_read_time_ms");
 
     private StatsLayout() {}
 
@@ -289,7 +291,7 @@ public final class StatsLayout {
     }
 
     /**
-     * Read the search_stats group (15 fields) from the segment.
+     * Read the search_stats group (16 fields) from the segment.
      *
      * @param seg the memory segment containing the DfStatsBuffer
      * @return a populated SearchStats instance
@@ -310,7 +312,8 @@ public final class StatsLayout {
             (long) SS_ELAPSED_COMPUTE_MS.get(seg, 0L),
             (long) SS_BUILD_MASK_TIME_MS.get(seg, 0L),
             (long) SS_ON_BATCH_MASK_TIME_MS.get(seg, 0L),
-            (long) SS_FILTER_RECORD_BATCH_TIME_MS.get(seg, 0L)
+            (long) SS_FILTER_RECORD_BATCH_TIME_MS.get(seg, 0L),
+            (long) SS_OBJECT_STORE_READ_TIME_MS.get(seg, 0L)
         );
     }
 
@@ -379,7 +382,8 @@ public final class StatsLayout {
             ValueLayout.JAVA_LONG.withName("elapsed_compute_ms"),
             ValueLayout.JAVA_LONG.withName("build_mask_time_ms"),
             ValueLayout.JAVA_LONG.withName("on_batch_mask_time_ms"),
-            ValueLayout.JAVA_LONG.withName("filter_record_batch_time_ms")
+            ValueLayout.JAVA_LONG.withName("filter_record_batch_time_ms"),
+            ValueLayout.JAVA_LONG.withName("object_store_read_time_ms")
         ).withName(name);
     }
 

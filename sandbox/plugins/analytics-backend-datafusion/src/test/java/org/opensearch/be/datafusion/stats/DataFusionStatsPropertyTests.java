@@ -122,6 +122,7 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
             nonNegLong(),
             nonNegLong(),
             nonNegLong(),
+            nonNegLong(),
             nonNegLong()
         );
     }

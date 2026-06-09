@@ -610,6 +610,11 @@ impl IndexedStream {
             metadata: Arc::clone(&self.metadata),
             projection: self.projection.clone(),
             predicate: self.predicate.clone(),
+            io_stats: self
+                .metrics
+                .io_stats
+                .clone()
+                .unwrap_or_else(|| Arc::new(super::parquet_bridge::ReadIoStats::default())),
         }
     }
 

@@ -30,6 +30,7 @@ static ELAPSED_COMPUTE_MS: AtomicI64 = AtomicI64::new(0);
 static BUILD_MASK_TIME_MS: AtomicI64 = AtomicI64::new(0);
 static ON_BATCH_MASK_TIME_MS: AtomicI64 = AtomicI64::new(0);
 static FILTER_RECORD_BATCH_TIME_MS: AtomicI64 = AtomicI64::new(0);
+static OBJECT_STORE_READ_TIME_MS: AtomicI64 = AtomicI64::new(0);
 
 pub fn inc_listing_table_scan() {
     LISTING_TABLE_SCAN.fetch_add(1, Ordering::Relaxed);
@@ -101,6 +102,12 @@ pub fn accumulate(m: &StreamMetrics) {
     if let Some(ref t) = m.filter_record_batch_time {
         FILTER_RECORD_BATCH_TIME_MS.fetch_add((t.value() / 1_000_000) as i64, Ordering::Relaxed);
     }
+    if let Some(ref stats) = m.io_stats {
+        OBJECT_STORE_READ_TIME_MS.fetch_add(
+            (stats.total_ns.load(Ordering::Relaxed) / 1_000_000) as i64,
+            Ordering::Relaxed,
+        );
+    }
 }
 
 pub fn snapshot() -> SearchStatsRepr {
@@ -120,6 +127,7 @@ pub fn snapshot() -> SearchStatsRepr {
         build_mask_time_ms: BUILD_MASK_TIME_MS.load(Ordering::Relaxed),
         on_batch_mask_time_ms: ON_BATCH_MASK_TIME_MS.load(Ordering::Relaxed),
         filter_record_batch_time_ms: FILTER_RECORD_BATCH_TIME_MS.load(Ordering::Relaxed),
+        object_store_read_time_ms: OBJECT_STORE_READ_TIME_MS.load(Ordering::Relaxed),
     }
 }
 

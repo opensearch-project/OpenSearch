@@ -35,7 +35,7 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
 
     private static final int TRIES = 100;
 
-    private static final int FIELD_COUNT = 67;
+    private static final int FIELD_COUNT = 68;
 
     // ---- Generators ----
 
@@ -187,7 +187,7 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                 assertEquals(values[50], cs.getStatisticsCache().memoryBytes);
                 assertEquals(values[51], cs.getStatisticsCache().sizeLimitBytes);
 
-                // Search stats (offsets 52-66)
+                // Search stats (offsets 52-67)
                 var ss = StatsLayout.readSearchStats(seg);
                 assertEquals(values[52], ss.listingTableScan);
                 assertEquals(values[53], ss.singleCollectorScan);
@@ -204,6 +204,7 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                 assertEquals(values[64], ss.buildMaskTimeMs);
                 assertEquals(values[65], ss.onBatchMaskTimeMs);
                 assertEquals(values[66], ss.filterRecordBatchTimeMs);
+                assertEquals(values[67], ss.objectStoreReadTimeMs);
             }
         }
     }
@@ -323,7 +324,8 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                     ss.elapsedComputeMs,
                     ss.buildMaskTimeMs,
                     ss.onBatchMaskTimeMs,
-                    ss.filterRecordBatchTimeMs };
+                    ss.filterRecordBatchTimeMs,
+                    ss.objectStoreReadTimeMs };
                 for (int i = 0; i < FIELD_COUNT; i++) {
                     reencoded.setAtIndex(ValueLayout.JAVA_LONG, i, decoded[i]);
                 }

@@ -18,6 +18,8 @@ use datafusion::physical_plan::metrics::{
     Count, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet, Time,
 };
 
+use crate::indexed_table::parquet_bridge::ReadIoStats;
+
 /// Lightweight metric handles passed from `IndexedExec` to the streaming loop.
 ///
 /// All fields are `Option` because standalone uses of `IndexedExec` (i.e. not
@@ -117,6 +119,9 @@ pub struct StreamMetrics {
     /// RGs that became prunable only after the filter tightened further between
     /// prefetch (which runs ~1 RG ahead) and processing.
     pub dynamic_filter_rg_pruned_at_poll: Option<Count>,
+    /// Object-store read wall-time accumulator, shared across all RG readers
+    /// within this partition.
+    pub io_stats: Option<Arc<ReadIoStats>>,
     /// Inner `DataSourceExec` parquet metrics for this partition: one
     /// `MetricsSet` per chunk (row-group set) the partition scans.
     pub inner_parquet_metrics: Option<Arc<std::sync::Mutex<Vec<MetricsSet>>>>,
@@ -162,6 +167,7 @@ impl StreamMetrics {
             init_prefetch_time: None,
             dynamic_filter_rg_pruned_at_prefetch: None,
             dynamic_filter_rg_pruned_at_poll: None,
+            io_stats: None,
             inner_parquet_metrics: None,
         }
     }
@@ -299,6 +305,7 @@ impl PartitionMetrics {
             init_prefetch_time: Some(self.init_prefetch_time),
             dynamic_filter_rg_pruned_at_prefetch: Some(self.dynamic_filter_rg_pruned_at_prefetch),
             dynamic_filter_rg_pruned_at_poll: Some(self.dynamic_filter_rg_pruned_at_poll),
+            io_stats: Some(Arc::new(ReadIoStats::default())),
             inner_parquet_metrics,
         }
     }

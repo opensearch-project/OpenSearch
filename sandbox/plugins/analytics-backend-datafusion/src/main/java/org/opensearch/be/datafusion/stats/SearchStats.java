@@ -40,6 +40,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
     public final long buildMaskTimeMs;
     public final long onBatchMaskTimeMs;
     public final long filterRecordBatchTimeMs;
+    public final long objectStoreReadTimeMs;
 
     public SearchStats(
         long listingTableScan,
@@ -56,7 +57,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
         long elapsedComputeMs,
         long buildMaskTimeMs,
         long onBatchMaskTimeMs,
-        long filterRecordBatchTimeMs
+        long filterRecordBatchTimeMs,
+        long objectStoreReadTimeMs
     ) {
         this.listingTableScan = listingTableScan;
         this.singleCollectorScan = singleCollectorScan;
@@ -73,6 +75,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         this.buildMaskTimeMs = buildMaskTimeMs;
         this.onBatchMaskTimeMs = onBatchMaskTimeMs;
         this.filterRecordBatchTimeMs = filterRecordBatchTimeMs;
+        this.objectStoreReadTimeMs = objectStoreReadTimeMs;
     }
 
     public SearchStats(StreamInput in) throws IOException {
@@ -91,6 +94,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         this.buildMaskTimeMs = in.readVLong();
         this.onBatchMaskTimeMs = in.readVLong();
         this.filterRecordBatchTimeMs = in.readVLong();
+        this.objectStoreReadTimeMs = in.readVLong();
     }
 
     @Override
@@ -110,6 +114,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         out.writeVLong(buildMaskTimeMs);
         out.writeVLong(onBatchMaskTimeMs);
         out.writeVLong(filterRecordBatchTimeMs);
+        out.writeVLong(objectStoreReadTimeMs);
     }
 
     @Override
@@ -130,6 +135,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         builder.field("build_mask_time_ms", buildMaskTimeMs);
         builder.field("on_batch_mask_time_ms", onBatchMaskTimeMs);
         builder.field("filter_record_batch_time_ms", filterRecordBatchTimeMs);
+        builder.field("object_store_read_time_ms", objectStoreReadTimeMs);
         builder.endObject();
         return builder;
     }
@@ -153,7 +159,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             && elapsedComputeMs == that.elapsedComputeMs
             && buildMaskTimeMs == that.buildMaskTimeMs
             && onBatchMaskTimeMs == that.onBatchMaskTimeMs
-            && filterRecordBatchTimeMs == that.filterRecordBatchTimeMs;
+            && filterRecordBatchTimeMs == that.filterRecordBatchTimeMs
+            && objectStoreReadTimeMs == that.objectStoreReadTimeMs;
     }
 
     @Override
@@ -173,7 +180,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             elapsedComputeMs,
             buildMaskTimeMs,
             onBatchMaskTimeMs,
-            filterRecordBatchTimeMs
+            filterRecordBatchTimeMs,
+            objectStoreReadTimeMs
         );
     }
 }

@@ -1165,7 +1165,7 @@ pub unsafe extern "C" fn df_execute_with_context(
 /// `runtime_ptr` may be `0` to skip cache-stats collection. When non-zero it
 /// must be a valid pointer returned by [`df_create_global_runtime`].
 ///
-/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (536).
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (544).
 /// Returns 0 on success.
 #[ffm_safe]
 #[no_mangle]
