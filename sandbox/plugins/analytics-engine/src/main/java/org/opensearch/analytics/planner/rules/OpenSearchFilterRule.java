@@ -174,16 +174,14 @@ public class OpenSearchFilterRule extends RelOptRule {
                 if (TextRelevanceFieldValidator.usesLiteralFieldEncoding(function)) {
                     List<String> literalFieldNames = TextRelevanceFieldValidator.extractLiteralFieldNames(predicate);
                     if (literalFieldNames.isEmpty()) {
-                        // query_string / simple_query_string / multi_match always encode an explicit
-                        // field list in their MAP operand. Reaching here with no extracted names means
-                        // the RexCall shape didn't match what we expect
-                        throw new IllegalStateException(
-                            "Expected literal field names for full-text function ["
-                                + predicate.getOperator().getName()
-                                + "] but found none in predicate ["
-                                + predicate
-                                + "]"
-                        );
+                        // Field-less form, e.g. query_string('category:A') — produced by the PPL
+                        // `search` command (search source=idx category=A) and by query_string calls
+                        // that omit the field list. Here the field references live inside the Lucene
+                        // query-string syntax ('category:A') rather than in a `fields` MAP, so there
+                        // are no literal field names to type-check. Fall back to the TEXT-type
+                        // assumption and let the full-text-capable backend handle it.
+                        // Limitation: non-text fields named in the query string or via wildcard/regex field expansion aren't caught.
+                        return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
                     }
                     // Eagerly reject text-relevance functions invoked on non-text/non-keyword fields.
                     TextRelevanceFieldValidator.rejectNonTextFieldsForTextFunction(

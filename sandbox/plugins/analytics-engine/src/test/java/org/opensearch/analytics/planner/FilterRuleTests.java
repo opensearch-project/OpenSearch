@@ -405,6 +405,26 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertTrue(exception.getMessage().contains("long"));
     }
 
+    /**
+     * Field-less {@code query_string('category:A')} — the form the PPL {@code search} command lowers
+     * {@code search source=idx category=A} into. There is no {@code fields} MAP, so no literal field
+     * names are extracted; the field reference lives inside the Lucene query-string syntax. This must
+     * NOT be rejected — it falls back to the TEXT-type assumption and routes to the full-text backend.
+     * Regression test for the {@code search}-command 500 (no {@code fields} MAP present).
+     */
+    public void testFieldlessQueryStringIsAccepted() {
+        OpenSearchFilter result = runFilterWithDelegation(
+            "parquet",
+            Map.of("category", Map.of("type", "keyword", "index", true)),
+            new String[] { "category" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "category:A")
+        );
+
+        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
+    }
+
     // ---- Direct TextRelevanceFieldValidator unit tests ----
     // These exercise the validator in isolation, independent of the scan fixture's
     // type-support limitations (the mock backends here can't scan a pure `text` field).
@@ -467,6 +487,24 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             rexBuilder.makeLiteral(query)
         );
         return rexBuilder.makeCall(function, fieldsMap, queryMap);
+    }
+
+    /**
+     * Builds a field-less full-text {@code RexCall} matching the shape the SQL plugin lowers
+     * {@code query_string('category:A')} (and the PPL {@code search} command's {@code category=A})
+     * into:
+     * <pre>
+     *   QUERY_STRING(MAP('query', 'category:A':VARCHAR))
+     * </pre>
+     * There is no {@code fields} MAP — the field names live inside the query-string value itself.
+     */
+    private RexNode makeFieldlessFullTextCall(SqlFunction function, String query) {
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral(query)
+        );
+        return rexBuilder.makeCall(function, queryMap);
     }
 
     // ---- Derived columns ----
