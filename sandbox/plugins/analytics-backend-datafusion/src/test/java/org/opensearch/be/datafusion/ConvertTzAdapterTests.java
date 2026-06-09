@@ -64,10 +64,7 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
     private RexCall buildConvertTz(String fromLit, String toLit) {
         RelDataType tsType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
         RexNode tsRef = rexBuilder.makeInputRef(tsType, 0);
-        // 2-arg makeLiteral returns a bare RexLiteral; the 3-arg form with a
-        // nullable type wraps in a CAST, which the adapter must then peel back
-        // to inspect the string value. PPL's frontend emits the 2-arg form, so
-        // we match that here.
+        // 2-arg makeLiteral matches PPL's frontend; the nullable 3-arg form would wrap in CAST
         RexNode fromNode = rexBuilder.makeLiteral(fromLit);
         RexNode toNode = rexBuilder.makeLiteral(toLit);
         return (RexCall) rexBuilder.makeCall(convertTzOp(tsType), List.of(tsRef, fromNode, toNode));
@@ -189,18 +186,14 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         );
     }
 
-    /**
-     * Invalid literal tz operand surfaces at plan time as
-     * {@link IllegalArgumentException} with the offending value in the message,
-     * rather than silently producing per-row NULL at runtime.
-     */
-    public void testAdaptInvalidLiteralErrorsAtPlanTime() {
+    /** unknown IANA literal -> typed NULL (out-of-range offsets fall through to the UDF for runtime NULL). */
+    public void testAdaptUnknownIanaLiteralReturnsTypedNull() {
         RexCall original = buildConvertTz("Mars/Olympus", "UTC");
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ConvertTzAdapter().adapt(original, List.of(), cluster)
-        );
-        assertTrue("error must name the offending literal for user UX: " + ex.getMessage(), ex.getMessage().contains("Mars/Olympus"));
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexLiteral);
+        assertTrue(((RexLiteral) adapted).isNull());
+        assertEquals(original.getType(), adapted.getType());
     }
 
     /**

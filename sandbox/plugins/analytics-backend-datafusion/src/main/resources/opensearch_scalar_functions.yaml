@@ -86,6 +86,11 @@ scalar_functions:
           - { value: string, name: "stride" }
           - { value: "precision_timestamp<P>", name: "source" }
         return: precision_timestamp<P>
+      - args:
+          - { value: string, name: "stride" }
+          - { value: "precision_timestamp<P>", name: "source" }
+          - { value: string, name: "origin" }
+        return: precision_timestamp<P>
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
@@ -966,6 +971,35 @@ scalar_functions:
           - { value: "varchar<L1>", name: "input" }
           - { value: "varchar<L2>", name: "format" }
         return: precision_timestamp<6>
+
+  - name: "os_week"
+    description: >-
+      Compute MySQL's WEEK(date [, mode]) — modes 0/1/2/3 select Sunday/Monday
+      first-day combined with simple counting / 4-day fold semantics. PPL's
+      WEEK(date) and WEEK_OF_YEAR(date) both default to mode 0 (Sunday-first).
+      Routes to the Rust `os_week` UDF (rust/src/udf/os_week.rs).
+    impls:
+      - args:
+          - { value: "date", name: "value" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+        return: i32
+      - args:
+          - { value: "date", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
 
   - name: "md5"
     description: "Return the 128-bit MD5 digest of the input string as a lowercase hex string."

@@ -606,7 +606,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DatePartAdapters dayOfYear = DatePartAdapters.dayOfYear();
                 DatePartAdapters hour = DatePartAdapters.hour();
                 DatePartAdapters minute = DatePartAdapters.minute();
-                DatePartAdapters week = DatePartAdapters.week();
+                // WEEK/WEEK_OF_YEAR follow MySQL mode 0 (Sunday-first), not ISO; date_part('week') is ISO-only
+                RustUdfDateTimeAdapters.OsWeekAdapter week = new RustUdfDateTimeAdapters.OsWeekAdapter();
                 DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
@@ -739,15 +740,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
-                    // Standalone `TIMESTAMPADD(unit, n, t)` rewrites to `DATETIME_PLUS(t, INTERVAL n*<m> <unit>)`,
-                    // which has Substrait wiring proof via EarliestLatestAdapter#applyOffset.
-                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
-                    // PPL `TIMESTAMPDIFF`: peephole-folds the `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))`
-                    // shape to a numeric literal when both unit strings are fixed-length; standalone
-                    // `TIMESTAMPDIFF(out_unit, t1, t2)` rewrites to `(to_unixtime(t2) - to_unixtime(t1)) * out_factor`
-                    // for fixed out-units. Variable-length out-units (MONTH/QUARTER/YEAR for two-timestamp
-                    // diff) still fall through — needs calendar-aware math, follow-up.
+                    // TIMESTAMPDIFF / TIMESTAMPADD have no substrait bindings; adapters rewrite to
+                    // DATETIME_PLUS + INTERVAL / to_unixtime arithmetic. Peephole folds the timechart
+                    // per_* shape TIMESTAMPDIFF(out, t, TIMESTAMPADD(in, n, t)) to a literal.
                     Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
+                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.TRUNCATE, new IntegerRoundingCastAdapter(SqlStdOperatorTable.TRUNCATE)),
