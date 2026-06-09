@@ -16,7 +16,7 @@ import java.util.Set;
  * <p>Three queries are skipped today as documented gaps:
  * Q18 ({@code dc()} HLL approximation vs exact golden), Q32 (text-equality returns 0 rows),
  * and Q33 (head 0 ClassCastException). All stay on disk as live reproducers — when the
- * upstream fixes / harness changes land, remove the entry from getSkipQueries() to re-enable them.
+ * upstream fixes land, remove the entry from getSkipQueries() to re-enable them.
  */
 public class OtelLogsPplIT extends BasePplIT {
 
@@ -27,13 +27,12 @@ public class OtelLogsPplIT extends BasePplIT {
 
     @Override
     protected Set<Integer> getSkipQueries() {
-        // Q18: `stats count(), dc(traceId) by serviceName`. dc() is rewritten to the engine-native
-        // APPROX_COUNT_DISTINCT (HLL sketch), which under-counts the largest group ("cart", 30
-        // distinct traceIds) by 1 — returns 29. The data and golden file are both correct (verified
-        // 30 distinct); this is inherent HLL approximation colliding with the harness's exact-match
-        // assertion. Pre-existing — fails identically on the untouched branch base, independent of
-        // the DF54 upgrade. Re-enable once the harness tolerates approximate columns or dc() maps to
-        // an exact count for small cardinalities.
+        // Q18: `stats count(), dc(traceId) by serviceName`. dc() lowers to the engine-native
+        // APPROX_COUNT_DISTINCT (HLL sketch), which under-counts the largest group ("cart",
+        // 30 distinct traceIds) by 1 — returns 29. Data and golden are both correct (verified
+        // 30 distinct); this is inherent HLL approximation vs the harness's exact-match assertion.
+        // Reproduces on the configured JDK 25 runtime. Re-enable once the harness tolerates
+        // approximate columns or dc() is exact for small cardinalities.
         //
         // Q32: `where severityText = 'ERROR'` returns 0 rows on a multi-field
         // text+keyword field. Aggregation auto-redirects to the keyword sub-field,
