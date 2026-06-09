@@ -12,6 +12,7 @@ import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -46,7 +47,7 @@ public class IsNullSerializerTests extends OpenSearchTestCase {
 
     public void testIsNullProducesMustNotExists() {
         RexNode call = rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, rexBuilder.makeInputRef(varchar, 0));
-        QueryBuilder qb = isNullSerializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) call, FIELD_STORAGE);
+        QueryBuilder qb = isNullSerializer.buildQueryBuilder((RexCall) call, FIELD_STORAGE);
         assertTrue(qb instanceof BoolQueryBuilder);
         BoolQueryBuilder bool = (BoolQueryBuilder) qb;
         assertEquals(1, bool.mustNot().size());
@@ -56,7 +57,7 @@ public class IsNullSerializerTests extends OpenSearchTestCase {
 
     public void testIsNotNullProducesExists() {
         RexNode call = rexBuilder.makeCall(SqlStdOperatorTable.IS_NOT_NULL, rexBuilder.makeInputRef(varchar, 0));
-        QueryBuilder qb = isNotNullSerializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) call, FIELD_STORAGE);
+        QueryBuilder qb = isNotNullSerializer.buildQueryBuilder((RexCall) call, FIELD_STORAGE);
         assertTrue(qb instanceof ExistsQueryBuilder);
         assertEquals("status", ((ExistsQueryBuilder) qb).fieldName());
     }
@@ -66,7 +67,7 @@ public class IsNullSerializerTests extends OpenSearchTestCase {
             new FieldStorageInfo("msg", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false, "keyword")
         );
         RexNode call = rexBuilder.makeCall(SqlStdOperatorTable.IS_NOT_NULL, rexBuilder.makeInputRef(varchar, 0));
-        QueryBuilder qb = isNotNullSerializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) call, withSubfield);
+        QueryBuilder qb = isNotNullSerializer.buildQueryBuilder((RexCall) call, withSubfield);
         assertTrue(qb instanceof ExistsQueryBuilder);
         assertEquals("msg.keyword", ((ExistsQueryBuilder) qb).fieldName());
     }

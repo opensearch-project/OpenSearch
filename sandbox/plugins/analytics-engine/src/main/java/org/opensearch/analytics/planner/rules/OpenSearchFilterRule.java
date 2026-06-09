@@ -254,11 +254,11 @@ public class OpenSearchFilterRule extends RelOptRule {
             viableSet.retainAll(registry.scalarBackendsAnyFormat(scalarFunc, returnType));
         }
 
-        // Engine-native-merge gate: when the query contains APPROX_COUNT_DISTINCT (dc()),
-        // prevent filter predicates from becoming dual-viable. The delegation_possible UDF
-        // wrapper causes plan-shape divergence between derive_schema_from_partial_plan and
-        // the data-node execution, triggering Binary/Int64 schema mismatch at the reduce sink.
-        // Restricting to the driving backend avoids the wrapper entirely.
+        // TODO: Temporary workaround — suppress dual-viable filters for dc() (engine-native-merge)
+        // queries. When delegation_possible UDF wraps a predicate in an APPROX_COUNT_DISTINCT plan,
+        // the shard execution path produces Int64 instead of the expected Binary HLL intermediate,
+        // causing a schema mismatch at the reduce sink. Proper fix requires changes to the DataFusion
+        // local execution path to honour the prepared partial plan when delegation_possible is present.
         if (context.hasEngineNativeMergeAggregate() && viableSet.size() > 1) {
             List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.FILTER);
             boolean drivingBackendSurvives = viableSet.stream().anyMatch(b -> !delegationAcceptors.contains(b));

@@ -30,26 +30,43 @@ public class FilterDelegationExtendedIT extends AnalyticsRestTestCase {
 
     private record Case(String pplSuffix, long expected, boolean isRowCount) {}
 
+    // --- NOT_EQUALS cases ---
+    // str0 != 'apple' → banana×3 + cherry×2 + date×2 = 7 docs
+    // str0 != 'banana' → apple×3 + cherry×2 + date×2 = 7 docs
+    // str0 != 'date' → apple×3 + banana×3 + cherry×2 = 8 docs
+
+    // --- IS_NOT_NULL cases ---
+    // isnotnull(str1) → 6 docs (apple×2, banana×2, cherry×1, date×1)
+
+    // --- IS_NULL cases ---
+    // isnull(str1) → 4 docs (apple×1, banana×1, cherry×1, date×1)
+
     private static final List<Case> CASES = List.of(
-        // NOT_EQUALS — count
+        // ===== NOT_EQUALS with various aggregates =====
         new Case("where str0 != 'apple' | stats count() as c", 7, false),
-        // NOT_EQUALS — sum (non-count agg, exercises non-fast-path)
         new Case("where str0 != 'apple' | stats sum(num0) as c", 490, false),
-        // IS_NOT_NULL — dc (exercises HLL partial/final merge with dual-viable predicate)
-        new Case("where isnotnull(str1) | stats dc(str0) as c", 4, false),
-        // NOT_EQUALS — avg (statistical aggregate)
         new Case("where str0 != 'apple' | stats avg(num0) as c", 70, false),
-        // NOT_EQUALS — avg (statistical aggregate, exercises decompose to SUM/COUNT)
+        new Case("where str0 != 'apple' | stats min(num0) as c", 40, false),
+        new Case("where str0 != 'apple' | stats max(num0) as c", 100, false),
+        new Case("where str0 != 'apple' | stats dc(str0) as c", 3, false),
+        new Case("where str0 != 'apple' | fields str0", 7, true),
         new Case("where str0 != 'date' | stats avg(num0) as c", 45, false),
-        // NOT_EQUALS — fields (non-agg path)
-        new Case("where str0 != 'banana' | fields str0", 7, true),
-        // IS_NOT_NULL — count
+        new Case("where str0 != 'date' | stats dc(str0) as c", 3, false),
+
+        // ===== IS_NOT_NULL with various aggregates =====
         new Case("where isnotnull(str1) | stats count() as c", 6, false),
-        // IS_NOT_NULL — fields
+        new Case("where isnotnull(str1) | stats sum(num0) as c", 280, false),
+        new Case("where isnotnull(str1) | stats min(num0) as c", 10, false),
+        new Case("where isnotnull(str1) | stats max(num0) as c", 90, false),
+        new Case("where isnotnull(str1) | stats dc(str0) as c", 4, false),
         new Case("where isnotnull(str1) | fields str0, str1", 6, true),
-        // IS_NULL — count
+
+        // ===== IS_NULL with various aggregates =====
         new Case("where isnull(str1) | stats count() as c", 4, false),
-        // IS_NULL — fields
+        new Case("where isnull(str1) | stats sum(num0) as c", 270, false),
+        new Case("where isnull(str1) | stats min(num0) as c", 30, false),
+        new Case("where isnull(str1) | stats max(num0) as c", 100, false),
+        new Case("where isnull(str1) | stats dc(str0) as c", 4, false),
         new Case("where isnull(str1) | fields str0", 4, true)
     );
 

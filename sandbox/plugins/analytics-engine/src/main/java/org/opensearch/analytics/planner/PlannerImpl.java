@@ -94,17 +94,14 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
-        LOGGER.info("[dc-plan] Raw input:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
-        LOGGER.info("[dc-plan] After pushdown:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
-        LOGGER.info("[dc-plan] After decomposeAggregates:\n{}", RelOptUtil.toString(modifiedRelNode));
         context.setHasEngineNativeMergeAggregate(containsEngineNativeMergeAggregate(modifiedRelNode));
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        LOGGER.info("[dc-plan] After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:

@@ -242,10 +242,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         );
         plannerContext.setPlannerSettings(plannerSettings);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
-        logger.info("[dc-plan] After createPlan:\n{}", org.apache.calcite.plan.RelOptUtil.toString(plan));
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
-        logger.info("[dc-plan] DAG root: {}", dag.rootStage().getStageId());
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
         // Collapse multi-backend stages to a single chosen alternative before conversion
