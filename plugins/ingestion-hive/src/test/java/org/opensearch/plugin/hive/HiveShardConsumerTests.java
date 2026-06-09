@@ -259,4 +259,10 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertEquals(0, consumer.pendingWork.size());
         assertEquals(0, consumer.currentWorkIndex);
     }
+
+    public void testReadNextThrowsOnPersistentFailure() {
+        HiveShardConsumer consumer = createConsumer();
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> consumer.readNext(10, 1000));
+        assertNotNull(ex.getCause());
+    }
 }

@@ -74,7 +74,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private long currentRowIndex;
     private long sequenceNumber;
     private boolean seekInclusive;
-    private int consecutiveFailures;
 
     /**
      * Creates a new HiveShardConsumer.
@@ -259,36 +258,18 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     private List<ReadResult<HivePointer, HiveMessage>> executeWithRetry(ReadAction action) {
         try {
-            List<ReadResult<HivePointer, HiveMessage>> results = action.execute();
-            consecutiveFailures = 0;
-            return results;
+            return action.execute();
         } catch (IOException e) {
             logger.warn("IO error for shard {}, attempting recovery: {}", shardId, e.getMessage());
             try {
                 closeCurrentReader();
                 reconnectMetastore();
-                List<ReadResult<HivePointer, HiveMessage>> results = action.execute();
-                consecutiveFailures = 0;
-                return results;
+                return action.execute();
             } catch (Exception retryEx) {
-                logger.error("Recovery failed for shard {}: {}", shardId, retryEx.getMessage());
-                backoffOnFailure();
-                return Collections.emptyList();
+                throw new RuntimeException("Read failure for shard " + shardId + " after retry", retryEx);
             }
-        } catch (Throwable e) {
-            logger.error("Error reading from Hive table for shard {}: {}", shardId, e.getMessage());
-            backoffOnFailure();
-            return Collections.emptyList();
-        }
-    }
-
-    private void backoffOnFailure() {
-        consecutiveFailures++;
-        long delayMs = Math.min(1000L * (1L << consecutiveFailures), 30_000L);
-        try {
-            Thread.sleep(delayMs);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            throw new RuntimeException("Read failure for shard " + shardId, e);
         }
     }
 
