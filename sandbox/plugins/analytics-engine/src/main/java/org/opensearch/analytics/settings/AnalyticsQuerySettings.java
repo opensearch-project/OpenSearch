@@ -37,7 +37,13 @@ public final class AnalyticsQuerySettings {
     public static final Setting.AffixSetting<List<ScalarFunction>> DELEGATION_BLOCKED_PREDICATES = Setting.affixKeySetting(
         DELEGATION_BLOCKED_PREDICATES_PREFIX,
         "blocked_predicates",
-        key -> Setting.listSetting(key, List.of(), ScalarFunction::fromToken, Setting.Property.NodeScope, Setting.Property.Dynamic)
+        key -> Setting.listSetting(
+            key,
+            key.contains("lucene") ? List.of("IS_NULL", "IS_NOT_NULL", "LIKE") : List.of(),
+            ScalarFunction::fromToken,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        )
     );
 
     public static final Setting<Integer> MAX_SHARDS_PER_QUERY = Setting.intSetting(
