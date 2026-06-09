@@ -11,7 +11,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
     description = 'OpenSearch plugin providing Lucene-based search execution engine'
     classname = 'org.opensearch.be.lucene.LucenePlugin'
-    extendedPlugins = ['analytics-engine']
+    extendedPlugins = ['analytics-engine', 'composite-engine']
 }
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
@@ -38,6 +38,7 @@ dependencies {
     // Shared types and SPI interfaces — provided at runtime by the parent analytics-engine plugin (extendedPlugins above).
     compileOnly project(':sandbox:libs:analytics-framework')
     compileOnly project(':sandbox:plugins:analytics-engine')
+    compileOnly project(":sandbox:libs:plugin-stats-spi")
 
     // Arrow vector + memory — needed by the Lucene-as-driver count fast path to emit
     // Arrow batches as the engine's result. Provided at runtime via the analytics-engine

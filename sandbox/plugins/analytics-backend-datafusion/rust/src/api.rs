@@ -331,6 +331,16 @@ pub struct ShardView {
     /// this routes reads through TieredObjectStore (local + remote).
     /// When no store is provided, uses default LocalFileSystem.
     pub store: Arc<dyn ObjectStore>,
+    /// Index sort fields, in priority order. Sourced from the index's
+    /// `index.sort.field` setting on the Java side. Empty when the index has
+    /// no `index.sort.field` configured. Parallel to `sort_orders`.
+    /// Used to build `ListingOptions.with_file_sort_order(...)` so DataFusion
+    /// advertises `output_ordering` from the scan and enables the
+    /// `sort_prefix` optimization on TopK / SortPreservingMerge.
+    pub sort_fields: Vec<String>,
+    /// Index sort directions per field — values: `"asc"` or `"desc"`.
+    /// Parallel to `sort_fields`. Sourced from `index.sort.order`.
+    pub sort_orders: Vec<String>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -501,6 +511,8 @@ pub fn create_reader(
     table_path: &str,
     filenames: Vec<String>,
     writer_generations: Vec<i64>,
+    sort_fields: Vec<String>,
+    sort_orders: Vec<String>,
     tokio_rt_manager: &RuntimeManager,
     store_ptr: i64,
 ) -> Result<i64, DataFusionError> {
@@ -509,6 +521,13 @@ pub fn create_reader(
             "create_reader: filenames ({}) and writer_generations ({}) must have the same length",
             filenames.len(),
             writer_generations.len()
+        )));
+    }
+    if sort_fields.len() != sort_orders.len() {
+        return Err(DataFusionError::Execution(format!(
+            "create_reader: sort_fields ({}) and sort_orders ({}) must have the same length",
+            sort_fields.len(),
+            sort_orders.len()
         )));
     }
 
@@ -537,6 +556,8 @@ pub fn create_reader(
         writer_generations: Arc::new(writer_generations),
         file_metadata: None,
         store,
+        sort_fields,
+        sort_orders,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }
@@ -667,6 +688,8 @@ pub async unsafe fn execute_query(
                 context_id,
                 Arc::clone(&shard_view.store),
                 phantom_corrector,
+                &shard_view.sort_fields,
+                &shard_view.sort_orders,
             ).await
         }
     };

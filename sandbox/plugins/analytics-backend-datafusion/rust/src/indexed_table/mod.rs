@@ -56,6 +56,7 @@
 
 pub mod bloom_pruner;
 pub mod bool_tree;
+pub mod dynamic_filter;
 pub mod eval;
 pub mod row_id_injection;
 pub mod ffm_callbacks;
@@ -72,3 +73,6 @@ pub mod table_provider;
 
 #[cfg(test)]
 mod tests_e2e;
+
+#[cfg(test)]
+mod dynamic_filter_probe;

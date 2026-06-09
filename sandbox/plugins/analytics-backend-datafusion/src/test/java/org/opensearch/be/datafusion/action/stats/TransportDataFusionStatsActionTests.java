@@ -82,8 +82,8 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         taskMonitors.put("stream_next", new TaskMonitorStats(700, 800, 900));
         taskMonitors.put("plan_setup", new TaskMonitorStats(1000, 1100, 1200));
         NativeExecutorsStats nativeStats = new NativeExecutorsStats(io, cpu, taskMonitors);
-        PartitionGateStats datanodeGate = new PartitionGateStats("datanode_gate", 64, 3, 150, 500);
-        PartitionGateStats coordinatorGate = new PartitionGateStats("coordinator_gate", 32, 1, 75, 250);
+        PartitionGateStats datanodeGate = new PartitionGateStats("datanode_gate", 64, 3, 150, 500, 0, 64);
+        PartitionGateStats coordinatorGate = new PartitionGateStats("coordinator_gate", 32, 1, 75, 250, 0, 32);
         return new DataFusionStats(nativeStats, datanodeGate, coordinatorGate);
     }
 
@@ -122,7 +122,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
     public void testFilteredStatsWithNullFilter() {
         DataFusionStats stats = buildFullStats();
 
-        DataFusionStats result = action.filteredStats(stats, null);
+        DataFusionStats result = TransportDataFusionStatsAction.filteredStats(stats, null);
 
         assertSame(stats, result);
     }
@@ -132,7 +132,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
     public void testFilteredStatsWithEmptyFilter() {
         DataFusionStats stats = buildFullStats();
 
-        DataFusionStats result = action.filteredStats(stats, Collections.emptySet());
+        DataFusionStats result = TransportDataFusionStatsAction.filteredStats(stats, Collections.emptySet());
 
         assertSame(stats, result);
     }
@@ -143,7 +143,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         DataFusionStats stats = buildFullStats();
         Set<String> filter = Set.of("io_runtime");
 
-        DataFusionStats result = action.filteredStats(stats, filter);
+        DataFusionStats result = TransportDataFusionStatsAction.filteredStats(stats, filter);
 
         assertNotNull(result);
         // io_runtime should be present
@@ -168,7 +168,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
         filter.add("query_execution");
         filter.add("datanode_gate");
 
-        DataFusionStats result = action.filteredStats(stats, filter);
+        DataFusionStats result = TransportDataFusionStatsAction.filteredStats(stats, filter);
 
         assertNotNull(result);
         // cpu_runtime should be present
@@ -192,7 +192,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
     // ---- Test 7: filteredStats with null stats input returns null ----
 
     public void testFilteredStatsWithNullStats() {
-        DataFusionStats result = action.filteredStats(null, Set.of("io_runtime"));
+        DataFusionStats result = TransportDataFusionStatsAction.filteredStats(null, Set.of("io_runtime"));
 
         assertNull(result);
     }

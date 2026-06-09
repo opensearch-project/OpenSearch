@@ -159,7 +159,8 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                             format,
                             registry,
                             store.shardPath(),
-                            store.getDataformatAwareStoreHandles()
+                            store.getDataformatAwareStoreHandles(),
+                            engineConfig.getIndexSettings()
                         )
                     )
                 );

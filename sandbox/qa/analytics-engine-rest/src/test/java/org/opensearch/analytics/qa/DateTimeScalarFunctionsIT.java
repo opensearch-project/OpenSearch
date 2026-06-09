@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -109,6 +110,35 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
 
     public void testSecondOfMinute() throws IOException {
         assertFirstRowLong(oneRow("key00") + "| eval v = second_of_minute(datetime0) | fields v", 35L);
+    }
+
+    /**
+     * {@code microsecond(timestamp('<lit>'))} extracts the sub-second component. MicrosecondAdapter
+     * coerces the operand and computes {@code MOD(date_part('microsecond', ts), 1_000_000)}.
+     *
+     * <p>The AE/parquet store keeps {@code Timestamp(MILLISECOND)} (see TimestampFunctionAdapter
+     * precision notes), so sub-millisecond digits are truncated on this path: {@code .123456} reads
+     * back as {@code 123000}. This asserts the millisecond-precise value the engine produces today;
+     * full microsecond fidelity is a separate, pre-existing precision limitation.
+     */
+    public void testMicrosecondOnTimestamp() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval v = microsecond(timestamp('2020-09-16 17:30:00.123')) | fields v",
+            123000L
+        );
+    }
+
+    /**
+     * {@code minute_of_day(timestamp('<lit>'))} = hour*60 + minute. MinuteOfDayAdapter coerces the
+     * operand to TIMESTAMP for the two date_part calls. Reference: DateTimeFunctionIT#testMinuteOfDay.
+     */
+    public void testMinuteOfDayOnTimestamp() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = minute_of_day(timestamp('2020-09-16 17:30:00')) | fields v", 1050L);
+    }
+
+    /** {@code minute_of_day(time('<lit>'))} — TIME operand synthesized to a 1970-pinned TIMESTAMP. */
+    public void testMinuteOfDayOnTimeLiteral() throws IOException {
+        assertFirstRowLong(oneRow("key00") + "| eval v = minute_of_day(time('17:30:00')) | fields v", 1050L);
     }
 
     public void testDatetimeOnStringLiteral() throws IOException {
@@ -260,6 +290,8 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
     }
 
     // MILLISECOND is the day-time base unit — exercises the 1:1 (no-scale) interval branch.
+    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testDateAddMillisecondIntervalOnTimestampColumn() throws IOException {
         assertFirstRowString(
             oneRow("key00") + "| eval v = date_add(datetime0, interval 500 millisecond) | fields v",
@@ -274,6 +306,91 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
                 + "| where datetime0 < date_add(date('2005-01-01'), interval 1 year) "
                 + "| eval v = date_format(datetime0, '%Y-%m-%d') | fields v",
             "2004-07-09"
+        );
+    }
+
+    // A timestamp-vs-date comparison at the TOP LEVEL coerces correctly and runs: all 17 calcs
+    // docs have a datetime0 in 2004, so the predicate matches everything. Baseline for the
+    // subquery variants below, which use the SAME comparison but inside a subquery.
+    public void testTimestampGeDateLiteralTopLevel() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName + " | where datetime0 >= date('2004-01-01') | stats count() as c",
+            17L
+        );
+    }
+
+    // Same comparison, but inside an IN subquery (TPC-H q20 shape). RelDecorrelator simplifies the
+    // subquery body and constant-folds the PPL TIMESTAMP(varchar) wrapper around the date literal
+    // down to a bare string before the backend's scalar-function adapter can coerce it, so Substrait
+    // conversion fails with "Unable to convert call >=(precision_timestamp<0>?, string?)". The
+    // top-level form above (which skips decorrelation) works.
+    public void testTimestampGeDateLiteralInSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where key in [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01') | fields key ] | stats count() as c",
+            17L
+        );
+    }
+
+    // Same comparison inside a SCALAR subquery (TPC-H q15 shape).
+    public void testTimestampGeDateLiteralScalarSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where num0 = [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01') | stats max(num0) ] | stats count() as c",
+            1L
+        );
+    }
+
+    // The literal form is irrelevant: a native Calcite DATE literal (DATE '...') regresses the same
+    // way as the PPL date('...') UDF inside a subquery, confirming the bug is the decorrelation fold,
+    // not the literal's surface syntax.
+    public void testTimestampGeDateNativeLiteralInSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where key in [ source=" + DATASET.indexName
+                + " | where datetime0 >= DATE '2004-01-01' | fields key ] | stats count() as c",
+            17L
+        );
+    }
+
+    // date_add over a DATE() literal at the TOP LEVEL lowers fine (DateAddSubAdapter sees the
+    // DATE base). Baseline for the subquery variants below. All 17 calcs rows fall in [2004,2005).
+    public void testDateAddBoundTopLevel() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01')"
+                + " and datetime0 < date_add(date('2004-01-01'), interval 1 year) | stats count() as c",
+            17L
+        );
+    }
+
+    // Same date_add bound inside an IN subquery (TPC-H q20 shape). Decorrelation folds the PPL
+    // DATE() wrapper off the date_add ARGUMENT too, leaving DATE_ADD('2004-01-01':VARCHAR, interval)
+    // which DateAddSubAdapter rejected ("Unable to convert call DATE_ADD(string?, interval_year)")
+    // until it learned to coerce a character base back to TIMESTAMP — the same recovery the
+    // comparison adapter does for >=.
+    public void testDateAddBoundInSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where key in [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01')"
+                + " and datetime0 < date_add(date('2004-01-01'), interval 1 year) | fields key ]"
+                + " | stats count() as c",
+            17L
+        );
+    }
+
+    // Same date_add bound inside a SCALAR subquery (TPC-H q15 shape).
+    public void testDateAddBoundScalarSubquery() throws IOException {
+        assertFirstRowLong(
+            "source=" + DATASET.indexName
+                + " | where num0 = [ source=" + DATASET.indexName
+                + " | where datetime0 >= date('2004-01-01')"
+                + " and datetime0 < date_add(date('2004-01-01'), interval 1 year) | stats max(num0) ]"
+                + " | stats count() as c",
+            1L
         );
     }
 

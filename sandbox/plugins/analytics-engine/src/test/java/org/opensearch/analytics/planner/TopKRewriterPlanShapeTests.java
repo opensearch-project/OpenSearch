@@ -20,6 +20,8 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 
 import java.util.List;
 
@@ -348,7 +350,7 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
 
     private PlannerContext contextWithOversampling(double factor) {
         PlannerContext ctx = buildContext("parquet", 2, intFields());
-        ctx.setOversamplingFactor(factor);
+        ctx.setPlannerSettings(PlannerSettings.of(factor, DelegationBlockList.empty()));
         return ctx;
     }
 }

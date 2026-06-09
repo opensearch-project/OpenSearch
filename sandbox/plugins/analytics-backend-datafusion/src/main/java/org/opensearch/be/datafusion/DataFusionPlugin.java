@@ -33,6 +33,8 @@ import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -52,6 +54,7 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -417,6 +420,19 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD, v -> updateMemoryGuardThresholds());
 
+        // Wire dynamic concurrency gate multiplier settings
+        int cpuThreads = DataFusionService.cpuThreadCount();
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
+        });
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("reduce", newMax);
+        });
+
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
@@ -615,7 +631,37 @@ public class DataFusionPlugin extends Plugin
     @Override
     public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         NativeStoreHandle dataformatAwareStoreHandle = settings.dataformatAwareStoreHandles().get(settings.format());
-        return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService, dataformatAwareStoreHandle);
+        // Pull index.sort.field / index.sort.order off IndexSettings so the native reader can declare
+        // file sort order to DataFusion. Empty lists when the index has no index sort configured.
+        List<String> sortFields = List.of();
+        List<String> sortOrders = List.of();
+        IndexSettings indexSettings = settings.indexSettings();
+        if (indexSettings != null) {
+            Settings rawSettings = indexSettings.getSettings();
+            List<String> fields = IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(rawSettings);
+            if (!fields.isEmpty()) {
+                sortFields = List.copyOf(fields);
+                // IndexSortConfig validates size match at index creation, so when
+                // index.sort.order is set its length equals fields.length. When omitted,
+                // every field defaults to asc — matches IndexSortConfig behavior.
+                if (IndexSortConfig.INDEX_SORT_ORDER_SETTING.exists(rawSettings)) {
+                    sortOrders = IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(rawSettings)
+                        .stream()
+                        .map(o -> o == SortOrder.DESC ? "desc" : "asc")
+                        .toList();
+                } else {
+                    sortOrders = fields.stream().map(f -> "asc").toList();
+                }
+            }
+        }
+        return new DatafusionReaderManager(
+            settings.format(),
+            settings.shardPath(),
+            dataFusionService,
+            dataformatAwareStoreHandle,
+            sortFields,
+            sortOrders
+        );
     }
 
     @Override
