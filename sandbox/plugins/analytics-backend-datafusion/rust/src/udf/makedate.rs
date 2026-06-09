@@ -9,7 +9,6 @@
 //! `makedate(year, day_of_year)` → `Date32`. MySQL quirks: `year==0` remaps to 2000; `doy<=0` /
 //! `year<0` → NULL; `doy` past year-end cascades into the next year.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -48,10 +47,6 @@ impl MakedateUdf {
 udf_identity!(MakedateUdf, "makedate");
 
 impl ScalarUDFImpl for MakedateUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "makedate"
     }

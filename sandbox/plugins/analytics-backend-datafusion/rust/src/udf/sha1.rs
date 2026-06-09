@@ -13,7 +13,6 @@
 //! wraps the `sha1` crate directly. Mirrors DataFusion's `Md5Func` return-type
 //! — lowercase hex `Utf8`
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -72,10 +71,6 @@ impl Hash for Sha1Udf {
 }
 
 impl ScalarUDFImpl for Sha1Udf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "sha1"
     }

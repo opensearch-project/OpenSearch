@@ -10,7 +10,6 @@
 //! `WEEK` / `WEEK_OF_YEAR`. DataFusion's `date_part('week', ts)` is ISO-only and disagrees
 //! with MySQL's default mode 0 (Sunday-first).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate, Weekday};
@@ -44,9 +43,6 @@ impl OsWeekUdf {
 udf_identity!(OsWeekUdf, "os_week");
 
 impl ScalarUDFImpl for OsWeekUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "os_week"
     }
