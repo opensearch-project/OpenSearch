@@ -5,7 +5,7 @@
 //! Stats packing helpers for the FFM `df_stats()` function.
 //!
 //! Packs Tokio runtime metrics and per-operation task monitor metrics
-//! into a `#[repr(C)]` `DfStatsBuffer` struct (304 bytes) for efficient
+//! into a `#[repr(C)]` `DfStatsBuffer` struct (336 bytes) for efficient
 //! transfer across the FFM boundary.
 //!
 //! ## Struct layout
@@ -18,8 +18,8 @@
 //! | `query_execution`    | `TaskMonitorRepr`    | 3 × i64 |
 //! | `stream_next`        | `TaskMonitorRepr`    | 3 × i64 |
 //! | `plan_setup`         | `TaskMonitorRepr`    | 3 × i64 |
-//! | `datanode_gate`      | `PartitionGateRepr`  | 4 × i64 |
-//! | `coordinator_gate`   | `PartitionGateRepr`  | 4 × i64 |
+//! | `fragment_executor_gate` | `PartitionGateRepr`  | 6 × i64 |
+//! | `reduce_executor_gate`            | `PartitionGateRepr`  | 6 × i64 |
 
 use tokio::runtime::Handle;
 use tokio_metrics::{RuntimeMonitor, TaskMonitor};
@@ -68,6 +68,8 @@ pub struct PartitionGateRepr {
     pub active_permits: i64,
     pub total_wait_duration_ms: i64,
     pub total_batches_started: i64,
+    pub poison_permits: i64,
+    pub target_max_permits: i64,
 }
 
 #[repr(C)]
@@ -78,19 +80,19 @@ pub struct DfStatsBuffer {
     pub query_execution: TaskMonitorRepr,
     pub stream_next: TaskMonitorRepr,
     pub plan_setup: TaskMonitorRepr,
-    pub datanode_gate: PartitionGateRepr,
-    pub coordinator_gate: PartitionGateRepr,
+    pub fragment_executor_gate: PartitionGateRepr,
+    pub reduce_executor_gate: PartitionGateRepr,
 }
 
 const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 9 * 8);
 const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 3 * 8);
-const _: () = assert!(std::mem::size_of::<PartitionGateRepr>() == 4 * 8);
-const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 38 * 8);
+const _: () = assert!(std::mem::size_of::<PartitionGateRepr>() == 6 * 8);
+const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 42 * 8);
 
 pub mod layout {
     use super::*;
     pub const BUFFER_BYTE_SIZE: usize = std::mem::size_of::<DfStatsBuffer>();
-    const _: () = assert!(BUFFER_BYTE_SIZE == 304);
+    const _: () = assert!(BUFFER_BYTE_SIZE == 336);
 }
 
 /// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.
@@ -163,12 +165,16 @@ pub fn pack_task_monitor(monitor: &TaskMonitor) -> TaskMonitorRepr {
 /// | active_permits         | `gate.active_permits()`             |
 /// | total_wait_duration_ms | `gate.total_wait_ms()`              |
 /// | total_batches_started  | `gate.total_queries_admitted()`     |
+/// | poison_permits         | `gate.poison_permits_held()`        |
+/// | target_max_permits     | `gate.target_max_permits()`         |
 pub fn pack_partition_gate(gate: &ConcurrencyGate) -> PartitionGateRepr {
     PartitionGateRepr {
         max_permits: gate.max_permits() as i64,
         active_permits: gate.active_permits() as i64,
         total_wait_duration_ms: gate.total_wait_ms() as i64,
         total_batches_started: gate.total_queries_admitted() as i64,
+        poison_permits: gate.poison_permits_held() as i64,
+        target_max_permits: gate.target_max_permits() as i64,
     }
 }
 
@@ -253,14 +259,14 @@ mod tests {
             query_execution: pack_task_monitor(query_execution_monitor()),
             stream_next: pack_task_monitor(stream_next_monitor()),
             plan_setup: pack_task_monitor(plan_setup_monitor()),
-            datanode_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
-            coordinator_gate: pack_partition_gate(mgr.coordinator_gate()),
+            fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
+            reduce_executor_gate: pack_partition_gate(mgr.coordinator_gate()),
         };
 
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 304);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 336);
         assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
-        assert!(buf.datanode_gate.max_permits > 0, "datanode_gate max_permits should be > 0, got {}", buf.datanode_gate.max_permits);
-        assert!(buf.coordinator_gate.max_permits > 0, "coordinator_gate max_permits should be > 0, got {}", buf.coordinator_gate.max_permits);
+        assert!(buf.fragment_executor_gate.max_permits > 0, "fragment_executor_gate max_permits should be > 0, got {}", buf.fragment_executor_gate.max_permits);
+        assert!(buf.reduce_executor_gate.max_permits > 0, "reduce_executor_gate max_permits should be > 0, got {}", buf.reduce_executor_gate.max_permits);
 
         if mgr.cpu_monitor.is_some() {
             assert!(buf.cpu_runtime.workers_count > 0, "CPU runtime workers_count should be > 0, got {}", buf.cpu_runtime.workers_count);
@@ -273,9 +279,9 @@ mod tests {
     #[test]
     fn test_df_stats_buffer_too_small() {
         // Verify that the buffer size assertion holds
-        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 304);
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 304);
-        // A buffer smaller than 304 bytes should be rejected by df_stats.
+        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 336);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 336);
+        // A buffer smaller than 336 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.
         assert!(layout::BUFFER_BYTE_SIZE > 0);

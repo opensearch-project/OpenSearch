@@ -26,7 +26,7 @@ import java.lang.foreign.ValueLayout;
 public final class WireConfigSnapshot {
 
     /** Total byte size of the wire struct ({@code WireDatafusionQueryConfig}). */
-    public static final long BYTE_SIZE = 76;
+    public static final long BYTE_SIZE = 80;
 
     private final int batchSize;
     private final int targetPartitions;
@@ -38,6 +38,7 @@ public final class WireConfigSnapshot {
     private final int singleCollectorStrategy;
     private final int treeCollectorStrategy;
     private final int queryStrategy;
+    private final boolean indexedDynamicFilterPushdown;
 
     private WireConfigSnapshot(Builder builder) {
         this.batchSize = builder.batchSize;
@@ -50,6 +51,7 @@ public final class WireConfigSnapshot {
         this.singleCollectorStrategy = builder.singleCollectorStrategy;
         this.treeCollectorStrategy = builder.treeCollectorStrategy;
         this.queryStrategy = builder.queryStrategy;
+        this.indexedDynamicFilterPushdown = builder.indexedDynamicFilterPushdown;
     }
 
     public static Builder builder() {
@@ -70,7 +72,8 @@ public final class WireConfigSnapshot {
             .maxCollectorParallelism(current.maxCollectorParallelism)
             .singleCollectorStrategy(current.singleCollectorStrategy)
             .treeCollectorStrategy(current.treeCollectorStrategy)
-            .queryStrategy(current.queryStrategy);
+            .queryStrategy(current.queryStrategy)
+            .indexedDynamicFilterPushdown(current.indexedDynamicFilterPushdown);
     }
 
     public int batchSize() {
@@ -111,6 +114,10 @@ public final class WireConfigSnapshot {
 
     public int queryStrategy() {
         return queryStrategy;
+    }
+
+    public boolean indexedDynamicFilterPushdown() {
+        return indexedDynamicFilterPushdown;
     }
 
     /**
@@ -175,6 +182,8 @@ public final class WireConfigSnapshot {
         segment.set(ValueLayout.JAVA_INT, 68, queryStrategy);
         // Offset 72: bloom_filter_on_read (i32) — 0 = false, 1 = true
         segment.set(ValueLayout.JAVA_INT, 72, bloomFilterOnRead ? 1 : 0);
+        // Offset 76: indexed_dynamic_filter_pushdown (i32) — 0 = false, 1 = true
+        segment.set(ValueLayout.JAVA_INT, 76, indexedDynamicFilterPushdown ? 1 : 0);
     }
 
     /**
@@ -192,6 +201,7 @@ public final class WireConfigSnapshot {
         private int singleCollectorStrategy = 2; // PageRangeSplit
         private int treeCollectorStrategy = 1;   // TightenOuterBounds
         private int queryStrategy = 2;           // IndexedPredicateOnly (matches DatafusionSettings default "indexed")
+        private boolean indexedDynamicFilterPushdown = true; // runtime TopK/join RG pruning on by default
 
         private Builder() {}
 
@@ -242,6 +252,11 @@ public final class WireConfigSnapshot {
 
         public Builder queryStrategy(int queryStrategy) {
             this.queryStrategy = queryStrategy;
+            return this;
+        }
+
+        public Builder indexedDynamicFilterPushdown(boolean indexedDynamicFilterPushdown) {
+            this.indexedDynamicFilterPushdown = indexedDynamicFilterPushdown;
             return this;
         }
 

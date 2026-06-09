@@ -285,6 +285,12 @@ public enum ScalarFunction {
      * analytics-backend-datafusion adapter.
      */
     DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTHNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
@@ -435,6 +441,19 @@ public enum ScalarFunction {
             }
         }
         return null;
+    }
+
+    /**
+     * Resolves a configuration/setting token (case-insensitive) to a {@link ScalarFunction}, throwing
+     * a descriptive {@link IllegalArgumentException} if unrecognized. Used by cluster settings that
+     * name predicate functions (e.g. the delegation block-list).
+     */
+    public static ScalarFunction fromToken(String token) {
+        try {
+            return valueOf(token.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown scalar function [" + token + "]");
+        }
     }
 
     /**

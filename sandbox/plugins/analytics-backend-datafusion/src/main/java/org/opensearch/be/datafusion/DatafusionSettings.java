@@ -74,6 +74,20 @@ public final class DatafusionSettings {
     );
 
     /**
+     * Whether the indexed scan accepts runtime dynamic filters (TopK / join)
+     * pushed down via physical filter pushdown and uses them to prune row groups
+     * whose parquet statistics cannot satisfy the tightening predicate. On by
+     * default; turn off to A/B the performance impact. When off, the scan
+     * declines the pushdown and behaves exactly as before this feature.
+     */
+    public static final Setting<Boolean> INDEXED_DYNAMIC_FILTER_PUSHDOWN = Setting.boolSetting(
+        "datafusion.indexed.dynamic_filter_pushdown",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Default minimum run length (in rows) below which the indexed stream skips
      * row-selection optimizations and falls back to sequential decode. Shorter runs
      * have higher per-row overhead from selection vector maintenance.
@@ -177,22 +191,24 @@ public final class DatafusionSettings {
 
     // ── Concurrency gate settings ──
 
-    /** Datanode concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    /** Fragment executor concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
     public static final Setting<Double> CONCURRENCY_DATANODE_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.datanode_multiplier",
+        "datafusion.concurrency.fragment_executor_multiplier",
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
-    /** Coordinator concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    /** Reduce concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
     public static final Setting<Double> CONCURRENCY_COORDINATOR_MULTIPLIER = Setting.doubleSetting(
-        "datafusion.concurrency.coordinator_multiplier",
+        "datafusion.concurrency.reduce_executor_multiplier",
         1.5,
         0.1,
         10.0,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // Query strategy constants
@@ -273,7 +289,8 @@ public final class DatafusionSettings {
         INDEXED_SINGLE_COLLECTOR_STRATEGY,
         INDEXED_TREE_COLLECTOR_STRATEGY,
         INDEXED_MAX_COLLECTOR_PARALLELISM,
-        INDEXED_QUERY_STRATEGY
+        INDEXED_QUERY_STRATEGY,
+        INDEXED_DYNAMIC_FILTER_PUSHDOWN
     );
 
     // ── Snapshot management ──
@@ -316,6 +333,7 @@ public final class DatafusionSettings {
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
+            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
             .build();
 
         registerListeners(clusterSettings);
@@ -340,6 +358,7 @@ public final class DatafusionSettings {
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
             .queryStrategy(queryStrategyToWireValue(INDEXED_QUERY_STRATEGY.get(settings)))
+            .indexedDynamicFilterPushdown(INDEXED_DYNAMIC_FILTER_PUSHDOWN.get(settings))
             .build();
     }
 
@@ -378,6 +397,10 @@ public final class DatafusionSettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_QUERY_STRATEGY, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).queryStrategy(queryStrategyToWireValue(newValue)).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_DYNAMIC_FILTER_PUSHDOWN, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).indexedDynamicFilterPushdown(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {

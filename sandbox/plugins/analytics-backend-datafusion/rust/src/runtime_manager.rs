@@ -19,7 +19,7 @@ pub struct RuntimeManager {
     pub io_monitor: RuntimeMonitor,
     pub cpu_monitor: Option<RuntimeMonitor>,
     /// Separate concurrency gate for coordinator-reduce execution.
-    /// Independent from the datanode gate (on DedicatedExecutor) to avoid
+    /// Independent from the fragment executor gate (on DedicatedExecutor) to avoid
     /// deadlock when shard streams and coordinator reduce run concurrently.
     coordinator_gate: Arc<ConcurrencyGate>,
 }
@@ -51,7 +51,7 @@ impl RuntimeManager {
                 register_io_runtime(Some(io_handle.clone()));
             });
 
-        // Datanode concurrency gate: limits concurrent partition tasks from shard scans.
+        // Fragment executor concurrency gate: limits concurrent partition tasks from shard scans.
         let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;
         let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, datanode_max_concurrent);
 
@@ -59,8 +59,8 @@ impl RuntimeManager {
             .handle()
             .map(|h| RuntimeMonitor::new(&h));
 
-        // Coordinator concurrency gate: limits concurrent partition tasks from reduce execution.
-        // Separate from datanode gate to avoid deadlock (shard streams hold datanode permits
+        // Reduce concurrency gate: limits concurrent partition tasks from reduce execution.
+        // Separate from fragment executor gate to avoid deadlock (shard streams hold fragment executor permits
         // while coordinator reduce runs concurrently on single-node clusters).
         let coordinator_max_concurrent = (cpu_threads as f64 * coordinator_multiplier).max(1.0) as usize;
         let coordinator_gate = Arc::new(ConcurrencyGate::new(coordinator_max_concurrent));

@@ -85,7 +85,19 @@ struct PrefetchedRowGroup {
     prefetched: PrefetchedRg,
 }
 
-type PrefetchResult = std::result::Result<Option<PrefetchedRowGroup>, String>;
+/// Outcome of one prefetch task.
+enum PrefetchOutcome {
+    /// RG fetched with a non-empty candidate set.
+    Fetched(PrefetchedRowGroup),
+    /// RG had no candidates (empty bitmap) or fell outside the doc range —
+    /// skipped without a parquet read. Attributed to `rg_skipped`.
+    Empty,
+    /// RG excluded by the dynamic filter at prefetch time, before the Lucene
+    /// eval ran. Attributed to `dynamic_filter_rg_pruned_at_prefetch`.
+    Pruned,
+}
+
+type PrefetchResult = std::result::Result<PrefetchOutcome, String>;
 type PrefetchHandle = JoinHandle<PrefetchResult>;
 
 // ── IndexReader (drives the evaluator RG-by-RG with prefetch overlap) ──
@@ -110,9 +122,21 @@ struct IndexReader {
     /// polled (and returned Pending). Used to attribute wait time when
     /// the receiver eventually resolves.
     pending_since: Option<Instant>,
+    /// Parquet metadata for this segment — needed to evaluate a dynamic-filter
+    /// snapshot against an RG's statistics before kicking off its Lucene eval.
+    /// `None` only in unit tests that don't exercise dynamic-filter pruning.
+    metadata: Option<Arc<ParquetMetaData>>,
+    /// Snapshot of the runtime dynamic filter (refreshed by the stream before
+    /// each `poll_next_row_group`). When present, `start_prefetch` checks it
+    /// against the target RG's stats and skips the Lucene eval if the RG is
+    /// provably excluded. `None` when no dynamic filter was pushed.
+    dynamic_prune_ctx: Option<super::dynamic_filter::RgPruningContext>,
+    /// Count of RGs skipped at prefetch time (before the Lucene eval).
+    dynamic_filter_rg_pruned_at_prefetch: Option<datafusion::physical_plan::metrics::Count>,
 }
 
 impl IndexReader {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         evaluator: Arc<dyn RowGroupBitsetSource>,
         row_groups: Vec<RowGroupInfo>,
@@ -120,6 +144,8 @@ impl IndexReader {
         rg_skipped: Option<datafusion::physical_plan::metrics::Count>,
         prefetch_wait_time: Option<datafusion::physical_plan::metrics::Time>,
         prefetch_wait_count: Option<datafusion::physical_plan::metrics::Count>,
+        metadata: Option<Arc<ParquetMetaData>>,
+        dynamic_filter_rg_pruned_at_prefetch: Option<datafusion::physical_plan::metrics::Count>,
     ) -> Self {
         Self {
             evaluator,
@@ -132,31 +158,50 @@ impl IndexReader {
             prefetch_wait_time,
             prefetch_wait_count,
             pending_since: None,
+            metadata,
+            dynamic_prune_ctx: None,
+            dynamic_filter_rg_pruned_at_prefetch,
         }
     }
 
+    /// Result of a prefetch task. `Pruned` is distinct from `Ok(None)`
+    /// (empty candidate set): it means the dynamic filter excluded the RG
+    /// before the Lucene eval ran, so it must be attributed to the
+    /// prefetch-phase prune counter rather than `rg_skipped`.
     fn fetch_row_group(
         evaluator: &Arc<dyn RowGroupBitsetSource>,
         row_groups: &[RowGroupInfo],
         rg_idx: usize,
         doc_range: Option<(i32, i32)>,
-    ) -> std::result::Result<Option<PrefetchedRowGroup>, String> {
+        prune: Option<(super::dynamic_filter::RgPruningContext, Arc<ParquetMetaData>)>,
+    ) -> std::result::Result<PrefetchOutcome, String> {
         if rg_idx >= row_groups.len() {
-            return Ok(None);
+            return Ok(PrefetchOutcome::Empty);
         }
         let rg = row_groups[rg_idx].clone();
+
+        // Prefetch-phase dynamic-filter prune: if the snapshot-so-far proves
+        // this RG's parquet stats cannot match, skip BEFORE the (expensive)
+        // Lucene/FFM eval. Conservative — only skips on proof; the threshold
+        // only tightens, so an RG excluded here stays excluded.
+        if let Some((ctx, metadata)) = prune.as_ref() {
+            if ctx.rg_provably_excluded(metadata, rg.index) {
+                return Ok(PrefetchOutcome::Pruned);
+            }
+        }
+
         let mut min_doc = rg.first_row as i32;
         let mut max_doc = (rg.first_row + rg.num_rows) as i32;
         if let Some((range_min, range_max)) = doc_range {
             min_doc = min_doc.max(range_min);
             max_doc = max_doc.min(range_max);
             if min_doc >= max_doc {
-                return Ok(None);
+                return Ok(PrefetchOutcome::Empty);
             }
         }
         match evaluator.prefetch_rg(&rg, min_doc, max_doc)? {
-            None => Ok(None),
-            Some(prefetched) => Ok(Some(PrefetchedRowGroup { rg, prefetched })),
+            None => Ok(PrefetchOutcome::Empty),
+            Some(prefetched) => Ok(PrefetchOutcome::Fetched(PrefetchedRowGroup { rg, prefetched })),
         }
     }
 
@@ -167,8 +212,14 @@ impl IndexReader {
         let evaluator = Arc::clone(&self.evaluator);
         let row_groups = self.row_groups.clone();
         let doc_range = self.doc_range;
+        // Snapshot-so-far + metadata, moved into the blocking task so the
+        // prefetch-phase prune runs off the poll thread.
+        let prune = match (self.dynamic_prune_ctx.clone(), self.metadata.as_ref()) {
+            (Some(ctx), Some(md)) => Some((ctx, Arc::clone(md))),
+            _ => None,
+        };
         let handle = tokio::task::spawn_blocking(move || {
-            Self::fetch_row_group(&evaluator, &row_groups, rg_idx, doc_range)
+            Self::fetch_row_group(&evaluator, &row_groups, rg_idx, doc_range, prune)
         });
         self.pending_prefetch = Some(handle);
     }
@@ -185,11 +236,19 @@ impl IndexReader {
                 self.current_rg_idx += 1;
                 self.start_prefetch(self.current_rg_idx);
                 match result {
-                    Ok(Some(p)) => return Poll::Ready(Ok(Some(p))),
-                    Ok(None) => {
+                    Ok(PrefetchOutcome::Fetched(p)) => return Poll::Ready(Ok(Some(p))),
+                    Ok(PrefetchOutcome::Empty) => {
                         // RG had no candidates — skipped without a
                         // parquet read. Count for EXPLAIN ANALYZE.
                         if let Some(ref c) = self.rg_skipped {
+                            c.add(1);
+                        }
+                        continue;
+                    }
+                    Ok(PrefetchOutcome::Pruned) => {
+                        // RG excluded by the dynamic filter before the Lucene
+                        // eval ran — the prefetch-phase win.
+                        if let Some(ref c) = self.dynamic_filter_rg_pruned_at_prefetch {
                             c.add(1);
                         }
                         continue;
@@ -292,6 +351,11 @@ pub struct IndexedExec {
     /// Index in the OUTPUT schema where computed `___row_id` should be inserted.
     /// `None` when `emit_row_ids=false` or `___row_id` is not in projection.
     pub(crate) row_id_output_index: Option<usize>,
+    /// Optional runtime dynamic filter (TopK / join) accepted via physical
+    /// pushdown, referencing the sort columns. Used to prune row groups whose
+    /// parquet statistics cannot satisfy the (tightening) predicate. `None`
+    /// when no dynamic filter was pushed to this query.
+    pub(crate) dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -324,9 +388,6 @@ impl DisplayAs for IndexedExec {
 impl ExecutionPlan for IndexedExec {
     fn name(&self) -> &str {
         "IndexedExec"
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
     }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
@@ -365,6 +426,8 @@ impl ExecutionPlan for IndexedExec {
             self.stream_metrics.rg_skipped.clone(),
             self.stream_metrics.prefetch_wait_time.clone(),
             self.stream_metrics.prefetch_wait_count.clone(),
+            Some(Arc::clone(&self.metadata)),
+            self.stream_metrics.dynamic_filter_rg_pruned_at_prefetch.clone(),
         );
         Ok(Box::pin(IndexedStream::new(
             self.schema.clone(),
@@ -387,6 +450,7 @@ impl ExecutionPlan for IndexedExec {
             self.global_base,
             self.emit_row_ids,
             self.row_id_output_index,
+            self.dynamic_filter.clone(),
         )))
     }
 }
@@ -455,6 +519,10 @@ struct IndexedStream {
     emit_row_ids: bool,
     /// Index in the output schema where computed `___row_id` is inserted.
     row_id_output_index: Option<usize>,
+    /// Per-stream runtime dynamic-filter pruner. `None` when no dynamic filter
+    /// was pushed. Owns its own snapshot generation tracking, so it must NOT be
+    /// shared across sibling segment streams.
+    dynamic_rg_pruner: Option<super::dynamic_filter::DynamicRgPruner>,
 }
 
 impl IndexedStream {
@@ -480,10 +548,15 @@ impl IndexedStream {
         global_base: u64,
         emit_row_ids: bool,
         row_id_output_index: Option<usize>,
+        dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
         let batch_coalescer =
             LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
+        let dynamic_rg_pruner = super::dynamic_filter::DynamicRgPruner::new(
+            dynamic_filter,
+            full_schema.clone(),
+        );
         Self {
             schema,
             full_schema,
@@ -518,6 +591,7 @@ impl IndexedStream {
             global_base,
             emit_row_ids,
             row_id_output_index,
+            dynamic_rg_pruner,
         }
     }
 
@@ -832,10 +906,34 @@ impl IndexedStream {
                 continue;
             }
 
+            // Refresh the dynamic-filter snapshot the IndexReader hands to its
+            // prefetch tasks, so the next prefetch can prune (skipping the
+            // Lucene eval) using the filter's tightening so far.
+            if let Some(ref mut pruner) = self.dynamic_rg_pruner {
+                self.index_reader.dynamic_prune_ctx = pruner.current_pruning_predicate();
+            }
+
             // Poll for next row group
             match self.index_reader.poll_next_row_group(cx) {
                 Poll::Ready(Ok(Some(prefetched))) => {
                     let rg = prefetched.rg;
+
+                    // Poll-phase dynamic-filter prune (backstop): the filter may
+                    // have tightened further since this RG was prefetched (~1 RG
+                    // ahead). Re-check against the latest snapshot; skip the
+                    // parquet decode if now provably excluded. Conservative:
+                    // only skips on proof (see dynamic_filter::DynamicRgPruner).
+                    if self.dynamic_rg_pruner.is_some() {
+                        let metadata = Arc::clone(&self.metadata);
+                        let pruner = self.dynamic_rg_pruner.as_mut().unwrap();
+                        if pruner.should_prune_rg(&metadata, rg.index) {
+                            if let Some(ref c) = self.metrics.dynamic_filter_rg_pruned_at_poll {
+                                c.add(1);
+                            }
+                            continue;
+                        }
+                    }
+
                     let candidates = prefetched.prefetched.candidates;
                     let prefetch_mask_buffer = prefetched.prefetched.mask_buffer;
 
@@ -1095,6 +1193,8 @@ mod tests {
         let mut reader = IndexReader::new(
             evaluator.clone(),
             vec![rg_info],
+            None,
+            None,
             None,
             None,
             None,

@@ -25,7 +25,9 @@ public class TwoShardScalarIT extends TwoShardReduceTestCase {
 
     @Override
     protected Map<String, String> knownIssues() {
-        // coalesce() on an ip column throws "unsupported object class [B" (ip byte[] not handled).
-        return Map.of("sc_coalesce_ip", "coalesce() on ip throws ExpressionEvaluationException: unsupported object class [B");
+        return Map.of(
+            "sc_coalesce_ip", "coalesce() on ip throws ExpressionEvaluationException: unsupported object class [B",
+            "sc_str_to_date", "str_to_date timestamp format is locale-sensitive (T vs space separator)"
+        );
     }
 }

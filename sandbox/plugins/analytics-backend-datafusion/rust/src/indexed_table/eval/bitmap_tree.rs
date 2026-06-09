@@ -889,10 +889,10 @@ fn predicate_to_batch_mask(
     expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
 ) -> Result<BooleanArray, String> {
     // Fast-path: detect `col OP literal` and call the kernel directly.
-    if let Some(bin) = expr.as_any().downcast_ref::<BinaryExpr>() {
+    if let Some(bin) = expr.downcast_ref::<BinaryExpr>() {
         if let (Some(col), Some(lit)) = (
-            bin.left().as_any().downcast_ref::<PhysColumn>(),
-            bin.right().as_any().downcast_ref::<Literal>(),
+            bin.left().downcast_ref::<PhysColumn>(),
+            bin.right().downcast_ref::<Literal>(),
         ) {
             match batch.column_by_name(col.name()) {
                 None => {

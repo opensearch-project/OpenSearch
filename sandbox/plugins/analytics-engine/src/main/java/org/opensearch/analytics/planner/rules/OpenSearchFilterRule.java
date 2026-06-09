@@ -24,6 +24,7 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
@@ -251,6 +252,30 @@ public class OpenSearchFilterRule extends RelOptRule {
                 }
             }
             viableSet.retainAll(registry.scalarBackendsAnyFormat(scalarFunc, returnType));
+        }
+
+        // TODO: Temporary workaround — suppress dual-viable filters for dc() (engine-native-merge)
+        // queries. When delegation_possible UDF wraps a predicate in an APPROX_COUNT_DISTINCT plan,
+        // the shard execution path produces Int64 instead of the expected Binary HLL intermediate,
+        // causing a schema mismatch at the reduce sink. Proper fix requires changes to the DataFusion
+        // local execution path to honour the prepared partial plan when delegation_possible is present.
+        if (context.hasEngineNativeMergeAggregate() && viableSet.size() > 1) {
+            List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.FILTER);
+            boolean drivingBackendSurvives = viableSet.stream().anyMatch(b -> !delegationAcceptors.contains(b));
+            if (drivingBackendSurvives) {
+                viableSet.removeAll(delegationAcceptors);
+            }
+        }
+
+        // Per-backend delegation block-list. Drop backends that block this predicate so it is never
+        // marked viable for them — but only when a non-blocked backend survives: blocking is a
+        // delegation knob and must never make a predicate unexecutable.
+        DelegationBlockList blockList = context.getDelegationBlockList();
+        if (!blockList.isEmpty()) {
+            boolean someBackendSurvives = viableSet.stream().anyMatch(backend -> !blockList.isBlocked(backend, function));
+            if (someBackendSurvives) {
+                viableSet.removeIf(backend -> blockList.isBlocked(backend, function));
+            }
         }
 
         if (viableSet.isEmpty()) {

@@ -33,7 +33,6 @@
 //! would require diverging from PPL's emit pattern, which this port explicitly
 //! avoids.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -77,9 +76,6 @@ impl Default for MinspanBucketUdf {
 }
 
 impl ScalarUDFImpl for MinspanBucketUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "minspan_bucket"
     }

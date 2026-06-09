@@ -201,10 +201,12 @@ public class DataFusionPlugin extends Plugin
 
     /**
      * Validates {@link #DATAFUSION_SPILL_DIRECTORY}. Empty (the unset sentinel) is accepted
-     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path};
-     * existence and writability are intentionally not checked because the directory may be
-     * created later by a host boot script (first-boot mount), and runtime spill writes will
-     * surface any permission issues at first spill with a clear DataFusion error.
+     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path}.
+     *
+     * <p>Existence and writability are checked at boot time by the core
+     * {@code Node.assertCanWritePluginHealthPaths} probe (which consumes the path returned
+     * by {@link #getAdditionalHealthPaths(Settings)}), and at runtime by
+     * {@code FsHealthService}. This validator only constrains the syntactic form of the setting.
      */
     static String validateSpillDirectory(String value) {
         if (value == null || value.isEmpty()) {
@@ -420,6 +422,19 @@ public class DataFusionPlugin extends Plugin
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD, v -> updateMemoryGuardThresholds());
 
+        // Wire dynamic concurrency gate multiplier settings
+        int cpuThreads = DataFusionService.cpuThreadCount();
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
+        });
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("reduce", newMax);
+        });
+
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
         NativeBridge.setReduceTargetPartitions(DATAFUSION_REDUCE_TARGET_PARTITIONS.get(settings));
@@ -527,6 +542,15 @@ public class DataFusionPlugin extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return DatafusionSettings.ALL_SETTINGS;
+    }
+
+    @Override
+    public List<Path> getAdditionalHealthPaths(Settings settings) {
+        String dir = DATAFUSION_SPILL_DIRECTORY.get(settings);
+        if (dir == null || dir.isEmpty()) {
+            return List.of();
+        }
+        return List.of(Path.of(dir));
     }
 
     /**
