@@ -88,13 +88,18 @@ pub struct ExtractionResult {
     pub tree: BoolNode,
 }
 
-/// Extract the filter expression from a DataFusion logical plan.
-///
-/// Walks down through Projection/SubqueryAlias/etc. nodes to find the first
-/// `Filter` node. Returns `None` if there's no filter.
+/// Extract the scan-level filter from a logical plan, skipping HAVING/window
+/// filters that sit above Aggregate or Window nodes (those reference derived
+/// columns that `expr_to_bool_tree` cannot resolve against the base schema).
 pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
     match plan {
-        LogicalPlan::Filter(filter) => Some(filter.predicate.clone()),
+        LogicalPlan::Filter(filter) => {
+            if has_aggregate_or_window_below(&filter.input) {
+                extract_filter_expr(&filter.input)
+            } else {
+                Some(filter.predicate.clone())
+            }
+        }
         _ => {
             for child in plan.inputs() {
                 if let Some(expr) = extract_filter_expr(child) {
@@ -103,6 +108,20 @@ pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
             }
             None
         }
+    }
+}
+
+fn has_aggregate_or_window_below(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Aggregate(_)
+        | LogicalPlan::Window(_)
+        | LogicalPlan::Join(_)
+        | LogicalPlan::Union(_) => true,
+        LogicalPlan::Projection(p) => has_aggregate_or_window_below(&p.input),
+        LogicalPlan::Sort(s) => has_aggregate_or_window_below(&s.input),
+        LogicalPlan::SubqueryAlias(s) => has_aggregate_or_window_below(&s.input),
+        LogicalPlan::Limit(l) => has_aggregate_or_window_below(&l.input),
+        _ => false,
     }
 }
 
