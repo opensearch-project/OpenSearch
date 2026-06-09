@@ -74,6 +74,9 @@ abstract class AbstractPackedArray {
             return view;
         }
 
+        // This cache is intentionally lock-free. The expected indexing path consumes each
+        // value from one thread; if a value is shared concurrently, duplicate first-time
+        // resolution is harmless because all resolved views contain the same bytes.
         byte[] arr;
         int off;
         if (packed instanceof BytesArray ba) {
@@ -100,9 +103,15 @@ abstract class AbstractPackedArray {
     }
 
     protected static long decodeLongLEAt(final byte[] a, final int p) {
-        // cast makes the int-to-long promotion explicit; the mask treats each chunk as unsigned.
-        return (((long) decodeIntLEAt(a, p)) & 0xFFFFFFFFL) | ((((long) decodeIntLEAt(a, p + Integer.BYTES)) & 0xFFFFFFFFL)
-            << Integer.SIZE);
+        // Decode bytes directly; mask each signed byte as unsigned before shifting.
+        return ((long) a[p] & 0xFFL)
+            | (((long) a[p + 1] & 0xFFL) << 8)
+            | (((long) a[p + 2] & 0xFFL) << 16)
+            | (((long) a[p + 3] & 0xFFL) << 24)
+            | (((long) a[p + 4] & 0xFFL) << 32)
+            | (((long) a[p + 5] & 0xFFL) << 40)
+            | (((long) a[p + 6] & 0xFFL) << 48)
+            | (((long) a[p + 7] & 0xFFL) << 56);
     }
 
     protected static float decodeFloatLEAt(final byte[] a, final int p) {
