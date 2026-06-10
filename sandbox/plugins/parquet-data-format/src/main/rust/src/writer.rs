@@ -294,11 +294,26 @@ impl SortingChunkedWriter {
         let chunk_path = self.sorted_chunk_path(self.chunk_idx);
         let crc32 = if self.ipc_sorted_chunks {
             // IPC: fast write, no encoding overhead. Parquet encoding deferred to finalize.
+            // Write in batch_size slices so the cursor yields small batches at merge time,
+            // keeping per-cursor memory bounded (same profile as Parquet reader streaming).
+            // CRC32 is computed over the raw IPC bytes for integrity verification at merge.
+            let config = SETTINGS_STORE
+                .get(&self.index_name)
+                .map(|r| r.clone())
+                .unwrap_or_default();
+            let batch_size = config.get_merge_batch_size();
             let chunk_file = File::create(&chunk_path)?;
-            let mut ipc_out = IpcFileWriter::try_new(chunk_file, &self.schema)?;
-            ipc_out.write(&final_batch)?;
+            let (crc_file, crc_handle) = CrcWriter::new(chunk_file);
+            let mut ipc_out = IpcFileWriter::try_new(crc_file, &self.schema)?;
+            let num_rows = final_batch.num_rows();
+            let mut offset = 0;
+            while offset < num_rows {
+                let len = (num_rows - offset).min(batch_size);
+                ipc_out.write(&final_batch.slice(offset, len))?;
+                offset += len;
+            }
             ipc_out.finish()?;
-            0 // CRC computed on final Parquet at finalize
+            crc_handle.crc32()
         } else {
             // Parquet: original behavior
             NativeParquetWriter::write_final_file(
@@ -632,6 +647,16 @@ impl NativeParquetWriter {
         let is_ipc = chunk_paths[0].ends_with(".arrow_ipc");
 
         if chunk_paths.len() == 1 && is_ipc {
+            // Verify IPC chunk integrity
+            let actual_crc = Self::compute_file_crc32(&chunk_paths[0])?;
+            let expected_crc = chunk_crcs[0];
+            if actual_crc != expected_crc {
+                return Err(format!(
+                    "IPC chunk integrity check failed for '{}': expected CRC {:#010x}, got {:#010x}",
+                    chunk_paths[0], expected_crc, actual_crc
+                ).into());
+            }
+
             // Single IPC chunk: stream through ArrowWriter to produce final Parquet
             log_info!("finalize_sorted_chunks: single IPC chunk -> streaming Parquet");
             let config = SETTINGS_STORE
@@ -701,6 +726,18 @@ impl NativeParquetWriter {
         }
 
         if is_ipc {
+            // Verify IPC chunk integrity before merge
+            for (i, path) in chunk_paths.iter().enumerate() {
+                let actual_crc = Self::compute_file_crc32(path)?;
+                let expected_crc = chunk_crcs[i];
+                if actual_crc != expected_crc {
+                    return Err(format!(
+                        "IPC chunk integrity check failed for '{}': expected CRC {:#010x}, got {:#010x}",
+                        path, expected_crc, actual_crc
+                    ).into());
+                }
+            }
+
             // Multiple IPC chunks: k-way merge using the streaming merge infrastructure.
             // This gives us O(N) merge, Rayon parallel encoding, rate limiting, and
             // bounded memory — same battle-tested path as the multi-Parquet merge.
@@ -866,6 +903,21 @@ impl NativeParquetWriter {
             .collect();
 
         Ok(RecordBatch::try_new(batch.schema(), sorted_columns?)?)
+    }
+
+    fn compute_file_crc32(path: &str) -> Result<u32, Box<dyn std::error::Error>> {
+        use std::io::Read;
+        let mut file = File::open(path)?;
+        let mut hasher = crc32fast::Hasher::new();
+        let mut buf = [0u8; 64 * 1024];
+        loop {
+            let n = file.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+        }
+        Ok(hasher.finalize())
     }
 
     fn write_final_file(
