@@ -91,7 +91,22 @@ impl DynamicLimitPool {
     }
 }
 
+impl std::fmt::Display for DynamicLimitPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "DynamicLimitPool(limit={}, used={})",
+            self.dynamic_limit.load(Ordering::Acquire),
+            self.used.load(Ordering::Relaxed)
+        )
+    }
+}
+
 impl MemoryPool for DynamicLimitPool {
+    fn name(&self) -> &str {
+        "DynamicLimitPool"
+    }
+
     fn grow(&self, _reservation: &MemoryReservation, additional: usize) {
         // `grow` is an infallible accounting call; the caller is responsible
         // for pairing it with a successful `try_grow`, so under well-behaved

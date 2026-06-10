@@ -143,6 +143,7 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
     private static final MethodHandle FETCH_BY_ROW_IDS;
+    private static final MethodHandle UPDATE_CONCURRENCY_GATE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -232,8 +233,13 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,    // files_ptr
                 ValueLayout.ADDRESS,    // files_len_ptr
                 ValueLayout.ADDRESS,    // writer_generations_ptr
-                ValueLayout.JAVA_LONG,   // count (applies to all three parallel arrays)
-                ValueLayout.JAVA_LONG // object store ptr
+                ValueLayout.JAVA_LONG,  // count (applies to filenames + writer_generations)
+                ValueLayout.JAVA_LONG,  // object store ptr
+                ValueLayout.ADDRESS,    // sort_fields_ptr (parallel String[] for index.sort.field)
+                ValueLayout.ADDRESS,    // sort_fields_len_ptr
+                ValueLayout.ADDRESS,    // sort_orders_ptr (parallel String[] for index.sort.order: "asc"|"desc")
+                ValueLayout.ADDRESS,    // sort_orders_len_ptr
+                ValueLayout.JAVA_LONG   // sort_count (0 when index has no sort)
             )
         );
 
@@ -568,6 +574,12 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG
             )
         );
+
+        // i64 df_update_concurrency_gate(gate_name_ptr, gate_name_len, new_max_permits)
+        UPDATE_CONCURRENCY_GATE = linker.downcallHandle(
+            lib.find("df_update_concurrency_gate").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
+        );
     }
 
     private NativeBridge() {}
@@ -681,6 +693,17 @@ public final class NativeBridge {
 
     public static void shutdownTokioRuntimeManager() {
         NativeCall.invokeVoid(SHUTDOWN_RUNTIME_MANAGER);
+    }
+
+    /**
+     * Updates the effective permit count of a concurrency gate at runtime.
+     * Gate names: "fragment_executor" or "reduce".
+     */
+    public static void updateConcurrencyGate(String gateName, int newMaxPermits) {
+        try (var call = new NativeCall()) {
+            var name = call.str(gateName);
+            call.invoke(UPDATE_CONCURRENCY_GATE, name.segment(), name.len(), newMaxPermits);
+        }
     }
 
     // ---- DataFusion runtime (confined Arena for spillDir string only) ----
@@ -810,11 +833,18 @@ public final class NativeBridge {
      * @param path     shard data directory
      * @param segments per-segment metadata — each carries a single filename and writer generation
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
+     * @param sortFields index.sort.field values, or empty list if the index has no sort configured.
+     *                   Parallel to {@code sortOrders}.
+     * @param sortOrders index.sort.order values ("asc" or "desc"), parallel to {@code sortFields}.
+     *                   Used by Rust to call {@code ListingOptions.with_file_sort_order(...)} so the
+     *                   parquet scan advertises {@code output_ordering} to the DataFusion optimizer.
      */
     public static long createDatafusionReader(
         String path,
         List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
-        NativeStoreHandle dataformatAwareStoreHandle
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders
     ) {
         long storePtr = 0L;
         if (dataformatAwareStoreHandle != null) {
@@ -825,13 +855,40 @@ public final class NativeBridge {
                 storePtr = 0L;
             }
         }
+        if (sortFields == null) sortFields = List.of();
+        if (sortOrders == null) sortOrders = List.of();
+        if (sortFields.size() != sortOrders.size()) {
+            throw new IllegalArgumentException(
+                "createDatafusionReader: sortFields ("
+                    + sortFields.size()
+                    + ") and sortOrders ("
+                    + sortOrders.size()
+                    + ") must have the same length"
+            );
+        }
         try (var call = new NativeCall()) {
             var p = call.str(path);
             var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
             var gens = call.longs(
                 segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
             );
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count(), storePtr);
+            var sf = call.strArray(sortFields.toArray(String[]::new));
+            var so = call.strArray(sortOrders.toArray(String[]::new));
+            return call.invoke(
+                CREATE_READER,
+                p.segment(),
+                p.len(),
+                f.ptrs(),
+                f.lens(),
+                gens,
+                f.count(),
+                storePtr,
+                sf.ptrs(),
+                sf.lens(),
+                so.ptrs(),
+                so.lens(),
+                sf.count()
+            );
         }
     }
 
@@ -970,10 +1027,10 @@ public final class NativeBridge {
             }
 
             // Partition gates
-            var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
-            var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
+            var datanodeGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "datanode_gate");
+            var coordinatorGate = StatsLayout.readPartitionGate(seg, "reduce_executor_gate", "coordinator_gate");
 
-            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate, null);
         }
     }
 

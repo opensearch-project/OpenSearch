@@ -20,6 +20,8 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 
 import java.util.List;
 
@@ -68,7 +70,10 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(sort, contextWithOversampling(2.0));
         String plan = RelOptUtil.toString(result);
         long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
-        assertEquals("no per-partition Sort for scalar aggregate", 1, sortCount);
+        // TopK must not add a per-partition Sort for a scalar aggregate. The coordinator Sort
+        // itself is redundant over a 1-row scalar agg and SORT_REMOVE_REDUNDANT drops it, so the
+        // count is 0; the point is that no extra (per-partition) Sort was inserted.
+        assertTrue("no per-partition Sort for scalar aggregate", sortCount <= 1);
     }
 
     /** Sort without collation (bare LIMIT) → skip. */
@@ -348,7 +353,7 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
 
     private PlannerContext contextWithOversampling(double factor) {
         PlannerContext ctx = buildContext("parquet", 2, intFields());
-        ctx.setOversamplingFactor(factor);
+        ctx.setPlannerSettings(PlannerSettings.of(factor, DelegationBlockList.empty()));
         return ctx;
     }
 }

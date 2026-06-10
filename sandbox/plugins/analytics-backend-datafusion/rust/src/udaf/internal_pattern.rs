@@ -36,7 +36,6 @@
 //! `(pattern, pattern_count, tokens, sample_logs)` columns — matching the
 //! Java path's `ImmutableMap.of(...)` rows.
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
@@ -149,10 +148,6 @@ fn state_list_type() -> DataType {
 }
 
 impl AggregateUDFImpl for InternalPatternUdaf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         NAME
     }
@@ -230,12 +225,12 @@ impl AggConfig {
         //     frequency_threshold_percentage (double)
         //     variable_count_threshold       (int)
         if let Some(expr) = acc_args.exprs.get(1) {
-            if let Some(lit) = expr.as_any().downcast_ref::<Literal>() {
+            if let Some(lit) = expr.downcast_ref::<Literal>() {
                 config.max_sample_count = scalar_to_usize(lit.value())?;
             }
         }
         if let Some(expr) = acc_args.exprs.get(3) {
-            if let Some(lit) = expr.as_any().downcast_ref::<Literal>() {
+            if let Some(lit) = expr.downcast_ref::<Literal>() {
                 config.show_numbered_token = scalar_to_bool(lit.value())?;
             }
         }
@@ -243,7 +238,7 @@ impl AggConfig {
         // the alphabetical PPL ordering (frequency_threshold_percentage first,
         // variable_count_threshold second) doesn't lock us in.
         for expr in acc_args.exprs.iter().skip(4) {
-            let Some(lit) = expr.as_any().downcast_ref::<Literal>() else {
+            let Some(lit) = expr.downcast_ref::<Literal>() else {
                 continue;
             };
             match lit.value() {

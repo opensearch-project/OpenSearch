@@ -73,6 +73,13 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         try {
             streamPtr = future.join();
         } catch (Exception exception) {
+            if (containsRecursionLimit(exception)) {
+                throw new IllegalArgumentException(
+                    "Query too deeply nested: the expression exceeds the maximum nesting depth supported by the execution engine. "
+                        + "Simplify the query by reducing nested function calls.",
+                    exception
+                );
+            }
             throw convertOrWrap(exception, "Query execution with session context failed");
         }
         // NativeBridge#executeWithContextAsync has already marked the handle consumed (which
@@ -143,5 +150,18 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
     public void close() {
         // ReaderHandle lifecycle is owned by DatafusionReader / EngineReaderManager,
         // not by the searcher. Do not close it here.
+    }
+
+    // TODO: Handle recursion limit on the Rust side (e.g. increase prost decode limit or
+    // return a structured error code) so Java doesn't need to pattern-match on error messages.
+    private static boolean containsRecursionLimit(Throwable t) {
+        for (int depth = 0; t != null && depth < NativeErrorConverter.MAX_CAUSE_CHAIN_DEPTH; depth++) {
+            String msg = t.getMessage();
+            if (msg != null && msg.contains("recursion limit reached")) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 }

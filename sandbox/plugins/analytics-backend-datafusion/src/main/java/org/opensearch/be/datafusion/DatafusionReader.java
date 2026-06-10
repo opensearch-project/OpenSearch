@@ -47,8 +47,16 @@ public class DatafusionReader implements Closeable {
      * @param directoryPath shard data directory
      * @param writerFileSets the per-segment file sets from the catalog snapshot
      * @param dataformatAwareStoreHandle per-format native store handle (null on hot, live on warm)
+     * @param sortFields index.sort.field values (empty list when the index has no sort). Parallel to {@code sortOrders}.
+     * @param sortOrders index.sort.order values ("asc"/"desc"), parallel to {@code sortFields}.
      */
-    public DatafusionReader(String directoryPath, Collection<WriterFileSet> writerFileSets, NativeStoreHandle dataformatAwareStoreHandle) {
+    public DatafusionReader(
+        String directoryPath,
+        Collection<WriterFileSet> writerFileSets,
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders
+    ) {
         this.directoryPath = directoryPath;
         List<MonoFileWriterSet> segments;
         if (writerFileSets == null || writerFileSets.isEmpty()) {
@@ -56,7 +64,7 @@ public class DatafusionReader implements Closeable {
         } else {
             segments = writerFileSets.stream().map(MonoFileWriterSet::from).toList();
         }
-        readerHandle = new ReaderHandle(directoryPath, segments, dataformatAwareStoreHandle);
+        readerHandle = new ReaderHandle(directoryPath, segments, dataformatAwareStoreHandle, sortFields, sortOrders);
     }
 
     /**

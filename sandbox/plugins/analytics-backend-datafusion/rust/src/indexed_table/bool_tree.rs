@@ -353,7 +353,7 @@ fn try_negate_cmp_expr(
     use datafusion::logical_expr::Operator;
     use datafusion::physical_expr::expressions::BinaryExpr;
 
-    let bin = expr.as_any().downcast_ref::<BinaryExpr>()?;
+    let bin = expr.downcast_ref::<BinaryExpr>()?;
     let flipped = match *bin.op() {
         Operator::Eq => Operator::NotEq,
         Operator::NotEq => Operator::Eq,
@@ -705,7 +705,6 @@ mod tests {
         match node {
             ResolvedNode::Predicate(expr) => {
                 let bin = expr
-                    .as_any()
                     .downcast_ref::<BinaryExpr>()
                     .expect("expected BinaryExpr leaf");
                 *bin.op()

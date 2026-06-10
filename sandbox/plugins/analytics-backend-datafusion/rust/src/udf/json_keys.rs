@@ -10,7 +10,6 @@
 //! string (parity with legacy `JsonKeysFunctionImpl` → Calcite
 //! `JsonFunctions.jsonKeys`). Non-object / malformed / NULL input → NULL.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -50,9 +49,6 @@ impl Default for JsonKeysUdf {
 }
 
 impl ScalarUDFImpl for JsonKeysUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }

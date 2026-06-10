@@ -65,7 +65,7 @@ pub(super) fn remap_expr_to_batch(
 
     expr.clone()
         .transform(|e| {
-            if let Some(col) = e.as_any().downcast_ref::<Column>() {
+            if let Some(col) = e.downcast_ref::<Column>() {
                 if let Ok(new_idx) = batch.schema().index_of(col.name()) {
                     if new_idx != col.index() {
                         let remapped = Arc::new(Column::new(col.name(), new_idx))

@@ -47,7 +47,6 @@
 //!     `GrokExpression.parseValue` returning `ExprStringValue("")`. Captured
 //!     values are quote-stripped via `clean_string`, matching `Match.cleanString`.
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -293,9 +292,6 @@ fn output_fields(resolved: &ResolvedGrok) -> Vec<(String, String)> {
 }
 
 impl ScalarUDFImpl for GrokUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "grok"
     }

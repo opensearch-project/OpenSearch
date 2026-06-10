@@ -61,6 +61,11 @@ public final class NativeErrorConverter {
      * {@code "[analytics_backend_datafusion] Failed to allocate"} must come before bare
      * {@code "Failed to allocate"}.
      */
+    /**
+     * Maximum depth to walk the exception cause chain when matching error patterns.
+     */
+    static final int MAX_CAUSE_CHAIN_DEPTH = 10;
+
     private static final List<ErrorPattern> PATTERNS = List.of(
         new ErrorPattern("Cannot reserve untracked memory budget", NativeErrorConverter::convertAdmissionRejection),
         new ErrorPattern(ADMISSION_REJECTED_MSG, NativeErrorConverter::convertAdmissionRejection),
@@ -68,7 +73,8 @@ public final class NativeErrorConverter {
         new ErrorPattern("Failed to allocate", NativeErrorConverter::convertPoolLimitExceeded),
         // DataFusion's own spill-path error when an operator can't allocate and DiskManager is disabled.
         // Semantically a memory-pressure error → CircuitBreakingException (HTTP 429).
-        new ErrorPattern("Memory Exhausted while", NativeErrorConverter::convertSpillPoolExhausted)
+        new ErrorPattern("Memory Exhausted while", NativeErrorConverter::convertSpillPoolExhausted),
+        new ErrorPattern("Query too deeply nested", NativeErrorConverter::convertRecursionLimit)
     );
 
     /**
@@ -83,7 +89,7 @@ public final class NativeErrorConverter {
         }
         Throwable current = original;
         int depth = 0;
-        while (current != null && depth < 10) {
+        while (current != null && depth < MAX_CAUSE_CHAIN_DEPTH) {
             String msg = current.getMessage();
             if (msg != null) {
                 for (ErrorPattern pattern : PATTERNS) {
@@ -135,6 +141,15 @@ public final class NativeErrorConverter {
         CircuitBreakingException cbe = new CircuitBreakingException(match.message(), 0L, 0L, CircuitBreaker.Durability.TRANSIENT);
         cbe.initCause(match.original());
         return cbe;
+    }
+
+    private static Exception convertRecursionLimit(MatchedError match) {
+        IllegalArgumentException iae = new IllegalArgumentException(
+            "Query too deeply nested: the expression exceeds the maximum nesting depth supported by the execution engine. "
+                + "Simplify the query by reducing nested function calls."
+        );
+        iae.initCause(match.original());
+        return iae;
     }
 
     // ─── Message parsing ────────────────────────────────────────────────────────
