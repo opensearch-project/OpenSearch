@@ -477,6 +477,32 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         assertEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
     }
 
+    public void testBulkAdaptiveSelectShardWithSingleSearchOnlyShard() {
+        ResponseCollectorService nodeMetricsCollector = new ResponseCollectorService(clusterService);
+        Map<String, Long> clientConnections = new HashMap<>();
+
+        ShardId shardId = TransportBulkAction.bulkAdaptiveSelectShard(
+            createSearchOnlyIndexRoutingTable(1),
+            nodeMetricsCollector,
+            clientConnections
+        );
+
+        assertNull(shardId);
+    }
+
+    public void testBulkAdaptiveSelectShardWithMultipleSearchOnlyShards() {
+        ResponseCollectorService nodeMetricsCollector = new ResponseCollectorService(clusterService);
+        Map<String, Long> clientConnections = new HashMap<>();
+
+        ShardId shardId = TransportBulkAction.bulkAdaptiveSelectShard(
+            createSearchOnlyIndexRoutingTable(2),
+            nodeMetricsCollector,
+            clientConnections
+        );
+
+        assertNull(shardId);
+    }
+
     private BulkRequest buildBulkRequest(List<String> indices) {
         BulkRequest request = new BulkRequest();
         for (String index : indices) {
@@ -514,6 +540,17 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
                         ShardRoutingState.STARTED
                     )
                 );
+        }
+        return indexRoutingTable.build();
+    }
+
+    private IndexRoutingTable createSearchOnlyIndexRoutingTable(int shardCount) {
+        org.opensearch.core.index.Index index = new org.opensearch.core.index.Index("test", "1");
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        for (int i = 0; i < shardCount; i++) {
+            indexRoutingTable.addShard(
+                TestShardRouting.newShardRouting(new ShardId(index, i), "node" + i, false, true, ShardRoutingState.STARTED, null)
+            );
         }
         return indexRoutingTable.build();
     }

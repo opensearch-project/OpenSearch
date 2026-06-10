@@ -14,6 +14,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -50,6 +51,30 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
     public void testFullLifecycleWithoutSearchReplicas() throws Exception {
         testFullLifecycle(0);
+    }
+
+    public void testAddIndexBlockOnSearchOnlyIndex() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startSearchOnlyNode();
+
+        Settings specificSettings = Settings.builder()
+            .put(indexSettings())
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .build();
+
+        createIndex(TEST_INDEX, specificSettings);
+        ensureGreen(TEST_INDEX);
+
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
+        ensureGreen(TEST_INDEX);
+
+        assertAcked(client().admin().indices().prepareAddBlock(APIBlock.WRITE, TEST_INDEX).get());
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        assertTrue(state.blocks().hasIndexBlockWithId(TEST_INDEX, APIBlock.WRITE.getBlock().id()));
     }
 
     /**
