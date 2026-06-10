@@ -10,42 +10,40 @@ package org.opensearch.transport.grpc.listeners;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.protobufs.CreatePITResponse;
-import org.opensearch.transport.grpc.proto.response.search.CreatePitResponseProtoUtils;
+import org.opensearch.protobufs.DeletePITResponse;
+import org.opensearch.transport.grpc.proto.response.search.DeletePitResponseProtoUtils;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
-
-import java.io.IOException;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 /**
- * Listener for PIT creation request completion.
+ * Listener for PIT deletion request completion.
  */
-public class CreatePitRequestActionListener implements ActionListener<CreatePitResponse> {
-    private static final Logger logger = LogManager.getLogger(CreatePitRequestActionListener.class);
+public class DeletePitRequestActionListener implements ActionListener<DeletePitResponse> {
+    private static final Logger logger = LogManager.getLogger(DeletePitRequestActionListener.class);
 
-    private final StreamObserver<CreatePITResponse> responseObserver;
+    private final StreamObserver<DeletePITResponse> responseObserver;
 
     /**
-     * Creates a listener that forwards PIT creation responses to the gRPC stream.
+     * Creates a listener that forwards PIT deletion responses to the gRPC stream.
      *
      * @param responseObserver the observer that receives the protobuf response
      */
-    public CreatePitRequestActionListener(StreamObserver<CreatePITResponse> responseObserver) {
+    public DeletePitRequestActionListener(StreamObserver<DeletePITResponse> responseObserver) {
         this.responseObserver = responseObserver;
     }
 
     @Override
-    public void onResponse(CreatePitResponse response) {
+    public void onResponse(DeletePitResponse response) {
         try {
-            CreatePITResponse protoResponse = CreatePitResponseProtoUtils.toProto(response);
+            DeletePITResponse protoResponse = DeletePitResponseProtoUtils.toProto(response);
             responseObserver.onNext(protoResponse);
             responseObserver.onCompleted();
-        } catch (RuntimeException | IOException e) {
-            logger.error("Failed to convert create PIT response to protobuf: {}", e.getMessage());
+        } catch (RuntimeException e) {
+            logger.error("Failed to convert delete PIT response to protobuf: {}", e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);
         }
@@ -53,7 +51,7 @@ public class CreatePitRequestActionListener implements ActionListener<CreatePitR
 
     @Override
     public void onFailure(Exception e) {
-        logger.debug("CreatePitRequestActionListener failed to process create PIT request: {}", e.getMessage());
+        logger.debug("DeletePitRequestActionListener failed to process delete PIT request: {}", e.getMessage());
         StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
         responseObserver.onError(grpcError);
     }
