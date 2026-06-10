@@ -39,7 +39,18 @@ public final class AnalyticsQuerySettings {
         "blocked_predicates",
         key -> Setting.listSetting(
             key,
-            key.contains("lucene") ? List.of("IS_NULL", "IS_NOT_NULL", "LIKE") : List.of(),
+            key.contains("lucene")
+                ? List.of(
+                    "IS_NULL",
+                    "IS_NOT_NULL",
+                    "LIKE",
+                    "GREATER_THAN",
+                    "GREATER_THAN_OR_EQUAL",
+                    "LESS_THAN",
+                    "LESS_THAN_OR_EQUAL",
+                    "SARG_PREDICATE"
+                )
+                : List.of(),
             ScalarFunction::fromToken,
             Setting.Property.NodeScope,
             Setting.Property.Dynamic

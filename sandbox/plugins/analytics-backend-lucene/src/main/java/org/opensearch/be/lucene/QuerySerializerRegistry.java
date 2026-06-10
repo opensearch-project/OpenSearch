@@ -10,6 +10,7 @@ package org.opensearch.be.lucene;
 
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.be.lucene.serializers.ComparisonSerializer;
 import org.opensearch.be.lucene.serializers.EqualsSerializer;
 import org.opensearch.be.lucene.serializers.IsNullSerializer;
 import org.opensearch.be.lucene.serializers.LikeSerializer;
@@ -22,6 +23,8 @@ import org.opensearch.be.lucene.serializers.MultiMatchSerializer;
 import org.opensearch.be.lucene.serializers.NotEqualsSerializer;
 import org.opensearch.be.lucene.serializers.QuerySerializer;
 import org.opensearch.be.lucene.serializers.QueryStringSerializer;
+import org.opensearch.be.lucene.serializers.RegexpSerializer;
+import org.opensearch.be.lucene.serializers.SargSerializer;
 import org.opensearch.be.lucene.serializers.SimpleQueryStringSerializer;
 import org.opensearch.be.lucene.serializers.WildcardQuerySerializer;
 
@@ -49,7 +52,13 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.NOT_EQUALS, new NotEqualsSerializer()),
         Map.entry(ScalarFunction.IS_NULL, new IsNullSerializer(false)),
         Map.entry(ScalarFunction.IS_NOT_NULL, new IsNullSerializer(true)),
-        Map.entry(ScalarFunction.LIKE, new LikeSerializer())
+        Map.entry(ScalarFunction.LIKE, new LikeSerializer()),
+        Map.entry(ScalarFunction.GREATER_THAN, new ComparisonSerializer()),
+        Map.entry(ScalarFunction.GREATER_THAN_OR_EQUAL, new ComparisonSerializer()),
+        Map.entry(ScalarFunction.LESS_THAN, new ComparisonSerializer()),
+        Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, new ComparisonSerializer()),
+        Map.entry(ScalarFunction.REGEXP, new RegexpSerializer()),
+        Map.entry(ScalarFunction.SARG_PREDICATE, new SargSerializer())
     );
 
     private QuerySerializerRegistry() {}

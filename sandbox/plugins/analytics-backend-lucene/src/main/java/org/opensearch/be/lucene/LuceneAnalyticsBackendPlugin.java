@@ -74,7 +74,12 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ScalarFunction.NOT_EQUALS,
         ScalarFunction.IS_NULL,
         ScalarFunction.IS_NOT_NULL,
-        ScalarFunction.LIKE
+        ScalarFunction.LIKE,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        ScalarFunction.SARG_PREDICATE
     );
 
     private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
