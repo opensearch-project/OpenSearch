@@ -293,7 +293,7 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
                 cancelRebalanceTask();
                 allocator.resetAllPoolsToMax();
             } else {
-                startRebalancer(allocator, budgetSupplier, REBALANCE_INTERVAL_SETTING.get(settings));
+                startRebalancer(allocator, budgetSupplier, cs.get(REBALANCE_INTERVAL_SETTING));
             }
         });
 
@@ -356,6 +356,11 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         if (existing != null) {
             FutureUtils.cancel(existing);
             rebalanceTask = null;
+        }
+        rebalancer = null;
+        if (rebalancerScheduler != null) {
+            rebalancerScheduler.shutdown();
+            rebalancerScheduler = null;
         }
     }
 

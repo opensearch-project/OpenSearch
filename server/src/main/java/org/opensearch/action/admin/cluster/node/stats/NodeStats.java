@@ -282,8 +282,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             remoteStoreNodeStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
             nativeAllocatorStats = in.readOptionalWriteable(NativeAllocatorPoolStats::new);
+        } else if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: V_3_7_0 wrote old-format NativeAllocatorPoolStats (3 VLongs + pools with 4 fields); read and discard.
+            in.readOptionalWriteable(NativeAllocatorPoolStats::readAndDiscardV3_7);
+            nativeAllocatorStats = null;
         } else {
             nativeAllocatorStats = null;
         }
@@ -627,8 +631,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
             out.writeOptionalWriteable(nativeAllocatorStats);
+        } else if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: write old-format NativeAllocatorPoolStats for V_3_7_0 nodes
+            NativeAllocatorPoolStats.writeV3_7(out, nativeAllocatorStats);
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             // BWC: V_3_7_0 expects AnalyticsBackendNativeMemoryStats here; write null.

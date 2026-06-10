@@ -511,10 +511,10 @@ public class DataFusionPlugin extends Plugin
             });
 
             // Wire dynamic setting consumers for pool min/max
-            clusterSettings.addSettingsUpdateConsumer(
-                DATAFUSION_MEMORY_POOL_LIMIT,
-                newMax -> arrowAllocator.setPoolLimit(DatafusionSettings.POOL_DATAFUSION, newMax)
-            );
+            clusterSettings.addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, newMax -> {
+                arrowAllocator.setPoolLimit(DatafusionSettings.POOL_DATAFUSION, newMax);
+                updateMemoryPoolLimit(newMax);
+            });
             clusterSettings.addSettingsUpdateConsumer(
                 DatafusionSettings.DATAFUSION_MEMORY_POOL_MIN,
                 newMin -> arrowAllocator.setPoolMin(DatafusionSettings.POOL_DATAFUSION, newMin)

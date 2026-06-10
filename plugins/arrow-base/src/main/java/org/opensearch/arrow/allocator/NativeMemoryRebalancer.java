@@ -188,8 +188,9 @@ public class NativeMemoryRebalancer implements Runnable {
         }
 
         // Notify pool group listeners after all limit changes are complete
-        allocator.firePoolGroupListeners(PoolGroup.INDEXING);
-        allocator.firePoolGroupListeners(PoolGroup.SEARCH);
+        for (PoolGroup group : PoolGroup.values()) {
+            allocator.firePoolGroupListeners(group);
+        }
     }
 
     // ─── Private helpers ─────────────────────────────────────────────────────────

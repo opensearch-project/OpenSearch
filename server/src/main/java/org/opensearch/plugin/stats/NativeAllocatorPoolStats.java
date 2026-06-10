@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.stats;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -121,6 +122,46 @@ public class NativeAllocatorPoolStats implements Writeable, ToXContentFragment {
             result.put(e.getKey(), new PoolStats(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2]));
         }
         return result;
+    }
+
+    /**
+     * BWC: Reads and discards the V_3_7_0 format (3 VLongs + pools with 4 fields each).
+     * Returns a dummy instance since the data is discarded.
+     */
+    public static NativeAllocatorPoolStats readAndDiscardV3_7(StreamInput in) throws IOException {
+        in.readVLong(); // rootAllocatedBytes
+        in.readVLong(); // rootPeakBytes
+        in.readVLong(); // rootLimitBytes
+        int count = in.readVInt();
+        for (int i = 0; i < count; i++) {
+            in.readString();  // name
+            in.readVLong();   // allocatedBytes
+            in.readVLong();   // peakBytes
+            in.readVLong();   // limitBytes
+        }
+        return new NativeAllocatorPoolStats(-1L, -1L, List.of());
+    }
+
+    /**
+     * BWC: Writes old V_3_7_0 format for a given stats instance (or null).
+     * Format: optional boolean + 3 VLongs + pool list with 4 fields each.
+     */
+    public static void writeV3_7(StreamOutput out, @Nullable NativeAllocatorPoolStats stats) throws IOException {
+        if (stats == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVLong(stats.nativeAllocatedBytes);  // map to rootAllocatedBytes
+            out.writeVLong(stats.nativeResidentBytes);   // map to rootPeakBytes
+            out.writeVLong(0L);                          // rootLimitBytes (no equivalent)
+            out.writeVInt(stats.pools.size());
+            for (PoolStats pool : stats.pools) {
+                out.writeString(pool.getName());
+                out.writeVLong(pool.getAllocatedBytes());
+                out.writeVLong(pool.getPeakBytes());
+                out.writeVLong(pool.getLimitBytes());
+            }
+        }
     }
 
     /**
