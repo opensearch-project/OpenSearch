@@ -73,6 +73,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove opensearch-performance-analyzer [(#892)](https://github.com/wazuh/wazuh-indexer/pull/892)
 - Remove SQL plugin from the distribution [(#1611)](https://github.com/wazuh/wazuh-indexer/pull/1611)
 - Remove opensearch-ml plugin [(#1615)](https://github.com/wazuh/wazuh-indexer/pull/1615)
+- Remove opensearch-knn and opensearch-neural-search plugins [(#1620)](https://github.com/wazuh/wazuh-indexer/pull/1620)
 
 ### Fixed
 - Fix package upload to bucket subfolder 5.x [(#846)](https://github.com/wazuh/wazuh-indexer/pull/846)

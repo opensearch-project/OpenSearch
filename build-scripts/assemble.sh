@@ -25,8 +25,6 @@ else
         "opensearch-cross-cluster-replication"
         "geospatial" # "opensearch-geospatial"
         "opensearch-index-management"
-        "opensearch-knn"
-        "neural-search"        # "opensearch-neural-search"
         "opensearch-observability"
         "opensearch-security"
     )
