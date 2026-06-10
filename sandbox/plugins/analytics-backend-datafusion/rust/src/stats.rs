@@ -5,7 +5,7 @@
 //! Stats packing helpers for the FFM `df_stats()` function.
 //!
 //! Packs Tokio runtime metrics and per-operation task monitor metrics
-//! into a `#[repr(C)]` `DfStatsBuffer` struct (552 bytes) for efficient
+//! into a `#[repr(C)]` `DfStatsBuffer` struct (600 bytes) for efficient
 //! transfer across the FFM boundary.
 //!
 //! ## Struct layout
@@ -14,12 +14,12 @@
 //! |----------------------|----------------------|--------|
 //! | `io_runtime`         | `RuntimeMetricsRepr` | 9 × i64 |
 //! | `cpu_runtime`        | `RuntimeMetricsRepr` | 9 × i64 (zeroed if N/A) |
-//! | `coordinator_reduce` | `TaskMonitorRepr`    | 3 × i64 |
-//! | `query_execution`    | `TaskMonitorRepr`    | 3 × i64 |
-//! | `stream_next`        | `TaskMonitorRepr`    | 3 × i64 |
-//! | `plan_setup`         | `TaskMonitorRepr`    | 3 × i64 |
-//! | `fragment_executor_gate` | `PartitionGateRepr`  | 6 × i64 |
-//! | `reduce_executor_gate`   | `PartitionGateRepr`  | 6 × i64 |
+//! | `coordinator_reduce` | `TaskMonitorRepr`    | 5 × i64 |
+//! | `query_execution`    | `TaskMonitorRepr`    | 5 × i64 |
+//! | `stream_next`        | `TaskMonitorRepr`    | 5 × i64 |
+//! | `plan_setup`         | `TaskMonitorRepr`    | 5 × i64 |
+//! | `fragment_executor_gate` | `PartitionGateRepr`  | 8 × i64 |
+//! | `adaptive_budget`       | `AdaptiveBudgetRepr`    | 2 × i64 |
 //! | `cache_stats`        | `CacheStatsRepr`     | 10 × i64 (2 × 5: metadata + statistics caches) |
 //! | `search_stats`       | `SearchStatsRepr`    | 17 × i64 |
 
@@ -63,6 +63,8 @@ pub struct TaskMonitorRepr {
     pub total_poll_duration_ms: i64,
     pub total_scheduled_duration_ms: i64,
     pub total_idle_duration_ms: i64,
+    pub instrumented_count: i64,
+    pub dropped_count: i64,
 }
 
 #[repr(C)]
@@ -73,6 +75,8 @@ pub struct PartitionGateRepr {
     pub total_batches_started: i64,
     pub poison_permits: i64,
     pub target_max_permits: i64,
+    pub pending_acquire_permits: i64,
+    pub pending_acquire_batches: i64,
 }
 
 #[repr(C)]
@@ -141,23 +145,30 @@ pub struct DfStatsBuffer {
     pub stream_next: TaskMonitorRepr,
     pub plan_setup: TaskMonitorRepr,
     pub fragment_executor_gate: PartitionGateRepr,
-    pub reduce_executor_gate: PartitionGateRepr,
+    pub adaptive_budget: AdaptiveBudgetRepr,
     pub cache_stats: CacheStatsRepr,
     pub search_stats: SearchStatsRepr,
 }
 
+#[repr(C)]
+pub struct AdaptiveBudgetRepr {
+    pub fallbacks: i64,
+    pub rejections: i64,
+}
+
 const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 9 * 8);
-const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 3 * 8);
-const _: () = assert!(std::mem::size_of::<PartitionGateRepr>() == 6 * 8);
+const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 5 * 8);
+const _: () = assert!(std::mem::size_of::<PartitionGateRepr>() == 8 * 8);
+const _: () = assert!(std::mem::size_of::<AdaptiveBudgetRepr>() == 2 * 8);
 const _: () = assert!(std::mem::size_of::<CacheGroupRepr>() == 5 * 8);
 const _: () = assert!(std::mem::size_of::<CacheStatsRepr>() == 10 * 8);
 const _: () = assert!(std::mem::size_of::<SearchStatsRepr>() == 17 * 8);
-const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 69 * 8);
+const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 75 * 8);
 
 pub mod layout {
     use super::*;
     pub const BUFFER_BYTE_SIZE: usize = std::mem::size_of::<DfStatsBuffer>();
-    const _: () = assert!(BUFFER_BYTE_SIZE == 552);
+    const _: () = assert!(BUFFER_BYTE_SIZE == 600);
 }
 
 /// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.
@@ -219,19 +230,23 @@ pub fn pack_task_monitor(monitor: &TaskMonitor) -> TaskMonitorRepr {
         total_poll_duration_ms: cumulative.total_poll_duration.as_millis() as i64,
         total_scheduled_duration_ms: cumulative.total_scheduled_duration.as_millis() as i64,
         total_idle_duration_ms: cumulative.total_idle_duration.as_millis() as i64,
+        instrumented_count: cumulative.instrumented_count as i64,
+        dropped_count: cumulative.dropped_count as i64,
     }
 }
 
 /// Snapshot a `ConcurrencyGate` and return a populated `PartitionGateRepr`.
 ///
-/// | Field                  | Source                              |
-/// |------------------------|-------------------------------------|
-/// | max_permits            | `gate.max_permits()`                |
-/// | active_permits         | `gate.active_permits()`             |
-/// | total_wait_duration_ms | `gate.total_wait_ms()`              |
-/// | total_batches_started  | `gate.total_queries_admitted()`     |
-/// | poison_permits         | `gate.poison_permits_held()`        |
-/// | target_max_permits     | `gate.target_max_permits()`         |
+/// | Field                    | Source                              |
+/// |--------------------------|-------------------------------------|
+/// | max_permits              | `gate.max_permits()`                |
+/// | active_permits           | `gate.active_permits()`             |
+/// | total_wait_duration_ms   | `gate.total_wait_ms()`              |
+/// | total_batches_started    | `gate.total_queries_admitted()`     |
+/// | poison_permits           | `gate.poison_permits_held()`        |
+/// | target_max_permits       | `gate.target_max_permits()`         |
+/// | pending_acquire_permits  | `gate.pending_acquire_permits()`    |
+/// | pending_acquire_batches  | `gate.pending_acquire_batches()`    |
 pub fn pack_partition_gate(gate: &ConcurrencyGate) -> PartitionGateRepr {
     PartitionGateRepr {
         max_permits: gate.max_permits() as i64,
@@ -240,6 +255,18 @@ pub fn pack_partition_gate(gate: &ConcurrencyGate) -> PartitionGateRepr {
         total_batches_started: gate.total_queries_admitted() as i64,
         poison_permits: gate.poison_permits_held() as i64,
         target_max_permits: gate.target_max_permits() as i64,
+        pending_acquire_permits: gate.pending_acquire_permits() as i64,
+        pending_acquire_batches: gate.pending_acquire_batches() as i64,
+    }
+}
+
+/// Snapshot the global `AdaptiveBudgetStats` counters and return a populated `AdaptiveBudgetRepr`.
+pub fn pack_adaptive_budget() -> AdaptiveBudgetRepr {
+    use std::sync::atomic::Ordering;
+    let stats = crate::query_budget::adaptive_budget();
+    AdaptiveBudgetRepr {
+        fallbacks: stats.fallbacks.load(Ordering::Relaxed) as i64,
+        rejections: stats.rejections.load(Ordering::Relaxed) as i64,
     }
 }
 
@@ -322,6 +349,8 @@ mod tests {
         assert_eq!(result.total_poll_duration_ms, 0);
         assert_eq!(result.total_scheduled_duration_ms, 0);
         assert_eq!(result.total_idle_duration_ms, 0);
+        assert_eq!(result.instrumented_count, 0);
+        assert_eq!(result.dropped_count, 0);
     }
 
     #[tokio::test]
@@ -362,15 +391,14 @@ mod tests {
             stream_next: pack_task_monitor(stream_next_monitor()),
             plan_setup: pack_task_monitor(plan_setup_monitor()),
             fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
-            reduce_executor_gate: pack_partition_gate(mgr.coordinator_gate()),
+            adaptive_budget: pack_adaptive_budget(),
             cache_stats: CacheStatsRepr::default(),
             search_stats: crate::search_stats::snapshot(),
         };
 
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 552);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 600);
         assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
         assert!(buf.fragment_executor_gate.max_permits > 0, "fragment_executor_gate max_permits should be > 0, got {}", buf.fragment_executor_gate.max_permits);
-        assert!(buf.reduce_executor_gate.max_permits > 0, "reduce_executor_gate max_permits should be > 0, got {}", buf.reduce_executor_gate.max_permits);
 
         if mgr.cpu_monitor.is_some() {
             assert!(buf.cpu_runtime.workers_count > 0, "CPU runtime workers_count should be > 0, got {}", buf.cpu_runtime.workers_count);
@@ -383,9 +411,9 @@ mod tests {
     #[test]
     fn test_df_stats_buffer_too_small() {
         // Verify that the buffer size assertion holds
-        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 552);
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 552);
-        // A buffer smaller than 552 bytes should be rejected by df_stats.
+        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 600);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 600);
+        // A buffer smaller than 600 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.
         assert!(layout::BUFFER_BYTE_SIZE > 0);

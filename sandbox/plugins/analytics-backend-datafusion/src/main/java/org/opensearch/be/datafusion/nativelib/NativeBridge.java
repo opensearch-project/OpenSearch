@@ -1003,8 +1003,7 @@ public final class NativeBridge {
             }
 
             // Partition gates
-            var datanodeGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "datanode_gate");
-            var coordinatorGate = StatsLayout.readPartitionGate(seg, "reduce_executor_gate", "coordinator_gate");
+            var fragmentExecutorGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "fragment_executor_gate");
 
             // Cache stats (zeroed in native when caches are disabled)
             var cacheStats = StatsLayout.readCacheStats(seg);
@@ -1014,8 +1013,8 @@ public final class NativeBridge {
 
             return new DataFusionStats(
                 new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors),
-                datanodeGate,
-                coordinatorGate,
+                fragmentExecutorGate,
+                StatsLayout.readAdaptiveBudgetStats(seg),
                 null,
                 cacheStats,
                 searchStats
