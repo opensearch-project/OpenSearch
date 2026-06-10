@@ -458,6 +458,22 @@ public class DateTimeScalarFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    /** DATEDIFF spanning the epoch — pins floor-divide; truncate-toward-zero would return 0. */
+    public void testDateDiffAcrossEpochBoundary() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval d = datediff('1970-01-01 00:00:00', '1969-12-31 12:00:00') | fields d",
+            1L
+        );
+    }
+
+    /** DATEDIFF on a pre-1970 pair — both operands negative-epoch, floor-divide preserves the calendar delta. */
+    public void testDateDiffPre1970Pair() throws IOException {
+        assertFirstRowLong(
+            oneRow("key00") + "| eval d = datediff('1969-12-31 00:00:00', '1969-12-30 00:00:00') | fields d",
+            1L
+        );
+    }
+
     /**
      * DATEDIFF on two TIME operands: both anchor to the same (today's UTC) date, so their day-counts
      * cancel — matches MySQL's documented behavior of returning 0 even when the time-of-day values

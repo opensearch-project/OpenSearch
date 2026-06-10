@@ -58,16 +58,14 @@ class DateDiffAdapter implements ScalarFunctionAdapter {
     }
 
     /**
-     * {@code to_unixtime(x) / 86400} — the epoch-day index of {@code x}. {@code to_unixtime} returns
-     * BIGINT whole seconds, so the divide is integer division (truncates toward zero); for the UTC
-     * epoch seconds of any post-1970 date that equals {@code floor}, giving the calendar-day index.
-     * No explicit FLOOR — isthmus has no {@code FLOOR(i64)} signature.
-     *
-     * <p>A bare {@code TIME} operand (e.g. {@code DATEDIFF(TIME('23:59:59'), TIME('00:00:00'))}) is
-     * anchored to a TIMESTAMP first via {@link DatePartAdapters#coerceCharacterOperandToTimestamp},
-     * because {@code to_unixtime} rejects an Arrow {@code Time64}. Both TIME operands anchor to the
-     * same (today's) date, so their day-numbers cancel — matching MySQL's {@code DATEDIFF} on times
-     * returning 0.
+     * Epoch-day index of {@code x}: floor-divide {@code to_unixtime(x)} by 86400. SQL {@code /}
+     * truncates toward zero, which differs from floor for negative epoch seconds (pre-1970) — and
+     * isthmus has no {@code FLOOR(i64)} in the bound catalog, so the floor is expressed in pure
+     * integer arithmetic:
+     * <pre>{@code   floor(x / d) = (x - ((x MOD d + d) MOD d)) / d}</pre>
+     * Bare {@code TIME} operands are anchored to today's TIMESTAMP first ({@code to_unixtime}
+     * rejects {@code Time64}); both operands anchor to the same date so their day-numbers cancel,
+     * matching MySQL's {@code DATEDIFF}-on-times returning 0.
      */
     private static RexNode dayNumber(RexNode operand, RelOptCluster cluster) {
         RexBuilder rexBuilder = cluster.getRexBuilder();
@@ -77,6 +75,10 @@ class DateDiffAdapter implements ScalarFunctionAdapter {
             BigDecimal.valueOf(TimeOfDayLowering.SECONDS_PER_DAY),
             rexBuilder.getTypeFactory().createSqlType(SqlTypeName.BIGINT)
         );
-        return rexBuilder.makeCall(SqlStdOperatorTable.DIVIDE, epochSeconds, secondsPerDay);
+        RexNode mod1 = rexBuilder.makeCall(SqlStdOperatorTable.MOD, epochSeconds, secondsPerDay);
+        RexNode plusDay = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, mod1, secondsPerDay);
+        RexNode floorMod = rexBuilder.makeCall(SqlStdOperatorTable.MOD, plusDay, secondsPerDay);
+        RexNode numerator = rexBuilder.makeCall(SqlStdOperatorTable.MINUS, epochSeconds, floorMod);
+        return rexBuilder.makeCall(SqlStdOperatorTable.DIVIDE, numerator, secondsPerDay);
     }
 }
