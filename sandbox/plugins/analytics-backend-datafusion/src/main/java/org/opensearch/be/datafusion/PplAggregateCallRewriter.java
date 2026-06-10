@@ -156,11 +156,17 @@ final class PplAggregateCallRewriter {
                     call.getName()
                 );
             }
-            // PPL `dc`/`distinct_count_approx` lowers to a UDAF named DISTINCT_COUNT_APPROX whose
-            // operator identity has no substrait sig. Remap to Calcite's stock
-            // APPROX_COUNT_DISTINCT, which ADDITIONAL_AGGREGATE_SIGS binds to DataFusion's native
-            // `approx_distinct` (same single-arg expr → bigint shape).
-            case "DISTINCT_COUNT_APPROX" -> {
+            // PPL `dc`/`distinct_count`/`distinct_count_approx` lower to a user-defined agg function
+            // that the SQL plugin names "APPROX_COUNT_DISTINCT" (sql#5525) but which is a distinct
+            // operator *instance* (DistinctCountApproxLogicalAggFunction) — isthmus matches sigs by
+            // operator identity, not name, so this custom op has no substrait binding. Remap it to
+            // Calcite's stock SqlStdOperatorTable.APPROX_COUNT_DISTINCT, which ADDITIONAL_AGGREGATE_SIGS
+            // binds to DataFusion's native `approx_distinct` (same single-arg expr → bigint shape).
+            // Guard: skip the stock operator itself (already bound) so we only rewrite the PPL marker.
+            case "APPROX_COUNT_DISTINCT" -> {
+                if (aggregation == SqlStdOperatorTable.APPROX_COUNT_DISTINCT) {
+                    return call;
+                }
                 targetOp = SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
                 // APPROX_COUNT_DISTINCT is a count — its return-type inference yields BIGINT NOT NULL.
                 // Reusing the PPL call's original (nullable) BIGINT as the explicit type leaves the
