@@ -17,7 +17,6 @@
 //! and would lower a FINAL `array_agg(state)` as a single-pass aggregate that
 //! treats each row's list as one element).
 
-use std::any::Any;
 use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
@@ -73,10 +72,6 @@ fn list_element_type(dt: &DataType) -> Result<DataType> {
 }
 
 impl AggregateUDFImpl for ListMergeUdaf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         self.name
     }

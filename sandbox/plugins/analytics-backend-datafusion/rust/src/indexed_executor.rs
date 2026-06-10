@@ -119,7 +119,7 @@ pub async fn execute_indexed_query(
                 .with_metadata_cache_limit(
                     runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
                 )
-                .with_files_statistics_cache(
+                .with_file_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
         );
@@ -224,7 +224,7 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     let mut indices = BTreeSet::new();
     for expr in &exprs {
         let _ = expr.apply(|node| {
-            if let Some(col) = node.as_any().downcast_ref::<Column>() {
+            if let Some(col) = node.downcast_ref::<Column>() {
                 indices.insert(col.index());
             }
             Ok(TreeNodeRecursion::Continue)
@@ -290,9 +290,6 @@ impl fmt::Debug for PlaceholderProvider {
 
 #[async_trait::async_trait]
 impl TableProvider for PlaceholderProvider {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }

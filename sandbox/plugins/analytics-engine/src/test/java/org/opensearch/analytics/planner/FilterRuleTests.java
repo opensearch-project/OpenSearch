@@ -9,7 +9,6 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
@@ -731,7 +730,6 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         RelNode result = unwrapExchange(runPlanner(filter, context));
-        logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
         return (OpenSearchFilter) result;
     }
@@ -760,7 +758,6 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RelOptTable table = mockTable(indexNames[0], fieldNames, fieldTypes);
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         RelNode result = unwrapExchange(runPlanner(filter, context));
-        logger.info("Multi-index plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
         assertPipelineViableBackends(
             result,
@@ -783,7 +780,6 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         RelNode result = unwrapExchange(runPlanner(filter, context));
-        logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
         assertPipelineViableBackends(result, List.of(OpenSearchFilter.class, OpenSearchTableScan.class), expectedViable);
         return (OpenSearchFilter) result;

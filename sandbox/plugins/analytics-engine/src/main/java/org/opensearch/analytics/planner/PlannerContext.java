@@ -33,6 +33,7 @@ public class PlannerContext {
     private final boolean preferMetadataDriver;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
+    private boolean hasEngineNativeMergeAggregate;
     // Cluster settings the planner consults at planning time (oversampling factor + delegation
     // block-list). Defaults to planner defaults; DefaultPlanExecutor injects the live, settings-backed
     // instance via setPlannerSettings before planning.
@@ -125,6 +126,14 @@ public class PlannerContext {
 
     public OpenSearchDistributionTraitDef getDistributionTraitDef() {
         return distributionTraitDef;
+    }
+
+    public boolean hasEngineNativeMergeAggregate() {
+        return hasEngineNativeMergeAggregate;
+    }
+
+    public void setHasEngineNativeMergeAggregate(boolean value) {
+        this.hasEngineNativeMergeAggregate = value;
     }
 
     /**

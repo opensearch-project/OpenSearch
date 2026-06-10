@@ -15,7 +15,6 @@
 //! still computes a microsecond count; the call sites multiply by 1_000 at
 //! emission to widen losslessly to nanoseconds (max value 8.64e13 ≪ i64::MAX).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -50,10 +49,6 @@ impl MaketimeUdf {
 udf_identity!(MaketimeUdf, "maketime");
 
 impl ScalarUDFImpl for MaketimeUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "maketime"
     }

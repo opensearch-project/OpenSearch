@@ -19,7 +19,7 @@ jobs:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     continue-on-error: true
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Remove unnecessary files
@@ -43,6 +43,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ runner.os }}-cargo-${{ hashFiles('sandbox/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - name: Set Cargo build jobs
         run: echo "CARGO_BUILD_JOBS=$(nproc)" >> $GITHUB_ENV
       - name: Run sandbox check

@@ -469,7 +469,7 @@ impl PruningStatistics for CommonGridPageStats {
             .get(column.name())
             .and_then(|(_, _, n)| n.clone())
     }
-    fn row_counts(&self, _column: &Column) -> Option<ArrayRef> {
+    fn row_counts(&self) -> Option<ArrayRef> {
         let arr = Int64Array::from_iter_values(self.grid_row_counts.iter().map(|c| *c as i64));
         Some(Arc::new(arr) as ArrayRef)
     }

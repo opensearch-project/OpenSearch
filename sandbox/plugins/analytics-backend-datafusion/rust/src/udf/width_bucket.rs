@@ -28,7 +28,6 @@
 //!   as `span_bucket`.
 //! * Any null input → null (null propagation).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -76,9 +75,6 @@ impl Default for WidthBucketUdf {
 }
 
 impl ScalarUDFImpl for WidthBucketUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "width_bucket"
     }

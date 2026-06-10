@@ -9,7 +9,6 @@
 //! `str_to_date(input, format)` — parse with MySQL tokens → `Timestamp(us)`. Missing date fields
 //! default to 2000-01-01, missing time → 00:00:00. Unparseable → NULL; trailing input tolerated.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -44,9 +43,6 @@ impl StrToDateUdf {
 udf_identity!(StrToDateUdf, "str_to_date");
 
 impl ScalarUDFImpl for StrToDateUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "str_to_date"
     }

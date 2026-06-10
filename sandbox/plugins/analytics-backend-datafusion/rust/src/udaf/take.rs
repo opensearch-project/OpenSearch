@@ -30,7 +30,6 @@
 //!
 //! [`TakeAggFunction`]: https://github.com/opensearch-project/sql/blob/main/core/src/main/java/org/opensearch/sql/calcite/udf/udaf/TakeAggFunction.java
 
-use std::any::Any;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -93,10 +92,6 @@ impl Hash for TakeUdaf {
 }
 
 impl AggregateUDFImpl for TakeUdaf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "take"
     }
@@ -167,7 +162,7 @@ fn limit_from_args(acc_args: &AccumulatorArgs) -> Result<Option<i64>> {
     let Some(expr) = acc_args.exprs.get(1) else {
         return Ok(Some(DEFAULT_LIMIT));
     };
-    if let Some(lit) = expr.as_any().downcast_ref::<Literal>() {
+    if let Some(lit) = expr.downcast_ref::<Literal>() {
         return scalar_to_i64(lit.value()).map(Some);
     }
     Ok(None)
