@@ -316,10 +316,22 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
         @Override
         public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
-            if (argIndex == 1 && lit.getValue() instanceof BigDecimal bd) {
-                BigDecimal scaled = bd.divide(BigDecimal.valueOf(100), MathContext.DECIMAL64);
-                RelDataType doubleType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
-                return rexBuilder.makeLiteral(scaled, doubleType);
+            // The percentile literal arrives as INTEGER for the standard form percentile(x, 50)
+            // but DOUBLE for the percNN/pNN shortcut (perc50 → 50.0E0), and getValue()'s backing
+            // type differs between the two. Read it through getValueAs so both representations
+            // rescale uniformly; pattern-matching get() on BigDecimal missed the DOUBLE shortcut
+            // and let the unscaled 50.0 reach DataFusion ("must be between 0.0 and 1.0").
+            if (argIndex == 1 && SqlTypeName.NUMERIC_TYPES.contains(lit.getType().getSqlTypeName())) {
+                BigDecimal bd = lit.getValueAs(BigDecimal.class);
+                if (bd != null) {
+                    BigDecimal scaled = bd.divide(BigDecimal.valueOf(100), MathContext.DECIMAL64);
+                    RelDataType doubleType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
+                    return rexBuilder.makeLiteral(scaled, doubleType);
+                }
+                // bd == null only for a SQL-NULL percent (getValueAs returns null for NULL value) —
+                // not a valid percentile and never produced by the percNN/pNN suffix or an explicit
+                // numeric percentile() arg. Pass it through unchanged; DataFusion rejects a NULL
+                // percentile at planning. There is no scaled-vs-unscaled ambiguity (NULL ≠ 50.0).
             }
             return lit;
         }
