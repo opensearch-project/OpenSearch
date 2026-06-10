@@ -110,6 +110,8 @@ class ComparisonTemporalCoercionAdapter implements ScalarFunctionAdapter {
         return null;
     }
 
+    // TODO: annotation stripping should be centralised in FragmentConversionDriver; revisit alongside the other adapters that strip
+    // locally.
     private static RexNode stripAnnotation(RexNode node) {
         while (node instanceof OperatorAnnotation annotation && annotation.unwrap() != null) {
             node = annotation.unwrap();
