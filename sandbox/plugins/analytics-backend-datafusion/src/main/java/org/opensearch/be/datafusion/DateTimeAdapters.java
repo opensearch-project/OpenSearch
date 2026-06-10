@@ -243,12 +243,13 @@ final class DateTimeAdapters {
                 strippedValue = value;
             }
             RexNode asTimestamp = rexBuilder.makeCall(original.getType(), LOCAL_TO_TIMESTAMP_OP, List.of(strippedValue));
-            // makeLiteral(String) infers CHAR(N) from the literal's length; the convert_tz yaml
-            // binds the 2nd/3rd operands as `string` (unbounded VARCHAR), so a CHAR(6) "+00:00"
-            // would fail isthmus signature lookup (`convert_tz(precision_timestamp, char<6>, string)`).
+            // convert_tz yaml binds tz operands as unbounded `string`; cast both away from CHAR(N).
             RelDataType varchar = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
+            RexNode tzArgVarchar = SqlTypeName.CHAR_TYPES.contains(tzArg.getType().getSqlTypeName())
+                ? rexBuilder.makeCast(varchar, tzArg, true)
+                : tzArg;
             RexNode toTz = rexBuilder.makeLiteral("+00:00", varchar, true);
-            return rexBuilder.makeCall(original.getType(), ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, List.of(asTimestamp, tzArg, toTz));
+            return rexBuilder.makeCall(original.getType(), ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, List.of(asTimestamp, tzArgVarchar, toTz));
         }
 
         /** Plan-time fold of DATETIME(value-literal, tz-literal). Returns a typed TIMESTAMP literal or NULL on invalid input. */
