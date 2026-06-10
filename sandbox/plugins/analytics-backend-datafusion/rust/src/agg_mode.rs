@@ -322,4 +322,53 @@ mod tests {
         // Verify we still have other rules
         assert!(!rules.is_empty(), "Should have other optimizer rules");
     }
+
+    /// Regression: aggregate-over-Filter plan must still strip to Partial-only. The
+    /// indexed shard path builds Final(Partial(Filter(Scan))) when a delegated predicate
+    /// (e.g. lucene match()) sits below the partial agg; stripping must not be confused
+    /// by the FilterExec wrapper between the Partial and the data source.
+    #[tokio::test]
+    async fn test_strip_partial_over_filter() {
+        let mut config = SessionConfig::new();
+        config.options_mut().execution.target_partitions = 4;
+        let ctx = SessionContext::new_with_state(
+            datafusion::execution::SessionStateBuilder::new()
+                .with_config(config)
+                .with_default_features()
+                .with_physical_optimizer_rules(physical_optimizer_rules_without_combine())
+                .build(),
+        );
+        let batch = arrow_array::RecordBatch::try_new(
+            Arc::new(arrow::datatypes::Schema::new(vec![
+                arrow::datatypes::Field::new("k", arrow::datatypes::DataType::Utf8, false),
+                arrow::datatypes::Field::new("x", arrow::datatypes::DataType::Int64, false),
+            ])),
+            vec![
+                Arc::new(arrow_array::StringArray::from(vec!["a", "b", "a"])),
+                Arc::new(arrow_array::Int64Array::from(vec![1, 2, 3])),
+            ],
+        )
+        .unwrap();
+        ctx.register_batch("t", batch).unwrap();
+        let df = ctx
+            .sql("SELECT k, approx_distinct(x) FROM t WHERE x > 0 GROUP BY k")
+            .await
+            .unwrap();
+        let plan = df.create_physical_plan().await.unwrap();
+        // Sanity: the plan we strip must contain a FilterExec, otherwise this test
+        // doesn't exercise the fix.
+        assert!(
+            contains_node(&plan, "FilterExec"),
+            "Plan should contain FilterExec: {}",
+            plan_string(&plan)
+        );
+
+        let result = apply_aggregate_mode(plan, Mode::Partial).unwrap();
+        let modes = find_agg_modes(&result);
+        assert!(
+            modes.contains(&AggregateMode::Partial) && !modes.contains(&AggregateMode::Final),
+            "Strip to Partial through FilterExec failed: {}",
+            plan_string(&result)
+        );
+    }
 }

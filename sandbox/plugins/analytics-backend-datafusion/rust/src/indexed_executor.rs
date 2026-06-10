@@ -489,6 +489,11 @@ async unsafe fn execute_indexed_with_context_inner(
 
     // Java-side QTF signal: scan must emit __row_id__. Captured before consuming indexed_config below.
     let requests_row_ids = handle.indexed_config.as_ref().is_some_and(|c| c.requests_row_ids);
+    // Engine-native PARTIAL/FINAL stripping: mirror the strip applied in prepare_partial_plan
+    // and execute_with_context. Indexed path re-creates the physical plan from substrait against
+    // the IndexedTableProvider, so the prepared_plan from prepare_partial_plan can't be reused —
+    // honour the same Mode by capturing it here and applying it to the freshly built plan below.
+    let aggregate_mode = handle.aggregate_mode;
     let classification_override = handle.indexed_config.map(|config| {
         // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {
@@ -876,6 +881,13 @@ async unsafe fn execute_indexed_with_context_inner(
     log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    // Engine-native PARTIAL stripping: when this session is the shard side of a distributed
+    // engine-native-merge aggregate (e.g. dc(...) backed by HLL), force the physical plan to
+    // the Partial half so the wire emits state-suffixed columns (e.g. dc[hll_registers]: Binary)
+    // rather than a finalised scalar. Mirrors the strip in session_context::prepare_partial_plan
+    // — the indexed path re-creates the physical plan against IndexedTableProvider and so can't
+    // reuse the prepared_plan, but it must honour the same aggregate-mode contract.
+    let physical_plan = crate::agg_mode::apply_aggregate_mode(physical_plan, aggregate_mode)?;
     // Retag bit-compatible Int↔UInt output mismatches to match the substrait-declared
     // types. The target is schema_coerce::coerce_inferred_schema(physical_schema) — same
     // narrowing the partition-stream registration uses, so consumer-side StreamingTable
