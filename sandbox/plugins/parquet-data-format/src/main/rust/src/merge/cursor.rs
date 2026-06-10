@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
+use arrow_ipc::reader::FileReader as IpcFileReader;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::schema::types::SchemaDescriptor;
 
@@ -19,12 +20,12 @@ use super::heap::{get_sort_values, SortKey};
 use super::io_task::get_merge_pool;
 use super::schema::projection_indices_excluding_row_id;
 
-/// A cursor over a single sorted Parquet input file.
+/// A cursor over a single sorted input file (Parquet or IPC).
 ///
 /// Each cursor reads batches sequentially and prefetches the next batch on the
 /// shared Rayon pool to overlap IO with merge computation.
 pub struct FileCursor {
-    reader: Arc<Mutex<parquet::arrow::arrow_reader::ParquetRecordBatchReader>>,
+    reader: Arc<Mutex<Box<dyn Iterator<Item = Result<RecordBatch, arrow::error::ArrowError>> + Send>>>,
     prefetch_rx: std::sync::mpsc::Receiver<Option<MergeResult<RecordBatch>>>,
     prefetch_tx: std::sync::mpsc::SyncSender<Option<MergeResult<RecordBatch>>>,
     prefetch_pending: bool,
@@ -112,7 +113,131 @@ impl FileCursor {
         let (prefetch_tx, prefetch_rx) =
             std::sync::mpsc::sync_channel::<Option<MergeResult<RecordBatch>>>(1);
 
+        let reader: Box<dyn Iterator<Item = Result<RecordBatch, arrow::error::ArrowError>> + Send> =
+            Box::new(reader);
         let reader = Arc::new(Mutex::new(reader));
+
+        let mut cursor = Self {
+            reader,
+            prefetch_rx,
+            prefetch_tx,
+            prefetch_pending: false,
+            current_batch: Some(first_batch),
+            row_idx: 0,
+            file_id,
+            sort_col_indices,
+            sort_col_types,
+            nulls_first: nulls_first.to_vec(),
+        };
+
+        cursor.start_prefetch();
+
+        Ok((cursor, projected_schema, parquet_schema_descr, writer_generation, total_row_count))
+    }
+
+    /// Opens an Arrow IPC file and creates a cursor positioned at the first row.
+    ///
+    /// Unlike `new()`, which reads metadata from the Parquet file, this constructor
+    /// accepts pre-known metadata (schema, writer_generation, total_row_count) from
+    /// the caller — typically the `SortingChunkedWriter` that produced the IPC files.
+    ///
+    /// Returns `(cursor, projected_arrow_schema, parquet_schema_descriptor, writer_generation, total_row_count)`.
+    pub fn new_from_ipc(
+        path: &str,
+        file_id: usize,
+        sort_columns: &[String],
+        nulls_first: &[bool],
+        batch_size: usize,
+        schema: Arc<ArrowSchema>,
+        writer_generation: i64,
+        total_row_count: usize,
+    ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
+        let file = File::open(path)?;
+        let ipc_reader = IpcFileReader::try_new(file, None).map_err(|e| {
+            MergeError::Arrow(e)
+        })?;
+
+        let mut sort_col_types = Vec::with_capacity(sort_columns.len());
+        for col_name in sort_columns {
+            let dt = schema
+                .fields()
+                .iter()
+                .find(|f| f.name() == col_name.as_str())
+                .map(|f| f.data_type().clone())
+                .ok_or_else(|| {
+                    MergeError::Logic(format!(
+                        "Sort column '{}' not found in IPC file '{}' (cursor {})",
+                        col_name, path, file_id
+                    ))
+                })?;
+            sort_col_types.push(dt);
+        }
+
+        // Build a SchemaDescriptor from the Arrow schema for MergeContext compatibility.
+        // We exclude the __row_id__ column from the projected schema (same as Parquet path),
+        // then build a parquet SchemaDescriptor using the same approach as the Parquet path.
+        let projection_indices = projection_indices_excluding_row_id(&schema);
+
+        // Create a projected schema (excluding __row_id__)
+        let projected_fields: Vec<_> = projection_indices
+            .iter()
+            .map(|&i| schema.field(i).clone())
+            .collect();
+        let projected_arrow_schema = Arc::new(ArrowSchema::new(projected_fields));
+
+        // Build a Parquet SchemaDescriptor from the full schema (including __row_id__).
+        let converter = parquet::arrow::ArrowSchemaConverter::new();
+        let parquet_schema_descr = converter.convert(&schema)?;
+
+        // Wrap the IPC reader as a filtering iterator that projects away __row_id__
+        // and respects batch_size by slicing.
+        let projection_indices_clone = projection_indices.clone();
+        let projected_schema_for_iter = projected_arrow_schema.clone();
+        let ipc_iter = IpcProjectedIterator {
+            inner: ipc_reader,
+            projection_indices: projection_indices_clone,
+            projected_schema: projected_schema_for_iter.clone(),
+            batch_size,
+            buffered: None,
+            offset: 0,
+        };
+
+        // Read the first batch
+        let mut boxed_iter: Box<dyn Iterator<Item = Result<RecordBatch, arrow::error::ArrowError>> + Send> =
+            Box::new(ipc_iter);
+
+        let first_batch = match boxed_iter.next() {
+            Some(Ok(b)) if b.num_rows() > 0 => b,
+            Some(Err(e)) => return Err(e.into()),
+            _ => {
+                return Err(MergeError::Logic(format!(
+                    "IPC file '{}' (cursor {}) yielded no rows",
+                    path, file_id
+                )));
+            }
+        };
+
+        let projected_schema = first_batch.schema();
+
+        let mut sort_col_indices = Vec::with_capacity(sort_columns.len());
+        for col_name in sort_columns {
+            let idx = projected_schema
+                .fields()
+                .iter()
+                .position(|f| f.name() == col_name.as_str())
+                .ok_or_else(|| {
+                    MergeError::Logic(format!(
+                        "Sort column '{}' not found after projection in IPC file '{}'",
+                        col_name, path
+                    ))
+                })?;
+            sort_col_indices.push(idx);
+        }
+
+        let (prefetch_tx, prefetch_rx) =
+            std::sync::mpsc::sync_channel::<Option<MergeResult<RecordBatch>>>(1);
+
+        let reader = Arc::new(Mutex::new(boxed_iter));
 
         let mut cursor = Self {
             reader,
@@ -223,5 +348,80 @@ impl FileCursor {
     pub fn advance_past_batch(&mut self) -> MergeResult<bool> {
         self.current_batch = None;
         self.load_next_batch()
+    }
+}
+
+/// Iterator adapter that wraps an IPC `FileReader`, projects away columns not in
+/// `projection_indices`, and slices output batches to at most `batch_size` rows.
+/// This ensures the IPC cursor produces batches with the same schema and size
+/// characteristics as the Parquet cursor.
+struct IpcProjectedIterator {
+    inner: IpcFileReader<File>,
+    projection_indices: Vec<usize>,
+    projected_schema: Arc<ArrowSchema>,
+    batch_size: usize,
+    /// Leftover rows from the last IPC batch that didn't fit in batch_size.
+    buffered: Option<RecordBatch>,
+    /// Current offset within `buffered`.
+    offset: usize,
+}
+
+// Safety: IpcFileReader<File> is Send (File is Send, the reader holds no Rc/Cell).
+unsafe impl Send for IpcProjectedIterator {}
+
+impl IpcProjectedIterator {
+    /// Project a batch to only the columns in `projection_indices`.
+    fn project_batch(&self, batch: &RecordBatch) -> Result<RecordBatch, arrow::error::ArrowError> {
+        let columns: Vec<_> = self.projection_indices.iter().map(|&i| batch.column(i).clone()).collect();
+        RecordBatch::try_new(self.projected_schema.clone(), columns)
+    }
+
+    /// Try to fill `buffered` from the inner IPC reader. Returns true if data available.
+    fn fill_buffer(&mut self) -> Option<Result<(), arrow::error::ArrowError>> {
+        loop {
+            match self.inner.next() {
+                Some(Ok(batch)) if batch.num_rows() > 0 => {
+                    match self.project_batch(&batch) {
+                        Ok(projected) => {
+                            self.buffered = Some(projected);
+                            self.offset = 0;
+                            return Some(Ok(()));
+                        }
+                        Err(e) => return Some(Err(e)),
+                    }
+                }
+                Some(Ok(_)) => continue, // skip empty batches
+                Some(Err(e)) => return Some(Err(e)),
+                None => return None,
+            }
+        }
+    }
+}
+
+impl Iterator for IpcProjectedIterator {
+    type Item = Result<RecordBatch, arrow::error::ArrowError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // If no buffered batch, try to read one from the IPC reader
+        if self.buffered.is_none() {
+            match self.fill_buffer() {
+                Some(Ok(())) => {}
+                Some(Err(e)) => return Some(Err(e)),
+                None => return None,
+            }
+        }
+
+        let batch = self.buffered.as_ref().unwrap();
+        let remaining = batch.num_rows() - self.offset;
+        let take = remaining.min(self.batch_size);
+        let slice = batch.slice(self.offset, take);
+        self.offset += take;
+
+        if self.offset >= batch.num_rows() {
+            self.buffered = None;
+            self.offset = 0;
+        }
+
+        Some(Ok(slice))
     }
 }

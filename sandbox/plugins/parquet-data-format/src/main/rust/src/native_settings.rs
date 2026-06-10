@@ -38,6 +38,7 @@ pub struct NativeSettings {
     pub row_group_max_bytes: Option<usize>,
     pub merge_rayon_threads: Option<usize>,
     pub merge_io_threads: Option<usize>,
+    pub ipc_sorted_chunks: Option<bool>,
 }
 
 impl NativeSettings {

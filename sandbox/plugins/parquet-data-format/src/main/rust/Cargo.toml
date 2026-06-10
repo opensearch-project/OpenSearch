@@ -27,4 +27,9 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }
+criterion = { workspace = true }
+
+[[bench]]
+name = "sorted_write_bench"
+harness = false
 
