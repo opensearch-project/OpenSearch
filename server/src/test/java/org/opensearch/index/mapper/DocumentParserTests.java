@@ -3697,6 +3697,34 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals("address should be text in reverse order", "text", ms2.fieldType("attributes.address").typeName());
     }
 
+    public void testRootLevelDisableObjectsPrefixConflict() throws Exception {
+        // Root-level disable_objects with dynamic fields that have prefix conflicts
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", true);
+        }));
+
+        // Dynamically add "address.city"
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> { b.field("address.city", "Austin"); }));
+        assertNotNull("doc1 should produce dynamic mapping update", doc1.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
+
+        // Dynamically add "address"
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> { b.field("address", "US"); }));
+        assertNotNull("doc2 should produce dynamic mapping update", doc2.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
+
+        // Assert both fields are resolvable
+        assertEquals("address.city should be text", "text", mapperService.fieldType("address.city").typeName());
+        assertEquals("address should be text", "text", mapperService.fieldType("address").typeName());
+
+        // Assert address.city is NOT treated as a multi-field of address
+        assertFalse(
+            "address.city should not be a multi-field of address",
+            mapperService.documentMapper().mappers().isMultiField("address.city")
+        );
+    }
+
     public void testDisableObjectsMappingRecoveryWithPrefixConflict() throws Exception {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.field("dynamic", false);
