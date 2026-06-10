@@ -348,13 +348,26 @@ pub struct ShardView {
 /// Returns a heap-allocated pointer (as i64) to `DataFusionRuntime`.
 /// Caller must call `close_global_runtime` exactly once to free it.
 ///
-/// # Side effect: spill directory contents are wiped
+/// # Side effect: spill directory contents are wiped (two-phase)
 ///
-/// When `spill_dir` is non-empty, every immediate child is removed before the
-/// `DiskManager` is built. This sweeps `datafusion-*/` orphans left by a
-/// non-graceful shutdown (kill -9, OOM-kill, container restart) which would
-/// otherwise accumulate forever — `create_local_dirs` in `datafusion-execution`
-/// only creates a fresh `datafusion-XXXXXX/` and never touches siblings.
+/// When `spill_dir` is non-empty, every immediate child is removed:
+///   * **Phase 1 (sync, on this thread):** top-level files and symlinks are
+///     unlinked inline; top-level subdirectories are renamed to `*.stale`
+///     siblings (metadata-only, sub-ms per entry).
+///   * **Phase 2 (async, background thread):** every `*.stale` entry is
+///     recursively removed off the boot path.
+///
+/// The split keeps boot fast even with tens of GB of orphan spill data: the
+/// boot thread pays only the rename count (≈10s of µs per orphan dir) and
+/// the recursive unlinks happen in parallel with cluster join. Re-scanning
+/// by suffix in phase 2 also cleans up `*.stale` leftovers from any prior
+/// boot whose cleanup thread did not finish.
+///
+/// This sweeps `datafusion-*/` orphans left by a non-graceful shutdown
+/// (kill -9, OOM-kill, container restart) which would otherwise accumulate
+/// forever — `create_local_dirs` in `datafusion-execution` only creates a
+/// fresh `datafusion-XXXXXX/` and never touches siblings. The fresh dir's
+/// name has no `.stale` suffix, so phase 2 cannot collide with it.
 ///
 /// The spill directory itself is preserved. It may be a pre-existing mount
 /// point whose parent the JVM user does not own; rmdir'ing the root would
@@ -362,9 +375,11 @@ pub struct ShardView {
 /// rather than descended into, so a stray symlink cannot redirect the wipe
 /// outside the spill mount.
 ///
-/// Cleanup failure aborts boot with `DataFusionError::Configuration` — if we
-/// cannot wipe orphans now, queries that need to spill would fail later
-/// mid-query anyway. Better to surface it once at boot than silently leak.
+/// Phase 1 failure aborts boot with `DataFusionError::Configuration` — if
+/// we cannot rename orphans now, queries that need to spill would fail
+/// later mid-query anyway. Phase 2 failures (including thread-spawn) are
+/// logged only; the cluster has either joined or is about to, and
+/// stragglers are reaped on the next boot.
 ///
 /// # Operator contract
 ///
@@ -411,10 +426,24 @@ pub fn create_global_runtime(
             spill_limit as u64
         };
 
-        // Wipe leaked entries from a prior non-graceful shutdown. We touch
-        // children only — the spill directory itself may be a mount point we
-        // cannot rmdir. Top-level symlinks are unlinked, never followed.
-        // Any failure aborts boot; see the rustdoc above for rationale.
+        // Wipe leaked entries from a prior non-graceful shutdown.
+        //
+        // Two-phase to keep boot fast even when prior orphans hold tens of GB:
+        //  Phase 1 (sync, on boot thread): unlink top-level files and symlinks
+        //    inline; rename top-level subdirectories to <name>.stale siblings.
+        //    Renames are metadata-only — sub-millisecond per entry, contents
+        //    are not touched. Failure aborts boot loudly with full context.
+        //  Phase 2 (async, background thread): re-scan and recursively delete
+        //    every *.stale entry. Filtering by the .stale suffix means the
+        //    fresh datafusion-XXXXXX/ that DataFusion provisions next is
+        //    never a deletion target.
+        //
+        // Symlinks and non-directory entries are unlinked inline (cheap, no
+        // benefit to deferring; also keeps the symlink defense at the leaf —
+        // we never follow symlinks during cleanup).
+        //
+        // The spill directory itself is never removed (mount-point safe).
+        // Phase 1 only requires write on spill_dir, never on its parent.
         let spill_path = PathBuf::from(spill_dir);
         if spill_path.exists() {
             let entries = fs::read_dir(&spill_path).map_err(|e| {
@@ -436,6 +465,15 @@ pub fn create_global_runtime(
                     DataFusionError::Configuration(msg)
                 })?;
                 let path = entry.path();
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+
+                // Skip already-renamed leftovers from a prior boot whose async
+                // cleanup didn't finish — phase 2 below picks them up.
+                if name_str.ends_with(".stale") {
+                    continue;
+                }
+
                 let ft = entry.file_type().map_err(|e| {
                     let msg = format!(
                         "Failed to read file type of spill entry {} (io kind={:?}): {}",
@@ -444,20 +482,87 @@ pub fn create_global_runtime(
                     log::error!("{}", msg);
                     DataFusionError::Configuration(msg)
                 })?;
-                let result = if ft.is_symlink() || !ft.is_dir() {
-                    fs::remove_file(&path)
-                } else {
-                    fs::remove_dir_all(&path)
-                };
-                if let Err(e) = result {
+
+                if ft.is_symlink() || !ft.is_dir() {
+                    if let Err(e) = fs::remove_file(&path) {
+                        let msg = format!(
+                            "Failed to clear leaked spill entry {} (io kind={:?}): {}. \
+                             Verify the process owns the spill directory before restarting.",
+                            path.display(), e.kind(), e
+                        );
+                        log::error!("{}", msg);
+                        return Err(DataFusionError::Configuration(msg));
+                    }
+                    continue;
+                }
+
+                // Rename child directory to <name>.stale within the same parent.
+                // Metadata-only; contents not touched. Same parent (spill_path),
+                // so requires only write on spill_path itself.
+                let stale = spill_path.join(format!("{}.stale", name_str));
+                if let Err(e) = fs::rename(&path, &stale) {
                     let msg = format!(
-                        "Failed to clear leaked spill entry {} (io kind={:?}): {}. \
+                        "Failed to rename leaked spill entry {} -> {} (io kind={:?}): {}. \
                          Verify the process owns the spill directory before restarting.",
-                        path.display(), e.kind(), e
+                        path.display(), stale.display(), e.kind(), e
                     );
                     log::error!("{}", msg);
                     return Err(DataFusionError::Configuration(msg));
                 }
+            }
+
+            // Phase 2: spawn the recursive deletion of all *.stale entries.
+            // Re-scan inside the thread so we pick up entries from this boot
+            // AND any *.stale leftovers from prior boots whose cleanup didn't
+            // finish. Errors inside the thread are logged only — the cluster
+            // has not yet joined, but stragglers are recoverable next boot.
+            //
+            // Spawn failure itself is rare (EAGAIN/ENOMEM under extreme system
+            // pressure) and not boot-fatal: the disk is already in a valid
+            // state for DataFusion to start; the *.stale entries just persist
+            // until a future boot with a healthy thread library reaps them.
+            // Failing boot here would be more disruptive than the wasted disk.
+            let spill_path_for_gc = spill_path.clone();
+            if let Err(e) = std::thread::Builder::new()
+                .name("datafusion-spill-gc".to_string())
+                .spawn(move || {
+                    let entries = match fs::read_dir(&spill_path_for_gc) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            log::warn!(
+                                "Background spill cleanup: failed to enumerate {} (io kind={:?}): {}",
+                                spill_path_for_gc.display(), e.kind(), e
+                            );
+                            return;
+                        }
+                    };
+                    for entry in entries {
+                        let entry = match entry {
+                            Ok(e) => e,
+                            Err(e) => {
+                                log::warn!("Background spill cleanup: read_dir error: {}", e);
+                                continue;
+                            }
+                        };
+                        let name = entry.file_name();
+                        if !name.to_string_lossy().ends_with(".stale") {
+                            continue;
+                        }
+                        let path = entry.path();
+                        if let Err(e) = fs::remove_dir_all(&path) {
+                            log::warn!(
+                                "Background spill cleanup: failed to remove {} (io kind={:?}): {}",
+                                path.display(), e.kind(), e
+                            );
+                        }
+                    }
+                })
+            {
+                log::warn!(
+                    "Failed to spawn background spill cleanup thread: {}. \
+                     Renamed *.stale entries will accumulate until the next successful boot.",
+                    e
+                );
             }
         }
 
@@ -1756,6 +1861,19 @@ mod tests {
     /// tests would race on these globals and produce flaky assertions.
     static SPILL_GLOBALS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    /// Test helper: poll until `predicate` returns true or `timeout_ms` elapses.
+    /// Used to wait on the background spill-cleanup thread without an arbitrary sleep.
+    fn wait_until<F: Fn() -> bool>(timeout_ms: u64, predicate: F) -> bool {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+        while std::time::Instant::now() < deadline {
+            if predicate() {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        predicate()
+    }
+
     #[test]
     fn create_global_runtime_with_empty_spill_dir_disables_disk_manager() {
         // Empty spill_dir is the "disabled" sentinel from Java. The runtime must build
@@ -1827,7 +1945,11 @@ mod tests {
         // Operator-confirmed contract: the spill directory is OpenSearch-owned and any
         // contents present at startup are leaked from a prior non-graceful shutdown.
         // create_global_runtime must clear the directory recursively (files AND
-        // subdirectories) before constructing the DiskManager.
+        // subdirectories) before / during constructing the DiskManager.
+        //
+        // Cleanup is split: top-level files are unlinked inline on the boot thread,
+        // top-level subdirectories are renamed to *.stale inline and recursively
+        // deleted by a background thread. Wait briefly for that thread to finish.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
@@ -1840,19 +1962,27 @@ mod tests {
         fs::create_dir_all(&nested_dir).expect("seed nested subdirs");
         let nested_file = nested_dir.join("deep.tmp");
         fs::write(&nested_file, b"nested leak").expect("seed nested file");
+        let outer_subdir = tmp.path().join("subdir");
         assert!(top_file.exists());
         assert!(nested_file.exists());
 
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
         assert!(ptr > 0);
 
-        // Both seeded entries must be gone, and the spill root itself must still exist.
-        // The cleanup wipes children only — it never rmdir's the root — and DataFusion's
-        // create_local_dirs sees the existing root, skips create_dir, and provisions a
-        // fresh datafusion-XXXXXX/ inside it via tempdir_in.
-        assert!(!top_file.exists(), "top-level leaked file must be removed");
+        // Top-level file is unlinked inline — gone immediately.
+        assert!(!top_file.exists(), "top-level leaked file must be removed inline");
+
+        // Subdirectory is renamed to *.stale inline, then recursively deleted async.
+        // The original name is gone immediately; the .stale name disappears once the
+        // background thread completes.
+        assert!(!outer_subdir.exists(), "original subdir name must be gone (renamed)");
+        let stale_dir = tmp.path().join("subdir.stale");
+        let cleaned = wait_until(2000, || !stale_dir.exists());
+        assert!(cleaned, "background cleanup must remove subdir.stale within 2s");
         assert!(!nested_file.exists(), "nested leaked file must be removed");
         assert!(!nested_dir.exists(), "nested leaked subdir must be removed");
+
+        // Spill root itself must remain (cleanup wipes children only).
         assert!(tmp.path().exists(), "spill root must be preserved across cleanup");
         assert!(tmp.path().is_dir(), "spill root must remain a directory after cleanup");
 
@@ -1966,9 +2096,18 @@ mod tests {
         let ptr = result.expect("runtime build must succeed when only the parent is read-only");
         assert!(ptr > 0);
 
+        // Top-level loose file is unlinked inline.
+        assert!(!loose_file.exists(), "loose top-level file must be removed inline");
+
+        // Subdirectory is renamed to *.stale inline; the recursive delete runs in
+        // the background thread. Wait for it to clear.
+        assert!(!leaked_dir.exists(), "leaked datafusion-* original name must be gone (renamed)");
+        let stale = spill_path.join("datafusion-aB3kF7.stale");
+        let cleaned = wait_until(2000, || !stale.exists());
+        assert!(cleaned, "background cleanup must remove datafusion-aB3kF7.stale within 2s");
         assert!(!leaked_file.exists(), "leaked file under leaked subdir must be removed");
-        assert!(!leaked_dir.exists(), "leaked datafusion-* subdir must be removed");
-        assert!(!loose_file.exists(), "loose top-level file must be removed");
+
+        // Spill root itself preserved.
         assert!(spill_path.exists(), "spill mount-point dir must be preserved");
         assert!(spill_path.is_dir(), "spill mount-point must remain a directory");
 
@@ -2006,6 +2145,65 @@ mod tests {
             fs::read(&outside).expect("read outside file"),
             b"must NOT be touched",
             "symlink target contents must be preserved verbatim"
+        );
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    /// Phase 1 (sync rename) must observably move each orphan subdir to a
+    /// *.stale name. Phase 2 then removes the *.stale entries asynchronously.
+    /// This pins the rename behavior so a future refactor that goes back to
+    /// inline recursive removal would be flagged.
+    #[test]
+    fn create_global_runtime_renames_orphan_subdirs_to_stale_then_async_removes() {
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        let leaked_a = tmp.path().join("datafusion-aB3kF7");
+        fs::create_dir(&leaked_a).expect("create leaked a");
+        fs::write(leaked_a.join("tmp_001.arrow"), b"data a").expect("write a");
+        let leaked_b = tmp.path().join("datafusion-Xy9pQ2");
+        fs::create_dir(&leaked_b).expect("create leaked b");
+        fs::write(leaked_b.join("tmp_002.arrow"), b"data b").expect("write b");
+
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        // Originals were renamed inline — gone immediately by the original name.
+        assert!(!leaked_a.exists(), "original orphan a must be renamed away");
+        assert!(!leaked_b.exists(), "original orphan b must be renamed away");
+
+        // Phase 2 will eventually remove both *.stale entries.
+        let stale_a = tmp.path().join("datafusion-aB3kF7.stale");
+        let stale_b = tmp.path().join("datafusion-Xy9pQ2.stale");
+        let cleaned = wait_until(2000, || !stale_a.exists() && !stale_b.exists());
+        assert!(cleaned, "background cleanup must remove both *.stale entries within 2s");
+
+        unsafe { close_global_runtime(ptr) };
+    }
+
+    /// Pre-existing *.stale entries from a prior boot whose phase 2 didn't finish
+    /// must be cleaned up by the next boot's phase 2, and phase 1 must not
+    /// double-suffix them (no datafusion-old.stale.stale).
+    #[test]
+    fn create_global_runtime_cleans_prior_boot_stale_entries() {
+        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spill_path = tmp.path().to_str().expect("utf-8 path");
+
+        let leftover = tmp.path().join("datafusion-old.stale");
+        fs::create_dir(&leftover).expect("create leftover");
+        fs::write(leftover.join("residue.arrow"), b"prior boot data").expect("write residue");
+
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
+        assert!(ptr > 0);
+
+        let cleaned = wait_until(2000, || !leftover.exists());
+        assert!(cleaned, "prior-boot .stale leftover must be cleaned within 2s");
+        assert!(
+            !tmp.path().join("datafusion-old.stale.stale").exists(),
+            "phase 1 must NOT double-suffix existing .stale entries"
         );
 
         unsafe { close_global_runtime(ptr) };
