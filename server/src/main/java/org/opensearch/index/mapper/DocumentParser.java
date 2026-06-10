@@ -374,8 +374,7 @@ final class DocumentParser {
 
         for (int i = 0; i < disableObjectsIndex; i++) {
             Mapper child = current.getMapper(fullNameParts[i]);
-            if (child instanceof ObjectMapper) {
-                ObjectMapper om = (ObjectMapper) child;
+            if (child instanceof ObjectMapper om) {
                 pathMappers.add(om);
                 current = om;
             } else {
