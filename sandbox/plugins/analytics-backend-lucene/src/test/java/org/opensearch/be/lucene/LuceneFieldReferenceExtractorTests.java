@@ -66,7 +66,6 @@ public class LuceneFieldReferenceExtractorTests extends OpenSearchTestCase {
 
         assertEquals(List.of("title", "body"), refs.literalFields());
         assertTrue(refs.patternTokens().isEmpty());
-        assertFalse(refs.defaultFieldFanout());
         assertFalse("lenient defaults to false when unset (Option B)", refs.lenient());
     }
 
@@ -75,7 +74,6 @@ public class LuceneFieldReferenceExtractorTests extends OpenSearchTestCase {
         FieldReferences refs = queryStringExtractor.referencedFields(call, List.of());
 
         assertEquals(List.of("category"), refs.literalFields());
-        assertFalse(refs.defaultFieldFanout());
     }
 
     public void testQueryStringMergesExplicitAndInStringFields() {
@@ -84,7 +82,6 @@ public class LuceneFieldReferenceExtractorTests extends OpenSearchTestCase {
 
         // title (explicit + in-string, deduped) and status (in-string), first-appearance order.
         assertEquals(List.of("title", "status"), refs.literalFields());
-        assertFalse(refs.defaultFieldFanout());
     }
 
     public void testQueryStringPatternTokenNotValidatedAsLiteral() {
@@ -93,17 +90,15 @@ public class LuceneFieldReferenceExtractorTests extends OpenSearchTestCase {
 
         assertTrue("pattern must not be a literal", refs.literalFields().isEmpty());
         assertEquals(List.of("cat*"), refs.patternTokens());
-        // Explicit fields are present (cat*), so the unqualified term "hello" searches them — no fan-out.
-        assertFalse(refs.defaultFieldFanout());
     }
 
-    public void testQueryStringDefaultFieldFanout() {
+    public void testQueryStringFieldlessYieldsNoLiterals() {
         RexCall call = buildCall(null, "foo bar");
         FieldReferences refs = queryStringExtractor.referencedFields(call, List.of());
 
+        // Unqualified terms fan out to default_field at execution; nothing for the planner to validate.
         assertTrue(refs.literalFields().isEmpty());
         assertTrue(refs.patternTokens().isEmpty());
-        assertTrue(refs.defaultFieldFanout());
     }
 
     public void testQueryStringExistsField() {
@@ -111,7 +106,6 @@ public class LuceneFieldReferenceExtractorTests extends OpenSearchTestCase {
         FieldReferences refs = queryStringExtractor.referencedFields(call, List.of());
 
         assertEquals(List.of("status"), refs.literalFields());
-        assertFalse(refs.defaultFieldFanout());
     }
 
     public void testQueryStringRangeField() {
@@ -127,7 +121,6 @@ public class LuceneFieldReferenceExtractorTests extends OpenSearchTestCase {
         FieldReferences refs = simpleQueryStringExtractor.referencedFields(call, List.of());
 
         assertEquals(List.of("title", "body"), refs.literalFields());
-        assertFalse(refs.defaultFieldFanout());
     }
 
     public void testExplicitLenientHonored() {
@@ -156,10 +149,9 @@ public class LuceneFieldReferenceExtractorTests extends OpenSearchTestCase {
         RexCall call = buildCall(null, "title:(unbalanced");
         FieldReferences refs = queryStringExtractor.referencedFields(call, List.of());
 
-        // Parse failed, no explicit fields → nothing to validate; relies on default-field fan-out.
+        // Parse failed, no explicit fields → nothing for the planner to validate; fan-out resolved at execution.
         assertTrue(refs.literalFields().isEmpty());
         assertTrue(refs.patternTokens().isEmpty());
-        assertTrue(refs.defaultFieldFanout());
     }
 
     // ---- builders ----

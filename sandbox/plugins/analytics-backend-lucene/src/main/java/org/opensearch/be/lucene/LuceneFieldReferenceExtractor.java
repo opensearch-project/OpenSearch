@@ -39,8 +39,8 @@ import java.util.Set;
  *
  * <p>For {@code query_string} only, the query string is additionally parsed with Lucene's classic
  * grammar (using a no-op analyzer) to collect fields written inside it (e.g. {@code category:A},
- * {@code age:>=10}, {@code _exists_:status}). Terms with no field qualifier set
- * {@link FieldReferences#defaultFieldFanout()}. No {@code QueryShardContext} is needed: field
+ * {@code age:>=10}, {@code _exists_:status}). Terms with no field qualifier resolve to the sentinel
+ * default field and are not emitted as references. No {@code QueryShardContext} is needed: field
  * identity is analyzer-independent.
  *
  * <p>Tokens are classified literal vs. pattern via {@link Regex#isSimpleMatchPattern} — the same
@@ -58,8 +58,8 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
 
     /**
      * Sentinel default field for parsing {@code query_string} bodies. Unqualified terms resolve to
-     * this field; seeing it marks {@link FieldReferences#defaultFieldFanout()} rather than emitting a
-     * field. Uses a control char so it can never collide with a real mapping field name.
+     * this field; it is skipped rather than emitted as a reference. Uses a control char so it can
+     * never collide with a real mapping field name.
      */
     private static final String DEFAULT_FIELD_SENTINEL = "\u0000__analytics_default_field__";
 
@@ -94,24 +94,10 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
         if (operands.fieldName() != null) {
             tokens.add(operands.fieldName());
         }
-        boolean hasExplicitFields = tokens.isEmpty() == false;
 
         // 2. For query_string, fields written inside the query string itself.
-        boolean[] sawUnqualified = { false };
         if (parseQueryString && operands.query() != null) {
-            collectInStringFields(operands.query(), tokens, sawUnqualified);
-        }
-
-        // Default-field fan-out applies only when no explicit `fields` are given. With explicit
-        // fields, unqualified terms search those fields rather than fanning out to default_field.
-        boolean defaultFieldFanout;
-        if (hasExplicitFields) {
-            defaultFieldFanout = false;
-        } else if (parseQueryString) {
-            defaultFieldFanout = sawUnqualified[0] || tokens.isEmpty();
-        } else {
-            // simple_query_string / multi_match with no explicit fields: rely on default_field.
-            defaultFieldFanout = true;
+            collectInStringFields(operands.query(), tokens);
         }
 
         // 3. Classify literal vs. pattern.
@@ -126,7 +112,7 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
         }
 
         boolean lenient = resolveLenient(call);
-        return new FieldReferences(literalFields, patternTokens, defaultFieldFanout, lenient);
+        return new FieldReferences(literalFields, patternTokens, lenient);
     }
 
     /**
@@ -137,9 +123,10 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
      * <p>Best-effort: the plan-time parser does not implement OpenSearch's {@code query_string}
      * extensions (e.g. {@code field:>15} unbounded ranges). On any parse failure, in-string
      * extraction is skipped and validation relies on the explicit {@code fields} operand — the
-     * authoritative parse happens at execution (see design decision 4).
+     * authoritative parse happens at execution (see design decision 4). Unqualified terms resolve to
+     * the sentinel default field and are not emitted as field references.
      */
-    private void collectInStringFields(String queryString, Set<String> tokens, boolean[] sawUnqualified) {
+    private void collectInStringFields(String queryString, Set<String> tokens) {
         QueryParser parser = new QueryParser(DEFAULT_FIELD_SENTINEL, Lucene.KEYWORD_ANALYZER);
         parser.setAllowLeadingWildcard(true);
         Query query;
@@ -157,10 +144,8 @@ final class LuceneFieldReferenceExtractor implements FieldReferenceExtractor {
         query.visit(new QueryVisitor() {
             @Override
             public boolean acceptField(String field) {
-                if (DEFAULT_FIELD_SENTINEL.equals(field)) {
-                    sawUnqualified[0] = true;
-                } else if (EXISTS_FIELD.equals(field) == false) {
-                    // _exists_ is handled via its term text in consumeTerms below.
+                // Skip the sentinel (unqualified terms) and _exists_ (handled via term text below).
+                if (DEFAULT_FIELD_SENTINEL.equals(field) == false && EXISTS_FIELD.equals(field) == false) {
                     tokens.add(field);
                 }
                 return true;

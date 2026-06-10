@@ -435,7 +435,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
      * path missed (field-less queries previously fell back to the TEXT assumption and were accepted).
      */
     public void testInStringLiteralNonTextRejectedViaExtractor() {
-        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), false, false);
+        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), false);
         RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
         RexNode condition = makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "severityNumber:>15");
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
@@ -453,7 +453,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
      * error proves the lenient gate skipped {@code rejectNonTextFieldsForTextFunction}.
      */
     public void testLenientTrueSuppressesEagerRejectionViaExtractor() {
-        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), false, true);
+        FieldReferences refs = new FieldReferences(List.of("severityNumber"), List.of(), true);
         RelOptTable table = mockTable("test_index", new String[] { "severityNumber" }, new SqlTypeName[] { SqlTypeName.BIGINT });
         RexNode condition = makeFieldlessFullTextCall(fullTextSqlFunction("QUERY_STRING"), "severityNumber:>15");
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
@@ -476,7 +476,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
      * {@code category} as a literal, which the planner type-checks as keyword (valid).
      */
     public void testInStringLiteralKeywordAcceptedViaExtractor() {
-        FieldReferences refs = new FieldReferences(List.of("category"), List.of(), false, false);
+        FieldReferences refs = new FieldReferences(List.of("category"), List.of(), false);
         OpenSearchFilter result = runFilter(
             "parquet",
             Map.of("category", Map.of("type", "keyword", "index", true)),

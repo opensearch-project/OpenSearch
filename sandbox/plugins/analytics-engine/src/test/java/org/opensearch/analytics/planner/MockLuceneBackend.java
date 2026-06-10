@@ -111,7 +111,7 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     protected Map<ScalarFunction, FieldReferenceExtractor> fieldReferenceExtractors() {
         FieldReferenceExtractor mapLiteralExtractor = (call, fieldStorage) -> {
             List<String> literals = extractLiteralFieldNames(call);
-            return new FieldReferences(literals, List.of(), literals.isEmpty(), false);
+            return new FieldReferences(literals, List.of(), false);
         };
         return Map.of(
             ScalarFunction.QUERY_STRING,

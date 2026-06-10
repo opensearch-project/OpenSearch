@@ -20,27 +20,24 @@ import java.util.List;
  * Field-name extraction is analyzer-independent, so this can be computed without a
  * {@code QueryShardContext}.
  *
- * <p>The planner validates only {@link #literalFields()}. {@link #patternTokens()} and
- * {@link #defaultFieldFanout()} are informational and pass through unvalidated — wildcard/regex
- * field expansion and default-field fan-out are resolved at execution by the data node, which
- * matches OpenSearch's best-effort, never-erroring treatment of those forms.
+ * <p>The planner validates only {@link #literalFields()}. {@link #patternTokens()} are
+ * informational and pass through unvalidated — wildcard/regex field expansion (and default-field
+ * fan-out for unqualified terms) is resolved at execution by the data node, which matches
+ * OpenSearch's best-effort, never-erroring treatment of those forms.
  *
- * @param literalFields      explicitly-named concrete field names (from the {@code fields}/{@code field}
- *                           operand and, for {@code query_string}, literal {@code field:} tokens in the
- *                           query string). Validated by the planner. First-appearance ordered.
- * @param patternTokens      explicitly-named wildcard/regex tokens (e.g. {@code cat*}, {@code *}),
- *                           classified via {@code Regex.isSimpleMatchPattern}. Passed through — not
- *                           expanded, not rejected.
- * @param defaultFieldFanout {@code true} when the query has terms with no field qualifier, so
- *                           OpenSearch fans them out to {@code default_field}/all queryable fields.
- *                           Passed through (assume text, no rejection).
- * @param lenient            effective lenient flag: the explicit {@code lenient} param when set,
- *                           otherwise {@code true} (assume tolerant when unset). When {@code true} the
- *                           planner suppresses eager type rejection of {@link #literalFields()}.
+ * @param literalFields explicitly-named concrete field names (from the {@code fields}/{@code field}
+ *                      operand and, for {@code query_string}, literal {@code field:} tokens in the
+ *                      query string). Validated by the planner. First-appearance ordered.
+ * @param patternTokens explicitly-named wildcard/regex tokens (e.g. {@code cat*}, {@code *}),
+ *                      classified via {@code Regex.isSimpleMatchPattern}. Passed through — not
+ *                      expanded, not rejected.
+ * @param lenient       effective lenient flag: the explicit {@code lenient} param when set,
+ *                      otherwise {@code true} (assume tolerant when unset). When {@code true} the
+ *                      planner suppresses eager type rejection of {@link #literalFields()}.
  *
  * @opensearch.internal
  */
-public record FieldReferences(List<String> literalFields, List<String> patternTokens, boolean defaultFieldFanout, boolean lenient) {
+public record FieldReferences(List<String> literalFields, List<String> patternTokens, boolean lenient) {
 
     /**
      * Normalizes null token lists to empty and wraps both in unmodifiable lists so the result is a
