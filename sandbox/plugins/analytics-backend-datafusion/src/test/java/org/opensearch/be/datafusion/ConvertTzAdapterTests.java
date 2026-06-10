@@ -64,10 +64,7 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
     private RexCall buildConvertTz(String fromLit, String toLit) {
         RelDataType tsType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
         RexNode tsRef = rexBuilder.makeInputRef(tsType, 0);
-        // 2-arg makeLiteral returns a bare RexLiteral; the 3-arg form with a
-        // nullable type wraps in a CAST, which the adapter must then peel back
-        // to inspect the string value. PPL's frontend emits the 2-arg form, so
-        // we match that here.
+        // 2-arg makeLiteral matches PPL's frontend; the nullable 3-arg form would wrap in CAST
         RexNode fromNode = rexBuilder.makeLiteral(fromLit);
         RexNode toNode = rexBuilder.makeLiteral(toLit);
         return (RexCall) rexBuilder.makeCall(convertTzOp(tsType), List.of(tsRef, fromNode, toNode));
@@ -88,13 +85,13 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertEquals("UTC", ConvertTzAdapter.canonicalizeTz("UTC"));
     }
 
-    public void testCanonicalizeTzRejectsInvalidOffsetBounds() {
-        // Hours > 14 is beyond any real-world zone.
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+15:00"));
-        assertTrue("error must include the bad value: " + ex.getMessage(), ex.getMessage().contains("+15:00"));
-
-        // Minutes > 59 is malformed.
-        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+05:60"));
+    public void testCanonicalizeTzPassesOutOfRangeOffsetsThroughUnchanged() {
+        // Syntactically-valid but out-of-range offsets are NOT rejected at plan time.
+        // They pass through verbatim so the runtime UDF (rust convert_tz::parse_offset_seconds)
+        // returns None and the row surfaces as NULL — matching legacy PPL semantics
+        // (DateTimeFunctionIT#testConvertTZ expects NULL rows for '-17:00' / '+15:00').
+        assertEquals("hours > 14 must pass through, not throw", "+15:00", ConvertTzAdapter.canonicalizeTz("+15:00"));
+        assertEquals("minutes > 59 must pass through, not throw", "+05:60", ConvertTzAdapter.canonicalizeTz("+05:60"));
     }
 
     public void testCanonicalizeTzRejectsUnknownIana() {
@@ -189,18 +186,14 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         );
     }
 
-    /**
-     * Invalid literal tz operand surfaces at plan time as
-     * {@link IllegalArgumentException} with the offending value in the message,
-     * rather than silently producing per-row NULL at runtime.
-     */
-    public void testAdaptInvalidLiteralErrorsAtPlanTime() {
+    /** unknown IANA literal -> typed NULL (out-of-range offsets fall through to the UDF for runtime NULL). */
+    public void testAdaptUnknownIanaLiteralReturnsTypedNull() {
         RexCall original = buildConvertTz("Mars/Olympus", "UTC");
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ConvertTzAdapter().adapt(original, List.of(), cluster)
-        );
-        assertTrue("error must name the offending literal for user UX: " + ex.getMessage(), ex.getMessage().contains("Mars/Olympus"));
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexLiteral);
+        assertTrue(((RexLiteral) adapted).isNull());
+        assertEquals(original.getType(), adapted.getType());
     }
 
     /**
@@ -224,5 +217,43 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertSame(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, call.getOperator());
         assertSame("column-valued from_tz must pass through unmodified", fromCol, call.getOperands().get(1));
         assertSame("column-valued to_tz must pass through unmodified", toCol, call.getOperands().get(2));
+    }
+
+    /** Identity short-circuit with VARCHAR operand under a TIMESTAMP call → SAFE-cast. */
+    public void testIdentityShortCircuitWrapsInSafeCastWhenOperandTypeDiffers() {
+        RelDataType returnType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 9), true);
+        RexNode tsLiteral = rexBuilder.makeLiteral("2021-05-12 11:34:50");
+        RexNode fromTz = rexBuilder.makeLiteral("UTC");
+        RexNode toTz = rexBuilder.makeLiteral("UTC");
+        RexCall original = (RexCall) rexBuilder.makeCall(convertTzOp(returnType), List.of(tsLiteral, fromTz, toTz));
+
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertNotSame(tsLiteral, adapted);
+        assertEquals(original.getType(), adapted.getType());
+        assertTrue(adapted instanceof RexCall);
+        assertEquals(org.apache.calcite.sql.SqlKind.SAFE_CAST, ((RexCall) adapted).getOperator().getKind());
+    }
+
+    /** UDF fallback with VARCHAR timestamp operand → SAFE-cast slot 0 to TIMESTAMP. */
+    public void testUdfFallbackWrapsVarcharOperandInSafeCast() {
+        RelDataType returnType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 9), true);
+        RexNode tsLiteral = rexBuilder.makeLiteral("2021-05-12 11:34:50");
+        RexNode fromTz = rexBuilder.makeLiteral("UTC");
+        RexNode toTz = rexBuilder.makeLiteral("America/Los_Angeles");
+        RexCall original = (RexCall) rexBuilder.makeCall(convertTzOp(returnType), List.of(tsLiteral, fromTz, toTz));
+
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexCall);
+        RexCall call = (RexCall) adapted;
+        assertSame(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, call.getOperator());
+        assertEquals(original.getType(), call.getType());
+
+        RexNode firstArg = call.getOperands().get(0);
+        assertNotSame(tsLiteral, firstArg);
+        assertEquals(original.getType(), firstArg.getType());
+        assertTrue(firstArg instanceof RexCall);
+        assertEquals(org.apache.calcite.sql.SqlKind.SAFE_CAST, ((RexCall) firstArg).getOperator().getKind());
     }
 }

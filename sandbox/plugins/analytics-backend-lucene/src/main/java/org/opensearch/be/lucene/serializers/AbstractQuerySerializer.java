@@ -29,4 +29,12 @@ public abstract class AbstractQuerySerializer implements DelegatedPredicateSeria
     }
 
     public abstract QueryBuilder buildQueryBuilder(RexCall call, List<FieldStorageInfo> fieldStorage);
+
+    /**
+     * Resolves the target Lucene field name: routes to the exact-match subfield when available
+     * (e.g. text → .keyword), otherwise uses the base field name.
+     */
+    protected static String resolveFieldName(FieldStorageInfo field) {
+        return field.getExactMatchSubfield() != null ? field.getFieldName() + "." + field.getExactMatchSubfield() : field.getFieldName();
+    }
 }

@@ -14,7 +14,6 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -85,13 +84,7 @@ public class OpenSearchAggregateRule extends RelOptRule {
         List<AggregateCall> aggCalls = aggregate.getAggCallList();
         Map<Integer, AggregateCallAnnotation> callAnnotations = new LinkedHashMap<>(aggCalls.size());
         for (int i = 0; i < aggCalls.size(); i++) {
-            // Resolve via SPI: collapse equivalent call shapes (e.g. COUNT(DISTINCT x) →
-            // APPROX_COUNT_DISTINCT) onto standard operators before downstream resolution.
-            AggregateCall aggCall = resolveAggregateCall(aggCalls.get(i));
-            if (aggCall != aggCalls.get(i)) {
-                if (aggCalls == aggregate.getAggCallList()) aggCalls = new ArrayList<>(aggCalls);
-                aggCalls.set(i, aggCall);
-            }
+            AggregateCall aggCall = aggCalls.get(i);
             List<String> callViable = resolveViableBackendsForCall(aggCall, childFieldStorage);
             if (callViable.isEmpty()) {
                 throw new IllegalStateException("No backend supports aggregate function [" + aggCall.getAggregation().getName() + "]");
@@ -128,36 +121,6 @@ public class OpenSearchAggregateRule extends RelOptRule {
                 viableBackends,
                 callAnnotations
             )
-        );
-    }
-
-    /**
-     * Returns {@code call} unchanged when its operator already matches what
-     * {@link AggregateFunction#resolveOperator} returns, otherwise a new {@link AggregateCall}
-     * built against the resolved operator.
-     */
-    private static AggregateCall resolveAggregateCall(AggregateCall call) {
-        SqlAggFunction op = call.getAggregation();
-        AggregateFunction func;
-        try {
-            func = AggregateFunction.fromSqlAggFunction(op);
-        } catch (IllegalStateException ignored) {
-            return call;
-        }
-        SqlAggFunction resolvedOp = func.resolveOperator(op, call.isDistinct(), call.getArgList().size());
-        if (resolvedOp == op) return call;
-        return AggregateCall.create(
-            resolvedOp,
-            false,
-            true,
-            call.ignoreNulls(),
-            call.rexList,
-            call.getArgList(),
-            call.filterArg,
-            call.distinctKeys,
-            call.collation,
-            call.getType(),
-            call.getName()
         );
     }
 

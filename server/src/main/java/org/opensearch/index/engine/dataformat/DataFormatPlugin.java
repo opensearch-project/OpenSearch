@@ -11,8 +11,14 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
 
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -62,6 +68,74 @@ public interface DataFormatPlugin {
         DataFormatRegistry dataFormatRegistry
     ) {
         return Map.of();
+    }
+
+    /**
+     * Assigns the capability map on the given field type. The plugin determines which capabilities
+     * its data format(s) can provide for the field type and sets the result via
+     * {@link MappedFieldType#setCapabilityMap}.
+     *
+     * <p>The default implementation handles the single-format case: the plugin's own data format
+     * claims all capabilities it supports for the field type. Composite plugins override this to
+     * delegate to primary and secondary formats in priority order.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
+     * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
+     */
+    default void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
+        if (requested.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+
+        final DataFormat format = getDataFormat();
+        final String typeName = fieldType.typeName();
+        final Set<FieldTypeCapabilities.Capability> remaining = new HashSet<>(requested);
+        final Map<DataFormat, Set<FieldTypeCapabilities.Capability>> assigned = new LinkedHashMap<>();
+
+        final Set<FieldTypeCapabilities.Capability> claimed = claimCapabilities(format, typeName, remaining);
+        if (claimed.isEmpty() == false) {
+            assigned.put(format, Set.copyOf(claimed));
+            remaining.removeAll(claimed);
+        }
+
+        if (remaining.isEmpty() == false) {
+            throw new MapperParsingException(
+                "Field ["
+                    + fieldType.name()
+                    + "] of type ["
+                    + typeName
+                    + "] requires capabilities "
+                    + requested
+                    + " but data format ["
+                    + format.name()
+                    + "] cannot cover: "
+                    + remaining
+            );
+        }
+        fieldType.setCapabilityMap(Map.copyOf(assigned));
+    }
+
+    /**
+     * Claims the capabilities that the given format supports for the specified field type.
+     */
+    static Set<FieldTypeCapabilities.Capability> claimCapabilities(
+        DataFormat format,
+        String typeName,
+        Set<FieldTypeCapabilities.Capability> required
+    ) {
+        return format.supportedFields().stream().filter(ftc -> ftc.fieldType().equals(typeName)).findFirst().map(ftc -> {
+            Set<FieldTypeCapabilities.Capability> intersection = EnumSet.noneOf(FieldTypeCapabilities.Capability.class);
+            for (FieldTypeCapabilities.Capability cap : required) {
+                if (ftc.capabilities().contains(cap)) {
+                    intersection.add(cap);
+                }
+            }
+            return (Set<FieldTypeCapabilities.Capability>) intersection;
+        }).orElse(Set.of());
     }
 
     /**

@@ -89,7 +89,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
         if (TieringUtils.isDfaIndex(state.metadata().index(request.getIndex()))) {
             // Validate FIRST — before any state-mutating or expensive operations.
             // If validation fails (e.g. warm nodes full, too many concurrent requests),
-            // reject immediately without adding a read-only block or running prepare.
+            // reject immediately without adding a write block or running prepare.
             // Note: validation also runs inside TieringService.tier() for double-safety.
             try {
                 Index index = resolveRequestIndex(indexNameExpressionResolver, request.getIndex(), state);
@@ -99,7 +99,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                 listener.onFailure(e);
                 return;
             }
-            logger.info("Index [{}] is a DFA index, adding read-only block and performing pre-tiering sync", request.getIndex());
+            logger.info("Index [{}] is a DFA index, adding write block and performing pre-tiering sync", request.getIndex());
             addWriteBlockAndPrepare(request, state, listener);
         } else {
             super.clusterManagerOperation(request, state, listener);
@@ -114,7 +114,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      */
     private void addWriteBlockAndPrepare(IndexTieringRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
-            "add-read-only-block-for-tiering [" + request.getIndex() + "]",
+            "add-write-block-for-tiering [" + request.getIndex() + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -141,18 +141,15 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    logger.info("Read-only block added for index [{}], proceeding with pre-tiering sync", request.getIndex());
+                    logger.info("Write block added for index [{}], proceeding with pre-tiering sync", request.getIndex());
                     executePrepareTiering(request, newState, listener, 1);
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error("Failed to add read-only block for index [{}]", request.getIndex());
+                    logger.error("Failed to add write block for index [{}]", request.getIndex());
                     listener.onFailure(
-                        new IllegalStateException(
-                            "Failed to add read-only block for DFA index [" + request.getIndex() + "]. Please retry.",
-                            e
-                        )
+                        new IllegalStateException("Failed to add write block for DFA index [" + request.getIndex() + "]. Please retry.", e)
                     );
                 }
             }
@@ -163,7 +160,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      * Step 2: Execute the prepare tiering action (flush + refresh + waitForRemoteStoreSync) on primary shards.
      * Retries up to MAX_PREPARE_RETRIES times on shard failures before giving up.
      * On success, proceeds to step 3 (tier).
-     * On final failure, removes the read-only block to avoid leaving the index in a stuck state.
+     * On final failure, removes the write block to avoid leaving the index in a stuck state.
      */
     private void executePrepareTiering(
         IndexTieringRequest request,
@@ -197,7 +194,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                         + broadcastResponse.getFailedShards()
                         + " shard(s) failed. Please retry the tiering request.";
                     logger.error(errorMsg);
-                    removeReadOnlyBlock(request.getIndex());
+                    removeWriteBlock(request.getIndex());
                     listener.onFailure(new IllegalStateException(errorMsg));
                     return;
                 }
@@ -205,7 +202,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                 try {
                     TransportHotToWarmTierAction.super.clusterManagerOperation(request, state, listener);
                 } catch (Exception e) {
-                    removeReadOnlyBlock(request.getIndex());
+                    removeWriteBlock(request.getIndex());
                     listener.onFailure(e);
                 }
             }
@@ -229,7 +226,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                     + MAX_PREPARE_RETRIES
                     + " attempts. Please retry.";
                 logger.error(errorMsg, e);
-                removeReadOnlyBlock(request.getIndex());
+                removeWriteBlock(request.getIndex());
                 listener.onFailure(new IllegalStateException(errorMsg, e));
             }
         });
@@ -240,9 +237,9 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      * Called on prepare failure to avoid leaving the index in a stuck write-blocked state.
      * Best-effort — if this fails, the user can manually remove the block via index settings.
      */
-    private void removeReadOnlyBlock(String indexName) {
+    private void removeWriteBlock(String indexName) {
         clusterService.submitStateUpdateTask(
-            "remove-read-only-block-for-tiering [" + indexName + "]",
+            "remove-write-block-for-tiering [" + indexName + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -268,7 +265,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                 @Override
                 public void onFailure(String source, Exception e) {
                     logger.warn(
-                        "Failed to remove read-only block for index [{}] after tiering failure: {}. "
+                        "Failed to remove write block for index [{}] after tiering failure: {}. "
                             + "Block can be removed manually via index settings.",
                         indexName,
                         e
@@ -277,7 +274,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    logger.info("Read-only block removed for index [{}] after tiering failure", indexName);
+                    logger.info("Write block removed for index [{}] after tiering failure", indexName);
                 }
             }
         );

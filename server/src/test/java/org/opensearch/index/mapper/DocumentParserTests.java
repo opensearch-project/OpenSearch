@@ -37,11 +37,13 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.plugins.Plugin;
 
@@ -3653,18 +3655,15 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
         assertNotNull(mapperService.fieldType("attributes.address.city"));
 
-        ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("attributes").field("address", "US").endObject();
-        }));
+        ParsedDocument doc2 = mapperService.documentMapper()
+            .parse(source(b -> { b.startObject("attributes").field("address", "US").endObject(); }));
         if (doc2.dynamicMappingsUpdate() != null) {
             merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
         }
 
         assertNotNull("address should be resolvable", mapperService.fieldType("attributes.address"));
-        assertNotNull("address.city should be resolvable after prefix conflict",
-            mapperService.fieldType("attributes.address.city"));
-        assertNotNull("address.state should be resolvable after prefix conflict",
-            mapperService.fieldType("attributes.address.state"));
+        assertNotNull("address.city should be resolvable after prefix conflict", mapperService.fieldType("attributes.address.city"));
+        assertNotNull("address.state should be resolvable after prefix conflict", mapperService.fieldType("attributes.address.state"));
 
         assertNull(mapperService.fieldType("attributes.address.address.city"));
 
@@ -3675,14 +3674,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParsedDocument docA = ms2.documentMapper().parse(source(b -> {
-            b.startObject("attributes").field("address", "US").endObject();
-        }));
+        ParsedDocument docA = ms2.documentMapper().parse(source(b -> { b.startObject("attributes").field("address", "US").endObject(); }));
         if (docA.dynamicMappingsUpdate() != null) merge(ms2, dynamicMapping(docA.dynamicMappingsUpdate()));
 
-        ParsedDocument docB = ms2.documentMapper().parse(source(b -> {
-            b.startObject("attributes").field("address.city", "Austin").endObject();
-        }));
+        ParsedDocument docB = ms2.documentMapper()
+            .parse(source(b -> { b.startObject("attributes").field("address.city", "Austin").endObject(); }));
         if (docB.dynamicMappingsUpdate() != null) merge(ms2, dynamicMapping(docB.dynamicMappingsUpdate()));
 
         assertNotNull("address.city resolvable in reverse order", ms2.fieldType("attributes.address.city"));
@@ -3695,8 +3691,15 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startArray("dynamic_templates");
             b.startObject().startObject("strings").field("match_mapping_type", "string");
             b.startObject("mapping").field("type", "text").field("copy_to", "event_all");
-            b.startObject("fields").startObject("keyword").field("type", "keyword").field("ignore_above", 256)
-                .endObject().endObject().endObject().endObject().endObject();
+            b.startObject("fields")
+                .startObject("keyword")
+                .field("type", "keyword")
+                .field("ignore_above", 256)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             b.endArray();
             b.startObject("properties");
             b.startObject("event_all").field("type", "text").endObject();
@@ -3709,9 +3712,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
         if (doc1.dynamicMappingsUpdate() != null) merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
 
-        ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("attributes").field("address", "US").endObject();
-        }));
+        ParsedDocument doc2 = mapperService.documentMapper()
+            .parse(source(b -> { b.startObject("attributes").field("address", "US").endObject(); }));
         if (doc2.dynamicMappingsUpdate() != null) merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
 
         String mappingSource = mapperService.documentMapper().mappingSource().string();
@@ -3721,5 +3723,42 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull("address.state resolvable after round-trip", recoveredService.fieldType("attributes.address.state"));
         assertNotNull("address resolvable after round-trip", recoveredService.fieldType("attributes.address"));
         assertNull("no doubled name after round-trip", recoveredService.fieldType("attributes.address.address.city"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDynamicTextFieldWithoutKeywordMultiFieldForPluggableDataFormat() throws Exception {
+        Settings pluggableSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {}));
+        DocumentInput<?> noopInput = new CapturingDocumentInput();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")), noopInput);
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
+
+        // With pluggable data format, text field should NOT have .keyword multi-field
+        assertFalse("Text field should not have keyword multi-field with pluggable dataformat", textMapper.iterator().hasNext());
+    }
+
+    public void testDynamicTextFieldWithKeywordMultiFieldForNonPluggableDataFormat() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_text", "hello world")));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper textMapper = doc.dynamicMappingsUpdate().root().getMapper("dynamic_text");
+        assertNotNull(textMapper);
+        assertThat(textMapper, instanceOf(TextFieldMapper.class));
+
+        // Without pluggable data format, text field SHOULD have .keyword multi-field
+        assertTrue("Text field should have keyword multi-field without pluggable dataformat", textMapper.iterator().hasNext());
+        Mapper keywordSubField = textMapper.iterator().next();
+        assertThat(keywordSubField, instanceOf(KeywordFieldMapper.class));
+        assertEquals("dynamic_text.keyword", keywordSubField.name());
     }
 }

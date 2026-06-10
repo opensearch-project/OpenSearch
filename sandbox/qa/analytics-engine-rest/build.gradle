@@ -62,9 +62,9 @@ def configureAnalyticsCluster = { cluster ->
     cluster.plugin ':plugins:arrow-flight-rpc'
     cluster.plugin ':sandbox:plugins:analytics-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-datafusion'
+    cluster.plugin ':sandbox:plugins:composite-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-lucene'
     cluster.plugin ':sandbox:plugins:dsl-query-executor'
-    cluster.plugin ':sandbox:plugins:composite-engine'
     cluster.plugin ':sandbox:plugins:parquet-data-format'
     // Shim — keeps /_analytics/ppl/_explain available for ExplainApiIT, which asserts on
     // the shim's profile/stage-timing output that the real plugin doesn't emit.
@@ -105,6 +105,11 @@ def configureAnalyticsCluster = { cluster ->
     // wildcards, or comma-lists).
     cluster.setting 'cluster.pluggable.dataformat', 'composite'
 
+    // Override default block-list to empty for integration tests so all predicate shapes
+    // are exercised with delegation enabled. Production clusters retain the default
+    // block-list (IS_NULL, IS_NOT_NULL, LIKE) until the dc() local execution fix lands.
+    cluster.setting 'analytics.delegation.lucene.blocked_predicates', '[]'
+
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
@@ -121,6 +126,8 @@ integTest {
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'
+    exclude '**/SpillStatsEnabledIT.class'
+    exclude '**/YmlOversamplingIT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
@@ -179,6 +186,59 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+}
+
+// ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
+// Use the Gradle build directory so each clean build starts with a fresh empty spill
+// directory and no stale state can leak between runs (`./gradlew clean` wipes build/).
+ext.spillItDir = layout.buildDirectory.dir('spill-it').get().asFile.absolutePath
+
+// Create the directory at configuration time, before any task action runs. Cluster start
+// happens in TestClustersPlugin's TaskActionListener.beforeActions, which fires *before*
+// `doFirst` actions — putting the create in `doFirst` would race the cluster boot and
+// (since Security.addFilePermissions fails loudly on a missing spill directory) crash
+// the node immediately. Configuration-phase creation runs once per Gradle invocation,
+// before any task starts, with no possible race.
+java.nio.file.Files.createDirectories(java.nio.file.Paths.get(spillItDir))
+
+task integTestSpillEnabled(type: RestIntegTestTask) {
+    description = 'Runs spill-stats IT with spill enabled (datafusion.spill_directory configured)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.SpillStatsEnabledIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestSpillEnabled)
+
+testClusters.integTestSpillEnabled {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    // The collector falls back to 0s when the directory does not exist; using java.io.tmpdir
+    // guarantees a real path and exercises the FileStore lookup branch in
+    // SpillStatsCollector.collect(...). The directory is created in the task's doFirst
+    // block above so DataFusionPlugin's boot writability probe succeeds.
+    setting 'datafusion.spill_directory', spillItDir
+    setting 'datafusion.spill_memory_limit_bytes', '1073741824'
+}
+
+// ── YML oversampling variant: verifies TopK fires from opensearch.yml setting ─
+task integTestYmlOversampling(type: RestIntegTestTask) {
+    description = 'Verifies TopK oversampling works when set via opensearch.yml (node settings)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.YmlOversamplingIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestYmlOversampling)
+
+testClusters.integTestYmlOversampling {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'analytics.shard_bucket_oversampling_factor', '2.0'
 }
 
 // Run against an external cluster (no testClusters lifecycle):

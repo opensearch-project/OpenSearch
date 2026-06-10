@@ -41,7 +41,6 @@
 //!    + width`; label via the same integer/float formatter as span_bucket
 //!    and width_bucket.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -81,9 +80,6 @@ impl Default for RangeBucketUdf {
 }
 
 impl ScalarUDFImpl for RangeBucketUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "range_bucket"
     }

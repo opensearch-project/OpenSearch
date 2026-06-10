@@ -30,7 +30,13 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -170,6 +176,68 @@ public class LuceneFilterDelegationHandleQueryCacheTests extends OpenSearchTestC
         Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         int count = countMatchesOnLeaf(weight, reader.leaves().get(0));
         assertEquals(50, count);
+    }
+
+    /**
+     * Regression for the self-union (multisearch / append) node crash: two separate
+     * {@code IndexSearcher} instances over the SAME reader, both wired to one shared query cache,
+     * cache a {@code Weight} against searcher A's reader-context then evaluate it via searcher B —
+     * tripping Lucene's "top-reader used to create Weight is not the same as the current reader's
+     * top-reader" assertion (fatal across the FFM upcall). {@link LuceneReader#searcher} hands out
+     * ONE shared searcher per reader, so both delegated scans share a consistent reader-context.
+     */
+    public void testSharedSearcherSurvivesTwoScansWithSharedCache() throws Exception {
+        LRUQueryCache cache = new LRUQueryCache(100, 10 * 1024 * 1024, context -> true, 256);
+        AlwaysCachePolicy policy = new AlwaysCachePolicy();
+        LuceneReader luceneReader = buildLuceneReader();
+        Query query = new org.apache.lucene.search.TermQuery(new org.apache.lucene.index.Term("tag", "hello"));
+        var leaf = reader.leaves().get(0);
+
+        // Branch A — populates the shared cache against the shared searcher's reader-context.
+        IndexSearcher searcherA = luceneReader.searcher(cache, policy);
+        Weight weightA = searcherA.createWeight(searcherA.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        assertEquals("branch A matches 50 docs", 50, countMatchesOnLeaf(weightA, leaf));
+
+        // Branch B — second delegated scan over the same reader. Must be the SAME searcher instance,
+        // so reusing the cached Weight does not trip the top-reader assertion.
+        IndexSearcher searcherB = luceneReader.searcher(cache, policy);
+        assertSame("self-union scans must share one searcher per reader", searcherA, searcherB);
+        Weight weightB = searcherB.createWeight(searcherB.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        assertEquals("branch B (cache hit) matches the same 50 docs", 50, countMatchesOnLeaf(weightB, leaf));
+        assertTrue("second scan should hit the shared cache", cache.getHitCount() >= 1);
+    }
+
+    /**
+     * Multi-partition safety: DataFusion fans a scan across partitions that concurrently call
+     * {@code scorer(leaf)} on the shared searcher's Weight. Each gets its own Scorer and sees the
+     * same matches, with no exception escaping.
+     */
+    public void testSharedSearcherConcurrentScorersAcrossPartitions() throws Exception {
+        LRUQueryCache cache = new LRUQueryCache(100, 10 * 1024 * 1024, context -> true, 256);
+        AlwaysCachePolicy policy = new AlwaysCachePolicy();
+        IndexSearcher searcher = buildLuceneReader().searcher(cache, policy);
+        Query query = new org.apache.lucene.search.TermQuery(new org.apache.lucene.index.Term("tag", "hello"));
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        var leaf = reader.leaves().get(0);
+
+        int partitions = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(partitions);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<Integer>> futures = new ArrayList<>();
+            for (int p = 0; p < partitions; p++) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return countMatchesOnLeaf(weight, leaf);
+                }));
+            }
+            start.countDown();
+            for (Future<Integer> f : futures) {
+                assertEquals("each concurrent partition must see all 50 matches", 50, (int) f.get());
+            }
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private int countMatchesOnLeaf(Weight weight, org.apache.lucene.index.LeafReaderContext leaf) throws IOException {

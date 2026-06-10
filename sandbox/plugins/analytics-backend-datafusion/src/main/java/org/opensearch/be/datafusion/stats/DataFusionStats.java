@@ -34,6 +34,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
     private final NativeExecutorsStats nativeExecutorsStats; // nullable
     private final PartitionGateStats datanodeGateStats; // nullable
     private final PartitionGateStats coordinatorGateStats; // nullable
+    private final SpillStats spillStats; // nullable
 
     /**
      * Construct from components.
@@ -41,15 +42,18 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
      * @param nativeExecutorsStats  the native executor metrics (nullable)
      * @param datanodeGateStats     the datanode partition gate metrics (nullable)
      * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
+     * @param spillStats            the spill directory stats
      */
     public DataFusionStats(
         NativeExecutorsStats nativeExecutorsStats,
         PartitionGateStats datanodeGateStats,
-        PartitionGateStats coordinatorGateStats
+        PartitionGateStats coordinatorGateStats,
+        SpillStats spillStats
     ) {
         this.nativeExecutorsStats = nativeExecutorsStats;
         this.datanodeGateStats = datanodeGateStats;
         this.coordinatorGateStats = coordinatorGateStats;
+        this.spillStats = spillStats;
     }
 
     /**
@@ -62,6 +66,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         this.nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
         this.datanodeGateStats = in.readOptionalWriteable(PartitionGateStats::new);
         this.coordinatorGateStats = in.readOptionalWriteable(PartitionGateStats::new);
+        this.spillStats = in.readOptionalWriteable(SpillStats::new);
     }
 
     @Override
@@ -69,6 +74,7 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(nativeExecutorsStats);
         out.writeOptionalWriteable(datanodeGateStats);
         out.writeOptionalWriteable(coordinatorGateStats);
+        out.writeOptionalWriteable(spillStats);
     }
 
     @Override
@@ -81,6 +87,9 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         }
         if (coordinatorGateStats != null) {
             coordinatorGateStats.toXContent(builder, params);
+        }
+        if (spillStats != null) {
+            spillStats.toXContent(builder, params);
         }
         return builder;
     }
@@ -106,6 +115,13 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         return coordinatorGateStats;
     }
 
+    /**
+     * Returns the spill directory metrics, or {@code null} if absent.
+     */
+    public SpillStats getSpillStats() {
+        return spillStats;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -113,11 +129,12 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         DataFusionStats that = (DataFusionStats) o;
         return Objects.equals(nativeExecutorsStats, that.nativeExecutorsStats)
             && Objects.equals(datanodeGateStats, that.datanodeGateStats)
-            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats);
+            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats)
+            && Objects.equals(spillStats, that.spillStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats);
+        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats, spillStats);
     }
 }

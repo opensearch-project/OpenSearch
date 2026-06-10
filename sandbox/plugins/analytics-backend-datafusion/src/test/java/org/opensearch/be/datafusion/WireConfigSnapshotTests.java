@@ -17,7 +17,7 @@ import java.lang.foreign.ValueLayout;
 public class WireConfigSnapshotTests extends OpenSearchTestCase {
 
     public void testByteSize() {
-        assertEquals(72L, WireConfigSnapshot.BYTE_SIZE);
+        assertEquals(80L, WireConfigSnapshot.BYTE_SIZE);
     }
 
     public void testWriteToWritesCorrectValuesAtCorrectOffsets() {
@@ -31,6 +31,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             .singleCollectorStrategy(2)
             .treeCollectorStrategy(1)
             .queryStrategy(2)
+            .indexedDynamicFilterPushdown(true)
             .build();
 
         try (Arena arena = Arena.ofConfined()) {
@@ -46,6 +47,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             assertEquals(2, segment.get(ValueLayout.JAVA_INT, 60)); // single_collector_strategy
             assertEquals(1, segment.get(ValueLayout.JAVA_INT, 64)); // tree_collector_strategy
             assertEquals(2, segment.get(ValueLayout.JAVA_INT, 68)); // query_strategy = IndexedPredicateOnly
+            assertEquals(1, segment.get(ValueLayout.JAVA_INT, 76)); // indexed_dynamic_filter_pushdown = true
         }
     }
 
@@ -81,12 +83,14 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
         assertEquals(8192, snapshot.batchSize());
         assertEquals(4, snapshot.targetPartitions());
         assertEquals(false, snapshot.parquetPushdownFilters());
+        assertEquals(true, snapshot.bloomFilterOnRead());
         assertEquals(1024, snapshot.minSkipRunDefault());
         assertEquals(0.03, snapshot.minSkipRunSelectivityThreshold(), 1e-15);
         assertEquals(1, snapshot.maxCollectorParallelism());
         assertEquals(2, snapshot.singleCollectorStrategy());  // page_range_split
         assertEquals(1, snapshot.treeCollectorStrategy());    // tighten_outer_bounds
         assertEquals(2, snapshot.queryStrategy());            // IndexedPredicateOnly
+        assertEquals(true, snapshot.indexedDynamicFilterPushdown()); // on by default
     }
 
     public void testBuilderCopyPreservesAllFields() {
@@ -94,12 +98,14 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             .batchSize(4096)
             .targetPartitions(16)
             .parquetPushdownFilters(true)
+            .bloomFilterOnRead(false)
             .minSkipRunDefault(512)
             .minSkipRunSelectivityThreshold(0.5)
             .maxCollectorParallelism(8)
             .singleCollectorStrategy(0)
             .treeCollectorStrategy(2)
             .queryStrategy(1)
+            .indexedDynamicFilterPushdown(false)
             .build();
 
         WireConfigSnapshot copy = WireConfigSnapshot.builder(original).build();
@@ -107,11 +113,13 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
         assertEquals(original.batchSize(), copy.batchSize());
         assertEquals(original.targetPartitions(), copy.targetPartitions());
         assertEquals(original.parquetPushdownFilters(), copy.parquetPushdownFilters());
+        assertEquals(original.bloomFilterOnRead(), copy.bloomFilterOnRead());
         assertEquals(original.minSkipRunDefault(), copy.minSkipRunDefault());
         assertEquals(original.minSkipRunSelectivityThreshold(), copy.minSkipRunSelectivityThreshold(), 0.0);
         assertEquals(original.maxCollectorParallelism(), copy.maxCollectorParallelism());
         assertEquals(original.singleCollectorStrategy(), copy.singleCollectorStrategy());
         assertEquals(original.treeCollectorStrategy(), copy.treeCollectorStrategy());
         assertEquals(original.queryStrategy(), copy.queryStrategy());
+        assertEquals(original.indexedDynamicFilterPushdown(), copy.indexedDynamicFilterPushdown());
     }
 }

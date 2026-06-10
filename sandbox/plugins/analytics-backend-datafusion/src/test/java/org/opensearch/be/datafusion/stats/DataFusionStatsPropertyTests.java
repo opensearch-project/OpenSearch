@@ -101,21 +101,23 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
     private DataFusionStats randomDataFusionStatsCpuPresent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), randomRuntimeMetricsWithPositiveWorkers(), randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null
         );
     }
 
     private DataFusionStats randomDataFusionStatsCpuAbsent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), null, randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null
         );
     }
 
     private DataFusionStats dataFusionStatsNullExecutors() {
-        return new DataFusionStats(null, null, null);
+        return new DataFusionStats(null, null, null, null);
     }
 
     // ---- Property 1: Writeable round-trip preserves all field values ----

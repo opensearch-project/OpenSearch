@@ -41,6 +41,8 @@ pub unsafe extern "C" fn foyer_create_cache(
     dir_ptr: *const u8,
     dir_len: u64,
     block_size_bytes: u64,
+    buffer_pool_size_bytes: u64,
+    submit_queue_size_threshold_bytes: u64,
     io_engine_ptr: *const u8,
     io_engine_len: u64,
     sweep_interval_secs: u64,
@@ -58,11 +60,12 @@ pub unsafe extern "C" fn foyer_create_cache(
         std::str::from_utf8(std::slice::from_raw_parts(io_engine_ptr, io_engine_len as usize))
             .unwrap_or("auto")
     };
-    // Return a fat Arc<dyn BlockCache> from the start — no separate wrapping step needed.
     let cache: Arc<dyn crate::traits::BlockCache> = Arc::new(FoyerCache::new(
         disk_bytes as usize,
         dir,
         block_size_bytes as usize,
+        buffer_pool_size_bytes as usize,
+        submit_queue_size_threshold_bytes as usize,
         io_engine,
         sweep_interval_secs,
         sweep_threshold_ratio,

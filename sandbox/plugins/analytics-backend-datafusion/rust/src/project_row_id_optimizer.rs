@@ -45,13 +45,12 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let rewritten = plan.transform_up(|node| {
             // Only handle DataSourceExec nodes backed by FileScanConfig
-            let Some(datasource_exec) = node.as_any().downcast_ref::<DataSourceExec>() else {
+            let Some(datasource_exec) = node.downcast_ref::<DataSourceExec>() else {
                 return Ok(Transformed::no(node));
             };
             let Some(file_scan_config) = datasource_exec
                 .data_source()
                 .as_ref()
-                .as_any()
                 .downcast_ref::<FileScanConfig>()
             else {
                 return Ok(Transformed::no(node));

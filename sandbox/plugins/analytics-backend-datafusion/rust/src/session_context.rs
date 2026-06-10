@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use native_bridge_common::log_debug;
 use datafusion::{
     common::DataFusionError,
     datasource::file_format::parquet::ParquetFormat,
@@ -47,6 +48,9 @@ pub struct SessionContextHandle {
     pub indexed_config: Option<IndexedExecutionConfig>,
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
+    /// IO runtime handle for bloom filter reads and other async I/O dispatched
+    /// from CPU executor threads (where the IO_RUNTIME thread-local may not be set).
+    pub io_handle: tokio::runtime::Handle,
     /// Aggregate execution mode for distributed partial/final stripping.
     pub(crate) aggregate_mode: crate::agg_mode::Mode,
     /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
@@ -72,7 +76,7 @@ pub struct IndexedExecutionConfig {
 /// Uses the `datafusion-substrait` consumer's `from_substrait_named_struct` for type conversion
 /// (which already marks all fields nullable). The consumer is built from the session's existing
 /// state — no throwaway SessionState needed.
-fn widen_schema_from_plan(
+pub(crate) fn widen_schema_from_plan(
     ctx: &SessionContext,
     plan_bytes: &[u8],
     table_name: &str,
@@ -162,7 +166,7 @@ pub async unsafe fn create_session_context(
                 .with_metadata_cache_limit(
                     runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
                 )
-                .with_files_statistics_cache(
+                .with_file_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
         );
@@ -201,6 +205,11 @@ pub async unsafe fn create_session_context(
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     config.options_mut().execution.target_partitions = effective_partitions;
     config.options_mut().execution.batch_size = effective_batch_size;
+    // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
+    // file-group partitioner so `output_ordering` can propagate from the scan.
+    if !shard_view.sort_fields.is_empty() {
+        config.options_mut().execution.split_file_groups_by_statistics = true;
+    }
 
     let mut state_builder = SessionStateBuilder::new()
         .with_config(config)
@@ -234,9 +243,20 @@ pub async unsafe fn create_session_context(
     crate::udwf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans.
-    let listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
+    //
+    // `target_partitions` on the listing options drives the sort-aware bin-packer in
+    // `split_groups_by_statistics_with_target_partitions`. We set it to the session's
+    // effective partition count so the bin-packer produces up to N groups (one file per
+    // group when min/max ranges can't chain). The session-state's `target_partitions`
+    // controls EnforceDistribution; this one is independent.
+    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
         .with_file_extension(".parquet")
-        .with_collect_stat(true);
+        .with_collect_stat(true)
+        .with_target_partitions(effective_partitions);
+
+    if let Some(sort_exprs) = build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders) {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
     // which differs from table_name (the concrete shard index). Extract it from the plan and
@@ -270,7 +290,9 @@ pub async unsafe fn create_session_context(
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
 
-    // Widen to the plan's base_schema if this shard is missing union columns. No-op for single-index.
+    // Widen to the plan's base_schema if this shard's parquet is missing columns the plan
+    // expects (multi-index unions, or single-index cross-shard drift). No-op when the shard
+    // already covers every base_schema column.
     let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
 
     // If widening added columns, disable stat collection: the global stats cache is keyed by
@@ -309,6 +331,11 @@ pub async unsafe fn create_session_context(
         );
         e
     })?;
+    log_debug!(
+        "create_session_context: registered table '{}' with file_sort_order_keys={}",
+        register_name,
+        shard_view.sort_fields.len()
+    );
 
     error!(
         "create_session_context: successfully registered table '{}', table_name_len={}",
@@ -325,6 +352,7 @@ pub async unsafe fn create_session_context(
         table_name: table_name.to_string(),
         indexed_config: None,
         query_config,
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: phantom,
@@ -395,9 +423,16 @@ pub async fn prepare_partial_plan(
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
-    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
-    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+    // Strip first on the raw physical plan so `force_aggregate_mode(Partial)` can find the
+    // Final/Partial pair without a RelabelExec wrapper at the root pre-empting the walk.
+    // Then derive `target_schema` and wrap with RelabelExec from the stripped plan's actual
+    // output (state-suffixed Binary for HLL Partial vs. Int64 cardinality for Final.evaluate)
+    // — otherwise RelabelExec would carry the pre-strip type tag (e.g. Int64) and fail with
+    // "non-bit-compatible types: Binary → Int64" when wrapping the stripped Partial.
     let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
+
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(stripped.schema());
+    let stripped = crate::relabel_exec::wrap_if_relabel_needed(stripped, target_schema)?;
     handle.prepared_plan = Some(stripped);
     Ok(())
 }
@@ -432,6 +467,55 @@ fn try_acquire_budget(
         config.target_partitions,
         config.batch_size,
     ).ok()
+}
+
+/// Build a per-file sort-order declaration for `ListingOptions::with_file_sort_order`.
+///
+/// This is metadata, not a sort: it tells DataFusion the parquet files are already
+/// in this order so `output_ordering` propagates through the scan,
+/// `SortPreservingMergeExec` replaces `SortExec`, and `sort_prefix` TopK fires.
+/// The OpenSearch writer enforces this sort per segment, so the claim is
+/// verifiable-by-construction (DataFusion also checks per-file min/max stats).
+///
+/// Returns `None` when the index has no `index.sort.field` configured (the input
+/// `sort_fields` slice is empty), so the caller can skip
+/// `with_file_sort_order(...)` entirely.
+///
+/// Caller contract: `sort_fields.len() == sort_orders.len()`. The Java side
+/// (`DataFusionPlugin.createReaderManager`) guarantees this — `IndexSortConfig`
+/// validates size match at index creation, so by the time we get here the
+/// lengths agree.
+///
+/// Notes for readers:
+/// - `.sort(asc, nulls_first)` constructs a `SortExpr` — it does NOT execute a
+///   sort. Misleading name; it's a tuple builder.
+/// - `Column::from_name` (vs `col(&str)`): `col` lowercases via SQL identifier
+///   normalization (`col("EventTime")` → `"eventtime"`), which silently fails
+///   lookup against case-sensitive Arrow schemas. `from_name` preserves case.
+/// - Nulls placement mirrors Lucene's general default (ASC → NULLS FIRST,
+///   DESC → NULLS LAST). `index.sort.missing` can override this per field but
+///   the override isn't propagated yet. A wrong nulls claim at worst causes
+///   DataFusion's per-file chain validator to reject the ordering and fall back
+///   to a regular `SortExec` — never wrong results.
+pub(crate) fn build_file_sort_order(
+    sort_fields: &[String],
+    sort_orders: &[String],
+) -> Option<Vec<datafusion::logical_expr::SortExpr>> {
+    if sort_fields.is_empty() {
+        return None;
+    }
+    use datafusion::common::Column;
+    use datafusion::logical_expr::{Expr, SortExpr};
+    let sort_exprs: Vec<SortExpr> = sort_fields
+        .iter()
+        .zip(sort_orders.iter())
+        .map(|(name, order)| {
+            let ascending = order.eq_ignore_ascii_case("asc");
+            let nulls_first = ascending;
+            Expr::Column(Column::from_name(name.clone())).sort(ascending, nulls_first)
+        })
+        .collect();
+    Some(sort_exprs)
 }
 
 #[cfg(test)]
@@ -566,6 +650,7 @@ mod tests {
             table_name: "t".to_string(),
             indexed_config: None,
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
+            io_handle: tokio::runtime::Handle::current(),
             aggregate_mode: Mode::Default,
             prepared_plan: None,
             phantom_reservation: None,
@@ -604,7 +689,7 @@ mod tests {
         use datafusion::datasource::listing::{
             ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
         };
-        use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
+        use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
         use datafusion::parquet::arrow::ArrowWriter;
 
         fn write_parquet(dir: &std::path::Path, name: &str, schema: SchemaRef, cols: Vec<Arc<dyn arrow::array::Array>>) {

@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
@@ -51,6 +52,7 @@ import java.util.stream.Stream;
  *   <li>Replaying incremental translog operations for unflushed data</li>
  * </ol>
  */
+@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/actions/runs/27134969547/job/80085120367?pr=21817")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CompositeRemoteStoreFsyncRecoveryIT extends RemoteStoreBaseIntegTestCase {
 

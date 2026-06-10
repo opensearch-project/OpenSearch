@@ -111,8 +111,9 @@ public class StatsEndpointRefactorPropertyTests extends OpenSearchTestCase {
         NativeExecutorsStats nes = randomBoolean() ? randomNativeExecutorsStatsCpuPresent() : randomNativeExecutorsStatsCpuAbsent();
         return new DataFusionStats(
             nes,
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null
         );
     }
 

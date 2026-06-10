@@ -72,9 +72,11 @@ import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http3.DefaultHttp3SettingsFrame;
 import io.netty.handler.codec.http3.Http3;
 import io.netty.handler.codec.http3.Http3FrameToHttpObjectCodec;
 import io.netty.handler.codec.http3.Http3ServerConnectionHandler;
+import io.netty.handler.codec.http3.Http3Settings;
 import io.netty.handler.codec.quic.QuicChannel;
 import io.netty.handler.codec.quic.QuicSslContext;
 import io.netty.handler.codec.quic.QuicSslContextBuilder;
@@ -324,6 +326,9 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
                     io.netty.handler.codec.http3.Http3.supportedApplicationProtocols()
                 ).build();
 
+                final Http3Settings http3Settings = new Http3Settings();
+                http3Settings.maxFieldSectionSize(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes());
+
                 ch.pipeline().addLast(Http3.newQuicServerCodecBuilder().sslEngineProvider(q -> {
                     final QuicSslEngine engine = sslContext.newEngine(q.alloc());
                     q.attr(HTTP_SERVER_ENGINE_KEY).set(engine);
@@ -342,7 +347,11 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
                             ch.pipeline()
                                 .addLast(
                                     new Http3ServerConnectionHandler(
-                                        new HttpChannelHandler(Netty4Http3ServerTransport.this, handlingSettings)
+                                        new HttpChannelHandler(Netty4Http3ServerTransport.this, handlingSettings),
+                                        null,
+                                        null,
+                                        new DefaultHttp3SettingsFrame(http3Settings),
+                                        true
                                     )
                                 );
                         }

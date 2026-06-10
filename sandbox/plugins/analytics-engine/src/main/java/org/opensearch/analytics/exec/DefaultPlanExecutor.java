@@ -40,6 +40,7 @@ import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.cluster.ClusterState;
@@ -93,8 +94,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile long perQueryBufferLimit;
     private volatile int maxShardsPerQuery;
     private volatile int maxConcurrentShardRequestsPerNode;
-    private volatile boolean fuseDualViable;
     private volatile boolean preferMetadataDriver;
+    private final PlannerSettings plannerSettings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AnalyticsSearchSlowLog analyticsSearchSlowLog;
 
@@ -145,11 +146,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
                 v -> maxConcurrentShardRequestsPerNode = v
             );
-        this.fuseDualViable = AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyticsPlugin.DELEGATION_FUSE_DUAL_VIABLE, v -> fuseDualViable = v);
         this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
+        // Planner settings (oversampling factor + delegation block-list); self-registers update
+        // consumers for live changes.
+        this.plannerSettings = PlannerSettings.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings(),
+            capabilityRegistry
+        );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.analyticsSearchSlowLog = analyticsSearchSlowLog;
     }
@@ -227,10 +233,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // TODO: remove the null fallback once every front-end (test-ppl-frontend,
         // dsl-query-executor) threads an EngineContextProvider.getContext() snapshot through.
         ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
-        RelNode plan = PlannerImpl.createPlan(
-            logicalFragment,
-            new PlannerContext(capabilityRegistry, planningState, indexNameExpressionResolver, false, preferMetadataDriver)
+        PlannerContext plannerContext = new PlannerContext(
+            capabilityRegistry,
+            planningState,
+            indexNameExpressionResolver,
+            false,
+            preferMetadataDriver
         );
+        plannerContext.setPlannerSettings(plannerSettings);
+        RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
@@ -238,7 +249,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Collapse multi-backend stages to a single chosen alternative before conversion
         // so the convertor runs once per stage and the wire request carries one PlanAlternative.
         PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
-        FragmentConversionDriver.convertAll(dag, capabilityRegistry, fuseDualViable);
+        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         final long planningTimeNanos = System.nanoTime() - planStartNanos;
         final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(planningTimeNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);

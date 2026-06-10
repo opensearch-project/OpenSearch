@@ -8,7 +8,6 @@
 
 //! Shard-level TableProvider with `row_base` partition column for global row ID computation.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -59,7 +58,6 @@ impl std::fmt::Debug for ShardTableProvider {
 
 #[async_trait]
 impl TableProvider for ShardTableProvider {
-    fn as_any(&self) -> &dyn Any { self }
     fn schema(&self) -> SchemaRef { self.table_schema.clone() }
     fn table_type(&self) -> TableType { TableType::Base }
 

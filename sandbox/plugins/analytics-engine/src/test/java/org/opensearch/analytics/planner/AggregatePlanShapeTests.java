@@ -9,7 +9,12 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+
+import java.util.List;
 
 /**
  * Plan-shape tests for {@link org.opensearch.analytics.planner.rel.OpenSearchAggregate}.
@@ -19,6 +24,49 @@ import org.apache.calcite.util.ImmutableBitSet;
  * ER in between.
  */
 public class AggregatePlanShapeTests extends PlanShapeTestBase {
+
+    // ---- Non-prefix groupSet: agg arg projected BEFORE the group key (the `avg(x) by span(y,5)` ----
+    // ---- shape). PARTIAL fronts the key per Calcite's contract, so FINAL must group on the prefix ----
+    // ---- range {0}, NOT the original {1}. Regression guard for the multi-shard span bug where FINAL ----
+    // ---- grouped on the partial-state column and produced spurious un-coalesced buckets. ----
+
+    /** Builds sum(col0) grouped by col1 → non-prefix groupSet {1}. */
+    private RelNode nonPrefixGroupedSum() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(0),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total_status"
+        );
+        return makeAggregate(scan, ImmutableBitSet.of(1), sum);
+    }
+
+    public void testNonPrefixGroupSet_1shard() {
+        RelNode result = runPlanner(nonPrefixGroupedSum(), singleShardContext());
+        assertPlanShape("""
+            OpenSearchAggregate(group=[{1}], total_status=[SUM($0)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
+    }
+
+    public void testNonPrefixGroupSet_2shard() {
+        // FINAL groups on {0} (key fronted by PARTIAL), NOT the original {1}. Before the fix FINAL
+        // carried {1} and grouped on the SUM column instead of the key.
+        RelNode result = runPlanner(nonPrefixGroupedSum(), multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], total_status=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchAggregate(group=[{1}], total_status=[SUM($0)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
 
     public void testStatsCountStarByKey_1shard() {
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
@@ -157,6 +205,44 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    // ---- COUNT(DISTINCT x) → APPROX_COUNT_DISTINCT(x) (engine-native HLL sketch merge) ----
+
+    /**
+     * 1-shard {@code COUNT(DISTINCT x)} — the HEP {@code OpenSearchDistinctCountRule} rewrites to
+     * {@code APPROX_COUNT_DISTINCT(x)}, then no split (single shard). SINGLE at the shard.
+     */
+    public void testCountDistinct_1shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, countDistinctCall(scan));
+        RelNode result = runPlanner(plan, singleShardContext());
+        assertPlanShape("""
+            OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
+    }
+
+    /**
+     * Multi-shard {@code COUNT(DISTINCT x)} — rewritten to {@code APPROX_COUNT_DISTINCT(x)} and then
+     * split via {@link org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule}. FINAL
+     * keeps the {@code APPROX_COUNT_DISTINCT} operator (engine-native merge: reducer == self), reads
+     * column $1 of the gathered exchange. {@code DistributedAggregateRewriter} retypes the exchange
+     * column to {@code VARBINARY} (HLL sketch state) downstream during DAG-cut + fragment conversion.
+     */
+    public void testCountDistinct_2shard() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, countDistinctCall(scan));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchAggregate(group=[{0}], dc=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

@@ -402,6 +402,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 segment.writer_generation,
                 std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                 0,
+                None,
             ));
             let _ = segment;
             Ok(eval)
@@ -439,7 +440,6 @@ async fn run_single_collector_query(
         if let Some(ref pp) = pushdown_predicate {
             let _ = pp.apply(|node| {
                 if let Some(col) = node
-                    .as_any()
                     .downcast_ref::<datafusion::physical_expr::expressions::Column>()
                 {
                     indices.insert(col.index());
@@ -546,7 +546,7 @@ fn bool_to_logical(node: &BoolNode) -> Option<datafusion::logical_expr::Expr> {
     fn lift_phys_to_logical(
         expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
     ) -> Option<Expr> {
-        let any = expr.as_any();
+        let any = expr.as_ref();
         if let Some(bin) = any.downcast_ref::<PhysBinaryExpr>() {
             let l = lift_phys_to_logical(bin.left())?;
             let r = lift_phys_to_logical(bin.right())?;
@@ -738,7 +738,6 @@ fn collect_predicate_column_indices(tree: &BoolNode) -> Vec<usize> {
     for expr in &exprs {
         let _ = expr.apply(|node| {
             if let Some(col) = node
-                .as_any()
                 .downcast_ref::<datafusion::physical_expr::expressions::Column>()
             {
                 indices.insert(col.index());
@@ -1335,7 +1334,7 @@ mod tests {
             }
         }
         walk(plan, &mut set);
-        set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::DEV)
+        set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::Dev)
             .map(|v| v.as_usize())
             .unwrap_or(0)
     }

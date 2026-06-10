@@ -381,6 +381,23 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * Regression: {@code earliest} inside an {@code eval} (Project context) over a non-null
+     * TIMESTAMP column. The {@code datetime0} column is non-null, and a folded TIMESTAMP literal
+     * is also non-null, so the comparison's inferred return type is {@code BOOLEAN NOT NULL}
+     * — but the {@code earliest} call was declared nullable BOOLEAN. Without the type-pinning
+     * cast in {@code EarliestLatestAdapter}, the enclosing Project's cached rowType (nullable
+     * BOOLEAN) trips Calcite's {@code BOOLEAN vs BOOLEAN NOT NULL} assertion at execution.
+     * All 17 calcs rows have {@code datetime0 >= 1900-01-01}, so the predicate is true everywhere.
+     */
+    public void testEarliestInProjectOverNotNullTimestampDoesNotCrash() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | eval is_after = earliest('1900-01-01 00:00:00', `datetime0`)"
+                + " | where is_after | stats count() as cnt",
+            17L
+        );
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {

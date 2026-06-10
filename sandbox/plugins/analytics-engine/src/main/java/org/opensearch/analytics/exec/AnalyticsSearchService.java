@@ -176,6 +176,17 @@ public class AnalyticsSearchService implements AutoCloseable {
                         responseHandler.onBatch(batch);
                     }
                     long fragmentTookNanos = System.nanoTime() - startNanos;
+                    // Extract and log DataFusion execution metrics at DEBUG level
+                    if (LOGGER.isDebugEnabled()) {
+                        byte[] metricsJson = exec.resources().getExecutionMetrics();
+                        if (metricsJson != null) {
+                            LOGGER.debug(
+                                "[FragmentMetrics] shard={} metrics={}",
+                                shard.shardId(),
+                                new String(metricsJson, java.nio.charset.StandardCharsets.UTF_8)
+                            );
+                        }
+                    }
                     responseHandler.onComplete();
                     ResolvedFragment resolved = exec.resolved();
                     DelegationDescriptor delegation = resolved.plan().getDelegationDescriptor();
@@ -310,7 +321,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                 rowIdVector.set(i, rowIds[i]);
             }
             rowIdVector.setValueCount(rowIds.length);
-            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
             resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);

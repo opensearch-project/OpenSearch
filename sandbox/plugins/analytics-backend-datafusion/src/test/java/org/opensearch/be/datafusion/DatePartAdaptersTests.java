@@ -177,6 +177,73 @@ public class DatePartAdaptersTests extends OpenSearchTestCase {
         assertEquals(SqlKind.CAST, ((RexCall) adapted.getOperands().get(1)).getKind());
     }
 
+    /** Cluster B: TIME column → CONCAT(today,' ',CAST AS VARCHAR) → CAST AS TIMESTAMP. */
+    public void testTimeOperandAnchoredToToday() {
+        RelDataType timeType = typeFactory.createSqlType(SqlTypeName.TIME);
+        RexNode field = rexBuilder.makeInputRef(timeType, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplDay(), List.of(field));
+
+        RexCall adapted = (RexCall) DatePartAdapters.day().adapt(original, List.of(), cluster);
+
+        // Outer node: CAST(_ AS TIMESTAMP).
+        RexNode wrapped = adapted.getOperands().get(1);
+        assertEquals(SqlKind.CAST, ((RexCall) wrapped).getKind());
+        assertSame(SqlTypeName.TIMESTAMP, wrapped.getType().getSqlTypeName());
+        // Inside the CAST: a CONCAT wrapping the original TIME (cast to VARCHAR).
+        RexCall castedExpr = (RexCall) ((RexCall) wrapped).getOperands().get(0);
+        assertEquals(SqlKind.OTHER, castedExpr.getKind());
+        assertEquals("||", castedExpr.getOperator().getName());
+    }
+
+    /** Cluster B: bare-time string {@code '17:30:00'} → CONCAT(today,' ',s) → CAST AS TIMESTAMP. */
+    public void testBareTimeStringAnchoredToToday() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode literal = rexBuilder.makeLiteral("17:30:00", varcharType, true);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplDay(), List.of(literal));
+
+        // Result: date_part('hour', CAST(CONCAT(today, s) AS TIMESTAMP)).
+        RexCall adapted = (RexCall) DatePartAdapters.hour().adapt(original, List.of(), cluster);
+
+        RexNode wrapped = adapted.getOperands().get(1);
+        assertEquals(SqlKind.CAST, ((RexCall) wrapped).getKind());
+        RexCall inner = (RexCall) ((RexCall) wrapped).getOperands().get(0);
+        assertEquals("||", inner.getOperator().getName());
+    }
+
+    /** PPL-style nullary-arg HOUR operator stand-in. */
+    private SqlFunction pplHour() {
+        return new SqlFunction(
+            "HOUR",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.INTEGER_NULLABLE,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.TIMEDATE
+        );
+    }
+
+    /** HOUR(TIME('17:30:00')) folds to a BIGINT literal at plan time (no substrait sig for (string, precision_time)). */
+    public void testHourOfTimeLiteralFoldsToInt() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType timeType = typeFactory.createSqlType(SqlTypeName.TIME);
+        SqlFunction toTimeOp = new SqlFunction(
+            "to_time",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(timeType),
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.TIMEDATE
+        );
+        RexNode strLit = rexBuilder.makeLiteral("17:30:00", varcharType, true);
+        RexCall innerToTime = (RexCall) rexBuilder.makeCall(toTimeOp, List.of(strLit));
+        RexCall original = (RexCall) rexBuilder.makeCall(pplHour(), List.of(innerToTime));
+
+        RexNode adapted = DatePartAdapters.hour().adapt(original, List.of(), cluster);
+
+        assertEquals(SqlTypeName.INTEGER, adapted.getType().getSqlTypeName());
+        assertNotSame(original, adapted);
+    }
+
     private void assertInvalidLiteralRejected(String value) {
         RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
         RexNode literal = rexBuilder.makeLiteral(value, varcharType, true);

@@ -67,7 +67,7 @@ class ToStringFunctionAdapter implements ScalarFunctionAdapter {
     private enum Format {
         HEX("hex", SqlTypeName.BIGINT),
         BINARY("binary", SqlTypeName.BIGINT),
-        COMMAS("commas", /* preserveFractional */ null),
+        COMMAS("commas", /* preserveFractional */null),
         DURATION("duration", SqlTypeName.BIGINT),
         DURATION_MILLIS("duration_millis", SqlTypeName.BIGINT);
 

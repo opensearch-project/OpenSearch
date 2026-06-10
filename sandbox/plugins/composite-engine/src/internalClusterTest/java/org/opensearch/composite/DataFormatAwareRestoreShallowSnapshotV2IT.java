@@ -161,14 +161,14 @@ public class DataFormatAwareRestoreShallowSnapshotV2IT extends AbstractSnapshotI
      * this to add lucene as a secondary format.
      */
     protected List<String> getSecondaryDataFormats() {
-        return List.of();
+        return List.of("lucene");
     }
 
     /**
      * Whether lucene is configured as a secondary format. Drives format-aware on-disk assertions.
      */
     protected boolean hasLuceneSecondary() {
-        return false;
+        return true;
     }
 
     protected Settings.Builder getIndexSettings(int numOfShards, int numOfReplicas) {

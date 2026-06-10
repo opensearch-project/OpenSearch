@@ -169,17 +169,6 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     }
 }
 
-#[ffm_safe]
-#[no_mangle]
-pub unsafe extern "C" fn parquet_sync_to_disk(
-    file_ptr: *const u8,
-    file_len: i64,
-) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_sync_to_disk: {}", e))?.to_string();
-    NativeParquetWriter::sync_to_disk(filename)
-        .map(|_| 0)
-        .map_err(|e| e.to_string())
-}
 
 #[ffm_safe]
 #[no_mangle]
@@ -498,6 +487,10 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_gen_offsets_ptr: *mut i64,
     out_gen_sizes_ptr: *mut i64,
     out_gen_count: *mut i64,
+    // Per-merge stats forwarded to the per-shard ParquetShardStatsTracker on the Java side.
+    out_flush_and_sort_chunk_count: *mut i64,
+    out_flush_and_sort_chunk_time_millis: *mut i64,
+    out_row_id_mapping_max: *mut i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -570,6 +563,11 @@ pub unsafe extern "C" fn parquet_merge_files(
     *out_gen_keys_ptr = Box::into_raw(keys) as *mut i64 as i64;
     *out_gen_offsets_ptr = Box::into_raw(offsets) as *mut i32 as i64;
     *out_gen_sizes_ptr = Box::into_raw(sizes) as *mut i32 as i64;
+
+    // Per-merge stats out-pointers — callers always pass valid pointers (matches existing convention).
+    *out_flush_and_sort_chunk_count = result.flush_and_sort_chunk_count;
+    *out_flush_and_sort_chunk_time_millis = result.flush_and_sort_chunk_time_millis;
+    *out_row_id_mapping_max = result.row_id_mapping_max;
 
     Ok(0)
 }
@@ -693,4 +691,53 @@ pub unsafe extern "C" fn parquet_free_row_id_mapping(
     if mapping_ptr != 0 && mapping_len > 0 {
         let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
     }
+}
+
+// ---------------------------------------------------------------------------
+// Native runtime metrics
+// ---------------------------------------------------------------------------
+
+/// Collect a snapshot of native runtime stats for the parquet merge path.
+///
+/// The caller passes a buffer of 11 i64s. On success, writes the 11-stat snapshot in the order
+/// documented in `ParquetNativeRuntimeStats.fromArray`. Returns 0 on success, or a negative
+/// error pointer on failure (per FFM convention).
+/// Returns 0 on success, negative error pointer on failure (per FFM convention).
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_collect_runtime_metrics(
+    out_buf: *mut i64,
+    out_len: i64,
+) -> i64 {
+    if out_buf.is_null() {
+        return Err("parquet_collect_runtime_metrics: null out_buf".to_string());
+    }
+    if out_len < 17 {
+        return Err(format!(
+            "parquet_collect_runtime_metrics: out_len {} < 17",
+            out_len
+        ));
+    }
+    let s = crate::merge::metrics::collect();
+    let arr: [i64; 17] = [
+        s.rayon_configured_threads,
+        s.rayon_merge_tasks_submitted,
+        s.rayon_merge_tasks_started,
+        s.rayon_merge_tasks_completed,
+        s.rayon_merge_tasks_failed,
+        s.rayon_merge_tasks_panicked,
+        s.rayon_merge_wall_millis,
+        s.tokio_num_workers,
+        s.tokio_num_blocking_threads,
+        s.tokio_active_tasks,
+        s.tokio_global_queue_depth,
+        s.tokio_blocking_queue_depth,
+        s.tokio_local_queue_depth_total,
+        s.tokio_polls_count_total,
+        s.tokio_overflow_count_total,
+        s.tokio_spawned_tasks_total,
+        s.tokio_workers_busy_millis_total,
+    ];
+    std::ptr::copy_nonoverlapping(arr.as_ptr(), out_buf, 17);
+    Ok(0)
 }

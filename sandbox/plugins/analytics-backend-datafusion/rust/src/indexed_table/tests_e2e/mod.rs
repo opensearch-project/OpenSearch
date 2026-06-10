@@ -39,6 +39,7 @@ use super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFil
 
 mod boolean_algebra;
 mod constant_predicate;
+mod dynamic_filter_pushdown;
 mod fuzz;
 mod metrics;
 mod multi_segment;

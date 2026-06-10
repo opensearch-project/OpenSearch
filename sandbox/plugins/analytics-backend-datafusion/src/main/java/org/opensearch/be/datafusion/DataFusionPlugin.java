@@ -33,6 +33,8 @@ import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -52,16 +54,19 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import io.substrait.extension.DefaultExtensionCatalog;
@@ -171,6 +176,49 @@ public class DataFusionPlugin extends Plugin
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Spill directory used by DataFusion's {@code DiskManager} for intermediate state when
+     * operators (HashAggregate, Sort, TopK) exceed {@link #DATAFUSION_MEMORY_POOL_LIMIT}.
+     *
+     * <p>Optional. When set, DataFusion uses {@code DiskManagerMode::Directories} to spill
+     * to the configured path. When unset (empty), DataFusion runs in
+     * {@code DiskManagerMode::Disabled} — spill is off and queries that exceed
+     * {@link #DATAFUSION_MEMORY_POOL_LIMIT} fail with a clear "DiskManager is disabled" error
+     * rather than silently spilling somewhere unexpected.
+     *
+     * <p>{@code Final} because DataFusion's {@code DiskManager} is built once at runtime
+     * startup; changing the directory mid-flight would orphan in-progress spill files.
+     */
+    public static final Setting<String> DATAFUSION_SPILL_DIRECTORY = new Setting<>(
+        "datafusion.spill_directory",
+        "",
+        Function.identity(),
+        DataFusionPlugin::validateSpillDirectory,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * Validates {@link #DATAFUSION_SPILL_DIRECTORY}. Empty (the unset sentinel) is accepted
+     * and signals that spill should be disabled. Non-empty values must parse as a {@link Path}.
+     *
+     * <p>Existence and writability are checked at boot time by the core
+     * {@code Node.assertCanWritePluginHealthPaths} probe (which consumes the path returned
+     * by {@link #getAdditionalHealthPaths(Settings)}), and at runtime by
+     * {@code FsHealthService}. This validator only constrains the syntactic form of the setting.
+     */
+    static String validateSpillDirectory(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        try {
+            Path.of(value).toAbsolutePath().normalize();
+        } catch (java.nio.file.InvalidPathException e) {
+            throw new IllegalArgumentException("Setting [datafusion.spill_directory] is not a valid path: [" + value + "]", e);
+        }
+        return value;
+    }
 
     /**
      * Computes the default for {@link #DATAFUSION_SPILL_MEMORY_LIMIT} as 50% of physical RAM.
@@ -341,7 +389,7 @@ public class DataFusionPlugin extends Plugin
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
-        String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
+        String spillDir = DATAFUSION_SPILL_DIRECTORY.get(settings);
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)
@@ -373,6 +421,19 @@ public class DataFusionPlugin extends Plugin
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_SPILL_THRESHOLD, v -> updateMemoryGuardThresholds());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_EXECUTION_CRITICAL_THRESHOLD, v -> updateMemoryGuardThresholds());
+
+        // Wire dynamic concurrency gate multiplier settings
+        int cpuThreads = DataFusionService.cpuThreadCount();
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("fragment_executor", newMax);
+        });
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER, multiplier -> {
+            int newMax = Math.max(1, (int) (cpuThreads * multiplier));
+            NativeBridge.updateConcurrencyGate("reduce", newMax);
+        });
 
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
@@ -483,6 +544,15 @@ public class DataFusionPlugin extends Plugin
         return DatafusionSettings.ALL_SETTINGS;
     }
 
+    @Override
+    public List<Path> getAdditionalHealthPaths(Settings settings) {
+        String dir = DATAFUSION_SPILL_DIRECTORY.get(settings);
+        if (dir == null || dir.isEmpty()) {
+            return List.of();
+        }
+        return List.of(Path.of(dir));
+    }
+
     /**
      * Applies a new memory pool limit to the running DataFusion runtime.
      * <p>
@@ -572,7 +642,37 @@ public class DataFusionPlugin extends Plugin
     @Override
     public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         NativeStoreHandle dataformatAwareStoreHandle = settings.dataformatAwareStoreHandles().get(settings.format());
-        return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService, dataformatAwareStoreHandle);
+        // Pull index.sort.field / index.sort.order off IndexSettings so the native reader can declare
+        // file sort order to DataFusion. Empty lists when the index has no index sort configured.
+        List<String> sortFields = List.of();
+        List<String> sortOrders = List.of();
+        IndexSettings indexSettings = settings.indexSettings();
+        if (indexSettings != null) {
+            Settings rawSettings = indexSettings.getSettings();
+            List<String> fields = IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(rawSettings);
+            if (!fields.isEmpty()) {
+                sortFields = List.copyOf(fields);
+                // IndexSortConfig validates size match at index creation, so when
+                // index.sort.order is set its length equals fields.length. When omitted,
+                // every field defaults to asc — matches IndexSortConfig behavior.
+                if (IndexSortConfig.INDEX_SORT_ORDER_SETTING.exists(rawSettings)) {
+                    sortOrders = IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(rawSettings)
+                        .stream()
+                        .map(o -> o == SortOrder.DESC ? "desc" : "asc")
+                        .toList();
+                } else {
+                    sortOrders = fields.stream().map(f -> "asc").toList();
+                }
+            }
+        }
+        return new DatafusionReaderManager(
+            settings.format(),
+            settings.shardPath(),
+            dataFusionService,
+            dataformatAwareStoreHandle,
+            sortFields,
+            sortOrders
+        );
     }
 
     @Override

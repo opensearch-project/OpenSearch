@@ -9,7 +9,6 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
@@ -28,10 +27,13 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.List;
 import java.util.Map;
@@ -86,6 +88,71 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         // Operator-level: only child backend (no delegation configured)
         assertEquals(1, result.getViableBackends().size());
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+    }
+
+    /**
+     * Keyword equality is normally viable for both backends per-predicate (see
+     * {@link #testKeywordEqualsAnnotatedWithBothBackends}). Blocking EQUALS for the Lucene backend
+     * via the delegation block-list must drop Lucene from the predicate's viable set, leaving only
+     * DataFusion — so the predicate is never delegated to Lucene.
+     */
+    public void testBlockListDropsBlockedBackendFromPredicate() {
+        DelegationBlockList blockList = DelegationBlockList.fromMap(Map.of(MockLuceneBackend.NAME, List.of(ScalarFunction.EQUALS)));
+        OpenSearchFilter result = runFilterWithBlockList(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US"),
+            blockList
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertTrue("DataFusion stays viable", annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertFalse("Lucene dropped by block-list", annotated.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertEquals(1, annotated.getViableBackends().size());
+    }
+
+    /**
+     * Safety invariant: blocking must never make a predicate unexecutable. If EVERY viable backend
+     * blocks the shape, the block-list is ignored and all backends remain (there is nowhere else to
+     * run the predicate). Here both backends block EQUALS, so the annotation keeps both.
+     */
+    public void testBlockListIgnoredWhenAllViableBackendsBlock() {
+        DelegationBlockList blockList = DelegationBlockList.fromMap(
+            Map.of(MockLuceneBackend.NAME, List.of(ScalarFunction.EQUALS), MockDataFusionBackend.NAME, List.of(ScalarFunction.EQUALS))
+        );
+        OpenSearchFilter result = runFilterWithBlockList(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US"),
+            blockList
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("both backends retained — blocking can't strand the predicate", 2, annotated.getViableBackends().size());
+    }
+
+    /**
+     * Blocking a predicate for one backend must not affect a different, non-blocked predicate shape:
+     * blocking EQUALS for Lucene leaves a keyword-equality dual-viable annotation untouched when the
+     * block targets a different backend namespace that doesn't exist.
+     */
+    public void testBlockListUnknownBackendIsNoOp() {
+        DelegationBlockList blockList = DelegationBlockList.fromMap(Map.of("not-a-backend", List.of(ScalarFunction.EQUALS)));
+        OpenSearchFilter result = runFilterWithBlockList(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
+            new String[] { "country_name" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            makeEquals(0, SqlTypeName.VARCHAR, "US"),
+            blockList
+        );
+
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals("both backends still viable", 2, annotated.getViableBackends().size());
     }
 
     // ---- Viable backends with delegation ----
@@ -649,6 +716,24 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         return runFilter(format, fields, fieldNames, fieldTypes, condition, delegationBackends(), Set.of(MockDataFusionBackend.NAME));
     }
 
+    /** Mirrors {@code runFilter} but injects a {@link DelegationBlockList} into the planner context. */
+    private OpenSearchFilter runFilterWithBlockList(
+        String format,
+        Map<String, Map<String, Object>> fields,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        RexNode condition,
+        DelegationBlockList blockList
+    ) {
+        PlannerContext context = buildContext(format, fields, List.of(DATAFUSION, LUCENE));
+        context.setPlannerSettings(PlannerSettings.of(0.0, blockList));
+        RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
+        LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
+        RelNode result = unwrapExchange(runPlanner(filter, context));
+        assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
+        return (OpenSearchFilter) result;
+    }
+
     /**
      * Variant of {@code runFilter} that resolves to {@code multipleIndexNames} concrete indices
      * sharing identical mapping/settings, simulating an alias scan. Uses
@@ -673,7 +758,6 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RelOptTable table = mockTable(indexNames[0], fieldNames, fieldTypes);
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         RelNode result = unwrapExchange(runPlanner(filter, context));
-        logger.info("Multi-index plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
         assertPipelineViableBackends(
             result,
@@ -696,7 +780,6 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
         RelNode result = unwrapExchange(runPlanner(filter, context));
-        logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
         assertPipelineViableBackends(result, List.of(OpenSearchFilter.class, OpenSearchTableScan.class), expectedViable);
         return (OpenSearchFilter) result;

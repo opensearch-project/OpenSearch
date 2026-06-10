@@ -22,7 +22,6 @@
 //! resulting {@code array_element(map_extract(...), 1)} chain to one of the
 //! per-field scalar UDFs.
 
-use std::any::Any;
 
 use datafusion::arrow::array::{ArrayRef, AsArray, StringArray, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
@@ -75,9 +74,6 @@ impl std::hash::Hash for InternalPatternWindowUdf {
 }
 
 impl WindowUDFImpl for InternalPatternWindowUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }

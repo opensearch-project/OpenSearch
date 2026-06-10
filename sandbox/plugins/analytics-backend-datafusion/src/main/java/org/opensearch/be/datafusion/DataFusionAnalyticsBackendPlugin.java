@@ -44,7 +44,6 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
-import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.analytics.spi.WindowFunctionAdapter;
@@ -268,6 +267,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.DATE_FORMAT,
         ScalarFunction.TIME_FORMAT,
         ScalarFunction.STR_TO_DATE,
+        // UTC_* are pure aliases onto DF `now` / `current_date` / `current_time`
+        // (DataFusion runs in UTC by default; PPL UTC_* just force UTC semantics).
+        ScalarFunction.UTC_DATE,
+        ScalarFunction.UTC_TIME,
+        ScalarFunction.UTC_TIMESTAMP,
+        // DAYNAME / MONTHNAME rewrite to date_format(x, '%W') / ('%M') — %W / %M
+        // render full weekday / month names via the same mysql_format tokens the
+        // date_format UDF already uses.
+        ScalarFunction.DAYNAME,
+        ScalarFunction.MONTHNAME,
+        // MINUTE_OF_DAY decomposes to date_part('hour',x)*60 + date_part('minute',x).
+        ScalarFunction.MINUTE_OF_DAY,
         ScalarFunction.ASCII,
         ScalarFunction.CONCAT_WS,
         ScalarFunction.LEFT,
@@ -356,7 +367,35 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // TIMESTAMPADD('MINUTE', 1, @timestamp)))}. Both PPL UDFs are unknown to isthmus's
         // default catalog, so adapters rewrite to DF-native interval arithmetic.
         ScalarFunction.TIMESTAMPDIFF,
-        ScalarFunction.TIMESTAMPADD
+        ScalarFunction.TIMESTAMPADD,
+        ScalarFunction.DATE_ADD,
+        ScalarFunction.DATE_SUB,
+        // PPL `ADDDATE(base, N|INTERVAL)` / `SUBDATE(...)` — share the DATE_ADD/DATE_SUB adapter;
+        // the integer-days form is normalized to INTERVAL N DAY. DATE / TIMESTAMP bases only.
+        ScalarFunction.ADDDATE,
+        ScalarFunction.SUBDATE,
+        // PPL `DATEDIFF(a, b)` — calendar-day delta, lowered to a day-index subtraction.
+        ScalarFunction.DATEDIFF,
+        // PPL epoch-arithmetic datetime scalars — lower to to_unixtime/from_unixtime + integer math.
+        ScalarFunction.TO_DAYS,
+        ScalarFunction.TO_SECONDS,
+        ScalarFunction.FROM_DAYS,
+        ScalarFunction.TIME_TO_SEC,
+        ScalarFunction.SEC_TO_TIME,
+        // PPL WEEKDAY — date_part('dow') remapped to MySQL Mon=0..Sun=6.
+        ScalarFunction.WEEKDAY,
+        // PPL PERIOD_ADD / PERIOD_DIFF — pure integer YYYYMM arithmetic.
+        ScalarFunction.PERIOD_ADD,
+        ScalarFunction.PERIOD_DIFF,
+        // PPL GET_FORMAT(type, region) — plan-time fold to a constant format string.
+        ScalarFunction.GET_FORMAT,
+        // PPL ADDTIME / SUBTIME / TIMEDIFF — time-of-day arithmetic via to_unixtime + maketime.
+        ScalarFunction.ADDTIME,
+        ScalarFunction.SUBTIME,
+        ScalarFunction.TIME_DIFF,
+        // PPL LAST_DAY — date_trunc('month') + 1 month - 1 day. YEARWEEK — os_yearweek Rust UDF.
+        ScalarFunction.LAST_DAY,
+        ScalarFunction.YEARWEEK
     );
 
     /**
@@ -398,6 +437,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
         ScalarFunction.JSON_EXTRACT_ALL,
         ScalarFunction.PARSE,
+        ScalarFunction.GROK,
         ScalarFunction.ITEM,
         ScalarFunction.SAFE_CAST,
         ScalarFunction.PATTERN_PARSER
@@ -481,6 +521,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.ARG_MAX,
                             WindowFunction.DISTINCT_COUNT_APPROX,
                             WindowFunction.ROW_NUMBER,
+                            WindowFunction.RANK,
+                            WindowFunction.DENSE_RANK,
                             WindowFunction.NTH_VALUE,
                             WindowFunction.PATTERN
                         ),
@@ -590,7 +632,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DatePartAdapters dayOfYear = DatePartAdapters.dayOfYear();
                 DatePartAdapters hour = DatePartAdapters.hour();
                 DatePartAdapters minute = DatePartAdapters.minute();
-                DatePartAdapters week = DatePartAdapters.week();
+                // WEEK/WEEK_OF_YEAR follow MySQL mode 0 (Sunday-first), not ISO; date_part('week') is ISO-only
+                RustUdfDateTimeAdapters.OsWeekAdapter week = new RustUdfDateTimeAdapters.OsWeekAdapter();
                 DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
@@ -598,6 +641,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 SecondAdapter second = new SecondAdapter();
                 // Stateless cast adapter shared between CAST and SAFE_CAST registrations.
                 IpBinaryCastFunctionAdapter ipBinaryCast = new IpBinaryCastFunctionAdapter();
+                // Stateless adapter shared across the six comparison operators.
+                ComparisonTemporalCoercionAdapter comparisonTemporalCoercion = new ComparisonTemporalCoercionAdapter();
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
@@ -635,14 +680,34 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CURTIME, currentTime),
                     Map.entry(ScalarFunction.DATE, new DateTimeAdapters.DateAdapter()),
                     Map.entry(ScalarFunction.DATETIME, new DateTimeAdapters.DatetimeAdapter()),
+                    Map.entry(ScalarFunction.DATE_ADD, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.DATE_SUB, new DateAddSubAdapter(false)),
+                    Map.entry(ScalarFunction.ADDDATE, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.SUBDATE, new DateAddSubAdapter(false)),
+                    Map.entry(ScalarFunction.DATEDIFF, new DateDiffAdapter()),
+                    Map.entry(ScalarFunction.TO_DAYS, new EpochArithmeticAdapters.ToDaysAdapter()),
+                    Map.entry(ScalarFunction.TO_SECONDS, new EpochArithmeticAdapters.ToSecondsAdapter()),
+                    Map.entry(ScalarFunction.FROM_DAYS, new EpochArithmeticAdapters.FromDaysAdapter()),
+                    Map.entry(ScalarFunction.TIME_TO_SEC, new EpochArithmeticAdapters.TimeToSecAdapter()),
+                    Map.entry(ScalarFunction.SEC_TO_TIME, new SecToTimeAdapter()),
+                    Map.entry(ScalarFunction.WEEKDAY, new WeekdayAdapter()),
+                    Map.entry(ScalarFunction.PERIOD_ADD, new PeriodArithmeticAdapters.PeriodAddAdapter()),
+                    Map.entry(ScalarFunction.PERIOD_DIFF, new PeriodArithmeticAdapters.PeriodDiffAdapter()),
+                    Map.entry(ScalarFunction.GET_FORMAT, new GetFormatAdapter()),
+                    Map.entry(ScalarFunction.ADDTIME, new AddSubTimeAdapter(true)),
+                    Map.entry(ScalarFunction.SUBTIME, new AddSubTimeAdapter(false)),
+                    Map.entry(ScalarFunction.TIME_DIFF, new TimeDiffAdapter()),
+                    Map.entry(ScalarFunction.LAST_DAY, new LastDayAdapter()),
+                    Map.entry(ScalarFunction.YEARWEEK, new RustUdfDateTimeAdapters.OsYearweekAdapter()),
                     Map.entry(ScalarFunction.DATE_FORMAT, new RustUdfDateTimeAdapters.DateFormatAdapter()),
                     Map.entry(ScalarFunction.DAY, day),
+                    Map.entry(ScalarFunction.DAYNAME, new RustUdfDateTimeAdapters.DaynameAdapter()),
                     Map.entry(ScalarFunction.DAYOFMONTH, day),
                     Map.entry(ScalarFunction.DAYOFWEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAYOFYEAR, dayOfYear),
                     Map.entry(ScalarFunction.DAY_OF_WEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
-                    Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
+                    Map.entry(ScalarFunction.DIVIDE, new DivideAdapter()),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
                     Map.entry(ScalarFunction.EARLIEST, new EarliestLatestAdapter.EarliestAdapter()),
                     // Math functions whose substrait yaml impls are fp64-only — wrap integer/float
@@ -677,14 +742,17 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MICROSECOND, new MicrosecondAdapter()),
                     Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
+                    Map.entry(ScalarFunction.MINUTE_OF_DAY, new MinuteOfDayAdapter()),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
                     Map.entry(ScalarFunction.MINUS, new MinusAdapter()),
-                    Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
+                    Map.entry(ScalarFunction.MOD, new ModAdapter()),
                     Map.entry(ScalarFunction.MONTH, month),
+                    Map.entry(ScalarFunction.MONTHNAME, new RustUdfDateTimeAdapters.MonthnameAdapter()),
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
                     Map.entry(ScalarFunction.PARSE, new ParseAdapter()),
+                    Map.entry(ScalarFunction.GROK, new GrokAdapter()),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.POWER, new NumericToDoubleAdapter(SqlStdOperatorTable.POWER)),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
@@ -715,14 +783,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
-                    // PPL `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))` — peephole
-                    // constant-folds to a numeric literal when both unit strings are fixed-length
-                    // (MICROSECOND through WEEK). This is the exact shape PPL timechart's per_*
-                    // aggregations produce; folding eliminates both PPL UDF references in one
-                    // step, sidestepping isthmus's lack of substrait bindings for either UDF.
-                    // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
-                    // fall through unchanged — fully-general interval-aware support is a follow-up.
+                    // TIMESTAMPDIFF / TIMESTAMPADD have no substrait bindings; adapters rewrite to
+                    // DATETIME_PLUS + INTERVAL / to_unixtime arithmetic. Peephole folds the timechart
+                    // per_* shape TIMESTAMPDIFF(out, t, TIMESTAMPADD(in, n, t)) to a literal.
                     Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
+                    Map.entry(ScalarFunction.TIMESTAMPADD, new TimestampAddAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.TRUNCATE, new IntegerRoundingCastAdapter(SqlStdOperatorTable.TRUNCATE)),
@@ -736,10 +801,22 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.CTIME)),
                     Map.entry(ScalarFunction.MKTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.MKTIME)),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
+                    Map.entry(ScalarFunction.UTC_DATE, currentDate),
+                    Map.entry(ScalarFunction.UTC_TIME, currentTime),
+                    Map.entry(ScalarFunction.UTC_TIMESTAMP, now),
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
                     Map.entry(ScalarFunction.WIDTH_BUCKET, new WidthBucketAdapter()),
-                    Map.entry(ScalarFunction.YEAR, DatePartAdapters.year())
+                    Map.entry(ScalarFunction.YEAR, DatePartAdapters.year()),
+                    // Coerce a bare character operand to TIMESTAMP when compared against a temporal
+                    // operand — recovers the coercion lost when RelDecorrelator folds the PPL
+                    // TIMESTAMP UDF wrapper to a string inside a subquery (see adapter javadoc).
+                    Map.entry(ScalarFunction.EQUALS, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.NOT_EQUALS, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.GREATER_THAN, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.GREATER_THAN_OR_EQUAL, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.LESS_THAN, comparisonTemporalCoercion),
+                    Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, comparisonTemporalCoercion)
                 );
             }
         };
@@ -865,7 +942,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public EngineResultStream fetchByRowIds(Reader reader, BigIntVector rowIdVector, String[] columns, BufferAllocator allocator) {
+    public EngineResultStream fetchByRowIds(
+        Reader reader,
+        BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator,
+        long contextId
+    ) {
         DataFusionService dataFusionService = plugin.getDataFusionService();
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionService not initialized");
@@ -893,7 +976,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 bufAddr,
                 count,
                 columns,
-                dataFusionService.getNativeRuntime().get()
+                dataFusionService.getNativeRuntime().get(),
+                contextId
             );
         } else {
             throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
