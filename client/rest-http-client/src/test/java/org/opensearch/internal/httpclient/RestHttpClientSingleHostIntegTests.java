@@ -368,6 +368,16 @@ public class RestHttpClientSingleHostIntegTests extends RestHttpClientTestCase {
             Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=foo%5Ebar", response.requestLine().uri());
         }
+        {
+            Request request = Request.newRequest("PUT", "/200").withParameter("pretty", null).build();
+            Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            assertEquals(pathPrefix + "/200?pretty", response.requestLine().uri());
+        }
+        {
+            Request request = Request.newRequest("PUT", "/200").withParameter("pretty", "").build();
+            Response response = RestHttpClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            assertEquals(pathPrefix + "/200?pretty=", response.requestLine().uri());
+        }
     }
 
     /**

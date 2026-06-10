@@ -695,11 +695,13 @@ public class RestHttpClient implements Closeable {
                 fullPath = path;
             }
 
-            final String additionalQuery = params.entrySet()
-                .stream()
-                .filter(e -> e.getValue() != null)
-                .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
-                .collect(Collectors.joining("&"));
+            final String additionalQuery = params.entrySet().stream().map(e -> {
+                if (e.getValue() == null) {
+                    return e.getKey();
+                } else {
+                    return e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8);
+                }
+            }).collect(Collectors.joining("&"));
             final URI uri = URI.create(fullPath);
 
             String newQuery = uri.getQuery();
