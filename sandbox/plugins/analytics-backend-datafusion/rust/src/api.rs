@@ -351,17 +351,20 @@ pub struct ShardView {
 /// # Side effect: spill directory contents are wiped (two-phase)
 ///
 /// When `spill_dir` is non-empty, every immediate child is removed:
-///   * **Phase 1 (sync, on this thread):** top-level files and symlinks are
-///     unlinked inline; top-level subdirectories are renamed to `*.stale`
-///     siblings (metadata-only, sub-ms per entry).
+///   * **Phase 1 (sync, on this thread):** every immediate child (files,
+///     symlinks, and subdirectories alike) is renamed to a `<name>.stale`
+///     sibling. Renames are metadata-only — one syscall per entry, contents
+///     are not touched.
 ///   * **Phase 2 (async, background thread):** every `*.stale` entry is
-///     recursively removed off the boot path.
+///     removed off the boot path. Files and symlinks via `remove_file`
+///     (which unlinks the symlink itself without following it); directories
+///     via `remove_dir_all`.
 ///
 /// The split keeps boot fast even with tens of GB of orphan spill data: the
-/// boot thread pays only the rename count (≈10s of µs per orphan dir) and
-/// the recursive unlinks happen in parallel with cluster join. Re-scanning
-/// by suffix in phase 2 also cleans up `*.stale` leftovers from any prior
-/// boot whose cleanup thread did not finish.
+/// boot thread pays only the rename count (≈10s of µs per entry) and the
+/// recursive unlinks happen in parallel with cluster join. Re-scanning by
+/// suffix in phase 2 also cleans up `*.stale` leftovers from any prior boot
+/// whose cleanup thread did not finish.
 ///
 /// This sweeps `datafusion-*/` orphans left by a non-graceful shutdown
 /// (kill -9, OOM-kill, container restart) which would otherwise accumulate
@@ -371,9 +374,10 @@ pub struct ShardView {
 ///
 /// The spill directory itself is preserved. It may be a pre-existing mount
 /// point whose parent the JVM user does not own; rmdir'ing the root would
-/// fail with `EACCES` in that topology. Top-level symlinks are unlinked
-/// rather than descended into, so a stray symlink cannot redirect the wipe
-/// outside the spill mount.
+/// fail with `EACCES` in that topology. Top-level symlinks are renamed in
+/// phase 1 (which renames the link, never the target) and unlinked in
+/// phase 2 via `remove_file`, so a stray symlink can never redirect the
+/// wipe outside the spill mount.
 ///
 /// Phase 1 failure aborts boot with `DataFusionError::Configuration` — if
 /// we cannot rename orphans now, queries that need to spill would fail
@@ -429,18 +433,17 @@ pub fn create_global_runtime(
         // Wipe leaked entries from a prior non-graceful shutdown.
         //
         // Two-phase to keep boot fast even when prior orphans hold tens of GB:
-        //  Phase 1 (sync, on boot thread): unlink top-level files and symlinks
-        //    inline; rename top-level subdirectories to <name>.stale siblings.
-        //    Renames are metadata-only — sub-millisecond per entry, contents
-        //    are not touched. Failure aborts boot loudly with full context.
-        //  Phase 2 (async, background thread): re-scan and recursively delete
-        //    every *.stale entry. Filtering by the .stale suffix means the
-        //    fresh datafusion-XXXXXX/ that DataFusion provisions next is
-        //    never a deletion target.
-        //
-        // Symlinks and non-directory entries are unlinked inline (cheap, no
-        // benefit to deferring; also keeps the symlink defense at the leaf —
-        // we never follow symlinks during cleanup).
+        //  Phase 1 (sync, on boot thread): rename every immediate child to a
+        //    <name>.stale sibling. One uniform branch — files, symlinks, and
+        //    directories are all renamed identically. Renames are metadata-only
+        //    (one syscall per entry, contents not touched). Failure aborts
+        //    boot loudly with full error context.
+        //  Phase 2 (async, background thread): re-scan and remove every
+        //    *.stale entry — `remove_file` for files and symlinks (so we
+        //    never follow a symlink through to its target), `remove_dir_all`
+        //    for directories. Filtering by the .stale suffix means the fresh
+        //    datafusion-XXXXXX/ that DataFusion provisions next is never a
+        //    deletion target.
         //
         // The spill directory itself is never removed (mount-point safe).
         // Phase 1 only requires write on spill_dir, never on its parent.
@@ -474,31 +477,11 @@ pub fn create_global_runtime(
                     continue;
                 }
 
-                let ft = entry.file_type().map_err(|e| {
-                    let msg = format!(
-                        "Failed to read file type of spill entry {} (io kind={:?}): {}",
-                        path.display(), e.kind(), e
-                    );
-                    log::error!("{}", msg);
-                    DataFusionError::Configuration(msg)
-                })?;
-
-                if ft.is_symlink() || !ft.is_dir() {
-                    if let Err(e) = fs::remove_file(&path) {
-                        let msg = format!(
-                            "Failed to clear leaked spill entry {} (io kind={:?}): {}. \
-                             Verify the process owns the spill directory before restarting.",
-                            path.display(), e.kind(), e
-                        );
-                        log::error!("{}", msg);
-                        return Err(DataFusionError::Configuration(msg));
-                    }
-                    continue;
-                }
-
-                // Rename child directory to <name>.stale within the same parent.
-                // Metadata-only; contents not touched. Same parent (spill_path),
-                // so requires only write on spill_path itself.
+                // Rename to <name>.stale within the same parent. Metadata-only;
+                // contents not touched. Same parent (spill_path), so requires
+                // only write on spill_path itself. Works uniformly for files,
+                // symlinks, and directories — fs::rename does not follow
+                // symlinks (it renames the link itself).
                 let stale = spill_path.join(format!("{}.stale", name_str));
                 if let Err(e) = fs::rename(&path, &stale) {
                     let msg = format!(
@@ -549,7 +532,28 @@ pub fn create_global_runtime(
                             continue;
                         }
                         let path = entry.path();
-                        if let Err(e) = fs::remove_dir_all(&path) {
+                        // Use file_type (lstat semantics, does not follow symlinks)
+                        // to dispatch: directories use remove_dir_all, everything
+                        // else (regular files, symlinks) uses remove_file. This
+                        // keeps the symlink defense — fs::remove_file on a symlink
+                        // unlinks the link itself without following it.
+                        let result = match entry.file_type() {
+                            Ok(ft) => {
+                                if ft.is_dir() && !ft.is_symlink() {
+                                    fs::remove_dir_all(&path)
+                                } else {
+                                    fs::remove_file(&path)
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Background spill cleanup: failed to stat {} (io kind={:?}): {}",
+                                    path.display(), e.kind(), e
+                                );
+                                continue;
+                            }
+                        };
+                        if let Err(e) = result {
                             log::warn!(
                                 "Background spill cleanup: failed to remove {} (io kind={:?}): {}",
                                 path.display(), e.kind(), e
@@ -1921,11 +1925,13 @@ mod tests {
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
         assert!(ptr > 0);
 
-        // The startup cleanup must have removed the leaked file.
-        assert!(
-            !sentinel.exists(),
-            "leaked spill file must be removed by create_global_runtime startup cleanup"
-        );
+        // Phase 1 renames the sentinel file to leaked_from_prior_run.tmp.stale
+        // synchronously; phase 2 unlinks it asynchronously. The original name
+        // is gone immediately; wait for the .stale name to disappear too.
+        assert!(!sentinel.exists(), "sentinel original name must be gone (renamed)");
+        let stale = tmp.path().join("leaked_from_prior_run.tmp.stale");
+        let cleaned = wait_until(2000, || !stale.exists());
+        assert!(cleaned, "background cleanup must remove the .stale sentinel within 2s");
 
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
         assert!(
@@ -1947,9 +1953,11 @@ mod tests {
         // create_global_runtime must clear the directory recursively (files AND
         // subdirectories) before / during constructing the DiskManager.
         //
-        // Cleanup is split: top-level files are unlinked inline on the boot thread,
-        // top-level subdirectories are renamed to *.stale inline and recursively
-        // deleted by a background thread. Wait briefly for that thread to finish.
+        // Cleanup is two-phase: phase 1 renames every immediate child to *.stale on
+        // the boot thread (uniform across files, symlinks, dirs); phase 2 removes
+        // them in a background thread (remove_file for files/symlinks, remove_dir_all
+        // for dirs). The original names are gone immediately after phase 1; wait
+        // briefly for phase 2 to clear the *.stale entries.
         let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
@@ -1969,16 +1977,15 @@ mod tests {
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 0).expect("runtime build");
         assert!(ptr > 0);
 
-        // Top-level file is unlinked inline — gone immediately.
-        assert!(!top_file.exists(), "top-level leaked file must be removed inline");
-
-        // Subdirectory is renamed to *.stale inline, then recursively deleted async.
-        // The original name is gone immediately; the .stale name disappears once the
-        // background thread completes.
+        // Phase 1: original names gone (renamed to *.stale).
+        assert!(!top_file.exists(), "top-level file original name must be gone (renamed)");
         assert!(!outer_subdir.exists(), "original subdir name must be gone (renamed)");
+
+        // Phase 2: *.stale entries cleaned by the background thread.
+        let stale_top = tmp.path().join("top.tmp.stale");
         let stale_dir = tmp.path().join("subdir.stale");
-        let cleaned = wait_until(2000, || !stale_dir.exists());
-        assert!(cleaned, "background cleanup must remove subdir.stale within 2s");
+        let cleaned = wait_until(2000, || !stale_top.exists() && !stale_dir.exists());
+        assert!(cleaned, "background cleanup must remove both .stale entries within 2s");
         assert!(!nested_file.exists(), "nested leaked file must be removed");
         assert!(!nested_dir.exists(), "nested leaked subdir must be removed");
 
@@ -2096,15 +2103,15 @@ mod tests {
         let ptr = result.expect("runtime build must succeed when only the parent is read-only");
         assert!(ptr > 0);
 
-        // Top-level loose file is unlinked inline.
-        assert!(!loose_file.exists(), "loose top-level file must be removed inline");
-
-        // Subdirectory is renamed to *.stale inline; the recursive delete runs in
-        // the background thread. Wait for it to clear.
+        // Phase 1: both originals are renamed inline — gone immediately by the
+        // original name. Phase 2 unlinks the .stale entries asynchronously.
+        assert!(!loose_file.exists(), "loose top-level file original name must be gone (renamed)");
         assert!(!leaked_dir.exists(), "leaked datafusion-* original name must be gone (renamed)");
-        let stale = spill_path.join("datafusion-aB3kF7.stale");
-        let cleaned = wait_until(2000, || !stale.exists());
-        assert!(cleaned, "background cleanup must remove datafusion-aB3kF7.stale within 2s");
+
+        let stale_loose = spill_path.join("stray.txt.stale");
+        let stale_dir = spill_path.join("datafusion-aB3kF7.stale");
+        let cleaned = wait_until(2000, || !stale_loose.exists() && !stale_dir.exists());
+        assert!(cleaned, "background cleanup must remove both .stale entries within 2s");
         assert!(!leaked_file.exists(), "leaked file under leaked subdir must be removed");
 
         // Spill root itself preserved.
@@ -2136,7 +2143,17 @@ mod tests {
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_str, 0).expect("runtime build");
         assert!(ptr > 0);
 
-        assert!(!link.exists(), "symlink itself must be unlinked");
+        // Phase 1: symlink is renamed inline (fs::rename does not follow symlinks).
+        assert!(!link.exists(), "symlink original name must be gone (renamed)");
+        let stale_link = spill_path.join("escape_link.stale");
+
+        // Phase 2: remove_file on a symlink unlinks the link itself, never the target.
+        let cleaned = wait_until(2000, || !stale_link.exists());
+        assert!(cleaned, "background cleanup must remove escape_link.stale within 2s");
+
+        // Critical: the target outside spill must be intact across both phases.
+        // If phase 1 had followed the symlink during rename, or phase 2 followed
+        // it during remove, the outside file would have been clobbered.
         assert!(
             outside.exists(),
             "symlink target outside spill dir must NOT be touched (cleanup must not follow symlinks)"
