@@ -89,6 +89,30 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertSame(original, cbe.getCause());
     }
 
+    public void testRawRecursionLimitConvertsToIllegalArgumentException() {
+        // Raw prost decoder error seen at the FFM boundary for deeply nested Substrait plans.
+        String message = "failed to decode Protobuf message: recursion limit reached";
+        RuntimeException original = new RuntimeException(message);
+
+        Exception result = NativeErrorConverter.convert(original);
+
+        assertTrue(result instanceof IllegalArgumentException);
+        assertTrue(result.getMessage().contains("too deeply nested"));
+        assertSame(original, result.getCause());
+    }
+
+    public void testControlledRecursionMessageConvertsOnCoordinator() {
+        // Coordinator-side safety net: the controlled message arriving via StreamException.
+        String controlledMessage = "Query too deeply nested: the expression exceeds the maximum nesting depth "
+            + "supported by the execution engine. Simplify the query by reducing nested function calls.";
+        RuntimeException transportException = new RuntimeException(controlledMessage);
+
+        Exception result = NativeErrorConverter.convert(transportException);
+
+        assertTrue(result instanceof IllegalArgumentException);
+        assertTrue(result.getMessage().contains("too deeply nested"));
+    }
+
     public void testUnrecognizedErrorPassedThrough() {
         RuntimeException original = new RuntimeException("Some unknown error from native code");
 

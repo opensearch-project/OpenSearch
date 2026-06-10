@@ -74,6 +74,10 @@ public final class NativeErrorConverter {
         // DataFusion's own spill-path error when an operator can't allocate and DiskManager is disabled.
         // Semantically a memory-pressure error → CircuitBreakingException (HTTP 429).
         new ErrorPattern("Memory Exhausted while", NativeErrorConverter::convertSpillPoolExhausted),
+        // Raw prost decoder error when a Substrait plan exceeds the protobuf recursion limit
+        // (deeply nested function calls). Converted at the FFM boundary into a clean 400.
+        new ErrorPattern("recursion limit reached", NativeErrorConverter::convertRecursionLimit),
+        // Controlled message, as a coordinator-side safety net if it arrives via StreamException.
         new ErrorPattern("Query too deeply nested", NativeErrorConverter::convertRecursionLimit)
     );
 
