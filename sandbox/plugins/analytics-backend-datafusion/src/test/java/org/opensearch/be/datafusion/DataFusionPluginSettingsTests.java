@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;
@@ -237,5 +238,93 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
             () -> DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.get(s)
         );
         assertTrue(e.getMessage().contains("must be >= 0"));
+    }
+
+    public void testDeriveSpillLimitDefaultWithEmptySpillDirReturnsZero() {
+        Settings settings = Settings.builder().put("datafusion.spill_directory", "").build();
+        String defaultValue = DataFusionPlugin.deriveSpillLimitDefault(settings);
+        assertEquals("Empty spill_directory must yield default 0 (spill disabled)", "0", defaultValue);
+    }
+
+    public void testDeriveSpillLimitDefaultWithValidSpillDirReturnsFractionOfTotal() throws Exception {
+        Path spillDir = createTempDir();
+        Settings settings = Settings.builder().put("datafusion.spill_directory", spillDir.toString()).build();
+        long total = Environment.getFileStore(spillDir).getTotalSpace();
+        assertTrue("test host must report a non-zero total space for the temp dir", total > 0);
+        long expected = (long) (total * 0.80);
+        long actual = Long.parseLong(DataFusionPlugin.deriveSpillLimitDefault(settings));
+        assertEquals("Default must be 80% of the spill volume's total space", expected, actual);
+    }
+
+    public void testDeriveSpillLimitDefaultWithMissingSpillDirReturnsFallback() {
+        // Path that doesn't exist → getFileStore throws IOException → fallback applies.
+        Settings settings = Settings.builder()
+            .put("datafusion.spill_directory", "/nonexistent/path/that/does/not/exist/spill-test-12345")
+            .build();
+        long actual = Long.parseLong(DataFusionPlugin.deriveSpillLimitDefault(settings));
+        assertEquals("Probe failure must fall back to 8 GiB", 8L * 1024 * 1024 * 1024, actual);
+    }
+
+    public void testValidateSpillLimitAcceptsValueAtOrBelowDiskCapacity() throws Exception {
+        Path spillDir = createTempDir();
+        long total = Environment.getFileStore(spillDir).getTotalSpace();
+        Settings settings = Settings.builder()
+            .put("datafusion.spill_directory", spillDir.toString())
+            .put("datafusion.spill_memory_limit_bytes", total / 2)
+            .build();
+        // get() runs the parser AND the validator; no throw = pass.
+        long parsed = DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        assertEquals(total / 2, parsed);
+    }
+
+    public void testValidateSpillLimitRejectsValueExceedingDiskCapacity() throws Exception {
+        Path spillDir = createTempDir();
+        long total = Environment.getFileStore(spillDir).getTotalSpace();
+        Settings settings = Settings.builder()
+            .put("datafusion.spill_directory", spillDir.toString())
+            .put("datafusion.spill_memory_limit_bytes", total + 1)
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings)
+        );
+        assertTrue(
+            "expected message to mention exceeding capacity, got: " + e.getMessage(),
+            e.getMessage().contains("exceeds spill volume capacity")
+        );
+    }
+
+    public void testValidateSpillLimitRejectsNonZeroWhenSpillDirUnset() {
+        Settings settings = Settings.builder()
+            .put("datafusion.spill_directory", "")
+            .put("datafusion.spill_memory_limit_bytes", 1024L * 1024 * 1024)
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings)
+        );
+        assertTrue(
+            "expected message to mention spill_directory unset, got: " + e.getMessage(),
+            e.getMessage().contains("datafusion.spill_directory is unset")
+        );
+    }
+
+    public void testValidateSpillLimitAcceptsZeroWhenSpillDirUnset() {
+        Settings settings = Settings.builder().put("datafusion.spill_directory", "").put("datafusion.spill_memory_limit_bytes", 0L).build();
+        long parsed = DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        assertEquals("Zero with spill disabled is valid", 0L, parsed);
+    }
+
+    public void testValidateSpillLimitSkipsCapacityCheckWhenProbeFails() {
+        // When the spill directory cannot be probed (e.g. a path that doesn't exist),
+        // the validator must fail open: skip the capacity check rather than block the
+        // operator. Same fail-open behavior as deriveSpillLimitDefault uses for its 8 GiB fallback.
+        Settings settings = Settings.builder()
+            .put("datafusion.spill_directory", "/nonexistent/path/that/does/not/exist/spill-test-12345")
+            .put("datafusion.spill_memory_limit_bytes", 1024L * 1024 * 1024 * 1024) // 1 TiB
+            .build();
+        // Even though 1 TiB would likely exceed any real disk, the probe fails so the check is skipped.
+        long parsed = DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        assertEquals("probe failure must skip the volume-capacity check", 1024L * 1024 * 1024 * 1024, parsed);
     }
 }
