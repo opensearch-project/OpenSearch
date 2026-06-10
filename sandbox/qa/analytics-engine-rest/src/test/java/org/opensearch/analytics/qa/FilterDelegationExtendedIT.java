@@ -67,7 +67,24 @@ public class FilterDelegationExtendedIT extends AnalyticsRestTestCase {
         new Case("where isnull(str1) | stats min(num0) as c", 30, false),
         new Case("where isnull(str1) | stats max(num0) as c", 100, false),
         new Case("where isnull(str1) | stats dc(str0) as c", 4, false),
-        new Case("where isnull(str1) | fields str0", 4, true)
+        new Case("where isnull(str1) | fields str0", 4, true),
+
+        // ===== LIKE (keyword field only) =====
+        new Case("where str0 like 'app%' | stats count() as c", 3, false),
+        new Case("where str0 like 'ban%' | stats sum(num0) as c", 150, false),
+        new Case("where str0 like '%e%' | stats count() as c", 7, false),
+
+        // ===== Comparisons (GT/GTE/LT/LTE on integer field) =====
+        new Case("where num0 > 50 | stats count() as c", 5, false),
+        new Case("where num0 >= 50 | stats count() as c", 6, false),
+        new Case("where num0 < 40 | stats count() as c", 3, false),
+        new Case("where num0 <= 40 | stats count() as c", 4, false),
+        new Case("where num0 > 50 | stats sum(num0) as c", 400, false),
+        new Case("where num0 > 50 | stats dc(str0) as c", 3, false),
+
+        // ===== IN =====
+        new Case("where str0 in ('apple', 'cherry') | stats count() as c", 5, false),
+        new Case("where str0 in ('apple', 'cherry') | stats sum(num0) as c", 210, false)
     );
 
     private static boolean dataProvisioned = false;
