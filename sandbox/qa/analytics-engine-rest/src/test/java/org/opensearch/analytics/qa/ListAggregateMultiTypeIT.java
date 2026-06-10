@@ -20,8 +20,8 @@ public class ListAggregateMultiTypeIT extends AnalyticsRestTestCase {
 
     public void testListBoolean() throws Exception {
         provision();
-        // boolean -> varchar emits upper-case TRUE (matches tostring)
-        assertSingleElement("boolean_value", "TRUE");
+        // list/values render booleans lowercase (String.valueOf), unlike cast/tostring's TRUE.
+        assertSingleElement("boolean_value", "true");
     }
 
     public void testListByte() throws Exception {
