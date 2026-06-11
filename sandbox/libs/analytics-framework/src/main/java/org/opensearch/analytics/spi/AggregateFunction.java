@@ -138,21 +138,10 @@ public enum AggregateFunction {
     }
 
     /**
-     * Case-insensitive name lookup; throws if not recognized. Recognizes a small set of
-     * aliases for PPL aggregate names that don't match the enum constant spelling.
+     * Case-insensitive name lookup against the enum constants; throws if not recognized.
      */
     public static AggregateFunction fromNameOrError(String name) {
         String upper = name.toUpperCase(java.util.Locale.ROOT);
-        // PPL `dc`/`distinct_count_approx` lowers to a marker SqlAggFunction still named
-        // DISTINCT_COUNT_APPROX when the analytics-engine *planner* inspects it
-        // (OpenSearchAggregateRule.resolveViableBackendsForCall reads getAggregation().getName()).
-        // sql#5525 only renames the operator the SQL plugin emits at substrait time, which is a
-        // later stage than this planner lookup, so the marker name still reaches here. It is the
-        // same approximate distinct-count as the enum's APPROX_COUNT_DISTINCT (DataFusion
-        // approx_distinct) — map it so the proven sketch state + substrait mapping are reused.
-        if (upper.equals("DISTINCT_COUNT_APPROX")) {
-            return APPROX_COUNT_DISTINCT;
-        }
         try {
             return valueOf(upper);
         } catch (IllegalArgumentException e) {
