@@ -683,9 +683,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.ATAN, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN)),
                     Map.entry(ScalarFunction.ATAN2, new NumericToDoubleAdapter(SqlStdOperatorTable.ATAN2)),
                     Map.entry(ScalarFunction.RADIANS, new NumericToDoubleAdapter(SqlStdOperatorTable.RADIANS)),
-                    // RAND([N]): drop the optional seed so it maps to DataFusion's niladic random()
-                    // (the SqlStdOperatorTable.RAND -> "random" sig). Seeded RAND(N) otherwise fails
-                    // Substrait conversion ("Unable to convert call RAND(i32)").
+                    // RAND(): maps to DataFusion's niladic random() (the SqlStdOperatorTable.RAND ->
+                    // "random" sig). RAND(seed): rejected with a clear error — dropping the seed would
+                    // silently turn deterministic seeded output into non-deterministic random().
                     Map.entry(ScalarFunction.RAND, new RandSeedAdapter()),
                     Map.entry(ScalarFunction.DEGREES, new NumericToDoubleAdapter(SqlStdOperatorTable.DEGREES)),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),

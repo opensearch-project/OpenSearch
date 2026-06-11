@@ -25,9 +25,11 @@ import java.util.List;
 
 /**
  * Unit tests for {@link RandSeedAdapter}. PPL {@code rand([seed])} accepts an optional seed that
- * DataFusion's niladic {@code random()} cannot express. The adapter drops the seed and emits the
- * niladic {@link SqlStdOperatorTable#RAND}, which {@code DataFusionFragmentConvertor} maps to
- * DataFusion's {@code random()} — avoiding {@code Unable to convert call RAND(i32)}.
+ * DataFusion's niladic {@code random()} cannot express. Niladic {@code rand()} maps to the niladic
+ * {@link SqlStdOperatorTable#RAND}, which {@code DataFusionFragmentConvertor} maps to DataFusion's
+ * {@code random()} — avoiding {@code Unable to convert call RAND(i32)}. Seeded {@code rand(seed)} is
+ * rejected with a clear error rather than silently dropping the seed (which would degrade
+ * deterministic seeded output into non-deterministic random()).
  */
 public class RandSeedAdapterTests extends OpenSearchTestCase {
 
