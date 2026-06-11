@@ -31,8 +31,8 @@ use super::io_task::{
 use super::schema::{append_row_id, build_parquet_root_schema, ROW_ID_COLUMN_NAME};
 
 /// Owns all shared state for a merge operation: schemas, writer factory,
-/// IO channel, buffered batches, and counters. Uses double-buffering to
-/// overlap merge-loop batch accumulation with Rayon column encoding.
+/// IO channel, buffered batches, and counters. Used by both sorted and
+/// unsorted merge paths.
 pub struct MergeContext {
     data_schema: Arc<ArrowSchema>,
     output_schema: Arc<ArrowSchema>,
@@ -45,11 +45,10 @@ pub struct MergeContext {
     next_row_id: i64,
     total_rows_written: usize,
     rayon_threads: Option<usize>,
+    // Per-merge counters returned via `finish()` and forwarded to the per-shard tracker on the
+    // Java side (see NativeParquetMergeStrategy + ParquetShardStatsTracker).
     flush_and_sort_chunk_count: i64,
     flush_and_sort_chunk_time_millis: i64,
-    /// Handle to the in-flight encode task. When Some, the previous flush is
-    /// still being encoded on Rayon. Must be awaited before the next flush.
-    in_flight_encode: Option<std::sync::mpsc::Receiver<MergeResult<()>>>,
 }
 
 impl MergeContext {
@@ -128,7 +127,6 @@ impl MergeContext {
             rayon_threads,
             flush_and_sort_chunk_count: 0,
             flush_and_sort_chunk_time_millis: 0,
-            in_flight_encode: None,
         })
     }
 
@@ -150,9 +148,10 @@ impl MergeContext {
     /// Concat buffered batches, append row IDs, encode columns in parallel,
     /// and send the encoded row group to the IO task.
     ///
-    /// Uses double-buffering: if a previous encode is in-flight, waits for it
-    /// to complete before starting the new one. This allows the merge loop to
-    /// continue filling the next buffer while the current one is being encoded.
+    /// `flush_and_sort_chunk_count` and `flush_and_sort_chunk_time_millis` are
+    /// always recorded — including on failure paths — to keep this counter
+    /// symmetric with rayon's `merge_wall_millis`. The empty-chunks early-return
+    /// is the only path that doesn't count as an attempt.
     pub fn flush(&mut self) -> MergeResult<()> {
         if self.output_chunks.is_empty() {
             return Ok(());
@@ -167,16 +166,6 @@ impl MergeContext {
     }
 
     fn do_flush(&mut self) -> MergeResult<()> {
-        // Wait for previous in-flight encode to complete before proceeding.
-        // This ensures at most one encode is running at any time (bounded memory).
-        if let Some(rx) = self.in_flight_encode.take() {
-            match rx.recv() {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => return Err(e),
-                Err(_) => return Err(MergeError::Logic("Encode task dropped unexpectedly".into())),
-            }
-        }
-
         let merged = if self.output_chunks.len() == 1 {
             self.output_chunks.pop().unwrap()
         } else {
@@ -203,53 +192,37 @@ impl MergeContext {
             }
         };
 
-        // Spawn the Rayon encode + IO send as a non-blocking task.
-        // The merge loop can continue filling the next buffer immediately.
-        let (done_tx, done_rx) = std::sync::mpsc::sync_channel::<MergeResult<()>>(1);
-        let io_tx = self.io_tx.clone();
-        let rayon_threads = self.rayon_threads;
-        let rg_idx = self.row_group_index;
+        let chunk_results: Vec<
+            Result<parquet::arrow::arrow_writer::ArrowColumnChunk, parquet::errors::ParquetError>,
+        > = super::metrics::record_merge(|| {
+            let results: Vec<_> = get_merge_pool(self.rayon_threads).install(|| {
+                leaves_and_writers
+                    .into_par_iter()
+                    .map(|(leaf, mut col_writer)| {
+                        col_writer.write(&leaf)?;
+                        col_writer.close()
+                    })
+                    .collect()
+            });
+            Ok(results)
+        })?;
 
-        get_merge_pool(rayon_threads).spawn(move || {
-            let result = (|| -> MergeResult<()> {
-                let chunk_results: Vec<
-                    Result<parquet::arrow::arrow_writer::ArrowColumnChunk, parquet::errors::ParquetError>,
-                > = super::metrics::record_merge(|| {
-                    let results: Vec<_> = leaves_and_writers
-                        .into_par_iter()
-                        .map(|(leaf, mut col_writer)| {
-                            col_writer.write(&leaf)?;
-                            col_writer.close()
-                        })
-                        .collect();
-                    Ok(results)
-                })?;
+        let mut encoded_chunks = Vec::with_capacity(chunk_results.len());
+        for r in chunk_results {
+            encoded_chunks.push(r?);
+        }
 
-                let mut encoded_chunks = Vec::with_capacity(chunk_results.len());
-                for r in chunk_results {
-                    encoded_chunks.push(r?);
-                }
+        self.io_tx
+            .blocking_send(IoCommand::WriteRowGroup(encoded_chunks))
+            .map_err(|_| MergeError::Logic("IO task terminated unexpectedly".into()))?;
 
-                io_tx
-                    .blocking_send(IoCommand::WriteRowGroup(encoded_chunks))
-                    .map_err(|_| MergeError::Logic(format!(
-                        "IO task terminated unexpectedly at row group {}",
-                        rg_idx
-                    )))?;
-
-                Ok(())
-            })();
-            let _ = done_tx.send(result);
-        });
-
-        self.in_flight_encode = Some(done_rx);
         self.row_group_index += 1;
         self.next_row_id += n as i64;
         self.total_rows_written += n;
         self.output_row_count = 0;
 
         log_debug!(
-            "[RUST] Submitted row group {} for encode: {} rows (total: {})",
+            "[RUST] Flushed row group {}: {} rows (total: {})",
             self.row_group_index - 1,
             n,
             self.total_rows_written
@@ -294,16 +267,7 @@ impl MergeContext {
     /// to be forwarded to the per-shard tracker on the Java side.
     pub fn finish(mut self) -> MergeResult<MergeFinishStats> {
         self.flush()?;
-
-        // Wait for the last in-flight encode to complete.
-        if let Some(rx) = self.in_flight_encode.take() {
-            match rx.recv() {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => return Err(e),
-                Err(_) => return Err(MergeError::Logic("Encode task dropped during finish".into())),
-            }
-        }
-
+        // Capture the per-merge counters BEFORE moving `self` into the IO send below.
         let final_row_id_max = self.next_row_id;
         let flush_count = self.flush_and_sort_chunk_count;
         let flush_time_millis = self.flush_and_sort_chunk_time_millis;

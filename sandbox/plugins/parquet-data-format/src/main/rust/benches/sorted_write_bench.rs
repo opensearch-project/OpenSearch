@@ -1,9 +1,9 @@
 //! Benchmark: sorted write with IPC vs Parquet chunk staging.
 //!
-//! Tests three data distribution patterns:
-//! 1. Pre-sorted (best case for IPC — sort is O(N) no-op)
-//! 2. Near-sorted (realistic — 90% sorted with 10% out-of-order)
-//! 3. Random (worst case — full O(N log N) sort required)
+//! Tests three scenarios:
+//! 1. Standard (1.5M rows, 32MB threshold, 1M row groups) — multi-chunk finalize
+//! 2. Many row groups (1.5M rows, 32MB threshold, 100K row groups) — exercises double-buffer pipeline
+//! 3. Distribution comparison (near-sorted vs random)
 //!
 //! Run from workspace root:
 //!   cargo bench --bench sorted_write_bench -p opensearch-parquet-format
@@ -56,9 +56,6 @@ fn pseudo_random(seed: u64) -> u64 {
 }
 
 /// Generate batch with timestamps based on the specified distribution.
-/// - sorted: monotonically increasing across batches
-/// - near_sorted: 90% in order, 10% displaced by up to ±5 batches worth
-/// - random: fully shuffled timestamps
 fn generate_batch(batch_idx: usize, rows: usize, distribution: &str) -> RecordBatch {
     let services = ["auth", "gateway", "worker", "scheduler", "metrics", "billing", "notify", "search"];
     let base_ts: i64 = 1700000000000;
@@ -67,14 +64,11 @@ fn generate_batch(batch_idx: usize, rows: usize, distribution: &str) -> RecordBa
         let global_idx = batch_idx * rows + i;
         match distribution {
             "sorted" => {
-                // Monotonically increasing
                 base_ts + global_idx as i64 * 1000
             }
             "near_sorted" => {
-                // 90% in order, 10% displaced by random offset
                 let is_displaced = pseudo_random((global_idx as u64) * 7 + 3) % 10 == 0;
                 if is_displaced {
-                    // Displace by ±50K positions (simulates late-arriving data)
                     let offset = (pseudo_random((global_idx as u64) * 13 + 7) % 100000) as i64 - 50000;
                     base_ts + (global_idx as i64 + offset).max(0) * 1000
                 } else {
@@ -82,7 +76,6 @@ fn generate_batch(batch_idx: usize, rows: usize, distribution: &str) -> RecordBa
                 }
             }
             "random" => {
-                // Fully random timestamps within a 24-hour window
                 let random_offset = pseudo_random((global_idx as u64) * 31 + 11) % 86_400_000;
                 base_ts + random_offset as i64
             }
@@ -118,10 +111,12 @@ struct BenchResult {
     total_ms: f64,
 }
 
-fn run_sorted_write(batches: &[RecordBatch], threshold: u64, use_ipc: bool) -> BenchResult {
+fn run_sorted_write_with_rg(batches: &[RecordBatch], threshold: u64, use_ipc: bool, row_group_max_rows: Option<usize>) -> BenchResult {
     let tmp = TempDir::new().unwrap();
     let output_path = tmp.path().join("output.parquet").to_str().unwrap().to_string();
-    let index_name = format!("bench_{}_{}_{}", use_ipc, std::process::id(), pseudo_random(use_ipc as u64 * 99 + 1));
+    let index_name = format!("bench_{}_{}_{}_{}", use_ipc, std::process::id(),
+        pseudo_random(use_ipc as u64 * 99 + 1),
+        row_group_max_rows.unwrap_or(0));
 
     let mut settings = NativeSettings::default();
     settings.sort_columns = vec!["timestamp".to_string()];
@@ -129,6 +124,9 @@ fn run_sorted_write(batches: &[RecordBatch], threshold: u64, use_ipc: bool) -> B
     settings.nulls_first = vec![false];
     settings.sort_in_memory_threshold_bytes = Some(threshold);
     settings.ipc_sorted_chunks = Some(use_ipc);
+    if let Some(rg) = row_group_max_rows {
+        settings.row_group_max_rows = Some(rg);
+    }
     SETTINGS_STORE.insert(index_name.clone(), settings);
 
     let schema = test_schema();
@@ -166,6 +164,10 @@ fn run_sorted_write(batches: &[RecordBatch], threshold: u64, use_ipc: bool) -> B
     }
 }
 
+fn run_sorted_write(batches: &[RecordBatch], threshold: u64, use_ipc: bool) -> BenchResult {
+    run_sorted_write_with_rg(batches, threshold, use_ipc, None)
+}
+
 fn bench_by_distribution(c: &mut Criterion) {
     let mut group = c.benchmark_group("sorted_write_by_distribution");
     group.sample_size(10);
@@ -199,7 +201,7 @@ fn bench_by_distribution(c: &mut Criterion) {
 
     group.finish();
 
-    // Print phase breakdowns
+    // Print phase breakdowns — standard (1M row groups)
     for distribution in ["near_sorted", "random"] {
         let batches: Vec<RecordBatch> = (0..num_batches)
             .map(|i| generate_batch(i, rows_per_batch, distribution))
@@ -208,7 +210,34 @@ fn bench_by_distribution(c: &mut Criterion) {
         let parquet_result = run_sorted_write(&batches, threshold, false);
         let ipc_result = run_sorted_write(&batches, threshold, true);
 
-        eprintln!("\n=== {} data ({} rows, {}MB threshold) ===",
+        eprintln!("\n=== {} data ({} rows, {}MB threshold, 1M row groups) ===",
+            distribution, total_rows, threshold / 1024 / 1024);
+        eprintln!("                    Parquet Chunks    IPC Chunks    Improvement");
+        eprintln!("Write phase:        {:>8.1} ms      {:>8.1} ms      {:>+.1}%",
+            parquet_result.write_phase_ms, ipc_result.write_phase_ms,
+            (1.0 - ipc_result.write_phase_ms / parquet_result.write_phase_ms) * 100.0);
+        eprintln!("Finalize phase:     {:>8.1} ms      {:>8.1} ms      {:>+.1}%",
+            parquet_result.finalize_ms, ipc_result.finalize_ms,
+            (1.0 - ipc_result.finalize_ms / parquet_result.finalize_ms) * 100.0);
+        eprintln!("Total:              {:>8.1} ms      {:>8.1} ms      {:>+.1}%",
+            parquet_result.total_ms, ipc_result.total_ms,
+            (1.0 - ipc_result.total_ms / parquet_result.total_ms) * 100.0);
+        eprintln!("Write throughput:   {:>8.1} MB/s    {:>8.1} MB/s",
+            90.0 / (parquet_result.write_phase_ms / 1000.0),
+            90.0 / (ipc_result.write_phase_ms / 1000.0));
+    }
+
+    // Print phase breakdowns — smaller row groups (100K) to exercise double-buffer pipeline
+    eprintln!("\n\n========== DOUBLE-BUFFER PIPELINE (100K row groups) ==========");
+    for distribution in ["near_sorted", "random"] {
+        let batches: Vec<RecordBatch> = (0..num_batches)
+            .map(|i| generate_batch(i, rows_per_batch, distribution))
+            .collect();
+
+        let parquet_result = run_sorted_write_with_rg(&batches, threshold, false, Some(100_000));
+        let ipc_result = run_sorted_write_with_rg(&batches, threshold, true, Some(100_000));
+
+        eprintln!("\n=== {} data ({} rows, {}MB threshold, 100K row groups = ~15 flushes) ===",
             distribution, total_rows, threshold / 1024 / 1024);
         eprintln!("                    Parquet Chunks    IPC Chunks    Improvement");
         eprintln!("Write phase:        {:>8.1} ms      {:>8.1} ms      {:>+.1}%",
