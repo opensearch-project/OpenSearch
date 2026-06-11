@@ -3647,16 +3647,17 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("attributes").field("address.city", "Austin").field("address.state", "Texas").endObject();
-        }));
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address.city": "Austin", "address.state": "Texas"}}
+            """));
         // Dynamic mapping update expected since "address.city" and "address.state" are not pre-defined
         assertNotNull("doc1 should produce dynamic mapping update", doc1.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
         assertEquals("address.city should be text", "text", mapperService.fieldType("attributes.address.city").typeName());
 
-        ParsedDocument doc2 = mapperService.documentMapper()
-            .parse(source(b -> { b.startObject("attributes").field("address", "US").endObject(); }));
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address": "US"}}
+            """));
         // Dynamic mapping update expected since "address" is not pre-defined
         assertNotNull("doc2 should produce dynamic mapping update", doc2.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
@@ -3682,13 +3683,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParsedDocument docA = ms2.documentMapper().parse(source(b -> { b.startObject("attributes").field("address", "US").endObject(); }));
+        ParsedDocument docA = ms2.documentMapper().parse(source("""
+            {"attributes": {"address": "US"}}
+            """));
         // Dynamic mapping update expected since "address" is not pre-defined
         assertNotNull("docA should produce dynamic mapping update", docA.dynamicMappingsUpdate());
         merge(ms2, dynamicMapping(docA.dynamicMappingsUpdate()));
 
-        ParsedDocument docB = ms2.documentMapper()
-            .parse(source(b -> { b.startObject("attributes").field("address.city", "Austin").endObject(); }));
+        ParsedDocument docB = ms2.documentMapper().parse(source("""
+            {"attributes": {"address.city": "Austin"}}
+            """));
         // Dynamic mapping update expected since "address.city" is not pre-defined
         assertNotNull("docB should produce dynamic mapping update", docB.dynamicMappingsUpdate());
         merge(ms2, dynamicMapping(docB.dynamicMappingsUpdate()));
@@ -3705,12 +3709,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
 
         // Dynamically add "address.city"
-        ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> { b.field("address.city", "Austin"); }));
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source("""
+            {"address.city": "Austin"}
+            """));
         assertNotNull("doc1 should produce dynamic mapping update", doc1.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
 
         // Dynamically add "address"
-        ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> { b.field("address", "US"); }));
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source("""
+            {"address": "US"}
+            """));
         assertNotNull("doc2 should produce dynamic mapping update", doc2.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
 
@@ -3747,15 +3755,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
-            b.startObject("attributes").field("address.city", "Austin").field("address.state", "Texas").endObject();
-        }));
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address.city": "Austin", "address.state": "Texas"}}
+            """));
         // Dynamic mapping update expected since "address.city" and "address.state" are not pre-defined
         assertNotNull("doc1 should produce dynamic mapping update", doc1.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc1.dynamicMappingsUpdate()));
 
-        ParsedDocument doc2 = mapperService.documentMapper()
-            .parse(source(b -> { b.startObject("attributes").field("address", "US").endObject(); }));
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source("""
+            {"attributes": {"address": "US"}}
+            """));
         // Dynamic mapping update expected since "address" is not pre-defined
         assertNotNull("doc2 should produce dynamic mapping update", doc2.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc2.dynamicMappingsUpdate()));
