@@ -20,10 +20,10 @@ import java.lang.foreign.ValueLayout;
  */
 public class StatsLayoutTests extends OpenSearchTestCase {
 
-    /** 7.1: Layout byte size must be 544 (68 × 8). */
+    /** 7.1: Layout byte size must be 552 (69 × 8). */
     public void testLayoutByteSize() {
-        assertEquals(544L, StatsLayout.LAYOUT.byteSize());
-        assertEquals(68 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
+        assertEquals(552L, StatsLayout.LAYOUT.byteSize());
+        assertEquals(69 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
     }
 
     /** 7.2: readRuntimeMetrics decodes 9 known values from io_runtime group. */

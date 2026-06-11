@@ -20,6 +20,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::Result;
@@ -80,7 +81,7 @@ pub struct ReadIoStats {
     pub count: AtomicU64,
 }
 
-fn record_io(stats: &ReadIoStats, dur: std::time::Duration) {
+fn record_io(stats: &ReadIoStats, dur: Duration) {
     let ns = dur.as_nanos() as u64;
     stats.total_ns.fetch_add(ns, Ordering::Relaxed);
     stats.count.fetch_add(1, Ordering::Relaxed);
@@ -158,7 +159,7 @@ fn create_stream_with_access_plan(
     let partitioned_file = PartitionedFile::new(config.file_path.clone(), config.file_size)
         .with_extensions(Arc::new(access_plan));
 
-    let reader_factory = Arc::new(CachedMetadataReaderFactory::with_io_stats(
+    let reader_factory = Arc::new(CachedMetadataReaderFactory::new(
         Arc::clone(&config.store),
         Arc::clone(&config.metadata),
         Arc::clone(&config.io_stats),
@@ -207,11 +208,7 @@ pub struct CachedMetadataReaderFactory {
 }
 
 impl CachedMetadataReaderFactory {
-    pub fn new(store: Arc<dyn ObjectStore>, metadata: Arc<ParquetMetaData>) -> Self {
-        Self::with_io_stats(store, metadata, Arc::new(ReadIoStats::default()))
-    }
-
-    pub fn with_io_stats(
+    pub fn new(
         store: Arc<dyn ObjectStore>,
         metadata: Arc<ParquetMetaData>,
         io_stats: Arc<ReadIoStats>,
@@ -260,7 +257,7 @@ impl AsyncFileReader for CachedMetadataReader {
         let location = self.location.clone();
         let io_stats = Arc::clone(&self.io_stats);
         async move {
-            let t0 = std::time::Instant::now();
+            let t0 = Instant::now();
             let r = store
                 .get_range(&location, range)
                 .await
@@ -281,7 +278,7 @@ impl AsyncFileReader for CachedMetadataReader {
         let location = self.location.clone();
         let io_stats = Arc::clone(&self.io_stats);
         async move {
-            let t0 = std::time::Instant::now();
+            let t0 = Instant::now();
             let r = store
                 .get_ranges(&location, &ranges)
                 .await

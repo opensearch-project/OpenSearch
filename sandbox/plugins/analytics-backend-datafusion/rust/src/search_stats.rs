@@ -9,10 +9,12 @@
 //! Cumulative search execution counters exposed via `df_stats()`.
 
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Arc, Mutex};
 
-use datafusion::physical_plan::metrics::MetricsSet;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 
 use crate::indexed_table::metrics::StreamMetrics;
+use crate::indexed_table::parquet_bridge::ReadIoStats;
 use crate::stats::SearchStatsRepr;
 
 static LISTING_TABLE_SCAN: AtomicI64 = AtomicI64::new(0);
@@ -24,6 +26,7 @@ static RG_SKIPPED: AtomicI64 = AtomicI64::new(0);
 static PARQUET_SCAN_TOTAL_TIME_MS: AtomicI64 = AtomicI64::new(0);
 static PARQUET_SCAN_UNTIL_DATA_TIME_MS: AtomicI64 = AtomicI64::new(0);
 static PARQUET_PROCESSING_TIME_MS: AtomicI64 = AtomicI64::new(0);
+static PARQUET_BYTES_SCANNED: AtomicI64 = AtomicI64::new(0);
 static PREFETCH_WAIT_TIME_MS: AtomicI64 = AtomicI64::new(0);
 static PREFETCH_WAIT_COUNT: AtomicI64 = AtomicI64::new(0);
 static ELAPSED_COMPUTE_MS: AtomicI64 = AtomicI64::new(0);
@@ -82,6 +85,10 @@ pub fn accumulate(m: &StreamMetrics) {
                 (sum_inner_metric_ns(&sets, "time_elapsed_processing") / 1_000_000) as i64,
                 Ordering::Relaxed,
             );
+            PARQUET_BYTES_SCANNED.fetch_add(
+                sum_inner_metric_ns(&sets, "bytes_scanned") as i64,
+                Ordering::Relaxed,
+            );
         }
     }
     if let Some(ref t) = m.prefetch_wait_time {
@@ -110,6 +117,64 @@ pub fn accumulate(m: &StreamMetrics) {
     }
 }
 
+/// Accumulate from a `QueryShardExec`'s aggregated metrics at query completion.
+pub fn accumulate_from_exec(
+    metrics: &ExecutionPlanMetricsSet,
+    inner_parquet_metrics: &Arc<Mutex<Vec<MetricsSet>>>,
+    io_stats: &ReadIoStats,
+) {
+    let aggregated = metrics.clone_inner().aggregate_by_name();
+
+    let count = |name: &str| -> i64 {
+        aggregated
+            .iter()
+            .find(|m| m.value().name() == name)
+            .map(|m| m.value().as_usize() as i64)
+            .unwrap_or(0)
+    };
+    let time_ms = |name: &str| -> i64 {
+        aggregated
+            .iter()
+            .find(|m| m.value().name() == name)
+            .map(|m| (m.value().as_usize() / 1_000_000) as i64)
+            .unwrap_or(0)
+    };
+
+    DELEGATION_CALLS.fetch_add(count("ffm_collector_calls"), Ordering::Relaxed);
+    RG_PROCESSED.fetch_add(count("row_groups_processed"), Ordering::Relaxed);
+    RG_SKIPPED.fetch_add(count("row_groups_skipped"), Ordering::Relaxed);
+    PREFETCH_WAIT_TIME_MS.fetch_add(time_ms("prefetch_wait_time"), Ordering::Relaxed);
+    PREFETCH_WAIT_COUNT.fetch_add(count("prefetch_wait_count"), Ordering::Relaxed);
+    ELAPSED_COMPUTE_MS.fetch_add(time_ms("elapsed_compute"), Ordering::Relaxed);
+    BUILD_MASK_TIME_MS.fetch_add(time_ms("build_mask_time"), Ordering::Relaxed);
+    ON_BATCH_MASK_TIME_MS.fetch_add(time_ms("on_batch_mask_time"), Ordering::Relaxed);
+    FILTER_RECORD_BATCH_TIME_MS.fetch_add(time_ms("filter_record_batch_time"), Ordering::Relaxed);
+
+    if let Ok(sets) = inner_parquet_metrics.lock() {
+        PARQUET_SCAN_TOTAL_TIME_MS.fetch_add(
+            (sum_inner_metric_ns(&sets, "time_elapsed_scanning_total") / 1_000_000) as i64,
+            Ordering::Relaxed,
+        );
+        PARQUET_SCAN_UNTIL_DATA_TIME_MS.fetch_add(
+            (sum_inner_metric_ns(&sets, "time_elapsed_scanning_until_data") / 1_000_000) as i64,
+            Ordering::Relaxed,
+        );
+        PARQUET_PROCESSING_TIME_MS.fetch_add(
+            (sum_inner_metric_ns(&sets, "time_elapsed_processing") / 1_000_000) as i64,
+            Ordering::Relaxed,
+        );
+        PARQUET_BYTES_SCANNED.fetch_add(
+            sum_inner_metric_ns(&sets, "bytes_scanned") as i64,
+            Ordering::Relaxed,
+        );
+    }
+
+    OBJECT_STORE_READ_TIME_MS.fetch_add(
+        (io_stats.total_ns.load(Ordering::Relaxed) / 1_000_000) as i64,
+        Ordering::Relaxed,
+    );
+}
+
 pub fn snapshot() -> SearchStatsRepr {
     SearchStatsRepr {
         listing_table_scan: LISTING_TABLE_SCAN.load(Ordering::Relaxed),
@@ -121,6 +186,7 @@ pub fn snapshot() -> SearchStatsRepr {
         parquet_scan_total_time_ms: PARQUET_SCAN_TOTAL_TIME_MS.load(Ordering::Relaxed),
         parquet_scan_until_data_time_ms: PARQUET_SCAN_UNTIL_DATA_TIME_MS.load(Ordering::Relaxed),
         parquet_processing_time_ms: PARQUET_PROCESSING_TIME_MS.load(Ordering::Relaxed),
+        parquet_bytes_scanned: PARQUET_BYTES_SCANNED.load(Ordering::Relaxed),
         prefetch_wait_time_ms: PREFETCH_WAIT_TIME_MS.load(Ordering::Relaxed),
         prefetch_wait_count: PREFETCH_WAIT_COUNT.load(Ordering::Relaxed),
         elapsed_compute_ms: ELAPSED_COMPUTE_MS.load(Ordering::Relaxed),

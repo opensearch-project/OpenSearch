@@ -48,18 +48,14 @@ use futures::StreamExt;
 use super::bool_tree::BoolNode;
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
+use super::parquet_bridge::ReadIoStats;
 use super::partitioning::{compute_assignments, PartitionAssignment, SegmentChunk, SegmentLayout};
-use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use super::stream::{IndexedExec, RowGroupInfo};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::StatsPruneTree;
+use crate::search_stats::accumulate_from_exec;
 use std::collections::HashSet;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::RecordBatchStream;
-use futures::Stream;
 
 /// Info about a segment and its corresponding parquet file.
 #[derive(Debug, Clone)]
@@ -309,6 +305,7 @@ impl TableProvider for IndexedTableProvider {
             predicate,
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::new(std::sync::Mutex::new(Vec::new())),
+            io_stats: Arc::new(ReadIoStats::default()),
             row_id_output_index,
             dynamic_filters: Vec::new(),
         }))
@@ -336,6 +333,7 @@ pub struct QueryShardExec {
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     metrics: ExecutionPlanMetricsSet,
     inner_parquet_metrics: Arc<std::sync::Mutex<Vec<MetricsSet>>>,
+    io_stats: Arc<ReadIoStats>,
     /// Column index in the OUTPUT schema where computed `___row_id` should be
     /// injected. `None` means no row ID computation (normal data path).
     row_id_output_index: Option<usize>,
@@ -473,25 +471,14 @@ impl ExecutionPlan for QueryShardExec {
         })?;
 
         let pmetrics = PartitionMetrics::new(&self.metrics, partition);
-        let partition_inner_parquet_metrics = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let stream_metrics =
-            pmetrics.into_stream_metrics(Some(Arc::clone(&partition_inner_parquet_metrics)));
-        let stream_metrics_for_drop = stream_metrics.clone();
+        let mut stream_metrics =
+            pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
+        stream_metrics.io_stats = Some(Arc::clone(&self.io_stats));
 
-        // Conjoin any accepted runtime dynamic filters into one predicate,
-        // shared (by Arc) across every chunk's IndexedExec. The inner
-        // DynamicFilterPhysicalExpr state is shared with the producing TopK, so
-        // all streams observe the same runtime tightening.
         let dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
             (!self.dynamic_filters.is_empty())
                 .then(|| datafusion::physical_expr::utils::conjunction(self.dynamic_filters.clone()));
 
-        // Build one IndexedExec per SegmentChunk and execute it immediately,
-        // collecting per-chunk streams. We then chain them sequentially into
-        // a single stream for this partition. This avoids the
-        // UnionExec + CoalescePartitionsExec wrapping (which would re-shape
-        // partitioning and add an extra coalesce hop) — chunks here are
-        // already serialized within one partition assignment.
         let mut streams: Vec<SendableRecordBatchStream> =
             Vec::with_capacity(assignment.chunks.len());
         for chunk in &assignment.chunks {
@@ -499,7 +486,6 @@ impl ExecutionPlan for QueryShardExec {
                 DataFusionError::Internal(format!("segment_idx {} out of range", chunk.segment_idx))
             })?;
 
-            // Subset the segment's row groups to just this chunk's.
             let rg_set: HashSet<usize> = chunk.row_group_indices.iter().copied().collect();
             let row_groups: Vec<RowGroupInfo> = segment
                 .row_groups
@@ -528,7 +514,6 @@ impl ExecutionPlan for QueryShardExec {
                 }
             }
 
-            // Build evaluator for this chunk.
             let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics, stats_prune_tree.as_ref())
                 .map_err(|e| DataFusionError::External(e.into()))?;
 
@@ -564,9 +549,7 @@ impl ExecutionPlan for QueryShardExec {
             streams.push(exec.execute(0, Arc::clone(&context))?);
         }
 
-        // Chain the per-chunk streams into one stream for this partition,
-        // then wrap so the Drop impl flushes search_stats for this query.
-        let inner: SendableRecordBatchStream = match streams.len() {
+        let stream: SendableRecordBatchStream = match streams.len() {
             0 => {
                 let empty = datafusion::physical_plan::empty::EmptyExec::new(
                     self.projected_schema.clone(),
@@ -580,44 +563,17 @@ impl ExecutionPlan for QueryShardExec {
                 Box::pin(RecordBatchStreamAdapter::new(schema, chained))
             }
         };
-        Ok(Box::pin(AccumulatingStream {
-            inner,
-            stream_metrics: stream_metrics_for_drop,
-            shared_inner_parquet_metrics: Arc::clone(&self.inner_parquet_metrics),
-        }))
+        Ok(stream)
     }
 }
 
-struct AccumulatingStream {
-    inner: SendableRecordBatchStream,
-    stream_metrics: StreamMetrics,
-    shared_inner_parquet_metrics: Arc<std::sync::Mutex<Vec<MetricsSet>>>,
-}
-
-impl Stream for AccumulatingStream {
-    type Item = Result<RecordBatch>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.inner).poll_next(cx)
-    }
-}
-
-impl RecordBatchStream for AccumulatingStream {
-    fn schema(&self) -> SchemaRef {
-        self.inner.schema()
-    }
-}
-
-impl Drop for AccumulatingStream {
+impl Drop for QueryShardExec {
     fn drop(&mut self) {
-        crate::search_stats::accumulate(&self.stream_metrics);
-        if let Some(ref per) = self.stream_metrics.inner_parquet_metrics {
-            if let (Ok(mut src), Ok(mut dst)) =
-                (per.lock(), self.shared_inner_parquet_metrics.lock())
-            {
-                dst.append(&mut src);
-            }
-        }
+        accumulate_from_exec(
+            &self.metrics,
+            &self.inner_parquet_metrics,
+            &self.io_stats,
+        );
     }
 }
 
@@ -671,6 +627,7 @@ impl QueryShardExec {
             predicate: self.predicate.clone(),
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::clone(&self.inner_parquet_metrics),
+            io_stats: Arc::clone(&self.io_stats),
             row_id_output_index: self.row_id_output_index,
             dynamic_filters,
         }

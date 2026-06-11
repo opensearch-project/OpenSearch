@@ -35,7 +35,7 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
 
     private static final int TRIES = 100;
 
-    private static final int FIELD_COUNT = 68;
+    private static final int FIELD_COUNT = 69;
 
     // ---- Generators ----
 
@@ -187,7 +187,7 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                 assertEquals(values[50], cs.getStatisticsCache().memoryBytes);
                 assertEquals(values[51], cs.getStatisticsCache().sizeLimitBytes);
 
-                // Search stats (offsets 52-67)
+                // Search stats (offsets 52-68)
                 var ss = StatsLayout.readSearchStats(seg);
                 assertEquals(values[52], ss.listingTableScan);
                 assertEquals(values[53], ss.singleCollectorScan);
@@ -198,13 +198,14 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                 assertEquals(values[58], ss.parquetScanTotalTimeMs);
                 assertEquals(values[59], ss.parquetScanUntilDataTimeMs);
                 assertEquals(values[60], ss.parquetProcessingTimeMs);
-                assertEquals(values[61], ss.prefetchWaitTimeMs);
-                assertEquals(values[62], ss.prefetchWaitCount);
-                assertEquals(values[63], ss.elapsedComputeMs);
-                assertEquals(values[64], ss.buildMaskTimeMs);
-                assertEquals(values[65], ss.onBatchMaskTimeMs);
-                assertEquals(values[66], ss.filterRecordBatchTimeMs);
-                assertEquals(values[67], ss.objectStoreReadTimeMs);
+                assertEquals(values[61], ss.parquetBytesScanned);
+                assertEquals(values[62], ss.prefetchWaitTimeMs);
+                assertEquals(values[63], ss.prefetchWaitCount);
+                assertEquals(values[64], ss.elapsedComputeMs);
+                assertEquals(values[65], ss.buildMaskTimeMs);
+                assertEquals(values[66], ss.onBatchMaskTimeMs);
+                assertEquals(values[67], ss.filterRecordBatchTimeMs);
+                assertEquals(values[68], ss.objectStoreReadTimeMs);
             }
         }
     }
@@ -319,6 +320,7 @@ public class StatsLayoutPropertyTests extends OpenSearchTestCase {
                     ss.parquetScanTotalTimeMs,
                     ss.parquetScanUntilDataTimeMs,
                     ss.parquetProcessingTimeMs,
+                    ss.parquetBytesScanned,
                     ss.prefetchWaitTimeMs,
                     ss.prefetchWaitCount,
                     ss.elapsedComputeMs,

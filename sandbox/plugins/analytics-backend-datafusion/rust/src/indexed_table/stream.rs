@@ -808,11 +808,11 @@ impl Stream for IndexedStream {
 
         let result = self.as_mut().poll_inner(cx);
 
-        let now = Instant::now();
+        let t0 = Instant::now();
         if let Some(ref t) = self.metrics.elapsed_compute {
-            t.add_duration(now.saturating_duration_since(poll_start));
+            t.add_duration(t0.saturating_duration_since(poll_start));
         }
-        self.last_poll_end = Some(now);
+        self.last_poll_end = Some(t0);
         result
     }
 }

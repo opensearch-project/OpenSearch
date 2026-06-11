@@ -27,8 +27,8 @@ import java.lang.invoke.VarHandle;
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
  * <p>The layout contains 10 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields
- * + 2 partition gate × 6 fields + 1 cache stats × 10 fields + 1 search stats × 16 fields
- * = 68 longs = 544 bytes).
+ * + 2 partition gate × 6 fields + 1 cache stats × 10 fields + 1 search stats × 17 fields
+ * = 69 longs = 552 bytes).
  */
 public final class StatsLayout {
 
@@ -68,6 +68,7 @@ public final class StatsLayout {
         "parquet_scan_total_time_ms",
         "parquet_scan_until_data_time_ms",
         "parquet_processing_time_ms",
+        "parquet_bytes_scanned",
         "prefetch_wait_time_ms",
         "prefetch_wait_count",
         "elapsed_compute_ms",
@@ -91,8 +92,8 @@ public final class StatsLayout {
     );
 
     static {
-        if (LAYOUT.byteSize() != 68 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (68 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 69 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (69 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -178,6 +179,7 @@ public final class StatsLayout {
     private static final VarHandle SS_PARQUET_SCAN_TOTAL_TIME_MS = handle("search_stats", "parquet_scan_total_time_ms");
     private static final VarHandle SS_PARQUET_SCAN_UNTIL_DATA_TIME_MS = handle("search_stats", "parquet_scan_until_data_time_ms");
     private static final VarHandle SS_PARQUET_PROCESSING_TIME_MS = handle("search_stats", "parquet_processing_time_ms");
+    private static final VarHandle SS_PARQUET_BYTES_SCANNED = handle("search_stats", "parquet_bytes_scanned");
     private static final VarHandle SS_PREFETCH_WAIT_TIME_MS = handle("search_stats", "prefetch_wait_time_ms");
     private static final VarHandle SS_PREFETCH_WAIT_COUNT = handle("search_stats", "prefetch_wait_count");
     private static final VarHandle SS_ELAPSED_COMPUTE_MS = handle("search_stats", "elapsed_compute_ms");
@@ -291,7 +293,7 @@ public final class StatsLayout {
     }
 
     /**
-     * Read the search_stats group (16 fields) from the segment.
+     * Read the search_stats group (17 fields) from the segment.
      *
      * @param seg the memory segment containing the DfStatsBuffer
      * @return a populated SearchStats instance
@@ -307,6 +309,7 @@ public final class StatsLayout {
             (long) SS_PARQUET_SCAN_TOTAL_TIME_MS.get(seg, 0L),
             (long) SS_PARQUET_SCAN_UNTIL_DATA_TIME_MS.get(seg, 0L),
             (long) SS_PARQUET_PROCESSING_TIME_MS.get(seg, 0L),
+            (long) SS_PARQUET_BYTES_SCANNED.get(seg, 0L),
             (long) SS_PREFETCH_WAIT_TIME_MS.get(seg, 0L),
             (long) SS_PREFETCH_WAIT_COUNT.get(seg, 0L),
             (long) SS_ELAPSED_COMPUTE_MS.get(seg, 0L),
@@ -377,6 +380,7 @@ public final class StatsLayout {
             ValueLayout.JAVA_LONG.withName("parquet_scan_total_time_ms"),
             ValueLayout.JAVA_LONG.withName("parquet_scan_until_data_time_ms"),
             ValueLayout.JAVA_LONG.withName("parquet_processing_time_ms"),
+            ValueLayout.JAVA_LONG.withName("parquet_bytes_scanned"),
             ValueLayout.JAVA_LONG.withName("prefetch_wait_time_ms"),
             ValueLayout.JAVA_LONG.withName("prefetch_wait_count"),
             ValueLayout.JAVA_LONG.withName("elapsed_compute_ms"),

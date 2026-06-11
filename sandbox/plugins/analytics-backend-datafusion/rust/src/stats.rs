@@ -5,7 +5,7 @@
 //! Stats packing helpers for the FFM `df_stats()` function.
 //!
 //! Packs Tokio runtime metrics and per-operation task monitor metrics
-//! into a `#[repr(C)]` `DfStatsBuffer` struct (544 bytes) for efficient
+//! into a `#[repr(C)]` `DfStatsBuffer` struct (552 bytes) for efficient
 //! transfer across the FFM boundary.
 //!
 //! ## Struct layout
@@ -21,7 +21,7 @@
 //! | `fragment_executor_gate` | `PartitionGateRepr`  | 6 × i64 |
 //! | `reduce_executor_gate`   | `PartitionGateRepr`  | 6 × i64 |
 //! | `cache_stats`        | `CacheStatsRepr`     | 10 × i64 (2 × 5: metadata + statistics caches) |
-//! | `search_stats`       | `SearchStatsRepr`    | 16 × i64 |
+//! | `search_stats`       | `SearchStatsRepr`    | 17 × i64 |
 
 use tokio::runtime::Handle;
 use tokio_metrics::{RuntimeMonitor, TaskMonitor};
@@ -90,8 +90,8 @@ pub struct CacheStatsRepr {
     pub statistics_cache: CacheGroupRepr,
 }
 
-impl CacheGroupRepr {
-    pub fn zeroed() -> Self {
+impl Default for CacheGroupRepr {
+    fn default() -> Self {
         Self {
             hit_count: 0,
             miss_count: 0,
@@ -102,11 +102,11 @@ impl CacheGroupRepr {
     }
 }
 
-impl CacheStatsRepr {
-    pub fn zeroed() -> Self {
+impl Default for CacheStatsRepr {
+    fn default() -> Self {
         Self {
-            metadata_cache: CacheGroupRepr::zeroed(),
-            statistics_cache: CacheGroupRepr::zeroed(),
+            metadata_cache: CacheGroupRepr::default(),
+            statistics_cache: CacheGroupRepr::default(),
         }
     }
 }
@@ -122,6 +122,7 @@ pub struct SearchStatsRepr {
     pub parquet_scan_total_time_ms: i64,
     pub parquet_scan_until_data_time_ms: i64,
     pub parquet_processing_time_ms: i64,
+    pub parquet_bytes_scanned: i64,
     pub prefetch_wait_time_ms: i64,
     pub prefetch_wait_count: i64,
     pub elapsed_compute_ms: i64,
@@ -150,13 +151,13 @@ const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 3 * 8);
 const _: () = assert!(std::mem::size_of::<PartitionGateRepr>() == 6 * 8);
 const _: () = assert!(std::mem::size_of::<CacheGroupRepr>() == 5 * 8);
 const _: () = assert!(std::mem::size_of::<CacheStatsRepr>() == 10 * 8);
-const _: () = assert!(std::mem::size_of::<SearchStatsRepr>() == 16 * 8);
-const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 68 * 8);
+const _: () = assert!(std::mem::size_of::<SearchStatsRepr>() == 17 * 8);
+const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 69 * 8);
 
 pub mod layout {
     use super::*;
     pub const BUFFER_BYTE_SIZE: usize = std::mem::size_of::<DfStatsBuffer>();
-    const _: () = assert!(BUFFER_BYTE_SIZE == 544);
+    const _: () = assert!(BUFFER_BYTE_SIZE == 552);
 }
 
 /// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.
@@ -362,11 +363,11 @@ mod tests {
             plan_setup: pack_task_monitor(plan_setup_monitor()),
             fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
             reduce_executor_gate: pack_partition_gate(mgr.coordinator_gate()),
-            cache_stats: CacheStatsRepr::zeroed(),
+            cache_stats: CacheStatsRepr::default(),
             search_stats: crate::search_stats::snapshot(),
         };
 
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 544);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 552);
         assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
         assert!(buf.fragment_executor_gate.max_permits > 0, "fragment_executor_gate max_permits should be > 0, got {}", buf.fragment_executor_gate.max_permits);
         assert!(buf.reduce_executor_gate.max_permits > 0, "reduce_executor_gate max_permits should be > 0, got {}", buf.reduce_executor_gate.max_permits);
@@ -382,9 +383,9 @@ mod tests {
     #[test]
     fn test_df_stats_buffer_too_small() {
         // Verify that the buffer size assertion holds
-        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 544);
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 544);
-        // A buffer smaller than 544 bytes should be rejected by df_stats.
+        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 552);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 552);
+        // A buffer smaller than 552 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.
         assert!(layout::BUFFER_BYTE_SIZE > 0);

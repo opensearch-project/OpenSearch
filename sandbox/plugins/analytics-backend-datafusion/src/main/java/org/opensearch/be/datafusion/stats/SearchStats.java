@@ -34,6 +34,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
     public final long parquetScanTotalTimeMs;
     public final long parquetScanUntilDataTimeMs;
     public final long parquetProcessingTimeMs;
+    public final long parquetBytesScanned;
     public final long prefetchWaitTimeMs;
     public final long prefetchWaitCount;
     public final long elapsedComputeMs;
@@ -52,6 +53,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         long parquetScanTotalTimeMs,
         long parquetScanUntilDataTimeMs,
         long parquetProcessingTimeMs,
+        long parquetBytesScanned,
         long prefetchWaitTimeMs,
         long prefetchWaitCount,
         long elapsedComputeMs,
@@ -69,6 +71,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         this.parquetScanTotalTimeMs = parquetScanTotalTimeMs;
         this.parquetScanUntilDataTimeMs = parquetScanUntilDataTimeMs;
         this.parquetProcessingTimeMs = parquetProcessingTimeMs;
+        this.parquetBytesScanned = parquetBytesScanned;
         this.prefetchWaitTimeMs = prefetchWaitTimeMs;
         this.prefetchWaitCount = prefetchWaitCount;
         this.elapsedComputeMs = elapsedComputeMs;
@@ -88,6 +91,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         this.parquetScanTotalTimeMs = in.readVLong();
         this.parquetScanUntilDataTimeMs = in.readVLong();
         this.parquetProcessingTimeMs = in.readVLong();
+        this.parquetBytesScanned = in.readVLong();
         this.prefetchWaitTimeMs = in.readVLong();
         this.prefetchWaitCount = in.readVLong();
         this.elapsedComputeMs = in.readVLong();
@@ -108,6 +112,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         out.writeVLong(parquetScanTotalTimeMs);
         out.writeVLong(parquetScanUntilDataTimeMs);
         out.writeVLong(parquetProcessingTimeMs);
+        out.writeVLong(parquetBytesScanned);
         out.writeVLong(prefetchWaitTimeMs);
         out.writeVLong(prefetchWaitCount);
         out.writeVLong(elapsedComputeMs);
@@ -129,6 +134,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         builder.field("parquet_scan_total_time_ms", parquetScanTotalTimeMs);
         builder.field("parquet_scan_until_data_time_ms", parquetScanUntilDataTimeMs);
         builder.field("parquet_processing_time_ms", parquetProcessingTimeMs);
+        builder.field("parquet_bytes_scanned", parquetBytesScanned);
         builder.field("prefetch_wait_time_ms", prefetchWaitTimeMs);
         builder.field("prefetch_wait_count", prefetchWaitCount);
         builder.field("elapsed_compute_ms", elapsedComputeMs);
@@ -154,6 +160,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             && parquetScanTotalTimeMs == that.parquetScanTotalTimeMs
             && parquetScanUntilDataTimeMs == that.parquetScanUntilDataTimeMs
             && parquetProcessingTimeMs == that.parquetProcessingTimeMs
+            && parquetBytesScanned == that.parquetBytesScanned
             && prefetchWaitTimeMs == that.prefetchWaitTimeMs
             && prefetchWaitCount == that.prefetchWaitCount
             && elapsedComputeMs == that.elapsedComputeMs
@@ -175,6 +182,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             parquetScanTotalTimeMs,
             parquetScanUntilDataTimeMs,
             parquetProcessingTimeMs,
+            parquetBytesScanned,
             prefetchWaitTimeMs,
             prefetchWaitCount,
             elapsedComputeMs,
