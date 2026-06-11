@@ -185,13 +185,9 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
             if (value == null) {
                 return null;
             }
-            // Folding at the resolved precision is correct here. Sub-millisecond fidelity is
-            // a separate, lower-level concern: SubstraitPlanRewriter#visit(PrecisionTimestampLiteral)
-            // renormalizes everything to precision 3 because the parquet write path stores
-            // {@code Timestamp(MILLISECOND)}, so bumping the fold precision would not survive
-            // the wire. testMicrosecond's {@code .123456 → 123000} is owned by that path, not
-            // by this adapter — see SubstraitPlanRewriter.toMillis.
-            return rexBuilder.makeTimestampLiteral(parseTimestamp(value), precision);
+            // Sub-ms inputs need precision ≥6 — makeTimestampLiteral truncates the value to the precision.
+            LocalDateTime ldt = parseLocalDateTime(value);
+            return rexBuilder.makeTimestampLiteral(toTimestampString(ldt), foldPrecision(ldt, precision));
         }
 
         // Shapes B and C: TIMESTAMP(DATE/TIME(<varchar literal>)). After bottom-up
@@ -215,7 +211,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
                 } catch (DateTimeParseException e) {
                     return null;
                 }
-                return rexBuilder.makeTimestampLiteral(toTimestampString(date.atStartOfDay()), precision);
+                LocalDateTime midnight = date.atStartOfDay();
+                return rexBuilder.makeTimestampLiteral(toTimestampString(midnight), foldPrecision(midnight, precision));
             }
 
             // Shape C: TIMESTAMP(TIME('lit')) — combine time with today's UTC date.
@@ -227,7 +224,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
                     return null;
                 }
                 LocalDate today = LocalDate.now(ZoneOffset.UTC);
-                return rexBuilder.makeTimestampLiteral(toTimestampString(LocalDateTime.of(today, time)), precision);
+                LocalDateTime ldt = LocalDateTime.of(today, time);
+                return rexBuilder.makeTimestampLiteral(toTimestampString(ldt), foldPrecision(ldt, precision));
             }
         }
 
@@ -255,23 +253,26 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
         if (tsValue == null || timeValue == null) {
             return null;
         }
-        TimestampString tsStr = parseTimestamp(tsValue);
+        LocalDateTime base = parseLocalDateTime(tsValue);
         LocalTime addTime;
         try {
             addTime = parseTimeOfDay(timeValue);
         } catch (DateTimeParseException e) {
             return null;
         }
-        // Compose: take tsStr, advance by addTime's nano-of-day. Use LocalDateTime
-        // for arithmetic, then re-render to TimestampString.
-        LocalDateTime base;
-        try {
-            base = LocalDateTime.parse(tsStr.toString().replace(' ', 'T'));
-        } catch (DateTimeParseException e) {
-            return null;
-        }
         LocalDateTime sum = base.plusNanos(addTime.toNanoOfDay());
-        return rexBuilder.makeTimestampLiteral(toTimestampString(sum), precision);
+        return rexBuilder.makeTimestampLiteral(toTimestampString(sum), foldPrecision(sum, precision));
+    }
+
+    /**
+     * Bump fold precision to 6 when the input carries non-zero sub-millisecond digits.
+     * {@code makeTimestampLiteral(value, precision)} truncates the value to {@code precision}
+     * fractional digits, so folding {@code .123456} at the resolved precision (3) silently drops
+     * the µs digits the user typed. {@code TimestampString} exposes no nano accessor, so the
+     * precision decision is keyed off the source {@link LocalDateTime}'s nano-of-second instead.
+     */
+    private static int foldPrecision(LocalDateTime ldt, int resolved) {
+        return ldt.getNano() % 1_000_000 == 0 ? resolved : Math.max(resolved, 6);
     }
 
     private static LocalTime parseTimeOfDay(String input) {
