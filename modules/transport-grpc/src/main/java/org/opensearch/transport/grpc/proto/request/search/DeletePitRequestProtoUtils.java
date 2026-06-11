@@ -14,7 +14,6 @@ import org.opensearch.action.search.DeletePitRequest;
  * Utility class for converting PIT deletion protobuf requests to OpenSearch requests.
  */
 public class DeletePitRequestProtoUtils {
-
     private DeletePitRequestProtoUtils() {
         // Utility class, no instances
     }

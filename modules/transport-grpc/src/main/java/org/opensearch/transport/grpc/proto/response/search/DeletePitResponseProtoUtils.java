@@ -17,7 +17,6 @@ import org.opensearch.protobufs.DeletedPit;
  * Utility class for converting PIT deletion responses to protobuf.
  */
 public class DeletePitResponseProtoUtils {
-
     private DeletePitResponseProtoUtils() {
         // Utility class, no instances
     }

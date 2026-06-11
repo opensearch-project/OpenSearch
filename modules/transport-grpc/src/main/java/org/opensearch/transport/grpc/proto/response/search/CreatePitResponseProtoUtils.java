@@ -19,7 +19,6 @@ import java.io.IOException;
  * Utility class for converting PIT creation responses to protobuf.
  */
 public class CreatePitResponseProtoUtils {
-
     private CreatePitResponseProtoUtils() {
         // Utility class, no instances
     }

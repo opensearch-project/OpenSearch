@@ -165,6 +165,12 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         }
     }
 
+    /**
+     * Processes a delete PIT request.
+     *
+     * @param request The delete PIT request to process
+     * @param responseObserver The observer to send the response back to the client
+     */
     @Override
     public void deletePit(
         org.opensearch.protobufs.DeletePitRequest request,

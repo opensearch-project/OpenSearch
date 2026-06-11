@@ -18,7 +18,6 @@ import org.opensearch.transport.client.node.NodeClient;
  * Utility class for converting PIT creation protobuf requests to OpenSearch requests.
  */
 public class CreatePitRequestProtoUtils {
-
     private static final String KEEP_ALIVE = "keep_alive";
 
     private CreatePitRequestProtoUtils() {
