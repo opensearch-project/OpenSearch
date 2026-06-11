@@ -60,7 +60,8 @@ public final class ShardFragmentStageExecutionFactory implements StageExecutionF
             queryId,
             stageId,
             target.shardId(),
-            planAlternatives
+            planAlternatives,
+            config.profile()
         );
         // Execution pulls the resolver off `stage` and calls resolve() lazily at start().
         // This keeps target resolution out of the build phase so cancellation before
