@@ -105,7 +105,8 @@ public class WriteableRoundTripPropertyTests {
     Arbitrary<SpillStats> spillStats() {
         Arbitrary<String> directory = Arbitraries.strings().alpha().ofMinLength(3).ofMaxLength(20).map(s -> "/spill/" + s);
         Arbitrary<Long> nonNeg = Arbitraries.longs().between(0L, Long.MAX_VALUE / 2);
-        return Combinators.combine(directory, nonNeg, nonNeg, nonNeg, nonNeg).as(SpillStats::new);
+        Arbitrary<Long> staleCount = Arbitraries.longs().between(0L, 10_000L);
+        return Combinators.combine(directory, nonNeg, nonNeg, nonNeg, nonNeg, staleCount).as(SpillStats::new);
     }
 
     @Provide
