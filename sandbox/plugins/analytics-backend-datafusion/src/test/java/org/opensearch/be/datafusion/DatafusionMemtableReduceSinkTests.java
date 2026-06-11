@@ -96,6 +96,63 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Two-input coordinator join, the minimal shape of TPC-H q15's deadlock
+     * ({@code supplier ⋈ revenue0}): a buffered multi-input reduce running
+     * {@code Join(input-0, input-2) ON input-0.x = input-2.x}. Feeds both inputs via
+     * {@link DatafusionMemtableReduceSink#sinkForChild(int)}, closes each, runs {@code reduce},
+     * and asserts the join produced the matching rows. Exercises the multi-input MemTable path
+     * end-to-end against a live native runtime — the streaming sink deadlocks on this shape
+     * (build-side back-pressure), which is why join-reduces route to the buffered sink.
+     */
+    public void testTwoInputJoinDrainsToDownstream() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        assertTrue("runtime ptr non-zero", runtimePtr != 0);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] joinSubstrait = buildJoinSubstraitBytes("input-0", "input-2");
+
+            CountingSink downstream = new CountingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-join",
+                0,
+                0L,
+                joinSubstrait,
+                alloc,
+                List.of(
+                    new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes("input-0")),
+                    new ExchangeSinkContext.ChildInput(2, buildPassthroughSubstraitBytes("input-2"))
+                ),
+                downstream
+            );
+
+            DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
+            try {
+                // Build side (input-0): {1,2,3}. Probe side (input-2): {2,3,4}. Inner join on x → {2,3}.
+                ExchangeSink left = sink.sinkForChild(0);
+                ExchangeSink right = sink.sinkForChild(2);
+                left.feed(makeBatch(alloc, inputSchema, new long[] { 1L, 2L, 3L }));
+                right.feed(makeBatch(alloc, inputSchema, new long[] { 2L, 3L, 4L }));
+                left.close();
+                right.close();
+                PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+                sink.reduce(reduceDone);
+                reduceDone.actionGet(10, TimeUnit.SECONDS);
+            } finally {
+                sink.close();
+            }
+
+            assertFalse("downstream must NOT be closed by the reduce sink", downstream.closed);
+            assertEquals("inner join {1,2,3} ⋈ {2,3,4} on x should yield 2 rows", 2, downstream.totalRows);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
     private static byte[] buildSumSubstraitBytes(String inputId) {
         RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
         RexBuilder rexBuilder = new RexBuilder(typeFactory);
@@ -133,6 +190,40 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(scan);
     }
 
+    /**
+     * Builds {@code Join(StageInputScan(leftId), StageInputScan(rightId)) ON left.x = right.x}
+     * substrait — the minimal two-input coordinator-join shape.
+     */
+    private static byte[] buildJoinSubstraitBytes(String leftId, String rightId) {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType rowType = typeFactory.builder().add("x", bigintNullable).build();
+
+        RelNode left = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), leftId, rowType);
+        RelNode right = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), rightId, rowType);
+
+        // Equi-join condition: left.x ($0) == right.x ($1 in the joined row).
+        org.apache.calcite.rex.RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(bigintNullable, 0),
+            rexBuilder.makeInputRef(bigintNullable, 1)
+        );
+        RelNode join = org.apache.calcite.rel.logical.LogicalJoin.create(
+            left,
+            right,
+            List.of(),
+            cond,
+            java.util.Set.of(),
+            org.apache.calcite.rel.core.JoinRelType.INNER
+        );
+
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(join);
+    }
+
     private static SimpleExtension.ExtensionCollection loadExtensions() {
         Thread t = Thread.currentThread();
         ClassLoader prev = t.getContextClassLoader();
@@ -154,6 +245,26 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         col.setValueCount(values.length);
         root.setRowCount(values.length);
         return root;
+    }
+
+    /** Counts rows across fed batches (join output has multiple columns; we only assert cardinality). */
+    private static final class CountingSink implements ExchangeSink {
+        int totalRows;
+        boolean closed;
+
+        @Override
+        public synchronized void feed(VectorSchemaRoot batch) {
+            try {
+                totalRows += batch.getRowCount();
+            } finally {
+                batch.close();
+            }
+        }
+
+        @Override
+        public synchronized void close() {
+            closed = true;
+        }
     }
 
     private static final class CapturingSink implements ExchangeSink {

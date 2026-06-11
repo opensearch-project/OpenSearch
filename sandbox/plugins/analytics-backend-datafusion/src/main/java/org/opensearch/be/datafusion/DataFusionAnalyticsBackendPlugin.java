@@ -951,16 +951,21 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         String mode = plugin.getClusterService() != null
             ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
             : "streaming";
-        // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
-        // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
-        // need per-child input partitions, which only the streaming sink implements via
-        // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
-        // don't have to flip the cluster setting per query. Also fall back when a
-        // prepared state is supplied (memtable sink does not yet support the
-        // prepared-plan path).
-        // TODO: lift this fallback once the memtable sink registers one MemTable per
-        // child stage (see DatafusionMemtableReduceSink class javadoc).
-        if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
+        int inputCount = ctx.childInputs().size();
+        // Multi-input coordinator operators (Join, Union) use the buffered memtable sink. The
+        // streaming sink registers each input as a bounded-mpsc StreamingTable and drains the plan
+        // concurrently with feeds; for a multi-input operator that can deadlock (a HashJoinExec
+        // collects its build side fully before the probe, so a build-side producer back-pressuring
+        // on a bounded input channel the join isn't yet draining blocks forever — observed on
+        // TPC-H q15). The memtable sink buffers each input fully in Java first, so no bounded native
+        // channel sits in the input path. Falls back to streaming only when a prepared state is
+        // supplied (the memtable sink doesn't support the prepared-plan path; that path is
+        // single-input final-aggregate so it's never a multi-input deadlock).
+        if (inputCount > 1 && preparedState == null) {
+            return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+        }
+        // Single-input: honor the mode setting (memtable buffers; streaming default streams).
+        if ("memtable".equals(mode) && inputCount == 1 && preparedState == null) {
             return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
         }
         return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
