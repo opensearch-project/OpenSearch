@@ -520,20 +520,25 @@ public final class OpenSearchLateMaterializationRewriter {
                 }
                 case OpenSearchExchangeReducer er -> {
                     // Invariant 4: declare ___ugsi on the ER's output rowType (materialized at runtime
-                    // by OrdinalAppendingSink before DataFusion's reduce sees the batch).
+                    // by OrdinalAppendingSink before DataFusion's reduce sees the batch). Supply the
+                    // matching FieldStorageInfo so the ER's rowType and FSI stay aligned 1:1 — ___ugsi
+                    // is a derived (coord-side) column with no physical storage.
                     RelDataType erRowType = RelNodeUtils.appendField(
                         typeFactory,
                         rebuilt.getRowType(),
                         OpenSearchLateMaterialization.UGSI_FIELD,
                         typeFactory.createSqlType(SqlTypeName.INTEGER)
                     );
+                    List<FieldStorageInfo> erStorage = new ArrayList<>(((OpenSearchRelNode) rebuilt).getOutputFieldStorage());
+                    erStorage.add(FieldStorageInfo.derivedColumn(OpenSearchLateMaterialization.UGSI_FIELD, SqlTypeName.INTEGER));
                     rebuilt = new OpenSearchExchangeReducer(
                         er.getCluster(),
                         er.getTraitSet(),
                         rebuilt,
                         er.getViableBackends(),
                         er.getExchangeInfo(),
-                        erRowType
+                        erRowType,
+                        erStorage
                     );
                 }
                 default -> throw new IllegalStateException("Unexpected below-anchor operator: " + orig.getClass().getSimpleName());
@@ -567,11 +572,20 @@ public final class OpenSearchLateMaterializationRewriter {
             newProjects.add(new RexInputRef(newScanIdx, field.getType()));
             newNames.add(p.getRowType().getFieldList().get(origOut).getName());
         }
-        // Pass through ___row_id (always last in narrowed Scan rowType).
-        int rowIdIdx = newChild.getRowType().getFieldCount() - 1;
-        RelDataTypeField rowIdField = newChild.getRowType().getFieldList().get(rowIdIdx);
-        newProjects.add(new RexInputRef(rowIdIdx, rowIdField.getType()));
-        newNames.add(OpenSearchLateMaterialization.ROW_ID_FIELD);
+        // Pass through every trailing helper present in the child, by NAME, in the shared layout
+        // order. When this below-Project sits above the ExchangeReducer the child already carries
+        // ___ugsi (appended by the ER), so a positional "last column" lookup would grab ___ugsi
+        // instead of ___row_id and drop the helper that the LM-stage drain / Stitcher read by name.
+        List<RelDataTypeField> childFields = newChild.getRowType().getFieldList();
+        for (String helper : OpenSearchLateMaterialization.TRAILING_HELPERS_IN_ORDER) {
+            for (int i = 0; i < childFields.size(); i++) {
+                if (helper.equals(childFields.get(i).getName())) {
+                    newProjects.add(new RexInputRef(i, childFields.get(i).getType()));
+                    newNames.add(helper);
+                    break;
+                }
+            }
+        }
 
         RelDataTypeFactory.Builder pb = typeFactory.builder();
         for (int j = 0; j < newProjects.size(); j++) {
