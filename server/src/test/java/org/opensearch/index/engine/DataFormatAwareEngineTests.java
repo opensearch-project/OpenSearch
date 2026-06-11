@@ -2020,9 +2020,17 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat("each refresh must invoke beforeRefresh once", beforeAfterSeed, equalTo(2));
             assertThat("each refresh must invoke afterRefresh once", afterAfterSeed, equalTo(2));
 
-            // forceMerge submits the merge to the FORCE_MERGE executor and returns without
-            // waiting. Poll the catalog until the merged snapshot is visible (or fail fast).
-            engine.forceMerge(false, 1, false, false, false, "test-force-merge");
+            // forceMerge runs synchronously on a FORCE_MERGE thread. Dispatch to a
+            // thread with the expected name to satisfy the MergeScheduler assertion.
+            Thread fmThread = new Thread(() -> {
+                try {
+                    engine.forceMerge(false, 1, false, false, false, "test-force-merge");
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, "force_merge-test");
+            fmThread.start();
+            fmThread.join(30_000);
 
             assertBusy(() -> {
                 try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {

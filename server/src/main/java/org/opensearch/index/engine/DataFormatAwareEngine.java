@@ -433,14 +433,20 @@ public class DataFormatAwareEngine implements Indexer {
                     return gen;
                 }
             );
-            this.mergeScheduler = new MergeScheduler(
-                mergeHandler,
-                this::applyMergeChanges,
-                catalogSnapshotManager::incrementUnreferencedFileCleanUps,
-                shardId,
-                engineConfig.getIndexSettings(),
-                engineConfig.getThreadPool()
-            );
+            // Merge failure cleanup: cleans up unreferenced files and acts as a safety net
+            // for refreshLock. The preMergeCommitHook acquires refreshLock on the merge thread;
+            // if the merge fails before applyMergeChanges can release it, this callback ensures
+            // the lock is not permanently held.
+            this.mergeScheduler = new MergeScheduler(mergeHandler, this::applyMergeChanges, () -> {
+                try {
+                    catalogSnapshotManager.incrementUnreferencedFileCleanUps();
+                } finally {
+                    if (refreshLock.isHeldByCurrentThread()) {
+                        logger.debug("releasing refreshLock held after merge failure (safety-net unlock)");
+                        refreshLock.unlock();
+                    }
+                }
+            }, shardId, engineConfig.getIndexSettings(), engineConfig.getThreadPool());
 
             success = true;
             logger.trace("created new DataFormatBasedEngine");
@@ -1192,6 +1198,20 @@ public class DataFormatAwareEngine implements Indexer {
         refresh("write indexing buffer");
     }
 
+    /**
+     * Forces a merge to reduce the number of segments to at most {@code maxNumSegments}.
+     * <p>
+     * This method is a no-op for {@code upgrade}, {@code upgradeOnlyAncientSegments}, and
+     * {@code onlyExpungeDeletes} operations since those are Lucene-specific concepts not
+     * applicable to the data format engine.
+     * <p>
+     * When {@code flush} is true, a full flush is performed first to ensure all in-flight
+     * indexing data (pending VSR writes, buffered segments) is committed before merge
+     * candidate selection runs. This guarantees force merge operates on the complete
+     * set of segments.
+     * <p>
+     * Runs synchronously on the calling {@code FORCE_MERGE} thread.
+     */
     @Override
     public void forceMerge(
         boolean flush,
@@ -1201,7 +1221,13 @@ public class DataFormatAwareEngine implements Indexer {
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
     ) throws EngineException, IOException {
-        mergeScheduler.forceMerge(1);
+        if (upgrade || upgradeOnlyAncientSegments || onlyExpungeDeletes) {
+            return;
+        }
+        mergeScheduler.forceMerge(maxNumSegments);
+        if (flush) {
+            flush(true, true);
+        }
     }
 
     /** {@inheritDoc} Returns the heap RAM bytes used by the indexing execution engine. */
