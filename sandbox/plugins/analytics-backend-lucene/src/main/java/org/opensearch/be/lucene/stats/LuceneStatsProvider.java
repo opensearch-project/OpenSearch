@@ -8,6 +8,7 @@
 
 package org.opensearch.be.lucene.stats;
 
+import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
@@ -35,7 +36,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @ExperimentalApi
 public final class LuceneStatsProvider implements DataFormatStatsProvider<LuceneShardStats> {
 
-    public static final String FORMAT_NAME = "lucene";
+    /** Canonical format name, sourced from {@link LuceneDataFormat} to avoid duplicating the literal. */
+    public static final String FORMAT_NAME = LuceneDataFormat.LUCENE_FORMAT_NAME;
 
     private static volatile LuceneStatsProvider INSTANCE;
 

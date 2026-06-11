@@ -144,7 +144,7 @@ async fn run_two_segment_query(
         {
             let per_segment_matches = Arc::clone(&per_segment_matches);
             let schema = schema.clone();
-            Arc::new(move |segment, _chunk, _stream_metrics| {
+            Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
                 let matching = per_segment_matches
                     .get(segment.writer_generation as usize)
                     .cloned()
@@ -160,6 +160,7 @@ async fn run_two_segment_query(
                     segment.writer_generation,
                     std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                     0,
+                    None,
                     None,
                 ),
             );
@@ -184,7 +185,7 @@ async fn run_two_segment_query(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -346,7 +347,7 @@ async fn run_two_segment_query_witness(
         let schema = schema.clone();
         let in_flight = Arc::clone(&in_flight);
         let max_in_flight = Arc::clone(&max_in_flight);
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let matching = per_segment_matches
                 .get(segment.writer_generation as usize)
                 .cloned()
@@ -366,6 +367,7 @@ async fn run_two_segment_query_witness(
                     segment.writer_generation,
                     std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                     0,
+                    None,
                     None,
                 ),
             );
@@ -390,7 +392,7 @@ async fn run_two_segment_query_witness(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -554,7 +556,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         {
             let per_segment_matches = Arc::clone(&per_segment_matches);
             let schema = schema.clone();
-            Arc::new(move |segment, _chunk, _stream_metrics| {
+            Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
                 let matching = per_segment_matches
                     .get(segment.writer_generation as usize)
                     .cloned()
@@ -570,6 +572,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                     segment.writer_generation,
                     std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                     0,
+                    None,
                     None,
                 ),
             );
@@ -594,7 +597,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -1046,7 +1049,7 @@ async fn run_wide_segments(
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             // One (provider_key, collector) per Collector leaf — our trees
             // here use 1 collector leaf, so one pair.
             let leaf_count = tree.collector_leaf_count();
@@ -1074,6 +1077,7 @@ async fn run_wide_segments(
                     pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
                 },
             );
             Ok(eval)
@@ -1097,7 +1101,7 @@ async fn run_wide_segments(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();

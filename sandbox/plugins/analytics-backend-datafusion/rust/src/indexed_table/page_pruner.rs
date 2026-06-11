@@ -50,6 +50,7 @@ use datafusion::parquet::file::metadata::ParquetMetaData;
 #[cfg(test)]
 use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr::utils::collect_columns;
 use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
 
 /// Per-row-group page pruner. Owns schema + metadata references; the
@@ -84,7 +85,7 @@ impl PagePruner {
         metrics: Option<&PagePruneMetrics>,
     ) -> Option<RowSelection> {
         let columns =
-            datafusion::physical_expr::utils::collect_columns(pruning_predicate.orig_expr());
+            collect_columns(pruning_predicate.orig_expr());
         if columns.is_empty() {
             return None;
         }
@@ -184,7 +185,7 @@ impl PagePruner {
         let keep = match pruning_predicate.prune(&stats) {
             Ok(k) => k,
             Err(e) => {
-                log::debug!("page pruning error for rg {}: {}", rg_idx, e);
+                native_bridge_common::log_debug!("page pruning error for rg {}: {}", rg_idx, e);
                 if let Some(m) = metrics {
                     if let Some(ref c) = m.page_pruning_unavailable {
                         c.add(1);
@@ -272,12 +273,12 @@ pub fn build_pruning_predicate(
     let pruning_predicate = match PruningPredicate::try_new(Arc::clone(expr), schema) {
         Ok(pp) => pp,
         Err(e) => {
-            log::debug!("PruningPredicate::try_new failed for {:?}: {}", expr, e);
+            native_bridge_common::log_debug!("PruningPredicate::try_new failed for {:?}: {}", expr, e);
             return None;
         }
     };
     if pruning_predicate.always_true() {
-        log::trace!("PruningPredicate collapsed to always_true for {:?}", expr);
+        native_bridge_common::log_debug!("PruningPredicate collapsed to always_true for {:?}", expr);
         return None;
     }
     Some(Arc::new(pruning_predicate))
@@ -501,6 +502,217 @@ fn to_row_selection(keep: Vec<bool>, row_counts: &[usize]) -> RowSelection {
         }
     }
     RowSelection::from(out)
+}
+
+/// Evaluate a single predicate against RG-level column stats for the given RGs.
+/// Returns a `Vec<bool>` aligned to `rg_indices`.
+///
+/// Conservative on any error: returns `true` (can-match) for every RG rather
+/// than falsely pruning. This means a stats extraction failure, missing column,
+/// or `PruningPredicate::prune` error will never cause data loss — the RG will
+/// simply not be skipped.
+fn eval_leaf(
+    pruning_predicate: &PruningPredicate,
+    metadata: &ParquetMetaData,
+    schema: &SchemaRef,
+    rg_indices: &[usize],
+) -> Vec<bool> {
+    let num = rg_indices.len();
+    if num == 0 {
+        return vec![];
+    }
+    let columns = collect_columns(pruning_predicate.orig_expr());
+    if columns.is_empty() {
+        return vec![true; num];
+    }
+    let arrow_schema = schema.as_ref();
+    let rg_metas: Vec<_> = rg_indices
+        .iter()
+        .filter_map(|&idx| metadata.row_groups().get(idx))
+        .collect();
+    if rg_metas.len() != num {
+        return vec![true; num];
+    }
+    let mut col_stats: HashMap<String, (ArrayRef, ArrayRef, Option<ArrayRef>)> = HashMap::new();
+    for col in &columns {
+        if arrow_schema.index_of(col.name()).is_err() {
+            continue;
+        }
+        let converter = match StatisticsConverter::try_new(
+            col.name(), arrow_schema, metadata.file_metadata().schema_descr(),
+        ) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let min_arr = match converter.row_group_mins(rg_metas.iter().copied()) {
+            Ok(arr) => arr,
+            Err(_) => continue,
+        };
+        let max_arr = match converter.row_group_maxes(rg_metas.iter().copied()) {
+            Ok(arr) => arr,
+            Err(_) => continue,
+        };
+        let null_counts = converter
+            .row_group_null_counts(rg_metas.iter().copied())
+            .ok()
+            .map(|arr| Arc::new(arr) as ArrayRef);
+        col_stats.insert(col.name().to_string(), (min_arr, max_arr, null_counts));
+    }
+    if col_stats.is_empty() {
+        return vec![true; num];
+    }
+    let stats = RgLevelStats {
+        col_stats,
+        num_rgs: num,
+        row_counts: rg_metas.iter().map(|m| m.num_rows()).collect(),
+    };
+    match pruning_predicate.prune(&stats) {
+        Ok(keep) => keep,
+        Err(_) => vec![true; num],
+    }
+}
+
+struct RgLevelStats {
+    col_stats: HashMap<String, (ArrayRef, ArrayRef, Option<ArrayRef>)>,
+    num_rgs: usize,
+    row_counts: Vec<i64>,
+}
+
+impl PruningStatistics for RgLevelStats {
+    fn min_values(&self, column: &Column) -> Option<ArrayRef> {
+        self.col_stats.get(column.name()).map(|(m, _, _)| Arc::clone(m))
+    }
+    fn max_values(&self, column: &Column) -> Option<ArrayRef> {
+        self.col_stats.get(column.name()).map(|(_, m, _)| Arc::clone(m))
+    }
+    fn num_containers(&self) -> usize {
+        self.num_rgs
+    }
+    fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
+        self.col_stats.get(column.name()).and_then(|(_, _, n)| n.clone())
+    }
+    fn row_counts(&self) -> Option<ArrayRef> {
+        let arr = Int64Array::from_iter_values(self.row_counts.iter().copied());
+        Some(Arc::new(arr) as ArrayRef)
+    }
+    fn contained(
+        &self,
+        _column: &Column,
+        _values: &std::collections::HashSet<ScalarValue>,
+    ) -> Option<BooleanArray> {
+        None
+    }
+}
+
+/// Precomputed tree of per-RG match vectors built from column statistics.
+/// Used for segment-level, RG-level, and subtree-level pruning.
+///
+/// # Example: 5 RGs, 9 leaves
+///
+/// Legend: `df` = Predicate leaf (parquet column stats), `luc` = Collector (always true).
+/// Each node shows its `rg_can_match` bitset: `[RG0, RG1, RG2, RG3, RG4]`.
+///
+/// ```text
+///                                  AND
+///                                [00001]
+///                /                  |                  \
+///              OR                   OR                  AND
+///           [01101]              [11111]              [00011]
+///          /       \          /     |     \          /       \
+///       AND         df     AND     luc     df      df        NOT
+///     [01100]    [00001] [00100] [11111] [11110] [00011]   [11111]
+///      /   \              /   \                              |
+///    df     df          df     df                           df
+/// [11100] [01111]    [11100] [00111]                     [11000]
+/// ```
+///
+/// Bottom-up:
+///   - AND(df[11100], df[01111]) = [01100]
+///   - OR₁(AND[01100], df[00001]) = [01101]
+///   - AND(df[11100], df[00111]) = [00100]
+///   - OR₂(AND[00100], luc[11111], df[11110]) = [11111]  ← luc dominates
+///   - NOT(df[11000]) = [11111]  ← conservative: can't prune through negation
+///   - AND₃(df[00011], NOT[11111]) = [00011]
+///   - Root AND(OR₁[01101], OR₂[11111], AND₃[00011]) = [00001]
+///
+/// Result: only RG4 survives. NOT is always [11111] because inverting
+/// stats-based pruning is unsound (superset inverted = subset).
+/// Subtree vectors enable short-circuiting: for RG0, AND₃=[0....] so the
+/// bitmap-tree walk skips that entire subtree (no FFM collector calls).
+#[derive(Clone)]
+pub struct StatsPruneTree {
+    /// Per-RG: `false` means this subtree provably can't match that RG.
+    pub rg_can_match: Vec<bool>,
+    pub children: Vec<StatsPruneTree>,
+}
+
+impl StatsPruneTree {
+    pub fn build_from_bool_node(
+        node: &super::bool_tree::BoolNode,
+        leaf_predicates: &HashMap<usize, Arc<PruningPredicate>>,
+        metadata: &ParquetMetaData,
+        schema: &SchemaRef,
+        rg_indices: &[usize],
+    ) -> Self {
+        use super::bool_tree::BoolNode;
+        let num = rg_indices.len();
+        match node {
+            BoolNode::And(children) => {
+                let annotated_children: Vec<_> = children
+                    .iter()
+                    .map(|c| Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices))
+                    .collect();
+                let mut rg_can_match = vec![true; num];
+                for child in &annotated_children {
+                    for (r, c) in rg_can_match.iter_mut().zip(child.rg_can_match.iter()) {
+                        *r &= c;
+                    }
+                }
+                Self { rg_can_match, children: annotated_children }
+            }
+            BoolNode::Or(children) => {
+                let annotated_children: Vec<_> = children
+                    .iter()
+                    .map(|c| Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices))
+                    .collect();
+                let mut rg_can_match = vec![false; num];
+                for child in &annotated_children {
+                    for (r, c) in rg_can_match.iter_mut().zip(child.rg_can_match.iter()) {
+                        *r |= c;
+                    }
+                }
+                Self { rg_can_match, children: annotated_children }
+            }
+            BoolNode::Not(child) => {
+                let annotated_child = Self::build_from_bool_node(child, leaf_predicates, metadata, schema, rg_indices);
+                // NOT is conservatively all-true: negating stats-based pruning is unsound
+                // because stats give a superset, and inverting a superset is a subset.
+                native_bridge_common::log_debug!("StatsPruneTree: NOT node → all-true (conservative, cannot prune through negation)");
+                Self { rg_can_match: vec![true; num], children: vec![annotated_child] }
+            }
+            BoolNode::Predicate(expr) => {
+                let key = Arc::as_ptr(expr) as *const () as usize;
+                let rg_can_match = match leaf_predicates.get(&key) {
+                    Some(pp) => eval_leaf(pp, metadata, schema, rg_indices),
+                    None => vec![true; num],
+                };
+                Self { rg_can_match, children: vec![] }
+            }
+            BoolNode::DelegationPossible { original_expr, .. } => {
+                let key = Arc::as_ptr(original_expr) as *const () as usize;
+                let rg_can_match = match leaf_predicates.get(&key) {
+                    Some(pp) => eval_leaf(pp, metadata, schema, rg_indices),
+                    None => vec![true; num],
+                };
+                Self { rg_can_match, children: vec![] }
+            }
+            BoolNode::Collector { .. } => {
+                // Collectors have no column stats — always all-true.
+                native_bridge_common::log_debug!("StatsPruneTree: Collector node → all-true (no column stats available)");
+                Self { rg_can_match: vec![true; num], children: vec![] }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1202,5 +1414,127 @@ mod tests {
             "RG0: only page 0 (min=0, max=7) overlaps price<4"
         );
         assert_eq!(count_rows_kept(&sel1), 0, "RG1: no page has values < 4");
+    }
+
+    /// Matches the tree from the doc comment on `StatsPruneTree`:
+    ///
+    /// ```text
+    ///                                  AND
+    ///                                [00001]
+    ///                /                  |                  \
+    ///              OR                   OR                  AND
+    ///           [01101]              [11111]              [00011]
+    ///          /       \          /     |     \          /       \
+    ///       AND         df     AND     luc     df      df        NOT
+    ///     [01100]    [00001] [00100] [11111] [11110] [00011]   [11111]
+    ///      /   \              /   \                              |
+    ///    df     df          df     df                           df
+    /// [11100] [01111]    [11100] [00111]                     [11000]
+    /// ```
+    ///
+    /// Uses 5 RGs (price ranges [0..9],[10..19],[20..29],[30..39],[40..49])
+    /// to verify the full shape and bitset propagation.
+    #[test]
+    fn stats_prune_tree_five_leaf_shape() {
+        use crate::indexed_table::bool_tree::BoolNode;
+
+        // 5 RGs: price [0..9], [10..19], [20..29], [30..39], [40..49]
+        let schema = Arc::new(Schema::new(vec![Field::new("price", DataType::Int32, false)]));
+        let tmp = NamedTempFile::new().unwrap();
+        let props = WriterProperties::builder()
+            .set_max_row_group_size(10)
+            .set_statistics_enabled(EnabledStatistics::Chunk)
+            .build();
+        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        for i in 0..5i32 {
+            let vals: Vec<i32> = (i * 10..(i + 1) * 10).collect();
+            let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))]).unwrap();
+            w.write(&batch).unwrap();
+        }
+        w.close().unwrap();
+        let meta = ArrowReaderMetadata::load(&tmp.reopen().unwrap(), ArrowReaderOptions::new()).unwrap();
+        let arc_meta = meta.metadata().clone();
+        assert_eq!(arc_meta.num_row_groups(), 5);
+        let rg_indices: Vec<usize> = (0..5).collect();
+
+        // Leaf predicates and their expected rg_can_match bitsets:
+        let p1 = pred_leaf("price", Operator::Lt, 30, &schema);   // [11100]
+        let p2 = pred_leaf("price", Operator::GtEq, 10, &schema); // [01111]
+        let p3 = pred_leaf("price", Operator::Gt, 45, &schema);   // [00001]
+        let p4 = pred_leaf("price", Operator::Lt, 25, &schema);   // [11100]
+        let p5 = pred_leaf("price", Operator::GtEq, 20, &schema); // [00111]
+        let p6 = pred_leaf("price", Operator::Lt, 40, &schema);   // [11110]
+        let p7 = pred_leaf("price", Operator::Gt, 30, &schema);   // [00011]
+        let p8 = pred_leaf("price", Operator::Lt, 15, &schema);   // [11000]
+
+        // Tree: AND(OR(AND(p1,p2), p3), OR(AND(p4,p5), Collector, p6), AND(p7, NOT(p8)))
+        let collector = BoolNode::Collector { annotation_id: 0 };
+        let tree = BoolNode::And(vec![
+            BoolNode::Or(vec![
+                BoolNode::And(vec![p1.clone(), p2.clone()]),
+                p3.clone(),
+            ]),
+            BoolNode::Or(vec![
+                BoolNode::And(vec![p4.clone(), p5.clone()]),
+                collector,
+                p6.clone(),
+            ]),
+            BoolNode::And(vec![
+                p7.clone(),
+                BoolNode::Not(Box::new(p8.clone())),
+            ]),
+        ]);
+
+        // Build PruningPredicates for all df leaves.
+        let mut leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = HashMap::new();
+        for node in [&p1, &p2, &p3, &p4, &p5, &p6, &p7, &p8] {
+            if let BoolNode::Predicate(expr) = node {
+                let key = Arc::as_ptr(expr) as *const () as usize;
+                let pp = build_pruning_predicate(expr, schema.clone()).unwrap();
+                leaf_predicates.insert(key, pp);
+            }
+        }
+
+        let spt = StatsPruneTree::build_from_bool_node(
+            &tree, &leaf_predicates, &arc_meta, &schema, &rg_indices,
+        );
+
+        // Verify bottom-up:
+        //   AND(p1[11100], p2[01111]) = [01100]
+        //   OR₁(AND[01100], p3[00001]) = [01101]
+        //   AND(p4[11100], p5[00111]) = [00100]
+        //   OR₂(AND[00100], luc[11111], p6[11110]) = [11111]  ← luc dominates
+        //   NOT(p8[11000]) = [11111]  ← conservative
+        //   AND₃(p7[00011], NOT[11111]) = [00011]
+        //   Root AND(OR₁[01101], OR₂[11111], AND₃[00011]) = [00001]
+
+        // Root
+        assert_eq!(spt.rg_can_match, vec![false, false, false, false, true]);
+        assert_eq!(spt.children.len(), 3);
+
+        // Child 0: OR₁
+        assert_eq!(spt.children[0].rg_can_match, vec![false, true, true, false, true]);
+        assert_eq!(spt.children[0].children.len(), 2);
+        // OR₁/AND
+        assert_eq!(spt.children[0].children[0].rg_can_match, vec![false, true, true, false, false]);
+        // OR₁/AND/p1
+        assert_eq!(spt.children[0].children[0].children[0].rg_can_match, vec![true, true, true, false, false]);
+        // OR₁/AND/p2
+        assert_eq!(spt.children[0].children[0].children[1].rg_can_match, vec![false, true, true, true, true]);
+        // OR₁/p3
+        assert_eq!(spt.children[0].children[1].rg_can_match, vec![false, false, false, false, true]);
+
+        // Child 1: OR₂ — luc makes it all-true
+        assert_eq!(spt.children[1].rg_can_match, vec![true, true, true, true, true]);
+
+        // Child 2: AND₃
+        assert_eq!(spt.children[2].rg_can_match, vec![false, false, false, true, true]);
+        assert_eq!(spt.children[2].children.len(), 2);
+        // AND₃/p7
+        assert_eq!(spt.children[2].children[0].rg_can_match, vec![false, false, false, true, true]);
+        // AND₃/NOT → always true
+        assert_eq!(spt.children[2].children[1].rg_can_match, vec![true, true, true, true, true]);
+        // AND₃/NOT/p8
+        assert_eq!(spt.children[2].children[1].children[0].rg_can_match, vec![true, true, false, false, false]);
     }
 }

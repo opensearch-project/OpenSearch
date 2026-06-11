@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.plugin.stats.DataFormatStatsProvider;
 import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 
@@ -37,7 +38,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @ExperimentalApi
 public final class ParquetStatsProvider implements DataFormatStatsProvider<ParquetShardStats> {
 
-    public static final String FORMAT_NAME = "parquet";
+    /** Canonical format name, sourced from {@link ParquetDataFormat} to avoid duplicating the literal. */
+    public static final String FORMAT_NAME = ParquetDataFormat.PARQUET_DATA_FORMAT_NAME;
 
     private static final Logger logger = LogManager.getLogger(ParquetStatsProvider.class);
 

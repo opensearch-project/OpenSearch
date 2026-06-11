@@ -40,16 +40,19 @@ use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties};
 use datafusion_common::DataFusionError;
+use datafusion::physical_optimizer::pruning::PruningPredicate;
 
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use futures::StreamExt;
 
+use super::bool_tree::BoolNode;
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
 use super::partitioning::{compute_assignments, PartitionAssignment, SegmentChunk, SegmentLayout};
 use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
+use crate::indexed_table::page_pruner::StatsPruneTree;
 use std::collections::HashSet;
 
 /// Info about a segment and its corresponding parquet file.
@@ -95,6 +98,7 @@ pub type EvaluatorFactory = Arc<
             &SegmentFileInfo,
             &SegmentChunk,
             &StreamMetrics,
+            Option<&StatsPruneTree>,
         ) -> Result<Arc<dyn RowGroupBitsetSource>, String>
         + Send
         + Sync,
@@ -133,6 +137,13 @@ pub struct IndexedTableConfig {
     /// from position (global_base + rg.first_row + position_in_rg) instead of
     /// being read from parquet. Other projected columns are read normally.
     pub emit_row_ids: bool,
+    /// Query-level data for building StatsPruneTree per segment.
+    /// (BoolNode tree, prebuilt PruningPredicates keyed by Arc ptr, schema)
+    pub prune_tree_config: Option<(
+        BoolNode,
+        Arc<std::collections::HashMap<usize, Arc<PruningPredicate>>>,
+        SchemaRef,
+    )>,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -493,8 +504,24 @@ impl ExecutionPlan for QueryShardExec {
                 continue;
             }
 
+            // Build stats prune tree for segment/RG/subtree-level pruning.
+            let stats_prune_tree = self.config.prune_tree_config.as_ref().map(|(tree, preds, schema)| {
+                let rg_indices: Vec<usize> = row_groups.iter().map(|rg| rg.index).collect();
+                StatsPruneTree::build_from_bool_node(
+                    tree, preds, &segment.metadata, schema, &rg_indices,
+                )
+            });
+
+            // Segment-level skip: if no RG in the chunk can match, skip entirely.
+            if let Some(ref spt) = stats_prune_tree {
+                if !spt.rg_can_match.iter().any(|&k| k) {
+                    native_bridge_common::log_debug!("[segment-skip] skipping chunk — pruned by segment-level stats");
+                    continue;
+                }
+            }
+
             // Build evaluator for this chunk.
-            let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics)
+            let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics, stats_prune_tree.as_ref())
                 .map_err(|e| DataFusionError::External(e.into()))?;
 
             let props = Arc::new(PlanProperties::new(
@@ -631,13 +658,14 @@ mod tests {
             store: Arc::new(object_store::local::LocalFileSystem::new()),
             store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
             // Evaluator factory would never be invoked for this test (no segments).
-            evaluator_factory: Arc::new(|_, _, _| unreachable!()),
+            evaluator_factory: Arc::new(|_, _, _, _| unreachable!()),
             pushdown_predicate: None,
             query_config: std::sync::Arc::new(
                 crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             ),
             predicate_columns: vec![],
             emit_row_ids: false,
+            prune_tree_config: None,
         }
     }
 

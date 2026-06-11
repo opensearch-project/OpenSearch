@@ -346,7 +346,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -361,6 +361,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
                 page_prune_metrics: None,
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -381,7 +382,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
