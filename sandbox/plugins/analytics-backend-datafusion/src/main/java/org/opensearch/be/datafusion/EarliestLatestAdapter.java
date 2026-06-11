@@ -148,11 +148,20 @@ public final class EarliestLatestAdapter {
             tsAligned = rexBuilder.makeCast(plainTs, tsArg);
         }
 
-        return rexBuilder.makeCall(
+        RexNode comparison = rexBuilder.makeCall(
             isEarliest ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN_OR_EQUAL,
             tsAligned,
             rhs
         );
+
+        // Pin the result to the original call's declared type. Comparison return-type inference makes
+        // the result BOOLEAN NOT NULL when both operands are non-null (a folded literal vs now()),
+        // but the EARLIEST/LATEST call was declared nullable BOOLEAN — the enclosing Filter/Project
+        // cached that type, so a bare comparison trips Calcite's BOOLEAN vs BOOLEAN NOT NULL assert.
+        if (comparison.getType().equals(call.getType())) {
+            return comparison;
+        }
+        return rexBuilder.makeCast(call.getType(), comparison, true);
     }
 
     /** Builds the right-hand side of the comparison (a TIMESTAMP-typed expression). */

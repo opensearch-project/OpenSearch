@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use datafusion::execution::cache::cache_manager::{
     CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
 };
-use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
+use datafusion::execution::cache::DefaultFilesMetadataCache;
 use datafusion::execution::cache::CacheAccessor;
 use log::error;
 use object_store::path::Path;

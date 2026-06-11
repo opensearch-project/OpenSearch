@@ -6,11 +6,13 @@
  * compatible open source license.
  */
 
-//! `os_week(date [, mode])` — MySQL `WEEK()` semantics (modes 0..7), used by PPL's
-//! `WEEK` / `WEEK_OF_YEAR`. DataFusion's `date_part('week', ts)` is ISO-only and disagrees
-//! with MySQL's default mode 0 (Sunday-first).
+//! MySQL `WEEK()` / `YEARWEEK()` semantics (modes 0..7), used by PPL's `WEEK` / `WEEK_OF_YEAR`
+//! and `YEARWEEK`. DataFusion's `date_part('week', ts)` is ISO-only and disagrees with MySQL's
+//! default mode 0 (Sunday-first). Both UDFs share the per-mode week math (`os_week_number`):
+//!
+//! - `os_week(date [, mode])` → the MySQL week number.
+//! - `os_yearweek(date [, mode])` → `year * 100 + week`, with MySQL's year-boundary roll.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate, Weekday};
@@ -26,6 +28,7 @@ use super::udf_identity;
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(OsWeekUdf::new()));
+    ctx.register_udf(ScalarUDF::from(OsYearweekUdf::new()));
 }
 
 #[derive(Debug)]
@@ -44,9 +47,6 @@ impl OsWeekUdf {
 udf_identity!(OsWeekUdf, "os_week");
 
 impl ScalarUDFImpl for OsWeekUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "os_week"
     }
@@ -123,6 +123,120 @@ impl ScalarUDFImpl for OsWeekUdf {
         }
         Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
     }
+}
+
+#[derive(Debug)]
+pub struct OsYearweekUdf {
+    signature: Signature,
+}
+
+impl OsYearweekUdf {
+    pub fn new() -> Self {
+        Self {
+            signature: Signature::user_defined(Volatility::Immutable),
+        }
+    }
+}
+
+udf_identity!(OsYearweekUdf, "os_yearweek");
+
+impl ScalarUDFImpl for OsYearweekUdf {
+    fn name(&self) -> &str {
+        "os_yearweek"
+    }
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        if arg_types.is_empty() || arg_types.len() > 2 {
+            return plan_err!("os_yearweek expects 1 or 2 arguments, got {}", arg_types.len());
+        }
+        Ok(DataType::Int32)
+    }
+    fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
+        if arg_types.is_empty() || arg_types.len() > 2 {
+            return plan_err!("os_yearweek expects 1 or 2 arguments, got {}", arg_types.len());
+        }
+        let mut out = Vec::with_capacity(arg_types.len());
+        match &arg_types[0] {
+            DataType::Date32
+            | DataType::Date64
+            | DataType::Timestamp(_, _)
+            | DataType::Utf8
+            | DataType::LargeUtf8
+            | DataType::Utf8View => out.push(DataType::Date32),
+            other => return plan_err!("os_yearweek: arg 0 expected date/timestamp/string, got {other:?}"),
+        }
+        if arg_types.len() == 2 {
+            match &arg_types[1] {
+                DataType::Int8
+                | DataType::Int16
+                | DataType::Int32
+                | DataType::Int64
+                | DataType::UInt8
+                | DataType::UInt16
+                | DataType::UInt32
+                | DataType::UInt64 => out.push(DataType::Int32),
+                other => return plan_err!("os_yearweek: arg 1 expected integer mode, got {other:?}"),
+            }
+        }
+        Ok(out)
+    }
+
+    fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
+        let n = args.number_rows;
+        let date_arg = args.args[0].clone().into_array(n)?;
+        let mode_arg = if args.args.len() == 2 {
+            Some(args.args[1].clone().into_array(n)?)
+        } else {
+            None
+        };
+        let dates = date_arg
+            .as_any()
+            .downcast_ref::<datafusion::arrow::array::Date32Array>()
+            .ok_or_else(|| datafusion::error::DataFusionError::Internal(
+                "os_yearweek: arg 0 not coerced to Date32".to_string(),
+            ))?;
+        let mut builder = Int32Builder::with_capacity(n);
+        for i in 0..n {
+            if dates.is_null(i) {
+                builder.append_null();
+                continue;
+            }
+            let mode = match &mode_arg {
+                Some(arr) if arr.is_null(i) => 0,
+                Some(arr) => arr.as_primitive::<datafusion::arrow::datatypes::Int32Type>().value(i),
+                None => 0,
+            };
+            let days = dates.value(i);
+            let date = NaiveDate::from_num_days_from_ce_opt(days + 719_163)
+                .ok_or_else(|| datafusion::error::DataFusionError::Execution(
+                    format!("os_yearweek: invalid Date32 day count {days}"),
+                ))?;
+            builder.append_value(os_yearweek_number(date, mode));
+        }
+        Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
+    }
+}
+
+/// MySQL `YEARWEEK(date, mode)` — `year * 100 + week`. Keeps the caller's mode unless its week
+/// number is 0, in which case it bumps to mode 2 (for mode ≤ 4) or 7 so the date rolls into the
+/// prior year's last week; the year is the calendar year, decremented when an early-January date
+/// falls in the 52/53 week range (i.e. belongs to the prior year). Reuses [`os_week_number`].
+fn os_yearweek_number(date: NaiveDate, mode: i32) -> i32 {
+    let mode_resolved = if os_week_number(date, mode) != 0 {
+        mode
+    } else if mode.rem_euclid(8) <= 4 {
+        2
+    } else {
+        7
+    };
+    let week = os_week_number(date, mode_resolved);
+    let mut year = date.year();
+    if week > 51 && date.day() < 7 {
+        year -= 1;
+    }
+    year * 100 + week as i32
 }
 
 /// MySQL `WEEK()` modes 0..7; see
@@ -246,6 +360,38 @@ mod tests {
         ];
         for (d, mode, want) in cases {
             assert_eq!(os_week_number(*d, *mode), *want, "date={d}, mode={mode}");
+        }
+    }
+
+    #[test]
+    fn os_yearweek_matches_sql_plugin() {
+        // From CalciteDateTimeFunctionIT.testYearWeek: yearweek('2003-10-03')=200339,
+        // yearweek('2003-10-03', 3)=200340.
+        let d = NaiveDate::from_ymd_opt(2003, 10, 3).unwrap();
+        assert_eq!(os_yearweek_number(d, 0), 200339);
+        assert_eq!(os_yearweek_number(d, 3), 200340);
+    }
+
+    #[test]
+    fn os_yearweek_rolls_year_at_boundary() {
+        // 2000-01-01 (Sat), mode 0 → week 0 → bumps to mode 2 → prior year's last week (1999-52).
+        let d = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap();
+        assert_eq!(os_yearweek_number(d, 0), 199952);
+    }
+
+    #[test]
+    fn os_yearweek_delegates_per_mode_to_os_week_number() {
+        // 2008-02-20 is mid-February — far enough from year boundaries that neither the
+        // mode-bump branch (week == 0) nor the year-decrement branch (week > 51 && day < 7)
+        // can fire. Under those conditions, the algebraic contract is:
+        //     os_yearweek_number(d, mode) == year * 100 + os_week_number(d, mode)
+        // Pins that the per-mode math comes from os_week_number for every mode 0..7 — without
+        // claiming exact week numbers for each mode (which the os_week_number tests already
+        // cover for the modes they exercise).
+        let d = NaiveDate::from_ymd_opt(2008, 2, 20).unwrap();
+        for mode in 0..8 {
+            let expected = 2008 * 100 + os_week_number(d, mode) as i32;
+            assert_eq!(os_yearweek_number(d, mode), expected, "mode={mode}");
         }
     }
 }

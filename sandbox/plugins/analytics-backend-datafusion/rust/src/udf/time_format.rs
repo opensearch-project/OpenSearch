@@ -11,7 +11,6 @@
 //! (%d→"00", %Y→"0000"); date-only name tokens (%W, %a, %M, %D, %j, %w, %U/%u,
 //! %V/%v, %X/%x, %b) cause the whole render to collapse to NULL.
 
-use std::any::Any;
 
 use super::udf_identity;
 
@@ -45,9 +44,6 @@ impl TimeFormatUdf {
 udf_identity!(TimeFormatUdf, "time_format");
 
 impl ScalarUDFImpl for TimeFormatUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "time_format"
     }

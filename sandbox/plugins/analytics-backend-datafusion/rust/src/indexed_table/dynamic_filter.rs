@@ -86,7 +86,7 @@ impl PruningStatistics for SingleRowGroupStatistics<'_> {
             .map(|counts| Arc::new(counts) as ArrayRef)
     }
 
-    fn row_counts(&self, _column: &Column) -> Option<ArrayRef> {
+    fn row_counts(&self) -> Option<ArrayRef> {
         let counts: UInt64Array = std::iter::once(Some(self.rg_meta.num_rows() as u64)).collect();
         Some(Arc::new(counts) as ArrayRef)
     }

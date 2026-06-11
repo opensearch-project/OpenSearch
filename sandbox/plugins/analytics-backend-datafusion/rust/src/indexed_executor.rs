@@ -119,7 +119,7 @@ pub async fn execute_indexed_query(
                 .with_metadata_cache_limit(
                     runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
                 )
-                .with_files_statistics_cache(
+                .with_file_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
         );
@@ -224,7 +224,7 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     let mut indices = BTreeSet::new();
     for expr in &exprs {
         let _ = expr.apply(|node| {
-            if let Some(col) = node.as_any().downcast_ref::<Column>() {
+            if let Some(col) = node.downcast_ref::<Column>() {
                 indices.insert(col.index());
             }
             Ok(TreeNodeRecursion::Continue)
@@ -290,9 +290,6 @@ impl fmt::Debug for PlaceholderProvider {
 
 #[async_trait::async_trait]
 impl TableProvider for PlaceholderProvider {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -503,6 +500,7 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let query_config = Arc::new(handle.query_config);
     let num_partitions = query_config.target_partitions.max(1);
+    let aggregate_mode = handle.aggregate_mode;
     let ctx = handle.ctx;
     let table_name = handle.table_name;
     let table_path = handle.table_path;
@@ -883,6 +881,13 @@ async unsafe fn execute_indexed_with_context_inner(
     // types. The target is schema_coerce::coerce_inferred_schema(physical_schema) — same
     // narrowing the partition-stream registration uses, so consumer-side StreamingTable
     // and producer-side batches agree by construction (see crate::relabel_exec).
+    // Apply aggregate mode stripping when prepare_partial_plan was called (engine-native-merge).
+    // This makes the indexed executor produce Binary HLL state (Partial) instead of Int64 (Final).
+    let physical_plan = if aggregate_mode != crate::agg_mode::Mode::Default {
+        crate::agg_mode::apply_aggregate_mode(physical_plan, aggregate_mode)?
+    } else {
+        physical_plan
+    };
     let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
     let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));

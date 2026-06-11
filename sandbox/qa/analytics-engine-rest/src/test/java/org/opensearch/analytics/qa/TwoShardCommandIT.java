@@ -38,7 +38,7 @@ public class TwoShardCommandIT extends TwoShardReduceTestCase {
     }
 
     /** Override solely to attach @AwaitsFix; inherited body is unchanged. */
-    // Pending sql cluster A+D: combined UDT bridging + value rendering
+    // Pending sql plugin: timechart bucket renders as bare DATE instead of TIMESTAMP (3/18 sub-checks fail).
     @Override
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/sql/pull/<TBD>")
     public void testReduceCorrectnessAcrossTwoShards() throws IOException {

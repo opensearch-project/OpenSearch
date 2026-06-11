@@ -337,6 +337,7 @@ public class PlannerImpl {
      * <p>TODO: add SortPushdown rule here — pushes Sort below Exchange to data nodes for top-K
      * optimization.
      */
+
     private static RelNode mark(RelNode input, PlannerContext context, RuleProfilingListener listener) {
         return HepPhase.named("marking")
             .bottomUp()

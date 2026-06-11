@@ -20,9 +20,14 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Snapshots an {@link ExecutionGraph} into a {@link QueryProfile}. Pure read — no
@@ -99,9 +104,29 @@ public final class QueryProfileBuilder {
             long start = t.startedAtMs();
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
-            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed));
+            Map<String, Long> metrics = parseDataNodeMetrics(t.dataNodeMetrics());
+            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, metrics));
         }
         return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Long> parseDataNodeMetrics(byte[] json) {
+        if (json == null || json.length == 0) return null;
+        try {
+            var parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, json);
+            Map<String, Object> raw = parser.map();
+            Map<String, Long> result = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : raw.entrySet()) {
+                if (entry.getValue() instanceof Number n) {
+                    result.put(entry.getKey(), n.longValue());
+                }
+            }
+            return result.isEmpty() ? null : result;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static String describeTarget(StageTask task) {

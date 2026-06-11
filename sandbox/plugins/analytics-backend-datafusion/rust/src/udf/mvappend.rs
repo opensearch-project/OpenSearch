@@ -32,7 +32,6 @@
 //! `ARRAY<ANY>` which substrait doesn't have an encoding for — those fail at
 //! substrait conversion, before reaching this UDF, and aren't addressed here.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -75,10 +74,6 @@ impl Default for MvappendUdf {
 }
 
 impl ScalarUDFImpl for MvappendUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "mvappend"
     }

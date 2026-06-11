@@ -12,6 +12,8 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
@@ -93,14 +95,14 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
     }
 
     private Schema schema;
-    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
+    private ArrowNativeAllocator nativeAllocator;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        nativeAllocator = new org.opensearch.arrow.allocator.ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, null);
         schema = buildSchema();
     }
 
