@@ -392,4 +392,15 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, Collections.emptyMap()));
     }
+
+    public void testSetShardIdentityResolverRejectsNull() {
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        IndexFieldDataService ifds = new IndexFieldDataService(
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+            cache,
+            null,
+            null
+        );
+        expectThrows(IllegalArgumentException.class, () -> ifds.setShardIdentityResolver(null));
+    }
 }
