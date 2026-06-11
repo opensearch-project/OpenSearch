@@ -33,6 +33,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use native_bridge_common::log_debug;
 use datafusion::arrow::array::{Array, BooleanArray, UInt64Array};
 use datafusion::arrow::compute::filter_record_batch;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -482,6 +483,8 @@ struct IndexedStream {
     mask_offset: usize,
     batch_offset: usize,
     finished: bool,
+    /// Wall-clock start time for per-segment timing. Set on first poll.
+    stream_start: Option<std::time::Instant>,
     metadata: Arc<ParquetMetaData>,
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     initialized: bool,
@@ -575,6 +578,7 @@ impl IndexedStream {
             mask_offset: 0,
             batch_offset: 0,
             finished: false,
+            stream_start: None,
             metadata,
             predicate,
             initialized: false,
@@ -777,6 +781,7 @@ impl Stream for IndexedStream {
         let poll_start = Instant::now();
 
         if !self.initialized {
+            self.stream_start = Some(Instant::now());
             self.index_reader.init_prefetch();
             self.initialized = true;
         }
@@ -809,6 +814,7 @@ impl IndexedStream {
 
             // 2. If upstream is done and coalescer has drained, we're done.
             if self.coalescer_finished && self.batch_coalescer.is_empty() {
+                log_debug!("[scf-segment-done] file={} row_groups={} elapsed={:?}", self.object_path.filename().unwrap_or("?"), self.index_reader.row_groups.len(), self.stream_start.unwrap().elapsed());
                 return Poll::Ready(None);
             }
 
@@ -828,6 +834,7 @@ impl IndexedStream {
             if self.coalescer_finished {
                 // Unreachable in practice — step 1 already drained or
                 // step 2 already returned. Defensive.
+                log_debug!("[scf-segment-done] file={} row_groups={} elapsed={:?}", self.object_path.filename().unwrap_or("?"), self.index_reader.row_groups.len(), self.stream_start.unwrap().elapsed());
                 return Poll::Ready(None);
             }
 

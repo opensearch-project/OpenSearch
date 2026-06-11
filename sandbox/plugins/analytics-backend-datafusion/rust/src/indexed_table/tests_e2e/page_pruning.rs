@@ -307,7 +307,7 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
         let pp_map = Arc::clone(&pp_map);
-        Arc::new(move |segment, _chunk, sm| {
+        Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -326,6 +326,7 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -348,7 +349,7 @@ async fn run_single_collector(
         let schema = schema.clone();
         let residual_pp = residual_pp.clone();
         let residual_expr = Arc::clone(&residual_expr);
-        Arc::new(move |segment, _chunk, sm| {
+        Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(collector_for_tag(collector_tag)),
@@ -363,6 +364,7 @@ async fn run_single_collector(
                 std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                 0,
                 None,
+                    None,
             ));
             Ok(eval)
         })
@@ -393,7 +395,7 @@ async fn execute_and_collect(
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
