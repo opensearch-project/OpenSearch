@@ -22,12 +22,6 @@ import org.apache.calcite.rel.type.RelDataType;
  * schema. The {@code AggregateFunction.ArrowToCalciteTypeMapper} (in the SPI module) handles
  * the inverse direction for {@code IntermediateField} resolution; this class is kept as the
  * single authority for the Calcite→Arrow direction needed outside that resolver.
- *
- * <p>FIXME [FixBeforeMainMerge] coverage gaps: TIMESTAMP currently hardcodes MILLISECOND
- * (Calcite precision is ignored — see toArrow note), so date_nanos is not yet distinguished,
- * and several Calcite/Arrow types are still unmapped (TIMESTAMP_WITH_LOCAL_TIME_ZONE, DATE,
- * TIME, DECIMAL, Arrow Date/Time/Decimal/...). Audit and broaden before merge so the QTF path
- * tolerates non-keyword/non-date columns end-to-end.
  */
 public final class ArrowCalciteTypes {
 
@@ -53,11 +47,8 @@ public final class ArrowCalciteTypes {
             case VARBINARY, BINARY -> ArrowType.Binary.INSTANCE;
             case BOOLEAN -> ArrowType.Bool.INSTANCE;
             // TODO: TIMESTAMP_WITH_LOCAL_TIME_ZONE, DATE, TIME, DECIMAL still missing.
-            // TODO: hardcoded MILLISECOND to match what DateParquetField emits on the data node;
-            // Calcite's reported precision doesn't track the wire-level Arrow precision today, so
-            // honouring t.getPrecision() here would break Stitcher copyFromSafe. Revisit when
-            // Calcite types carry the data-node-side Arrow precision faithfully.
-            case TIMESTAMP -> new ArrowType.Timestamp(TimeUnit.MILLISECOND, null);
+            // precision 9 ⇒ date_nanos; else date — must match the wire unit shards emit (Stitcher copyFromSafe).
+            case TIMESTAMP -> new ArrowType.Timestamp(t.getPrecision() == 9 ? TimeUnit.NANOSECOND : TimeUnit.MILLISECOND, null);
             default -> throw new IllegalArgumentException("Unsupported Calcite type: " + t.getSqlTypeName());
         };
     }
