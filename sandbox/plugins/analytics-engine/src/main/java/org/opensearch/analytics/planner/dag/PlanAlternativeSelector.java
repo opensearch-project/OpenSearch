@@ -9,11 +9,14 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendShardPreference;
 import org.opensearch.analytics.spi.ShardPreferenceContext;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Collapses a {@link Stage}'s {@code planAlternatives} to a single chosen alternative before
@@ -50,14 +53,25 @@ public final class PlanAlternativeSelector {
      *                             passed through to backend scoring functions.
      */
     public static void selectAll(QueryDAG dag, CapabilityRegistry registry, boolean preferMetadataDriver) {
-        if (preferMetadataDriver == false) return;
-        selectStage(dag.rootStage(), registry, new ShardPreferenceContext(preferMetadataDriver));
+        // ctx is null when metadata-driver scoring is disabled. The parent-backend
+        // constraint below still runs — it is a correctness rule, not a preference.
+        ShardPreferenceContext ctx = preferMetadataDriver ? new ShardPreferenceContext(true) : null;
+        selectStage(dag.rootStage(), registry, ctx);
     }
 
     private static void selectStage(Stage stage, CapabilityRegistry registry, ShardPreferenceContext ctx) {
         for (Stage child : stage.getChildStages()) {
+            // Correctness constraint: a child stage's output is consumed by THIS stage's fragment
+            // via an OpenSearchStageInputScan, which carries the backends the consuming operator
+            // is viable for. Drop any child alternative whose backend the parent cannot consume,
+            // so a stage feeding e.g. a DataFusion-only join is never collapsed to a Lucene
+            // (metadata-driver / column-less) alternative that the join can't read. Without this
+            // the data node picks the first registered backend (often Lucene), yielding a
+            // 0-column batch and a downstream hang. Runs regardless of prefer_metadata_driver.
+            constrainToParentBackends(stage, child);
             selectStage(child, registry, ctx);
         }
+        if (ctx == null) return;
         if (stage.getPlanAlternatives().size() < 2) return;
 
         // Pick the highest-scoring alternative. Backends without a preference score 0;
@@ -73,6 +87,36 @@ public final class PlanAlternativeSelector {
             }
         }
         stage.setPlanAlternatives(List.of(winner));
+    }
+
+    /**
+     * Restricts {@code child}'s plan alternatives to backends the parent fragment's
+     * {@link OpenSearchStageInputScan} for that child declares viable. No-op when the parent
+     * has no matching input scan (defensive), when the child is already single-alternative and
+     * compatible, or when the intersection would be empty (leave the child untouched so a later
+     * stage doesn't end up with zero alternatives — better a wrong-but-present plan than an empty
+     * list, which fails loudly downstream rather than silently dropping rows).
+     */
+    private static void constrainToParentBackends(Stage parent, Stage child) {
+        Set<String> allowed = null;
+        for (OpenSearchStageInputScan scan : RelNodeUtils.findNodes(parent.getFragment(), OpenSearchStageInputScan.class)) {
+            if (scan.getChildStageId() == child.getStageId()) {
+                allowed = Set.copyOf(scan.getViableBackends());
+                break;
+            }
+        }
+        if (allowed == null || allowed.isEmpty()) return;
+        final Set<String> allowedBackends = allowed;
+        List<StagePlan> compatible = child.getPlanAlternatives()
+            .stream()
+            .filter(plan -> allowedBackends.contains(plan.backendId()))
+            .toList();
+        // Only narrow when at least one alternative survives; an empty result means our backend
+        // bookkeeping disagrees with the planner's intersection — keep the originals rather than
+        // produce a stage with no runnable plan.
+        if (!compatible.isEmpty() && compatible.size() < child.getPlanAlternatives().size()) {
+            child.setPlanAlternatives(compatible);
+        }
     }
 
     private static int scoreOf(StagePlan plan, CapabilityRegistry registry, ShardPreferenceContext ctx) {

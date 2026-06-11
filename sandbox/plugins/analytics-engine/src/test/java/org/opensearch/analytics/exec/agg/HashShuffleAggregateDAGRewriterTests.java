@@ -112,7 +112,8 @@ public class HashShuffleAggregateDAGRewriterTests extends BasePlannerRulesTests 
             consumer,
             producer,
             targets,
-            context.getCapabilityRegistry()
+            context.getCapabilityRegistry(),
+            /* preferMetadataDriver */ false
         );
 
         // The worker stage holds the lifted FINAL aggregate. Its plan alternatives must have been

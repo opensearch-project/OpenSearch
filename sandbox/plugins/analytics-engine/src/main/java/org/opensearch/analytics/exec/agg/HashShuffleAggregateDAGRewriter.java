@@ -13,6 +13,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.ExchangeInfo;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -68,7 +69,8 @@ public final class HashShuffleAggregateDAGRewriter {
         Stage consumer,
         Stage producer,
         List<String> targetWorkerNodeIds,
-        CapabilityRegistry registry
+        CapabilityRegistry registry,
+        boolean preferMetadataDriver
     ) {
         RelNode consumerFragment = consumer.getFragment();
         OpenSearchAggregate finalAgg = findFinalAggregate(consumerFragment);
@@ -134,6 +136,14 @@ public final class HashShuffleAggregateDAGRewriter {
         // the aggregate path does. forkAll → adaptAll → convertAll mirrors DefaultPlanExecutor.
         PlanForker.forkAll(rewrittenDag, registry);
         BackendPlanAdapter.adaptAll(rewrittenDag, registry);
+        // selectAll MUST run before convertAll, exactly as DefaultPlanExecutor does: forkAll
+        // re-expands every stage to all viable-backend alternatives straight from its fragment,
+        // so without re-selecting, a child stage feeding a single-backend parent operator (e.g.
+        // the supplier scan under a DataFusion-only coordinator join) keeps its Lucene alternative
+        // and the data node picks Lucene first — yielding a 0-column metadata batch the join can't
+        // read and a downstream hang. selectAll re-applies the parent-backend correctness
+        // constraint (and metadata-driver scoring when enabled).
+        PlanAlternativeSelector.selectAll(rewrittenDag, registry, preferMetadataDriver);
         FragmentConversionDriver.convertAll(rewrittenDag, registry);
 
         return new Rewritten(rewrittenDag, newRoot, worker, rewrittenConsumer);

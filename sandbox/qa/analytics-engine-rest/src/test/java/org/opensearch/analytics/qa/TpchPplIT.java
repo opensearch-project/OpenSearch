@@ -40,8 +40,8 @@ import java.util.ArrayList;
  * this backend (see {@link #testCaptureExpected}), not transcribed from the source's Lucene
  * assertions.
  *
- * <p><b>Coverage on this backend (2 shards).</b> Of the 22 canonical TPC-H queries, 21 run and
- * match captured expected files (all but q15 — most are multi-table joins, so the MPP join path,
+ * <p><b>Coverage on this backend (2 shards).</b> All 22 canonical TPC-H queries run and
+ * match captured expected files (most are multi-table joins, so the MPP join path,
  * including multi-broadcast queries, is genuinely covered). q1, q6, q10, q12, q14 were unblocked once
  * {@code date_add}/{@code date_sub} over a {@code DATE('...')} literal landed (#21991). q5/q7/q20
  * return empty result sets, which the source IT also asserts ({@code verifyNumOfRows(actual, 0)}) —
@@ -63,27 +63,18 @@ import java.util.ArrayList;
  * q20 (timestamp/date in a decorrelated subquery) were unblocked by the merge's coercion fixes
  * (#22010 / #22045 / #21978).
  *
- * <p>The remaining 1 is skipped via {@link #getSkipQueries()}:
- * <ul>
- *   <li><b>q15</b> — <em>hangs</em> (the engine deadlocks; it does not error). q15 references its
- *       {@code revenue0} CTE twice — once as the join's right input and once inside a
- *       {@code where total_revenue = [... max(total_revenue)]} scalar subquery — producing a root
- *       {@code Join(Join(supplier, revenue0), MAX(revenue0))} that the planner cuts into <b>three
- *       cascaded coordinator reduces</b> (the join-root reduce with three inputs, the revenue0
- *       consumer reduce, and the max-branch reduce). Multi-node thread dumps + DEBUG tracing show
- *       the underlying HASH_SHUFFLE aggregate for {@code revenue0} <em>completes fine</em> (producer
- *       ships batches, both workers drain), but one coordinator reduce then freezes in native
- *       {@code streamNext} while the others are idle and no producer is blocked sending — i.e. the
- *       root join-reduce waits forever for an input that never arrives. This is a deep
- *       <b>multi-input cascaded-coordinator-reduce streaming deadlock</b> in the native reduce path,
- *       NOT the empty-partition / coercion issues earlier suspected (both ruled out by tracing), and
- *       distinct from q4's broadcast-build-subtree bug. A fix needs native (Rust) work on how a
- *       join-reduce drives three registered input partition-streams, one of which is fed by another
- *       concurrent local reduce; the buffered (non-eager) memtable sink can't substitute because it
- *       is single-input only. Tracked as a follow-up. The source IT asserts 1 row for q15.</li>
- * </ul>
- * As the engine closes this gap, move q15 out of {@link #getSkipQueries()} and capture its
- * expected file via {@link #testCaptureExpected}.
+ * <p>q15 (which references its {@code revenue0} CTE twice, yielding a HASH_SHUFFLE_AGG for the CTE
+ * plus a coordinator-centric join whose build side is a bare {@code supplier} scan) was unblocked by
+ * fixing a backend-selection bug: the {@code HashShuffleAggregateDAGRewriter} re-runs
+ * {@code PlanForker.forkAll} on the rewritten DAG, which re-expands every stage to all viable
+ * backends, but did NOT re-run {@code PlanAlternativeSelector.selectAll}. The supplier scan stage
+ * (viable on both {@code lucene} and {@code datafusion}) therefore kept its Lucene alternative;
+ * the data node picked Lucene first and streamed a 0-column metadata batch the DataFusion join
+ * couldn't read, then the join-reduce hung waiting for columns that never arrived. The fix:
+ * {@code PlanAlternativeSelector} now applies a parent-backend correctness constraint (a child stage
+ * is restricted to backends its consuming {@code OpenSearchStageInputScan} declares viable) on EVERY
+ * selection pass, and the agg rewriter re-runs {@code selectAll} after its {@code forkAll}. q15 now
+ * returns the source-IT-expected single row ({@code Supplier#000000010 ... 797313.3838}).
  *
  * <p><b>Capturing expected files.</b> Run with {@code -Dtests.tpch.capture.dir=<abs path>}
  * to provision the dataset, execute all 22 queries, and write each successful response to
@@ -92,17 +83,13 @@ import java.util.ArrayList;
  */
 public class TpchPplIT extends BasePplIT {
 
-    /** Queries not yet runnable on the parquet/DataFusion path. Only q15 remains: it HANGS (does not
-     *  error) — it references the {@code revenue0} CTE twice (join input + max-subquery), yielding a
-     *  three-cascaded-coordinator-reduce join that deadlocks in native streamNext (the revenue0
-     *  hash-shuffle itself completes; one reduce then waits forever for an input that never arrives).
-     *  A native (Rust) reduce-path fix is needed; tracked as a follow-up. (The old "subquery coercion
-     *  error" reason is stale — fixed by merge #22010.) q4 (broadcast multi-stage build sub-tree, see
-     *  {@code BroadcastDispatch.run}), q7/q8 (BETWEEN timestamp/date coercion — #22010/#22045/#21978),
-     *  and q20 (subquery coercion #22010) were all unblocked; their captured results match the source
-     *  SQL plugin's {@code CalcitePPLTpchIT} assertions exactly (q7→0 rows, q8→[1995,0.0]/[1996,0.0],
-     *  q20→0 rows). See class javadoc. */
-    private static final Set<Integer> UNSUPPORTED = Set.of(15);
+    /** Queries not yet runnable on the parquet/DataFusion path. All 22 TPC-H queries now run: q15
+     *  was the last holdout (it hung because the HASH_SHUFFLE_AGG rewriter re-forked plan
+     *  alternatives without re-selecting, leaving the supplier scan on Lucene — a 0-column batch the
+     *  DataFusion join couldn't read; fixed by the parent-backend constraint in
+     *  {@code PlanAlternativeSelector} + the agg rewriter re-running {@code selectAll}). See class
+     *  javadoc. */
+    private static final Set<Integer> UNSUPPORTED = Set.of();
 
     /** The eight TPC-H tables, each provisioned from its own {@code mapping_<index>.json} +
      *  {@code bulk_<index>.json} under {@code resources/datasets/tpch/}. */

@@ -82,7 +82,8 @@ public final class HashShuffleAggregateDispatch {
         Stage producer,
         Stage consumer,
         java.util.function.Consumer<org.opensearch.analytics.exec.QueryExecution> queryExecutionSink,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
+        ActionListener<Iterable<VectorSchemaRoot>> terminal,
+        boolean preferMetadataDriver
     ) {
         assert producer.getRole() == Stage.StageRole.SHUFFLE_SCAN_AGG
             : "HashShuffleAggregateDispatch: producer role must be SHUFFLE_SCAN_AGG";
@@ -113,7 +114,8 @@ public final class HashShuffleAggregateDispatch {
             consumer,
             producer,
             targetWorkerNodeIds,
-            capabilityRegistry
+            capabilityRegistry,
+            preferMetadataDriver
         );
         Stage workerStage = rewritten.worker();
 
