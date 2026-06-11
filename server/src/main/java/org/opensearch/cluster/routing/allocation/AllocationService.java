@@ -392,7 +392,12 @@ public class AllocationService {
                 final String[] indices = entry.getValue().toArray(new String[0]);
                 // we do *not* update the in sync allocation ids as they will be removed upon the first index
                 // operation which make these copies stale
-                routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+                for (String index : indices) {
+                    final IndexMetadata indexMd = clusterState.metadata().index(index);
+                    int minFromSetting = IndexMetadata.INDEX_MIN_NUMBER_OF_REPLICAS_SETTING.get(indexMd.getSettings());
+                    final int minReplicas = minFromSetting == -1 ? numberOfReplicas : minFromSetting;
+                    routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, minReplicas, new String[] { index });
+                }
                 metadataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
                 updatedIndices.addAll(Set.of(indices));
                 logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
