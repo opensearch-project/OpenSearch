@@ -121,8 +121,20 @@ public final class BroadcastDispatch {
         // each build with its own sink).
         ExchangeSink captureSink = captureSinkFactory.apply(buildStage);
 
-        // Pass 1: isolate the build stage, feed its output into captureSink.
-        StageExecution buildExec = stageExecutionBuilder.buildWithSink(buildStage, captureSink, ctx);
+        // Pass 1: run the build stage's ENTIRE sub-tree in isolation, feeding the build root's
+        // output into captureSink. The build stage may itself be a COORDINATOR_REDUCE over shard
+        // fragments (e.g. a decorrelated-EXISTS build side: Project(distinct) over a FINAL
+        // aggregate over a PARTIAL aggregate). Building only the build node would leave its child
+        // stages unscheduled, so the build reduce blocks forever in streamNext on input nobody
+        // feeds. buildSubGraphWithSink recurses children + wires the cascade; we schedule the
+        // leaves to kick off bottom-up dispatch, and listen on the build root (subGraph.root()).
+        StageExecutionBuilder.SubGraph buildGraph = stageExecutionBuilder.buildSubGraphWithSink(
+            buildStage,
+            captureSink,
+            ctx,
+            scheduler::scheduleStage
+        );
+        StageExecution buildExec = buildGraph.root();
 
         // Captured in the state listener for the cancel-after-success race guard. Cancel-callback
         // installation happens lower down (and must — see the comment on setOnCancelCallback below).
@@ -236,13 +248,20 @@ public final class BroadcastDispatch {
             return;
         }
 
-        LOGGER.debug("[BroadcastDispatch] starting pass 1 (build stage {})", buildStage.getStageId());
-        // Delegate to the scheduler's stage dispatch loop so tasks are actually run.
-        // Calling buildExec.start() alone only materializes the task list (transitioning
-        // the stage to RUNNING) — it does NOT invoke TaskRunner.run(...) on each task.
-        // Without this delegation the build stage hangs in RUNNING with no work in flight,
-        // the capture sink never closes, and pass 2 never starts.
-        scheduler.scheduleStage(buildExec);
+        LOGGER.debug(
+            "[BroadcastDispatch] starting pass 1 (build stage {}, {} leaf stage(s))",
+            buildStage.getStageId(),
+            buildGraph.leaves().size()
+        );
+        // Kick off bottom-up dispatch by scheduling the build sub-tree's LEAVES. Each leaf's
+        // SUCCEEDED cascades up to its parent (attachChildren wiring) until the build root runs
+        // its reduce. Scheduling the root directly (the pre-fix behaviour) only works when the
+        // build stage is itself a leaf; for a multi-stage build sub-tree the children must run
+        // first. scheduleStage materializes + dispatches each leaf's tasks (start() alone would
+        // only transition to RUNNING without invoking TaskRunner.run).
+        for (StageExecution leaf : buildGraph.leaves()) {
+            scheduler.scheduleStage(leaf);
+        }
     }
 
     /**

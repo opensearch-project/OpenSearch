@@ -113,7 +113,12 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
         // a CANCELLED state-listener fire — the same contract AbstractStageExecution honors.
         FakeStageExecution buildExec = new FakeStageExecution(/* stageId */ 1);
         StageExecutionBuilder builder = mock(StageExecutionBuilder.class);
-        when(builder.buildWithSink(any(Stage.class), any(ExchangeSink.class), any(QueryContext.class))).thenReturn(buildExec);
+        // Pass 1 now builds the build stage's full sub-tree via buildSubGraphWithSink (so a
+        // multi-stage build side — e.g. a reduce over a shard fragment — actually runs its
+        // children). The build stage here is childless, so the sub-graph's sole leaf is buildExec.
+        when(builder.buildSubGraphWithSink(any(Stage.class), any(ExchangeSink.class), any(QueryContext.class), any())).thenReturn(
+            new StageExecutionBuilder.SubGraph(buildExec, List.of(buildExec))
+        );
 
         QueryScheduler scheduler = mock(QueryScheduler.class);
         QueryContext ctx = mock(QueryContext.class);

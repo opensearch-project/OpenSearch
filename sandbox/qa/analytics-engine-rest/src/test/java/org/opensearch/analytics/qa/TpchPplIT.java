@@ -40,33 +40,50 @@ import java.util.ArrayList;
  * this backend (see {@link #testCaptureExpected}), not transcribed from the source's Lucene
  * assertions.
  *
- * <p><b>Coverage on this backend (2 shards).</b> Of the 22 canonical TPC-H queries, 17 run and
- * match captured expected files (q1, q2, q3, q5, q6, q9, q10, q11, q12, q13, q14, q16, q17, q18,
- * q19, q21, q22 — most are multi-table joins, so the MPP join path, including multi-broadcast
- * queries, is genuinely covered). q1, q6, q10, q12, q14 were unblocked once {@code date_add}/{@code
- * date_sub} over a {@code DATE('...')} literal landed (#21991); their captured values match the
- * source SQL plugin's {@code CalcitePPLTpchIT} assertions. q5 returns an empty result set, which the
- * source IT also asserts ({@code verifyNumOfRows(actual, 0)}) — the full 6-table join is correct,
- * the {@code c_nationkey = s_nationkey} + {@code r_name = 'ASIA'} predicate just selects no rows in
- * this dataset — so it is asserted (empty expected file), not skipped. The remaining 5 are skipped
- * via {@link #getSkipQueries()}:
+ * <p><b>Coverage on this backend (2 shards).</b> Of the 22 canonical TPC-H queries, 21 run and
+ * match captured expected files (all but q15 — most are multi-table joins, so the MPP join path,
+ * including multi-broadcast queries, is genuinely covered). q1, q6, q10, q12, q14 were unblocked once
+ * {@code date_add}/{@code date_sub} over a {@code DATE('...')} literal landed (#21991). q5/q7/q20
+ * return empty result sets, which the source IT also asserts ({@code verifyNumOfRows(actual, 0)}) —
+ * the joins are correct, the dataset predicates (q5 {@code r_name='ASIA'}, q7 FRANCE/GERMANY, q20
+ * {@code n_name='CANADA'} + forest-part subquery) just select no rows here — so they are asserted
+ * (empty expected files), not skipped. q8's all-zero {@code mkt_share} ({@code [1995,0.0],[1996,0.0]})
+ * likewise matches the source IT (no BRAZIL rows survive the join). Every captured value was
+ * cross-checked against the source SQL plugin's {@code CalcitePPLTpchIT} assertions.
+ *
+ * <p>q4 (a <em>correlated</em> {@code EXISTS} over lineitem) was unblocked once the broadcast
+ * dispatcher's pass-1 learned to run a <em>multi-stage build sub-tree</em>: q4's decorrelated EXISTS
+ * lowers to an INNER join whose build side is {@code Project(distinct l_orderkey)} over a
+ * PARTIAL→FINAL aggregate. CBO picks BROADCAST, so the build stage is itself a coordinator-reduce
+ * over a shard aggregate. The old pass-1 built only the build <em>node</em> and never scheduled its
+ * child shard stage, so the build reduce blocked forever in {@code streamNext} on input nobody fed
+ * (the "60s timeout" was the client read-timeout; the server reduce thread stayed deadlocked). The
+ * fix (see {@code BroadcastDispatch.run} → {@code StageExecutionBuilder.buildSubGraphWithSink})
+ * builds + dispatches the build stage's entire sub-tree. q7/q8 (BETWEEN timestamp/date coercion) and
+ * q20 (timestamp/date in a decorrelated subquery) were unblocked by the merge's coercion fixes
+ * (#22010 / #22045 / #21978).
+ *
+ * <p>The remaining 1 is skipped via {@link #getSkipQueries()}:
  * <ul>
- *   <li><b>q7, q8</b> — {@code BETWEEN} with mixed timestamp/date operands fails type
- *       coercion ({@code BETWEEN expression types are incompatible: [TIMESTAMP, DATE, DATE]}).</li>
- *   <li><b>q15, q20</b> — a timestamp-vs-date comparison inside a <em>decorrelated subquery</em>
- *       fails Substrait conversion ("Unable to convert call &gt;=(precision_timestamp&lt;0&gt;?,
- *       string?)"). The same comparison at the top level (q1, q6, …) works; inside a subquery
- *       {@code RelDecorrelator}'s expression simplification constant-folds the PPL {@code TIMESTAMP}
- *       UDF down to its bare string argument before the backend's scalar-function adapter runs, so
- *       the timestamp coercion is lost. Independent of the literal form ({@code date('...')} and
- *       {@code DATE '...'} both regress).</li>
- *   <li><b>q4</b> — a <em>correlated</em> {@code EXISTS} subquery over lineitem times out (60s).
- *       The date window alone (no EXISTS) runs fine; even a bare {@code exists [lineitem where
- *       l_orderkey = o_orderkey]} hangs, so the cause is the correlated-EXISTS execution path
- *       (not decorrelated to a join, unlike q15/q20's scalar/IN subqueries), not date arithmetic.</li>
+ *   <li><b>q15</b> — <em>hangs</em> (the engine deadlocks; it does not error). q15 references its
+ *       {@code revenue0} CTE twice — once as the join's right input and once inside a
+ *       {@code where total_revenue = [... max(total_revenue)]} scalar subquery — producing a root
+ *       {@code Join(Join(supplier, revenue0), MAX(revenue0))} that the planner cuts into <b>three
+ *       cascaded coordinator reduces</b> (the join-root reduce with three inputs, the revenue0
+ *       consumer reduce, and the max-branch reduce). Multi-node thread dumps + DEBUG tracing show
+ *       the underlying HASH_SHUFFLE aggregate for {@code revenue0} <em>completes fine</em> (producer
+ *       ships batches, both workers drain), but one coordinator reduce then freezes in native
+ *       {@code streamNext} while the others are idle and no producer is blocked sending — i.e. the
+ *       root join-reduce waits forever for an input that never arrives. This is a deep
+ *       <b>multi-input cascaded-coordinator-reduce streaming deadlock</b> in the native reduce path,
+ *       NOT the empty-partition / coercion issues earlier suspected (both ruled out by tracing), and
+ *       distinct from q4's broadcast-build-subtree bug. A fix needs native (Rust) work on how a
+ *       join-reduce drives three registered input partition-streams, one of which is fed by another
+ *       concurrent local reduce; the buffered (non-eager) memtable sink can't substitute because it
+ *       is single-input only. Tracked as a follow-up. The source IT asserts 1 row for q15.</li>
  * </ul>
- * As the engine closes these gaps, move queries out of {@link #getSkipQueries()} and capture
- * their expected files via {@link #testCaptureExpected}.
+ * As the engine closes this gap, move q15 out of {@link #getSkipQueries()} and capture its
+ * expected file via {@link #testCaptureExpected}.
  *
  * <p><b>Capturing expected files.</b> Run with {@code -Dtests.tpch.capture.dir=<abs path>}
  * to provision the dataset, execute all 22 queries, and write each successful response to
@@ -75,13 +92,17 @@ import java.util.ArrayList;
  */
 public class TpchPplIT extends BasePplIT {
 
-    /** Queries not yet runnable on the parquet/DataFusion path. After date_add/date_sub over a DATE
-     *  literal landed (#21991, unblocking q1,q6,q10,q12,q14) and q5 was confirmed legitimately empty
-     *  (now asserted, not skipped), the remaining gaps are: q7,q8 — BETWEEN timestamp/date coercion;
-     *  q15,q20 — a timestamp/date comparison inside a decorrelated subquery (the PPL TIMESTAMP UDF is
-     *  constant-folded to a bare string before the backend adapter runs); q4 — a correlated EXISTS
-     *  subquery times out. See class javadoc. */
-    private static final Set<Integer> UNSUPPORTED = Set.of(4, 7, 8, 15, 20);
+    /** Queries not yet runnable on the parquet/DataFusion path. Only q15 remains: it HANGS (does not
+     *  error) — it references the {@code revenue0} CTE twice (join input + max-subquery), yielding a
+     *  three-cascaded-coordinator-reduce join that deadlocks in native streamNext (the revenue0
+     *  hash-shuffle itself completes; one reduce then waits forever for an input that never arrives).
+     *  A native (Rust) reduce-path fix is needed; tracked as a follow-up. (The old "subquery coercion
+     *  error" reason is stale — fixed by merge #22010.) q4 (broadcast multi-stage build sub-tree, see
+     *  {@code BroadcastDispatch.run}), q7/q8 (BETWEEN timestamp/date coercion — #22010/#22045/#21978),
+     *  and q20 (subquery coercion #22010) were all unblocked; their captured results match the source
+     *  SQL plugin's {@code CalcitePPLTpchIT} assertions exactly (q7→0 rows, q8→[1995,0.0]/[1996,0.0],
+     *  q20→0 rows). See class javadoc. */
+    private static final Set<Integer> UNSUPPORTED = Set.of(15);
 
     /** The eight TPC-H tables, each provisioned from its own {@code mapping_<index>.json} +
      *  {@code bulk_<index>.json} under {@code resources/datasets/tpch/}. */

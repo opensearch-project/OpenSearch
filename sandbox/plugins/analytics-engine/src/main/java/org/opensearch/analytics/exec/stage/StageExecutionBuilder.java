@@ -26,8 +26,11 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Builds {@link StageExecution} instances for the walker. Resolves the
@@ -129,9 +132,69 @@ public class StageExecutionBuilder {
      *
      * <p>No wrapping, no parent lookup — the scheduler registered for {@code stage}'s
      * execution type is invoked directly with {@code sink}.
+     *
+     * <p><b>Single stage only.</b> This does NOT build {@code stage}'s children. When the stage
+     * has children (e.g. a broadcast-build stage that is itself a {@code COORDINATOR_REDUCE} over
+     * a shard fragment), use {@link #buildSubGraphWithSink} instead — otherwise the children never
+     * run and the reduce blocks forever on input that nobody feeds.
      */
     public StageExecution buildWithSink(Stage stage, ExchangeSink sink, QueryContext config) {
         return buildStageExecution(stage, sink, config);
+    }
+
+    /**
+     * Builds the full sub-graph rooted at {@code rootStage} for isolated multi-phase dispatch
+     * (e.g. broadcast pass 1). The root's output goes to the caller-supplied {@code rootSink};
+     * every descendant is built and wired into the parent→child cascade exactly as
+     * {@code ExecutionGraph.build} does for the whole-query graph, so children dispatch and feed
+     * their parents bottom-up. The caller schedules the returned {@link SubGraph#leaves()} (and
+     * listens on {@link SubGraph#root()} for the root's terminal).
+     *
+     * <p>Mirrors {@code ExecutionGraph}'s recursion + {@code QueryExecution.start()}'s leaf
+     * scheduling, but rooted at an arbitrary stage with a caller-owned root sink rather than a
+     * fresh {@code RowProducingSink}. The {@code scheduler} callback is plumbed into each parent's
+     * cascade listener (fired when all of a parent's children have SUCCEEDED), identical to the
+     * whole-query path.
+     */
+    public SubGraph buildSubGraphWithSink(Stage rootStage, ExchangeSink rootSink, QueryContext config, Consumer<StageExecution> scheduler) {
+        StageExecution rootExec = buildStageExecution(rootStage, rootSink, config);
+        List<StageExecution> leaves = new ArrayList<>();
+        // Root with no children is itself the only leaf (e.g. a leaf shard-scan build stage —
+        // the original single-stage broadcast-build shape).
+        if (rootStage.getChildStages().isEmpty()) {
+            leaves.add(rootExec);
+        } else {
+            buildChildrenRecursively(rootExec, rootStage, config, scheduler, leaves);
+        }
+        return new SubGraph(rootExec, leaves);
+    }
+
+    private void buildChildrenRecursively(
+        StageExecution parentExec,
+        Stage parentStage,
+        QueryContext config,
+        Consumer<StageExecution> scheduler,
+        List<StageExecution> leaves
+    ) {
+        List<Stage> children = parentStage.getChildStages();
+        List<StageExecution> childExecs = new ArrayList<>(children.size());
+        for (Stage child : children) {
+            StageExecution childExec = buildExecution(child, parentExec, config);
+            childExecs.add(childExec);
+            if (child.getChildStages().isEmpty()) {
+                leaves.add(childExec);
+            } else {
+                buildChildrenRecursively(childExec, child, config, scheduler, leaves);
+            }
+        }
+        parentExec.attachChildren(childExecs, scheduler);
+    }
+
+    /**
+     * Result of {@link #buildSubGraphWithSink}: the root stage execution (output → caller sink)
+     * and the leaf executions the caller must schedule to kick off bottom-up dispatch.
+     */
+    public record SubGraph(StageExecution root, List<StageExecution> leaves) {
     }
 
     // ── Internal dispatch ───────────────────────────────────────────────
