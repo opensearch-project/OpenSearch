@@ -138,15 +138,15 @@ fn render_token(tok: Token, dt: DateTime<Utc>, mode: FormatMode) -> Option<Rende
         // PPL bug-for-bug: %w uses Mon=1..Sun=7 despite MySQL docs claiming Sun=0.
         Token::WLower => date_only!(Str(dt.weekday().number_from_monday().to_string())),
         Token::J => date_only!(Str(format!("{:03}", dt.ordinal()))),
-        // %U/%u/%V/%v render unpadded (PPL emits via '%d', not '%02d')
-        Token::UUpper => date_only!(Str(week_number_sunday_first(dt).to_string())),
-        Token::ULower => date_only!(Str(week_number_monday_first(dt).to_string())),
-        Token::VUpper => date_only!(Str(week_number_sunday_first_01(dt).to_string())),
-        Token::VLower => date_only!(Str(week_number_monday_first_01(dt).to_string())),
+        // %U/%u/%V/%v render zero-padded to width 2 (matches MySQL docs and PPL DateTimeFormatterUtil).
+        Token::UUpper => date_only!(Str(format!("{:02}", week_number_sunday_first(dt)))),
+        Token::ULower => date_only!(Str(format!("{:02}", week_number_monday_first(dt)))),
+        Token::VUpper => date_only!(Str(format!("{:02}", week_number_sunday_first_01(dt)))),
+        Token::VLower => date_only!(Str(format!("{:02}", week_number_monday_first_01(dt)))),
         Token::XUpper => date_only!(Str(format!("{:04}", week_year_sunday_first(dt)))),
         Token::XLower => date_only!(Str(format!("{:04}", week_year_monday_first(dt)))),
-        // %c is zero-padded month (PPL: 'MM' pattern, not MySQL's documented unpadded behavior)
-        Token::C => Str(if time_mode { "0".into() } else { format!("{:02}", dt.month()) }),
+        // %c emits month with no leading zero (MySQL semantics).
+        Token::C => Str(if time_mode { "0".into() } else { dt.month().to_string() }),
         Token::DLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.day()) }),
         Token::E => Str(if time_mode { "0".into() } else { dt.day().to_string() }),
         Token::MLower => Str(if time_mode { "00".into() } else { format!("{:02}", dt.month()) }),
@@ -649,27 +649,27 @@ mod tests {
 
     #[test]
     fn week_tokens_iso_and_first_day() {
-        // %U/%u/%V/%v unpadded; %v is MySQL mode 3 (Monday-first, 01..53), distinct from ISO.
+        // %U/%u/%V/%v zero-padded to width 2 (MySQL docs); %v is MySQL mode 3 (Monday-first, 01..53), distinct from ISO.
         let dt = sample(); // 2020-03-15 = Sunday
         assert_eq!(fmt(dt, "%U", FormatMode::Date).unwrap(), "11");
         assert_eq!(fmt(dt, "%v", FormatMode::Date).unwrap(), "10");
 
-        // 1998-01-31 (Saturday): all four week tokens render `4`.
+        // 1998-01-31 (Saturday): all four week tokens render `04`.
         let jan31 = Utc.with_ymd_and_hms(1998, 1, 31, 0, 0, 0).unwrap();
         assert_eq!(fmt(jan31, "%U %u %V %v %W %w %X %x %Y %y", FormatMode::Date).unwrap(),
-                   "4 4 4 4 Saturday 6 1998 1998 1998 98");
+                   "04 04 04 04 Saturday 6 1998 1998 1998 98");
     }
 
     #[test]
     fn date_format_timestamp_full_token_set() {
-        // Full token set from CalciteDateTimeFunctionIT.testDateFormat: %c is zero-padded; %P literal.
+        // Full token set from CalciteDateTimeFunctionIT.testDateFormat: %c is unpadded; %P literal.
         let ts = chrono::NaiveDate::from_ymd_opt(1998, 1, 31)
             .unwrap()
             .and_hms_micro_opt(13, 14, 15, 12_345)
             .unwrap();
         let dt = chrono::Utc.from_utc_datetime(&ts);
         let fmtstr = "%a %b %c %D %d %e %f %H %h %I %i %j %k %l %M %m %p %r %S %s %T %% %P";
-        let want = "Sat Jan 01 31st 31 31 012345 13 01 01 14 031 13 1 January 01 PM 01:14:15 PM 15 15 13:14:15 % P";
+        let want = "Sat Jan 1 31st 31 31 012345 13 01 01 14 031 13 1 January 01 PM 01:14:15 PM 15 15 13:14:15 % P";
         assert_eq!(fmt(dt, fmtstr, FormatMode::Date).unwrap(), want);
     }
 

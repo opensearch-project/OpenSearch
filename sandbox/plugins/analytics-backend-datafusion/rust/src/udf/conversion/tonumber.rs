@@ -13,7 +13,6 @@
 //! * `base` must be in the inclusive range `[2, 36]`
 //! * Output type is `Float64`
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -99,10 +98,6 @@ impl<'a> ValueSource<'a> {
 }
 
 impl ScalarUDFImpl for ToNumberUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "tonumber"
     }

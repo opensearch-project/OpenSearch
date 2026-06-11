@@ -147,7 +147,7 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         }
         // The plan exceeds MAX_EXTRACT_INDICES_DEPTH — should throw rather than silently skip
         RelNode deepPlan = node;
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> RelNodeUtils.extractIndices(deepPlan));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RelNodeUtils.extractIndices(deepPlan));
         assertTrue(e.getMessage().contains("maximum depth"));
     }
 

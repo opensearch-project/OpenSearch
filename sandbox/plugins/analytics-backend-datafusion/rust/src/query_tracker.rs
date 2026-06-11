@@ -107,7 +107,23 @@ impl QueryMemoryPool {
     }
 }
 
+impl std::fmt::Display for QueryMemoryPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "QueryMemoryPool(inner={}, current={}, peak={})",
+            self.inner.name(),
+            self.current_bytes.load(Ordering::Relaxed),
+            self.peak_bytes.load(Ordering::Relaxed)
+        )
+    }
+}
+
 impl MemoryPool for QueryMemoryPool {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
     fn register(&self, consumer: &MemoryConsumer) {
         self.inner.register(consumer);
     }

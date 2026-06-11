@@ -10,7 +10,6 @@
 //! Composite units (e.g. DAY_MICROSECOND) join min-width-padded fields then parse as i64,
 //! so leading zeros on the first field collapse (`0709` → `709`). WEEK is ISO, DOW is Mon=1..Sun=7.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use super::udf_identity;
@@ -47,10 +46,6 @@ impl ExtractUdf {
 udf_identity!(ExtractUdf, "opensearch_extract");
 
 impl ScalarUDFImpl for ExtractUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "opensearch_extract"
     }

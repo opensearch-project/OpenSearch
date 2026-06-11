@@ -1179,7 +1179,7 @@ pub unsafe fn sql_to_substrait(
                     .with_metadata_cache_limit(
                         runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
                     )
-                    .with_files_statistics_cache(
+                    .with_file_statistics_cache(
                         runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                     ),
             )

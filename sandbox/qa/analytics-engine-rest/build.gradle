@@ -45,11 +45,11 @@ dependencies {
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 
     // job-scheduler pulled from OpenSearch Snapshots (no local build).
-    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.7.0.0-SNAPSHOT@zip"
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.8.0.0-SNAPSHOT@zip"
     // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
     // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
     // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
-    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.7.0.0-SNAPSHOT@zip"
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.8.0.0-SNAPSHOT@zip"
 }
 
 // ── Shared cluster configuration closure ─────────────────────────────────────
@@ -104,6 +104,11 @@ def configureAnalyticsCluster = { cluster ->
     // analytics-engine path (bypassing the per-index lookup that doesn't handle aliases,
     // wildcards, or comma-lists).
     cluster.setting 'cluster.pluggable.dataformat', 'composite'
+
+    // Override default block-list to empty for integration tests so all predicate shapes
+    // are exercised with delegation enabled. Production clusters retain the default
+    // block-list (IS_NULL, IS_NOT_NULL, LIKE) until the dc() local execution fix lands.
+    cluster.setting 'analytics.delegation.lucene.blocked_predicates', '[]'
 
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
