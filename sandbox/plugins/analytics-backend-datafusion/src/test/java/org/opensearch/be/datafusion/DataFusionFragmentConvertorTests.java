@@ -23,9 +23,16 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Optionality;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -247,6 +254,87 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             "StageInputScan must be emitted as a ReadRel with the per-child stage-input id",
             List.of("input-" + childStageId),
             inner.getRead().getNamedTable().getNamesList()
+        );
+    }
+
+    /**
+     * RC-A regression: no-group {@code LIST(<scalar>)} at the reduce stage. The scalar→VARCHAR cast
+     * (PPL list/values is {@code ARRAY<VARCHAR>}) must ride the substrait measure arg, not a lifted
+     * Project — else the reduce-stage stitch ({@code replaceInput}) drops it and the arg dangles past
+     * the inner width, panicking native DataFusion. Asserts the arg is a Cast over original field 0.
+     */
+    public void testAttachFragmentOnTop_NoGroupListOverScalar_MeasureArgIsVarcharCastOverOriginalField() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner fragment: Project that outputs a single INTEGER column (the gathered reduce input).
+        OpenSearchStageInputScan innerStage = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            rowType("c0", "c1", "c2", "c3", "c4"),
+            List.of("datafusion"),
+            List.of()
+        );
+        org.apache.calcite.rel.logical.LogicalProject innerProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            innerStage,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(innerStage, 4)),
+            List.of("picked"),
+            java.util.Set.of()
+        );
+        byte[] innerBytes = convertor.convertFragment(innerProject);
+
+        // Wrapper: LIST(picked) with NO group-by, over a 1-column placeholder (the inner's output shape).
+        OpenSearchStageInputScan aggLeaf = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            -1,
+            innerProject.getRowType(),
+            List.of("datafusion"),
+            List.of()
+        );
+        SqlAggFunction listOp = new SqlAggFunction(
+            "LIST",
+            null,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.TO_ARRAY.andThen(SqlTypeTransforms.FORCE_NULLABLE),
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
+        RelDataType nullableInt = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelDataType arrayType = typeFactory.createTypeWithNullability(typeFactory.createArrayType(nullableInt, -1), true);
+        AggregateCall listCall = AggregateCall.create(
+            listOp,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(0),
+            -1,
+            null,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            0,
+            aggLeaf,
+            arrayType,
+            "l"
+        );
+        LogicalAggregate agg = LogicalAggregate.create(aggLeaf, List.of(), ImmutableBitSet.of(), null, List.of(listCall));
+
+        byte[] bytes = convertor.attachFragmentOnTop(agg, innerBytes);
+        Plan plan = decodeSubstrait(bytes);
+        Rel root = rootRel(plan);
+        assertTrue("root must be an AggregateRel", root.hasAggregate());
+        Expression arg = root.getAggregate().getMeasures(0).getMeasure().getArguments(0).getValue();
+        assertTrue("LIST(scalar) measure arg must be a Cast (to VARCHAR), not a bare selection", arg.hasCast());
+        assertEquals(
+            "the cast must wrap the ORIGINAL input field (index 0), not a lifted/appended column",
+            0,
+            arg.getCast().getInput().getSelection().getDirectReference().getStructField().getField()
         );
     }
 

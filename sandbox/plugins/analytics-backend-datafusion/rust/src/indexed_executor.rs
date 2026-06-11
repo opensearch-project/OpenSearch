@@ -500,6 +500,7 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let query_config = Arc::new(handle.query_config);
     let num_partitions = query_config.target_partitions.max(1);
+    let aggregate_mode = handle.aggregate_mode;
     let ctx = handle.ctx;
     let table_name = handle.table_name;
     let table_path = handle.table_path;
@@ -880,6 +881,13 @@ async unsafe fn execute_indexed_with_context_inner(
     // types. The target is schema_coerce::coerce_inferred_schema(physical_schema) — same
     // narrowing the partition-stream registration uses, so consumer-side StreamingTable
     // and producer-side batches agree by construction (see crate::relabel_exec).
+    // Apply aggregate mode stripping when prepare_partial_plan was called (engine-native-merge).
+    // This makes the indexed executor produce Binary HLL state (Partial) instead of Int64 (Final).
+    let physical_plan = if aggregate_mode != crate::agg_mode::Mode::Default {
+        crate::agg_mode::apply_aggregate_mode(physical_plan, aggregate_mode)?
+    } else {
+        physical_plan
+    };
     let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
     let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));

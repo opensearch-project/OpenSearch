@@ -84,7 +84,30 @@ public class FilterDelegationExtendedIT extends AnalyticsRestTestCase {
 
         // ===== IN =====
         new Case("where str0 in ('apple', 'cherry') | stats count() as c", 5, false),
-        new Case("where str0 in ('apple', 'cherry') | stats sum(num0) as c", 210, false)
+        new Case("where str0 in ('apple', 'cherry') | stats sum(num0) as c", 210, false),
+
+        // ===== AVG — additional exact-integer cases =====
+        new Case("where str0 != 'cherry' | stats avg(num0) as c", 50, false),
+
+        // ===== dc() across more predicate shapes =====
+        new Case("where str0 != 'banana' | stats dc(str0) as c", 3, false),
+        new Case("where isnull(str1) | stats dc(num0) as c", 4, false),
+        new Case("where isnotnull(str1) | stats dc(num0) as c", 6, false),
+
+        // ===== PERCENTILE =====
+        new Case("where str0 != 'apple' | stats percentile(num0, 50) as c", 70, false),
+        new Case("where isnull(str1) | stats percentile(num0, 50) as c", 70, false)
+    );
+
+    private record StatisticalCase(String pplSuffix, double expected) {}
+
+    private static final List<StatisticalCase> STATISTICAL_CASES = List.of(
+        new StatisticalCase("where str0 != 'apple' | stats stddev_pop(num0) as c", 20.0),
+        new StatisticalCase("where str0 != 'apple' | stats stddev_samp(num0) as c", 21.602469),
+        new StatisticalCase("where isnull(str1) | stats stddev_pop(num0) as c", 25.860201),
+        new StatisticalCase("where isnull(str1) | stats stddev_samp(num0) as c", 29.860788),
+        new StatisticalCase("where isnotnull(str1) | stats stddev_pop(num0) as c", 27.487371),
+        new StatisticalCase("where isnotnull(str1) | stats stddev_samp(num0) as c", 30.110906)
     );
 
     private static boolean dataProvisioned = false;
@@ -112,6 +135,28 @@ public class FilterDelegationExtendedIT extends AnalyticsRestTestCase {
         }
         if (!failures.isEmpty()) {
             fail("Filter delegation failures (" + failures.size() + " of " + CASES.size() + "):\n"
+                + String.join("\n", failures));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStatisticalAggregatesWithDelegation() throws Exception {
+        List<String> failures = new java.util.ArrayList<>();
+        for (StatisticalCase dc : STATISTICAL_CASES) {
+            try {
+                String ppl = "source = " + DATASET.indexName + " | " + dc.pplSuffix;
+                Map<String, Object> result = executePpl(ppl);
+                List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+                assertNotNull("datarows null for [" + dc.pplSuffix + "]", rows);
+                assertEquals("expected 1 agg row for [" + dc.pplSuffix + "]", 1, rows.size());
+                double actual = ((Number) rows.get(0).get(0)).doubleValue();
+                assertEquals("[" + dc.pplSuffix + "]", dc.expected, actual, 0.1);
+            } catch (AssertionError | Exception e) {
+                failures.add(dc.pplSuffix + " → " + e.getMessage());
+            }
+        }
+        if (!failures.isEmpty()) {
+            fail("Statistical aggregate failures (" + failures.size() + " of " + STATISTICAL_CASES.size() + "):\n"
                 + String.join("\n", failures));
         }
     }

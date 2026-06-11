@@ -226,7 +226,6 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
             null,
             null,
             null, // nativeAllocator
-            null,
             -1L  // totalEstimatedNativeBytes
         );
         return new ClusterStatsNodeResponse(node, null, nodeInfo, nodeStats, shardStats);

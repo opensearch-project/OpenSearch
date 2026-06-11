@@ -80,6 +80,11 @@ public class StatsFailureIT extends AbstractCompositeEngineIT {
      *    (proving the old tracker was properly unregistered and a fresh one registered).
      * 4. New indexing after recovery is tracked correctly.
      */
+    @AwaitsFix(bugUrl = "Intermittent deadlock: after the injected engine failure, a scheduled refresh thread parks "
+        + "permanently in LockablePool.checkoutAll (blocking ReentrantLock.lock with no timeout) because a "
+        + "writer lock is left held on the engine-failure path. The shard never recovers, so ensureGreen times "
+        + "out. Root cause is in DataFormatAwareEngine.refresh / LockablePool (server), not in stats. "
+        + "Re-enable once checkoutAll uses a bounded tryLock or the failure path releases writer locks.")
     public void testTrackerLifecycleAroundEngineFailure() throws Exception {
         // Start a single node to minimize interference with the JVM-wide failure countdown.
         internalCluster().startNode();

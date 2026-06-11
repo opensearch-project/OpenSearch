@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 
 public class ParquetIndexingEngineTests extends ParquetBaseTests {
 
-    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
+    private ArrowNativeAllocator nativeAllocator;
     private MappedFieldType idField;
     private MappedFieldType nameField;
     private MappedFieldType scoreField;
@@ -60,8 +60,8 @@ public class ParquetIndexingEngineTests extends ParquetBaseTests {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, null);
 
         idField = createNumberField("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = createKeywordField("name");
