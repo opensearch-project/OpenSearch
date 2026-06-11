@@ -1001,6 +1001,35 @@ scalar_functions:
           - { value: "i32", name: "mode" }
         return: i32
 
+  - name: "os_yearweek"
+    description: >-
+      Compute MySQL's YEARWEEK(date [, mode]) — returns year * 100 + week with
+      MySQL's mode and year-boundary semantics (an early-January date can roll
+      into the prior year's last week). Routes to the Rust `os_yearweek` UDF
+      (rust/src/udf/os_week.rs).
+    impls:
+      - args:
+          - { value: "date", name: "value" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+        return: i32
+      - args:
+          - { value: "date", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+      - args:
+          - { value: "string", name: "value" }
+          - { value: "i32", name: "mode" }
+        return: i32
+
   - name: "md5"
     description: "Return the 128-bit MD5 digest of the input string as a lowercase hex string."
     impls:

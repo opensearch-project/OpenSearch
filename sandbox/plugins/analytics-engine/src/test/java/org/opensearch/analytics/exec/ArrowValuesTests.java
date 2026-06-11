@@ -127,7 +127,7 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             v.allocateNew(1);
             v.set(0, 27_605_123_456L);
             v.setValueCount(1);
-            assertEquals("07:40:05.123456000", ArrowValues.toJavaValue(v, 0));
+            assertEquals("07:40:05.123456", ArrowValues.toJavaValue(v, 0));
         }
     }
 
@@ -172,7 +172,7 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             v.allocateNew(1);
             v.set(0, 1_780_731_605_123_456L);
             v.setValueCount(1);
-            assertEquals("2026-06-06 07:40:05.123456000", ArrowValues.toJavaValue(v, 0));
+            assertEquals("2026-06-06 07:40:05.123456", ArrowValues.toJavaValue(v, 0));
         }
     }
 
