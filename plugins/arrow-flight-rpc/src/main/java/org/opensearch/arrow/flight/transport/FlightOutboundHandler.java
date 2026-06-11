@@ -11,6 +11,9 @@ package org.opensearch.arrow.flight.transport;
 import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.arrow.transport.VectorTransfer;
@@ -40,6 +43,7 @@ import java.util.Set;
  * @opensearch.internal
  */
 class FlightOutboundHandler extends ProtocolOutboundHandler {
+    private static final Logger logger = LogManager.getLogger(FlightOutboundHandler.class);
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
     private final String nodeName;
     private final Version version;
@@ -153,6 +157,10 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             return;
         }
 
+        // Root the handler allocates for the first frame (when the channel has none yet). On success
+        // the channel adopts it (sendBatch -> serverStreamListener.start) and closes it at stream
+        // end; on failure we must close it ourselves if the channel never adopted it — see catch.
+        VectorSchemaRoot handlerCreatedRoot = null;
         try {
             VectorStreamOutput out;
             byte[] metadata = null;
@@ -170,6 +178,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                         throw new IllegalStateException("Native Arrow batch has no field vectors");
                     }
                     streamRoot = VectorSchemaRoot.create(arrowResponse.getRoot().getSchema(), fieldVectors.getFirst().getAllocator());
+                    handlerCreatedRoot = streamRoot;
                 }
                 VectorTransfer.transferRoot(arrowResponse.getRoot(), streamRoot);
                 arrowResponse.getRoot().close();
@@ -180,12 +189,60 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             }
             try (out) {
                 flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out, metadata);
+                // Channel has adopted the root (it is now flightChannel.getRoot()); it owns the close.
+                handlerCreatedRoot = null;
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
             }
         } catch (FlightRuntimeException e) {
+            // Fail the stream BEFORE notifying the listener (mirrors processErrorTask order) so a
+            // listener that throws cannot leave the stream un-terminated and the consumer hanging.
+            failStream(flightChannel, task, handlerCreatedRoot, e);
             messageListener.onResponseSent(task.requestId(), task.action(), FlightErrorMapper.fromFlightException(e));
         } catch (Exception e) {
+            failStream(flightChannel, task, handlerCreatedRoot, e);
             messageListener.onResponseSent(task.requestId(), task.action(), e);
+        }
+    }
+
+    /**
+     * Terminates the stream with {@code cause} after a batch send fails. Without this, a batch that
+     * cannot be serialized/sent (e.g. a malformed Arrow batch with no field vectors) is dropped and
+     * the stream is later closed via the normal {@code completeStream} path — but no schema frame
+     * ever reaches the client, so its {@code FlightStream.getRoot()} blocks forever waiting for the
+     * first frame. Sending the error fails the gRPC call instead, surfacing the failure to the
+     * consumer as an exception rather than an indefinite hang. Runs inline on the channel executor
+     * (same thread as the failed send).
+     *
+     * <p>After the best-effort {@code sendError}, the channel is released exactly as the normal
+     * error path does (a {@code BatchTask} with {@code isError=true} releases via
+     * {@code BatchTask#close}): this flips {@code FlightServerChannel.open} to false so a
+     * subsequently-enqueued {@code completeStream} task no-ops on its {@code open} guard instead of
+     * calling {@code ServerStreamListener.completed()} after {@code .error()} — an illegal double
+     * terminal on the gRPC stream. Release is idempotent (breaker release CASes, channel close
+     * guards on {@code open}), so it is safe even if the channel is already closed/cancelled.
+     */
+    private void failStream(FlightServerChannel flightChannel, BatchTask task, VectorSchemaRoot unownedRoot, Exception cause) {
+        try {
+            Exception flightError = cause instanceof StreamException se ? FlightErrorMapper.toFlightException(se) : cause;
+            flightChannel.sendError(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), flightError);
+        } catch (Exception suppressed) {
+            // Channel already closed/cancelled (consumer gone), or header serialization failed —
+            // nothing left to fail. Log at debug with the cause for diagnosability.
+            logger.debug(new ParameterizedMessage("failStream: could not send error for requestId [{}]", task.requestId()), suppressed);
+        } finally {
+            // The handler-created first-frame root was never adopted by the channel (sendBatch did
+            // not complete), and VectorStreamOutput.forNativeArrow(...).close() is a no-op, so close
+            // it here to avoid leaking its buffers.
+            if (unownedRoot != null) {
+                try {
+                    unownedRoot.close();
+                } catch (Exception ignore) {}
+            }
+            // Make the channel terminal regardless of whether sendError succeeded, so a later
+            // completeStream cannot double-terminate the gRPC listener. Idempotent.
+            if (task.transportChannel() != null) {
+                task.transportChannel().releaseChannel(true);
+            }
         }
     }
 

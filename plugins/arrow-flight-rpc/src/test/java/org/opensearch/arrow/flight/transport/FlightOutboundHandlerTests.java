@@ -416,6 +416,110 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         verify(submitTrap, org.mockito.Mockito.never()).execute(any());
     }
 
+    /**
+     * When a batch send fails, the handler must fail the stream via {@code sendError} instead of
+     * silently dropping the batch. Otherwise the stream is later closed with no schema frame ever
+     * reaching the client, whose {@code FlightStream.getRoot()} then blocks forever. Verifies the
+     * batch failure (a) fails the stream via {@code sendError}, (b) releases the channel (so a
+     * later {@code completeStream} cannot double-terminate the gRPC listener), and (c) fails the
+     * stream BEFORE notifying the listener. Uses an existing stream root so there is no
+     * handler-created root to leak; the test owns and closes it.
+     */
+    public void testProcessBatchTaskFailureSendsErrorOnStream() throws Exception {
+        try (RootAllocator allocator = new RootAllocator()) {
+            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, allocator);
+            when(mockFlightChannel.getRoot()).thenReturn(streamRoot);
+
+            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
+            IntVector vec = (IntVector) producerRoot.getVector("val");
+            vec.allocateNew();
+            vec.setSafe(0, 7);
+            vec.setValueCount(1);
+            producerRoot.setRowCount(1);
+
+            // The batch send fails (e.g. malformed batch / transport error).
+            doThrow(new RuntimeException("send failed")).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+
+            FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+            CountDownLatch released = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                released.countDown();
+                return null;
+            }).when(transportChannel).releaseChannel(true);
+
+            handler.sendResponseBatch(
+                Version.CURRENT,
+                Collections.emptySet(),
+                mockFlightChannel,
+                transportChannel,
+                1L,
+                "test-action",
+                new TestArrowResponse(producerRoot),
+                false,
+                false
+            );
+
+            assertTrue("failed batch send must terminate the stream", released.await(5, TimeUnit.SECONDS));
+            // sendError fails the gRPC call; releaseChannel(true) makes the channel terminal so a
+            // later completeStream no-ops instead of calling completed() after error().
+            verify(mockFlightChannel).sendError(any(), any(Exception.class));
+            verify(transportChannel).releaseChannel(true);
+            // Stream is failed BEFORE the listener is notified (mirrors processErrorTask ordering).
+            org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(mockFlightChannel, mockListener);
+            inOrder.verify(mockFlightChannel).sendError(any(), any(Exception.class));
+            inOrder.verify(mockListener).onResponseSent(anyLong(), anyString(), any(Exception.class));
+            streamRoot.close();
+        }
+    }
+
+    /**
+     * First-frame failure variant: when {@code getRoot()} is null (no schema frame sent yet) and
+     * the first batch send fails, the handler must still fail the stream. This is the exact shape
+     * that hung the consumer — the gRPC client never receives a schema, so {@code getRoot()} blocks
+     * forever unless the stream is explicitly failed.
+     */
+    public void testProcessBatchTaskFirstFrameFailureSendsError() throws Exception {
+        try (RootAllocator allocator = new RootAllocator()) {
+            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
+            IntVector vec = (IntVector) producerRoot.getVector("val");
+            vec.allocateNew();
+            vec.setSafe(0, 1);
+            vec.setValueCount(1);
+            producerRoot.setRowCount(1);
+
+            // No schema frame sent yet (first batch). The handler creates a stream root from the
+            // producer's allocator, then sendBatch fails before ownership transfers.
+            when(mockFlightChannel.getRoot()).thenReturn(null);
+            doThrow(new RuntimeException("first-frame send failed")).when(mockFlightChannel)
+                .sendBatch(any(), any(VectorStreamOutput.class), any());
+
+            FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+            CountDownLatch released = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                released.countDown();
+                return null;
+            }).when(transportChannel).releaseChannel(true);
+
+            handler.sendResponseBatch(
+                Version.CURRENT,
+                Collections.emptySet(),
+                mockFlightChannel,
+                transportChannel,
+                1L,
+                "test-action",
+                new TestArrowResponse(producerRoot),
+                false,
+                false
+            );
+
+            assertTrue("first-frame failure must terminate the stream", released.await(5, TimeUnit.SECONDS));
+            verify(mockFlightChannel).sendError(any(), any(Exception.class));
+            verify(transportChannel).releaseChannel(true);
+        }
+    }
+
     public void testBatchTaskCloseWithIsErrorCallsReleaseChannelWithTrue() {
         FlightTransportChannel mockTransportChannel = mock(FlightTransportChannel.class);
 
