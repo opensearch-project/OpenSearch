@@ -150,6 +150,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IS_NULL,
         ScalarFunction.IS_NOT_NULL,
         ScalarFunction.NULLIF,
+        ScalarFunction.IS_TRUE,
+        ScalarFunction.IS_FALSE,
+        ScalarFunction.IS_NOT_TRUE,
+        ScalarFunction.IS_NOT_FALSE,
         // ABS / SUBSTRING — PPL sort-pushdown moves these into the project tree; DataFusion has
         // both natively and isthmus's default catalog binds them, so no adapter needed.
         ScalarFunction.ABS,
