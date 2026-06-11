@@ -834,10 +834,11 @@ public final class NativeBridge {
      * @param segments per-segment metadata — each carries a single filename and writer generation
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      * @param sortFields index.sort.field values, or empty list if the index has no sort configured.
-     *                   Parallel to {@code sortOrders}.
+     *                   Parallel to {@code sortOrders}. Two consumers Rust-side: vanilla path's
+     *                   {@code ListingOptions.with_file_sort_order(...)} so the parquet scan advertises
+     *                   {@code output_ordering} to the optimizer, and indexed path's segment-iteration
+     *                   reversal when the query's leading ORDER BY runs counter to catalog direction.
      * @param sortOrders index.sort.order values ("asc" or "desc"), parallel to {@code sortFields}.
-     *                   Used by Rust to call {@code ListingOptions.with_file_sort_order(...)} so the
-     *                   parquet scan advertises {@code output_ordering} to the DataFusion optimizer.
      */
     public static long createDatafusionReader(
         String path,

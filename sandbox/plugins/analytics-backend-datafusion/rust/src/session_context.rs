@@ -43,8 +43,9 @@ pub struct SessionContextHandle {
     /// `SegmentFileInfo.writer_generation`; footer-kv reads are debug-only assertions.
     pub writer_generations: Arc<Vec<i64>>,
     /// `index.sort.field` plumbed from the Java side (`ShardView.sort_fields`).
-    /// Empty when the index has no `index.sort.field`. Used by
-    /// `IndexedTableProvider` to decide whether to advertise `output_ordering`.
+    /// Empty when the index has no `index.sort.field`. Consumed by the vanilla path
+    /// (`IndexedTableProvider` `output_ordering`) and by the indexed path's
+    /// segment-reversal optimization.
     pub sort_fields: Vec<String>,
     /// Parallel to `sort_fields`. Each entry is `"asc"` or `"desc"` (lowercase).
     pub sort_orders: Vec<String>,
