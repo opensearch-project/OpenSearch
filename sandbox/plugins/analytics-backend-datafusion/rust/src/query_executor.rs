@@ -415,7 +415,7 @@ pub fn build_query_runtime_env(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
-                .with_files_statistics_cache(
+                .with_file_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
         )

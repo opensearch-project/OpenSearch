@@ -51,7 +51,7 @@ use crate::eviction_policy::PolicyType;
 use crate::runtime_manager::RuntimeManager;
 use crate::statistics_cache::CustomStatisticsCache;
 
-use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
+use datafusion::execution::cache::DefaultFilesMetadataCache;
 
 static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 

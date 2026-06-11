@@ -373,7 +373,33 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.TIMESTAMPDIFF,
         ScalarFunction.TIMESTAMPADD,
         ScalarFunction.DATE_ADD,
-        ScalarFunction.DATE_SUB
+        ScalarFunction.DATE_SUB,
+        // PPL `ADDDATE(base, N|INTERVAL)` / `SUBDATE(...)` — share the DATE_ADD/DATE_SUB adapter;
+        // the integer-days form is normalized to INTERVAL N DAY. DATE / TIMESTAMP bases only.
+        ScalarFunction.ADDDATE,
+        ScalarFunction.SUBDATE,
+        // PPL `DATEDIFF(a, b)` — calendar-day delta, lowered to a day-index subtraction.
+        ScalarFunction.DATEDIFF,
+        // PPL epoch-arithmetic datetime scalars — lower to to_unixtime/from_unixtime + integer math.
+        ScalarFunction.TO_DAYS,
+        ScalarFunction.TO_SECONDS,
+        ScalarFunction.FROM_DAYS,
+        ScalarFunction.TIME_TO_SEC,
+        ScalarFunction.SEC_TO_TIME,
+        // PPL WEEKDAY — date_part('dow') remapped to MySQL Mon=0..Sun=6.
+        ScalarFunction.WEEKDAY,
+        // PPL PERIOD_ADD / PERIOD_DIFF — pure integer YYYYMM arithmetic.
+        ScalarFunction.PERIOD_ADD,
+        ScalarFunction.PERIOD_DIFF,
+        // PPL GET_FORMAT(type, region) — plan-time fold to a constant format string.
+        ScalarFunction.GET_FORMAT,
+        // PPL ADDTIME / SUBTIME / TIMEDIFF — time-of-day arithmetic via to_unixtime + maketime.
+        ScalarFunction.ADDTIME,
+        ScalarFunction.SUBTIME,
+        ScalarFunction.TIME_DIFF,
+        // PPL LAST_DAY — date_trunc('month') + 1 month - 1 day. YEARWEEK — os_yearweek Rust UDF.
+        ScalarFunction.LAST_DAY,
+        ScalarFunction.YEARWEEK
     );
 
     /**
@@ -672,6 +698,23 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.DATETIME, new DateTimeAdapters.DatetimeAdapter()),
                     Map.entry(ScalarFunction.DATE_ADD, new DateAddSubAdapter(true)),
                     Map.entry(ScalarFunction.DATE_SUB, new DateAddSubAdapter(false)),
+                    Map.entry(ScalarFunction.ADDDATE, new DateAddSubAdapter(true)),
+                    Map.entry(ScalarFunction.SUBDATE, new DateAddSubAdapter(false)),
+                    Map.entry(ScalarFunction.DATEDIFF, new DateDiffAdapter()),
+                    Map.entry(ScalarFunction.TO_DAYS, new EpochArithmeticAdapters.ToDaysAdapter()),
+                    Map.entry(ScalarFunction.TO_SECONDS, new EpochArithmeticAdapters.ToSecondsAdapter()),
+                    Map.entry(ScalarFunction.FROM_DAYS, new EpochArithmeticAdapters.FromDaysAdapter()),
+                    Map.entry(ScalarFunction.TIME_TO_SEC, new EpochArithmeticAdapters.TimeToSecAdapter()),
+                    Map.entry(ScalarFunction.SEC_TO_TIME, new SecToTimeAdapter()),
+                    Map.entry(ScalarFunction.WEEKDAY, new WeekdayAdapter()),
+                    Map.entry(ScalarFunction.PERIOD_ADD, new PeriodArithmeticAdapters.PeriodAddAdapter()),
+                    Map.entry(ScalarFunction.PERIOD_DIFF, new PeriodArithmeticAdapters.PeriodDiffAdapter()),
+                    Map.entry(ScalarFunction.GET_FORMAT, new GetFormatAdapter()),
+                    Map.entry(ScalarFunction.ADDTIME, new AddSubTimeAdapter(true)),
+                    Map.entry(ScalarFunction.SUBTIME, new AddSubTimeAdapter(false)),
+                    Map.entry(ScalarFunction.TIME_DIFF, new TimeDiffAdapter()),
+                    Map.entry(ScalarFunction.LAST_DAY, new LastDayAdapter()),
+                    Map.entry(ScalarFunction.YEARWEEK, new RustUdfDateTimeAdapters.OsYearweekAdapter()),
                     Map.entry(ScalarFunction.DATE_FORMAT, new RustUdfDateTimeAdapters.DateFormatAdapter()),
                     Map.entry(ScalarFunction.DAY, day),
                     Map.entry(ScalarFunction.DAYNAME, new RustUdfDateTimeAdapters.DaynameAdapter()),

@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Feature: datafusion-cluster-stats, Property 4: Invalid stat name rejection
  *
- * <p>For any string that is not one of the 8 valid stat section names, when included
+ * <p>For any string that is not one of the 9 valid stat section names, when included
  * in the {@code stat} path parameter, the REST handler SHALL return an HTTP 400 response
  * whose body lists all valid stat names.
  *
@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class InvalidStatNameRejectionPropertyTests {
 
-    /** All 8 valid stat section names. */
+    /** All 9 valid stat section names. */
     private static final Set<String> VALID_STAT_NAMES = Set.of(
         "io_runtime",
         "cpu_runtime",
@@ -59,7 +59,8 @@ public class InvalidStatNameRejectionPropertyTests {
         "stream_next",
         "plan_setup",
         "datanode_gate",
-        "coordinator_gate"
+        "coordinator_gate",
+        "disk_spill"
     );
 
     // ---- Generators ----
@@ -86,7 +87,7 @@ public class InvalidStatNameRejectionPropertyTests {
     /**
      * Feature: datafusion-cluster-stats, Property 4: Invalid stat name rejection
      *
-     * <p>For any string not in the 8 valid stat section names, the REST handler
+     * <p>For any string not in the 9 valid stat section names, the REST handler
      * returns HTTP 400 listing valid names.
      *
      * <p><b>Validates: Requirements 3.3</b>

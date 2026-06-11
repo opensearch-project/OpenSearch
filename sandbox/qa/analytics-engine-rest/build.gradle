@@ -45,11 +45,11 @@ dependencies {
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 
     // job-scheduler pulled from OpenSearch Snapshots (no local build).
-    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.7.0.0-SNAPSHOT@zip"
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.8.0.0-SNAPSHOT@zip"
     // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
     // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
     // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
-    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.7.0.0-SNAPSHOT@zip"
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.8.0.0-SNAPSHOT@zip"
 }
 
 // ── Shared cluster configuration closure ─────────────────────────────────────
@@ -105,6 +105,11 @@ def configureAnalyticsCluster = { cluster ->
     // wildcards, or comma-lists).
     cluster.setting 'cluster.pluggable.dataformat', 'composite'
 
+    // Override default block-list to empty for integration tests so all predicate shapes
+    // are exercised with delegation enabled. Production clusters retain the default
+    // block-list (IS_NULL, IS_NOT_NULL, LIKE) until the dc() local execution fix lands.
+    cluster.setting 'analytics.delegation.lucene.blocked_predicates', '[]'
+
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
@@ -121,6 +126,7 @@ integTest {
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'
     exclude '**/QueryCacheIT.class'
+    exclude '**/SpillStatsEnabledIT.class'
     exclude '**/YmlOversamplingIT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
@@ -180,6 +186,41 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+}
+
+// ── Spill-enabled variant: 2 nodes, datafusion.spill_directory + spill_memory_limit ──
+// Use the Gradle build directory so each clean build starts with a fresh empty spill
+// directory and no stale state can leak between runs (`./gradlew clean` wipes build/).
+ext.spillItDir = layout.buildDirectory.dir('spill-it').get().asFile.absolutePath
+
+// Create the directory at configuration time, before any task action runs. Cluster start
+// happens in TestClustersPlugin's TaskActionListener.beforeActions, which fires *before*
+// `doFirst` actions — putting the create in `doFirst` would race the cluster boot and
+// (since Security.addFilePermissions fails loudly on a missing spill directory) crash
+// the node immediately. Configuration-phase creation runs once per Gradle invocation,
+// before any task starts, with no possible race.
+java.nio.file.Files.createDirectories(java.nio.file.Paths.get(spillItDir))
+
+task integTestSpillEnabled(type: RestIntegTestTask) {
+    description = 'Runs spill-stats IT with spill enabled (datafusion.spill_directory configured)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.SpillStatsEnabledIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestSpillEnabled)
+
+testClusters.integTestSpillEnabled {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    // The collector falls back to 0s when the directory does not exist; using java.io.tmpdir
+    // guarantees a real path and exercises the FileStore lookup branch in
+    // SpillStatsCollector.collect(...). The directory is created in the task's doFirst
+    // block above so DataFusionPlugin's boot writability probe succeeds.
+    setting 'datafusion.spill_directory', spillItDir
+    setting 'datafusion.spill_memory_limit_bytes', '1073741824'
 }
 
 // ── YML oversampling variant: verifies TopK fires from opensearch.yml setting ─

@@ -97,7 +97,8 @@ public class NodesResponseStructurePropertyTests {
                 return new DataFusionStats(
                     new NativeExecutorsStats(io, null, monitors),
                     new PartitionGateStats("datanode_gate", 12, 3, 100, 50, 0, 12),
-                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75, 0, 8)
+                    new PartitionGateStats("coordinator_gate", 8, 1, 200, 75, 0, 8),
+                    null
                 );
             });
     }

@@ -222,12 +222,16 @@ public class RelNodeUtils {
      *
      * @param plan the root of the RelNode tree
      * @return array of distinct index names in encounter order
-     * @throws IllegalStateException if the plan exceeds the maximum depth
+     * @throws IllegalArgumentException if the plan exceeds the maximum depth
      */
     public static String[] extractIndices(RelNode plan) {
         Set<String> indices = new LinkedHashSet<>();
         if (!collectIndices(plan, indices, 0)) {
-            throw new IllegalStateException("Query plan exceeds maximum depth (" + MAX_EXTRACT_INDICES_DEPTH + ") for index extraction");
+            throw new IllegalArgumentException(
+                "Query plan exceeds maximum depth ("
+                    + MAX_EXTRACT_INDICES_DEPTH
+                    + ") for index extraction. Simplify the query by reducing nested joins or subqueries."
+            );
         }
         return indices.toArray(String[]::new);
     }

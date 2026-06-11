@@ -24,7 +24,6 @@
 //! Non-bit-compatible mismatches (e.g. cross-family) error at construction; those need
 //! a proper `Cast` at the LogicalPlan level rather than a relabel.
 
-use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -85,10 +84,6 @@ impl DisplayAs for RelabelExec {
 impl ExecutionPlan for RelabelExec {
     fn name(&self) -> &str {
         "RelabelExec"
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     fn schema(&self) -> SchemaRef {

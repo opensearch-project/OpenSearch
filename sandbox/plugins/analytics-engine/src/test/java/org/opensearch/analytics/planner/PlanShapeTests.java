@@ -42,29 +42,29 @@ public class PlanShapeTests extends PlanShapeTestBase {
      * PPL: {@code | stats count() as cnt by k | sort cnt | head 2 | fields k, cnt}
      *
      * <p>The PPL frontend emits a redundant outer Sort (no fetch, same collation as the inner)
-     * plus an inner Sort with fetch above a column-swap Project above the Aggregate. With both
-     * Sorts present, DataFusion's logical-plan optimizer eliminates the inner Sort as redundant
-     * but keeps the Limit, then physical planning pushes the Limit BELOW the SortExec into a
-     * {@code CoalescePartitionsExec(fetch=N)} on the FINAL Aggregate output. Result: fetch is
-     * applied to the unsorted Aggregate output, and Sort runs on the wrong N rows.
-     *
-     * <p>{@link org.opensearch.analytics.planner.rules.OpenSearchSortRule} drops the redundant
-     * outer Sort during HEP marking. After-CBO must contain at most one Sort over the FINAL
-     * Aggregate, with that Sort carrying the fetch.
+     * plus an inner Sort with fetch above a column-swap Project above the Aggregate. Both Sorts
+     * are preserved through to the physical plan — {@link
+     * org.opensearch.analytics.planner.rules.OpenSearchSortRule} converts each one-for-one and no
+     * longer drops the redundant outer Sort. The extra (collation-only) outer Sort over the FINAL
+     * Aggregate is harmless: the inner Sort carries the fetch, so top-K is exact, and the duplicate
+     * sort runs over the already-tiny grouped output (verified end-to-end by {@code
+     * HeadAfterStatsLimitIT} / {@code TwoShardAggregationIT#span_topn}). Collapsing it would require
+     * an active {@code RelCollationTraitDef} ({@code CoreRules.SORT_REMOVE}), which this planner
+     * does not register.
      */
-    public void testSortHeadAfterStats_dropsRedundantOuterSort() {
+    public void testSortHeadAfterStats_outerSortPreserved() {
         RelNode input = topKAfterStats(/* withRedundantOuterSort */ true);
         RelNode result = runPlanner(input, multiShardContext());
-        // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE in pushdown collapse the column-swap Projects
-        // around the Sort: the inner+outer Project pair merges into identity and drops, the Sort
-        // remaps its collation from $0 (post-swap) to $1 (Aggregate's cnt column).
+        // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE collapse the column-swap Projects; both Sorts
+        // remap their collation from $0 (post-swap) to $1 (Aggregate's cnt column) and survive.
         assertPlanShape(
             """
-                OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                OpenSearchSort(sort0=[$1], dir0=[ASC], viableBackends=[[mock-parquet]])
+                  OpenSearchSort(sort0=[$1], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                        OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

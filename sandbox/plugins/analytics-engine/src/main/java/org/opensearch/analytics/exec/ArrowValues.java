@@ -23,6 +23,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,10 +36,15 @@ import java.util.regex.Pattern;
 public final class ArrowValues {
 
     // Space-separator output matches the SQL plugin's ExprTimestampValue.
+    // Variable-fraction (1..9 digits, trailing zeros stripped) matches DATE_TIME_FORMATTER_VARIABLE_NANOS.
     private static final DateTimeFormatter TIMESTAMP_NO_NANO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
-    private static final DateTimeFormatter TIMESTAMP_WITH_NANO = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS", Locale.ROOT);
+    private static final DateTimeFormatter TIMESTAMP_WITH_NANO = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd HH:mm:ss")
+        .appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
+        .toFormatter(Locale.ROOT);
     private static final DateTimeFormatter TIME_NO_NANO = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT);
-    private static final DateTimeFormatter TIME_WITH_NANO = DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSSSS", Locale.ROOT);
+    private static final DateTimeFormatter TIME_WITH_NANO = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")
+        .appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
+        .toFormatter(Locale.ROOT);
     // DataFusion CAST(temporal AS VARCHAR) — date and time joined by 'T', optional fraction.
     private static final Pattern ISO_TIMESTAMP_T = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)$");
 

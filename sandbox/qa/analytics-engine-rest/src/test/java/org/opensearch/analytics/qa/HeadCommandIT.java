@@ -71,6 +71,34 @@ public class HeadCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── head after stats (limit-over-aggregate) ─────────────────────────────────
+    // OpenSearchSortRule once dropped any collation-less limit over an aggregate, silently
+    // discarding a user `head N` after a grouped `stats`. The drop is now gated on the input
+    // being provably <= 1 row (scalar aggregate), so a grouped aggregate's limit is preserved.
+    // calcs str0 has 3 distinct groups (FURNITURE/OFFICE SUPPLIES/TECHNOLOGY); str3 has 2.
+
+    public void testHeadAfterGroupedStatsLimitsRowCount() throws IOException {
+        assertRowCount("source=" + DATASET.indexName + " | stats count() as c by str0 | head 2", 2);
+    }
+
+    public void testHeadAfterCompositeGroupedStatsLimitsRowCount() throws IOException {
+        // str0 (3) x str3 (2 non-null + nulls) yields >2 groups; head 2 must cap to exactly 2.
+        assertRowCount("source=" + DATASET.indexName + " | stats count() as c by str0, str3 | head 2", 2);
+    }
+
+    public void testHeadAboveGroupCountReturnsAllGroups() throws IOException {
+        assertRowCount("source=" + DATASET.indexName + " | stats count() as c by str0 | head 10", 3);
+    }
+
+    public void testSortedTopNAfterGroupedStatsLimitsRowCount() throws IOException {
+        assertRowCount("source=" + DATASET.indexName + " | stats count() as c by str0 | sort - c | head 2", 2);
+    }
+
+    public void testHeadAfterScalarStatsReturnsSingleRow() throws IOException {
+        // Scalar count() is one row; head N over it is a no-op but must still return that row.
+        assertRowCount("source=" + DATASET.indexName + " | stats count() as c | head 5", 1);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private static List<Object> row(Object... values) {

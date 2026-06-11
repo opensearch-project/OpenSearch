@@ -52,6 +52,17 @@ public class WindowFunctionTests extends OpenSearchTestCase {
         assertEquals(WindowFunction.DISTINCT_COUNT_APPROX, WindowFunction.resolveFunction(op));
     }
 
+    public void testResolveFunctionMapsCalciteApproxCountDistinctName() {
+        // The distinct-count rewrite emits Calcite's SqlStdOperatorTable.APPROX_COUNT_DISTINCT,
+        // whose operator name is "APPROX_COUNT_DISTINCT" — the reverse word order of our enum
+        // constant DISTINCT_COUNT_APPROX. resolveFunction must map it, or window dc() (eventstats /
+        // streamstats distinct_count) fails the planner's "Window function [...] is not supported".
+        SqlOperator op = Mockito.mock(SqlOperator.class);
+        Mockito.when(op.getKind()).thenReturn(SqlKind.OTHER_FUNCTION);
+        Mockito.when(op.getName()).thenReturn("APPROX_COUNT_DISTINCT");
+        assertEquals(WindowFunction.DISTINCT_COUNT_APPROX, WindowFunction.resolveFunction(op));
+    }
+
     public void testResolveFunctionUsesSqlKindWhenAvailable() {
         SqlOperator op = Mockito.mock(SqlOperator.class);
         Mockito.when(op.getKind()).thenReturn(SqlKind.SUM);

@@ -260,6 +260,14 @@ public class RestDataFusionStatsActionTests extends OpenSearchTestCase {
         assertEquals("datafusion_stats_action", action.getName());
     }
 
+    public void testSpillIsAcceptedAsValidStatName() {
+        // The REST handler exposes VALID_STATS for error messages; assert "disk_spill" is now in it.
+        assertTrue(
+            "VALID_STATS should include 'disk_spill' but was: " + RestDataFusionStatsAction.VALID_STATS,
+            RestDataFusionStatsAction.VALID_STATS.contains("disk_spill")
+        );
+    }
+
     // ---- Helper: build a NodeClient that captures the DataFusionStatsNodesRequest ----
 
     @SuppressWarnings("unchecked")

@@ -183,7 +183,7 @@ pub async unsafe fn create_session_context(
                 .with_metadata_cache_limit(
                     runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
                 )
-                .with_files_statistics_cache(
+                .with_file_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
         );
@@ -795,7 +795,7 @@ mod tests {
         use datafusion::datasource::listing::{
             ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
         };
-        use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
+        use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
         use datafusion::parquet::arrow::ArrowWriter;
 
         fn write_parquet(dir: &std::path::Path, name: &str, schema: SchemaRef, cols: Vec<Arc<dyn arrow::array::Array>>) {

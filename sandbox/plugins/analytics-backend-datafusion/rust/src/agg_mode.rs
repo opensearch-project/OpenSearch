@@ -72,7 +72,7 @@ fn force_aggregate_mode(
     plan: Arc<dyn ExecutionPlan>,
     target: AggregateMode,
 ) -> Result<Arc<dyn ExecutionPlan>> {
-    if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+    if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
         // Treat `FinalPartitioned` as `Final` (see mode_matches_target): DataFusion picks
         // `FinalPartitioned` for grouped aggregates that consume hash-partitioned input and
         // `Final` for scalar / un-partitioned ones. Both are the FINAL half of the Partial/Final
@@ -111,7 +111,7 @@ fn force_aggregate_mode(
 
         // DataFusion's ProjectionMapping::try_new asserts col.name() == input_schema.field(i).name();
         // with_new_children triggers it. Remap columns to the post-strip schema so it passes.
-        if let Some(proj) = plan.as_any().downcast_ref::<ProjectionExec>() {
+        if let Some(proj) = plan.downcast_ref::<ProjectionExec>() {
             if old_child.schema() != new_child.schema() {
                 let new_schema = &new_child.schema();
                 let remapped: Vec<(Arc<dyn PhysicalExpr>, String)> = proj.expr().iter()
@@ -155,10 +155,10 @@ fn mode_matches_target(mode: AggregateMode, target: AggregateMode) -> bool {
 fn strip_redundant_shuffle_repartition(
     plan: Arc<dyn ExecutionPlan>,
 ) -> Result<Arc<dyn ExecutionPlan>> {
-    if let Some(repart) = plan.as_any().downcast_ref::<RepartitionExec>() {
+    if let Some(repart) = plan.downcast_ref::<RepartitionExec>() {
         let is_hash = matches!(repart.partitioning(), Partitioning::Hash(_, _));
         let child = repart.children()[0];
-        let child_is_streaming = child.as_any().downcast_ref::<StreamingTableExec>().is_some();
+        let child_is_streaming = child.downcast_ref::<StreamingTableExec>().is_some();
         if is_hash && child_is_streaming {
             return Ok(Arc::clone(child));
         }
@@ -179,7 +179,7 @@ fn strip_redundant_shuffle_repartition(
 /// AggregateExec(Partial) and returns the entire Partial subtree (the
 /// AggregateExec node itself, not just its input).
 fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionPlan>> {
-    if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+    if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
         if *agg.mode() == AggregateMode::Partial {
             return Some(plan);
         }
@@ -196,7 +196,7 @@ fn find_partial_input(plan: Arc<dyn ExecutionPlan>) -> Option<Arc<dyn ExecutionP
 
 /// Updates Column expression names to match the given schema (by index). Recurses into children.
 fn remap_column(expr: Arc<dyn PhysicalExpr>, schema: &arrow::datatypes::SchemaRef) -> Arc<dyn PhysicalExpr> {
-    if let Some(col) = expr.as_any().downcast_ref::<Column>() {
+    if let Some(col) = expr.downcast_ref::<Column>() {
         return Arc::new(Column::new(schema.field(col.index()).name(), col.index()));
     }
     let children = expr.children();
@@ -272,7 +272,7 @@ mod tests {
 
     fn find_agg_modes(plan: &Arc<dyn ExecutionPlan>) -> Vec<AggregateMode> {
         let mut modes = Vec::new();
-        if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
+        if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
             modes.push(*agg.mode());
         }
         for child in plan.children() {
@@ -425,7 +425,7 @@ mod tests {
 
         let stripped = strip_redundant_shuffle_repartition(Arc::clone(&hash_repart)).unwrap();
         assert!(
-            stripped.as_any().downcast_ref::<StreamingTableExec>().is_some(),
+            stripped.downcast_ref::<StreamingTableExec>().is_some(),
             "RepartitionExec(Hash) over StreamingTableExec must be stripped to the leaf, got: {}",
             plan_string(&stripped)
         );
@@ -459,7 +459,7 @@ mod tests {
 
         let stripped = strip_redundant_shuffle_repartition(Arc::clone(&hash_repart)).unwrap();
         assert!(
-            stripped.as_any().downcast_ref::<RepartitionExec>().is_some(),
+            stripped.downcast_ref::<RepartitionExec>().is_some(),
             "Hash-Repartition over non-streaming input must be preserved, got: {}",
             plan_string(&stripped)
         );
@@ -477,7 +477,7 @@ mod tests {
 
         let stripped = strip_redundant_shuffle_repartition(Arc::clone(&rr_repart)).unwrap();
         assert!(
-            stripped.as_any().downcast_ref::<RepartitionExec>().is_some(),
+            stripped.downcast_ref::<RepartitionExec>().is_some(),
             "Round-robin Repartition over StreamingTable must be preserved, got: {}",
             plan_string(&stripped)
         );

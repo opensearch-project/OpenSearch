@@ -14,6 +14,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermRangeQuery;
@@ -61,6 +62,11 @@ public final class LuceneQueryConversionUtils {
      *         when nothing changed
      */
     public static Query rewriteFieldExistsForSecondary(Query query) {
+        // IndexOrDocValuesQuery wraps an index query + a doc-values query; the secondary has no
+        // doc-values, so unwrap to just the index query (TermRangeQuery against the term dictionary).
+        if (query instanceof IndexOrDocValuesQuery idv) {
+            return rewriteFieldExistsForSecondary(idv.getIndexQuery());
+        }
         if (query instanceof FieldExistsQuery fieldExists) {
             // null lower/upper bound = unbounded both ends = "any term present for this field".
             return new TermRangeQuery(fieldExists.getField(), null, null, true, true);

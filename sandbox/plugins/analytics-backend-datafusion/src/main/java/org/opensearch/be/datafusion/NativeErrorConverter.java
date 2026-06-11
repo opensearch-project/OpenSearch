@@ -53,9 +53,15 @@ public final class NativeErrorConverter {
      * Registered error patterns, checked in order. First match wins.
      * Key phrases correspond to stable prefixes in Rust native_error.rs.
      */
+    /**
+     * Maximum depth to walk the exception cause chain when matching error patterns.
+     */
+    static final int MAX_CAUSE_CHAIN_DEPTH = 10;
+
     private static final List<ErrorPattern> PATTERNS = List.of(
         new ErrorPattern("Cannot reserve untracked memory budget", NativeErrorConverter::convertAdmissionRejection),
-        new ErrorPattern("Failed to allocate", NativeErrorConverter::convertPoolLimitExceeded)
+        new ErrorPattern("Failed to allocate", NativeErrorConverter::convertPoolLimitExceeded),
+        new ErrorPattern("Query too deeply nested", NativeErrorConverter::convertRecursionLimit)
     );
 
     /**
@@ -70,7 +76,7 @@ public final class NativeErrorConverter {
         }
         Throwable current = original;
         int depth = 0;
-        while (current != null && depth < 10) {
+        while (current != null && depth < MAX_CAUSE_CHAIN_DEPTH) {
             String msg = current.getMessage();
             if (msg != null) {
                 for (ErrorPattern pattern : PATTERNS) {
@@ -107,6 +113,15 @@ public final class NativeErrorConverter {
         );
         rejection.initCause(match.original());
         return rejection;
+    }
+
+    private static Exception convertRecursionLimit(MatchedError match) {
+        IllegalArgumentException iae = new IllegalArgumentException(
+            "Query too deeply nested: the expression exceeds the maximum nesting depth supported by the execution engine. "
+                + "Simplify the query by reducing nested function calls."
+        );
+        iae.initCause(match.original());
+        return iae;
     }
 
     // ─── Message parsing ────────────────────────────────────────────────────────
