@@ -460,13 +460,24 @@ impl ScalarUDFImpl for DelegationPossibleUdf {
     }
     fn invoke_with_args(
         &self,
-        _args: ScalarFunctionArgs,
+        args: ScalarFunctionArgs,
     ) -> datafusion::common::Result<ColumnarValue> {
-        Err(datafusion::common::DataFusionError::Internal(format!(
-            "{} UDF body invoked — expr_to_bool_tree did not unwrap the marker; \
-                 treat as a serious correctness bug",
-            DELEGATION_POSSIBLE_FUNCTION_NAME
-        )))
+        // Pass-through: evaluate the original predicate (first arg) directly.
+        // Expected on the prepare_partial_plan path where FilterExec retains the
+        // delegation_possible wrapper. On the indexed path, expr_to_bool_tree should
+        // unwrap the marker before execution — log a warning if we reach here
+        // unexpectedly so correctness issues surface in logs without crashing.
+        log::warn!(
+            "delegation_possible UDF evaluated at runtime — expected only on \
+             prepare_partial_plan path; if this appears on a data-node indexed query, \
+             expr_to_bool_tree may have missed the marker"
+        );
+        args.args.into_iter().next().ok_or_else(|| {
+            datafusion::common::DataFusionError::Internal(format!(
+                "{} UDF invoked with no arguments",
+                DELEGATION_POSSIBLE_FUNCTION_NAME
+            ))
+        })
     }
 }
 
