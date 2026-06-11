@@ -182,6 +182,18 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
         assertSame(AggregateFunction.PERCENTILE_APPROX, AggregateFunction.fromNameOrError("PERCENTILE_APPROX"));
     }
 
+    /**
+     * PPL `dc`/`distinct_count_approx` lowers to a marker named DISTINCT_COUNT_APPROX that the
+     * analytics-engine planner (OpenSearchAggregateRule) resolves by name before substrait
+     * emission. The enum constant is APPROX_COUNT_DISTINCT, so the alias must map the old spelling.
+     */
+    public void testDistinctCountApproxResolvesByNameAlias() {
+        assertSame(APPROX_COUNT_DISTINCT, AggregateFunction.fromNameOrError("DISTINCT_COUNT_APPROX"));
+        assertSame(APPROX_COUNT_DISTINCT, AggregateFunction.fromNameOrError("distinct_count_approx"));
+        // The canonical spelling still resolves directly.
+        assertSame(APPROX_COUNT_DISTINCT, AggregateFunction.fromNameOrError("APPROX_COUNT_DISTINCT"));
+    }
+
     // ── fromSqlKind still works ──
 
     public void testFromSqlKindResolvesExistingEntries() {
