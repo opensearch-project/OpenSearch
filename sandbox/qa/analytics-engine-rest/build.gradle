@@ -45,11 +45,11 @@ dependencies {
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 
     // job-scheduler pulled from OpenSearch Snapshots (no local build).
-    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.7.0.0-SNAPSHOT@zip"
+    jobSchedulerPlugin "org.opensearch.plugin:opensearch-job-scheduler:3.8.0.0-SNAPSHOT@zip"
     // opensearch-sql pulled from OpenSearch Snapshots (no local build), same as
     // jobSchedulerPlugin above. The EngineContextProvider/QueryRequestContext wiring is
     // merged upstream, so the published CI snapshot matches our QueryPlanExecutor signature.
-    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.7.0.0-SNAPSHOT@zip"
+    sqlPlugin "org.opensearch.plugin:opensearch-sql-plugin:3.8.0.0-SNAPSHOT@zip"
 }
 
 // ── Shared cluster configuration closure ─────────────────────────────────────
