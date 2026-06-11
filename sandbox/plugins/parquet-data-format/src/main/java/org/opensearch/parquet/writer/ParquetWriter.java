@@ -27,11 +27,11 @@ import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.vsr.VSRManager;
+import org.opensearch.plugin.stats.StatsRecorder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -146,8 +146,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         if (state != WriterState.ACTIVE) {
             throw new IllegalStateException("Writer is not active, state=" + state);
         }
-        long startNanos = System.nanoTime();
-        try {
+        return StatsRecorder.recordTimeMillis(() -> {
             // Schema mismatch is recoverable: the VSR rejected the doc pre-admission, so the
             // caller-driven rollback no-ops in the VSR and restores ACTIVE.
             try {
@@ -159,10 +158,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             acceptedRows++;
             stats.addDocsIndexed(1);
             return new WriteResult.Success(1L, 1L, 1L);
-        } finally {
-            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-            stats.addIndexTimeMillis(elapsed);
-        }
+        }, stats::addIndexTimeMillis);
     }
 
     @Override

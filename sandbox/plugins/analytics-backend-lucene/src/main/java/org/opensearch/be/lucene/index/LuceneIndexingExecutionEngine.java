@@ -45,6 +45,7 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.Store;
 import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -328,15 +329,15 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
             // Single batched addIndexes call for all source directories
             if (sourceDirectories.isEmpty() == false) {
-                long addIndexesStart = System.nanoTime();
                 try {
-                    sharedWriter.addIndexes(sourceDirectories.toArray(new Directory[0]));
-                    logger.debug(
-                        "Incorporated {} Lucene segments into shared writer in a single addIndexes call",
-                        sourceDirectories.size()
-                    );
+                    StatsRecorder.recordTimeMillis(() -> {
+                        sharedWriter.addIndexes(sourceDirectories.toArray(new Directory[0]));
+                        logger.debug(
+                            "Incorporated {} Lucene segments into shared writer in a single addIndexes call",
+                            sourceDirectories.size()
+                        );
+                    }, stats::addRefreshAddIndexesTimeMillis);
                 } finally {
-                    stats.addRefreshAddIndexesTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - addIndexesStart));
                     // Close all source directories
                     for (Directory dir : sourceDirectories) {
                         try {
