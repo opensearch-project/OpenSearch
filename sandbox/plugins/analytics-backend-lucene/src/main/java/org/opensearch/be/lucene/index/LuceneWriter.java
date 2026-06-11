@@ -62,7 +62,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Per-generation Lucene writer that creates segments in an isolated temporary directory.
@@ -225,8 +224,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     @Override
     public WriteResult addDoc(LuceneDocumentInput input) throws IOException {
-        long start = System.nanoTime();
-        try {
+        return StatsRecorder.recordTimeMillis(() -> {
             if (state != WriterState.ACTIVE) {
                 throw new IllegalStateException("addDoc requires ACTIVE state but was " + state);
             }
@@ -250,9 +248,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             docCount++;
             stats.addDocsIndexed(1);
             return new WriteResult.Success(1L, 1L, currentDocId);
-        } finally {
-            stats.addIndexTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
-        }
+        }, stats::addIndexTimeMillis);
     }
 
     @Override
@@ -307,9 +303,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
 
         long flushStart = System.nanoTime();
+        long totalFlushDurationMs = 0;
         try {
-            long flushStartNanos = System.nanoTime();
-            logger.info(
+            logger.debug(
                 "flush: START generation={}, docCount={}, hasRowIdMapping={}",
                 writerGeneration,
                 docCount,
@@ -359,7 +355,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             long forceMergeStartNanos = System.nanoTime();
             StatsRecorder.recordTimeMillis(() -> indexWriter.forceMerge(1, true), stats::addFlushForceMergeTimeMillis);
             long forceMergeDurationMs = TimeValue.nsecToMSec(System.nanoTime() - forceMergeStartNanos);
-            logger.info(
+            logger.debug(
                 "flush: forceMerge complete: generation={}, docCount={}, duration={}ms",
                 writerGeneration,
                 docCount,
@@ -369,7 +365,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             long commitStartNanos = System.nanoTime();
             indexWriter.commit();
             long commitDurationMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
-            logger.info("flush: commit complete: generation={}, duration={}ms", writerGeneration, commitDurationMs);
+            logger.debug("flush: commit complete: generation={}, duration={}ms", writerGeneration, commitDurationMs);
 
             // Close the IndexWriter before rewriting segment metadata.
             // This prevents IndexFileDeleter from removing our rewritten segments_N
@@ -426,8 +422,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             directory.close();
             flushed = true;
 
-            long totalFlushDurationMs = TimeValue.nsecToMSec(System.nanoTime() - flushStartNanos);
-            logger.info(
+            totalFlushDurationMs = TimeValue.nsecToMSec(System.nanoTime() - flushStart);
+            logger.debug(
                 "flush: DONE generation={}, totalRows={}, forceMerge={}ms, commit={}ms, total={}ms",
                 writerGeneration,
                 docCount,
@@ -439,7 +435,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             return FileInfos.builder().putWriterFileSet(dataFormat, wfsBuilder.build()).build();
         } finally {
             stats.incFlushTotal();
-            stats.addFlushTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - flushStart));
+            stats.addFlushTimeMillis(totalFlushDurationMs);
         }
     }
 

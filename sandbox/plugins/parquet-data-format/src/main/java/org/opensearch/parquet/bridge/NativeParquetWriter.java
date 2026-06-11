@@ -14,7 +14,6 @@ import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -123,8 +122,7 @@ public class NativeParquetWriter {
     public ParquetFileMetadata flush() throws IOException {
         if (writerFlushed.compareAndSet(false, true)) {
             if (initialized) {
-                long startNanos = System.nanoTime();
-                try {
+                StatsRecorder.recordOutcome(() -> {
                     RustBridge.WriterFinalizeResult result = RustBridge.finalizeWriter(filePath);
                     if (result != null) {
                         metadata.set(result.metadata());
@@ -132,14 +130,7 @@ public class NativeParquetWriter {
                             rowIdMapping.set(result.rowIdMapping());
                         }
                     }
-                    stats.incNativeFinalizeTotal();
-                } catch (IOException e) {
-                    stats.incNativeFinalizeFailures();
-                    throw e;
-                } finally {
-                    long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-                    stats.addNativeFinalizeTimeMillis(elapsed);
-                }
+                }, stats::addNativeFinalizeTimeMillis, stats::incNativeFinalizeTotal, stats::incNativeFinalizeFailures);
             }
         }
         return metadata.get();

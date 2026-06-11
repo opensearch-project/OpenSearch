@@ -36,13 +36,29 @@ public class SpillStats implements Writeable, ToXContentFragment {
     private final long diskAvailableBytes;
     private final long diskUsedBytes;
     private final long diskReservedBytes;
+    /**
+     * Number of {@code *.stale} entries currently in the spill directory.
+     * Each entry is an orphan from a prior boot whose async cleanup has not yet
+     * removed it. A persistently non-zero value across boots indicates an
+     * operator-actionable failure (immutable bit, broken perms, etc.) preventing
+     * the background cleanup thread from completing.
+     */
+    private final long staleEntryCount;
 
-    public SpillStats(String directory, long diskTotalBytes, long diskAvailableBytes, long diskUsedBytes, long diskReservedBytes) {
+    public SpillStats(
+        String directory,
+        long diskTotalBytes,
+        long diskAvailableBytes,
+        long diskUsedBytes,
+        long diskReservedBytes,
+        long staleEntryCount
+    ) {
         this.directory = directory == null ? "" : directory;
         this.diskTotalBytes = diskTotalBytes;
         this.diskAvailableBytes = diskAvailableBytes;
         this.diskUsedBytes = diskUsedBytes;
         this.diskReservedBytes = diskReservedBytes;
+        this.staleEntryCount = staleEntryCount;
     }
 
     public SpillStats(StreamInput in) throws IOException {
@@ -51,6 +67,7 @@ public class SpillStats implements Writeable, ToXContentFragment {
         this.diskAvailableBytes = in.readVLong();
         this.diskUsedBytes = in.readVLong();
         this.diskReservedBytes = in.readVLong();
+        this.staleEntryCount = in.readVLong();
     }
 
     @Override
@@ -60,6 +77,7 @@ public class SpillStats implements Writeable, ToXContentFragment {
         out.writeVLong(diskAvailableBytes);
         out.writeVLong(diskUsedBytes);
         out.writeVLong(diskReservedBytes);
+        out.writeVLong(staleEntryCount);
     }
 
     @Override
@@ -70,6 +88,7 @@ public class SpillStats implements Writeable, ToXContentFragment {
         builder.field("disk_available_bytes", diskAvailableBytes);
         builder.field("disk_used_bytes", diskUsedBytes);
         builder.field("disk_reserved_bytes", diskReservedBytes);
+        builder.field("stale_entry_count", staleEntryCount);
         builder.endObject();
         return builder;
     }
@@ -94,6 +113,10 @@ public class SpillStats implements Writeable, ToXContentFragment {
         return diskReservedBytes;
     }
 
+    public long getStaleEntryCount() {
+        return staleEntryCount;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -103,11 +126,12 @@ public class SpillStats implements Writeable, ToXContentFragment {
             && diskAvailableBytes == that.diskAvailableBytes
             && diskUsedBytes == that.diskUsedBytes
             && diskReservedBytes == that.diskReservedBytes
+            && staleEntryCount == that.staleEntryCount
             && Objects.equals(directory, that.directory);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(directory, diskTotalBytes, diskAvailableBytes, diskUsedBytes, diskReservedBytes);
+        return Objects.hash(directory, diskTotalBytes, diskAvailableBytes, diskUsedBytes, diskReservedBytes, staleEntryCount);
     }
 }

@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.stream.Stream;
 
 /**
  * Builds a {@link SpillStats} snapshot from the configured spill directory and
@@ -45,12 +46,12 @@ public final class SpillStatsCollector {
      *                         empty string means spill is disabled
      * @param spillMemoryLimit the resolved value of {@code datafusion.spill_memory_limit_bytes}
      *                         in bytes (the user-facing setting value)
-     * @return a populated {@link SpillStats}; on error, all byte fields are 0 but the
-     *         {@code directory} and {@code disk_reserved_bytes} fields are preserved.
+     * @return a populated {@link SpillStats}; on error, byte fields and {@code stale_entry_count}
+     *         are 0 but the {@code directory} and {@code disk_reserved_bytes} fields are preserved.
      */
     public static SpillStats collect(String spillDirectory, long spillMemoryLimit) {
         if (spillDirectory == null || spillDirectory.isEmpty()) {
-            return new SpillStats("", 0L, 0L, 0L, 0L);
+            return new SpillStats("", 0L, 0L, 0L, 0L, 0L);
         }
 
         // SecurityManager: spill_directory is operator-configured and not on any path the
@@ -64,7 +65,7 @@ public final class SpillStatsCollector {
                 // here would happily return volume stats for a file that was misconfigured into
                 // place at the spill path.
                 if (!Files.isDirectory(path)) {
-                    return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit);
+                    return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit, 0L);
                 }
                 FileStore fs = Environment.getFileStore(path);
                 // Clamp negatives from FileStore — JDK-8162520: getTotalSpace/getUsableSpace can
@@ -73,15 +74,37 @@ public final class SpillStatsCollector {
                 long total = clampNonNegative(fs.getTotalSpace());
                 long available = clampNonNegative(fs.getUsableSpace());
                 long used = Math.max(0L, total - available);
-                return new SpillStats(spillDirectory, total, available, used, spillMemoryLimit);
+                long staleCount = countStaleEntries(path);
+                return new SpillStats(spillDirectory, total, available, used, spillMemoryLimit, staleCount);
             });
         } catch (PrivilegedActionException pae) {
             Throwable cause = pae.getCause() != null ? pae.getCause() : pae;
             logger.warn("Failed to read filesystem stats for spill directory [{}]: {}", spillDirectory, cause.getMessage());
-            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit);
+            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit, 0L);
         } catch (RuntimeException e) {
             logger.warn("Unexpected error reading spill stats for [{}]: {}", spillDirectory, e.getMessage());
-            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit);
+            return new SpillStats(spillDirectory, 0L, 0L, 0L, spillMemoryLimit, 0L);
+        }
+    }
+
+    /**
+     * Count immediate children of {@code spillDirectory} whose names end in {@code .stale}.
+     * These are entries renamed by the boot-time cleanup that the background thread has
+     * not yet removed (or could not remove). A persistently non-zero value across boots
+     * indicates an operator-actionable issue.
+     *
+     * <p>Returns 0 on any I/O error rather than failing the whole stats request — the
+     * filesystem-level fields are always more important than this diagnostic counter.
+     */
+    private static long countStaleEntries(Path spillDirectory) {
+        try (Stream<Path> children = Files.list(spillDirectory)) {
+            return children.filter(p -> {
+                Path fileName = p.getFileName();
+                return fileName != null && fileName.toString().endsWith(".stale");
+            }).count();
+        } catch (Exception e) {
+            logger.warn("Failed to count stale spill entries in [{}]: {}", spillDirectory, e.getMessage());
+            return 0L;
         }
     }
 
