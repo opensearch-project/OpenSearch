@@ -45,7 +45,7 @@ class RandSeedAdapter implements ScalarFunctionAdapter {
         if (operands.size() == 1) {
             // Seeded rand(N): no faithful niladic mapping (would lose determinism). Fail clearly.
             throw new IllegalArgumentException(
-                "Seeded RAND(seed) is not supported on the analytics-engine route yet; use RAND() without a seed"
+                "Seeded RAND(seed) is not supported on the analytics-engine route; use RAND() without a seed"
             );
         }
         // Unexpected arity — leave the call untouched so the converter surfaces the original shape

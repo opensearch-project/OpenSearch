@@ -18,13 +18,14 @@ import java.util.Map;
  * End-to-end coverage for PPL {@code distinct_count_approx} / {@code dc} aggregation on the
  * analytics-engine route, against the production {@code /_plugins/_ppl} surface.
  *
- * <p>Regression guard for the two-stage binding that {@code distinct_count_approx} requires on
- * the DataFusion backend. The PPL marker reaches the engine still named
- * {@code DISTINCT_COUNT_APPROX} (sql#5525 only renames the substrait-emission op, a later
- * stage), so without engine-side handling the query fails first in the planner with
- * {@code "No enum constant ...AggregateFunction.DISTINCT_COUNT_APPROX"} and then in substrait
- * with {@code "Unable to find binding for call DISTINCT_COUNT_APPROX($1)"}. The engine maps the
- * marker name to the {@code APPROX_COUNT_DISTINCT} enum constant / stock operator, which binds
+ * <p>Regression guard for the distinct_count_approx binding on the DataFusion backend. The PPL
+ * marker is a custom user-defined agg op (named {@code APPROX_COUNT_DISTINCT}; the legacy spelling
+ * {@code DISTINCT_COUNT_APPROX} is also accepted) that is NOT Calcite's stock operator, so it has
+ * no Substrait binding and is unknown to the AggregateFunction enum. Without engine-side handling
+ * the query fails (e.g. {@code "No enum constant ...AggregateFunction.DISTINCT_COUNT_APPROX"} in the
+ * planner, or {@code "Unable to find binding for call ..."} in substrait). The engine planner's
+ * {@code OpenSearchDistinctCountRule} remaps the marker to the stock {@code APPROX_COUNT_DISTINCT}
+ * operator (a late defensive fallback also lives in {@code PplAggregateCallRewriter}), which binds
  * to DataFusion's native {@code approx_distinct}.
  *
  * <p>Run with:
@@ -160,12 +161,15 @@ public class DistinctCountApproxAggregationIT extends AnalyticsRestTestCase {
     private void ingest() throws IOException {
         StringBuilder bulk = new StringBuilder();
         for (Doc d : DOCS) {
-            bulk.append("{\"index\":{\"_index\":\"").append(INDEX).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"gender\":\"").append(d.gender()).append("\",\"state\":\"").append(d.state()).append("\"}\n");
         }
-        Request req = new Request("POST", "/_bulk");
+        Request req = new Request("POST", "/" + INDEX + "/_bulk");
         req.addParameter("refresh", "true");
         req.setJsonEntity(bulk.toString());
+        // _bulk requires NDJSON; setJsonEntity defaults to application/json which the bulk
+        // endpoint rejects (mirrors the existing CountFastPathIT pattern).
+        req.setOptions(req.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build());
         Map<String, Object> response = assertOkAndParse(client().performRequest(req), "Bulk ingest");
         assertEquals("bulk must not report errors", Boolean.FALSE, response.get("errors"));
     }

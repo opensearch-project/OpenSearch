@@ -168,13 +168,16 @@ public class MinMaxBooleanAggregationIT extends AnalyticsRestTestCase {
     private void ingest() throws IOException {
         StringBuilder bulk = new StringBuilder();
         for (Doc d : DOCS) {
-            bulk.append("{\"index\":{\"_index\":\"").append(INDEX).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"grp\":\"").append(d.grp()).append("\",\"enabled\":").append(d.enabled())
                 .append(",\"version\":\"").append(d.version()).append("\"}\n");
         }
-        Request req = new Request("POST", "/_bulk");
+        Request req = new Request("POST", "/" + INDEX + "/_bulk");
         req.addParameter("refresh", "true");
         req.setJsonEntity(bulk.toString());
+        // _bulk requires NDJSON; setJsonEntity defaults to application/json which the bulk
+        // endpoint rejects (mirrors the existing CountFastPathIT pattern).
+        req.setOptions(req.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build());
         Map<String, Object> response = assertOkAndParse(client().performRequest(req), "Bulk ingest");
         assertEquals("bulk must not report errors", Boolean.FALSE, response.get("errors"));
     }

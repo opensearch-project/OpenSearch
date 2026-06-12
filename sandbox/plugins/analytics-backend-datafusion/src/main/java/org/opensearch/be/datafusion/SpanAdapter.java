@@ -182,7 +182,10 @@ class SpanAdapter implements ScalarFunctionAdapter {
         try {
             return Math.multiplyExact(n, unitSeconds);
         } catch (ArithmeticException e) {
-            throw new IllegalArgumentException("SPAN interval is too large", e);
+            throw new IllegalArgumentException(
+                "SPAN interval is too large: " + n + " * " + unitSeconds + " seconds exceeds the long range",
+                e
+            );
         }
     }
 
