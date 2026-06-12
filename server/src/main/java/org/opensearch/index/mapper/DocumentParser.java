@@ -281,6 +281,10 @@ final class DocumentParser {
         return new MapperParsingException("failed to parse", e);
     }
 
+    private static String[] resolvePathForParsing(ObjectMapper mapper, String fieldName) {
+        return mapper.disableObjects() ? new String[] { fieldName } : splitAndValidatePath(fieldName);
+    }
+
     private static String[] splitAndValidatePath(String fullFieldPath) {
         if (fullFieldPath.contains(".")) {
             String[] parts = fullFieldPath.split("\\.");
@@ -637,7 +641,7 @@ final class DocumentParser {
             while (token != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                    paths = mapper.disableObjects() ? new String[] { currentFieldName } : splitAndValidatePath(currentFieldName);
+                    paths = resolvePathForParsing(mapper, currentFieldName);
                     if (containsDisabledObjectMapper(mapper, paths)) {
                         parser.nextToken();
                         parser.skipChildren();
@@ -1192,10 +1196,7 @@ final class DocumentParser {
                 )
             );
         }
-        // When disable_objects is enabled, dotted field names must be treated as literal single-segment
-        // names. Splitting them would cause getDynamicParentMapper to create intermediate ObjectMappers
-        // without disable_objects=tru.
-        final String[] paths = mapper.disableObjects() ? new String[] { lastFieldName } : splitAndValidatePath(lastFieldName);
+        final String[] paths = resolvePathForParsing(mapper, lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, lastFieldName, paths);
