@@ -3567,16 +3567,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             if (logAttrsMapper instanceof ObjectMapper logAttrsObj) {
                 // There should be NO "app" ObjectMapper child
                 Mapper appMapper = logAttrsObj.getMapper("app");
-                assertNull(
-                    "ObjectMapper 'app' should NOT exist under LogAttributes (dotted name should be kept flat)",
-                    appMapper
-                );
+                assertNull("ObjectMapper 'app' should NOT exist under LogAttributes (dotted name should be kept flat)", appMapper);
                 // There SHOULD be a "app.payment" FieldMapper child
                 Mapper appPaymentMapper = logAttrsObj.getMapper("app.payment");
-                assertNotNull(
-                    "FieldMapper 'app.payment' should exist as flat field under LogAttributes",
-                    appPaymentMapper
-                );
+                assertNotNull("FieldMapper 'app.payment' should exist as flat field under LogAttributes", appPaymentMapper);
                 assertTrue("'app.payment' should be a FieldMapper", appPaymentMapper instanceof FieldMapper);
             }
         }
@@ -3618,15 +3612,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         Mapping dynamicUpdate = doc.dynamicMappingsUpdate();
         if (dynamicUpdate != null) {
             Mapper metricsMapper = dynamicUpdate.root().getMapper("metrics");
-            assertNull(
-                "ObjectMapper 'metrics' should NOT exist at root (dotted name should be kept flat)",
-                metricsMapper
-            );
+            assertNull("ObjectMapper 'metrics' should NOT exist at root (dotted name should be kept flat)", metricsMapper);
             Mapper metricsCpuMapper = dynamicUpdate.root().getMapper("metrics.cpu");
-            assertNull(
-                "ObjectMapper 'metrics.cpu' should NOT exist at root",
-                metricsCpuMapper
-            );
+            assertNull("ObjectMapper 'metrics.cpu' should NOT exist at root", metricsCpuMapper);
             // The flat field "metrics.cpu.cores" should exist
             Mapper coresMapper = dynamicUpdate.root().getMapper("metrics.cpu.cores");
             assertNotNull("FieldMapper 'metrics.cpu.cores' should exist as flat field", coresMapper);
