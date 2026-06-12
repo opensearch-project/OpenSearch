@@ -217,8 +217,8 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
     // ---- MPP kill switch ----
 
     /**
-     * The {@code analytics.mpp.enabled} setting is the operator-facing kill switch for MPP
-     * join dispatch. {@code DefaultPlanExecutor.executeInternal} reads it via
+     * The {@code analytics.mpp.enabled} setting is the operator-facing master switch for MPP
+     * join/aggregate dispatch. {@code DefaultPlanExecutor.executeInternal} reads it via
      * {@code clusterService.getClusterSettings().get(...)} and routes any non-COORDINATOR_CENTRIC
      * strategy through the M0 path when it's {@code false}. This test pins the setting's
      * key, default, and dynamic property — the gate's actual dispatch effect is verified at
@@ -227,7 +227,10 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
     public void testMppEnabledSettingShape() {
         org.opensearch.common.settings.Setting<Boolean> s = org.opensearch.analytics.AnalyticsSettings.MPP_ENABLED;
         assertEquals("analytics.mpp.enabled", s.getKey());
-        assertTrue("MPP enabled by default — kill switch is opt-out", s.getDefault(org.opensearch.common.settings.Settings.EMPTY));
+        assertFalse(
+            "MPP disabled by default in production — operators opt in (QA clusters enable it explicitly)",
+            s.getDefault(org.opensearch.common.settings.Settings.EMPTY)
+        );
         assertTrue("must be dynamic so operators can flip without restart", s.isDynamic());
         assertTrue(
             "must have NodeScope so it applies cluster-wide via cluster settings",

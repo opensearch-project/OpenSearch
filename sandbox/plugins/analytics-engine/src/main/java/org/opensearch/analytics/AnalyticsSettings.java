@@ -26,17 +26,19 @@ public final class AnalyticsSettings {
     private AnalyticsSettings() {}
 
     /**
-     * Master kill switch for MPP (multi-pass parallel) join dispatch.
+     * Master switch for MPP (multi-pass parallel) join/aggregate dispatch.
      *
-     * <p>When {@code true} (default), the engine routes joins through the strategy advisor
-     * and may pick BROADCAST or HASH_SHUFFLE for eligible queries. When {@code false}, every
-     * join falls back to the coordinator-centric (M0) path regardless of advisor decision —
-     * useful as an incident-response kill switch when an MPP-specific issue is observed in
-     * production, or for A/B comparison against the baseline path.
+     * <p>Defaults to {@code false}: production runs the coordinator-centric (M0) path until an
+     * operator opts into MPP. When {@code true}, the engine routes joins/aggregates through the
+     * strategy advisor and may pick BROADCAST or HASH_SHUFFLE for eligible queries; when
+     * {@code false}, everything falls back to coordinator-centric regardless of advisor decision —
+     * which also makes this an incident-response kill switch and the A/B baseline. QA test clusters
+     * enable it explicitly (see {@code qa/analytics-engine-rest/build.gradle}) so the MPP path is
+     * exercised in CI.
      */
     public static final Setting<Boolean> MPP_ENABLED = Setting.boolSetting(
         "analytics.mpp.enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

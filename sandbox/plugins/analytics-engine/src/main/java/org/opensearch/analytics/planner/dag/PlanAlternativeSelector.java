@@ -68,7 +68,7 @@ public final class PlanAlternativeSelector {
             // (metadata-driver / column-less) alternative that the join can't read. Without this
             // the data node picks the first registered backend (often Lucene), yielding a
             // 0-column batch and a downstream hang. Runs regardless of prefer_metadata_driver.
-            constrainToParentBackends(stage, child);
+            constrainToParentBackends(stage, child, registry, ctx);
             selectStage(child, registry, ctx);
         }
         if (ctx == null) return;
@@ -96,8 +96,15 @@ public final class PlanAlternativeSelector {
      * compatible, or when the intersection would be empty (leave the child untouched so a later
      * stage doesn't end up with zero alternatives — better a wrong-but-present plan than an empty
      * list, which fails loudly downstream rather than silently dropping rows).
+     *
+     * <p><b>Metadata-driver exemption.</b> A backend that a {@link BackendShardPreference} positively
+     * scores (e.g. Lucene's COUNT(*) fast path) is a <em>blessed cross-backend producer</em>: it
+     * emits output the differently-backed parent legitimately consumes (a count, not columns), so it
+     * is kept even when the parent's StageInputScan doesn't list it. This is the count-fast-path
+     * case and is the opposite of the q15 bug, where an <em>unblessed</em> Lucene scan fed a
+     * DataFusion join a 0-column batch — that one has no positive score and is correctly pruned.
      */
-    private static void constrainToParentBackends(Stage parent, Stage child) {
+    private static void constrainToParentBackends(Stage parent, Stage child, CapabilityRegistry registry, ShardPreferenceContext ctx) {
         Set<String> allowed = null;
         for (OpenSearchStageInputScan scan : RelNodeUtils.findNodes(parent.getFragment(), OpenSearchStageInputScan.class)) {
             if (scan.getChildStageId() == child.getStageId()) {
@@ -109,7 +116,9 @@ public final class PlanAlternativeSelector {
         final Set<String> allowedBackends = allowed;
         List<StagePlan> compatible = child.getPlanAlternatives()
             .stream()
-            .filter(plan -> allowedBackends.contains(plan.backendId()))
+            // Keep an alternative if the parent can consume its backend, OR if a shard-preference
+            // positively scores it (a blessed cross-backend producer like the Lucene count path).
+            .filter(plan -> allowedBackends.contains(plan.backendId()) || (ctx != null && scoreOf(plan, registry, ctx) > 0))
             .toList();
         // Only narrow when at least one alternative survives; an empty result means our backend
         // bookkeeping disagrees with the planner's intersection — keep the originals rather than

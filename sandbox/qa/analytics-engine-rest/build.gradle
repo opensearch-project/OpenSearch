@@ -110,6 +110,12 @@ def configureAnalyticsCluster = { cluster ->
     // block-list (IS_NULL, IS_NOT_NULL, LIKE) until the dc() local execution fix lands.
     cluster.setting 'analytics.delegation.lucene.blocked_predicates', '[]'
 
+    // Enable MPP cluster-wide for the QA suite. Production defaults analytics.mpp.enabled=false
+    // (operators opt in); CI must exercise the BROADCAST / HASH_SHUFFLE / HASH_SHUFFLE_AGG paths,
+    // and several ITs (e.g. TpchPplIT) run MPP-shaped queries relying on this default being on.
+    // Per-test toggling (applySetting/resetSetting) still overrides this transient at runtime.
+    cluster.setting 'analytics.mpp.enabled', 'true'
+
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }

@@ -91,10 +91,21 @@ public class TpchPplIT extends BasePplIT {
 
     @Override
     protected void onBeforeQuery() throws IOException {
+        // This IT exists to exercise the MPP path; enable it explicitly rather than relying on the
+        // cluster default (production defaults analytics.mpp.enabled=false, and the QA build.gradle
+        // value may change). Self-enabling keeps the TPC-H queries on the BROADCAST / HASH_SHUFFLE /
+        // HASH_SHUFFLE_AGG paths these tests are written to validate.
+        applySetting("analytics.mpp.enabled", "true");
         if (!tpchProvisioned) {
             DatasetProvisioner.provision(client(), getDataset(), 2);
             tpchProvisioned = true;
         }
+    }
+
+    private void applySetting(String key, String value) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{\"transient\": {\"" + key + "\": " + value + "}}");
+        client().performRequest(request);
     }
 
     /**
