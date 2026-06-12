@@ -26,6 +26,9 @@ import java.util.Set;
 @ExperimentalApi
 public class CompositeDataFormat extends DataFormat {
 
+    /** Canonical format name for the composite engine. */
+    public static final String COMPOSITE_FORMAT_NAME = "composite";
+
     private final DataFormat primaryDataFormat;
     private final List<DataFormat> dataFormats;
 
@@ -68,7 +71,7 @@ public class CompositeDataFormat extends DataFormat {
 
     @Override
     public String name() {
-        return "composite";
+        return COMPOSITE_FORMAT_NAME;
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.composite.stats.CompositeShardStatsTracker;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -79,6 +80,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         IndexingExecutionEngine<?, ?> secondaryEngine = mockEngine(secondaryFormat, secondaryMerger);
 
         compositeEngine = mock(CompositeIndexingExecutionEngine.class);
+        when(compositeEngine.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         doReturn(primaryEngine).when(compositeEngine).getPrimaryDelegate();
         doReturn(Set.of(secondaryEngine)).when(compositeEngine).getSecondaryDelegates();
         when(compositeEngine.getNextWriterGeneration()).thenReturn(99L);
@@ -118,6 +120,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
     public void testDoMergePrimaryOnlyNoSecondaries() throws IOException {
         CompositeIndexingExecutionEngine engineNoSecondary = mock(CompositeIndexingExecutionEngine.class);
+        when(engineNoSecondary.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         IndexingExecutionEngine<?, ?> primaryEngine = mockEngine(primaryFormat, primaryMerger);
         doReturn(primaryEngine).when(engineNoSecondary).getPrimaryDelegate();
         doReturn(Set.of()).when(engineNoSecondary).getSecondaryDelegates();
@@ -193,6 +196,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         Merger secondaryMerger2 = mock(Merger.class);
 
         CompositeIndexingExecutionEngine multiEngine = mock(CompositeIndexingExecutionEngine.class);
+        when(multiEngine.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         IndexingExecutionEngine<?, ?> primaryEngine = mockEngine(primaryFormat, primaryMerger);
         doReturn(primaryEngine).when(multiEngine).getPrimaryDelegate();
         doReturn(Set.of(mockEngine(secondaryFormat, secondaryMerger), mockEngine(secondaryFormat2, secondaryMerger2))).when(multiEngine)
@@ -354,6 +358,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         IndexingExecutionEngine<?, ?> duplicateEngine = mockEngine(primaryFormat, primaryMerger);
 
         CompositeIndexingExecutionEngine dupEngine = mock(CompositeIndexingExecutionEngine.class);
+        when(dupEngine.statsTracker()).thenReturn(new CompositeShardStatsTracker());
         doReturn(primaryEngine).when(dupEngine).getPrimaryDelegate();
         doReturn(Set.of(duplicateEngine)).when(dupEngine).getSecondaryDelegates();
         when(dupEngine.getNextWriterGeneration()).thenReturn(99L);

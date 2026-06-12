@@ -34,6 +34,8 @@ public class ParquetShardStatsTracker {
     private final LongAdder nativeWriteTotal = new LongAdder();
     private final LongAdder nativeWriteTimeMillis = new LongAdder();
     private final LongAdder nativeWriteFailures = new LongAdder();
+    // Writes rejected by the parquet_native_write pool when its bounded queue is full.
+    private final LongAdder nativeWriteRejections = new LongAdder();
     private final LongAdder nativeFinalizeTotal = new LongAdder();
     private final LongAdder nativeFinalizeTimeMillis = new LongAdder();
     private final LongAdder nativeFinalizeFailures = new LongAdder();
@@ -67,6 +69,7 @@ public class ParquetShardStatsTracker {
             nativeWriteTotal.sum(),
             nativeWriteTimeMillis.sum(),
             nativeWriteFailures.sum(),
+            nativeWriteRejections.sum(),
             nativeFinalizeTotal.sum(),
             nativeFinalizeTimeMillis.sum(),
             nativeFinalizeFailures.sum(),
@@ -113,6 +116,10 @@ public class ParquetShardStatsTracker {
 
     public void incNativeWriteFailures() {
         nativeWriteFailures.increment();
+    }
+
+    public void incNativeWriteRejections() {
+        nativeWriteRejections.increment();
     }
 
     public void incNativeFinalizeTotal() {
