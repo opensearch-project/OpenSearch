@@ -74,7 +74,9 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
             ManagedChannel channel = client.getChannel();
             SearchServiceGrpc.SearchServiceBlockingStub searchStub = SearchServiceGrpc.newBlockingStub(channel);
 
-            CreatePITResponse createResponse = searchStub.createPit(CreatePitRequest.newBuilder().addIndex(indexName).setKeepAlive("1m").build());
+            CreatePITResponse createResponse = searchStub.createPit(
+                CreatePitRequest.newBuilder().addIndex(indexName).setKeepAlive("1m").build()
+            );
             assertFalse("PIT id should not be empty", createResponse.getPitId().isEmpty());
 
             DeletePitRequest deleteRequest = DeletePitRequest.newBuilder().addPitId(createResponse.getPitId()).build();

@@ -27,7 +27,9 @@ public class DeletePitRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testPrepareRequestWithAllPitSelector() {
-        org.opensearch.protobufs.DeletePitRequest protoRequest = org.opensearch.protobufs.DeletePitRequest.newBuilder().addPitId("_all").build();
+        org.opensearch.protobufs.DeletePitRequest protoRequest = org.opensearch.protobufs.DeletePitRequest.newBuilder()
+            .addPitId("_all")
+            .build();
 
         DeletePitRequest request = DeletePitRequestProtoUtils.prepareRequest(protoRequest);
 
