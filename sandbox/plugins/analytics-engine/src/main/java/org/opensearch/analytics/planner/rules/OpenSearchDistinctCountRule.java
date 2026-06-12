@@ -34,7 +34,7 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
     @Override
     public boolean matches(RelOptRuleCall ruleCall) {
         LogicalAggregate agg = ruleCall.rel(0);
-        return agg.getAggCallList().stream().anyMatch(OpenSearchDistinctCountRule::isSingleArgCountDistinct);
+        return agg.getAggCallList().stream().anyMatch(c -> isSingleArgCountDistinct(c) || isUdfApproxCountDistinct(c));
     }
 
     @Override
@@ -43,7 +43,7 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
         List<AggregateCall> rewritten = new ArrayList<>(agg.getAggCallList().size());
         boolean changed = false;
         for (AggregateCall call : agg.getAggCallList()) {
-            if (isSingleArgCountDistinct(call)) {
+            if (isSingleArgCountDistinct(call) || isUdfApproxCountDistinct(call)) {
                 rewritten.add(rewriteToApprox(call, agg));
                 changed = true;
             } else {
@@ -56,6 +56,12 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
 
     private static boolean isSingleArgCountDistinct(AggregateCall call) {
         return call.getAggregation().getKind() == SqlKind.COUNT && call.isDistinct() && call.getArgList().size() == 1;
+    }
+
+    /** Matches PPL's UDF-based APPROX_COUNT_DISTINCT that needs rewriting to the Calcite built-in. */
+    private static boolean isUdfApproxCountDistinct(AggregateCall call) {
+        return call.getAggregation().getKind() == SqlKind.OTHER_FUNCTION
+            && "APPROX_COUNT_DISTINCT".equalsIgnoreCase(call.getAggregation().getName());
     }
 
     private static AggregateCall rewriteToApprox(AggregateCall call, LogicalAggregate agg) {
@@ -71,7 +77,7 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
             call.collation,
             agg.getGroupSet().cardinality(),
             agg.getInput(),
-            /* type */ null,
+            call.getType(),
             call.getName()
         );
     }
