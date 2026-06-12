@@ -38,6 +38,10 @@ public enum ScalarFunction {
     LESS_THAN_OR_EQUAL(Category.COMPARISON, SqlKind.LESS_THAN_OR_EQUAL),
     IS_NULL(Category.COMPARISON, SqlKind.IS_NULL),
     IS_NOT_NULL(Category.COMPARISON, SqlKind.IS_NOT_NULL),
+    IS_TRUE(Category.COMPARISON, SqlKind.IS_TRUE),
+    IS_FALSE(Category.COMPARISON, SqlKind.IS_FALSE),
+    IS_NOT_TRUE(Category.COMPARISON, SqlKind.IS_NOT_TRUE),
+    IS_NOT_FALSE(Category.COMPARISON, SqlKind.IS_NOT_FALSE),
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
@@ -83,6 +87,11 @@ public enum ScalarFunction {
      * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
      */
     CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
+    /**
+     * Variadic {@code CONCAT(a, b, …)} — {@code SqlLibraryOperators.CONCAT_FUNCTION}, distinct from binary {@code ||}.
+     * Substrait CONSISTENT consistency requires the per-op adapter to unify operand types before emission.
+     */
+    CONCAT_FUNCTION(Category.STRING, SqlKind.OTHER_FUNCTION, org.apache.calcite.sql.fun.SqlLibraryOperators.CONCAT_FUNCTION),
     CONCAT_WS(Category.STRING, SqlKind.OTHER_FUNCTION),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
     REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
