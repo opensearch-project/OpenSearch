@@ -895,3 +895,501 @@ fn test_rg_size_overshoots_when_batch_straddles_threshold() {
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Deferred data loading tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Helper: register settings with a specific deferred threshold.
+fn register_deferred_settings(index_name: &str, batch_size: usize, deferred_threshold: usize) {
+    SETTINGS_STORE.insert(index_name.to_string(), NativeSettings {
+        merge_batch_size: Some(batch_size),
+        merge_deferred_column_threshold: Some(deferred_threshold),
+        ..Default::default()
+    });
+}
+
+/// Helper: read all String values from a column.
+fn read_all_strings(path: &str, col: &str) -> Vec<String> {
+    let file = File::open(path).unwrap();
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap();
+    let mut vals = Vec::new();
+    for batch in reader {
+        let batch = batch.unwrap();
+        let idx = batch.schema().index_of(col).unwrap();
+        let arr = batch.column(idx).as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..arr.len() {
+            vals.push(arr.value(i).to_string());
+        }
+    }
+    vals
+}
+
+/// Wide schema with threshold=0 forces deferred mode. Verify all data columns
+/// are correctly written despite being loaded lazily.
+#[test]
+fn test_deferred_wide_schema_correctness() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("col_a", DataType::Utf8, false),
+        Field::new("col_b", DataType::Utf8, false),
+        Field::new("col_c", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_wide_schema_correctness";
+    register_deferred_settings(index, 3, 0); // threshold=0 → always deferred
+
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 3, 5])),
+        Arc::new(StringArray::from(vec!["a1", "a3", "a5"])),
+        Arc::new(StringArray::from(vec!["b1", "b3", "b5"])),
+        Arc::new(StringArray::from(vec!["c1", "c3", "c5"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![2, 4, 6])),
+        Arc::new(StringArray::from(vec!["a2", "a4", "a6"])),
+        Arc::new(StringArray::from(vec!["b2", "b4", "b6"])),
+        Arc::new(StringArray::from(vec!["c2", "c4", "c6"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
+
+    let a_vals = read_all_strings(&output, "col_a");
+    assert_eq!(a_vals, vec!["a1", "a2", "a3", "a4", "a5", "a6"]);
+
+    let b_vals = read_all_strings(&output, "col_b");
+    assert_eq!(b_vals, vec!["b1", "b2", "b3", "b4", "b5", "b6"]);
+
+    let c_vals = read_all_strings(&output, "col_c");
+    assert_eq!(c_vals, vec!["c1", "c2", "c3", "c4", "c5", "c6"]);
+}
+
+/// Threshold set very high → forces eager mode even with many string columns.
+/// Verify behavior is identical to deferred (output correctness).
+#[test]
+fn test_eager_forced_by_high_threshold() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("col_a", DataType::Utf8, false),
+        Field::new("col_b", DataType::Utf8, false),
+        Field::new("col_c", DataType::Utf8, false),
+    ]));
+
+    let index = "test_eager_forced_by_high_threshold";
+    register_deferred_settings(index, 3, 9999); // threshold=9999 → always eager
+
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 3, 5])),
+        Arc::new(StringArray::from(vec!["a1", "a3", "a5"])),
+        Arc::new(StringArray::from(vec!["b1", "b3", "b5"])),
+        Arc::new(StringArray::from(vec!["c1", "c3", "c5"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![2, 4, 6])),
+        Arc::new(StringArray::from(vec!["a2", "a4", "a6"])),
+        Arc::new(StringArray::from(vec!["b2", "b4", "b6"])),
+        Arc::new(StringArray::from(vec!["c2", "c4", "c6"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6]);
+
+    let a_vals = read_all_strings(&output, "col_a");
+    assert_eq!(a_vals, vec!["a1", "a2", "a3", "a4", "a5", "a6"]);
+}
+
+/// Deferred mode with multiple batches per cursor — verifies data reader
+/// stays synchronized across batch boundaries.
+#[test]
+fn test_deferred_multi_batch_sync() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("payload", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_multi_batch_sync";
+    register_deferred_settings(index, 2, 0); // batch_size=2, always deferred
+
+    // File A: [1,2,5,6] → batches [1,2] and [5,6]
+    // File B: [3,4,7,8] → batches [3,4] and [7,8]
+    // Expected: 1,2,3,4,5,6,7,8
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 2, 5, 6])),
+        Arc::new(StringArray::from(vec!["p1", "p2", "p5", "p6"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![3, 4, 7, 8])),
+        Arc::new(StringArray::from(vec!["p3", "p4", "p7", "p8"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+
+    let p_vals = read_all_strings(&output, "payload");
+    assert_eq!(p_vals, vec!["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]);
+}
+
+/// Deferred mode with TIER 3 (partial batch emit) — verifies data reader
+/// handles partial slices correctly when merge interleaves within a batch.
+#[test]
+fn test_deferred_tier3_interleaved() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("data", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_tier3_interleaved";
+    register_deferred_settings(index, 4, 0); // batch_size=4, always deferred
+
+    // File A: [1, 3, 5, 7] — single batch
+    // File B: [2, 4, 6, 8] — single batch
+    // Fully interleaved → TIER 3 binary search on every pop
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 3, 5, 7])),
+        Arc::new(StringArray::from(vec!["A1", "A3", "A5", "A7"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![2, 4, 6, 8])),
+        Arc::new(StringArray::from(vec!["B2", "B4", "B6", "B8"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+
+    let d_vals = read_all_strings(&output, "data");
+    assert_eq!(d_vals, vec!["A1", "B2", "A3", "B4", "A5", "B6", "A7", "B8"]);
+}
+
+/// Deferred mode produces identical output to eager mode for the same input.
+#[test]
+fn test_deferred_vs_eager_identical_output() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("s1", DataType::Utf8, false),
+        Field::new("s2", DataType::Utf8, false),
+        Field::new("s3", DataType::Utf8, false),
+        Field::new("n1", DataType::Int64, false),
+    ]));
+
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![10, 30, 50, 70, 90])),
+        Arc::new(StringArray::from(vec!["x", "x", "x", "x", "x"])),
+        Arc::new(StringArray::from(vec!["y", "y", "y", "y", "y"])),
+        Arc::new(StringArray::from(vec!["z", "z", "z", "z", "z"])),
+        Arc::new(Int64Array::from(vec![100, 300, 500, 700, 900])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![20, 40, 60, 80, 100])),
+        Arc::new(StringArray::from(vec!["a", "a", "a", "a", "a"])),
+        Arc::new(StringArray::from(vec!["b", "b", "b", "b", "b"])),
+        Arc::new(StringArray::from(vec!["c", "c", "c", "c", "c"])),
+        Arc::new(Int64Array::from(vec![200, 400, 600, 800, 1000])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    // Run with deferred (threshold=0)
+    let index_deferred = "test_deferred_vs_eager_deferred";
+    register_deferred_settings(index_deferred, 3, 0);
+    let output_deferred = tmp.path().join("merged_deferred.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a.clone(), file_b.clone()], &output_deferred, index_deferred,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    // Run with eager (threshold=9999)
+    let index_eager = "test_deferred_vs_eager_eager";
+    register_deferred_settings(index_eager, 3, 9999);
+    let output_eager = tmp.path().join("merged_eager.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output_eager, index_eager,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    // Compare outputs — must be identical
+    let ts_d = read_all_int64(&output_deferred, "ts");
+    let ts_e = read_all_int64(&output_eager, "ts");
+    assert_eq!(ts_d, ts_e, "timestamps differ between deferred and eager");
+
+    let s1_d = read_all_strings(&output_deferred, "s1");
+    let s1_e = read_all_strings(&output_eager, "s1");
+    assert_eq!(s1_d, s1_e, "s1 column differs between deferred and eager");
+
+    let n1_d = read_all_int64(&output_deferred, "n1");
+    let n1_e = read_all_int64(&output_eager, "n1");
+    assert_eq!(n1_d, n1_e, "n1 column differs between deferred and eager");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Deferred mode — TIER 1, 2, 3 correctness tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// TIER 1 deferred: single cursor remaining — drains all remaining rows.
+/// Verifies data reader loads correctly when TIER 1 bulk-emits.
+#[test]
+fn test_deferred_tier1_single_cursor_drain() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("msg", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_tier1_single_cursor_drain";
+    register_deferred_settings(index, 3, 0);
+
+    // File A: [1, 2] — exhausts quickly
+    // File B: [3, 4, 5, 6, 7, 8] — becomes the sole cursor after A exhausts
+    // TIER 1 should drain B entirely without heap operations
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 2])),
+        Arc::new(StringArray::from(vec!["first", "second"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![3, 4, 5, 6, 7, 8])),
+        Arc::new(StringArray::from(vec!["t3", "t4", "t5", "t6", "t7", "t8"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+
+    let msg_vals = read_all_strings(&output, "msg");
+    assert_eq!(msg_vals, vec!["first", "second", "t3", "t4", "t5", "t6", "t7", "t8"]);
+}
+
+/// TIER 1 deferred with multiple batches: the sole remaining cursor spans
+/// multiple internal batches — verifies data reader advances across batch
+/// boundaries during the drain loop.
+#[test]
+fn test_deferred_tier1_multi_batch_drain() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("val", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_tier1_multi_batch_drain";
+    register_deferred_settings(index, 2, 0); // batch_size=2
+
+    // File A: [1] — exhausts immediately
+    // File B: [2, 3, 4, 5, 6, 7] — 3 batches of 2 rows each, all drained by TIER 1
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![1])),
+        Arc::new(StringArray::from(vec!["a"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![2, 3, 4, 5, 6, 7])),
+        Arc::new(StringArray::from(vec!["b2", "b3", "b4", "b5", "b6", "b7"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7]);
+
+    let val_vals = read_all_strings(&output, "val");
+    assert_eq!(val_vals, vec!["a", "b2", "b3", "b4", "b5", "b6", "b7"]);
+}
+
+/// TIER 2 deferred: entire batch fits before heap top — emits full batch at once.
+/// Verifies data is loaded once for the full batch slice.
+#[test]
+fn test_deferred_tier2_full_batch_emit() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("tag", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_tier2_full_batch_emit";
+    register_deferred_settings(index, 3, 0);
+
+    // File A: [1, 2, 3, 10, 11, 12] → batches [1,2,3] and [10,11,12]
+    // File B: [5, 6, 7]
+    // Batch [1,2,3] from A fits entirely before heap top (B=5) → TIER 2 emits all 3
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![1, 2, 3, 10, 11, 12])),
+        Arc::new(StringArray::from(vec!["A1", "A2", "A3", "A10", "A11", "A12"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![5, 6, 7])),
+        Arc::new(StringArray::from(vec!["B5", "B6", "B7"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 5, 6, 7, 10, 11, 12]);
+
+    let tag_vals = read_all_strings(&output, "tag");
+    assert_eq!(tag_vals, vec!["A1", "A2", "A3", "B5", "B6", "B7", "A10", "A11", "A12"]);
+}
+
+/// TIER 2 deferred with descending sort — verifies deferred works with reverse order.
+#[test]
+fn test_deferred_tier2_descending() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("info", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_tier2_descending";
+    register_deferred_settings(index, 3, 0);
+
+    // File A: [12, 11, 10, 3, 2, 1] descending → batches [12,11,10] and [3,2,1]
+    // File B: [7, 6, 5] descending
+    let batch_a = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![12, 11, 10, 3, 2, 1])),
+        Arc::new(StringArray::from(vec!["a12", "a11", "a10", "a3", "a2", "a1"])),
+    ]).unwrap();
+    let batch_b = RecordBatch::try_new(schema.clone(), vec![
+        Arc::new(Int64Array::from(vec![7, 6, 5])),
+        Arc::new(StringArray::from(vec!["b7", "b6", "b5"])),
+    ]).unwrap();
+
+    let tmp = tempdir().unwrap();
+    let file_a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let file_b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_parquet(&file_a, &batch_a);
+    write_parquet(&file_b, &batch_b);
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &[file_a, file_b], &output, index,
+        &["ts".into()], &[true], &[false], 0, // reverse=true (descending)
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![12, 11, 10, 7, 6, 5, 3, 2, 1]);
+
+    let info_vals = read_all_strings(&output, "info");
+    assert_eq!(info_vals, vec!["a12", "a11", "a10", "b7", "b6", "b5", "a3", "a2", "a1"]);
+}
+
+/// TIER 3 deferred with many cursors — stress test for data reader sync
+/// across multiple interleaved cursors with small batch sizes.
+#[test]
+fn test_deferred_tier3_many_cursors() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("ts", DataType::Int64, false),
+        Field::new("src", DataType::Utf8, false),
+    ]));
+
+    let index = "test_deferred_tier3_many_cursors";
+    register_deferred_settings(index, 2, 0); // small batches force frequent batch transitions
+
+    // 4 fully interleaved files:
+    // A: [1, 5, 9]  B: [2, 6, 10]  C: [3, 7, 11]  D: [4, 8, 12]
+    let make_batch = |vals: Vec<i64>, label: &str| {
+        let labels: Vec<&str> = vals.iter().map(|_| label).collect();
+        RecordBatch::try_new(schema.clone(), vec![
+            Arc::new(Int64Array::from(vals)),
+            Arc::new(StringArray::from(labels)),
+        ]).unwrap()
+    };
+
+    let tmp = tempdir().unwrap();
+    let files: Vec<String> = vec![
+        ("a", vec![1i64, 5, 9]),
+        ("b", vec![2, 6, 10]),
+        ("c", vec![3, 7, 11]),
+        ("d", vec![4, 8, 12]),
+    ].into_iter().map(|(name, vals)| {
+        let path = tmp.path().join(format!("{}.parquet", name)).to_string_lossy().to_string();
+        write_parquet(&path, &make_batch(vals, name));
+        path
+    }).collect();
+
+    let output = tmp.path().join("merged.parquet").to_string_lossy().to_string();
+    merge_sorted(
+        &files, &output, index,
+        &["ts".into()], &[false], &[false], 0,
+    ).unwrap();
+
+    let ts_vals = read_all_int64(&output, "ts");
+    assert_eq!(ts_vals, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+
+    let src_vals = read_all_strings(&output, "src");
+    assert_eq!(src_vals, vec!["a", "b", "c", "d", "a", "b", "c", "d", "a", "b", "c", "d"]);
+}
