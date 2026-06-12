@@ -43,6 +43,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
+import org.opensearch.analytics.planner.rules.OpenSearchPercentileLiteralArgRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
@@ -103,6 +104,7 @@ public class PlannerImpl {
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:
@@ -248,6 +250,20 @@ public class PlannerImpl {
      */
     private static RelNode extractLiteralAgg(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("literal-agg-extract").addRuleInstance(new ExtractLiteralAggRule()).run(input, listener);
+    }
+
+    /**
+     * Phase 1c': duplicate an aggregate's literal-config-arg Project (e.g. percentile's {@code 50})
+     * into a pinned upper copy (literal stays with the aggregate) over an unpinned physical-only
+     * lower copy (pushes below the ExchangeReducer). Runs AFTER marking — operates on
+     * {@code OpenSearch*} nodes and emits a pinned {@code OpenSearchProject} whose
+     * {@code computeSelfCost} forces the CBO-inserted ER below it, keeping the literal in the
+     * coordinator fragment for the DataFusion substrait converter. Placed after marking so the
+     * pre-marking {@code PROJECT_MERGE} cannot re-fuse the two copies. See
+     * {@link OpenSearchPercentileLiteralArgRule}.
+     */
+    private static RelNode splitAggLiteralArgProject(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("agg-literal-arg-split").addRuleInstance(new OpenSearchPercentileLiteralArgRule()).run(input, listener);
     }
 
     /**
