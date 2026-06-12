@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -521,12 +520,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public CommitStats commitStats() {
         ensureOpen();
-        try {
-            return new CommitStats(store.readLastCommittedSegmentsInfo());
-        } catch (Exception e) {
-            logger.debug("Unable to read last committed SegmentInfos; returning empty CommitStats", e);
-            return new CommitStats(new SegmentInfos(org.apache.lucene.util.Version.LATEST.major));
-        }
+        return committer.getCommitStats();
     }
 
     @Override
