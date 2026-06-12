@@ -237,10 +237,27 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             // the channel's root is not our root. VectorStreamOutput.forNativeArrow(...).close() is a
             // no-op, so an un-adopted root would otherwise leak. Checked before releaseChannel, which
             // closes the channel (and its root) below.
-            if (unownedRoot != null && flightChannel.getRoot() != unownedRoot) {
+            if (unownedRoot != null) {
+                // Snapshot getRoot() defensively: resolve adoption OUTSIDE the close decision so a
+                // throw here can't skip the close. getRoot() is a plain field read today and won't
+                // throw, but if a future implementation could, treat "unknown" as adopted (false) —
+                // a spurious double-close (freeing a root the channel still holds) is worse than a
+                // rare leak on an unreachable path.
+                boolean adopted;
                 try {
-                    unownedRoot.close();
-                } catch (Exception ignore) {}
+                    adopted = flightChannel.getRoot() == unownedRoot;
+                } catch (Exception probeFailed) {
+                    adopted = true;
+                    logger.debug(
+                        new ParameterizedMessage("failStream: could not resolve root adoption for requestId [{}]", task.requestId()),
+                        probeFailed
+                    );
+                }
+                if (!adopted) {
+                    try {
+                        unownedRoot.close();
+                    } catch (Exception ignore) {}
+                }
             }
             // Make the channel terminal regardless of whether sendError succeeded, so a later
             // completeStream cannot double-terminate the gRPC listener. Idempotent.
