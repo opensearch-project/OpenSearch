@@ -46,6 +46,10 @@ public class RustBridge {
     private static final MethodHandle READ_AS_JSON;
     private static final MethodHandle FREE_ROW_ID_MAPPING;
     private static final MethodHandle COLLECT_RUNTIME_METRICS;
+    private static final MethodHandle INIT_MEMORY_POOLS;
+    private static final MethodHandle SET_WRITE_POOL_LIMIT;
+    private static final MethodHandle SET_MERGE_POOL_LIMIT;
+    private static final MethodHandle GET_POOL_STATS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -258,6 +262,22 @@ public class RustBridge {
                 ValueLayout.ADDRESS,      // out_buf
                 ValueLayout.JAVA_LONG     // out_len
             )
+        );
+        INIT_MEMORY_POOLS = linker.downcallHandle(
+            lib.find("parquet_init_memory_pools").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        SET_WRITE_POOL_LIMIT = linker.downcallHandle(
+            lib.find("parquet_set_write_pool_limit").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+        SET_MERGE_POOL_LIMIT = linker.downcallHandle(
+            lib.find("parquet_set_merge_pool_limit").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+        GET_POOL_STATS = linker.downcallHandle(
+            lib.find("parquet_get_pool_stats").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
         );
     }
 
@@ -717,6 +737,26 @@ public class RustBridge {
             seg.setAtIndex(ValueLayout.JAVA_LONG, i, map.get(keys[i]));
         }
         return new LongMapArrays(call.strArray(keys), seg);
+    }
+
+    public static void initMemoryPools(long writeLimit, long mergeLimit) {
+        NativeCall.invokeVoid(INIT_MEMORY_POOLS, writeLimit, mergeLimit);
+    }
+
+    public static void setWritePoolLimit(long newLimit) {
+        NativeCall.invokeVoid(SET_WRITE_POOL_LIMIT, newLimit);
+    }
+
+    public static void setMergePoolLimit(long newLimit) {
+        NativeCall.invokeVoid(SET_MERGE_POOL_LIMIT, newLimit);
+    }
+
+    public static long[] getPoolStats() {
+        try (var call = new NativeCall()) {
+            var buf = call.buf(6 * 8);
+            NativeCall.invokeVoid(GET_POOL_STATS, buf);
+            return buf.toArray(ValueLayout.JAVA_LONG);
+        }
     }
 
     private RustBridge() {}

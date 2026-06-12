@@ -559,10 +559,10 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
-        // i64 df_stats(out_ptr, out_cap)
+        // i64 df_stats(runtime_ptr, out_ptr, out_cap)
         STATS = linker.downcallHandle(
             lib.find("df_stats").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
         // i64 df_query_registry_top_n_by_current(out_ptr, cap_entries)
@@ -1047,10 +1047,10 @@ public final class NativeBridge {
      * @return a fully constructed {@link DataFusionStats}
      * @throws IllegalStateException if the runtime manager is not initialized
      */
-    public static DataFusionStats stats() {
+    public static DataFusionStats stats(long runtimePtr) {
         try (var call = new NativeCall()) {
             var seg = call.buf((int) StatsLayout.LAYOUT.byteSize());
-            call.invoke(STATS, seg, StatsLayout.LAYOUT.byteSize());
+            call.invoke(STATS, runtimePtr, seg, StatsLayout.LAYOUT.byteSize());
 
             // IO runtime (always present — zeroed if not yet initialized)
             var ioRuntime = StatsLayout.readRuntimeMetrics(seg, "io_runtime");
@@ -1068,7 +1068,20 @@ public final class NativeBridge {
             var datanodeGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "datanode_gate");
             var coordinatorGate = StatsLayout.readPartitionGate(seg, "reduce_executor_gate", "coordinator_gate");
 
-            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate, null);
+            // Cache stats (zeroed in native when caches are disabled)
+            var cacheStats = StatsLayout.readCacheStats(seg);
+
+            // Search stats
+            var searchStats = StatsLayout.readSearchStats(seg);
+
+            return new DataFusionStats(
+                new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors),
+                datanodeGate,
+                coordinatorGate,
+                null,
+                cacheStats,
+                searchStats
+            );
         }
     }
 
@@ -1083,7 +1096,7 @@ public final class NativeBridge {
      * zero-byte trackers are filtered on the Rust side. Order within the
      * buffer is unspecified.
      *
-     * <p>Mirrors the {@link #stats()} pattern: the layout class decodes
+     * <p>Mirrors the {@link #stats(long)} pattern: the layout class decodes
      * directly into the caller's final type ({@link QueryExecutionMetrics})
      * with no transport-only intermediate.
      *
@@ -1123,7 +1136,7 @@ public final class NativeBridge {
 
     /**
      * Reads native task cancellation counters via {@code df_native_node_stats} FFM call.
-     * Independent of {@link #stats()} which calls {@code df_stats} for plugin stats.
+     * Independent of {@link #stats(long)} which calls {@code df_stats} for plugin stats.
      *
      * @return a populated {@link AnalyticsBackendTaskCancellationStats}
      * @throws IllegalStateException if the FFM function returns a non-zero error code

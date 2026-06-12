@@ -955,6 +955,7 @@ pub unsafe extern "C" fn df_create_session_context(
     plan_ptr: *const u8,
     plan_len: i64,
 ) -> i64 {
+    crate::search_stats::inc_listing_table_scan();
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context: {}", e))?;
     let query_config =
@@ -1011,6 +1012,11 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     plan_ptr: *const u8,
     plan_len: i64,
 ) -> i64 {
+    match tree_shape {
+        1 => crate::search_stats::inc_single_collector_scan(),
+        2 => crate::search_stats::inc_bitmap_tree_scan(),
+        _ => {}
+    }
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
     let query_config =
@@ -1274,12 +1280,18 @@ pub unsafe extern "C" fn df_execute_with_context(
 
 /// Collects all native executor metrics into a caller-provided byte buffer.
 ///
-/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (344).
+/// `runtime_ptr` may be `0` to skip cache-stats collection. When non-zero it
+/// must be a valid pointer returned by [`df_create_global_runtime`].
+///
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (552).
 /// Returns 0 on success.
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
-    use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, pack_partition_gate, DfStatsBuffer, RuntimeMetricsRepr};
+pub unsafe extern "C" fn df_stats(runtime_ptr: i64, out_ptr: *mut u8, out_cap: i64) -> i64 {
+    use crate::stats::{
+        layout, pack_cache_stats, pack_partition_gate, pack_runtime_metrics, pack_task_monitor,
+        CacheStatsRepr, DfStatsBuffer, RuntimeMetricsRepr,
+    };
     use crate::task_monitors::{
         coordinator_reduce_monitor, query_execution_monitor,
         stream_next_monitor, plan_setup_monitor,
@@ -1308,6 +1320,18 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         RuntimeMetricsRepr::zeroed()
     };
 
+    // Cache stats (zeroed when no runtime pointer or no cache manager)
+    let cache_stats = if runtime_ptr != 0 {
+        let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+        runtime
+            .custom_cache_manager
+            .as_ref()
+            .map(pack_cache_stats)
+            .unwrap_or_else(CacheStatsRepr::default)
+    } else {
+        CacheStatsRepr::default()
+    };
+
     let buf = DfStatsBuffer {
         io_runtime,
         cpu_runtime,
@@ -1317,6 +1341,8 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         plan_setup: pack_task_monitor(plan_setup_monitor()),
         fragment_executor_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
         reduce_executor_gate: pack_partition_gate(mgr.coordinator_gate()),
+        cache_stats,
+        search_stats: crate::search_stats::snapshot(),
     };
 
     // Copy struct bytes to caller buffer

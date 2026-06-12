@@ -32,8 +32,10 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
     private static final Dataset CLICKBENCH = ClickBenchTestHelper.DATASET;
+    private static final Dataset DELEGATION = new Dataset("delegation", "delegation");
     private static boolean dataProvisioned = false;
     private static boolean clickBenchProvisioned = false;
+    private static boolean delegationProvisioned = false;
 
     @Override
     protected void onBeforeQuery() throws IOException {
@@ -47,6 +49,13 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
         if (clickBenchProvisioned == false) {
             DatasetProvisioner.provision(client(), CLICKBENCH);
             clickBenchProvisioned = true;
+        }
+    }
+
+    private void ensureDelegationProvisioned() throws IOException {
+        if (delegationProvisioned == false) {
+            DatasetProvisioner.provision(client(), DELEGATION);
+            delegationProvisioned = true;
         }
     }
 
@@ -177,10 +186,92 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
         assertTrue("planning_time_ms is non-negative", planningTime >= 0);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testProfileReturnsDataNodeMetrics() throws IOException {
+        ensureClickBenchProvisioned();
+        Map<String, Object> result = executeWithProfile(
+            "source=" + CLICKBENCH.indexName + " | stats avg(AdvEngineID) by RegionID"
+        );
+
+        Map<String, Object> profile = (Map<String, Object>) result.get("profile");
+        assertNotNull("profile present", profile);
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+
+        Map<String, Object> shardStage = stages.stream()
+            .filter(s -> "SHARD_FRAGMENT".equals(s.get("execution_type")))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no SHARD_FRAGMENT stage"));
+
+        List<Map<String, Object>> tasks = (List<Map<String, Object>>) shardStage.get("tasks");
+        assertNotNull("tasks present", tasks);
+
+        boolean anyMetrics = false;
+        for (Map<String, Object> task : tasks) {
+            Map<String, Object> metrics = (Map<String, Object>) task.get("data_node_metrics");
+            if (metrics != null) {
+                anyMetrics = true;
+                assertNotNull("output_rows present", metrics.get("output_rows"));
+                assertNotNull("elapsed_compute present", metrics.get("elapsed_compute"));
+                assertNotNull("output_batches present", metrics.get("output_batches"));
+                assertTrue("output_rows non-negative", ((Number) metrics.get("output_rows")).longValue() >= 0);
+            }
+        }
+        assertTrue("at least one task has data_node_metrics", anyMetrics);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileDelegatedQueryHasFFMCollectorCalls() throws IOException {
+        ensureDelegationProvisioned();
+        Map<String, Object> result = executeWithProfile(
+            "source=" + DELEGATION.indexName + " | where status = \"active\" | fields status, value"
+        );
+
+        Map<String, Object> profile = (Map<String, Object>) result.get("profile");
+        assertNotNull("profile present", profile);
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+
+        Map<String, Object> shardStage = stages.stream()
+            .filter(s -> "SHARD_FRAGMENT".equals(s.get("execution_type")))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no SHARD_FRAGMENT stage"));
+
+        List<Map<String, Object>> tasks = (List<Map<String, Object>>) shardStage.get("tasks");
+        assertNotNull("tasks present", tasks);
+        assertFalse("has tasks", tasks.isEmpty());
+
+        // Find a task with data_node_metrics (some shards may be empty on multi-node clusters)
+        Map<String, Object> metrics = null;
+        for (Map<String, Object> t : tasks) {
+            Map<String, Object> m = (Map<String, Object>) t.get("data_node_metrics");
+            if (m != null && m.containsKey("ffm_collector_calls")) {
+                metrics = m;
+                break;
+            }
+        }
+        assertNotNull("at least one task has data_node_metrics with ffm_collector_calls", metrics);
+
+        // Verify IndexedTableExec custom metrics proving Lucene delegation occurred
+        assertTrue(
+            "ffm_collector_calls > 0 (Lucene delegation occurred)",
+            ((Number) metrics.get("ffm_collector_calls")).longValue() > 0
+        );
+        assertNotNull("rows_matched present", metrics.get("rows_matched"));
+        assertEquals("rows_matched equals 10 (10% of 100 docs)", 10L, ((Number) metrics.get("rows_matched")).longValue());
+        assertNotNull("row_groups_processed present", metrics.get("row_groups_processed"));
+        assertNotNull("index_query_time present", metrics.get("index_query_time"));
+    }
+
     private Map<String, Object> executeExplain(String ppl) throws IOException {
         Request request = new Request("POST", "/_analytics/ppl/_explain");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         Response response = client().performRequest(request);
         return assertOkAndParse(response, "EXPLAIN: " + ppl);
+    }
+
+    private Map<String, Object> executeWithProfile(String ppl) throws IOException {
+        Request request = new Request("POST", "/_analytics/ppl");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\", \"profile\": true}");
+        Response response = client().performRequest(request);
+        return assertOkAndParse(response, "PROFILE: " + ppl);
     }
 }

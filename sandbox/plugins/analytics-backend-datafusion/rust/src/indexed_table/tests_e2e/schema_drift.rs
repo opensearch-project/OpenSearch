@@ -103,7 +103,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&[])?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -117,6 +117,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -136,7 +137,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -409,7 +410,7 @@ async fn query_with_mismatched_schema(
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
         let schema = table_schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&[])?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -424,6 +425,7 @@ async fn query_with_mismatched_schema(
                 page_prune_metrics: None,
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -443,7 +445,7 @@ async fn query_with_mismatched_schema(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

@@ -741,3 +741,35 @@ pub unsafe extern "C" fn parquet_collect_runtime_metrics(
     std::ptr::copy_nonoverlapping(arr.as_ptr(), out_buf, 17);
     Ok(0)
 }
+
+// ---------------------------------------------------------------------------
+// Memory pool management (Phase 1 stubs)
+// ---------------------------------------------------------------------------
+
+/// Initialize write and merge memory pool counters.
+#[no_mangle]
+pub extern "C" fn parquet_init_memory_pools(write_limit: i64, merge_limit: i64) {
+    crate::memory::init_pools(write_limit as usize, merge_limit as usize);
+}
+
+/// Set write pool limit. Called by Java rebalancer via FFM.
+#[no_mangle]
+pub extern "C" fn parquet_set_write_pool_limit(new_limit: i64) {
+    crate::memory::set_write_limit(new_limit as usize);
+}
+
+/// Set merge pool limit. Called by Java rebalancer via FFM.
+#[no_mangle]
+pub extern "C" fn parquet_set_merge_pool_limit(new_limit: i64) {
+    crate::memory::set_merge_limit(new_limit as usize);
+}
+
+/// Get pool stats: writes 6 i64s to out_buf.
+/// Layout: [write_limit, write_used, write_peak, merge_limit, merge_used, merge_peak]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_get_pool_stats(out_buf: *mut i64) {
+    let stats = crate::memory::get_stats();
+    for (i, val) in stats.iter().enumerate() {
+        *out_buf.add(i) = *val as i64;
+    }
+}

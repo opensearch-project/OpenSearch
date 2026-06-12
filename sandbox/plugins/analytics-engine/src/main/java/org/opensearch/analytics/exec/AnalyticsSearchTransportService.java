@@ -8,9 +8,9 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -57,7 +57,6 @@ import java.io.IOException;
  */
 @Singleton
 public class AnalyticsSearchTransportService {
-    private static final Logger logger = LogManager.getLogger(AnalyticsSearchTransportService.class);
 
     private final StreamTransportService transportService;
     private final ClusterService clusterService;
@@ -200,13 +199,36 @@ public class AnalyticsSearchTransportService {
      */
     private static AnalyticsSearchService.StreamingFragmentResponseHandler channelResponseHandler(TransportChannel channel) {
         return new AnalyticsSearchService.StreamingFragmentResponseHandler() {
+            private Schema batchSchema = null;
+            private BufferAllocator batchAllocator = null;
+
             @Override
             public void onBatch(EngineResultBatch batch) throws Exception {
-                channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
+                VectorSchemaRoot root = batch.getArrowRoot();
+                if (batchSchema == null && root.getFieldVectors().isEmpty() == false) {
+                    batchSchema = root.getSchema();
+                    batchAllocator = root.getFieldVectors().getFirst().getAllocator();
+                }
+                channel.sendResponseBatch(new FragmentExecutionArrowResponse(root));
             }
 
             @Override
             public void onComplete() {
+                channel.completeStream();
+            }
+
+            @Override
+            public void onCompleteWithMetrics(byte[] metrics) {
+                if (batchSchema != null && batchAllocator != null) {
+                    VectorSchemaRoot sentinel = VectorSchemaRoot.create(batchSchema, batchAllocator);
+                    sentinel.setRowCount(0);
+                    try {
+                        channel.sendResponseBatch(new FragmentExecutionArrowResponse(sentinel, metrics));
+                    } catch (Exception e) {
+                        // Stream may already be cancelled — close sentinel to prevent leak
+                        sentinel.close();
+                    }
+                }
                 channel.completeStream();
             }
 
@@ -390,15 +412,32 @@ public class AnalyticsSearchTransportService {
                         return;
                     }
                     while (last != null) {
+                        // Profiling sentinel: 0 rows with metadata attached. Deliver metrics and exit.
+                        if (last.getRoot() != null && last.getRoot().getRowCount() == 0 && last.getMetadata() != null) {
+                            listener.onStreamComplete(last.getMetadata());
+                            last.getRoot().close();
+                            return;
+                        }
+
                         FragmentExecutionArrowResponse next = stream.nextResponse();
-                        boolean isLast = next == null;
+                        // Treat sentinel as end-of-stream: the current batch is the last real data batch.
+                        boolean nextIsSentinel = next != null
+                            && next.getRoot() != null
+                            && next.getRoot().getRowCount() == 0
+                            && next.getMetadata() != null;
+                        boolean isLast = next == null || nextIsSentinel;
+
+                        // Deliver metrics BEFORE signalling isLast so they're stored on the
+                        // task before the profile snapshot fires.
+                        if (nextIsSentinel) {
+                            listener.onStreamComplete(next.getMetadata());
+                            next.getRoot().close();
+                        }
+
                         boolean keepReading = listener.onStreamResponse(last, isLast);
-                        if (!keepReading) {
-                            if (next != null) {
-                                if (next.getRoot() != null) {
-                                    next.getRoot().close();
-                                }
-                                logger.debug("[early-term] cancelling shard stream: reduce input satisfied (downstream consumer finished)");
+                        if (!keepReading || nextIsSentinel) {
+                            if (!isLast && next != null) {
+                                if (next.getRoot() != null) next.getRoot().close();
                                 stream.cancel("reduce input satisfied (downstream consumer finished)", null);
                             }
                             return;

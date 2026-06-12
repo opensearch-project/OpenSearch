@@ -52,6 +52,8 @@ public class QueryContext {
     private final List<AnalyticsOperationListener> operationListeners;
     private final BufferAllocator allocator;
     private final boolean ownsAllocator;
+    /** Whether profiling is enabled for this query (data nodes should collect and return metrics). */
+    private final boolean profile;
     /**
      * Per-instance flag: has THIS context's {@link #close()} already disposed of its instance-
      * scoped resources (the owning allocator)? Independent of
@@ -104,6 +106,7 @@ public class QueryContext {
             List.of(),
             allocator,
             ownsAllocator,
+            /* profile */ false,
             new SharedState()
         );
     }
@@ -127,11 +130,48 @@ public class QueryContext {
             operationListeners,
             allocator,
             ownsAllocator,
+            /* profile */ false,
             new SharedState()
         );
     }
 
-    /** Full-parameter constructor. Private; tests use {@link #forTest} factories. */
+    /**
+     * Public constructor used by {@link DefaultPlanExecutor} — carries the {@code profile} flag
+     * and fresh {@link SharedState}. Param order matches the private full-ctor (minus the
+     * SharedState seam).
+     */
+    public QueryContext(
+        QueryDAG dag,
+        ThreadPool threadPool,
+        AnalyticsQueryTask parentTask,
+        int maxConcurrentShardRequestsPerNode,
+        int maxShardsPerQuery,
+        List<AnalyticsOperationListener> operationListeners,
+        BufferAllocator allocator,
+        boolean ownsAllocator,
+        boolean profile
+    ) {
+        this(
+            dag,
+            threadPool,
+            parentTask,
+            maxConcurrentShardRequestsPerNode,
+            maxShardsPerQuery,
+            operationListeners,
+            allocator,
+            ownsAllocator,
+            profile,
+            new SharedState()
+        );
+    }
+
+    /**
+     * Full-parameter constructor. Private; tests use {@link #forTest} factories.
+     *
+     * <p>Param order: upstream-owned params first, then our (feature-branch) {@code sharedState}
+     * LAST — per the "append our new params to the end of upstream-owned signatures" policy, so
+     * future upstream re-syncs don't collide on it.
+     */
     private QueryContext(
         QueryDAG dag,
         ThreadPool threadPool,
@@ -141,6 +181,7 @@ public class QueryContext {
         List<AnalyticsOperationListener> operationListeners,
         BufferAllocator allocator,
         boolean ownsAllocator,
+        boolean profile,
         SharedState sharedState
     ) {
         this.dag = dag;
@@ -152,6 +193,7 @@ public class QueryContext {
         this.allocator = allocator;
         this.ownsAllocator = ownsAllocator;
         this.sharedState = sharedState;
+        this.profile = profile;
     }
 
     /**
@@ -175,12 +217,18 @@ public class QueryContext {
             operationListeners,
             allocator,
             /* ownsAllocator */ false,
+            profile,
             sharedState
         );
     }
 
     public QueryDAG dag() {
         return dag;
+    }
+
+    /** Whether profiling is enabled for this query (data nodes should collect and return metrics). */
+    public boolean profile() {
+        return profile;
     }
 
     public Executor searchExecutor() {
@@ -341,6 +389,7 @@ public class QueryContext {
             operationListeners,
             testAllocator,
             true,
+            /* profile */ false,
             new SharedState()
         );
     }

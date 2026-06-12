@@ -134,9 +134,9 @@ pub struct CustomStatisticsCache {
     /// Combined memory tracking state
     memory_state: Arc<Mutex<MemoryState>>,
     /// Cache hit count (thread-safe)
-    hit_count: Arc<Mutex<usize>>,
+    hit_count: AtomicUsize,
     /// Cache miss count (thread-safe)
-    miss_count: Arc<Mutex<usize>>,
+    miss_count: AtomicUsize,
 }
 
 impl CustomStatisticsCache {
@@ -151,8 +151,8 @@ impl CustomStatisticsCache {
                 tracker: HashMap::new(),
                 total: 0,
             })),
-            hit_count: Arc::new(Mutex::new(0)),
-            miss_count: Arc::new(Mutex::new(0)),
+            hit_count: AtomicUsize::new(0),
+            miss_count: AtomicUsize::new(0),
         }
     }
 
@@ -173,12 +173,12 @@ impl CustomStatisticsCache {
 
     /// Get cache hit count
     pub fn hit_count(&self) -> usize {
-        self.hit_count.lock().map(|guard| *guard).unwrap_or(0)
+        self.hit_count.load(Ordering::Relaxed)
     }
 
     /// Get cache miss count
     pub fn miss_count(&self) -> usize {
-        self.miss_count.lock().map(|guard| *guard).unwrap_or(0)
+        self.miss_count.load(Ordering::Relaxed)
     }
 
     /// Get cache hit rate (returns value between 0.0 and 1.0)
@@ -191,8 +191,8 @@ impl CustomStatisticsCache {
 
     /// Reset hit and miss counters
     pub fn reset_stats(&self) {
-        if let Ok(mut hits) = self.hit_count.lock() { *hits = 0; }
-        if let Ok(mut misses) = self.miss_count.lock() { *misses = 0; }
+        self.hit_count.store(0, Ordering::Relaxed);
+        self.miss_count.store(0, Ordering::Relaxed);
     }
 
     /// Update the cache size limit
@@ -245,6 +245,11 @@ impl CustomStatisticsCache {
     /// Get current cache size according to policy (uses actual memory consumption)
     pub fn current_size(&self) -> CacheResult<usize> {
         Ok(self.memory_consumed())
+    }
+
+    /// Get current size limit in bytes (configured cap, not utilization)
+    pub fn current_size_limit(&self) -> usize {
+        self.size_limit.load(Ordering::Relaxed)
     }
 
     /// Manually trigger eviction (requires &mut self)
@@ -336,7 +341,7 @@ impl CustomStatisticsCache {
         let result = self.inner_cache.get(k);
 
         if result.is_some() {
-            if let Ok(mut hits) = self.hit_count.lock() { *hits += 1; }
+            self.hit_count.fetch_add(1, Ordering::Relaxed);
             let key = k.to_string();
             let memory_size = {
                 let state = self.memory_state.lock();
@@ -346,7 +351,7 @@ impl CustomStatisticsCache {
                 policy_guard.on_access(&key, memory_size);
             }
         } else {
-            if let Ok(mut misses) = self.miss_count.lock() { *misses += 1; }
+            self.miss_count.fetch_add(1, Ordering::Relaxed);
         }
 
         result.map(|s| s.value().clone())

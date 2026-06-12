@@ -376,7 +376,6 @@ mod tests {
             !rules.iter().any(|r| r.name() == combine_name),
             "CombinePartialFinalAggregate should be filtered out"
         );
-        // Verify we still have other rules
         assert!(!rules.is_empty(), "Should have other optimizer rules");
     }
 
@@ -481,5 +480,21 @@ mod tests {
             "Round-robin Repartition over StreamingTable must be preserved, got: {}",
             plan_string(&stripped)
         );
+    }
+
+    /// Verifies apply_aggregate_mode(Partial) strips the Final aggregate and keeps
+    /// only the Partial subtree — the core behavior the indexed executor relies on
+    /// for engine-native-merge (dc/HLL) queries.
+    #[tokio::test]
+    async fn test_apply_partial_strips_final() {
+        let plan = make_agg_plan().await;
+        let display_before = plan_string(&plan);
+        assert!(display_before.contains("AggregateExec: mode=Final"), "expected Final in plan");
+        assert!(display_before.contains("AggregateExec: mode=Partial"), "expected Partial in plan");
+
+        let stripped = apply_aggregate_mode(plan, Mode::Partial).unwrap();
+        let display_after = plan_string(&stripped);
+        assert!(!display_after.contains("mode=Final"), "Final should be stripped");
+        assert!(display_after.contains("mode=Partial"), "Partial should remain");
     }
 }

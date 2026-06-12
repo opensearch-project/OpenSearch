@@ -80,13 +80,14 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
     let factory: EvaluatorFactory = {
         let schema = schema.clone();
         let residual = Arc::clone(&residual);
-        Arc::new(move |segment: &SegmentFileInfo, _chunk, stream_metrics| {
+        Arc::new(move |segment: &SegmentFileInfo, _chunk, stream_metrics, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(PredicateOnlyEvaluator::new(
                 pruner,
                 None,
                 Some(Arc::clone(&residual)),
                 Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
+                None,
             ));
             Ok(eval)
         })
@@ -109,7 +110,7 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false,
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();

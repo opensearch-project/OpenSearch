@@ -18,8 +18,6 @@ import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttle;
-import org.apache.calcite.rel.core.Aggregate;
-import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
@@ -57,7 +55,6 @@ import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
-import org.opensearch.analytics.spi.AggregateFunction;
 
 import java.util.List;
 import java.util.Optional;
@@ -105,7 +102,6 @@ public class PlannerImpl {
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
-        context.setHasEngineNativeMergeAggregate(containsEngineNativeMergeAggregate(modifiedRelNode));
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
@@ -349,25 +345,6 @@ public class PlannerImpl {
      * <p>TODO: add SortPushdown rule here — pushes Sort below Exchange to data nodes for top-K
      * optimization.
      */
-    /**
-     * True if the plan contains an aggregate with engine-native-merge semantics (intermediate
-     * wire type differs from output type, e.g. APPROX_COUNT_DISTINCT emits Binary HLL state).
-     * When present, filter delegation must be suppressed to avoid plan-shape divergence between
-     * derive_schema_from_partial_plan and the data-node execution.
-     */
-    private static boolean containsEngineNativeMergeAggregate(RelNode node) {
-        if (node instanceof Aggregate agg) {
-            for (AggregateCall call : agg.getAggCallList()) {
-                if (AggregateFunction.isEngineNativeMerge(call)) {
-                    return true;
-                }
-            }
-        }
-        for (RelNode child : node.getInputs()) {
-            if (containsEngineNativeMergeAggregate(child)) return true;
-        }
-        return false;
-    }
 
     private static RelNode mark(RelNode input, PlannerContext context, RuleProfilingListener listener) {
         return HepPhase.named("marking")
