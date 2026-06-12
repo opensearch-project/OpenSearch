@@ -38,7 +38,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
             new NativeExecutorsStats(io, cpu, taskMonitors),
             new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
             new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
-            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L)
+            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, 0L)
         );
     }
 
@@ -252,5 +252,50 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
             assertNotNull(roundTripped.getSpillStats());
             assertEquals(original.getSpillStats(), roundTripped.getSpillStats());
         }
+    }
+
+    // ---- Test: cacheStats omitted by default (no cache stats provided → null) ----
+
+    public void testCacheStatsAbsentWhenNotProvided() throws IOException {
+        DataFusionStats stats = sequentialStats();
+        assertNull(stats.getCacheStats());
+
+        String json = toJsonString(stats);
+        assertFalse("cache_stats should be omitted when null", json.contains("cache_stats"));
+    }
+
+    // ---- Test: cacheStats present → renders into JSON ----
+
+    public void testCacheStatsPresentRendersIntoJson() throws IOException {
+        RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
+        Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(0, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(0, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(0, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(0, 0, 0));
+
+        CacheStats cache = new CacheStats(
+            new CacheGroupStats(100, 5, 25, 4096, 250_000_000),
+            new CacheGroupStats(50, 0, 25, 2048, 100_000_000)
+        );
+        DataFusionStats stats = new DataFusionStats(
+            new NativeExecutorsStats(io, null, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null,
+            cache,
+            null
+        );
+
+        assertSame(cache, stats.getCacheStats());
+
+        String json = toJsonString(stats);
+        assertTrue("cache_stats wrapper expected", json.contains("\"cache_stats\""));
+        assertTrue(json.contains("\"metadata_cache\""));
+        assertTrue(json.contains("\"statistics_cache\""));
+        assertTrue(json.contains("\"hit_count\":100"));
+        assertTrue(json.contains("\"hit_count\":50"));
+        assertTrue(json.contains("\"size_limit_bytes\":250000000"));
+        assertTrue(json.contains("\"size_limit_bytes\":100000000"));
     }
 }

@@ -216,7 +216,7 @@ public class TransportDataFusionStatsActionTests extends OpenSearchTestCase {
     // ---- Helper: build DataFusionStats with only a populated SpillStats section ----
 
     private static DataFusionStats statsWithSpill() {
-        return new DataFusionStats(null, null, null, new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L));
+        return new DataFusionStats(null, null, null, new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, 0L));
     }
 
     // ---- Test: filter with "disk_spill" includes SpillStats ----

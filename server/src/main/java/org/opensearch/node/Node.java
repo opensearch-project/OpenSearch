@@ -56,6 +56,8 @@ import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.search.StreamSearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
+import org.opensearch.arrow.spi.NativeAllocator;
+import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterInfoService;
@@ -1224,6 +1226,14 @@ public class Node implements Closeable {
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
+            // Extract the NativeAllocator instance (published by ArrowBasePlugin in phase 1)
+            // so it can be passed to SearchBackEndPlugin.createComponents for virtual pool registration.
+            final NativeAllocator nativeAllocator = pluginComponents.stream()
+                .filter(c -> c instanceof NativeAllocator)
+                .map(c -> (NativeAllocator) c)
+                .findFirst()
+                .orElse(null);
+
             @SuppressWarnings("rawtypes")
             Collection<Object> searchBackEndPluginComponents = pluginsService.filterPlugins(SearchBackEndPlugin.class)
                 .stream()
@@ -1240,7 +1250,8 @@ public class Node implements Closeable {
                         namedWriteableRegistry,
                         clusterModule.getIndexNameExpressionResolver(),
                         repositoriesServiceReference::get,
-                        dataFormatRegistry
+                        dataFormatRegistry,
+                        nativeAllocator
                     ).stream()
                 )
                 .collect(Collectors.toList());
@@ -1256,6 +1267,15 @@ public class Node implements Closeable {
             List<SearchStatsContributor> searchStatsContributors = pluginsService.filterPlugins(SearchStatsContributor.class);
             if (searchStatsContributors.isEmpty() == false) {
                 indicesService.setSearchStatsContributors(searchStatsContributors);
+            }
+
+            // Wire indexing pool group limit changes to the IndexingMemoryController.
+            // When the rebalancer adjusts the effective limit of pools in the INDEXING group,
+            // IMC's native buffer is updated to 70% of the new grouped limit.
+            if (nativeAllocator != null) {
+                nativeAllocator.addPoolGroupLimitListener(PoolGroup.INDEXING, newGroupLimit -> {
+                    indicesService.setNativeIndexBufferBytes((long) (newGroupLimit * 0.70));
+                });
             }
 
             if (nodeCacheService != null) {

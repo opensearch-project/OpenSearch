@@ -14,9 +14,7 @@
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
-// no tests for now
-testingConventions.enabled = false
-
 dependencies {
     compileOnly project(':server')
+    testImplementation project(':test:framework')
 }

@@ -184,6 +184,57 @@ public class DataFormatAwareReplicationPromotionIT extends DataFormatAwareReplic
     }
 
     /**
+     * Verifies that a generation bump on the replica preserves the primary's replicated
+     * SegmentInfos ({@code replicatingCommitData}).
+     *
+     * <p>The test indexes and refreshes (no flush) so segment replication delivers a snapshot to
+     * the replica and sets {@code replicatingCommitData} to a non-null value, then flushes the
+     * replica to trigger a generation bump, and finally asserts that the replica's catalog snapshot
+     * still has non-null {@code replicatingCommitData}.
+     */
+    public void testGenerationBumpPreservesReplicatingCommitData() throws Exception {
+        createDfaIndex(1);
+
+        // 1. Refresh-level replication delivers a snapshot to the replica (sets replicatingCommitData,
+        // no commit-generation change => no bump).
+        indexDocs(50);
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+        String replicaNode = replicaNodeNames().get(0);
+        org.opensearch.index.shard.IndexShard replica = getIndexShard(replicaNode, INDEX_NAME);
+
+        // Pre-condition (guards test validity): once segrep has delivered, the replica's current
+        // snapshot must carry a non-null replicatingCommitData.
+        assertBusy(
+            () -> assertReplicatingCommitDataNotNull(replica, "after initial replication"),
+            60,
+            java.util.concurrent.TimeUnit.SECONDS
+        );
+
+        // 2. Trigger a generation bump on the replica.
+        replica.flush(new org.opensearch.action.admin.indices.flush.FlushRequest(INDEX_NAME).force(true).waitIfOngoing(true));
+
+        // 3. The bump must NOT have dropped replicatingCommitData.
+        assertReplicatingCommitDataNotNull(replica, "after generation bump (replica flush)");
+    }
+
+    private void assertReplicatingCommitDataNotNull(org.opensearch.index.shard.IndexShard shard, String when) throws Exception {
+        try (
+            org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.coord.CatalogSnapshot> ref = shard
+                .getCatalogSnapshot()
+        ) {
+            org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot = ref.get();
+            assertTrue(
+                "expected DataformatAwareCatalogSnapshot but got " + snapshot.getClass().getName(),
+                snapshot instanceof org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot
+            );
+            Object replicatingCommitData = ((org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot) snapshot)
+                .getReplicatingCommitData();
+            assertNotNull("replica catalog snapshot replicatingCommitData must not be null " + when, replicatingCommitData);
+        }
+    }
+
+    /**
      * Builds a BackgroundIndexer that swallows indexing failures. Writes issued during the brief
      * no-primary window around a cancel/promote will get UnavailableShardsException; the test
      * tolerates these as expected.

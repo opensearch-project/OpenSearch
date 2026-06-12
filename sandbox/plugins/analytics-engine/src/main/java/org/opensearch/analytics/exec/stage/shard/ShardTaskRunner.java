@@ -55,7 +55,7 @@ public final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
         transport.dispatchFragmentStreaming(
             request,
             target.node(),
-            stage.responseListenerFor(target.ordinal(), listener),
+            stage.responseListenerFor(task, listener),
             config.parentTask(),
             pending
         );
