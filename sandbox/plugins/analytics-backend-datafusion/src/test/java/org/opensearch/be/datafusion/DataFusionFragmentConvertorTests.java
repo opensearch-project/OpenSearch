@@ -766,6 +766,26 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
+     * Substrait's stdlib only defines min/max for i8..fp64; opensearch_aggregate_functions.yaml
+     * adds str and bool overloads so PPL `stats min/max` over varchar / boolean fields binds.
+     */
+    public void testMinMaxYamlDeclaresStringAndBooleanOverloads() {
+        assertAggregateImplKeys("min", "min:str", "min:bool");
+        assertAggregateImplKeys("max", "max:str", "max:bool");
+    }
+
+    private void assertAggregateImplKeys(String name, String... expectedKeys) {
+        java.util.Set<String> actual = extensions.aggregateFunctions()
+            .stream()
+            .filter(v -> name.equals(v.name()))
+            .map(SimpleExtension.Function::key)
+            .collect(java.util.stream.Collectors.toSet());
+        for (String key : expectedKeys) {
+            assertTrue(name + " yaml must declare impl with key " + key + " (got " + actual + ")", actual.contains(key));
+        }
+    }
+
+    /**
      * Regression: a lifted-window Project wrapper, shaped {@code Project_outer(Project_lower(input))}
      * with the outer's RexInputRefs pointing into the lower's appended window column, used
      * to lose its lower layer when re-wired. The next attach-on-top then crashed deserialising
