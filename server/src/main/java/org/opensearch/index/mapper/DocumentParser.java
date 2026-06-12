@@ -1192,7 +1192,10 @@ final class DocumentParser {
                 )
             );
         }
-        final String[] paths = splitAndValidatePath(lastFieldName);
+        // When disable_objects is enabled, dotted field names must be treated as literal single-segment
+        // names. Splitting them would cause getDynamicParentMapper to create intermediate ObjectMappers
+        // without disable_objects=tru.
+        final String[] paths = mapper.disableObjects() ? new String[] { lastFieldName } : splitAndValidatePath(lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, lastFieldName, paths);
