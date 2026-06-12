@@ -115,4 +115,72 @@ public class JsonFunctionAdaptersTests extends OpenSearchTestCase {
             adapted.getType()
         );
     }
+
+    // ── JsonValidAdapter ──────────────────────────────────────────────────
+
+    public void testJsonValidRewritesToLocalOp() {
+        // Synthesize JSON_VALID(value). In production the source operator is
+        // SqlStdOperatorTable.IS_JSON_VALUE (a SqlPostfixOperator) but the
+        // adapter's contract is purely shape-based — any single-VARCHAR-operand
+        // RexCall must rewrite to LOCAL_JSON_VALID_OP. Using a SqlFunction stand-in
+        // exercises the same code path and keeps the test self-contained.
+        RelDataType varcharNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType booleanNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
+        SqlFunction pplJsonValidOp = new SqlFunction(
+            "JSON_VALID",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(booleanNullable),
+            null,
+            OperandTypes.STRING,
+            SqlFunctionCategory.STRING
+        );
+        RexNode valueRef = rexBuilder.makeInputRef(varcharNullable, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplJsonValidOp, List.of(valueRef));
+
+        RexNode adapted = new JsonFunctionAdapters.JsonValidAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue("adapted node must be a RexCall, got " + adapted.getClass(), adapted instanceof RexCall);
+        RexCall call = (RexCall) adapted;
+        assertSame(
+            "adapted call must target LOCAL_JSON_VALID_OP",
+            JsonFunctionAdapters.JsonValidAdapter.LOCAL_JSON_VALID_OP,
+            call.getOperator()
+        );
+        assertEquals("json_valid is unary — no prepend / append", 1, call.getOperands().size());
+        assertSame("arg 0 must be the original value operand", valueRef, call.getOperands().get(0));
+    }
+
+    /**
+     * Same regression guard as {@link #testJsonArrayLengthPreservesOriginalReturnType}:
+     * the adapted call must keep the original call's {@link RelDataType} instance so
+     * the cached {@code Project.rowType} matches post-adaptation. Production
+     * {@code IS_JSON_VALUE} returns {@code BOOLEAN_NULLABLE}, same as
+     * {@code LOCAL_JSON_VALID_OP}, so a naive {@code rexBuilder.makeCall(op, args)}
+     * would happen to produce the right type — pick a differently-nullable BOOLEAN
+     * here to make the assertion actually distinguish "preserve" from "infer".
+     */
+    public void testJsonValidPreservesOriginalReturnType() {
+        RelDataType varcharNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType booleanNotNull = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), false);
+        SqlFunction pplJsonValidOp = new SqlFunction(
+            "JSON_VALID",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.explicit(booleanNotNull),
+            null,
+            OperandTypes.STRING,
+            SqlFunctionCategory.STRING
+        );
+        RexNode valueRef = rexBuilder.makeInputRef(varcharNullable, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplJsonValidOp, List.of(valueRef));
+        assertEquals(booleanNotNull, original.getType());
+
+        RexNode adapted = new JsonFunctionAdapters.JsonValidAdapter().adapt(original, List.of(), cluster);
+
+        assertEquals(
+            "adapted call's return type must equal the original call's return type, "
+                + "otherwise the enclosing Project.rowType assertion fails in fragment conversion",
+            original.getType(),
+            adapted.getType()
+        );
+    }
 }

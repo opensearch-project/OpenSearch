@@ -116,7 +116,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MOD,
         ScalarFunction.EARLIEST,
         ScalarFunction.LATEST,
-        ScalarFunction.CIDRMATCH
+        ScalarFunction.CIDRMATCH,
+        // json_valid returns BOOLEAN, so it is a valid filter predicate (e.g. `where
+        // json_valid(col)` / `where not json_valid(col)`). DataFusion evaluates the json_valid Rust
+        // UDF natively; same shape as CIDRMATCH.
+        ScalarFunction.JSON_VALID
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -330,6 +334,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // FieldType.MAP rather than SUPPORTED_FIELD_TYPES, mirroring the ARRAY-return split).
         ScalarFunction.JSON_KEYS,
         ScalarFunction.JSON_SET,
+        ScalarFunction.JSON_VALID,
         // Array functions whose RETURN type is element-typed (not ARRAY itself), so the
         // capability lookup at OpenSearchProjectRule resolves the call's return type to a
         // standard scalar FieldType and matches against SUPPORTED_FIELD_TYPES.
@@ -739,6 +744,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_EXTRACT_ALL, new JsonFunctionAdapters.JsonExtractAllAdapter()),
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
+                    Map.entry(ScalarFunction.JSON_VALID, new JsonFunctionAdapters.JsonValidAdapter()),
                     Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
                     Map.entry(ScalarFunction.PATTERN_PARSER, new PatternParserAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
