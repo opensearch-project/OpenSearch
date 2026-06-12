@@ -520,6 +520,69 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Adopt-then-throw: {@code FlightServerChannel.sendBatch} assigns {@code root = output.getRoot()}
+     * BEFORE {@code start()}/{@code putNext()}, so a throw after that assignment leaves the channel
+     * owning the handler-created root. {@code failStream} must NOT close it then (the channel owns it
+     * and closes it on its own close) — closing it here would free buffers out from under the
+     * channel. Simulates adoption by having {@code getRoot()} return the handler-created root once
+     * {@code sendBatch} is invoked, then throwing. Asserts via allocator accounting that the root's
+     * buffers are STILL allocated after the handler returns (i.e. {@code failStream} left them
+     * alone). Without the adoption guard, {@code failStream} would free them and this drops to 0.
+     */
+    public void testProcessBatchTaskAdoptThenThrowDoesNotCloseAdoptedRoot() throws Exception {
+        try (RootAllocator allocator = new RootAllocator()) {
+            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+            VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
+            IntVector vec = (IntVector) producerRoot.getVector("val");
+            vec.allocateNew();
+            vec.setSafe(0, 3);
+            vec.setValueCount(1);
+            producerRoot.setRowCount(1);
+
+            // First frame: handler creates a stream root and transfers the producer buffers into it.
+            // Simulate the channel adopting that root (as the real sendBatch does at
+            // `root = output.getRoot()`) and THEN failing in start()/putNext().
+            AtomicReference<VectorSchemaRoot> adopted = new AtomicReference<>();
+            when(mockFlightChannel.getRoot()).thenAnswer(invocation -> adopted.get());
+            doAnswer(invocation -> {
+                VectorStreamOutput out = invocation.getArgument(1);
+                adopted.set(out.getRoot()); // channel now owns this root
+                throw new RuntimeException("putNext failed after adoption");
+            }).when(mockFlightChannel).sendBatch(any(), any(VectorStreamOutput.class), any());
+
+            FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+            CountDownLatch released = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                released.countDown();
+                return null;
+            }).when(transportChannel).releaseChannel(true);
+
+            handler.sendResponseBatch(
+                Version.CURRENT,
+                Collections.emptySet(),
+                mockFlightChannel,
+                transportChannel,
+                1L,
+                "test-action",
+                new TestArrowResponse(producerRoot),
+                false,
+                false
+            );
+
+            assertTrue("adopt-then-throw must terminate the stream", released.await(5, TimeUnit.SECONDS));
+            verify(mockFlightChannel).sendError(any(), any(Exception.class));
+            // The channel adopted the root, so failStream must have LEFT IT ALLOCATED (the channel
+            // owns the close). Without the adoption guard this would have been freed to 0.
+            VectorSchemaRoot channelRoot = adopted.get();
+            assertNotNull("channel should have adopted the handler-created root", channelRoot);
+            assertTrue("adopted root must stay allocated (channel owns it)", allocator.getAllocatedMemory() > 0);
+            // Now release it the way the channel would, and confirm everything is accounted for.
+            channelRoot.close();
+            assertEquals("no buffers should leak after the channel closes its root", 0, allocator.getAllocatedMemory());
+        }
+    }
+
     public void testBatchTaskCloseWithIsErrorCallsReleaseChannelWithTrue() {
         FlightTransportChannel mockTransportChannel = mock(FlightTransportChannel.class);
 

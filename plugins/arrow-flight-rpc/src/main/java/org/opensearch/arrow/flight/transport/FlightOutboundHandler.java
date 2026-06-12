@@ -230,10 +230,14 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             // nothing left to fail. Log at debug with the cause for diagnosability.
             logger.debug(new ParameterizedMessage("failStream: could not send error for requestId [{}]", task.requestId()), suppressed);
         } finally {
-            // The handler-created first-frame root was never adopted by the channel (sendBatch did
-            // not complete), and VectorStreamOutput.forNativeArrow(...).close() is a no-op, so close
-            // it here to avoid leaking its buffers.
-            if (unownedRoot != null) {
+            // Close the handler-created first-frame root iff the channel never adopted it.
+            // sendBatch assigns FlightServerChannel.root = output.getRoot() BEFORE start()/putNext(),
+            // so a throw after that assignment leaves the channel owning the SAME root (it closes it
+            // in close()/completeStream) — closing it here too would double-close. Only close when
+            // the channel's root is not our root. VectorStreamOutput.forNativeArrow(...).close() is a
+            // no-op, so an un-adopted root would otherwise leak. Checked before releaseChannel, which
+            // closes the channel (and its root) below.
+            if (unownedRoot != null && flightChannel.getRoot() != unownedRoot) {
                 try {
                     unownedRoot.close();
                 } catch (Exception ignore) {}
