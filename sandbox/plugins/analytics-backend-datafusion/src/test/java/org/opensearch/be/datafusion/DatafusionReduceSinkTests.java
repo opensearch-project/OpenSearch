@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -60,6 +62,7 @@ import io.substrait.extension.SimpleExtension;
  *       reduced result.</li>
  * </ul>
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class DatafusionReduceSinkTests extends OpenSearchTestCase {
 
     public void testArrowSchemaIpcEncodesSchema() {
