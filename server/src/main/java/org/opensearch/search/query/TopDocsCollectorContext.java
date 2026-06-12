@@ -855,27 +855,6 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 trackTotalHitsUpTo,
                 hasFilterCollector
             );
-        } else if (searchContext.collapse() != null) {
-            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            final boolean rescore = searchContext.rescore().isEmpty() == false;
-            if (rescore) {
-                assert searchContext.sort() == null;
-                for (RescoreContext rescoreContext : searchContext.rescore()) {
-                    numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
-                }
-            }
-            return new CollapsingTopDocsCollectorContext(
-                searchContext.collapse(),
-                searchContext.sort(),
-                numDocs,
-                searchContext.trackScores(),
-                searchContext.searchAfter()
-            ) {
-                @Override
-                public boolean shouldRescore() {
-                    return rescore;
-                }
-            };
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
@@ -885,21 +864,36 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }
             }
-            return new SimpleTopDocsCollectorContext(
-                reader,
-                query,
-                searchContext.sort(),
-                searchContext.searchAfter(),
-                numDocs,
-                searchContext.trackScores(),
-                searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector
-            ) {
-                @Override
-                public boolean shouldRescore() {
-                    return rescore;
-                }
-            };
+            if (searchContext.collapse() != null) {
+                return new CollapsingTopDocsCollectorContext(
+                    searchContext.collapse(),
+                    searchContext.sort(),
+                    numDocs,
+                    searchContext.trackScores(),
+                    searchContext.searchAfter()
+                ) {
+                    @Override
+                    public boolean shouldRescore() {
+                        return rescore;
+                    }
+                };
+            } else {
+                return new SimpleTopDocsCollectorContext(
+                    reader,
+                    query,
+                    searchContext.sort(),
+                    searchContext.searchAfter(),
+                    numDocs,
+                    searchContext.trackScores(),
+                    searchContext.trackTotalHitsUpTo(),
+                    hasFilterCollector
+                ) {
+                    @Override
+                    public boolean shouldRescore() {
+                        return rescore;
+                    }
+                };
+            }
         }
     }
 
