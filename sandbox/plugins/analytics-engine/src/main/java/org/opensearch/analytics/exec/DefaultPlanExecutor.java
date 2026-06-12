@@ -261,6 +261,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             .put(clusterService.getSettings())
             .put(AnalyticsSettings.MPP_ENABLED.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED))
             .put(
+                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED)
+            )
+            .put(
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
             )

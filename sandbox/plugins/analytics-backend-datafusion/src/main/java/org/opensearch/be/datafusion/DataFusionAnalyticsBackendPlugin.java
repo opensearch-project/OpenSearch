@@ -1053,7 +1053,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     /**
      * DataFusion participates in MPP hash-shuffle: default the partition count to the number of
-     * data nodes in the cluster. The advisor uses this when {@code analytics.mpp.shuffle_partitions}
+     * data nodes in the cluster. The advisor uses this when {@code analytics.mpp.shuffle.partitions}
      * isn't pinned by the operator. One partition per data node maximizes parallelism without
      * over-subscribing — additional partitions on the same node would queue on the same
      * DataFusion threadpool. Returns {@code 1} if the cluster has no data nodes (gates the

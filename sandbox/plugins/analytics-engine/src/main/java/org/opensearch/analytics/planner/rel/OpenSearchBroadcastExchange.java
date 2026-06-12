@@ -34,7 +34,7 @@ import java.util.List;
  * gets expensive (rows × N grows fast), so HASH wins when both sides are large.
  *
  * <p>{@code probeNodeEstimate} is resolved at split-rule time from the cluster setting
- * {@code analytics.mpp.broadcast_probe_estimate}, defaulting to the cluster's data-node count.
+ * {@code analytics.mpp.broadcast.probe_estimate}, defaulting to the cluster's data-node count.
  *
  * @opensearch.internal
  */

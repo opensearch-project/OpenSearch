@@ -42,39 +42,8 @@ import java.util.ArrayList;
  *
  * <p><b>Coverage on this backend (2 shards).</b> All 22 canonical TPC-H queries run and
  * match captured expected files (most are multi-table joins, so the MPP join path,
- * including multi-broadcast queries, is genuinely covered). q1, q6, q10, q12, q14 were unblocked once
- * {@code date_add}/{@code date_sub} over a {@code DATE('...')} literal landed (#21991). q5/q7/q20
- * return empty result sets, which the source IT also asserts ({@code verifyNumOfRows(actual, 0)}) —
- * the joins are correct, the dataset predicates (q5 {@code r_name='ASIA'}, q7 FRANCE/GERMANY, q20
- * {@code n_name='CANADA'} + forest-part subquery) just select no rows here — so they are asserted
- * (empty expected files), not skipped. q8's all-zero {@code mkt_share} ({@code [1995,0.0],[1996,0.0]})
- * likewise matches the source IT (no BRAZIL rows survive the join). Every captured value was
+ * including multi-broadcast queries, is genuinely covered). Every captured value was
  * cross-checked against the source SQL plugin's {@code CalcitePPLTpchIT} assertions.
- *
- * <p>q4 (a <em>correlated</em> {@code EXISTS} over lineitem) was unblocked once the broadcast
- * dispatcher's pass-1 learned to run a <em>multi-stage build sub-tree</em>: q4's decorrelated EXISTS
- * lowers to an INNER join whose build side is {@code Project(distinct l_orderkey)} over a
- * PARTIAL→FINAL aggregate. CBO picks BROADCAST, so the build stage is itself a coordinator-reduce
- * over a shard aggregate. The old pass-1 built only the build <em>node</em> and never scheduled its
- * child shard stage, so the build reduce blocked forever in {@code streamNext} on input nobody fed
- * (the "60s timeout" was the client read-timeout; the server reduce thread stayed deadlocked). The
- * fix (see {@code BroadcastDispatch.run} → {@code StageExecutionBuilder.buildSubGraphWithSink})
- * builds + dispatches the build stage's entire sub-tree. q7/q8 (BETWEEN timestamp/date coercion) and
- * q20 (timestamp/date in a decorrelated subquery) were unblocked by the merge's coercion fixes
- * (#22010 / #22045 / #21978).
- *
- * <p>q15 (which references its {@code revenue0} CTE twice, yielding a HASH_SHUFFLE_AGG for the CTE
- * plus a coordinator-centric join whose build side is a bare {@code supplier} scan) was unblocked by
- * fixing a backend-selection bug: the {@code HashShuffleAggregateDAGRewriter} re-runs
- * {@code PlanForker.forkAll} on the rewritten DAG, which re-expands every stage to all viable
- * backends, but did NOT re-run {@code PlanAlternativeSelector.selectAll}. The supplier scan stage
- * (viable on both {@code lucene} and {@code datafusion}) therefore kept its Lucene alternative;
- * the data node picked Lucene first and streamed a 0-column metadata batch the DataFusion join
- * couldn't read, then the join-reduce hung waiting for columns that never arrived. The fix:
- * {@code PlanAlternativeSelector} now applies a parent-backend correctness constraint (a child stage
- * is restricted to backends its consuming {@code OpenSearchStageInputScan} declares viable) on EVERY
- * selection pass, and the agg rewriter re-runs {@code selectAll} after its {@code forkAll}. q15 now
- * returns the source-IT-expected single row ({@code Supplier#000000010 ... 797313.3838}).
  *
  * <p><b>Capturing expected files.</b> Run with {@code -Dtests.tpch.capture.dir=<abs path>}
  * to provision the dataset, execute all 22 queries, and write each successful response to
@@ -83,12 +52,6 @@ import java.util.ArrayList;
  */
 public class TpchPplIT extends BasePplIT {
 
-    /** Queries not yet runnable on the parquet/DataFusion path. All 22 TPC-H queries now run: q15
-     *  was the last holdout (it hung because the HASH_SHUFFLE_AGG rewriter re-forked plan
-     *  alternatives without re-selecting, leaving the supplier scan on Lucene — a 0-column batch the
-     *  DataFusion join couldn't read; fixed by the parent-backend constraint in
-     *  {@code PlanAlternativeSelector} + the agg rewriter re-running {@code selectAll}). See class
-     *  javadoc. */
     private static final Set<Integer> UNSUPPORTED = Set.of();
 
     /** The eight TPC-H tables, each provisioned from its own {@code mapping_<index>.json} +
@@ -135,10 +98,7 @@ public class TpchPplIT extends BasePplIT {
     }
 
     /**
-     * Runs the 11 currently-supported TPC-H queries against their captured expected files
-     * (row-multiset comparison via {@link ResponseValidator}). The 11 date-arithmetic queries in
-     * {@link #getSkipQueries()} are excluded until the engine recognizes date_add/date_sub over
-     * DATE literals and BETWEEN timestamp/date coercion.
+     * Runs the TPC-H queries against their captured expected files.
      */
     public void testTpchPplQueries() throws Exception {
         runPplQueries();

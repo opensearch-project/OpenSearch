@@ -131,6 +131,21 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
         );
     }
 
+    public void testAggregateShuffleDoesNotFireWhenSubToggleDisabled() {
+        // Same shard-local shape as testAggregateShuffleFiresOnShardLocalChild, but with
+        // analytics.mpp.shuffle.aggregate.enabled=false (mpp.enabled still true). The per-strategy
+        // sub-toggle must keep the rule out so the aggregate routes through the coord-centric path,
+        // exactly as if MPP were off — without disabling MPP joins.
+        OpenSearchAggregate agg = makeGroupedAggregate(traitDef.shardRandom(/* tableId */ 1, /* shardCount */ 3));
+        OpenSearchAggregateShuffleSplitRule rule = new OpenSearchAggregateShuffleSplitRule(
+            makeContext(/* mppEnabled */ true, /* aggShuffleEnabled */ false)
+        );
+        assertFalse(
+            "Aggregate shuffle rule must NOT match when analytics.mpp.shuffle.aggregate.enabled=false",
+            rule.matches(stubCallFor1(agg, agg.getInput()))
+        );
+    }
+
     public void testAggregateShuffleDoesNotFireOnCoordinatorChild() {
         // GROUP BY whose child is already gathered to COORDINATOR (e.g. `join … | stats by …`,
         // where the join output is coordinator-local). A scan exists beneath the child, so the
@@ -314,7 +329,14 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
     }
 
     private PlannerContext makeContext(boolean mppEnabled) {
-        Settings settings = Settings.builder().put("analytics.mpp.enabled", mppEnabled).build();
+        return makeContext(mppEnabled, /* aggShuffleEnabled */ true);
+    }
+
+    private PlannerContext makeContext(boolean mppEnabled, boolean aggShuffleEnabled) {
+        Settings settings = Settings.builder()
+            .put("analytics.mpp.enabled", mppEnabled)
+            .put("analytics.mpp.shuffle.aggregate.enabled", aggShuffleEnabled)
+            .build();
         return new PlannerContext(
             new CapabilityRegistry(List.<AnalyticsSearchBackendPlugin>of(DATAFUSION, LUCENE), FieldStorageResolver::new),
             mockClusterState(),

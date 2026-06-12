@@ -10,7 +10,7 @@ package org.opensearch.be.datafusion;
 
 /**
  * Thrown by {@link BroadcastCaptureSink} when the accumulated build-side buffer size exceeds
- * the configured runtime cap (see {@code analytics.mpp.broadcast_max_bytes}). The dispatcher
+ * the configured runtime cap (see {@code analytics.mpp.broadcast.max_bytes}). The dispatcher
  * surfaces this through the query's terminal listener so operators see a clear failure mode
  * rather than an out-of-memory cascade.
  *
@@ -30,7 +30,7 @@ public final class BroadcastSizeExceededException extends RuntimeException {
                 + " bytes, limit="
                 + limit
                 + " bytes). "
-                + "Raise analytics.mpp.broadcast_max_bytes, narrow the query, or set analytics.mpp.enabled=false."
+                + "Raise analytics.mpp.broadcast.max_bytes, narrow the query, or set analytics.mpp.enabled=false."
         );
     }
 }

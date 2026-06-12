@@ -51,7 +51,7 @@ public final class AnalyticsSettings {
      * selectivity, projection width, or stats staleness. It's the actual memory safety net.
      */
     public static final Setting<ByteSizeValue> BROADCAST_MAX_BYTES = Setting.byteSizeSetting(
-        "analytics.mpp.broadcast_max_bytes",
+        "analytics.mpp.broadcast.max_bytes",
         new ByteSizeValue(32L * 1024 * 1024),
         new ByteSizeValue(0L),
         new ByteSizeValue(Long.MAX_VALUE),
@@ -71,7 +71,7 @@ public final class AnalyticsSettings {
      * <p>Default {@code -1} means "use engine default." Operators rarely need to override.
      */
     public static final Setting<Integer> MPP_SHUFFLE_PARTITIONS = Setting.intSetting(
-        "analytics.mpp.shuffle_partitions",
+        "analytics.mpp.shuffle.partitions",
         -1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -85,9 +85,28 @@ public final class AnalyticsSettings {
      * faster than this); 60s is conservative enough that healthy queries never hit it.
      */
     public static final Setting<TimeValue> MPP_SHUFFLE_RECV_TIMEOUT = Setting.timeSetting(
-        "analytics.mpp.shuffle_recv_timeout",
+        "analytics.mpp.shuffle.recv_timeout",
         TimeValue.timeValueSeconds(60L),
         TimeValue.timeValueSeconds(1L),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Per-strategy sub-toggle for hash-shuffle <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
+     * strategy emitted by {@code OpenSearchAggregateShuffleSplitRule}: PARTIAL on shards →
+     * hash-shuffle on group keys → FINAL on data-node workers in parallel).
+     *
+     * <p>Gated under {@link #MPP_ENABLED}: this only has effect when MPP is on. When {@code true}
+     * (default — preserves current behavior), eligible {@code GROUP BY} aggregates may run the
+     * parallel worker-tier shuffle. When {@code false}, the shuffle-aggregate split rule stays out
+     * and aggregates route through the coordinator-centric PARTIAL+gather+FINAL path instead —
+     * exactly as if MPP were off, but scoped to aggregation only (joins still use MPP). Useful as a
+     * targeted kill switch when an agg-shuffle-specific issue is seen, without disabling MPP joins.
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_AGGREGATE_ENABLED = Setting.boolSetting(
+        "analytics.mpp.shuffle.aggregate.enabled",
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -101,7 +120,7 @@ public final class AnalyticsSettings {
      * cost model toward favoring or disfavoring broadcast in their workload.
      */
     public static final Setting<Integer> MPP_BROADCAST_PROBE_ESTIMATE = Setting.intSetting(
-        "analytics.mpp.broadcast_probe_estimate",
+        "analytics.mpp.broadcast.probe_estimate",
         -1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -113,6 +132,7 @@ public final class AnalyticsSettings {
         BROADCAST_MAX_BYTES,
         MPP_SHUFFLE_PARTITIONS,
         MPP_SHUFFLE_RECV_TIMEOUT,
+        MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_BROADCAST_PROBE_ESTIMATE
     );
 }

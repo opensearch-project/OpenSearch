@@ -52,7 +52,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         // handler-side awaitReady timeout (5s default) caps wall-clock so each test method
         // finishes inside ~10s even when the producer-side stub leaves the consumer waiting.
         resetSetting("analytics.mpp.enabled");
-        resetSetting("analytics.mpp.broadcast_probe_estimate");
+        resetSetting("analytics.mpp.broadcast.probe_estimate");
         super.tearDown();
     }
 
@@ -64,7 +64,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      *
      * <p>The IT cluster has 2 data nodes, which makes broadcast cheap (rows×2) for symmetric
      * large×large data. To deterministically force HASH_SHUFFLE we override the broadcast
-     * probe-node estimate to a much larger value via {@code analytics.mpp.broadcast_probe_estimate}
+     * probe-node estimate to a much larger value via {@code analytics.mpp.broadcast.probe_estimate}
      * — this inflates broadcast's perceived cost (rows×N) past hash-shuffle's (rows + setup×N)
      * without changing the actual cluster topology. Production deployments don't need this
      * override; broadcast loses naturally on real-sized data + larger clusters.
@@ -74,7 +74,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
         // Force CBO to favor hash by inflating the broadcast probe-node estimate. With a
         // 2-node cluster, default probeNodes=2 and broadcast cost ~rows×2 ties hash on
         // small-medium data. probeEstimate=20 forces broadcast ~rows×20, well above hash.
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         // Compare the FULL join output as multisets between coord-centric and hash-shuffle:
         // any row dropped, duplicated, or mis-joined by the shuffle path shows up as a
         // multiset mismatch. We deliberately do NOT use `sort L.id | head N` as an invariant
@@ -128,7 +128,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      */
     public void testLeftOuterJoin_largeLeftWithLargeRight_picksHashShuffle() throws IOException {
         ensureDataProvisioned();
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = " + LEFT_INDEX + " | left join left=L right=R on L.id = R.id " + RIGHT_INDEX;
 
         StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
@@ -152,7 +152,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      */
     public void testRightOuterJoin_largeLeftWithLargeRight_picksHashShuffle() throws IOException {
         ensureDataProvisioned();
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = " + LEFT_INDEX + " | right join left=L right=R on L.id = R.id " + RIGHT_INDEX;
 
         StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
@@ -178,7 +178,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      */
     public void testFullOuterJoin_largeLeftWithLargeRight_picksHashShuffle() throws IOException {
         ensureDataProvisioned();
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = " + LEFT_INDEX + " | full join left=L right=R on L.id = R.id " + RIGHT_INDEX;
 
         StrategyDelta baselineDelta = runWithMppAndCounters(ppl, /* mpp */ false);
@@ -211,7 +211,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      */
     public void testMppKillSwitchProducesSameRowsAsBaseline() throws IOException {
         ensureDataProvisioned();
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = " + LEFT_INDEX + " | inner join left=L right=R on L.id = R.id " + RIGHT_INDEX;
 
         StrategyDelta mppOff = runWithMppAndCounters(ppl, /* mpp */ false);
@@ -236,7 +236,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      */
     public void testInnerEquiJoin_statsAfterJoin_picksHashShuffle() throws IOException {
         ensureDataProvisioned();
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = "
             + LEFT_INDEX
             + " | inner join left=L right=R on L.id = R.id "
@@ -268,7 +268,7 @@ public class HashShuffleJoinIT extends AnalyticsRestTestCase {
      */
     public void testInnerEquiJoin_sortHeadAfterJoin_picksHashShuffle() throws IOException {
         ensureDataProvisioned();
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = "
             + LEFT_INDEX
             + " | inner join left=L right=R on L.id = R.id "

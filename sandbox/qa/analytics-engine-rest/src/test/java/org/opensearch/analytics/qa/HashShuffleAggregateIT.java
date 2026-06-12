@@ -54,7 +54,8 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
     @Override
     public void tearDown() throws Exception {
         resetSetting("analytics.mpp.enabled");
-        resetSetting("analytics.mpp.broadcast_probe_estimate");
+        resetSetting("analytics.mpp.shuffle.aggregate.enabled");
+        resetSetting("analytics.mpp.broadcast.probe_estimate");
         super.tearDown();
     }
 
@@ -126,6 +127,37 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
             delta.hashShuffleAggDelta
         );
         assertEquals("4 categories → 4 group rows", 4, delta.rows.size());
+    }
+
+    /**
+     * Per-strategy sub-toggle: with mpp.enabled=true but analytics.mpp.shuffle.aggregate.enabled
+     * =false, the high-cardinality GROUP BY that normally picks HASH_SHUFFLE_AGG must instead route
+     * coord-centric — the counter must NOT advance — while still producing the correct row set. The
+     * toggle disables only aggregation shuffle; MPP (joins) stays enabled.
+     */
+    public void testAggregateShuffleSubToggleDisabled_staysCoordCentric() throws IOException {
+        ensureDataProvisioned();
+        String ppl = "source = " + HIGH_INDEX + " | stats sum(amount) as total by user_id | sort user_id";
+
+        StrategyDelta baseline = runWithMppAndCounters(ppl, /* mpp */ false);
+
+        applySetting("analytics.mpp.enabled", "true");
+        applySetting("analytics.mpp.shuffle.aggregate.enabled", "false");
+        long before = readStrategyCounter("HASH_SHUFFLE_AGG");
+        List<List<Object>> rows = executePplRows(ppl);
+        long after = readStrategyCounter("HASH_SHUFFLE_AGG");
+
+        assertEquals(
+            "HASH_SHUFFLE_AGG must NOT advance when analytics.mpp.shuffle.aggregate.enabled=false",
+            0L,
+            after - before
+        );
+        assertEquals("sub-toggle off: 5000 unique user_ids → 5000 group rows", HIGH_ROW_COUNT, rows.size());
+        assertRowMultisetEquals(
+            "agg-shuffle sub-toggle off must match coord-centric baseline (full row set)",
+            baseline.rows,
+            rows
+        );
     }
 
     /**
@@ -206,7 +238,7 @@ public class HashShuffleAggregateIT extends AnalyticsRestTestCase {
         // Inflate broadcast estimate so the join picks HASH_SHUFFLE over BROADCAST. Same trick
         // HashShuffleJoinIT uses to deterministically force the shuffle path on a 2-node IT
         // cluster where broadcast otherwise ties on small-medium data.
-        applySetting("analytics.mpp.broadcast_probe_estimate", "20");
+        applySetting("analytics.mpp.broadcast.probe_estimate", "20");
         String ppl = "source = "
             + HIGH_INDEX
             + " | inner join left=L right=R on L.user_id = R.user_id "

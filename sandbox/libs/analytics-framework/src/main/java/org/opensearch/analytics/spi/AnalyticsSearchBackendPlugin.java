@@ -178,7 +178,7 @@ public interface AnalyticsSearchBackendPlugin {
      * Returns the default number of hash-shuffle output partitions this backend recommends
      * for the current cluster topology, or {@code 1} if the backend does not participate in
      * MPP hash-shuffle. Consulted by the strategy advisor when no explicit partition count is
-     * configured via {@code analytics.mpp.shuffle_partitions}.
+     * configured via {@code analytics.mpp.shuffle.partitions}.
      *
      * <p>Returning {@code 1} (the default) effectively opts the backend out of HASH_SHUFFLE
      * because the split rule refuses to fire when partitionCount ≤ 1; joins on this backend

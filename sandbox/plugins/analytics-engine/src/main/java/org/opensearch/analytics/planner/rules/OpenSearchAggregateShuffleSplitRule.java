@@ -44,6 +44,9 @@ import java.util.Map;
  * <ul>
  *   <li>{@code analytics.mpp.enabled} must be true. With MPP disabled, the aggregate routes
  *       through {@link OpenSearchAggregateSplitRule}'s coord-centric path.</li>
+ *   <li>{@code analytics.mpp.shuffle.aggregate.enabled} must be true (default). A targeted
+ *       sub-toggle to disable just hash-shuffle aggregation while leaving MPP joins enabled;
+ *       when false the aggregate routes through the same coord-centric path as MPP-off.</li>
  *   <li>{@code groupSet} must be non-empty. Without group keys there is no shuffle key, so
  *       coord-centric is the only viable shape.</li>
  *   <li>The resolved partition count (cluster setting → engine default) must be ≥ 2. A count
@@ -83,6 +86,11 @@ public class OpenSearchAggregateShuffleSplitRule extends RelOptRule {
         // routes through OpenSearchAggregateSplitRule's coord-centric path; this rule must
         // stay out of that.
         if (!AnalyticsSettings.MPP_ENABLED.get(context.getSettings())) {
+            return false;
+        }
+        // Per-strategy sub-toggle: disabling hash-shuffle aggregation routes aggregates through the
+        // coord-centric path (same as MPP-off) while leaving MPP joins enabled.
+        if (!AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(context.getSettings())) {
             return false;
         }
         OpenSearchAggregate aggregate = call.rel(0);
