@@ -8,8 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.CreatePITResponse;
@@ -33,7 +31,6 @@ import io.grpc.ManagedChannel;
  * Integration tests for the SearchService gRPC service.
  */
 public class SearchServiceIT extends GrpcTransportBaseIT {
-    private static final Logger logger = LogManager.getLogger(SearchServiceIT.class);
 
     /**
      * Tests PIT creation via gRPC.
@@ -48,7 +45,6 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
             SearchServiceGrpc.SearchServiceBlockingStub searchStub = SearchServiceGrpc.newBlockingStub(channel);
 
             CreatePitRequest request = CreatePitRequest.newBuilder().addIndex(indexName).setKeepAlive("1m").build();
-            logRequest("CreatePit", request);
             CreatePITResponse response = searchStub.createPit(request);
 
             assertNotNull("Create PIT response should not be null", response);
@@ -59,9 +55,7 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
             assertTrue("Successful shards should be positive", response.getXShards().getSuccessful() > 0);
             assertEquals("Failed shards should be zero", 0, response.getXShards().getFailed());
 
-            DeletePitRequest deleteRequest = DeletePitRequest.newBuilder().addPitId(response.getPitId()).build();
-            logRequest("DeletePit", deleteRequest);
-            DeletePITResponse deleteResponse = searchStub.deletePit(deleteRequest);
+            DeletePITResponse deleteResponse = searchStub.deletePit(DeletePitRequest.newBuilder().addPitId(response.getPitId()).build());
             assertEquals("Should have one delete result", 1, deleteResponse.getPitsCount());
             assertEquals("Deleted PIT id should match", response.getPitId(), deleteResponse.getPits(0).getPitId());
             assertTrue("Delete PIT should be successful", deleteResponse.getPits(0).getSuccessful());
@@ -80,13 +74,12 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
             ManagedChannel channel = client.getChannel();
             SearchServiceGrpc.SearchServiceBlockingStub searchStub = SearchServiceGrpc.newBlockingStub(channel);
 
-            CreatePitRequest createRequest = CreatePitRequest.newBuilder().addIndex(indexName).setKeepAlive("1m").build();
-            logRequest("CreatePit", createRequest);
-            CreatePITResponse createResponse = searchStub.createPit(createRequest);
+            CreatePITResponse createResponse = searchStub.createPit(
+                CreatePitRequest.newBuilder().addIndex(indexName).setKeepAlive("1m").build()
+            );
             assertFalse("PIT id should not be empty", createResponse.getPitId().isEmpty());
 
             DeletePitRequest deleteRequest = DeletePitRequest.newBuilder().addPitId(createResponse.getPitId()).build();
-            logRequest("DeletePit", deleteRequest);
             DeletePITResponse deleteResponse = searchStub.deletePit(deleteRequest);
 
             assertNotNull("Delete PIT response should not be null", deleteResponse);
@@ -266,9 +259,5 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
             assertEquals("Second bucket key should be 'inactive'", "inactive", sterms.getBuckets(1).getKey());
             assertEquals("Second bucket doc count should be 1", 1, sterms.getBuckets(1).getDocCount());
         }
-    }
-
-    private static void logRequest(String requestType, Object request) {
-        logger.info("{} request proto:\n{}", requestType, request);
     }
 }
