@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * child stage's output accumulates into its own batch list keyed by child-stage id and registers
  * as a distinct {@code "input-<childStageId>"} {@code MemTable} at {@link #reduce} time. The
  * single-input case keeps the bare {@link #feed(VectorSchemaRoot)} path (one input under
- * {@link #INPUT_ID}).
+ * {@link AbstractDatafusionReduceSink#INPUT_ID}).
  */
 public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduceSink implements MultiInputExchangeSink {
 
