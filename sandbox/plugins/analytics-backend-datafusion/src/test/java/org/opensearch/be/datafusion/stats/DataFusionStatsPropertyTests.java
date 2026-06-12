@@ -98,26 +98,60 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
         return monitors;
     }
 
+    private CacheGroupStats randomCacheGroupStats() {
+        return new CacheGroupStats(nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong());
+    }
+
+    private CacheStats randomCacheStats() {
+        return new CacheStats(randomCacheGroupStats(), randomCacheGroupStats());
+    }
+
+    private SearchStats randomSearchStats() {
+        return new SearchStats(
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong(),
+            nonNegLong()
+        );
+    }
+
     private DataFusionStats randomDataFusionStatsCpuPresent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), randomRuntimeMetricsWithPositiveWorkers(), randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
-            null
+            new PartitionGateStats("datanode_gate", nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong()),
+            new PartitionGateStats("coordinator_gate", nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong()),
+            null,
+            randomCacheStats(),
+            randomSearchStats()
         );
     }
 
     private DataFusionStats randomDataFusionStatsCpuAbsent() {
         return new DataFusionStats(
             new NativeExecutorsStats(randomRuntimeMetrics(), null, randomTaskMonitors()),
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
-            null
+            new PartitionGateStats("datanode_gate", nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong()),
+            new PartitionGateStats("coordinator_gate", nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong()),
+            null,
+            randomCacheStats(),
+            randomSearchStats()
         );
     }
 
     private DataFusionStats dataFusionStatsNullExecutors() {
-        return new DataFusionStats(null, null, null, null);
+        return new DataFusionStats(null, null, null, null, null, null);
     }
 
     // ---- Property 1: Writeable round-trip preserves all field values ----
@@ -175,6 +209,28 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
                 assertEquals(3, monitor.size());
                 verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
             }
+
+            // Cache stats
+            CacheStats cs = stats.getCacheStats();
+            assertNotNull(cs);
+            Map<String, Object> cacheNode = asMap(root.get("cache_stats"));
+            assertNotNull("cache_stats must be present", cacheNode);
+            Map<String, Object> metaNode = asMap(cacheNode.get("metadata_cache"));
+            assertNotNull(metaNode);
+            assertEquals(cs.getMetadataCache().hitCount, ((Number) metaNode.get("hit_count")).longValue());
+            assertEquals(cs.getMetadataCache().missCount, ((Number) metaNode.get("miss_count")).longValue());
+            Map<String, Object> statsNode = asMap(cacheNode.get("statistics_cache"));
+            assertNotNull(statsNode);
+            assertEquals(cs.getStatisticsCache().hitCount, ((Number) statsNode.get("hit_count")).longValue());
+
+            // Search stats
+            SearchStats ss = stats.getSearchStats();
+            assertNotNull(ss);
+            Map<String, Object> searchNode = asMap(root.get("search_stats"));
+            assertNotNull("search_stats must be present", searchNode);
+            assertEquals(ss.delegationCalls, ((Number) searchNode.get("delegation_calls")).longValue());
+            assertEquals(ss.rgProcessed, ((Number) searchNode.get("rg_processed")).longValue());
+            assertEquals(ss.bitmapTreeScan, ((Number) searchNode.get("bitmap_tree_scan")).longValue());
         }
     }
 

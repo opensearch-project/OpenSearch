@@ -48,11 +48,13 @@ use futures::StreamExt;
 use super::bool_tree::BoolNode;
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
+use super::parquet_bridge::ReadIoStats;
 use super::partitioning::{compute_assignments, PartitionAssignment, SegmentChunk, SegmentLayout};
-use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use super::stream::{IndexedExec, RowGroupInfo};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use crate::indexed_table::page_pruner::StatsPruneTree;
+use crate::search_stats::accumulate_from_exec;
 use std::collections::HashSet;
 
 /// Info about a segment and its corresponding parquet file.
@@ -303,6 +305,7 @@ impl TableProvider for IndexedTableProvider {
             predicate,
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::new(std::sync::Mutex::new(Vec::new())),
+            io_stats: Arc::new(ReadIoStats::default()),
             row_id_output_index,
             dynamic_filters: Vec::new(),
         }))
@@ -330,6 +333,7 @@ pub struct QueryShardExec {
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     metrics: ExecutionPlanMetricsSet,
     inner_parquet_metrics: Arc<std::sync::Mutex<Vec<MetricsSet>>>,
+    io_stats: Arc<ReadIoStats>,
     /// Column index in the OUTPUT schema where computed `___row_id` should be
     /// injected. `None` means no row ID computation (normal data path).
     row_id_output_index: Option<usize>,
@@ -467,23 +471,14 @@ impl ExecutionPlan for QueryShardExec {
         })?;
 
         let pmetrics = PartitionMetrics::new(&self.metrics, partition);
-        let stream_metrics =
+        let mut stream_metrics =
             pmetrics.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
+        stream_metrics.io_stats = Some(Arc::clone(&self.io_stats));
 
-        // Conjoin any accepted runtime dynamic filters into one predicate,
-        // shared (by Arc) across every chunk's IndexedExec. The inner
-        // DynamicFilterPhysicalExpr state is shared with the producing TopK, so
-        // all streams observe the same runtime tightening.
         let dynamic_filter: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
             (!self.dynamic_filters.is_empty())
                 .then(|| datafusion::physical_expr::utils::conjunction(self.dynamic_filters.clone()));
 
-        // Build one IndexedExec per SegmentChunk and execute it immediately,
-        // collecting per-chunk streams. We then chain them sequentially into
-        // a single stream for this partition. This avoids the
-        // UnionExec + CoalescePartitionsExec wrapping (which would re-shape
-        // partitioning and add an extra coalesce hop) — chunks here are
-        // already serialized within one partition assignment.
         let mut streams: Vec<SendableRecordBatchStream> =
             Vec::with_capacity(assignment.chunks.len());
         for chunk in &assignment.chunks {
@@ -491,7 +486,6 @@ impl ExecutionPlan for QueryShardExec {
                 DataFusionError::Internal(format!("segment_idx {} out of range", chunk.segment_idx))
             })?;
 
-            // Subset the segment's row groups to just this chunk's.
             let rg_set: HashSet<usize> = chunk.row_group_indices.iter().copied().collect();
             let row_groups: Vec<RowGroupInfo> = segment
                 .row_groups
@@ -520,7 +514,6 @@ impl ExecutionPlan for QueryShardExec {
                 }
             }
 
-            // Build evaluator for this chunk.
             let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics, stats_prune_tree.as_ref())
                 .map_err(|e| DataFusionError::External(e.into()))?;
 
@@ -556,20 +549,31 @@ impl ExecutionPlan for QueryShardExec {
             streams.push(exec.execute(0, Arc::clone(&context))?);
         }
 
-        match streams.len() {
+        let stream: SendableRecordBatchStream = match streams.len() {
             0 => {
                 let empty = datafusion::physical_plan::empty::EmptyExec::new(
                     self.projected_schema.clone(),
                 );
-                empty.execute(0, context)
+                empty.execute(0, context)?
             }
-            1 => Ok(streams.into_iter().next().unwrap()),
+            1 => streams.into_iter().next().unwrap(),
             _ => {
                 let schema = self.projected_schema.clone();
                 let chained = futures::stream::iter(streams).flatten();
-                Ok(Box::pin(RecordBatchStreamAdapter::new(schema, chained)))
+                Box::pin(RecordBatchStreamAdapter::new(schema, chained))
             }
-        }
+        };
+        Ok(stream)
+    }
+}
+
+impl Drop for QueryShardExec {
+    fn drop(&mut self) {
+        accumulate_from_exec(
+            &self.metrics,
+            &self.inner_parquet_metrics,
+            &self.io_stats,
+        );
     }
 }
 
@@ -623,6 +627,7 @@ impl QueryShardExec {
             predicate: self.predicate.clone(),
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::clone(&self.inner_parquet_metrics),
+            io_stats: Arc::clone(&self.io_stats),
             row_id_output_index: self.row_id_output_index,
             dynamic_filters,
         }
