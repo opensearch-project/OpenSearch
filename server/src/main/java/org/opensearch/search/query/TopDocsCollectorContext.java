@@ -857,13 +857,25 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             );
         } else if (searchContext.collapse() != null) {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+            final boolean rescore = searchContext.rescore().isEmpty() == false;
+            if (rescore) {
+                assert searchContext.sort() == null;
+                for (RescoreContext rescoreContext : searchContext.rescore()) {
+                    numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
+                }
+            }
             return new CollapsingTopDocsCollectorContext(
                 searchContext.collapse(),
                 searchContext.sort(),
                 numDocs,
                 searchContext.trackScores(),
                 searchContext.searchAfter()
-            );
+            ) {
+                @Override
+                public boolean shouldRescore() {
+                    return rescore;
+                }
+            };
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
