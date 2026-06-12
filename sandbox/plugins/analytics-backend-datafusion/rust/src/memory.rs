@@ -31,6 +31,7 @@ use datafusion::execution::memory_pool::{MemoryPool, MemoryReservation};
 pub struct DynamicLimitPool {
     used: AtomicUsize,
     dynamic_limit: Arc<AtomicUsize>,
+    tripped_count: Arc<AtomicUsize>,
 }
 
 /// Handle to change the pool limit at runtime.
@@ -41,6 +42,7 @@ pub struct DynamicLimitPool {
 #[derive(Debug, Clone)]
 pub struct DynamicLimitHandle {
     limit: Arc<AtomicUsize>,
+    tripped: Arc<AtomicUsize>,
 }
 
 impl DynamicLimitHandle {
@@ -53,6 +55,11 @@ impl DynamicLimitHandle {
     pub fn limit(&self) -> usize {
         self.limit.load(Ordering::Acquire)
     }
+
+    /// Number of times try_grow was rejected.
+    pub fn tripped_count(&self) -> usize {
+        self.tripped.load(Ordering::Relaxed)
+    }
 }
 
 impl DynamicLimitPool {
@@ -60,12 +67,15 @@ impl DynamicLimitPool {
     /// Returns the pool and a handle to change the limit later.
     pub fn new(initial_limit: usize) -> (Self, DynamicLimitHandle) {
         let limit = Arc::new(AtomicUsize::new(initial_limit));
+        let tripped = Arc::new(AtomicUsize::new(0));
         let handle = DynamicLimitHandle {
             limit: limit.clone(),
+            tripped: tripped.clone(),
         };
         let pool = Self {
             used: AtomicUsize::new(0),
             dynamic_limit: limit,
+            tripped_count: tripped,
         };
         (pool, handle)
     }
@@ -74,9 +84,29 @@ impl DynamicLimitPool {
     pub fn limit(&self) -> usize {
         self.dynamic_limit.load(Ordering::Acquire)
     }
+
+    /// Number of times try_grow was rejected (after jemalloc confirmation).
+    pub fn tripped_count(&self) -> usize {
+        self.tripped_count.load(Ordering::Relaxed)
+    }
+}
+
+impl std::fmt::Display for DynamicLimitPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "DynamicLimitPool(limit={}, used={})",
+            self.dynamic_limit.load(Ordering::Acquire),
+            self.used.load(Ordering::Relaxed)
+        )
+    }
 }
 
 impl MemoryPool for DynamicLimitPool {
+    fn name(&self) -> &str {
+        "DynamicLimitPool"
+    }
+
     fn grow(&self, _reservation: &MemoryReservation, additional: usize) {
         // `grow` is an infallible accounting call; the caller is responsible
         // for pairing it with a successful `try_grow`, so under well-behaved
@@ -97,35 +127,118 @@ impl MemoryPool for DynamicLimitPool {
         reservation: &MemoryReservation,
         additional: usize,
     ) -> Result<(), DataFusionError> {
-        // Load the limit inside the closure so every CAS retry sees the current
-        // value. A concurrent `set_limit` that raises the limit while we are
-        // spinning here should be honoured; loading once outside the closure
-        // would miss that update.
+        // Two-tier RSS guard for in-flight queries:
+        //
+        // - operator (85%): reject to trigger spill. The operator will flush its hash
+        //   table to disk and retry. This is recoverable — the query continues.
+        // - critical (95%): hard reject to prevent OOM. Last resort — even spill can't
+        //   save the node at this pressure level.
+        //
+        // Between 85-95%, the override (below) ensures spill sort buffers can still
+        // allocate: when the CAS fails and RSS has dropped below operator threshold
+        // (because the hash table was freed during spill), the override fires and
+        // allows the sort allocation through.
+        //
+        // The adaptive cache (cached_resident_bytes) bypasses the 100ms cache when
+        // the last value was above operator threshold — so the override sees the
+        // fresh (lower) RSS after spill frees memory, not a stale peak.
+        let limit = self.dynamic_limit.load(Ordering::Acquire);
+        let resident = crate::memory_guard::cached_resident_bytes();
+        if resident > 0 && limit >= 16 * 1024 * 1024 {
+            let thresholds = crate::memory_guard::get_thresholds();
+            let critical_bytes = (limit as f64 * thresholds.execution_critical) as usize;
+            let spill_bytes = (limit as f64 * thresholds.execution_spill) as usize;
+            let resident_usize = resident as usize;
+
+            // Critical (95%): hard reject — OOM imminent, protect the node.
+            if resident_usize > critical_bytes {
+                self.tripped_count.fetch_add(1, Ordering::Relaxed);
+                let used = self.used.load(Ordering::Relaxed);
+                return Err(crate::native_error::pool_limit_error(
+                    additional,
+                    reservation.consumer().name(),
+                    reservation.size(),
+                    0,
+                    limit,
+                ));
+            }
+
+            // Operator (85%): soft reject — triggers spill. The operator will
+            // flush to disk, free memory, then retry. Spill sort buffers will
+            // succeed on retry because RSS drops and the override allows them.
+            if resident_usize > spill_bytes {
+                self.tripped_count.fetch_add(1, Ordering::Relaxed);
+                let used = self.used.load(Ordering::Relaxed);
+                return Err(crate::native_error::pool_limit_error(
+                    additional,
+                    reservation.consumer().name(),
+                    reservation.size(),
+                    0,
+                    limit,
+                ));
+            }
+        }
+
         let dynamic_limit = &self.dynamic_limit;
-        self.used
+
+        // Fast path: try the normal CAS against the pool limit.
+        let cas_result = self.used
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
                 let limit = dynamic_limit.load(Ordering::Acquire);
                 let new_used = used.checked_add(additional)?;
                 (new_used <= limit).then_some(new_used)
-            })
-            .map_err(|used| {
-                // Re-load the limit for the error message. This can be a slightly newer
-                // value than the limit used in the decision above under a concurrent
-                // `set_limit`, but we prefer "most-recent" for operator visibility. The
-                // allocation decision itself was already made against a consistent
-                // snapshot inside the closure.
-                let limit = dynamic_limit.load(Ordering::Acquire);
-                DataFusionError::ResourcesExhausted(format!(
-                    "Failed to allocate {} bytes for {} ({} already reserved) \
-                     — {} available out of {} (dynamic limit)",
-                    additional,
-                    reservation.consumer().name(),
-                    reservation.size(),
-                    limit.saturating_sub(used),
-                    limit,
-                ))
-            })?;
-        Ok(())
+            });
+
+        if cas_result.is_ok() {
+            return Ok(());
+        }
+
+        // Pool accounting says "full". Before failing the operator (which
+        // triggers spill), consult jemalloc as ground truth. If actual process
+        // memory is below the override threshold, the pool's "full" state is
+        // from stale phantoms or accounting drift — allow the grow.
+        //
+        // This gives already-executing operators a higher effective limit,
+        // preventing unnecessary spills when phantoms from finished queries
+        // haven't been released yet.
+        let limit = dynamic_limit.load(Ordering::Acquire);
+        let used = self.used.load(Ordering::Relaxed);
+        // Only attempt override if the allocation is plausible (won't overflow).
+        if used.checked_add(additional).is_some() {
+            if crate::memory_guard::should_override(limit, crate::memory_guard::OverrideContext::Execution) {
+                // jemalloc confirms headroom — allow the grow
+                let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
+                    u.checked_add(additional)
+                });
+                return Ok(());
+            }
+        }
+
+        // Both pool and jemalloc confirm pressure. Check if RSS is critical —
+        // if so, cancel the query rather than spilling (spill can't help at 95%+).
+        if crate::memory_guard::should_cancel_query(limit) {
+            native_bridge_common::log_info!(
+                "Memory CANCEL: RSS exceeds critical threshold for consumer [{}]. Cancelling query to protect node.",
+                reservation.consumer().name()
+            );
+            return Err(DataFusionError::ResourcesExhausted(format!(
+                "Query cancelled: native memory RSS exceeds critical threshold ({}% of pool limit {}B). \
+                 Reduce query concurrency or increase datafusion.memory_pool_limit_bytes.",
+                (crate::memory_guard::get_thresholds().execution_critical * 100.0) as u32,
+                limit
+            )));
+        }
+
+        // RSS between operator (85%) and critical (95%) — reject (operator will spill)
+        self.tripped_count.fetch_add(1, Ordering::Relaxed);
+        let used = self.used.load(Ordering::Relaxed);
+        Err(crate::native_error::pool_limit_error(
+            additional,
+            reservation.consumer().name(),
+            reservation.size(),
+            limit.saturating_sub(used),
+            limit,
+        ))
     }
 
     fn reserved(&self) -> usize {
@@ -297,5 +410,127 @@ mod tests {
             raiser.join().unwrap();
             allocator.join().unwrap();
         }
+    }
+
+    #[test]
+    fn test_try_grow_rejection_increments_tripped_count() {
+        // Pool with 1KB limit — below MIN_POOL_FOR_OVERRIDE (16MB) so
+        // jemalloc override is skipped entirely. Every rejection goes
+        // straight to tripped_count increment.
+        let (pool, handle) = new_pool(1024);
+        assert_eq!(handle.tripped_count(), 0);
+
+        let consumer = MemoryConsumer::new("hash_agg");
+        let mut reservation = consumer.register(&pool);
+
+        // First grow succeeds
+        assert!(reservation.try_grow(512).is_ok());
+        assert_eq!(handle.tripped_count(), 0);
+
+        // Second grow exceeds limit → rejected, tripped increments
+        assert!(reservation.try_grow(1024).is_err());
+        assert_eq!(handle.tripped_count(), 1);
+
+        // Fill to the limit
+        assert!(reservation.try_grow(512).is_ok());
+        assert_eq!(pool.reserved(), 1024);
+
+        // Now even 1 byte exceeds → tripped again
+        assert!(reservation.try_grow(1).is_err());
+        assert_eq!(handle.tripped_count(), 2);
+    }
+
+    #[test]
+    fn test_tripped_count_reflects_in_handle_after_multiple_consumers() {
+        let (pool, handle) = new_pool(2048);
+        assert_eq!(handle.tripped_count(), 0);
+
+        // Consumer A takes 1500 bytes
+        let consumer_a = MemoryConsumer::new("sort_buffer");
+        let mut res_a = consumer_a.register(&pool);
+        assert!(res_a.try_grow(1500).is_ok());
+
+        // Consumer B tries 1000 bytes — only 548 available → rejected
+        let consumer_b = MemoryConsumer::new("hash_agg");
+        let mut res_b = consumer_b.register(&pool);
+        assert!(res_b.try_grow(1000).is_err());
+        assert_eq!(handle.tripped_count(), 1);
+
+        // Consumer A releases, freeing space
+        res_a.shrink(1500);
+
+        // Consumer B retries — now succeeds, no additional trip
+        assert!(res_b.try_grow(1000).is_ok());
+        assert_eq!(handle.tripped_count(), 1);
+    }
+
+    #[test]
+    fn test_tripped_count_zero_when_all_grows_succeed() {
+        let (pool, handle) = new_pool(1_000_000);
+        let consumer = MemoryConsumer::new("scan");
+        let mut reservation = consumer.register(&pool);
+
+        for _ in 0..100 {
+            assert!(reservation.try_grow(1000).is_ok());
+        }
+        assert_eq!(handle.tripped_count(), 0);
+        assert_eq!(pool.reserved(), 100_000);
+    }
+
+    #[test]
+    fn test_hard_guard_rejects_when_rss_exceeds_critical() {
+        // Create a pool with a limit smaller than the current process RSS.
+        // A Rust test process typically uses 50-200MB RSS, so 20MB should
+        // always trigger the hard guard (RSS > 95% of 20MB = 19MB).
+        let (pool, handle) = new_pool(20 * 1024 * 1024); // 20MB
+
+        let resident = crate::memory_guard::cached_resident_bytes();
+        if resident <= 0 {
+            return; // jemalloc not available in this test env
+        }
+
+        let critical_bytes = (20.0 * 1024.0 * 1024.0 * 0.95) as i64;
+        if resident < critical_bytes {
+            return; // RSS unexpectedly low — skip rather than false-fail
+        }
+
+        let consumer = MemoryConsumer::new("hard_guard_test");
+        let mut reservation = consumer.register(&pool);
+
+        // The hard guard fires before the CAS — even a tiny grow should be rejected
+        let result = reservation.try_grow(1024);
+        assert!(
+            result.is_err(),
+            "try_grow should fail when RSS ({}) exceeds critical threshold (95% of 20MB)",
+            resident
+        );
+        assert!(
+            handle.tripped_count() >= 1,
+            "tripped_count should increment on hard guard rejection"
+        );
+    }
+
+    #[test]
+    fn test_hard_guard_passes_when_rss_below_critical() {
+        // Create a pool with a huge limit (1TB). The test process RSS is well
+        // below 95% of 1TB, so the hard guard should NOT fire.
+        let limit = 1024 * 1024 * 1024 * 1024_usize; // 1TB
+        let (pool, handle) = new_pool(limit);
+
+        let consumer = MemoryConsumer::new("large_pool_test");
+        let mut reservation = consumer.register(&pool);
+
+        // A small allocation should succeed — RSS is far below 95% of 1TB
+        let result = reservation.try_grow(4096);
+        assert!(
+            result.is_ok(),
+            "try_grow should succeed when RSS is well below 95% of 1TB pool limit"
+        );
+        assert_eq!(
+            handle.tripped_count(),
+            0,
+            "tripped_count should remain 0 when hard guard does not fire"
+        );
+        assert_eq!(pool.reserved(), 4096);
     }
 }

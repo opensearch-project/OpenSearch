@@ -34,20 +34,19 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface StoreStrategy {
+public abstract class StoreStrategy {
 
     /**
      * Returns true if the given file identifier belongs to this format.
      *
      * <p>The default convention is that format files live under a subdirectory
      * whose prefix is the format name (e.g. {@code "parquet/seg_0.parquet"}).
-     * Implementations may override to use a different layout.
      *
      * @param name the format name the store layer associated with this
      *             strategy (the key it was registered under)
      * @param file file identifier as produced by the directory layer
      */
-    default boolean owns(String name, String file) {
+    public final boolean owns(String name, String file) {
         if (file == null) {
             return false;
         }
@@ -58,8 +57,7 @@ public interface StoreStrategy {
      * Returns the fully-qualified remote blob path for a file owned by this format.
      *
      * <p>The default convention places blobs at
-     * {@code basePath + name + "/" + blobKey}. Implementations may override
-     * when the format uses a different layout on the remote store.
+     * {@code basePath + name + "/" + blobKey}.
      *
      * @param name     the format name the store layer associated with this
      *                 strategy (the key it was registered under)
@@ -69,12 +67,12 @@ public interface StoreStrategy {
      *                 {@link org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata#getUploadedFilename()}
      * @return the remote blob path
      */
-    default String remotePath(String name, String basePath, String file, String blobKey) {
+    public final String remotePath(String name, String basePath, String file, String blobKey) {
         StringBuilder sb = new StringBuilder();
         if (basePath != null && basePath.isEmpty() == false) {
             sb.append(basePath);
         }
-        sb.append(name).append('/').append(blobKey);
+        sb.append(blobKey);
         return sb.toString();
     }
 
@@ -83,7 +81,5 @@ public interface StoreStrategy {
      * registry. Formats without a native reader return
      * {@link Optional#empty()}.
      */
-    default Optional<DataFormatStoreHandlerFactory> storeHandler() {
-        return Optional.empty();
-    }
+    public abstract Optional<DataFormatStoreHandlerFactory> storeHandler();
 }

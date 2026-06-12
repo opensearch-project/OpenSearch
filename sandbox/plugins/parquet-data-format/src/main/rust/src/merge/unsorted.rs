@@ -25,6 +25,7 @@ pub fn merge_unsorted(
     input_files: &[String],
     output_path: &str,
     index_name: &str,
+    output_writer_generation: i64,
 ) -> MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -75,6 +76,7 @@ pub fn merge_unsorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
     )?;
 
     // Precompute column mappings per reader
@@ -122,14 +124,14 @@ pub fn merge_unsorted(
         gen_sizes.push(file_rows);
     }
 
-    let (metadata, crc32) = ctx.finish()?;
+    let stats = ctx.finish()?;
 
     log_debug!(
         "[RUST] Unsorted merge complete: {} total rows written to '{}' within {} row groups, crc32={:#010x}",
-        metadata.file_metadata().num_rows(),
+        stats.metadata.file_metadata().num_rows(),
         output_path,
-        metadata.num_row_groups(),
-        crc32
+        stats.metadata.num_row_groups(),
+        stats.crc32
     );
 
     Ok(super::MergeOutput {
@@ -137,7 +139,10 @@ pub fn merge_unsorted(
         gen_keys,
         gen_offsets,
         gen_sizes,
-        metadata,
-        crc32,
+        metadata: stats.metadata,
+        crc32: stats.crc32,
+        flush_and_sort_chunk_count: stats.flush_and_sort_chunk_count,
+        flush_and_sort_chunk_time_millis: stats.flush_and_sort_chunk_time_millis,
+        row_id_mapping_max: stats.row_id_mapping_max,
     })
 }

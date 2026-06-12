@@ -1,0 +1,1 @@
+source=test_data | sort timestamp | trendline sma(3, value) as trend | fields timestamp, value, trend | head 10

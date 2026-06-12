@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-//! [`PageCache`] trait — the abstraction for disk caching with typed keys.
+//! [`BlockCache`] trait — the abstraction for disk caching with typed keys.
 
 use bytes::Bytes;
 use crate::range_cache::CacheKey;
@@ -25,10 +25,11 @@ use crate::range_cache::CacheKey;
 ///
 /// Implementations must be `Send + Sync` so they can be shared across async
 /// tasks and threads.
-pub trait PageCache: Send + Sync {
+pub trait BlockCache: Send + Sync + std::any::Any {
     /// Look up a cached entry. Returns `Some(Bytes)` on hit, `None` on miss.
-    fn get(&self, key: &CacheKey)
-        -> impl std::future::Future<Output = Option<Bytes>> + Send;
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn get<'a>(&'a self, key: &'a CacheKey)
+        -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>;
 
     /// Insert bytes under the given key.
     fn put(&self, key: &CacheKey, data: Bytes);
@@ -40,5 +41,5 @@ pub trait PageCache: Send + Sync {
     fn evict_prefix(&self, prefix: &str);
 
     /// Remove all entries from the cache.
-    fn clear(&self) -> impl std::future::Future<Output = ()> + Send;
+    fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>>;
 }

@@ -388,4 +388,53 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         Path dicFile = directory.resolve(locale + ".dic");
         java.nio.file.Files.write(dicFile, java.util.Arrays.asList("3", "test/S", "word/S", "hello"));
     }
+
+    // ========== CACHE RELOAD TESTS ==========
+
+    public void testReloadDictionaryByRefPath() throws Exception {
+        Path tempDir = createTempDir();
+        Path dictDir = tempDir.resolve("config").resolve("analyzers/my-dict").resolve("hunspell").resolve("en_US");
+        java.nio.file.Files.createDirectories(dictDir);
+        createHunspellFiles(dictDir, "en_US");
+
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Environment environment = new Environment(settings, tempDir.resolve("config"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Dictionary dict1 = hunspellService.getDictionaryFromRefPath("analyzers/my-dict", "en_US");
+        assertThat(dict1, notNullValue());
+
+        hunspellService.reloadDictionaryFromRefPath("analyzers/my-dict", "en_US");
+
+        Dictionary dict2 = hunspellService.getDictionaryFromRefPath("analyzers/my-dict", "en_US");
+        assertNotSame("Should be different instance after reload", dict1, dict2);
+    }
+
+    public void testReloadTraditionalDictionary() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Dictionary dict1 = hunspellService.getDictionary("en_US");
+        assertThat(dict1, notNullValue());
+
+        Dictionary dict2 = hunspellService.reloadDictionary("en_US");
+        assertThat(dict2, notNullValue());
+        assertNotSame("Reload should return a fresh Dictionary instance", dict1, dict2);
+    }
+
+    public void testReloadNonExistentDictionaryThrows() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        expectThrows(IllegalStateException.class, () -> hunspellService.reloadDictionaryFromRefPath("nonexistent", "en_US"));
+    }
+
 }

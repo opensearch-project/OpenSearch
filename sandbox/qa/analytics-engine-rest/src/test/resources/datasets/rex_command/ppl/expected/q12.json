@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "reqid",
+      "type": "string"
+    },
+    {
+      "name": "duration",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "abc-123",
+      "1234.56"
+    ],
+    [
+      "abc-123",
+      null
+    ],
+    [
+      "abc-123",
+      null
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

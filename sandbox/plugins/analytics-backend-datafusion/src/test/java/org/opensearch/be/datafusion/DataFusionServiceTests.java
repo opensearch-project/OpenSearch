@@ -51,6 +51,29 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         assertFalse(handle.isOpen());
     }
 
+    public void testServiceStartWithEmptySpillDirectory() {
+        // Empty spillDirectory triggers DiskManagerMode::Disabled in Rust. The runtime
+        // must build successfully (memory-only execution); spill-attempting queries will
+        // fail with a "DiskManager is disabled" error, but plain runtime construction
+        // and shutdown are unaffected.
+        ensureTokioInit();
+        DataFusionService service = DataFusionService.builder()
+            .memoryPoolLimit(64 * 1024 * 1024)
+            .spillMemoryLimit(0L)
+            .spillDirectory("")
+            .cpuThreads(2)
+            .build();
+        service.start();
+
+        NativeRuntimeHandle handle = service.getNativeRuntime();
+        assertNotNull(handle);
+        assertTrue(handle.isOpen());
+        assertTrue(handle.get() != 0);
+
+        service.stop();
+        assertFalse(handle.isOpen());
+    }
+
     public void testGetNativeRuntimeBeforeStartThrows() {
         DataFusionService service = DataFusionService.builder().build();
         expectThrows(IllegalStateException.class, service::getNativeRuntime);
@@ -175,6 +198,24 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, cachePtr, spillDir.toString(), 32 * 1024 * 1024);
         assertTrue(runtimePtr != 0);
+
+        NativeBridge.closeGlobalRuntime(runtimePtr);
+    }
+
+    public void testCacheManagerHandleConsumedAfterRuntimeCreation() {
+        ensureTokioInit();
+        var handle = new org.opensearch.be.datafusion.cache.NativeCacheManagerHandle(NativeBridge.createCustomCacheManager());
+        NativeBridge.createCache(handle.getPointer(), "METADATA", 250 * 1024 * 1024, "LRU");
+
+        long ptrBefore = handle.getPointer();
+        assertTrue(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));
+
+        Path spillDir = createTempDir("spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, handle.getPointer(), spillDir.toString(), 32 * 1024 * 1024);
+        handle.markConsumed();
+
+        assertFalse(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));
+        expectThrows(IllegalStateException.class, handle::getPointer);
 
         NativeBridge.closeGlobalRuntime(runtimePtr);
     }

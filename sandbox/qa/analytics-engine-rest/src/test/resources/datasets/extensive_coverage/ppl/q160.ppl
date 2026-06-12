@@ -1,0 +1,1 @@
+source=test_data | eval json_obj = json(json_data) | fields json_data, json_obj | head 3

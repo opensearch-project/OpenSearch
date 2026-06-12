@@ -11,6 +11,7 @@ package org.opensearch.parquet.engine;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -18,6 +19,7 @@ import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
@@ -29,8 +31,11 @@ import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
+import org.opensearch.parquet.stats.ParquetStatsProvider;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
+import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -72,13 +77,17 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     private final ParquetDataFormat dataFormat;
     private final ShardPath shardPath;
-    private final Supplier<Schema> schemaSupplier;
+    private Supplier<Schema> schemaSupplier;
+    private Supplier<Long> mappingVersionSupplier;
+    private volatile long cachedSchemaVersion = -1;
+    private volatile Schema cachedSchema;
     private final ArrowBufferPool bufferPool;
     private final IndexSettings indexSettings;
     private final Settings nodeSettings;
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
+    private final ParquetShardStatsTracker statsTracker = new ParquetShardStatsTracker();
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -86,7 +95,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * @param settings          the node-level settings
      * @param dataFormat        the Parquet data format descriptor
      * @param shardPath         the shard path for file storage
-     * @param schemaSupplier    supplier for the Arrow schema
+     * @param schemaSupplier     the supplier for schema resolution
+     * @param mappingVersionSupplier     the supplier for mapping version resolution
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      */
@@ -95,40 +105,53 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
         Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ArrowNativeAllocator nativeAllocator
     ) {
-        this(settings, dataFormat, shardPath, schemaSupplier, indexSettings, threadPool, new PrecomputedChecksumStrategy());
+        this(
+            settings,
+            dataFormat,
+            shardPath,
+            schemaSupplier,
+            mappingVersionSupplier,
+            indexSettings,
+            threadPool,
+            new PrecomputedChecksumStrategy(),
+            nativeAllocator
+        );
     }
 
     /**
      * Creates a new ParquetIndexingEngine with an externally provided checksum strategy.
      *
-     * <p>Use this constructor when the checksum strategy is shared with the
-     * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory} so that
-     * pre-computed CRC32 values registered during write are visible to the upload path.
-     *
      * @param settings          the node-level settings
      * @param dataFormat        the Parquet data format descriptor
      * @param shardPath         the shard path for file storage
-     * @param schemaSupplier    supplier for the Arrow schema
+     * @param schemaSupplier     the supplier for schema resolution
+     * @param mappingVersionSupplier     the supplier for mapping version resolution
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      * @param checksumStrategy  the checksum strategy to use (shared with the directory)
+     * @param nativeAllocator   the framework's unified native allocator
      */
     public ParquetIndexingEngine(
         Settings settings,
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
         Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
-        FormatChecksumStrategy checksumStrategy
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
-        this.bufferPool = new ArrowBufferPool(settings);
+        this.mappingVersionSupplier = mappingVersionSupplier;
+        this.bufferPool = new ArrowBufferPool(settings, nativeAllocator);
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
         this.threadPool = threadPool;
@@ -141,9 +164,36 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             throw new RuntimeException(e);
         }
         this.parquetMerger = new ParquetMergeExecutor(
-            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
+            new NativeParquetMergeStrategy(
+                dataFormat,
+                indexSettings.getIndex().getName(),
+                shardPath,
+                checksumStrategy::registerChecksum,
+                statsTracker
+            )
         );
-        pushSettingsToRust();
+        boolean registered = false;
+        ParquetStatsProvider provider = null;
+        try {
+            pushSettingsToRust();
+            // Register this shard's tracker with the format-wide stats provider so the
+            // /_plugins/parquet/{index}/_stats and /_plugins/parquet/_nodes/{nodeId}/_stats
+            // REST endpoints can read live counters. Unregistered in close().
+            provider = (ParquetStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(ParquetStatsProvider.FORMAT_NAME);
+            if (provider != null) {
+                provider.register(shardPath.getShardId(), statsTracker);
+                registered = true;
+            }
+        } catch (Throwable t) {
+            if (registered && provider != null) {
+                try {
+                    provider.unregister(shardPath.getShardId());
+                } catch (Throwable rollbackErr) {
+                    logger.warn("Failed to unregister parquet stats tracker during constructor rollback", rollbackErr);
+                }
+            }
+            throw t;
+        }
     }
 
     /**
@@ -170,9 +220,18 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
             .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
             .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
+            .rowGroupMaxBytes(ParquetSettings.ROW_GROUP_MAX_BYTES.get(settings).getBytes())
             .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
             .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
             .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
+            .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
+            .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
+            .fieldBloomFilterEnabled(ParquetSettings.getFieldBloomFilterEnabled(settings))
+            .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
+            .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
+            .typeBloomFilterEnabled(ParquetSettings.getTypeBloomFilterEnabled(nodeSettings))
+            .typeBloomFilterFpp(ParquetSettings.getTypeBloomFilterFpp(nodeSettings))
+            .typeBloomFilterNdv(ParquetSettings.getTypeBloomFilterNdv(nodeSettings))
             .build();
         try {
             RustBridge.onSettingsUpdate(config);
@@ -182,18 +241,29 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     }
 
     @Override
-    public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
-        Path filePath = buildParquetFilePath(shardPath, writerGeneration, null);
+    public Writer<ParquetDocumentInput> createWriter(WriterConfig config) {
+        long mappingVersion = mappingVersionSupplier.get();
+        Schema schema = getOrBuildSchema();
+        Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
         return new ParquetWriter(
             filePath.toString(),
-            writerGeneration,
+            config.writerGeneration(),
+            0L,
             dataFormat,
-            schemaSupplier.get(),
+            schema,
+            this::getOrBuildSchema,
             bufferPool,
             indexSettings,
             threadPool,
-            checksumStrategy
+            checksumStrategy,
+            statsTracker
         );
+    }
+
+    /** Parquet indexing uses only native (off-heap) memory via Arrow buffers and Rust writers, no JVM heap. */
+    @Override
+    public long getHeapBytesUsed() {
+        return 0;
     }
 
     @Override
@@ -256,8 +326,19 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return null;
     }
 
+    private Schema getOrBuildSchema() {
+        return schemaSupplier.get();
+    }
+
     @Override
     public void close() throws IOException {
+        // Unregister this shard's tracker from the stats provider before tearing down.
+        ParquetStatsProvider provider = (ParquetStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
+            ParquetStatsProvider.FORMAT_NAME
+        );
+        if (provider != null) {
+            provider.unregister(shardPath.getShardId());
+        }
         try {
             RustBridge.removeSettings(indexSettings.getIndex().getName());
         } catch (Exception e) {

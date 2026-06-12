@@ -39,6 +39,8 @@
 //! Swapping impls requires only passing different `Arc`s at construction.
 
 pub mod bitmap_tree;
+pub mod eval_helpers;
+pub mod predicate_evaluator;
 pub mod single_collector;
 
 use std::any::Any;
@@ -48,9 +50,40 @@ use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::record_batch::RecordBatch;
 use roaring::RoaringBitmap;
 
+/// Rewrite Column indices in a PhysicalExpr to match the delivered batch's
+/// schema by name. Substrait-decoded predicates carry indices into the full
+/// table schema; the delivered batch is projected (only predicate-referenced
+/// columns) so the indices need to be reseated. Both the SingleCollector
+/// residual eval and the BitmapTree predicate eval-via-DF path need this —
+/// shared here to avoid duplication.
+pub(super) fn remap_expr_to_batch(
+    expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+    batch: &RecordBatch,
+) -> Result<Arc<dyn datafusion::physical_expr::PhysicalExpr>, String> {
+    use datafusion::common::tree_node::TreeNode;
+    use datafusion::physical_expr::expressions::Column;
+
+    expr.clone()
+        .transform(|e| {
+            if let Some(col) = e.downcast_ref::<Column>() {
+                if let Ok(new_idx) = batch.schema().index_of(col.name()) {
+                    if new_idx != col.index() {
+                        let remapped = Arc::new(Column::new(col.name(), new_idx))
+                            as Arc<dyn datafusion::physical_expr::PhysicalExpr>;
+                        return Ok(datafusion::common::tree_node::Transformed::yes(remapped));
+                    }
+                }
+            }
+            Ok(datafusion::common::tree_node::Transformed::no(e))
+        })
+        .map(|t| t.data)
+        .map_err(|e| format!("remap_expr_to_batch: {}", e))
+}
+
 use super::bool_tree::ResolvedNode;
 use super::page_pruner::PagePruneMetrics;
 use super::page_pruner::PagePruner;
+use super::page_pruner::StatsPruneTree;
 use super::row_selection::PositionMap;
 use super::stream::RowGroupInfo;
 use datafusion::arrow::buffer::Buffer;
@@ -240,6 +273,7 @@ pub trait TreeEvaluator: Send + Sync {
         page_pruner: &PagePruner,
         pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
         page_prune_metrics: Option<&PagePruneMetrics>,
+        stats_prune_tree: Option<&StatsPruneTree>,
     ) -> Result<TreePrefetch, String>;
 
     /// Refinement stage: produce the exact per-row `BooleanArray` for one
@@ -316,6 +350,8 @@ pub struct TreeBitsetSource {
     /// recommended here — multiple FFM calls per collector per RG can
     /// be expensive in multi-collector trees.
     pub collector_strategy: CollectorCallStrategy,
+    /// Precomputed per-subtree RG match vectors. Built once at construction.
+    pub stats_prune_tree: Option<StatsPruneTree>,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -326,6 +362,18 @@ impl RowGroupBitsetSource for TreeBitsetSource {
         max_doc: i32,
     ) -> Result<Option<PrefetchedRg>, String> {
         let t = Instant::now();
+
+        // RG-level early-exit: precomputed from column stats at construction.
+        if let Some(ref ann) = self.stats_prune_tree {
+            if let Some(&false) = ann.rg_can_match.get(rg.index) {
+                native_bridge_common::log_debug!(
+                    "BitmapTree: skipping RG {} — pruned by RG-level stats",
+                    rg.index
+                );
+                return Ok(None);
+            }
+        }
+
         let ctx = RgEvalContext {
             rg_idx: rg.index,
             rg_first_row: rg.first_row,
@@ -373,6 +421,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
                 // inflate counts. We compute final page-level metrics below
                 // after the bitmap tree is fully resolved.
                 None,
+                self.stats_prune_tree.as_ref(),
             )
             .map_err(|e| format!("TreeBitsetSource::prefetch_rg(rg={}): {}", rg.index, e))?;
         if prefetch.candidates.is_empty() {
@@ -571,6 +620,16 @@ fn collect_unique_collector_nodes<'a>(
             }
         }
         ResolvedNode::Predicate(_) => {}
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: planner drops performance peers under OR/NOT before
+            // fragment conversion, so DelegationPossible should never reach the
+            // Tree-path evaluator. Reaching this is a planner-contract violation.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached \
+                 collect_unique_collector_nodes. Planner must drop performance peers \
+                 under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -713,6 +772,7 @@ mod tests {
             _page_pruner: &PagePruner,
             _pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
             _page_prune_metrics: Option<&PagePruneMetrics>,
+            _stats_prune_tree: Option<&StatsPruneTree>,
         ) -> Result<TreePrefetch, String> {
             Ok(TreePrefetch {
                 candidates: roaring::RoaringBitmap::new(),
@@ -761,6 +821,7 @@ mod tests {
             pruning_predicates: std::sync::Arc::new(HashMap::new()),
             page_prune_metrics: None,
             collector_strategy: CollectorCallStrategy::TightenOuterBounds,
+            stats_prune_tree: None,
         };
         assert!(!source.needs_row_mask());
     }

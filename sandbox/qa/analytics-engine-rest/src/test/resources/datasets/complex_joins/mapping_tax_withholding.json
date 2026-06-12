@@ -1,0 +1,1 @@
+{"mappings":{"properties":{"log_level":{"type":"keyword"},"part_mid":{"type":"keyword"},"realm":{"type":"keyword"}}}}

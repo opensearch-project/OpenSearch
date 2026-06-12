@@ -1,0 +1,1 @@
+source=otel_logs | stats count() as c by `log.http.method`, `log.http.status_code` | sort - c

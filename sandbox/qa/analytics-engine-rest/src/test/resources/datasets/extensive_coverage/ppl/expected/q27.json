@@ -1,0 +1,20 @@
+{
+  "schema": [
+    {
+      "name": "timestamp",
+      "type": "timestamp"
+    },
+    {
+      "name": "from_unix",
+      "type": "timestamp"
+    }
+  ],
+  "datarows": [
+    [
+      "2026-01-15 10:30:00",
+      "2024-01-15 12:10:00"
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

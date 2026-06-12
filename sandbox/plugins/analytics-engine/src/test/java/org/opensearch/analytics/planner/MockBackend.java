@@ -22,6 +22,7 @@ import org.opensearch.analytics.spi.FinalAggregateInstructionNode;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
@@ -29,6 +30,9 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
+import org.opensearch.analytics.spi.WindowFunctionAdapter;
 
 import java.util.List;
 import java.util.Map;
@@ -74,6 +78,16 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
+            public Set<JoinCapability> joinCapabilities() {
+                return self.joinCapabilities();
+            }
+
+            @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return self.windowCapabilities();
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return self.supportedDelegations();
             }
@@ -86,6 +100,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
                 return self.scalarFunctionAdapters();
+            }
+
+            @Override
+            public Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
+                return self.windowFunctionAdapters();
             }
 
             @Override
@@ -116,6 +135,14 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
         return Set.of();
     }
 
+    protected Set<JoinCapability> joinCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<WindowCapability> windowCapabilities() {
+        return Set.of();
+    }
+
     protected Set<DelegationType> supportedDelegations() {
         return Set.of();
     }
@@ -128,7 +155,12 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
         return Map.of();
     }
 
-    protected Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+    protected Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
         return Map.of();
     }
 
@@ -136,8 +168,8 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
         return new FragmentInstructionHandlerFactory() {
             @Override
-            public Optional<InstructionNode> createShardScanNode() {
-                return Optional.of(new ShardScanInstructionNode());
+            public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
+                return Optional.of(new ShardScanInstructionNode(requestsRowIds));
             }
 
             @Override
@@ -150,8 +182,12 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
-            public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+            public Optional<InstructionNode> createShardScanWithDelegationNode(
+                FilterTreeShape treeShape,
+                int delegatedPredicateCount,
+                boolean requestsRowIds
+            ) {
+                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
             }
 
             @Override

@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -59,7 +60,13 @@ public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestPPLPlugin.class, FlightStreamPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class);
+        return List.of(
+            TestPPLPlugin.class,
+            ArrowBasePlugin.class,
+            FlightStreamPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class
+        );
     }
 
     @Override
@@ -136,7 +143,7 @@ public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", List.of("lucene"))
             .build();
 
         CreateIndexResponse response = client().admin()

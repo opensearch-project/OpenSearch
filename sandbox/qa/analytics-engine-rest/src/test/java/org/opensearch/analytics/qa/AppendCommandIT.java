@@ -23,7 +23,7 @@ import java.util.Map;
  * <p>Mirrors {@code CalcitePPLAppendCommandIT} from the {@code opensearch-project/sql}
  * repository so that the analytics-engine path can be verified inside core without
  * cross-plugin dependencies on the SQL plugin. Each test sends a PPL query through
- * {@code POST /_analytics/ppl} (exposed by the {@code test-ppl-frontend} plugin), which
+ * {@code POST /_plugins/_ppl} (exposed by the {@code opensearch-sql} plugin), which
  * runs the same {@code UnifiedQueryPlanner} → {@code CalciteRelNodeVisitor} → Substrait
  * → DataFusion pipeline as the SQL plugin's force-routed analytics path.
  *
@@ -62,7 +62,8 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
      * {@code client()} is not initialized until after {@code @BeforeClass} but is
      * reliably available inside test bodies.
      */
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), CALCS);
             DatasetProvisioner.provision(client(), CALCS_ALT);
@@ -271,6 +272,39 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── Union followed by Sort ─────────────────────────────────────────────────
+
+    /**
+     * Mirrors {@code PlanShapeTests.testUnionThenSort_2shard}: union two arms then sort
+     * the unioned result. With an outer Sort the row order is deterministic across runs
+     * (the unioned multiset is stable), so we can use {@link #assertRows} instead of
+     * the multiset-comparing {@link #assertRowsAnyOrder}.
+     */
+    public void testAppendThenSort() throws IOException {
+        // Same shape as testAppend (sum(int0) by str0 ⊎ sum(int1) by str3) but with an
+        // outer | sort that makes the merged stream deterministic. Sort by sum ASC.
+        // The second branch produces sum=null for every row (its own column is sum_alt),
+        // and PPL `sort` defaults to nulls-first for ASC, so the null-sum branch precedes
+        // the integer-sum branch. Within the null-sum group, ties on `sum` are stable —
+        // but Calcite's stable-sort isn't guaranteed across two streams in a Union, so we
+        // assert as a multiset within the head-5 window.
+        assertRowsAnyOrder(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum by str0"
+                + " | append [ source="
+                + CALCS.indexName
+                + " | stats sum(int1) as sum_alt by str3 ]"
+                + " | sort sum"
+                + " | head 5",
+            row(null, null, -14, null),
+            row(null, null, -8, "e"),
+            row(1, "FURNITURE", null, null),
+            row(18, "OFFICE SUPPLIES", null, null),
+            row(49, "TECHNOLOGY", null, null)
+        );
+    }
+
     // ── type-incompatibility error raised in SchemaUnifier ─────────────────────
 
     public void testAppendWithConflictTypeColumn() {
@@ -306,7 +340,7 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * Send a PPL query to {@code POST /_analytics/ppl} and assert the response's
+     * Send a PPL query to {@code POST /_plugins/_ppl} and assert the response's
      * {@code rows} match the expected list element-by-element using a numeric-tolerant
      * comparator (Java JSON parsing returns Integer/Long/Double interchangeably).
      */
@@ -315,8 +349,8 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
     private final void assertRows(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
             List<Object> want = expected[i];
@@ -347,8 +381,8 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
     private final void assertRowsAnyOrder(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         List<String> expectedNormalized = Arrays.stream(expected).map(AppendCommandIT::normalizeRow).sorted().toList();
         List<String> actualNormalized = actualRows.stream().map(AppendCommandIT::normalizeRow).sorted().toList();
         assertEquals("Row multisets differ for query: " + ppl, expectedNormalized, actualNormalized);
@@ -381,8 +415,8 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(
@@ -394,14 +428,8 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    /** Send {@code POST /_analytics/ppl} and return the parsed JSON body. */
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
+    /** Send {@code POST /_plugins/_ppl} and return the parsed JSON body. */
+
 
     /**
      * Compare two cells with numeric tolerance — JSON parsing produces

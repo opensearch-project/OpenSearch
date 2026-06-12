@@ -1,0 +1,1 @@
+source=test_data | where ilike(text, '%TEST%') | fields text | head 3

@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.RuntimeMetrics;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
@@ -20,10 +20,10 @@ import java.lang.foreign.ValueLayout;
  */
 public class StatsLayoutTests extends OpenSearchTestCase {
 
-    /** 7.1: Layout byte size must be 240 (30 × 8). */
+    /** 7.1: Layout byte size must be 552 (69 × 8). */
     public void testLayoutByteSize() {
-        assertEquals(240L, StatsLayout.LAYOUT.byteSize());
-        assertEquals(30 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
+        assertEquals(552L, StatsLayout.LAYOUT.byteSize());
+        assertEquals(69 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
     }
 
     /** 7.2: readRuntimeMetrics decodes 9 known values from io_runtime group. */
@@ -48,16 +48,16 @@ public class StatsLayoutTests extends OpenSearchTestCase {
         }
     }
 
-    /** 7.3: readTaskMonitor decodes 3 known values from query_execution group. */
+    /** 7.3: readTaskMonitor decodes 3 known values from coordinator_reduce group. */
     public void testReadTaskMonitorFromSegment() {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
-            // query_execution starts at index 18 (2 runtime groups × 9 fields = 18)
+            // coordinator_reduce starts at index 18 (2 runtime groups × 9 fields = 18)
             seg.setAtIndex(ValueLayout.JAVA_LONG, 18, 100L);
             seg.setAtIndex(ValueLayout.JAVA_LONG, 19, 200L);
             seg.setAtIndex(ValueLayout.JAVA_LONG, 20, 300L);
 
-            var tm = StatsLayout.readTaskMonitor(seg, "query_execution");
+            var tm = StatsLayout.readTaskMonitor(seg, "coordinator_reduce");
             assertEquals(100L, tm.totalPollDurationMs);
             assertEquals(200L, tm.totalScheduledDurationMs);
             assertEquals(300L, tm.totalIdleDurationMs);
@@ -73,7 +73,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             assertEquals(0L, cpuWorkers);
 
             // Simulate the NativeBridge logic
-            NativeExecutorsStats.RuntimeMetrics cpuRuntime = null;
+            RuntimeMetrics cpuRuntime = null;
             if (cpuWorkers > 0) {
                 cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
             }
@@ -95,7 +95,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             long cpuWorkers = StatsLayout.readField(seg, "cpu_runtime", "workers_count");
             assertEquals(5L, cpuWorkers);
 
-            NativeExecutorsStats.RuntimeMetrics cpuRuntime = null;
+            RuntimeMetrics cpuRuntime = null;
             if (cpuWorkers > 0) {
                 cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
             }

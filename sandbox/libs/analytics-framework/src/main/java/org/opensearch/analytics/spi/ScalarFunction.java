@@ -38,19 +38,39 @@ public enum ScalarFunction {
     LESS_THAN_OR_EQUAL(Category.COMPARISON, SqlKind.LESS_THAN_OR_EQUAL),
     IS_NULL(Category.COMPARISON, SqlKind.IS_NULL),
     IS_NOT_NULL(Category.COMPARISON, SqlKind.IS_NOT_NULL),
+    IS_TRUE(Category.COMPARISON, SqlKind.IS_TRUE),
+    IS_FALSE(Category.COMPARISON, SqlKind.IS_FALSE),
+    IS_NOT_TRUE(Category.COMPARISON, SqlKind.IS_NOT_TRUE),
+    IS_NOT_FALSE(Category.COMPARISON, SqlKind.IS_NOT_FALSE),
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    CIDRMATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+
+    // ── Logical connectives ─────────────────────────────────────────
+    AND(Category.SCALAR, SqlKind.AND),
+    OR(Category.SCALAR, SqlKind.OR),
+    NOT(Category.SCALAR, SqlKind.NOT),
     /** Calcite's Sarg fold for IN / NOT IN / BETWEEN / range-union. Backends expand it before substrait. */
     SARG_PREDICATE(Category.SCALAR, SqlKind.SEARCH),
 
     // ── Full-text search ─────────────────────────────────────────────
     MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     MATCH_PHRASE(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCH_BOOL_PREFIX(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCH_PHRASE_PREFIX(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MULTI_MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    QUERY_STRING(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    SIMPLE_QUERY_STRING(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     FUZZY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     WILDCARD(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP_CONTAINS(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    WILDCARD_QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCHALL(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
 
     // ── String ───────────────────────────────────────────────────────
     UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),
@@ -67,6 +87,11 @@ public enum ScalarFunction {
      * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
      */
     CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
+    /**
+     * Variadic {@code CONCAT(a, b, …)} — {@code SqlLibraryOperators.CONCAT_FUNCTION}, distinct from binary {@code ||}.
+     * Substrait CONSISTENT consistency requires the per-op adapter to unify operand types before emission.
+     */
+    CONCAT_FUNCTION(Category.STRING, SqlKind.OTHER_FUNCTION, org.apache.calcite.sql.fun.SqlLibraryOperators.CONCAT_FUNCTION),
     CONCAT_WS(Category.STRING, SqlKind.OTHER_FUNCTION),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
     REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
@@ -84,6 +109,54 @@ public enum ScalarFunction {
     NUMBER_TO_STRING(Category.STRING, SqlKind.OTHER_FUNCTION), // Alias for TOSTRING
     TONUMBER(Category.STRING, SqlKind.OTHER_FUNCTION),
     STRCMP(Category.STRING, SqlKind.OTHER_FUNCTION),
+    TRANSLATE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code parse <field> '<regex>'} — extracts named regex groups into a
+     * {@code MAP<VARCHAR, VARCHAR>}. Resolves by identifier-name through
+     * {@link #fromSqlFunction(SqlFunction)} ({@code SqlKind.OTHER_FUNCTION}
+     * shared with many scalar UDFs). Pairs with {@link #ITEM} downstream:
+     * {@code parse} returns the map, {@code item(map, group)} extracts each
+     * named group at the call site.
+     */
+    PARSE(Category.STRING, SqlKind.OTHER_FUNCTION),
+
+    /**
+     * PPL {@code grok <field> '<grok-pattern>'} — like {@link #PARSE} but the pattern
+     * is grok syntax ({@code %{HOSTNAME:host}}) rather than a raw regex. Shares the
+     * {@code ParseFunction} UDF in the SQL plugin (3rd operand {@code 'grok'}) and the
+     * same {@code MAP<VARCHAR, VARCHAR>} return type, so it pairs with {@link #ITEM}
+     * downstream just like {@code parse}. Resolves by identifier-name "GROK" through
+     * {@link #fromSqlFunction(SqlFunction)}. The grok-pattern dictionary and its
+     * recursive resolution live entirely in the {@code grok} Rust UDF (the SQL plugin's
+     * grok library is not on OpenSearch core's classpath), so no Java-side resolution
+     * is needed here.
+     */
+    GROK(Category.STRING, SqlKind.OTHER_FUNCTION),
+
+    // TODO: Frontend/lang-specific functions (NUM/AUTO/MEMK/MKTIME etc.) shouldn't
+    // live in the shared analytics-framework SPI — they couple the framework to PPL
+    // vocabulary. Replace with a registration-at-startup mechanism where each frontend
+    // supplies its own function set, keeping ScalarFunction to operators with
+    // cross-frontend semantics (CASE, COALESCE, comparisons, etc.).
+    NUM(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    AUTO(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MEMK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    RMCOMMA(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    RMUNIT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DUR2SEC(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MSTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MKTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── Cryptographic hash ─────────────────────────────────────────────
+    // md5(x), sha1(x), sha2(x, bitLen) with bitLen ∈ {224,256,384,512}, crc32(x).
+    MD5(Category.STRING, SqlKind.OTHER_FUNCTION),
+    SHA1(Category.STRING, SqlKind.OTHER_FUNCTION),
+    SHA2(Category.STRING, SqlKind.OTHER_FUNCTION),
+    CRC32(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
     PLUS(Category.MATH, SqlKind.PLUS),
@@ -122,6 +195,8 @@ public enum ScalarFunction {
     SINH(Category.MATH, SqlKind.OTHER_FUNCTION),
     TAN(Category.MATH, SqlKind.OTHER_FUNCTION),
     TRUNCATE(Category.MATH, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code conv(n, fromBase, toBase)} — base conversion via Rust UDF. */
+    CONVERT(Category.MATH, SqlKind.OTHER_FUNCTION),
 
     // ── Cast / type ──────────────────────────────────────────────────
     CAST(Category.SCALAR, SqlKind.CAST),
@@ -140,6 +215,9 @@ public enum ScalarFunction {
     NULLIF(Category.SCALAR, SqlKind.NULLIF),
 
     EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
+
+    // ── Conversion (placeholder UDFs rewritten by backend adapters) ──
+    BINARY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── Datetime ────────────────────────────────────────────────────
     // fromSqlFunction resolves via valueOf(name.toUpperCase()), so the enum name IS
@@ -169,6 +247,104 @@ public enum ScalarFunction {
     CURTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    STRFTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DATETIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    SYSDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFWEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY_OF_WEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    SECOND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    SECOND_OF_MINUTE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    FROM_UNIXTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MAKETIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MAKEDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DATE_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    TIME_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    STR_TO_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code TIMESTAMPDIFF(unit, start, end)} — emits the integer number of {@code unit}s
+     * between two timestamps. Resolves through the SQL plugin's {@code TimestampDiffFunction}
+     * UDF named {@code "TIMESTAMPDIFF"}. Lowering target for PPL `timechart`'s {@code per_*}
+     * aggregations, which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND',
+     * @timestamp, TIMESTAMPADD(unit, n, @timestamp)))}. The analytics-backend-datafusion adapter
+     * rewrites the call into a DataFusion-native expression because the PPL UDF itself is
+     * unknown to isthmus's default extension catalog.
+     */
+    TIMESTAMPDIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code TIMESTAMPADD(unit, value, timestamp)} — emits {@code timestamp + value units}.
+     * Resolves through the SQL plugin's {@code TimestampAddFunction} UDF named
+     * {@code "TIMESTAMPADD"}. Lowering target for PPL `timechart`'s {@code per_*}
+     * aggregations (see {@link #TIMESTAMPDIFF}). The analytics-backend-datafusion adapter
+     * rewrites the call into a DataFusion-native interval-add expression.
+     */
+    TIMESTAMPADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_ADD(<date|timestamp|time>, INTERVAL n unit)} — shift a temporal value
+     * forward by an interval, returning TIMESTAMP. Resolves through the SQL plugin's
+     * {@code DateAddSubFunction} UDF named {@code "DATE_ADD"}. The analytics-backend-datafusion
+     * adapter rewrites the call into {@code DATETIME_PLUS(base, interval)}, which binds through
+     * Substrait's standard {@code add(timestamp, interval)} to DataFusion's native interval add.
+     */
+    DATE_ADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_SUB(<date|timestamp|time>, INTERVAL n unit)} — the subtract counterpart of
+     * {@link #DATE_ADD}. Lowered to {@code DATETIME_PLUS(base, -interval)} by the
+     * analytics-backend-datafusion adapter.
+     */
+    DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code ADDDATE(<date|timestamp>, N | INTERVAL n unit)} — shift a temporal value forward.
+     * Shares the {@code DATE_ADD} lowering: the integer form is treated as {@code INTERVAL N DAY}.
+     * TIME bases (anchored to the query-start date by the PPL UDF) are left on the UDF path.
+     */
+    ADDDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code SUBDATE(<date|timestamp>, N | INTERVAL n unit)} — the subtract counterpart of
+     * {@link #ADDDATE}, sharing the {@code DATE_SUB} lowering.
+     */
+    SUBDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTHNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATEDIFF(a, b)} — whole-day difference between the calendar dates of two temporal
+     * values ({@code arg1 - arg2}, time-of-day discarded), returning BIGINT. Lowered to a
+     * day-index subtraction by the analytics-backend-datafusion adapter.
+     */
+    DATEDIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TO_DAYS(x)} — days since {@code 0000-01-01} (BIGINT). Epoch-arithmetic lowering. */
+    TO_DAYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TO_SECONDS(x)} — seconds since {@code 0000-01-01} (BIGINT). Epoch-arithmetic lowering. */
+    TO_SECONDS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code FROM_DAYS(n)} — inverse of {@link #TO_DAYS}, returns DATE. Epoch-arithmetic lowering. */
+    FROM_DAYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TIME_TO_SEC(x)} — seconds-of-day of a TIME/TIMESTAMP (BIGINT). Epoch-arithmetic lowering. */
+    TIME_TO_SEC(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code SEC_TO_TIME(n)} — time-of-day n seconds past midnight (TIME). from_unixtime-based lowering. */
+    SEC_TO_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code WEEKDAY(x)} — day-of-week Mon=0..Sun=6 (INTEGER). date_part('dow') remap lowering. */
+    WEEKDAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code PERIOD_ADD(P, n)} — add n months to a YYYYMM period (INTEGER). Integer-arithmetic lowering. */
+    PERIOD_ADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code PERIOD_DIFF(P1, P2)} — months between two YYYYMM periods (INTEGER). Integer-arithmetic lowering. */
+    PERIOD_DIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code GET_FORMAT(type, region)} — constant MySQL format string (VARCHAR). Plan-time literal fold. */
+    GET_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code ADDTIME(a, b)} — a plus b's time-of-day (TIME if a is TIME, else TIMESTAMP). */
+    ADDTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code SUBTIME(a, b)} — a minus b's time-of-day (TIME if a is TIME, else TIMESTAMP). */
+    SUBTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TIMEDIFF(a, b)} (engine label TIME_DIFF) — difference of two times as a TIME. */
+    TIME_DIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code LAST_DAY(x)} — last day of x's month (DATE). date_trunc('month')+1mo-1day lowering. */
+    LAST_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code YEARWEEK(x[, mode])} — year*100+week (INTEGER) via the os_yearweek Rust UDF. */
+    YEARWEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
@@ -176,8 +352,11 @@ public enum ScalarFunction {
     JSON_DELETE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_EXTRACT_ALL(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    PATTERN_PARSER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── Array ────────────────────────────────────────────────────────
     /**
@@ -230,7 +409,35 @@ public enum ScalarFunction {
      * and preserves nulls, so the analytics-backend-datafusion plugin ships a
      * custom Rust UDF ({@code udf::mvappend}) registered on its session context.
      */
-    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code span(field, interval, unit?)} — bucket {@code field} into
+     * fixed-width buckets. PPL's {@code stats … by span(field, N)} lowers to
+     * a 3-arg call where the third argument is {@code NULL} for numeric
+     * buckets and a unit-name string ({@code "y"}, {@code "M"}, {@code "d"},
+     * …) for time buckets. Resolves through the SQL plugin's
+     * {@code SpanFunction} UDF named {@code "SPAN"}. The analytics-backend
+     * adapter rewrites numeric span to {@code floor(field/interval)*interval}
+     * and time span (interval=1) to {@code date_trunc(unit, field)} so the
+     * Substrait-emitted plan reaches DataFusion as standard primitives.
+     */
+    SPAN(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── PPL bucketing label functions (return VARCHAR labels via Rust UDFs) ──
+    /** PPL span_bucket(value, span). Rust UDF returning a VARCHAR bucket label
+     *  like "10-20". NOT ISO SQL width_bucket. */
+    SPAN_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL width_bucket(value, num_bins, data_range, max_value). Returns a
+     *  VARCHAR bucket label via the OpenSearch nice-number algorithm. Name
+     *  collides with ISO-SQL WIDTH_BUCKET but semantics and signature differ. */
+    WIDTH_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL minspan_bucket(value, min_span, data_range, max_value). VARCHAR label. */
+    MINSPAN_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL range_bucket(value, data_min, data_max, start_param, end_param). VARCHAR label. */
+    RANGE_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.
@@ -291,12 +498,32 @@ public enum ScalarFunction {
     }
 
     /**
+     * Resolves a configuration/setting token (case-insensitive) to a {@link ScalarFunction}, throwing
+     * a descriptive {@link IllegalArgumentException} if unrecognized. Used by cluster settings that
+     * name predicate functions (e.g. the delegation block-list).
+     */
+    public static ScalarFunction fromToken(String token) {
+        try {
+            return valueOf(token.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown scalar function [" + token + "]");
+        }
+    }
+
+    /**
      * Maps a Calcite SqlFunction to a ScalarFunction by name, or null if not recognized.
      */
     public static ScalarFunction fromSqlFunction(SqlFunction function) {
         // TODO: Add an explicit functionName field per enum constant instead of relying on
         // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
-        return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+        try {
+            return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            // Callers (e.g. OpenSearchProjectRule) short-circuit on null — routing the
+            // function through the non-ScalarFunction path (opaque or YAML-alias based
+            // name lookup) rather than aborting Hep rule matching with an exception.
+            return null;
+        }
     }
 
     /**

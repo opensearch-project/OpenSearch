@@ -14,7 +14,6 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Union;
 import org.apache.calcite.rel.core.Values;
-import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
@@ -27,13 +26,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Converts {@link Union} → {@link OpenSearchUnion}.
+ * HEP marker: {@link Union} → {@link OpenSearchUnion}.
  *
- * <p>Validates that all inputs are marked, intersects their viable backends, and
- * filters by {@link EngineCapability#UNION}. Empty {@link Values} inputs (the
- * shape produced by an {@code | append [ ]} subsearch with no source) are dropped
- * — they contribute zero rows to the result. If only one non-empty input remains
- * the Union node is collapsed to that input.
+ * <p>Wraps every arm in an {@link OpenSearchExchangeReducer} so DAGBuilder cuts a
+ * separate child stage per Union branch. Each child stage is then routed to its own
+ * shard set (ShardTargetResolver finds the first {@code OpenSearchTableScan} in its
+ * fragment, which now scans only that branch's index) and produces a distinct input
+ * partition at the coordinator.
+ *
+ * <p>RANDOM arms need the gather; SINGLETON arms (single-shard tables, FINAL
+ * aggregate outputs, etc.) are also wrapped — the ER is logically a no-op for
+ * SINGLETON but the structural cut is what guarantees per-branch stage isolation,
+ * which is essential when branches reference different indices. The
+ * ConverterImpl-based ER dedupes into the input's RelSet subset when the input
+ * already delivers SINGLETON, so no redundant ER is emitted.
+ *
+ * <p>Validates inputs are marked, intersects viable backends, and filters by
+ * {@link EngineCapability#UNION}. Empty {@link Values} inputs are dropped (they
+ * contribute zero rows — produced by {@code | append [ ]} subsearches with no source).
+ * If only one non-empty input remains the Union collapses to that input.
  *
  * @opensearch.internal
  */
@@ -61,9 +72,7 @@ public class OpenSearchUnionRule extends RelOptRule {
         for (RelNode input : union.getInputs()) {
             RelNode unwrapped = RelNodeUtils.unwrapHep(input);
             if (unwrapped instanceof Values values && values.getTuples().isEmpty()) {
-                // Empty values inputs contribute no rows — drop them. Only meaningful
-                // for testAppendEmptySearchCommand-style queries where `append [ ]`
-                // yields a LogicalValues(tuples=[[]]) with the union's output schema.
+                // Empty Values arms contribute no rows — drop them (from `append [ ]`).
                 continue;
             }
             if (!(unwrapped instanceof OpenSearchRelNode openSearchInput)) {
@@ -83,14 +92,11 @@ public class OpenSearchUnionRule extends RelOptRule {
         }
 
         if (markedInputs.isEmpty()) {
-            // Defensive — Calcite shouldn't construct a Union with all-empty inputs, but
-            // surfacing a clear message beats letting downstream rules fail mysteriously.
             throw new IllegalStateException("Union rule encountered Union with all-empty inputs");
         }
 
         if (markedInputs.size() == 1) {
-            // Single non-empty input — collapse the Union. Row type is preserved by
-            // construction (Calcite requires every Union input to share the row type).
+            // Single non-empty input — collapse the Union.
             call.transformTo(markedInputs.getFirst());
             return;
         }
@@ -102,26 +108,10 @@ public class OpenSearchUnionRule extends RelOptRule {
             throw new IllegalStateException("No backend supports UNION among viable backends after intersecting inputs");
         }
 
-        // Wrap every input in an OpenSearchExchangeReducer so DAGBuilder cuts a
-        // separate child stage per Union branch. Each child stage is then routed to
-        // its own shard set (ShardTargetResolver finds the first OpenSearchTableScan
-        // in its fragment, which now scans only that branch's index) and produces a
-        // distinct input partition at the coordinator.
-        //
-        // RANDOM inputs need the gather; SINGLETON inputs (single-shard tables, FINAL
-        // aggregate outputs, etc.) are also wrapped — the ER is logically a no-op for
-        // SINGLETON but the structural cut is what guarantees per-branch stage isolation,
-        // which is essential when branches reference different indices.
+        // HEP marking only — no ER insertion. OpenSearchUnion's cost gate (all inputs
+        // must be SINGLETON) drives Volcano to insert ERs on each arm via TraitDef.convert.
         OpenSearchDistributionTraitDef distTraitDef = context.getDistributionTraitDef();
-        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(context.getCapabilityRegistry(), viableBackends);
-
-        List<RelNode> gatheredInputs = new ArrayList<>(markedInputs.size());
-        for (RelNode markedInput : markedInputs) {
-            RelTraitSet singletonTraits = markedInput.getTraitSet().replace(distTraitDef.singleton());
-            gatheredInputs.add(new OpenSearchExchangeReducer(union.getCluster(), singletonTraits, markedInput, reduceViable));
-        }
-
-        RelTraitSet unionTraits = gatheredInputs.getFirst().getTraitSet().replace(distTraitDef.singleton());
-        call.transformTo(new OpenSearchUnion(union.getCluster(), unionTraits, gatheredInputs, union.all, viableBackends));
+        RelTraitSet unionTraits = markedInputs.getFirst().getTraitSet().replace(distTraitDef.coordSingleton());
+        call.transformTo(new OpenSearchUnion(union.getCluster(), unionTraits, markedInputs, union.all, viableBackends));
     }
 }

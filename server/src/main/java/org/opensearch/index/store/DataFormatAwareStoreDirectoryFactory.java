@@ -11,12 +11,9 @@ package org.opensearch.index.store;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -60,20 +57,17 @@ public interface DataFormatAwareStoreDirectoryFactory {
      * storage support.
      *
      * <p>Implementations that support warm+format override this method to
-     * build the full tiered directory stack. The per-shard strategy registry
-     * is constructed by the factory from the supplied {@code storeStrategies}
-     * and {@code nativeStore}; individual data formats contribute only the
-     * strategies.
+     * build the full tiered directory stack. The caller creates the
+     * {@link org.opensearch.storage.directory.StoreStrategyRegistry} externally
+     * and passes it in so that native store handles can be extracted before
+     * the directory is created.
      *
      * @param indexSettings          the shard's index settings
      * @param shardId                the shard identifier
      * @param shardPath              the path the shard is using for file storage
      * @param localDirectoryFactory  the factory for creating the underlying local directory
      * @param checksumStrategies     pre-built checksum strategies keyed by format name
-     * @param storeStrategies        the strategies declared by participating formats for this shard
-     * @param nativeStore            the repository's native store, or
-     *                               {@link NativeStoreRepository#EMPTY}
-     * @param isWarm                 true if the shard is on a warm node
+     * @param strategies             the pre-built store strategy registry for this shard
      * @param remoteDirectory        the remote segment store directory
      * @param fileCache              the file cache for warm node caching
      * @param threadPool             the thread pool for async operations
@@ -86,9 +80,7 @@ public interface DataFormatAwareStoreDirectoryFactory {
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Map<String, FormatChecksumStrategy> checksumStrategies,
-        Map<DataFormat, StoreStrategy> storeStrategies,
-        NativeStoreRepository nativeStore,
-        boolean isWarm,
+        org.opensearch.storage.directory.StoreStrategyRegistry strategies,
         RemoteSegmentStoreDirectory remoteDirectory,
         FileCache fileCache,
         ThreadPool threadPool

@@ -18,22 +18,19 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tests for {@link DefaultPlanExecutor}'s row-materialization boundary.
  *
  * <p>The end-to-end {@code execute(RelNode, Object)} path involves Guice-wired
  * dependencies (TransportService, Scheduler, TaskManager, CapabilityRegistry,
- * EngineContext, NodeClient) and is exercised by internal cluster tests.
+ * EngineContextProvider, NodeClient) and is exercised by internal cluster tests.
  * These unit tests cover the one deterministic piece of behavior that lives
  * in this class: batches-to-rows conversion at the external API edge.
  */
@@ -141,86 +138,6 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         assertTrue(rows.get(0)[0] instanceof String);
     }
 
-    public void testBuildBatchesListenerSuccessRunsCleanupOnce() {
-        AtomicInteger cleanupCount = new AtomicInteger(0);
-        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
-
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(
-            downstream,
-            cleanupCount::incrementAndGet
-        );
-
-        VectorSchemaRoot batch = makeIntBatch("x", 1, 2);
-        batchesListener.onResponse(List.of(batch));
-
-        assertEquals(1, cleanupCount.get());
-        assertNotNull(result.get());
-        assertEquals(2, toList(result.get()).size());
-        assertNull(failure.get());
-    }
-
-    public void testBuildBatchesListenerFailureRunsCleanupOnce() {
-        AtomicInteger cleanupCount = new AtomicInteger(0);
-        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
-
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(
-            downstream,
-            cleanupCount::incrementAndGet
-        );
-
-        Exception cause = new RuntimeException("upstream failure");
-        batchesListener.onFailure(cause);
-
-        assertEquals(1, cleanupCount.get());
-        assertNull(result.get());
-        assertSame(cause, failure.get());
-    }
-
-    public void testBuildBatchesListenerConversionFailureRoutesToFailureWithSingleCleanup() {
-        AtomicInteger cleanupCount = new AtomicInteger(0);
-        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
-
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(
-            downstream,
-            cleanupCount::incrementAndGet
-        );
-
-        Iterable<VectorSchemaRoot> badBatches = () -> { throw new RuntimeException("conversion failed"); };
-        batchesListener.onResponse(badBatches);
-
-        assertEquals("cleanup must run exactly once when conversion throws", 1, cleanupCount.get());
-        assertNull(result.get());
-        assertNotNull(failure.get());
-        assertEquals("conversion failed", failure.get().getMessage());
-    }
-
-    public void testBuildBatchesListenerCleanupFailureOnSuccessRoutesToFailure() {
-        AtomicInteger cleanupCount = new AtomicInteger(0);
-        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
-
-        Runnable cleanup = () -> {
-            cleanupCount.incrementAndGet();
-            throw new RuntimeException("cleanup failed");
-        };
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(downstream, cleanup);
-
-        VectorSchemaRoot batch = makeIntBatch("x", 1, 2);
-        batchesListener.onResponse(List.of(batch));
-
-        assertEquals("cleanup runs exactly once even when it throws", 1, cleanupCount.get());
-        assertNull("downstream onResponse must not fire when cleanup throws on success path", result.get());
-        assertNotNull(failure.get());
-        assertEquals("cleanup failed", failure.get().getMessage());
-    }
-
     public void testBatchesToRowsClosesBatches() {
         BufferAllocator child = allocator.newChildAllocator("test", 0, Long.MAX_VALUE);
         VectorSchemaRoot batch = makeIntBatch(child, "x", 1, 2);
@@ -231,7 +148,46 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         child.close();
     }
 
+    /**
+     * The coordinator's Arrow batch can present columns in physical/scan order (e.g. a
+     * no-projection scan over a dynamically-mapped index comes back alphabetically [age, name]).
+     * batchesToRows must reorder to the plan's declared column order [name, age] so a positional
+     * consumer (SQL frontend) names each value correctly. Without this, name/age (or name/alias)
+     * values transpose.
+     */
+    public void testBatchesToRowsReordersToTargetColumnOrder() {
+        VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // physical order: [age, name]
+        List<Object[]> rows = toList(DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "age")));
+        assertEquals(1, rows.size());
+        assertArrayEquals("columns must be reordered to [name, age]", new Object[] { "hello", 20L }, rows.get(0));
+    }
+
+    /**
+     * Contract: an unknown target column name is a planner/executor invariant violation —
+     * {@code orderedColumns} throws rather than dropping the column or substituting null.
+     * Silent fallback would let a misaligned plan return wrong-but-shape-valid rows, which
+     * is harder to diagnose than a fast failure. If the upstream caller wants tolerance,
+     * it must filter target names before invoking {@code batchesToRows}.
+     */
+    public void testBatchesToRowsThrowsWhenTargetNameMissing() {
+        VectorSchemaRoot batch = makeAgeNameBatch(20L, "hello");  // [age, name]
+        expectThrows(IllegalStateException.class, () -> DefaultPlanExecutor.batchesToRows(List.of(batch), List.of("name", "nonexistent")));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
+
+    /** Two-column batch with vectors in physical order [age (BigInt), name (VarChar)]. */
+    private VectorSchemaRoot makeAgeNameBatch(long age, String name) {
+        Field ageField = new Field("age", FieldType.nullable(new ArrowType.Int(64, true)), null);
+        Field nameField = new Field("name", FieldType.nullable(new ArrowType.Utf8()), null);
+        Schema schema = new Schema(List.of(ageField, nameField));
+        VectorSchemaRoot vsr = VectorSchemaRoot.create(schema, allocator);
+        vsr.allocateNew();
+        ((BigIntVector) vsr.getVector("age")).setSafe(0, age);
+        ((VarCharVector) vsr.getVector("name")).setSafe(0, name.getBytes(StandardCharsets.UTF_8));
+        vsr.setRowCount(1);
+        return vsr;
+    }
 
     private VectorSchemaRoot makeIntBatch(String fieldName, int... values) {
         return makeIntBatch(allocator, fieldName, values);

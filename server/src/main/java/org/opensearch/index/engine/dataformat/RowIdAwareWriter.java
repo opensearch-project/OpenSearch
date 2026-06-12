@@ -53,6 +53,26 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
     }
 
     /**
+     * Returns the number of documents written to this writer so far.
+     *
+     * @return the current document count
+     */
+    public long docCount() {
+        return rowIdCounter.get();
+    }
+
+    /**
+     * Returns the wrapped delegate writer.
+     * <p>
+     * <b>Test-only:</b> exposed solely so tests can reach a {@code MockWriter} held inside this
+     * decorator without relying on reflection (forbidden in test bytecode). Production code must
+     * not depend on this accessor.
+     */
+    public Writer<P> getDelegate() {
+        return delegate;
+    }
+
+    /**
      * Assigns a sequential row ID to the document input, then delegates to the
      * underlying writer. The row ID is set via {@link DocumentInput#setRowId}
      * using the standard {@link DocumentInput#ROW_ID_FIELD} field name.
@@ -63,26 +83,62 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
      */
     @Override
     public WriteResult addDoc(P d) throws IOException {
+        ensureActive();
         d.setRowId(DocumentInput.ROW_ID_FIELD, rowIdCounter.getAndIncrement());
-        return delegate.addDoc(d);
+        WriteResult result = delegate.addDoc(d);
+        if (result instanceof WriteResult.Failure) {
+            // Move to older state, in case writes come to the writer
+            rowIdCounter.decrementAndGet();
+        }
+        return result;
     }
 
     /** {@inheritDoc} Delegates to the underlying writer. */
     @Override
-    public FileInfos flush() throws IOException {
-        return delegate.flush();
-    }
-
-    /** {@inheritDoc} Delegates to the underlying writer. */
-    @Override
-    public void sync() throws IOException {
-        delegate.sync();
+    public FileInfos flush(FlushInput flushInput) throws IOException {
+        return delegate.flush(flushInput);
     }
 
     /** {@inheritDoc} Returns the generation of the underlying writer. */
     @Override
     public long generation() {
         return delegate.generation();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public WriterState state() {
+        return delegate.state();
+    }
+
+    @Override
+    public void rollbackTo(long rowCount) {
+        throw new UnsupportedOperationException("RowIdAwareWriter.rollbackTo must not be called — composite drives rollback internally");
+    }
+
+    private void ensureActive() {
+        WriterState s = delegate.state();
+        if (s != WriterState.ACTIVE) {
+            throw new IllegalStateException("Writer is not ACTIVE: " + s);
+        }
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public boolean isSchemaMutable() {
+        return delegate.isSchemaMutable();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public long mappingVersion() {
+        return delegate.mappingVersion();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        delegate.updateMappingVersion(newVersion);
     }
 
     /** {@inheritDoc} Closes the underlying writer. */

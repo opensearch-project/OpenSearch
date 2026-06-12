@@ -14,11 +14,14 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -181,6 +184,33 @@ public class DataFormatRegistry {
     }
 
     /**
+     * Assigns the capability map on the given field type by delegating to the configured data formats.
+     * Each format in priority order claims the capabilities it supports for the field type.
+     * If any requested capability remains unclaimed, a {@link org.opensearch.index.mapper.MapperParsingException} is thrown.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings used to resolve the active plugin
+     */
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName == null || dataformatName.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormat format = dataFormats.get(dataformatName);
+        if (format == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        plugin.assignCapabilities(fieldType, indexSettings, this);
+    }
+
+    /**
      * Returns store strategies for a specific data format, bypassing the
      * {@code pluggable_dataformat} index setting lookup. Used by composite
      * plugins to resolve child strategies without recursion.
@@ -278,5 +308,33 @@ public class DataFormatRegistry {
             );
         }
         return Map.of(readerManagerConfig.format(), readerManagerBuilders.get(readerManagerConfig.format()).apply(readerManagerConfig));
+    }
+
+    /**
+     * Returns the {@link DeleteExecutionEngine} by finding the single registered plugin that provides one.
+     * Iterates over all registered data format plugins and validates that exactly one returns a non-null
+     * result from {@link DataFormatPlugin#getDeleteExecutionEngine(Committer)}.
+     *
+     * @param committer the committer for durable delete tracking
+     * @return the delete execution engine
+     * @throws IllegalStateException if no plugin or multiple plugins provide a delete execution engine
+     */
+    public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        List<DeleteExecutionEngine<?>> engines = new ArrayList<>();
+        for (DataFormatPlugin plugin : dataFormatPluginRegistry.values()) {
+            DeleteExecutionEngine<?> engine = plugin.getDeleteExecutionEngine(committer);
+            if (engine != null) {
+                engines.add(engine);
+            }
+        }
+        if (engines.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple DataFormatPlugins provide a DeleteExecutionEngine, expected exactly one but found [" + engines.size() + "]"
+            );
+        }
+        if (engines.isEmpty()) {
+            throw new IllegalStateException("No DataFormatPlugin provides a DeleteExecutionEngine");
+        }
+        return engines.getFirst();
     }
 }

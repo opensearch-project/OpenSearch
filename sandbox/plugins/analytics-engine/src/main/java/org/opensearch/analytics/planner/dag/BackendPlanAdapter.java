@@ -11,19 +11,32 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexFieldCollation;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
+import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexWindow;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.AggregateMode;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
+import org.opensearch.analytics.spi.WindowFunction;
+import org.opensearch.analytics.spi.WindowFunctionAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,22 +72,25 @@ public class BackendPlanAdapter {
         }
         List<StagePlan> adapted = new ArrayList<>(stage.getPlanAlternatives().size());
         for (StagePlan plan : stage.getPlanAlternatives()) {
-            Map<ScalarFunction, ScalarFunctionAdapter> adapters = registry.getBackend(plan.backendId())
-                .getCapabilityProvider()
-                .scalarFunctionAdapters();
-            if (adapters.isEmpty()) {
-                adapted.add(plan);
+            var capabilityProvider = registry.getBackend(plan.backendId()).getCapabilityProvider();
+            Adapters adapters = new Adapters(capabilityProvider.scalarFunctionAdapters(), capabilityProvider.windowFunctionAdapters());
+            LOGGER.debug("Before adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(plan.resolvedFragment()));
+            RelNode fragment = adaptNode(plan.resolvedFragment(), adapters);
+            LOGGER.debug("After adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(fragment));
+            if (fragment != plan.resolvedFragment()) {
+                adapted.add(new StagePlan(fragment, plan.backendId()));
             } else {
-                LOGGER.debug("Before adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(plan.resolvedFragment()));
-                RelNode adaptedFragment = adaptNode(plan.resolvedFragment(), adapters);
-                LOGGER.debug("After adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(adaptedFragment));
-                adapted.add(new StagePlan(adaptedFragment, plan.backendId()));
+                adapted.add(plan);
             }
         }
         stage.setPlanAlternatives(adapted);
     }
 
-    private static RelNode adaptNode(RelNode node, Map<ScalarFunction, ScalarFunctionAdapter> adapters) {
+    /** Backend-provided adapter maps, bundled so helper signatures stay narrow. */
+    private record Adapters(Map<ScalarFunction, ScalarFunctionAdapter> scalar, Map<WindowFunction, WindowFunctionAdapter> window) {
+    }
+
+    private static RelNode adaptNode(RelNode node, Adapters adapters) {
         List<RelNode> adaptedChildren = new ArrayList<>(node.getInputs().size());
         boolean childrenChanged = false;
         for (RelNode child : node.getInputs()) {
@@ -89,16 +105,44 @@ public class BackendPlanAdapter {
         if (node instanceof OpenSearchProject project) {
             return adaptProject(project, adapters, adaptedChildren, childrenChanged);
         }
+        if (node instanceof OpenSearchJoin join) {
+            return adaptJoin(join, adapters, adaptedChildren, childrenChanged);
+        }
+        if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
+            OpenSearchAggregate withAdaptedChildren = childrenChanged
+                ? (OpenSearchAggregate) agg.copy(agg.getTraitSet(), adaptedChildren)
+                : agg;
+            return DistributedAggregateRewriter.rewrite(withAdaptedChildren);
+        }
 
         return childrenChanged ? node.copy(node.getTraitSet(), adaptedChildren) : node;
     }
 
-    private static RelNode adaptFilter(
-        OpenSearchFilter filter,
-        Map<ScalarFunction, ScalarFunctionAdapter> adapters,
-        List<RelNode> adaptedChildren,
-        boolean childrenChanged
-    ) {
+    /**
+     * Adapts {@link OpenSearchJoin#getCondition()} so PPL UDFs inlined by
+     * Calcite's FILTER_INTO_JOIN reach the fragment converter in their adapted shape.
+     * Field storage is left ++ right output storage (Calcite join row-type ordering).
+     */
+    private static RelNode adaptJoin(OpenSearchJoin join, Adapters adapters, List<RelNode> adaptedChildren, boolean childrenChanged) {
+        RelNode left = childrenChanged ? adaptedChildren.get(0) : join.getLeft();
+        RelNode right = childrenChanged ? adaptedChildren.get(1) : join.getRight();
+        List<FieldStorageInfo> fieldStorage = join.getOutputFieldStorage();
+        RexNode adaptedCondition = adaptRex(join.getCondition(), adapters, fieldStorage, join.getCluster());
+        if (adaptedCondition != join.getCondition() || childrenChanged) {
+            return new OpenSearchJoin(
+                join.getCluster(),
+                join.getTraitSet(),
+                left,
+                right,
+                adaptedCondition,
+                join.getJoinType(),
+                join.getViableBackends()
+            );
+        }
+        return join;
+    }
+
+    private static RelNode adaptFilter(OpenSearchFilter filter, Adapters adapters, List<RelNode> adaptedChildren, boolean childrenChanged) {
         List<FieldStorageInfo> fieldStorage = filter.getOutputFieldStorage();
         RexNode adaptedCondition = adaptRex(filter.getCondition(), adapters, fieldStorage, filter.getCluster());
         if (adaptedCondition != filter.getCondition() || childrenChanged) {
@@ -115,7 +159,7 @@ public class BackendPlanAdapter {
 
     private static RelNode adaptProject(
         OpenSearchProject project,
-        Map<ScalarFunction, ScalarFunctionAdapter> adapters,
+        Adapters adapters,
         List<RelNode> adaptedChildren,
         boolean childrenChanged
     ) {
@@ -129,11 +173,22 @@ public class BackendPlanAdapter {
             adaptedProjects.add(adapted);
             if (adapted != projectExpr) projectsChanged = true;
         }
+
+        // If the child's row type shifted (e.g. FINAL aggregate's rewriter produced SUM of NOT-NULL
+        // column → nullable BIGINT), the project's RexInputRefs still carry the old types. Rebind
+        // them against the new input row type and CAST each projection back to the project's
+        // declared column type so the outer-visible schema is preserved.
+        RelNode newInput = childrenChanged ? adaptedChildren.getFirst() : project.getInput();
+        if (childrenChanged && !newInput.getRowType().equals(project.getInput().getRowType())) {
+            adaptedProjects = rebindProjectsAgainstInput(adaptedProjects, project, newInput);
+            projectsChanged = true;
+        }
+
         if (projectsChanged || childrenChanged) {
             return new OpenSearchProject(
                 project.getCluster(),
                 project.getTraitSet(),
-                childrenChanged ? adaptedChildren.getFirst() : project.getInput(),
+                newInput,
                 adaptedProjects,
                 project.getRowType(),
                 project.getViableBackends()
@@ -154,12 +209,7 @@ public class BackendPlanAdapter {
      * <p>This ordering is validated by {@code testNestedAdaptedFunctionsProduceSingleCast}
      * which confirms {@code SIN(ABS($0))} with both adapted produces one CAST at the leaf.
      */
-    private static RexNode adaptRex(
-        RexNode node,
-        Map<ScalarFunction, ScalarFunctionAdapter> adapters,
-        List<FieldStorageInfo> fieldStorage,
-        RelOptCluster cluster
-    ) {
+    private static RexNode adaptRex(RexNode node, Adapters adapters, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
         if (!(node instanceof RexCall call)) {
             return node;
         }
@@ -180,12 +230,18 @@ public class BackendPlanAdapter {
             if (adapted != operand) operandsChanged = true;
         }
 
+        // PARTITION BY / ORDER BY expressions live on RexOver.window, not in getOperands(), so
+        // adapter recursion has to descend through adaptOver to reach them.
+        if (call instanceof RexOver over) {
+            return adaptOver(over, adapters, fieldStorage, cluster, adaptedOperands, operandsChanged);
+        }
+
         RexCall current = operandsChanged ? call.clone(call.getType(), adaptedOperands) : call;
 
         // Look up adapter for this function
         ScalarFunction function = resolveFunction(current);
         if (function != null) {
-            ScalarFunctionAdapter adapter = adapters.get(function);
+            ScalarFunctionAdapter adapter = adapters.scalar().get(function);
             if (adapter != null) {
                 return adapter.adapt(current, fieldStorage, cluster);
             }
@@ -194,7 +250,106 @@ public class BackendPlanAdapter {
         return current;
     }
 
+    /**
+     * Adapt a {@link RexOver}: recurse into its PARTITION BY and ORDER BY (which live on
+     * {@link RexWindow}, not in {@code getOperands()}), then dispatch to the backend's
+     * {@link WindowFunctionAdapter} for this {@link WindowFunction} (if any) to rewrite the
+     * operator / operands / order keys into the backend's expected shape. Returns the original
+     * RexOver unchanged when nothing under it changed and no adapter applies.
+     */
+    private static RexNode adaptOver(
+        RexOver over,
+        Adapters adapters,
+        List<FieldStorageInfo> fieldStorage,
+        RelOptCluster cluster,
+        List<RexNode> adaptedOperands,
+        boolean operandsChanged
+    ) {
+        RexWindow window = over.getWindow();
+        List<RexNode> adaptedPartitionKeys = new ArrayList<>(window.partitionKeys.size());
+        boolean windowChanged = false;
+        for (RexNode key : window.partitionKeys) {
+            RexNode adapted = adaptRex(key, adapters, fieldStorage, cluster);
+            adaptedPartitionKeys.add(adapted);
+            if (adapted != key) windowChanged = true;
+        }
+        List<RexFieldCollation> adaptedOrderKeys = new ArrayList<>(window.orderKeys.size());
+        for (RexFieldCollation order : window.orderKeys) {
+            RexNode adapted = adaptRex(order.left, adapters, fieldStorage, cluster);
+            if (adapted != order.left) {
+                adaptedOrderKeys.add(new RexFieldCollation(adapted, order.right));
+                windowChanged = true;
+            } else {
+                adaptedOrderKeys.add(order);
+            }
+        }
+
+        // Backend-specific rewrites (e.g. ARG_MIN→FIRST_VALUE). Adapter sees already-adapted operands.
+        WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
+        WindowFunctionAdapter adapter = fn == null ? null : adapters.window().get(fn);
+        if (adapter != null) {
+            return adapter.adapt(over, adaptedOperands, adaptedPartitionKeys, adaptedOrderKeys, cluster);
+        }
+
+        if (operandsChanged || windowChanged) {
+            return cluster.getRexBuilder()
+                .makeOver(
+                    over.getType(),
+                    over.getAggOperator(),
+                    adaptedOperands,
+                    adaptedPartitionKeys,
+                    com.google.common.collect.ImmutableList.copyOf(adaptedOrderKeys),
+                    window.getLowerBound(),
+                    window.getUpperBound(),
+                    window.getExclude(),
+                    window.isRows(),
+                    true,
+                    false,
+                    over.isDistinct(),
+                    over.ignoreNulls()
+                );
+        }
+        return over;
+    }
+
     private static ScalarFunction resolveFunction(RexCall call) {
         return ScalarFunction.fromSqlOperatorWithFallback(call.getOperator());
+    }
+
+    /**
+     * Rebind a Project's expressions against a new input whose row type has shifted (typically
+     * in nullability — e.g. FINAL aggregate's rewriter turned a NOT-NULL count into a nullable
+     * BIGINT). RexInputRefs get retyped to the new column types; projections that diverge from
+     * the Project's declared column type get wrapped in a CAST so the outer-visible schema is
+     * preserved.
+     */
+    private static ArrayList<RexNode> rebindProjectsAgainstInput(
+        List<RexNode> projects,
+        OpenSearchProject originalProject,
+        RelNode newInput
+    ) {
+        RexBuilder rexBuilder = originalProject.getCluster().getRexBuilder();
+        List<RelDataType> newInputTypes = new ArrayList<>();
+        for (RelDataTypeField f : newInput.getRowType().getFieldList()) {
+            newInputTypes.add(f.getType());
+        }
+        RexShuttle rebind = new RexShuttle() {
+            @Override
+            public RexNode visitInputRef(RexInputRef ref) {
+                RelDataType actual = newInputTypes.get(ref.getIndex());
+                if (ref.getType().equals(actual)) return ref;
+                return new RexInputRef(ref.getIndex(), actual);
+            }
+        };
+        ArrayList<RexNode> rebound = new ArrayList<>(projects.size());
+        for (int i = 0; i < projects.size(); i++) {
+            RexNode expr = projects.get(i).accept(rebind);
+            RelDataType targetType = originalProject.getRowType().getFieldList().get(i).getType();
+            if (!expr.getType().equals(targetType)) {
+                expr = rexBuilder.makeCast(targetType, expr);
+            }
+            rebound.add(expr);
+        }
+        return rebound;
     }
 }

@@ -29,6 +29,7 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
+    output_writer_generation: i64,
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -100,6 +101,7 @@ pub fn merge_sorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)
@@ -196,6 +198,16 @@ pub fn merge_sorted(
                 if !cursor.advance_past_batch()? {
                     break;
                 }
+                // Check if cursor should yield after loading new batch
+                let val = cursor.current_sort_values()?;
+                if cmp_sort_values(&val, heap_top, reverse_sorts) == Ordering::Greater {
+                    heap.push(HeapItem {
+                        sort_values: val,
+                        file_id,
+                        reverse_sorts: Arc::clone(&reverse_sorts_arc),
+                    });
+                    break;
+                }
                 continue;
             }
 
@@ -241,28 +253,28 @@ pub fn merge_sorted(
                 break;
             }
 
-            let next_val = cursor.current_sort_values()?;
-            if cmp_sort_values(&next_val, heap_top, reverse_sorts) == Ordering::Greater {
-                heap.push(HeapItem {
-                    sort_values: next_val,
-                    file_id,
-                    reverse_sorts: Arc::clone(&reverse_sorts_arc),
-                });
-                break;
-            }
+            // Binary search invariant guarantees cursor.current_value > heap_top
+            // so we always yield here (no need for conditional check)
+            let val = cursor.current_sort_values()?;
+            heap.push(HeapItem {
+                sort_values: val,
+                file_id,
+                reverse_sorts: Arc::clone(&reverse_sorts_arc),
+            });
+            break;
         }
     }
 
     // ── Phase 5: Close ──────────────────────────────────────────────────
-    let (metadata, crc32) = ctx.finish()?;
+    let stats = ctx.finish()?;
 
     log_debug!(
         "[RUST] Merge complete ({}): {} total rows written to '{}' in {} row groups, crc32={:#010x}",
         direction_label,
-        metadata.file_metadata().num_rows(),
+        stats.metadata.file_metadata().num_rows(),
         output_path,
-        metadata.num_row_groups(),
-        crc32
+        stats.metadata.num_row_groups(),
+        stats.crc32
     );
 
     Ok(super::MergeOutput {
@@ -270,7 +282,10 @@ pub fn merge_sorted(
         gen_keys,
         gen_offsets,
         gen_sizes,
-        metadata,
-        crc32,
+        metadata: stats.metadata,
+        crc32: stats.crc32,
+        flush_and_sort_chunk_count: stats.flush_and_sort_chunk_count,
+        flush_and_sort_chunk_time_millis: stats.flush_and_sort_chunk_time_millis,
+        row_id_mapping_max: stats.row_id_mapping_max,
     })
 }

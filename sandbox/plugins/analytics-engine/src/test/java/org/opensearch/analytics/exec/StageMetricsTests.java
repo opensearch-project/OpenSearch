@@ -16,23 +16,6 @@ import org.opensearch.test.OpenSearchTestCase;
  */
 public class StageMetricsTests extends OpenSearchTestCase {
 
-    public void testStageMetricsCounterAccuracy() {
-        StageMetrics metrics = new StageMetrics();
-
-        int n = randomIntBetween(1, 50);
-        int m = randomIntBetween(1, 50);
-
-        for (int i = 0; i < n; i++) {
-            metrics.incrementTasksCompleted();
-        }
-        for (int i = 0; i < m; i++) {
-            metrics.incrementTasksFailed();
-        }
-
-        assertEquals("tasksCompleted must equal the number of incrementTasksCompleted() calls", n, metrics.getTasksCompleted());
-        assertEquals("tasksFailed must equal the number of incrementTasksFailed() calls", m, metrics.getTasksFailed());
-    }
-
     public void testStageMetricsTimestamps() {
         StageMetrics metrics = new StageMetrics();
 

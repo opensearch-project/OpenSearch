@@ -12,6 +12,8 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
+import org.opensearch.arrow.transport.VectorTransfer;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -129,6 +131,12 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             return;
         }
 
+        // Block the producer thread before queuing the batch so a slow consumer throttles
+        // allocation rather than letting the eventloop's queue grow. Note: isReady()
+        // reflects only gRPC's outbound buffer, not our own queue depth — see
+        // docs/backpressure.md "Known limitation: unbounded eventloop queue".
+        flightChannel.awaitReadyOrThrow();
+
         flightChannel.getExecutor().execute(threadPool.getThreadContext().preserveContext(() -> {
             try (BatchTask ignored = task) {
                 processBatchTask(task);
@@ -147,7 +155,9 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
 
         try {
             VectorStreamOutput out;
+            byte[] metadata = null;
             if (task.response() instanceof ArrowBatchResponse arrowResponse) {
+                metadata = arrowResponse.getMetadata();
                 // Native Arrow path: zero-copy transfer producer's vectors into stream root
                 VectorSchemaRoot streamRoot = flightChannel.getRoot();
                 if (streamRoot == null) {
@@ -161,7 +171,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                     }
                     streamRoot = VectorSchemaRoot.create(arrowResponse.getRoot().getSchema(), fieldVectors.getFirst().getAllocator());
                 }
-                FlightUtils.transferRoot(arrowResponse.getRoot(), streamRoot);
+                VectorTransfer.transferRoot(arrowResponse.getRoot(), streamRoot);
                 arrowResponse.getRoot().close();
                 out = VectorStreamOutput.forNativeArrow(streamRoot);
             } else {
@@ -169,7 +179,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                 task.response().writeTo(out);
             }
             try (out) {
-                flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out);
+                flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out, metadata);
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
             }
         } catch (FlightRuntimeException e) {

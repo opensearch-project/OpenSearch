@@ -83,7 +83,8 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
     }
 
     public void testOrWithOnlyDelegated() {
-        // OR with only delegated predicates (no driving backend) — SINGLE_AND (no mixing)
+        // OR(delegated, delegated) — all same-backend, combined into one expression.
+        // No tree evaluator needed post-combine.
         RexNode delegated1 = annotated(ACCEPTING);
         RexNode delegated2 = annotated(ACCEPTING);
         RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, delegated1, delegated2);
@@ -95,12 +96,67 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
+    public void testBareNotOfDelegated() {
+        // NOT(delegated) — single correctness-delegated predicate, combined into one
+        // expression (BoolQuery with must_not). No tree evaluator needed post-combine.
+        RexNode delegated = annotated(ACCEPTING);
+        RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, delegated);
+        OpenSearchFilter filter = buildFilter(notNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+    }
+
     // ---- Helpers ----
 
     private AnnotatedPredicate annotated(String backendId) {
         RelDataType boolType = typeFactory.createJavaType(boolean.class);
         RexNode literal = rexBuilder.makeLiteral(true);
         return new AnnotatedPredicate(boolType, literal, List.of(backendId), 0);
+    }
+
+    /** Creates a dual-viable predicate narrowed to the driving backend with perf-delegation to accepting. */
+    private AnnotatedPredicate perfDelegated() {
+        RelDataType boolType = typeFactory.createJavaType(boolean.class);
+        RexNode literal = rexBuilder.makeLiteral(true);
+        AnnotatedPredicate dualViable = new AnnotatedPredicate(boolType, literal, List.of(DRIVING, ACCEPTING), 0);
+        return (AnnotatedPredicate) dualViable.narrowTo(DRIVING);
+    }
+
+    // Delegated OR Dual: the Dual leaf can't stay performance-based under OR (perf delegation is
+    // AND-only in the data node), so it's demoted to correctness and fused with the Delegated leaf
+    // into ONE Lucene shipment. The shape is then a single delegated leaf → label = CONJUNCTIVE.
+    // (The label must match what the combiner emits; a mismatch here is what caused the all-docs bug.)
+    public void testOrWithCorrectnessAndPerfDelegated() {
+        RexNode correctness = annotated(ACCEPTING);
+        RexNode perf = perfDelegated();
+        RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, correctness, perf);
+        OpenSearchFilter filter = buildFilter(orNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+    }
+
+    public void testAndWithCorrectnessAndPerfDelegated() {
+        // AND(correctness-delegated, perf-delegated) — perf combines under AND → CONJUNCTIVE
+        RexNode correctness = annotated(ACCEPTING);
+        RexNode perf = perfDelegated();
+        RexNode andNode = rexBuilder.makeCall(SqlStdOperatorTable.AND, correctness, perf);
+        OpenSearchFilter filter = buildFilter(andNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+    }
+
+    // NOT(dual-equality) is not delegated — it stays native → NO_DELEGATION. (Combiner counterpart:
+    // FragmentConversionDriverTests#testNotEqualsStaysNative, NOT(EQUALS) → 0 delegated expressions.)
+    public void testNotOfPerfDelegated() {
+        RexNode perf = perfDelegated();
+        RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, perf);
+        OpenSearchFilter filter = buildFilter(notNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.NO_DELEGATION, shape);
     }
 
     private OpenSearchFilter buildFilter(RexNode condition) {

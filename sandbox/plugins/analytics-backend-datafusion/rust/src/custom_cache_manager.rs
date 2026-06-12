@@ -8,10 +8,9 @@
 
 use std::sync::Arc;
 use datafusion::execution::cache::cache_manager::{FileMetadataCache, FileStatisticsCache, CacheManagerConfig};
-use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
+use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
 use datafusion::execution::cache::CacheAccessor;
 use crate::statistics_cache::compute_parquet_statistics;
-use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
@@ -95,18 +94,18 @@ impl CustomCacheManager {
 
         // Add statistics cache if available - use CustomStatisticsCache directly
         if let Some(stats_cache) = &self.statistics_cache {
-            config = config.with_files_statistics_cache(Some(stats_cache.clone() as Arc<dyn FileStatisticsCache>));
+            config = config.with_file_statistics_cache(Some(stats_cache.clone() as Arc<dyn FileStatisticsCache>));
         } else {
             // Default statistics cache if none set
             let default_stats = Arc::new(DefaultFileStatisticsCache::default());
-            config = config.with_files_statistics_cache(Some(default_stats));
+            config = config.with_file_statistics_cache(Some(default_stats));
         }
 
         config
     }
 
     /// Add multiple files to all applicable caches
-    pub fn add_files(&self, file_paths: &[String]) -> Result<Vec<(String, bool)>, String> {
+    pub fn add_files(&self, file_paths: &[String], rt_handle: &tokio::runtime::Handle) -> Result<Vec<(String, bool)>, String> {
         let mut results = Vec::new();
 
         for file_path in file_paths {
@@ -114,7 +113,7 @@ impl CustomCacheManager {
             let mut errors = Vec::new();
 
             // Add to metadata cache
-            match self.metadata_cache_put(file_path) {
+            match self.metadata_cache_put(file_path, rt_handle) {
                 Ok(true) => {
                     any_success = true;
                 }
@@ -185,7 +184,6 @@ impl CustomCacheManager {
             // Remove from statistics cache
             if let Some(cache) = &self.statistics_cache {
                 let path = Path::from(file_path.clone());
-                // Use the CacheAccessor remove method to properly update memory tracking
                 if cache.remove(&path).is_some() {
                     any_removed = true;
                 }
@@ -342,7 +340,7 @@ impl CustomCacheManager {
     }
 
     /// Internal method to put metadata into cache
-    fn metadata_cache_put(&self, file_path: &str) -> Result<bool, String> {
+    fn metadata_cache_put(&self, file_path: &str, rt_handle: &tokio::runtime::Handle) -> Result<bool, String> {
         if !file_path.to_lowercase().ends_with(".parquet") {
             return Ok(false); // Skip unsupported formats
         }
@@ -367,16 +365,14 @@ impl CustomCacheManager {
         // 2. Load the complete metadata including column and offset indexes
         // 3. Automatically put the metadata into the cache (lines 155-160 in datafusion's metadata.rs)
         // This ensures we cache exactly what DataFusion would cache during query execution
-        let _parquet_metadata = Runtime::new()
-            .map_err(|e| format!("Failed to create Tokio Runtime: {}", e))?
-            .block_on(async {
-                let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
-                    .with_file_metadata_cache(Some(metadata_cache));
+        let _parquet_metadata = rt_handle.block_on(async {
+            let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
+                .with_file_metadata_cache(Some(metadata_cache));
 
-                // fetch_metadata() performs the cache put operation internally
-                df_metadata.fetch_metadata().await
-                    .map_err(|e| format!("Failed to fetch metadata: {}", e))
-            })?;
+            // fetch_metadata() performs the cache put operation internally
+            df_metadata.fetch_metadata().await
+                .map_err(|e| format!("Failed to fetch metadata: {}", e))
+        })?;
 
         // Verify the metadata was cached properly
         match cache_ref.inner.lock() {
@@ -508,9 +504,58 @@ impl CustomCacheManager {
             .unwrap_or(0.0)
     }
 
+    /// Get statistics cache entry count
+    pub fn statistics_cache_entry_count(&self) -> usize {
+        self.statistics_cache.as_ref()
+            .map(|cache| <CustomStatisticsCache as CacheAccessor<_, _>>::len(cache))
+            .unwrap_or(0)
+    }
+
+    /// Get statistics cache size limit in bytes
+    pub fn statistics_cache_size_limit(&self) -> usize {
+        self.statistics_cache.as_ref()
+            .map(|cache| cache.current_size_limit())
+            .unwrap_or(0)
+    }
+
     /// Reset statistics cache stats
     pub fn statistics_cache_reset_stats(&self) {
         if let Some(cache) = &self.statistics_cache {
+            cache.reset_stats();
+        }
+    }
+
+    /// Get metadata cache hit count
+    pub fn metadata_cache_hit_count(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| cache.hit_count())
+            .unwrap_or(0)
+    }
+
+    /// Get metadata cache miss count
+    pub fn metadata_cache_miss_count(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| cache.miss_count())
+            .unwrap_or(0)
+    }
+
+    /// Get metadata cache entry count
+    pub fn metadata_cache_entry_count(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| <MutexFileMetadataCache as CacheAccessor<_, _>>::len(cache))
+            .unwrap_or(0)
+    }
+
+    /// Get metadata cache size limit in bytes
+    pub fn metadata_cache_size_limit(&self) -> usize {
+        self.file_metadata_cache.as_ref()
+            .map(|cache| cache.get_cache_limit())
+            .unwrap_or(0)
+    }
+
+    /// Reset metadata cache stats
+    pub fn metadata_cache_reset_stats(&self) {
+        if let Some(cache) = &self.file_metadata_cache {
             cache.reset_stats();
         }
     }

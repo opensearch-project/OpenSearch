@@ -210,12 +210,13 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
         offset += n;
     }
     let seg = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: NUM_ROWS as i64,
         object_path: object_store::path::Path::from(path.to_string_lossy().as_ref()),
         parquet_size: size,
         row_groups: rgs,
         metadata: parquet_meta,
+            global_base: 0,
     };
     (seg, schema)
 }
@@ -240,7 +241,7 @@ fn aggregate_metrics(plan: &Arc<dyn ExecutionPlan>) -> MetricsSet {
 
 fn get_counter(set: &MetricsSet, name: &str) -> usize {
     use datafusion::physical_plan::metrics::MetricType;
-    set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::DEV)
+    set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::Dev)
         .map(|v| v.as_usize())
         .unwrap_or(0)
 }
@@ -253,6 +254,7 @@ fn collect_pred_exprs(node: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>) {
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| collect_pred_exprs(c, out)),
         BoolNode::Not(c) => collect_pred_exprs(c, out),
         BoolNode::Collector { .. } => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -279,6 +281,7 @@ fn wire_collectors_dfs(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollec
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| wire_collectors_dfs(c, out)),
         BoolNode::Not(c) => wire_collectors_dfs(c, out),
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -304,7 +307,7 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
         let pp_map = Arc::clone(&pp_map);
-        Arc::new(move |segment, _chunk, sm| {
+        Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -323,6 +326,7 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
                 ),
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -345,16 +349,22 @@ async fn run_single_collector(
         let schema = schema.clone();
         let residual_pp = residual_pp.clone();
         let residual_expr = Arc::clone(&residual_expr);
-        Arc::new(move |segment, _chunk, sm| {
+        Arc::new(move |segment, _chunk, sm, _stats_prune_tree| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
-                collector_for_tag(collector_tag),
+                Some(collector_for_tag(collector_tag)),
                 pruner,
                 residual_pp.clone(),
                 Some(Arc::clone(&residual_expr)),
                 Some(crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(sm)),
                 sm.ffm_collector_calls.clone(),
                 strategy,
+                std::sync::Arc::new(std::collections::HashMap::new()),
+                segment.writer_generation,
+                std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                0,
+                None,
+                    None,
             ));
             Ok(eval)
         })
@@ -385,6 +395,7 @@ async fn execute_and_collect(
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();

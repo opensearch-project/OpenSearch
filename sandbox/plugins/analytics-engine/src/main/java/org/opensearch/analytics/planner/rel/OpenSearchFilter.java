@@ -19,6 +19,7 @@ import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -37,7 +38,8 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     private final List<String> viableBackends;
 
     public OpenSearchFilter(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, RexNode condition, List<String> viableBackends) {
-        super(cluster, traitSet, input, condition);
+        // Filter.<init> asserts RexUtil.isFlat — flatten any nested AND/OR before super().
+        super(cluster, traitSet, input, RexUtil.flatten(cluster.getRexBuilder(), condition));
         this.viableBackends = viableBackends;
     }
 
@@ -102,7 +104,13 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
-        return LogicalFilter.create(strippedChildren.getFirst(), resolveCondition(getCondition(), annotationResolver));
+        RexNode resolved = resolveCondition(getCondition(), annotationResolver);
+        // LogicalFilter.<init> asserts isFlat on the condition: an AND must not contain an
+        // AND child, and an OR must not contain an OR child. Adapter substitutions in
+        // BackendPlanAdapter.adaptRex can introduce that nesting (e.g. SargAdapter expands
+        // SEARCH into AND(>=, <=) under a parent AND). Flatten canonicalizes the tree.
+        RexNode flattened = RexUtil.flatten(getCluster().getRexBuilder(), resolved);
+        return LogicalFilter.create(strippedChildren.getFirst(), flattened);
     }
 
     private RexNode replaceAnnotations(RexNode node, ListIterator<OperatorAnnotation> annotationIterator) {

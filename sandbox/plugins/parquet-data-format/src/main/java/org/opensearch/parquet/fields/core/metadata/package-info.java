@@ -14,7 +14,7 @@
  *
  * <ul>
  *   <li>{@link org.opensearch.parquet.fields.core.metadata.IdParquetField} — Document {@code _id},
- *       stored as binary ({@code VarBinaryVector}) from Lucene {@code BytesRef}.</li>
+ *       stored as binary ({@code VarBinaryVector}) from {@code byte[]}.</li>
  *   <li>{@link org.opensearch.parquet.fields.core.metadata.RoutingParquetField} — Document {@code _routing},
  *       stored as UTF-8 text ({@code VarCharVector}).</li>
  *   <li>{@link org.opensearch.parquet.fields.core.metadata.IgnoredParquetField} — The {@code _ignored}

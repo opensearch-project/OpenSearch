@@ -18,6 +18,9 @@ import groovy.xml.XmlParser
 buildscript {
   repositories {
     maven {
+      url = "https://ci.opensearch.org/maven2/"
+    }
+    maven {
       url = "https://plugins.gradle.org/m2/"
     }
   }

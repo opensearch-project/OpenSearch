@@ -10,7 +10,7 @@
 //! becomes one parquet file and one `SegmentFileInfo`. This module exercises:
 //!
 //! - Two segments in one shard (different content, same schema).
-//! - `segment_ord != 0` propagation through collectors.
+//! - `writer_generation != 0` propagation through collectors.
 //! - Partition assignment spanning multiple segments (`compute_assignments`
 //!   emits multi-chunk partitions → `UnionExec + CoalescePartitionsExec`
 //!   wrapper path in `QueryShardExec::execute`).
@@ -65,8 +65,8 @@ fn write_segment_rg(
     tmp
 }
 
-/// A collector whose matching set is parameterised by segment_ord: it records
-/// the ords it was built for so tests can confirm the evaluator factory called
+/// A collector whose matching set is parameterised by writer_generation: it records
+/// the generations it was built for so tests can confirm the evaluator factory called
 /// us with the right per-segment identity.
 #[derive(Debug)]
 struct PerSegmentCollector {
@@ -88,7 +88,7 @@ impl RowGroupDocsCollector for PerSegmentCollector {
 }
 
 /// Build the 2-segment table provider. Each segment gets its own matching
-/// set indexed by `segment_ord` (caller supplies one Vec<i32> per segment).
+/// set indexed by `writer_generation` (caller supplies one Vec<i32> per segment).
 async fn run_two_segment_query(
     per_segment_matches: Vec<Vec<i32>>,
     num_partitions: usize,
@@ -123,13 +123,14 @@ async fn run_two_segment_query(
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: ord as i32,
+            writer_generation: ord as i64,
             // Per-segment max_doc. Both happen to be 8 here.
             max_doc: offset,
             object_path,
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
         });
     }
 
@@ -137,15 +138,15 @@ async fn run_two_segment_query(
     let per_segment_matches = Arc::new(per_segment_matches);
 
     // Factory produces a single-collector evaluator per chunk. The collector's
-    // matching set is pulled from `per_segment_matches[segment.segment_ord]`,
-    // so wrong segment_ord propagation would immediately produce wrong rows.
+    // matching set is pulled from `per_segment_matches[segment.writer_generation]`,
+    // so wrong writer_generation propagation would immediately produce wrong rows.
     let factory: super::super::table_provider::EvaluatorFactory =
         {
             let per_segment_matches = Arc::clone(&per_segment_matches);
             let schema = schema.clone();
-            Arc::new(move |segment, _chunk, _stream_metrics| {
+            Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
                 let matching = per_segment_matches
-                    .get(segment.segment_ord as usize)
+                    .get(segment.writer_generation as usize)
                     .cloned()
                     .unwrap_or_default();
                 let collector: Arc<dyn RowGroupDocsCollector> =
@@ -153,8 +154,14 @@ async fn run_two_segment_query(
                 let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
-                    collector, pruner, None, None, None, None,
+                    Some(collector), pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
+                    std::sync::Arc::new(std::collections::HashMap::new()),
+                    segment.writer_generation,
+                    std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                    0,
+                    None,
+                    None,
                 ),
             );
                 Ok(eval)
@@ -178,6 +185,7 @@ async fn run_two_segment_query(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -190,7 +198,7 @@ async fn run_two_segment_query(
         let brand = b.column(0).as_any().downcast_ref::<StringArray>().unwrap();
         let price = b.column(1).as_any().downcast_ref::<Int32Array>().unwrap();
         for i in 0..b.num_rows() {
-            // Infer segment_ord by brand for verification purposes.
+            // Infer writer_generation by brand for verification purposes.
             let ord = if brand.value(i) == "amazon" { 0 } else { 1 };
             rows.push((ord, brand.value(i).to_string(), price.value(i)));
         }
@@ -241,6 +249,212 @@ async fn two_segments_single_partition_exercises_union_coalesce_path() {
     assert_eq!(with_one.len(), 4);
 }
 
+/// Collector that wraps `PerSegmentCollector` and tracks concurrent
+/// invocations of `collect_packed_u64_bitset` across *all* chunks in a
+/// single query. Used to witness whether `QueryShardExec::execute`
+/// runs the per-chunk streams in parallel within one partition.
+#[derive(Debug)]
+struct ConcurrencyWitnessCollector {
+    inner: PerSegmentCollector,
+    in_flight: Arc<std::sync::atomic::AtomicUsize>,
+    max_in_flight: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl RowGroupDocsCollector for ConcurrencyWitnessCollector {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<Vec<u64>, String> {
+        use std::sync::atomic::Ordering;
+        let cur = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        // Update high-water-mark with a CAS loop.
+        let mut prev = self.max_in_flight.load(Ordering::SeqCst);
+        while cur > prev {
+            match self.max_in_flight.compare_exchange_weak(
+                prev,
+                cur,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => break,
+                Err(p) => prev = p,
+            }
+        }
+        // Hold the slot long enough that any genuine parallelism would
+        // be observed as in_flight > 1.
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        let result = self.inner.collect_packed_u64_bitset(min_doc, max_doc);
+        self.in_flight.fetch_sub(1, Ordering::SeqCst);
+        result
+    }
+}
+
+/// Variant of `run_two_segment_query` that wraps each segment's collector
+/// in a `ConcurrencyWitnessCollector` sharing one global high-water-mark
+/// counter. Returns `(rows, max_in_flight_observed)`.
+async fn run_two_segment_query_witness(
+    per_segment_matches: Vec<Vec<i32>>,
+    num_partitions: usize,
+) -> (Vec<(i32, String, i32)>, usize) {
+    let tmp0 = write_segment("amazon", 50, SEG0_ROWS);
+    let tmp1 = write_segment("apple", 100, SEG1_ROWS);
+
+    let mut segments: Vec<SegmentFileInfo> = Vec::new();
+    let mut schema_opt: Option<SchemaRef> = None;
+
+    for (ord, tmp) in [&tmp0, &tmp1].iter().enumerate() {
+        let path = tmp.path().to_path_buf();
+        let size = std::fs::metadata(&path).unwrap().len();
+        let file = std::fs::File::open(&path).unwrap();
+        let meta =
+            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
+                .unwrap();
+        if schema_opt.is_none() {
+            schema_opt = Some(meta.schema().clone());
+        }
+        let parquet_meta = meta.metadata().clone();
+        let mut rgs = Vec::new();
+        let mut offset = 0i64;
+        for i in 0..parquet_meta.num_row_groups() {
+            let n = parquet_meta.row_group(i).num_rows();
+            rgs.push(RowGroupInfo {
+                index: i,
+                first_row: offset,
+                num_rows: n,
+            });
+            offset += n;
+        }
+        let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
+        segments.push(SegmentFileInfo {
+            writer_generation: ord as i64,
+            max_doc: offset,
+            object_path,
+            parquet_size: size,
+            row_groups: rgs,
+            metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
+        });
+    }
+
+    let schema = schema_opt.unwrap();
+    let per_segment_matches = Arc::new(per_segment_matches);
+    let in_flight = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let max_in_flight = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+    let factory: super::super::table_provider::EvaluatorFactory = {
+        let per_segment_matches = Arc::clone(&per_segment_matches);
+        let schema = schema.clone();
+        let in_flight = Arc::clone(&in_flight);
+        let max_in_flight = Arc::clone(&max_in_flight);
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
+            let matching = per_segment_matches
+                .get(segment.writer_generation as usize)
+                .cloned()
+                .unwrap_or_default();
+            let collector: Arc<dyn RowGroupDocsCollector> =
+                Arc::new(ConcurrencyWitnessCollector {
+                    inner: PerSegmentCollector { matching },
+                    in_flight: Arc::clone(&in_flight),
+                    max_in_flight: Arc::clone(&max_in_flight),
+                });
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
+                crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
+                    Some(collector), pruner, None, None, None, None,
+                    crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
+                    std::sync::Arc::new(std::collections::HashMap::new()),
+                    segment.writer_generation,
+                    std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                    0,
+                    None,
+                    None,
+                ),
+            );
+            Ok(eval)
+        })
+    };
+
+    let store: Arc<dyn object_store::ObjectStore> =
+        Arc::new(object_store::local::LocalFileSystem::new());
+    let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(num_partitions)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .force_pushdown(Some(false))
+        .build();
+    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
+        schema: schema.clone(),
+        segments,
+        store,
+        store_url,
+        evaluator_factory: factory,
+        pushdown_predicate: None,
+        query_config: std::sync::Arc::new(qc),
+        predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
+    }));
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", provider).unwrap();
+    let df = ctx.sql("SELECT brand, price FROM t").await.unwrap();
+    let mut stream = df.execute_stream().await.unwrap();
+    let mut rows: Vec<(i32, String, i32)> = Vec::new();
+    while let Some(batch) = stream.next().await {
+        let b = batch.unwrap();
+        let brand = b.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        let price = b.column(1).as_any().downcast_ref::<Int32Array>().unwrap();
+        for i in 0..b.num_rows() {
+            let ord = if brand.value(i) == "amazon" { 0 } else { 1 };
+            rows.push((ord, brand.value(i).to_string(), price.value(i)));
+        }
+    }
+    rows.sort();
+    let max_observed = max_in_flight.load(std::sync::atomic::Ordering::SeqCst);
+    (rows, max_observed)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn single_partition_runs_chunks_sequentially_no_inner_parallelism() {
+    // With num_partitions=1 both segments land in one partition's
+    // assignment as separate `SegmentChunk`s. Pre-fix: `QueryShardExec::execute`
+    // wrapped them in `UnionExec` + `CoalescePartitionsExec`, which spawns
+    // one task per child stream and drives them concurrently — the witness
+    // collector would observe `max_in_flight >= 2`. Post-fix: chunks are
+    // chained sequentially via `futures::stream::iter(streams).flatten()`,
+    // so only the currently-active chunk's `prefetch_rg` (and therefore the
+    // collector) is ever in flight → `max_in_flight == 1`.
+    let matches = vec![vec![2, 6], vec![3, 7]];
+    let (rows, max_in_flight) =
+        run_two_segment_query_witness(matches, /*num_partitions*/ 1).await;
+    assert_eq!(rows.len(), 4, "result correctness sanity check");
+    assert_eq!(
+        max_in_flight, 1,
+        "chunks within a single partition must run sequentially \
+         (max concurrent collector invocations should be 1, was {})",
+        max_in_flight,
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn cross_partition_parallelism_is_preserved() {
+    // Sanity-check the inverse: the cross-partition parallelism that
+    // `QueryShardExec` exposes via `Partitioning::UnknownPartitioning(N)`
+    // is unchanged. With num_partitions=2, the two segments' chunks land
+    // in *different* partitions and DataFusion drives them concurrently,
+    // so the witness collector should observe `max_in_flight == 2`.
+    let matches = vec![vec![2, 6], vec![3, 7]];
+    let (rows, max_in_flight) =
+        run_two_segment_query_witness(matches, /*num_partitions*/ 2).await;
+    assert_eq!(rows.len(), 4, "result correctness sanity check");
+    assert_eq!(
+        max_in_flight, 2,
+        "cross-partition parallelism should still let both segments run \
+         concurrently (expected max_in_flight=2, was {})",
+        max_in_flight,
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_segments_doc_ids_are_segment_local() {
     // Critical correctness invariant: each segment has doc IDs in [0, max_doc),
@@ -286,7 +500,7 @@ struct SegSpec {
 
 /// Generic multi-segment runner. Builds one parquet per spec, wires them up
 /// as SegmentFileInfo's, runs a SELECT over the whole table. Returns
-/// `(segment_ord_inferred_from_brand, brand, price)` triples sorted so tests
+/// `(writer_generation_inferred_from_brand, brand, price)` triples sorted so tests
 /// can assert on set equality regardless of partition/chunk ordering.
 async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, String, i32)> {
     let tmps: Vec<NamedTempFile> = specs
@@ -326,12 +540,13 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: ord as i32,
+            writer_generation: ord as i64,
             max_doc: offset,
             object_path,
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
         });
     }
 
@@ -341,9 +556,9 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         {
             let per_segment_matches = Arc::clone(&per_segment_matches);
             let schema = schema.clone();
-            Arc::new(move |segment, _chunk, _stream_metrics| {
+            Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
                 let matching = per_segment_matches
-                    .get(segment.segment_ord as usize)
+                    .get(segment.writer_generation as usize)
                     .cloned()
                     .unwrap_or_default();
                 let collector: Arc<dyn RowGroupDocsCollector> =
@@ -351,8 +566,14 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                 let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
-                    collector, pruner, None, None, None, None,
+                    Some(collector), pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
+                    std::sync::Arc::new(std::collections::HashMap::new()),
+                    segment.writer_generation,
+                    std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
+                    0,
+                    None,
+                    None,
                 ),
             );
                 Ok(eval)
@@ -376,6 +597,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -809,12 +1031,13 @@ async fn run_wide_segments(
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: ord as i32,
+            writer_generation: ord as i64,
             max_doc: offset,
             object_path,
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
         });
     }
 
@@ -826,7 +1049,7 @@ async fn run_wide_segments(
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             // One (provider_key, collector) per Collector leaf — our trees
             // here use 1 collector leaf, so one pair.
             let leaf_count = tree.collector_leaf_count();
@@ -854,6 +1077,7 @@ async fn run_wide_segments(
                     pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
                 },
             );
             Ok(eval)
@@ -877,6 +1101,7 @@ async fn run_wide_segments(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();

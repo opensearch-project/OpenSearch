@@ -8,6 +8,10 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.RootAllocator;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
+import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.StreamTransportResponseHandler;
@@ -15,6 +19,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public class FlightTransportResponseTests extends OpenSearchTestCase {
 
@@ -38,6 +43,28 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
         // MetricsTrackingResponseHandler in production path; null tracker is fine for this check.
         MetricsTrackingResponseHandler<TestArrowResponse> wrapped = new MetricsTrackingResponseHandler<>(new TestArrowHandler(), null);
         assertTrue(wrapped.skipsDeserialization());
+    }
+
+    public void testCopyMetadataNullBuffer() {
+        assertNull(FlightTransportResponse.copyMetadata(null));
+    }
+
+    public void testCopyMetadataEmptyBuffer() {
+        try (RootAllocator allocator = new RootAllocator(); ArrowBuf buf = allocator.buffer(0)) {
+            assertNull(FlightTransportResponse.copyMetadata(buf));
+        }
+    }
+
+    public void testCopyMetadataPopulatedBuffer() {
+        byte[] payload = "{\"output_rows\":42}".getBytes(StandardCharsets.UTF_8);
+        try (RootAllocator allocator = new RootAllocator(); ArrowBuf buf = allocator.buffer(payload.length)) {
+            buf.writeBytes(payload);
+            byte[] copy = FlightTransportResponse.copyMetadata(buf);
+            assertNotNull(copy);
+            assertArrayEquals(payload, copy);
+            // The copy is independent of the wire buffer.
+            assertNotSame(payload, copy);
+        }
     }
 
     private static final class TestArrowHandler extends ArrowBatchResponseHandler<TestArrowResponse> {

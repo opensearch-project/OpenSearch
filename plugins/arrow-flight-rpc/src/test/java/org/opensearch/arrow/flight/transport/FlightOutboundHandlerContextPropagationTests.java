@@ -185,6 +185,8 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
     public void testContextHeaderPropagatedToResponseHeaders() throws InterruptedException {
         String action = "internal:test/context-header-in-response";
         CountDownLatch handlerLatch = new CountDownLatch(1);
+        // 2 batches + 1 completeStream = 3 message sent events
+        CountDownLatch messageSentLatch = new CountDownLatch(3);
         AtomicInteger responseCount = new AtomicInteger(0);
         AtomicReference<Exception> handlerException = new AtomicReference<>();
         AtomicInteger messageSentCount = new AtomicInteger(0);
@@ -193,6 +195,7 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
             @Override
             public void onResponseSent(long requestId, String action, TransportResponse response) {
                 messageSentCount.incrementAndGet();
+                messageSentLatch.countDown();
             }
 
         };
@@ -252,7 +255,8 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
         assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertEquals(2, responseCount.get());
         assertNull(handlerException.get());
-        // 2 batches + 1 completeStream = 3 message sent events
+        // Wait for all async onResponseSent callbacks to complete before asserting count
+        assertTrue("All message sent events should complete", messageSentLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertEquals(3, messageSentCount.get());
     }
 }

@@ -39,15 +39,21 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
-  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
-  implementation project(':sandbox:libs:plugin-stats-spi')
-
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
+  // analytics-api provides the IpType / BinaryType UDT markers that
+  // IpBinaryOutputCastRewriter dispatches on. compileOnly — runtime-provided by
+  // analytics-engine which bundles analytics-api transitively.
+  compileOnly project(':sandbox:libs:analytics-api')
   // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the
   // fragment convertor for pre-isthmus rewrite. compileOnly — provided at runtime by
   // the parent analytics-engine plugin (extendedPlugins above).
   compileOnly project(':sandbox:plugins:analytics-engine')
+  // arrow-base ships the SPI types used to mirror datafusion-pool resize to
+  // the native runtime. Provided at runtime via the analytics-engine -> arrow-base
+  // extendedPlugins chain.
+  compileOnly project(':libs:opensearch-arrow-spi')
+  compileOnly project(':plugins:arrow-base')
 
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
@@ -72,6 +78,12 @@ dependencies {
   // Substrait — Calcite RelNode to Substrait plan conversion for DataFusion native runtime
   implementation "io.substrait:isthmus:0.89.1"
   implementation "io.substrait:core:0.89.1"
+  // avatica ByteString is needed at compile time for IpBinaryFunctionAdapter's VARBINARY
+  // literal construction; runtime is provided by analytics-framework's runtimeOnly avatica.
+  compileOnly "org.apache.calcite.avatica:avatica-core:1.27.0"
+  // CIDR parsing for CidrMatchFunctionAdapter (parses cidr strings into 16-byte ipv6 ranges
+  // for the byte-range AND rewrite + literal-only const-fold tiers).
+  implementation "com.github.seancfoley:ipaddress:5.4.2"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
   // jackson-datatype-jsr310 — added to arrow-flight-rpc (the parent plugin that bundles
   // arrow-vector). arrow-vector's JsonStringArrayList eagerly registers JavaTimeModule on
@@ -85,6 +97,9 @@ dependencies {
   // Planner + Lucene backend for end-to-end delegation unit tests
   testImplementation project(':sandbox:plugins:analytics-engine')
   testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  // Tests run on a flat classpath; pull arrow-base in so ArrowNativeAllocator
+  // is reachable for unit tests that exercise the listener mirror.
+  testImplementation project(':plugins:arrow-base')
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 
 }
@@ -93,6 +108,7 @@ test {
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
   jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  systemProperty 'test.policy.contents', file('src/main/plugin-metadata/plugin-security.policy').text
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
@@ -205,44 +221,6 @@ tasks.named('forbiddenPatterns').configure {
     exclude '**/*.dll'
 }
 
-// ---- Property-based tests (jqwik / JUnit 5 Platform) ----
-
-sourceSets {
-  propertyTest {
-    java {
-      srcDir 'src/propertyTest/java'
-    }
-    compileClasspath += sourceSets.main.output
-    runtimeClasspath += sourceSets.main.output
-  }
-}
-
-configurations {
-  propertyTestImplementation.extendsFrom implementation, compileOnly
-  propertyTestRuntimeOnly.extendsFrom runtimeOnly
-}
-
-dependencies {
-  propertyTestImplementation "net.jqwik:jqwik:${versions.jqwik}"
-  propertyTestImplementation "org.junit.jupiter:junit-jupiter-api:${versions.junit_jupiter}"
-  propertyTestRuntimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit_platform}"
-  // Jackson for JSON parsing in property tests
-  propertyTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-}
-
-tasks.register('propertyTest', Test) {
-  description = 'Run jqwik property-based tests'
-  group = 'verification'
-  useJUnitPlatform {
-    includeEngines 'jqwik'
-  }
-  testClassesDirs = sourceSets.propertyTest.output.classesDirs
-  classpath = sourceSets.propertyTest.runtimeClasspath
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
-  // Disable the security manager for property tests (jqwik is not compatible)
-  systemProperty 'tests.security.manager', 'false'
-}
-
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
     enabled = false
 }
@@ -255,7 +233,3 @@ tasks.named('thirdPartyAudit').configure {
         'org.apache.calcite.server.ServerDdlExecutor'
     )
 }
-
-// jqwik property tests don't ship with the randomized-testing framework that
-// forbiddenApis signatures reference — skip the check for this source set.
-tasks.matching { it.name == 'forbiddenApisPropertyTest' }.configureEach { enabled = false }

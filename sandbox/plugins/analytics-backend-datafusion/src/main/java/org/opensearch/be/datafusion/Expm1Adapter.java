@@ -14,6 +14,7 @@ import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.NumericToDoubleAdapter;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.math.BigDecimal;
@@ -45,7 +46,10 @@ class Expm1Adapter implements ScalarFunctionAdapter {
             return original;
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
-        RexNode arg = original.getOperands().get(0);
+        // Widen the operand to DOUBLE before threading it into the synthesised EXP call.
+        // BackendPlanAdapter has already visited this subtree, so the inner EXP we produce
+        // here won't be re-adapted by NumericToDoubleAdapter — we have to widen explicitly.
+        RexNode arg = NumericToDoubleAdapter.widenToDoubleIfNumeric(original.getOperands().get(0), cluster);
         RexNode exp = rexBuilder.makeCall(original.getType(), SqlStdOperatorTable.EXP, List.of(arg));
         RexNode one = rexBuilder.makeExactLiteral(BigDecimal.ONE);
         return rexBuilder.makeCall(SqlStdOperatorTable.MINUS, exp, one);

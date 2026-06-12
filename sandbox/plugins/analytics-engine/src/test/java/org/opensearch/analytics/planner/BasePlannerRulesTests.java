@@ -32,7 +32,9 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -40,13 +42,16 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
@@ -91,7 +96,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     // ---- Plan execution ----
 
     protected RelNode runPlanner(RelNode input, PlannerContext context) {
-        return PlannerImpl.markAndOptimize(input, context);
+        return PlannerImpl.runAllOptimizations(input, context);
     }
 
     protected RelNode unwrapExchange(RelNode node) {
@@ -99,6 +104,20 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
             return reducer.getInput();
         }
         return node;
+    }
+
+    /**
+     * The After-CBO root is wrapped in an {@link OpenSearchExchangeReducer} when the
+     * planner's top-level SINGLETON request isn't already satisfied by the subtree
+     * (the common case when scans are at SOURCE kind). Tests that want to inspect the
+     * operator below the root ER call this to peel it.
+     */
+    protected RelNode unwrapRootReducer(RelNode node) {
+        RelNode unwrapped = RelNodeUtils.unwrapHep(node);
+        if (unwrapped instanceof OpenSearchExchangeReducer reducer) {
+            return RelNodeUtils.unwrapHep(reducer.getInput());
+        }
+        return unwrapped;
     }
 
     // ---- Context builders ----
@@ -148,25 +167,53 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fieldMappings,
         List<AnalyticsSearchBackendPlugin> backends
     ) {
+        return buildContextPerIndex(primaryFormat, Map.of("test_index", shardCount), fieldMappings, backends);
+    }
+
+    /**
+     * Builds a context where different indices have different shard counts — for
+     * tests that join across tables with asymmetric partitioning. All indices share
+     * the same field mappings and primary format.
+     */
+    protected PlannerContext buildContextPerIndex(String primaryFormat, Map<String, Integer> shardCountByIndex) {
+        return buildContextPerIndex(primaryFormat, shardCountByIndex, intFields(), List.of(DATAFUSION, LUCENE));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected PlannerContext buildContextPerIndex(
+        String primaryFormat,
+        Map<String, Integer> shardCountByIndex,
+        Map<String, Map<String, Object>> fieldMappings,
+        List<AnalyticsSearchBackendPlugin> backends
+    ) {
         Map<String, Object> mappingSource = Map.of("properties", fieldMappings);
 
-        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
-        when(mappingMetadata.sourceAsMap()).thenReturn(mappingSource);
-
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
-        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.composite.primary_data_format", primaryFormat).build());
-        when(indexMetadata.mapping()).thenReturn(mappingMetadata);
-        when(indexMetadata.getNumberOfShards()).thenReturn(shardCount);
-
         Metadata metadata = mock(Metadata.class);
-        when(metadata.index("test_index")).thenReturn(indexMetadata);
-
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.metadata()).thenReturn(metadata);
 
-        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
+        for (Map.Entry<String, Integer> entry : shardCountByIndex.entrySet()) {
+            String indexName = entry.getKey();
+            int shardCount = entry.getValue();
 
+            MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+            when(mappingMetadata.sourceAsMap()).thenReturn(mappingSource);
+
+            IndexMetadata indexMetadata = mock(IndexMetadata.class);
+            when(indexMetadata.getIndex()).thenReturn(new Index(indexName, indexName + "-uuid"));
+            when(indexMetadata.getSettings()).thenReturn(
+                Settings.builder()
+                    .put("index.composite.primary_data_format", primaryFormat)
+                    .putList("index.composite.secondary_data_formats", "lucene")
+                    .build()
+            );
+            when(indexMetadata.mapping()).thenReturn(mappingMetadata);
+            when(indexMetadata.getNumberOfShards()).thenReturn(shardCount);
+
+            when(metadata.index(indexName)).thenReturn(indexMetadata);
+        }
+
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
         return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
     }
 
@@ -233,16 +280,26 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     /**
      * Walks the single-input chain asserting each node matches the expected type
      * and has viableBackends containing all expectedBackends.
-     * TODO: extend to per-node expected backends when delegation is implemented.
+     *
+     * <p>{@link OpenSearchExchangeReducer} nodes are skipped at depths where the
+     * expected type is a different logical operator — ERs are trait-driven gather
+     * points, not part of the logical pipeline. Tests that *do* want to verify an
+     * ER at a specific depth list {@code OpenSearchExchangeReducer.class}
+     * explicitly; the walk does not skip past it in that case.
+     *
+     * <p>TODO: extend to per-node expected backends when delegation is implemented.
      */
     protected static void assertPipelineViableBackends(
         RelNode root,
         List<Class<? extends OpenSearchRelNode>> expectedTypes,
         Set<String> expectedBackends
     ) {
-        RelNode current = root;
+        RelNode current = RelNodeUtils.unwrapHep(root);
         for (int i = 0; i < expectedTypes.size(); i++) {
             Class<? extends OpenSearchRelNode> expectedType = expectedTypes.get(i);
+            if (!OpenSearchExchangeReducer.class.isAssignableFrom(expectedType)) {
+                current = skipExchangeReducers(current);
+            }
             assertTrue(
                 "Node at depth " + i + " must be " + expectedType.getSimpleName() + " but was " + current.getClass().getSimpleName(),
                 expectedType.isInstance(current)
@@ -263,7 +320,18 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         }
     }
 
+    private static RelNode skipExchangeReducers(RelNode rel) {
+        RelNode current = rel;
+        while (current instanceof OpenSearchExchangeReducer || current instanceof OpenSearchLateMaterialization) {
+            current = RelNodeUtils.unwrapHep(current.getInputs().get(0));
+        }
+        return current;
+    }
+
     // ---- Cluster service ----
+
+    /** Default resolver for DAGBuilder in tests; production injects core's resolver. */
+    protected static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     protected ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
@@ -272,6 +340,8 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }
 
@@ -395,27 +465,94 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     // TODO: AggregateRuleTests has private copies of these — replace with these shared versions.
 
     protected AggregateCall sumCall() {
+        return sumCall(stubScan(mockTable("test_index", "status", "size")));
+    }
+
+    protected AggregateCall sumCall(RelNode input) {
         return AggregateCall.create(
             SqlStdOperatorTable.SUM,
             false,
             List.of(1),
             -1,
-            stubScan(mockTable("test_index", "status", "size")),
+            input,
             typeFactory.createSqlType(SqlTypeName.INTEGER),
             "total_size"
         );
     }
 
     protected AggregateCall countStarCall() {
+        return countStarCall(stubScan(mockTable("test_index", "status", "size")));
+    }
+
+    protected AggregateCall countStarCall(RelNode input) {
         // COUNT(*) — no field arguments, always gets annotated with aggregateCapableBackends
         return AggregateCall.create(
             SqlStdOperatorTable.COUNT,
             false,
             List.of(),
             -1,
-            stubScan(mockTable("test_index", "status", "size")),
+            input,
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "cnt"
+        );
+    }
+
+    /**
+     * {@code COUNT(DISTINCT $1)} — single-arg distinct. The HEP {@code OpenSearchDistinctCountRule}
+     * rewrites this to {@code APPROX_COUNT_DISTINCT($1)} before {@code OpenSearchAggregateRule}
+     * marks the aggregate.
+     */
+    protected AggregateCall countDistinctCall(RelNode input) {
+        return AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            true,
+            List.of(1),
+            -1,
+            input,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+    }
+
+    /** {@code APPROX_COUNT_DISTINCT($1)} — direct (skips the rewrite for tests that pre-stage the operator). */
+    protected AggregateCall approxCountDistinctCall(RelNode input) {
+        return AggregateCall.create(
+            SqlStdOperatorTable.APPROX_COUNT_DISTINCT,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(1),
+            -1,
+            null,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            1,
+            input,
+            null,
+            "dc"
+        );
+    }
+
+    /**
+     * AVG over the second column. Uses the long-form {@link AggregateCall#create} with a
+     * {@code null} return type so Calcite infers AVG's canonical type; the short-form
+     * overload passes an explicit type and would trip {@code Aggregate.typeMatchesInferred}.
+     */
+    protected AggregateCall avgCall(RelNode input) {
+        return AggregateCall.create(
+            SqlStdOperatorTable.AVG,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(1),
+            -1,
+            null,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            1,
+            input,
+            null,
+            "avg_size"
         );
     }
 
@@ -449,7 +586,11 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     }
 
     protected LogicalAggregate makeAggregate(RelNode input, AggregateCall... aggCalls) {
-        return LogicalAggregate.create(input, List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls));
+        return makeAggregate(input, ImmutableBitSet.of(0), aggCalls);
+    }
+
+    protected LogicalAggregate makeAggregate(RelNode input, ImmutableBitSet groupSet, AggregateCall... aggCalls) {
+        return LogicalAggregate.create(input, List.of(), groupSet, null, List.of(aggCalls));
     }
 
     protected LogicalAggregate makeMultiCallAggregate(RelNode input, AggregateCall... aggCalls) {

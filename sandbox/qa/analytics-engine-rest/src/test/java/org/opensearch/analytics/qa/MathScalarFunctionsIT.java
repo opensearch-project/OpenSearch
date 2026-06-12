@@ -10,6 +10,7 @@ package org.opensearch.analytics.qa;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,7 +21,7 @@ import java.util.Map;
  * route (PPL → CalciteRelNodeVisitor → Substrait → DataFusion).
  *
  * <p>Each test exercises a single math function against a specific row of the
- * {@code calcs} dataset via {@code POST /_analytics/ppl}. Tests pin a
+ * {@code calcs} dataset via {@code POST /_plugins/_ppl}. Tests pin a
  * particular row by filtering on the {@code key} keyword field and then apply
  * the math function to one of that row's {@code num*} (DOUBLE) fields — field
  * references both block Calcite's {@code ReduceExpressionsRule} from
@@ -49,7 +50,8 @@ public class MathScalarFunctionsIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -130,14 +132,36 @@ public class MathScalarFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowNumericFinite(oneRow("key00") + "| eval v = atan2(num1, num0) | fields v");
     }
 
-    /** {@code radians(12.3) ≈ 0.2147} on num0. */
+    /** {@code radians(12.3) = 12.3 × π / 180}. Validates the {@link
+     *  org.opensearch.analytics.spi.NumericToDoubleAdapter} entry for {@code ScalarFunction.RADIANS}. */
     public void testRadians() throws IOException {
-        assertFirstRowNumericFinite(oneRow("key00") + "| eval v = radians(num0) | fields v");
+        assertFirstRowDouble(oneRow("key00") + "| eval v = radians(num0) | fields v", Math.toRadians(12.3));
     }
 
-    /** {@code degrees(12.3) ≈ 704.73} on num0. */
+    /** {@code degrees(12.3) = 12.3 × 180 / π}. Validates the {@link
+     *  org.opensearch.analytics.spi.NumericToDoubleAdapter} entry for {@code ScalarFunction.DEGREES}. */
     public void testDegrees() throws IOException {
-        assertFirstRowNumericFinite(oneRow("key00") + "| eval v = degrees(num0) | fields v");
+        assertFirstRowDouble(oneRow("key00") + "| eval v = degrees(num0) | fields v", Math.toDegrees(12.3));
+    }
+
+    /** {@code radians(num3)} on a negative fp value: {@code radians(-11.52)}. */
+    public void testRadiansNegative() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = radians(num3) | fields v", Math.toRadians(-11.52));
+    }
+
+    /** {@code degrees(num3)} on a negative fp value: {@code degrees(-11.52)}. */
+    public void testDegreesNegative() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = degrees(num3) | fields v", Math.toDegrees(-11.52));
+    }
+
+    /** {@code radians} accepts integer fp64-widened input via NumericToDoubleAdapter — {@code radians(int0)} on {@code int0 = 1}. */
+    public void testRadiansOnInteger() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = radians(int0) | fields v", Math.toRadians(1));
+    }
+
+    /** {@code degrees} accepts integer fp64-widened input via NumericToDoubleAdapter — {@code degrees(int0)} on {@code int0 = 1}. */
+    public void testDegreesOnInteger() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = degrees(int0) | fields v", Math.toDegrees(1));
     }
 
     /** {@code exp(num1)} finite. */
@@ -273,6 +297,100 @@ public class MathScalarFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowDouble(oneRow("key00") + "| eval v = pi() | fields v", Math.PI);
     }
 
+    // ── Trig on integer-typed input ────────────────────────────────────────
+    // Substrait's sin/cos/tan/asin/acos/atan/atan2/cot extension impls are fp32/fp64 only.
+    // PPL emits these on i32 fields (key00 int0=1), so isthmus fails signature lookup without
+    // NumericToDoubleAdapter widening. Each test below proves the adapter widens its operand
+    // to fp64 before substrait emission.
+
+    /** {@code sin(1)} ≈ 0.84147 — fails with "Unable to convert call SIN(i32?)" without the
+     *  NumericToDoubleAdapter registration for {@code ScalarFunction.SIN}. */
+    public void testSinOnIntegerArg() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = sin(int0) | fields v", Math.sin(1.0));
+    }
+
+    /** {@code cos(1)} ≈ 0.54030 — same NumericToDoubleAdapter path. */
+    public void testCosOnIntegerArg() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = cos(int0) | fields v", Math.cos(1.0));
+    }
+
+    /** {@code asin(0.5)} / {@code acos(0.5)} — int0=1 is out of asin's [-1,1] domain on row 0,
+     *  so use a literal in-domain fp value. Validates {@code ASIN} / {@code ACOS} adapters. */
+    public void testAsinAndAcos() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = asin(0.5) | fields v", Math.asin(0.5));
+        assertFirstRowDouble(oneRow("key00") + "| eval v = acos(0.5) | fields v", Math.acos(0.5));
+    }
+
+    /** {@code atan2(1, 1)} = π/4 — two-arg variant goes through {@code ScalarFunction.ATAN2}. */
+    public void testAtan2OnIntegerArgs() throws IOException {
+        assertFirstRowDouble(oneRow("key00") + "| eval v = atan2(int0, int0) | fields v", Math.PI / 4.0);
+    }
+
+    // ── conv(n, fromBase, toBase) ──────────────────────────────────────────
+    // PPL `conv` lowers to ScalarFunction.CONVERT → ConvAdapter → substrait `conv` →
+    // Rust UDF at rust/src/udf/conv.rs. Output is lowercase to match Java's
+    // Long.toString(long, int radix).
+
+    /** {@code conv('29234652', 10, 36) = 'hello'} — base-36 round-trip producing alpha digits. */
+    public void testConvDecimalToBase36() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = conv('29234652', 10, 36) | fields v");
+        assertEquals("hello", cell);
+    }
+
+    /** {@code conv('FF', 16, 10) = '255'} — hex input (uppercase accepted, output is decimal). */
+    public void testConvHexToDecimal() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = conv('FF', 16, 10) | fields v");
+        assertEquals("255", cell);
+    }
+
+    /** {@code conv('-100', 10, 16) = '-64'} — negative round-trip. */
+    public void testConvNegativeNumber() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = conv('-100', 10, 16) | fields v");
+        assertEquals("-64", cell);
+    }
+
+    /** {@code conv(255, 10, 16) = 'ff'} — NUMERIC literal first arg. The Rust UDF declared arg0 as
+     *  strict Utf8 and rejected Int32 ("conv: arg 0 expected string, got Int32"); arg0 must coerce. */
+    public void testConvNumericLiteralFirstArg() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = conv(255, 10, 16) | fields v");
+        assertEquals("ff", cell);
+    }
+
+    /** {@code conv(int3, 10, 16)} on an INTEGER COLUMN — mirrors the SQL plugin's {@code testConv}
+     *  (conv(age, 10, 16)), the exact shape the coercion bug surfaced on. int3 = 8 at key00 → 'ff'
+     *  of 8 is '8'; key01's int3 = 13 → 'd'. */
+    public void testConvNumericColumnFirstArg() throws IOException {
+        assertEquals("8", firstRowFirstCell(oneRow("key00") + "| eval v = conv(int3, 10, 16) | fields v"));
+        assertEquals("d", firstRowFirstCell(oneRow("key01") + "| eval v = conv(int3, 10, 16) | fields v"));
+    }
+
+    /** {@code conv(CAST(int3 AS LONG), 10, 16)} — BIGINT (not just INT) first arg also coerces.
+     *  Dynamic JSON-int columns map to long, so this is the common production type. int3 = 8 → '8'. */
+    public void testConvBigintFirstArg() throws IOException {
+        assertEquals("8", firstRowFirstCell(oneRow("key00") + "| eval v = conv(cast(int3 as long), 10, 16) | fields v"));
+    }
+
+    /** {@code conv(int0, 10, 16)} where int0 is NULL (key01) → NULL. Null first arg must propagate,
+     *  not error, through the numeric-arg coercion. */
+    public void testConvNullFirstArg() throws IOException {
+        assertNull(firstRowFirstCell(oneRow("key01") + "| eval v = conv(int0, 10, 16) | fields v"));
+    }
+
+    /** Invalid radix surfaces as a 5xx with Java's NumberFormatException message text. The exact
+     *  phrasing matters: {@code testConvWithInvalidRadix} in the SQL plugin's integ-test asserts
+     *  on the {@code "less than Character.MIN_RADIX"} substring. */
+    public void testConvInvalidRadixThrows() throws IOException {
+        try {
+            executePpl(oneRow("key00") + "| eval v = conv('0000', 1, 36) | fields v");
+            fail("Expected ResponseException for invalid radix");
+        } catch (ResponseException e) {
+            assertTrue(
+                "Expected 'less than Character.MIN_RADIX' in error body but got: " + e.getMessage(),
+                e.getMessage().contains("less than Character.MIN_RADIX")
+            );
+        }
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private void assertFirstRowDouble(String ppl, double expected) throws IOException {
@@ -304,17 +422,10 @@ public class MathScalarFunctionsIT extends AnalyticsRestTestCase {
     private Object firstRowFirstCell(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertTrue("Expected at least one row for query: " + ppl, rows.size() >= 1);
         return rows.get(0).get(0);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

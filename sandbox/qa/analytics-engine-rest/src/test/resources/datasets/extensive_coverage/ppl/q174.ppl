@@ -1,0 +1,1 @@
+source=test_data | eval conv_val = conv('FF', 16, 10) | fields id, conv_val | head 1

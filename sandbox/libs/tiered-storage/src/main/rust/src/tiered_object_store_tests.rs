@@ -338,6 +338,10 @@ async fn test_list_includes_remote_only_files() {
         )
         .await
         .unwrap();
+    // Register local file in registry — list() returns registry entries only
+    tiered
+        .register_file("data/local.parquet", FileLocation::Local, None)
+        .unwrap();
 
     remote
         .put(
@@ -891,4 +895,59 @@ fn test_delete_during_active_guard() {
 // Helper: create a local entry (reused by guard tests above).
 fn local_entry() -> TieredFileEntry {
     TieredFileEntry::new(FileLocation::Local, None)
+}
+
+// -- head() directory existence check tests ---------------------------------
+
+#[tokio::test]
+async fn test_head_directory_path_returns_synthetic_when_registry_has_entries() {
+    let (registry, _local, _remote, tiered) = setup();
+
+    // Register a file so registry is non-empty
+    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/a.parquet")), 1024);
+    registry.register("data/parquet/a.parquet", entry);
+
+    // head() on a directory path should return NotFound — DataFusion uses list()
+    // to discover files in directories, not head(). Returning NotFound tells
+    // DataFusion "this is not a file" and it proceeds to list().
+    let result = tiered.head(&Path::from("data/parquet")).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), object_store::Error::NotFound { .. }));
+}
+
+#[tokio::test]
+async fn test_head_directory_path_with_trailing_slash() {
+    let (registry, _local, _remote, tiered) = setup();
+
+    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/b.parquet")), 2048);
+    registry.register("data/parquet/b.parquet", entry);
+
+    // Trailing slash also treated as directory — returns NotFound
+    let result = tiered.head(&Path::from("data/parquet/")).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), object_store::Error::NotFound { .. }));
+}
+
+#[tokio::test]
+async fn test_head_directory_path_returns_not_found_when_registry_empty() {
+    let (_registry, _local, _remote, tiered) = setup();
+
+    // Registry is empty — directory doesn't "exist"
+    let result = tiered.head(&Path::from("data/parquet")).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_head_file_path_not_treated_as_directory() {
+    let (registry, _local, _remote, tiered) = setup();
+
+    // Register a file so registry is non-empty
+    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/c.parquet")), 512);
+    registry.register("data/parquet/c.parquet", entry);
+
+    // head() on a file path (has extension) should NOT use directory check
+    // — it should try registry lookup, then remote, then local
+    let result = tiered.head(&Path::from("data/parquet/nonexistent.parquet")).await;
+    // Not in registry, not local → NotFound
+    assert!(result.is_err());
 }

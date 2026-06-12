@@ -38,8 +38,8 @@ import java.util.List;
 public class SecondaryLuceneMergeStrategy implements LuceneMergeStrategy {
 
     @Override
-    public MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping) {
-        return new RowIdRemappingOneMerge(segments, rowIdMapping);
+    public MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration) {
+        return new RowIdRemappingOneMerge(segments, rowIdMapping, outputWriterGeneration);
     }
 
     @Override

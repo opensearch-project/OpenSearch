@@ -29,13 +29,26 @@ import java.util.Map;
 public class SortCommandIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
+    private static final Dataset DATASET_MULTI = new Dataset("calcs", "calcs_multi_sort");
 
     private static boolean dataProvisioned = false;
+    private static boolean multiProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
+        }
+    }
+
+    /** Provision a multi-shard calcs index for tests that need to exercise the multi-shard
+     *  sort/project/head planner path. Kept separate from {@link #DATASET} so the abs/substring
+     *  runtime-flake tests that only pass at single-shard aren't destabilized. */
+    private void ensureMultiShardProvisioned() throws IOException {
+        if (multiProvisioned == false) {
+            DatasetProvisioner.provision(client(), DATASET_MULTI, 3);
+            multiProvisioned = true;
         }
     }
 
@@ -77,7 +90,7 @@ public class SortCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | eval n = abs(num0) | sort n | fields n | head 9"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Row count", 9, rows.size());
         for (int i = 0; i < 9; i++) {
@@ -93,7 +106,7 @@ public class SortCommandIT extends AnalyticsRestTestCase {
                 + " | eval n = abs(num0) | sort n | fields n | head 8 from 9"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Row count after 9 nulls", 8, rows.size());
         double[] expectedSorted = { 0, 3.5, 3.5, 10, 12.3, 12.3, 15.7, 15.7 };
@@ -109,6 +122,35 @@ public class SortCommandIT extends AnalyticsRestTestCase {
         }
     }
 
+    /**
+     * Sort → Project → head pipeline. Exercises the exact shape flagged as a planner
+     * landmine in {@code OpenSearchDistributionTraitDef.convert()}: a collated Sort
+     * under a LIMIT with a narrowing Project in between, over a multi-shard-ish scan.
+     * The planner has to place an ER under the collated Sort (concat gather + global
+     * sort) and leave the outer LIMIT without an additional ER — if Volcano ever
+     * explores a SINGLETON→RANDOM scatter path in the resulting RelSets, convert()
+     * throws "HASH/RANGE exchange not yet implemented [toTrait=RANDOM]".
+     *
+     * <p>Asserts top-3 int0 values from calcs: [null, null, null] (6 nulls total,
+     * default ASC nulls-first).
+     */
+    public void testSortThenProjectThenHead() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName + " | sort int0 | fields str0, int0 | head 3"
+        );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'rows'", rows);
+        assertEquals("head 3 returns 3 rows", 3, rows.size());
+        // ASC nulls-first over calcs int0 ([1, null×3, 7, 3, 8, null×2, 8, 4, 10,
+        // null, 4, 11, 4, 8]): top 3 are all null.
+        for (int i = 0; i < 3; i++) {
+            assertEquals("Row " + i + " has 2 columns", 2, rows.get(i).size());
+            assertNull("Top-3 nulls-first: int0 at row " + i + " should be null", rows.get(i).get(1));
+        }
+    }
+
     public void testSortBySubstringExpression() throws IOException {
         // `substring(str2, 1, 3)` lowers to SUBSTRING($N, 1, 3) inside a LogicalProject child of
         // the sort. Without SUBSTRING in STANDARD_PROJECT_OPS, the planner rejects it with
@@ -120,7 +162,7 @@ public class SortCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | eval s = substring(str2, 1, 3) | sort s | fields s"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows'", rows);
         assertEquals("Row count == calcs row count", 17, rows.size());
         // First 4 rows must be nulls (4 null str2 values in calcs).
@@ -150,7 +192,7 @@ public class SortCommandIT extends AnalyticsRestTestCase {
     private final void assertRowsEqual(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
@@ -188,11 +230,4 @@ public class SortCommandIT extends AnalyticsRestTestCase {
         assertEquals(message, expected, actual);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

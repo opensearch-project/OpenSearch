@@ -223,8 +223,11 @@ final class ShardSplittingQuery extends Query {
 
     private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard, LeafReader leafReader, IntConsumer consumer)
         throws IOException {
-        Terms terms = leafReader.terms(idField);
-        TermsEnum iterator = terms.iterator();
+        final Terms terms = leafReader.terms(idField);
+        if (terms == null) {
+            return;
+        }
+        final TermsEnum iterator = terms.iterator();
         BytesRef idTerm;
         PostingsEnum postingsEnum = null;
         while ((idTerm = iterator.next()) != null) {

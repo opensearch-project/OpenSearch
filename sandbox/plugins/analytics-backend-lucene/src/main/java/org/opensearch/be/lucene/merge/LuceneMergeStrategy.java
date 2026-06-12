@@ -43,9 +43,13 @@ public interface LuceneMergeStrategy {
      *
      * @param segments the segments to merge
      * @param rowIdMapping the row ID mapping from the primary format, or null if this is the primary
+     * @param outputWriterGeneration the writer generation to assign to the merged output segment;
+     *                               strategies that produce a {@link RowIdRemappingOneMerge} use this
+     *                               to stamp the {@code writer_generation} attribute onto the merged
+     *                               {@code .si} file via {@code setMergeInfo}
      * @return the configured OneMerge for execution
      */
-    MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping);
+    MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration);
 
     /**
      * Builds or resolves the {@link RowIdMapping} after the merge completes.

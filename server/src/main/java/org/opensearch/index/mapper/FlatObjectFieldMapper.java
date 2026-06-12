@@ -569,14 +569,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
     }
 
-    @Override
-    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        HashSet<String> pathParts = parseObjectPathParts(context);
-        if (pathParts != null) {
-            createPathFieldsForPluggableFormat(context, pathParts);
-        }
-    }
-
     /**
      * Parses the flat_object field value and returns the collected path parts,
      * or {@code null} if the field should be skipped (null value or not searchable/stored/docvalues).

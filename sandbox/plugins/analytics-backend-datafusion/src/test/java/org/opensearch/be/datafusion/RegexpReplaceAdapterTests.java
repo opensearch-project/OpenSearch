@@ -165,30 +165,31 @@ public class RegexpReplaceAdapterTests extends OpenSearchTestCase {
         assertEquals("Java \\Q…\\E rewritten to plain regex", "^BUSINESS(.*?)$", ((RexLiteral) newPatternNode).getValueAs(String.class));
     }
 
-    public void testAdaptPassesThroughWhenNoQuoteBlock() {
-        // Pattern doesn't contain \Q — adapter must return the call unchanged (identity).
+    public void testAdaptAppendsGlobalFlagFor3Arg() {
         RexNode field = rexBuilder.makeInputRef(varcharType, 0);
         RexNode pattern = rexBuilder.makeLiteral("^OFFICE.*$");
         RexNode replacement = rexBuilder.makeLiteral("OFC");
         RexCall original = (RexCall) rexBuilder.makeCall(SqlLibraryOperators.REGEXP_REPLACE_3, List.of(field, pattern, replacement));
 
-        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
 
-        assertSame("identity — no rewrite when pattern has no \\Q", original, adapted);
+        assertSame("operator switched to PG_4", SqlLibraryOperators.REGEXP_REPLACE_PG_4, adapted.getOperator());
+        assertEquals("4 operands after append", 4, adapted.getOperands().size());
+        assertTrue("trailing operand is a literal", adapted.getOperands().get(3) instanceof RexLiteral);
+        assertEquals("trailing flag is \"g\"", "g", ((RexLiteral) adapted.getOperands().get(3)).getValueAs(String.class));
     }
 
-    public void testAdaptPassesThroughNonLiteralPattern() {
-        // Pattern is a column reference (not a literal) — adapter cannot rewrite at planning
-        // time; pass through and let DataFusion error at runtime if the value is incompatible.
-        // Replacement is a plain literal with no $, so neither transform fires.
+    public void testAdaptAppendsGlobalFlagForNonLiteralPattern() {
         RexNode field = rexBuilder.makeInputRef(varcharType, 0);
         RexNode patternRef = rexBuilder.makeInputRef(varcharType, 1);
         RexNode replacement = rexBuilder.makeLiteral("X");
         RexCall original = (RexCall) rexBuilder.makeCall(SqlLibraryOperators.REGEXP_REPLACE_3, List.of(field, patternRef, replacement));
 
-        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
 
-        assertSame("non-literal pattern must pass through", original, adapted);
+        assertSame("operator switched to PG_4", SqlLibraryOperators.REGEXP_REPLACE_PG_4, adapted.getOperator());
+        assertEquals("pattern reference preserved", patternRef, adapted.getOperands().get(1));
+        assertEquals("4 operands", 4, adapted.getOperands().size());
     }
 
     public void testAdaptRewritesReplacementOnly() {
@@ -221,5 +222,42 @@ public class RegexpReplaceAdapterTests extends OpenSearchTestCase {
 
         assertEquals("pattern unquoted", "^(.*?) (.*?)$", ((RexLiteral) result.getOperands().get(1)).getValueAs(String.class));
         assertEquals("replacement braced", "${1}_${2}", ((RexLiteral) result.getOperands().get(2)).getValueAs(String.class));
+    }
+
+    public void testAdapt4ArgRewritesPatternAndPassesFlagsThrough() {
+        // 4-arg REGEXP_REPLACE_PG_4 — emitted by PPL `rex mode=sed` with /g or /i flags.
+        // Pattern + replacement get rewritten as in the 3-arg case; the trailing flags
+        // operand passes through unchanged.
+        RexNode field = rexBuilder.makeInputRef(varcharType, 0);
+        RexNode pattern = rexBuilder.makeLiteral("^\\QFOO\\E");
+        RexNode replacement = rexBuilder.makeLiteral("$1");
+        RexNode flags = rexBuilder.makeLiteral("gi");
+        RexCall original = (RexCall) rexBuilder.makeCall(
+            SqlLibraryOperators.REGEXP_REPLACE_PG_4,
+            List.of(field, pattern, replacement, flags)
+        );
+
+        RexCall result = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertEquals("4-arg call preserved", 4, result.getOperands().size());
+        assertEquals("pattern unquoted", "^FOO", ((RexLiteral) result.getOperands().get(1)).getValueAs(String.class));
+        assertEquals("replacement braced", "${1}", ((RexLiteral) result.getOperands().get(2)).getValueAs(String.class));
+        assertSame("flags operand passes through verbatim", flags, result.getOperands().get(3));
+    }
+
+    public void testAdapt4ArgPassesThroughWhenNoRewriteNeeded() {
+        // 4-arg call with Rust-compatible pattern and no $N — adapter must return identity.
+        RexNode field = rexBuilder.makeInputRef(varcharType, 0);
+        RexNode pattern = rexBuilder.makeLiteral("^foo$");
+        RexNode replacement = rexBuilder.makeLiteral("bar");
+        RexNode flags = rexBuilder.makeLiteral("g");
+        RexCall original = (RexCall) rexBuilder.makeCall(
+            SqlLibraryOperators.REGEXP_REPLACE_PG_4,
+            List.of(field, pattern, replacement, flags)
+        );
+
+        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+
+        assertSame("identity — 4-arg call with no \\Q and no $N passes through", original, adapted);
     }
 }

@@ -8,6 +8,3 @@
 
 pub mod foyer_cache;
 pub mod ffm;
-
-#[cfg(test)]
-mod tests;

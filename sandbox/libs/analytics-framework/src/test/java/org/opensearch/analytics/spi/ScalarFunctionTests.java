@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -86,6 +87,15 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         assertEquals("||", SqlStdOperatorTable.CONCAT.getName());
         assertEquals(SqlKind.OTHER, SqlStdOperatorTable.CONCAT.getKind());
         assertEquals(ScalarFunction.CONCAT, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.CONCAT));
+    }
+
+    public void testFromSqlOperatorResolvesVariadicConcatViaReferenceOperator() {
+        // SqlLibraryOperators.CONCAT_FUNCTION shares the name "CONCAT" with the binary `||` enum
+        // constant, so identifier-name fallback resolves to the wrong constant. The
+        // referenceOperator pin disambiguates by singleton identity, routing the variadic
+        // call to its dedicated adapter.
+        assertEquals("CONCAT", SqlLibraryOperators.CONCAT_FUNCTION.getName());
+        assertSame(ScalarFunction.CONCAT_FUNCTION, ScalarFunction.fromSqlOperatorWithFallback(SqlLibraryOperators.CONCAT_FUNCTION));
     }
 
     // ── fromSqlOperatorWithFallback: identifier-name branch ────────────────────────────────
@@ -198,5 +208,46 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         for (ScalarFunction func : mathFuncs) {
             assertSame("expected MATH category for " + func, ScalarFunction.Category.MATH, func.getCategory());
         }
+    }
+
+    /**
+     * Callers (e.g. {@code OpenSearchProjectRule}) guard on a null return from
+     * {@link ScalarFunction#fromSqlFunction(SqlFunction)}. The contract (per the
+     * javadoc) must return null — not throw — when the function name does not
+     * match any enum constant. Without this contract, any unknown scalar
+     * function short-circuits the Hep planner rule with an IllegalArgumentException.
+     */
+    public void testFromSqlFunctionReturnsNullForUnknownName() {
+        // INITCAP is a Calcite operator the enum does not model. Representative
+        // of any function routed through the name-based path that the enum
+        // does not yet declare.
+        SqlFunction initcap = SqlStdOperatorTable.INITCAP;
+        ScalarFunction resolved = ScalarFunction.fromSqlFunction(initcap);
+        assertNull("fromSqlFunction must return null for unknown names", resolved);
+    }
+
+    public void testFromSqlFunctionResolvesKnownName() {
+        // UPPER is a well-known scalar function — valueOf("UPPER") succeeds.
+        SqlFunction upper = SqlStdOperatorTable.UPPER;
+        ScalarFunction resolved = ScalarFunction.fromSqlFunction(upper);
+        assertNotNull("fromSqlFunction must resolve known names", resolved);
+        assertSame(ScalarFunction.UPPER, resolved);
+    }
+
+    // ── fromToken: case-insensitive token resolution ───────────────────────────────────────
+
+    public void testFromTokenCaseInsensitive() {
+        // fromToken trims surrounding whitespace and upper-cases before valueOf.
+        assertSame(ScalarFunction.LIKE, ScalarFunction.fromToken("like"));
+        assertSame(ScalarFunction.LIKE, ScalarFunction.fromToken("LIKE"));
+        assertSame(ScalarFunction.EQUALS, ScalarFunction.fromToken("  Equals "));
+    }
+
+    public void testFromTokenRejectsUnknown() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ScalarFunction.fromToken("NOPE"));
+        assertTrue(
+            "exception message must mention the failure, got: " + e.getMessage(),
+            e.getMessage().contains("Unknown scalar function")
+        );
     }
 }

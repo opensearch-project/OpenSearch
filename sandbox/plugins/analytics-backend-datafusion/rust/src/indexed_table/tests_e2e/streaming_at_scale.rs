@@ -293,6 +293,7 @@ fn wire_large_rec(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>
             out.push(large_collector_for(tag));
         }
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -399,12 +400,13 @@ async fn run_large(
     }
 
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: LARGE_N as i64,
         object_path: object_store::path::Path::from(f.path.to_string_lossy().as_ref()),
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     let tree = Arc::new(tree);
@@ -417,7 +419,7 @@ async fn run_large(
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -431,6 +433,7 @@ async fn run_large(
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                    stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -451,6 +454,7 @@ async fn run_large(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -849,12 +853,13 @@ async fn run_large_partitioned(
         offset += n;
     }
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: LARGE_N as i64,
         object_path: object_store::path::Path::from(f.path.to_string_lossy().as_ref()),
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     let tree = Arc::new(tree);
@@ -867,7 +872,7 @@ async fn run_large_partitioned(
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -881,6 +886,7 @@ async fn run_large_partitioned(
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                     collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                    stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -900,6 +906,7 @@ async fn run_large_partitioned(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

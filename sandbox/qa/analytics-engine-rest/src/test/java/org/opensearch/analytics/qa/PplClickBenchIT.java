@@ -8,16 +8,18 @@
 
 package org.opensearch.analytics.qa;
 
+import java.io.IOException;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * ClickBench PPL integration test. Runs PPL queries against a parquet-backed ClickBench index.
  * <p>
- * Query path: {@code POST /_analytics/ppl} → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion
+ * Query path: {@code POST /_plugins/_ppl} → opensearch-sql → analytics-engine → Calcite → Substrait → DataFusion
  * <p>
  * Currently restricted to Q1 to keep CI green. Auto-discovery of all 43 ClickBench queries is
  * temporarily disabled because several queries exercise unsupported translators/planner rules
@@ -26,45 +28,63 @@ import java.util.Set;
  */
 public class PplClickBenchIT extends AnalyticsRestTestCase {
 
+    private static final ExpectedResponseStrategy STRATEGY = ExpectedResponseStrategy.PASS_ON_MISSING;
+
     /**
      * ClickBench PPL query numbers to run. Auto-discovery finds all q{N}.ppl files under
      * resources/datasets/clickbench/ppl/. Individual queries can be excluded via
      * {@link #SKIP_QUERIES} when a feature is genuinely missing rather than broken.
      */
     // Queries skipped:
-    //  - Missing feature: Q19 (extract(minute from …)), Q40 (case() else + head N from M),
-    //    Q43 (date_format() + head N from M).
-    //  - Substrait emit can't find a MIN binding for VARCHAR inputs (isthmus library):
-    //    Q29 (min(Referer) where Referer is text). Needs a min(string) binding in
-    //    the aggregate function catalog or an equivalent adapter.
-    //  - Multi-shard exchange can't serialize TIMESTAMP (LocalDateTime): Q7, Q24-Q27,
-    //    Q37-Q42.
-    //  - WHERE + GROUP-BY + aggregate on multi-shard triggers Arrow "project index 0
-    //    out of bounds, max field 0": Q11, Q12, Q13, Q14, Q15, Q22, Q23, Q31, Q32;
-    //    plus Q20 (WHERE + fields, no aggregate, still routed through multi-shard path).
-    // DEBUG: temporarily un-skip the multi-shard-only failures to see if they
-    // pass on single-shard (where the split rule doesn't fire and no exchange
-    // traffic / no native-side aggregate reduce is exercised).
-    // Queries skipped — all known PPL frontend / Substrait gaps, unrelated to the
-    // distributed aggregate execution path:
-    //  - Q19: extract(minute from …) not supported by the PPL frontend.
-    //  - Q29: Substrait can't bind MIN on VARCHAR inputs (isthmus library limitation).
-    //    Requires a min(string) binding in the aggregate function catalog.
-    //  - Q40: case() else + head N from M — PPL frontend gap.
-    //  - Q43: date_format() + head N from M — PPL frontend gap.
-    private static final Set<Integer> SKIP_QUERIES = Set.of(19, 29, 40, 43);
+    //  - Q29: Substrait's default aggregate catalog has no min/max binding for string
+    //    types. Isthmus fails with "Unable to find binding for call MIN($1)" when PPL
+    //    emits `min(Referer)` on a VARCHAR column. DataFusion can execute min(Utf8)
+    //    natively — the gap is purely in the Substrait serialization layer. A fix
+    //    would register additional min/max impls covering string types in the loaded
+    //    SimpleExtension.ExtensionCollection at plugin init.
+    private static final Set<Integer> SKIP_QUERIES = Set.of(29);
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws Exception {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET);
             dataProvisioned = true;
         }
     }
 
+    /**
+     * Regression for the QTF Arrow type converter: a {@code sort … | head N} query goes through
+     * late-materialization (query-then-fetch), which fetches the above-anchor physical fields by
+     * row-id and builds their Arrow output schema via {@code ArrowCalciteTypes.toArrow}. Here
+     * {@code Age} is an OpenSearch {@code short} (Calcite SMALLINT); before SMALLINT/TINYINT were
+     * mapped, the stitch threw {@code "Unsupported Calcite type: SMALLINT"} and the whole query
+     * 500'd. Assert the short column materializes as numbers across the fetched rows.
+     *
+     * <p>Row <em>order</em> is intentionally not asserted — clickbench is provisioned at 2 shards
+     * and the QTF concat-gather does not globally merge-sort, so which 5 rows come back is not
+     * deterministic. This test only proves the SMALLINT above-anchor field round-trips.
+     */
+    public void testQtfFetchOfShortAboveAnchorField() throws IOException {
+        Map<String, Object> response = executePpl(
+            "source=" + ClickBenchTestHelper.DATASET.indexName + " | sort WatchID | head 5 | fields WatchID, Age"
+        );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("datarows missing — QTF stitch likely failed before returning", rows);
+        assertEquals("head 5 should return 5 rows", 5, rows.size());
+        for (List<Object> r : rows) {
+            assertEquals("row should have [WatchID, Age]", 2, r.size());
+            assertTrue(
+                "Age (short/SMALLINT) must materialize as a number, got " + r.get(1) + " of "
+                    + (r.get(1) == null ? "null" : r.get(1).getClass().getSimpleName()),
+                r.get(1) instanceof Number
+            );
+        }
+    }
+
     public void testClickBenchPplQueries() throws Exception {
-        ensureDataProvisioned();
 
         List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(ClickBenchTestHelper.DATASET, "ppl")
             .stream()
@@ -81,11 +101,12 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
             queryNumbers,
             (client, dataset, queryBody) -> {
                 String ppl = queryBody.trim().replace("clickbench", dataset.indexName);
-                Request request = new Request("POST", "/_analytics/ppl");
+                Request request = new Request("POST", "/_plugins/_ppl");
                 request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
                 Response response = client.performRequest(request);
                 return assertOkAndParse(response, "PPL query");
-            }
+            },
+            STRATEGY
         );
 
         if (failures.isEmpty() == false) {

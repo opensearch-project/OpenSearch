@@ -125,15 +125,21 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
      * DataFormatAwareStoreDirectory wrapping TieredSubdirectoryAwareDirectory.
      */
     public void testCreatesCorrectDirectoryStack() throws IOException {
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            java.util.Map.of(),
+            remoteDirectory,
+            null
+        );
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
             shardId,
             shardPath,
             localDirectoryFactory,
             Map.of(),
-            java.util.Map.of(),
-            org.opensearch.repositories.NativeStoreRepository.EMPTY,
-            true,
+            registry,
             remoteDirectory,
             fileCache,
             threadPool
@@ -158,15 +164,21 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
      * The factory should NOT double-wrap with SubdirectoryAwareDirectory.
      */
     public void testNoDoubleSubdirectoryAwareDirectoryWrapping() throws IOException {
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            java.util.Map.of(),
+            remoteDirectory,
+            null
+        );
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
             shardId,
             shardPath,
             localDirectoryFactory,
             Map.of(),
-            java.util.Map.of(),
-            org.opensearch.repositories.NativeStoreRepository.EMPTY,
-            true,
+            registry,
             remoteDirectory,
             fileCache,
             threadPool
@@ -191,15 +203,21 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
      * the factory still creates a valid directory stack with no format directories.
      */
     public void testEmptyFormatDirectoriesWhenNoPluginProvides() throws IOException {
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            java.util.Map.of(),
+            remoteDirectory,
+            null
+        );
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
             shardId,
             shardPath,
             localDirectoryFactory,
             Map.of(),
-            java.util.Map.of(),
-            org.opensearch.repositories.NativeStoreRepository.EMPTY,
-            true,
+            registry,
             remoteDirectory,
             fileCache,
             threadPool

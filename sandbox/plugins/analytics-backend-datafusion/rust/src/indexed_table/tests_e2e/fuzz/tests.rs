@@ -22,6 +22,9 @@
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use super::delegation::{
+    generate_delegation_tree, run_delegation_iteration, DelegatedBackendBehavior,
+};
 use super::{
     build_corpus, derive_seed, generate_tree, load_segment, master_seed, run_iteration,
     run_iteration_twice, FixtureConfig,
@@ -153,7 +156,12 @@ async fn fuzz_single_row_group() {
 /// regardless of seed.
 #[tokio::test(flavor = "multi_thread")]
 async fn fuzz_parallel_collectors() {
-    run_fuzz("fuzz_parallel_collectors", 50, FixtureConfig::parallel_collectors).await;
+    run_fuzz(
+        "fuzz_parallel_collectors",
+        50,
+        FixtureConfig::parallel_collectors,
+    )
+    .await;
 }
 
 /// AND(Predicate, Collector) focused: shallow depth-2 trees with 4
@@ -195,4 +203,95 @@ async fn fuzz_clustered_nulls() {
 #[tokio::test(flavor = "multi_thread")]
 async fn fuzz_multi_column_or() {
     run_fuzz("fuzz_multi_column_or", 50, FixtureConfig::multi_column_or).await;
+}
+
+/// Block-granular dense: 200k rows in 100k-row RGs with 50% collector
+/// density. Auto strategy picks block-granular `min_skip_run` (selectivity
+/// well above 3% threshold), and the large RGs ensure real skip runs
+/// (> 1024 rows) survive coalescing. This is the production regime for
+/// wide-selectivity queries and catches mask-alignment bugs between
+/// `prefetch_mask_buffer` and `PositionMap` in `finalize_batch`.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_block_granular_dense() {
+    run_fuzz(
+        "fuzz_block_granular_dense",
+        50,
+        FixtureConfig::block_granular_dense,
+    )
+    .await;
+}
+
+/// Driver for the two delegation tests: generates a SingleCollector tree with
+/// `num_delegation` `DelegationPossible` leaves, wires a mock delegated-backend
+/// collector keyed by annotation_id, and asserts the result equals the canonical
+/// `(correctness collector ∩ original_exprs)` set.
+async fn run_delegation_fuzz(
+    test_name: &str,
+    iters: u64,
+    cfg_builder: fn(u64) -> FixtureConfig,
+    behavior: DelegatedBackendBehavior,
+    num_delegation: usize,
+) {
+    let master = master_seed();
+    let corpus_seed = derive_seed(master, &format!("{}_corpus", test_name), 0);
+    let corpus = build_corpus(cfg_builder(corpus_seed));
+    let loaded = load_segment(&corpus);
+
+    for iter in 0..iters {
+        let iter_seed = derive_seed(master, test_name, iter);
+        let mut rng = StdRng::seed_from_u64(iter_seed);
+        let dt = generate_delegation_tree(&mut rng, &corpus, num_delegation);
+        if let Err(e) = run_delegation_iteration(&corpus, &loaded, &dt, behavior).await {
+            panic!(
+                "delegation fuzz {} iter={} seed={:016x} master={:016x}: {}\n\
+                 reproduce: INDEXED_E2E_SEED={:016x} cargo test {}",
+                test_name, iter, iter_seed, master, e, master, test_name,
+            );
+        }
+    }
+}
+
+/// Delegation-passthrough: the mock delegated-backend returns *exactly* the rows
+/// where `original_expr` is TRUE. The AND-intersection is a no-op for correctness;
+/// proves the gate + intersection don't lose rows on the happy path.
+///
+/// Uses `concurrency` (4 segments × 8 partitions) so segments after the first have
+/// `rg.first_row != 0` — this is the regime where the peer-bitmap offset math
+/// (`min_doc - rg.first_row`) actually does work. A single-segment fixture would
+/// silently let an off-by-one in that arithmetic pass.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_delegation_passthrough() {
+    run_delegation_fuzz(
+        "fuzz_delegation_passthrough",
+        25,
+        FixtureConfig::concurrency,
+        DelegatedBackendBehavior::Passthrough,
+        2,
+    )
+    .await;
+}
+
+/// Sloppy delegated backend: returns TRUE-rows + ~30% extras. Residual FilterExec
+/// must filter out the extras. Proves the delegated-backend bitset is *advisory*
+/// — DataFusion's native predicate evaluation is the authoritative correctness
+/// backstop. Same multi-segment fixture as the passthrough variant.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_delegation_sloppy() {
+    run_delegation_fuzz(
+        "fuzz_delegation_sloppy",
+        25,
+        FixtureConfig::concurrency,
+        DelegatedBackendBehavior::Sloppy,
+        2,
+    )
+    .await;
+}
+
+/// Shuffled column order: parquet file columns are in reversed order
+/// compared to the table schema. Exercises the stream.rs
+/// reprojection-by-name fix that fires when schemas have the same
+/// columns but in different order.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_shuffled_columns() {
+    run_fuzz("fuzz_shuffled_columns", 50, FixtureConfig::shuffled_columns).await;
 }

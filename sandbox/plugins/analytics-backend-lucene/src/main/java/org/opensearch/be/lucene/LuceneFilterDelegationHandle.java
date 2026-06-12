@@ -11,7 +11,10 @@ package org.opensearch.be.lucene;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -24,6 +27,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 
@@ -35,10 +39,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * Lucene implementation of {@link FilterDelegationHandle}. Compiles delegated expressions
  * into Lucene Queries, creates Weights on demand, and produces bitsets via Scorers.
+ *
+ * <p>Segments are resolved by <b>writer generation</b>. The mapping
+ * {@code generation → Lucene leaf index} is provided by {@link LuceneReader}, which is
+ * built once at refresh time in {@link LuceneReaderManager}.
  *
  * @opensearch.internal
  */
@@ -46,26 +55,42 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneFilterDelegationHandle.class);
 
+    // TODO: lazy query compilation for performance-delegated predicates. Today
+    // every delegated expression is compiled (QueryBuilder → Lucene Query) at
+    // ctor time. For correctness-delegated predicates (always called) this is
+    // fine. For performance-delegated predicates that DF page-pruning may never
+    // consult, the compile cost is wasted. Deferring needs a way to distinguish
+    // the two kinds (e.g. add a kind field on DelegatedExpression) and clear
+    // semantics for compile-failure timing (eager = fail at ctor, lazy = fail
+    // at first use). Revisit if this surfaces as a real cost — needs revisiting.
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
+    private final IndexSearcher searcher;
     private final List<LeafReaderContext> leaves;
+    private final BooleanSupplier isCancelledSupplier;
+    private final Map<Long, String> generationToSegmentName;
 
     private final ConcurrentHashMap<Integer, Weight> weightsByProviderKey = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, ScorerHandle> scorersByCollectorKey = new ConcurrentHashMap<>();
     private final AtomicInteger nextProviderKey = new AtomicInteger(1);
     private final AtomicInteger nextCollectorKey = new AtomicInteger(1);
 
-    // TODO: NamedWriteableRegistry should ideally come from LucenePlugin.createComponents
-    // instead of being threaded through ShardScanExecutionContext from Core.
     LuceneFilterDelegationHandle(
         List<DelegatedExpression> expressions,
         QueryShardContext queryShardContext,
-        DirectoryReader directoryReader,
-        NamedWriteableRegistry namedWriteableRegistry
+        LuceneReader luceneReader,
+        CatalogSnapshot catalogSnapshot,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier isCancelledSupplier
     ) {
-        this.directoryReader = directoryReader;
+        assert luceneReader != null : "luceneReader must not be null";
+        assert catalogSnapshot != null : "catalogSnapshot must not be null";
+        this.directoryReader = luceneReader.directoryReader();
+        this.searcher = queryShardContext.searcher();
         this.leaves = directoryReader.leaves();
+        this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
+        this.isCancelledSupplier = isCancelledSupplier;
     }
 
     private static Map<Integer, Query> compileQueries(
@@ -79,7 +104,10 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                 StreamInput rawInput = StreamInput.wrap(expr.getExpressionBytes());
                 StreamInput input = new NamedWriteableAwareStreamInput(rawInput, registry);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                Query query = queryBuilder.toQuery(context);
+                // Rewrite FieldExistsQuery → a postings-only equivalent: the lucene-secondary segment
+                // has no doc_values/norms (they live in the parquet primary), so a FieldExistsQuery
+                // built from an _exists_ clause (PPL `search field!=value`) would throw at rewrite().
+                Query query = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(queryBuilder.toQuery(context));
                 queries.put(expr.getAnnotationId(), query);
             } catch (IOException exception) {
                 throw new IllegalStateException(
@@ -98,10 +126,10 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             return -1;
         }
         try {
-            IndexSearcher searcher = new IndexSearcher(directoryReader);
             Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             int providerKey = nextProviderKey.getAndIncrement();
             weightsByProviderKey.put(providerKey, weight);
+            LOGGER.debug("[scf] createProvider annotationId={} → providerKey={}", annotationId, providerKey);
             return providerKey;
         } catch (IOException exception) {
             LOGGER.error("createProvider failed for annotationId=" + annotationId, exception);
@@ -110,22 +138,77 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     }
 
     @Override
-    public int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
+    public int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
         Weight weight = weightsByProviderKey.get(providerKey);
         if (weight == null) {
             return -1;
         }
+        String segName = generationToSegmentName.get(writerGeneration);
+        if (segName == null) {
+            LOGGER.error(
+                "createCollector: no Lucene segment for writer_generation={} (providerKey={}). Known generations: {}",
+                writerGeneration,
+                providerKey,
+                generationToSegmentName.keySet()
+            );
+            return -1;
+        }
+        LeafReaderContext leaf = null;
+        for (LeafReaderContext lrc : leaves) {
+            if (unwrapSegmentReader(lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
+                leaf = lrc;
+                break;
+            }
+        }
+        if (leaf == null) {
+            LOGGER.error(
+                "createCollector: segment name [{}] not found in leaves (writerGeneration={}, providerKey={})",
+                segName,
+                writerGeneration,
+                providerKey
+            );
+            return -1;
+        }
+
+        int leafMaxDoc = leaf.reader().maxDoc();
+        assert minDoc >= 0 && minDoc <= maxDoc && maxDoc <= leafMaxDoc : "createCollector(providerKey="
+            + providerKey
+            + ", writerGeneration="
+            + writerGeneration
+            + " -> segment="
+            + segName
+            + "): partition ["
+            + minDoc
+            + ","
+            + maxDoc
+            + ") exceeds leaf maxDoc="
+            + leafMaxDoc;
+
         try {
-            // TODO: segmentOrd translation — parquet segment ord may differ from Lucene leaf ord
-            LeafReaderContext leaf = leaves.get(segmentOrd);
             Scorer scorer = weight.scorer(leaf);
             int collectorKey = nextCollectorKey.getAndIncrement();
             scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc));
+            LOGGER.debug(
+                "[scf] createCollector providerKey={} writerGeneration={} range=[{},{}) → collectorKey={}",
+                providerKey,
+                writerGeneration,
+                minDoc,
+                maxDoc,
+                collectorKey
+            );
             return collectorKey;
         } catch (IOException exception) {
-            LOGGER.error("createCollector failed for providerKey=" + providerKey + ", seg=" + segmentOrd, exception);
+            LOGGER.error(
+                "createCollector failed for providerKey=" + providerKey + ", writerGeneration=" + writerGeneration + ", segment=" + segName,
+                exception
+            );
             return -1;
         }
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return isCancelledSupplier != null && isCancelledSupplier.getAsBoolean();
     }
 
     @Override
@@ -167,6 +250,16 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         long[] words = bits.getBits();
         int wordCount = (span + 63) >>> 6;
         MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(
+                "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={}",
+                collectorKey,
+                minDoc,
+                maxDoc,
+                bits.cardinality(),
+                wordCount
+            );
+        }
         return wordCount;
     }
 
@@ -184,6 +277,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     public void close() {
         weightsByProviderKey.clear();
         scorersByCollectorKey.clear();
+    }
+
+    private SegmentReader unwrapSegmentReader(LeafReader reader) {
+        LeafReader current = reader;
+        while (current instanceof FilterLeafReader flr) {
+            current = flr.getDelegate();
+        }
+        return (SegmentReader) current;
     }
 
     private static final class ScorerHandle {

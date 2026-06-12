@@ -8,8 +8,6 @@
 
 package org.opensearch.be.datafusion.stats;
 
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -22,21 +20,26 @@ import java.util.Map;
 /**
  * Unit tests for {@link DataFusionStats} constructed via direct constructors.
  *
- * <p>Layout: IO RuntimeMetrics (8 fields), optional CPU RuntimeMetrics (8 fields),
+ * <p>Layout: IO RuntimeMetrics (9 fields), optional CPU RuntimeMetrics (9 fields),
  * 4 TaskMonitorStats (3 fields each).
  */
 public class DataFusionStatsTests extends OpenSearchTestCase {
 
-    /** Build a DataFusionStats with sequential values 1..28 for deterministic field verification. */
+    /** Build a DataFusionStats with sequential values for deterministic field verification. */
     private static DataFusionStats sequentialStats() {
         RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
         RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("fetch_phase", new TaskMonitorStats(23, 24, 25));
-        taskMonitors.put("segment_stats", new TaskMonitorStats(26, 27, 28));
-        return new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(17, 18, 19));
+        taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22));
+        taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
+        return new DataFusionStats(
+            new NativeExecutorsStats(io, cpu, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            new SpillStats("/mnt/spill", 100L, 60L, 40L, 80L, 0L)
+        );
     }
 
     private static String toJsonString(DataFusionStats stats) throws IOException {
@@ -82,29 +85,29 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         Map<String, TaskMonitorStats> monitors = nes.getTaskMonitors();
         assertEquals(4, monitors.size());
 
+        TaskMonitorStats cr = monitors.get("coordinator_reduce");
+        assertNotNull(cr);
+        assertEquals(17L, cr.totalPollDurationMs);
+        assertEquals(18L, cr.totalScheduledDurationMs);
+        assertEquals(19L, cr.totalIdleDurationMs);
+
         TaskMonitorStats qe = monitors.get("query_execution");
         assertNotNull(qe);
-        assertEquals(17L, qe.totalPollDurationMs);
-        assertEquals(18L, qe.totalScheduledDurationMs);
-        assertEquals(19L, qe.totalIdleDurationMs);
+        assertEquals(20L, qe.totalPollDurationMs);
+        assertEquals(21L, qe.totalScheduledDurationMs);
+        assertEquals(22L, qe.totalIdleDurationMs);
 
         TaskMonitorStats sn = monitors.get("stream_next");
         assertNotNull(sn);
-        assertEquals(20L, sn.totalPollDurationMs);
-        assertEquals(21L, sn.totalScheduledDurationMs);
-        assertEquals(22L, sn.totalIdleDurationMs);
+        assertEquals(23L, sn.totalPollDurationMs);
+        assertEquals(24L, sn.totalScheduledDurationMs);
+        assertEquals(25L, sn.totalIdleDurationMs);
 
-        TaskMonitorStats fp = monitors.get("fetch_phase");
-        assertNotNull(fp);
-        assertEquals(23L, fp.totalPollDurationMs);
-        assertEquals(24L, fp.totalScheduledDurationMs);
-        assertEquals(25L, fp.totalIdleDurationMs);
-
-        TaskMonitorStats ss = monitors.get("segment_stats");
-        assertNotNull(ss);
-        assertEquals(26L, ss.totalPollDurationMs);
-        assertEquals(27L, ss.totalScheduledDurationMs);
-        assertEquals(28L, ss.totalIdleDurationMs);
+        TaskMonitorStats ps = monitors.get("plan_setup");
+        assertNotNull(ps);
+        assertEquals(26L, ps.totalPollDurationMs);
+        assertEquals(27L, ps.totalScheduledDurationMs);
+        assertEquals(28L, ps.totalIdleDurationMs);
     }
 
     // ---- Test: CPU runtime null → cpuRuntime absent in JSON ----
@@ -112,18 +115,27 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     public void testCpuRuntimeAbsentWhenNull() throws IOException {
         RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("query_execution", new TaskMonitorStats(14, 15, 16));
-        taskMonitors.put("stream_next", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("fetch_phase", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("segment_stats", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16));
+        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
+        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
 
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors));
+        DataFusionStats stats = new DataFusionStats(
+            new NativeExecutorsStats(io, null, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null
+        );
         assertNull(stats.getNativeExecutorsStats().getCpuRuntime());
 
         String json = toJsonString(stats);
         assertFalse("cpu_runtime should be omitted when null", json.contains("cpu_runtime"));
         assertTrue("io_runtime should still be present", json.contains("io_runtime"));
-        assertTrue("task_monitors should still be present", json.contains("task_monitors"));
+        // Task monitors are at top level (flat structure, no "task_monitors" wrapper)
+        assertTrue("coordinator_reduce should still be present", json.contains("coordinator_reduce"));
+        assertTrue("query_execution should still be present", json.contains("query_execution"));
+        assertTrue("stream_next should still be present", json.contains("stream_next"));
+        assertTrue("plan_setup should still be present", json.contains("plan_setup"));
     }
 
     // ---- Test: non-null CPU runtime → cpuRuntime present in JSON ----
@@ -155,15 +167,17 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         DataFusionStats stats = sequentialStats();
         String json = toJsonString(stats);
 
-        assertTrue(json.contains("\"native_executors\""));
+        // Flat structure: no "native_executors" or "task_monitors" wrappers
+        assertFalse(json.contains("\"native_executors\""));
         assertTrue(json.contains("\"io_runtime\""));
         assertTrue(json.contains("\"cpu_runtime\""));
-        assertTrue(json.contains("\"task_monitors\""));
+        assertFalse(json.contains("\"task_monitors\""));
 
+        // Task monitors at top level
+        assertTrue(json.contains("\"coordinator_reduce\""));
         assertTrue(json.contains("\"query_execution\""));
         assertTrue(json.contains("\"stream_next\""));
-        assertTrue(json.contains("\"fetch_phase\""));
-        assertTrue(json.contains("\"segment_stats\""));
+        assertTrue(json.contains("\"plan_setup\""));
 
         String[] taskFields = { "total_poll_duration_ms", "total_scheduled_duration_ms", "total_idle_duration_ms" };
         for (String field : taskFields) {
@@ -171,8 +185,8 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         }
 
         // IO runtime: workers_count = 1
-        assertTrue(json.contains("\"workers_count\":1,"));
-        // query_execution: total_poll_duration_ms = 17
+        assertTrue(json.contains("\"workers_count\":1"));
+        // coordinator_reduce: total_poll_duration_ms = 17
         assertTrue(json.contains("\"total_poll_duration_ms\":17"));
     }
 
@@ -181,17 +195,25 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     public void testToXContentCpuRuntimeOmitted() throws IOException {
         RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("query_execution", new TaskMonitorStats(14, 15, 16));
-        taskMonitors.put("stream_next", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("fetch_phase", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("segment_stats", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16));
+        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
+        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
 
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors));
+        DataFusionStats stats = new DataFusionStats(
+            new NativeExecutorsStats(io, null, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null
+        );
         String json = toJsonString(stats);
 
         assertTrue(json.contains("\"io_runtime\""));
         assertFalse("cpu_runtime should not appear", json.contains("\"cpu_runtime\""));
-        assertTrue(json.contains("\"task_monitors\""));
+        // Task monitors at top level (no wrapper)
+        assertTrue(json.contains("\"coordinator_reduce\""));
+        assertTrue(json.contains("\"query_execution\""));
+        assertTrue(json.contains("\"plan_setup\""));
     }
 
     // ---- Test: exactly 4 task monitor keys ----
@@ -201,9 +223,79 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         Map<String, TaskMonitorStats> monitors = stats.getNativeExecutorsStats().getTaskMonitors();
 
         assertEquals(4, monitors.size());
+        assertTrue(monitors.containsKey("coordinator_reduce"));
         assertTrue(monitors.containsKey("query_execution"));
         assertTrue(monitors.containsKey("stream_next"));
-        assertTrue(monitors.containsKey("fetch_phase"));
-        assertTrue(monitors.containsKey("segment_stats"));
+        assertTrue(monitors.containsKey("plan_setup"));
+    }
+
+    public void testSpillFragmentRendersUnderDiskSpillKey() throws IOException {
+        DataFusionStats stats = sequentialStats();
+        String json = toJsonString(stats);
+
+        assertTrue("missing disk_spill object: " + json, json.contains("\"disk_spill\":{"));
+        assertTrue(json.contains("\"directory\":\"/mnt/spill\""));
+        assertTrue(json.contains("\"disk_total_bytes\":100"));
+        assertTrue(json.contains("\"disk_available_bytes\":60"));
+        assertTrue(json.contains("\"disk_used_bytes\":40"));
+        assertTrue(json.contains("\"disk_reserved_bytes\":80"));
+    }
+
+    public void testSpillFragmentRoundTripsThroughDataFusionStatsWriteable() throws IOException {
+        DataFusionStats original = sequentialStats();
+
+        org.opensearch.common.io.stream.BytesStreamOutput out = new org.opensearch.common.io.stream.BytesStreamOutput();
+        original.writeTo(out);
+
+        try (org.opensearch.core.common.io.stream.StreamInput in = out.bytes().streamInput()) {
+            DataFusionStats roundTripped = new DataFusionStats(in);
+            assertNotNull(roundTripped.getSpillStats());
+            assertEquals(original.getSpillStats(), roundTripped.getSpillStats());
+        }
+    }
+
+    // ---- Test: cacheStats omitted by default (no cache stats provided → null) ----
+
+    public void testCacheStatsAbsentWhenNotProvided() throws IOException {
+        DataFusionStats stats = sequentialStats();
+        assertNull(stats.getCacheStats());
+
+        String json = toJsonString(stats);
+        assertFalse("cache_stats should be omitted when null", json.contains("cache_stats"));
+    }
+
+    // ---- Test: cacheStats present → renders into JSON ----
+
+    public void testCacheStatsPresentRendersIntoJson() throws IOException {
+        RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
+        Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
+        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(0, 0, 0));
+        taskMonitors.put("query_execution", new TaskMonitorStats(0, 0, 0));
+        taskMonitors.put("stream_next", new TaskMonitorStats(0, 0, 0));
+        taskMonitors.put("plan_setup", new TaskMonitorStats(0, 0, 0));
+
+        CacheStats cache = new CacheStats(
+            new CacheGroupStats(100, 5, 25, 4096, 250_000_000),
+            new CacheGroupStats(50, 0, 25, 2048, 100_000_000)
+        );
+        DataFusionStats stats = new DataFusionStats(
+            new NativeExecutorsStats(io, null, taskMonitors),
+            new PartitionGateStats("datanode_gate", 12, 0, 0, 0, 0, 12),
+            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0, 0, 12),
+            null,
+            cache,
+            null
+        );
+
+        assertSame(cache, stats.getCacheStats());
+
+        String json = toJsonString(stats);
+        assertTrue("cache_stats wrapper expected", json.contains("\"cache_stats\""));
+        assertTrue(json.contains("\"metadata_cache\""));
+        assertTrue(json.contains("\"statistics_cache\""));
+        assertTrue(json.contains("\"hit_count\":100"));
+        assertTrue(json.contains("\"hit_count\":50"));
+        assertTrue(json.contains("\"size_limit_bytes\":250000000"));
+        assertTrue(json.contains("\"size_limit_bytes\":100000000"));
     }
 }

@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use datafusion::arrow::array::{Array, Int32Array, StringArray};
+use datafusion::arrow::array::{Array, Int32Array, Int64Array, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
@@ -38,11 +38,16 @@ use super::stream::{FilterStrategy, RowGroupInfo};
 use super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFileInfo};
 
 mod boolean_algebra;
+mod constant_predicate;
+mod dynamic_filter_pushdown;
 mod fuzz;
 mod metrics;
 mod multi_segment;
 mod null_columns;
 mod page_pruning;
+mod qtf_fetch_phase;
+mod row_id_emission;
+mod row_id_strategies;
 mod schema_drift;
 mod streaming_at_scale;
 
@@ -103,11 +108,13 @@ fn build_fixture_schema() -> SchemaRef {
         Field::new("price", DataType::Int32, false),
         Field::new("status", DataType::Utf8, false),
         Field::new("category", DataType::Utf8, false),
+        Field::new("__row_id__", DataType::Int64, false),
     ]))
 }
 
 fn write_fixture_parquet() -> NamedTempFile {
     let schema = build_fixture_schema();
+    let row_ids: Vec<i64> = (0..16).collect();
     let batch = RecordBatch::try_new(
         schema.clone(),
         vec![
@@ -115,6 +122,7 @@ fn write_fixture_parquet() -> NamedTempFile {
             Arc::new(Int32Array::from(PRICES.to_vec())),
             Arc::new(StringArray::from(STATUSES.to_vec())),
             Arc::new(StringArray::from(CATEGORIES.to_vec())),
+            Arc::new(Int64Array::from(row_ids)),
         ],
     )
     .unwrap();
@@ -215,12 +223,13 @@ async fn run_tree_and_plan(
 
     let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: 16,
         object_path,
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     // Normalize NOT push-down; build one collector per Collector leaf in DFS order.
@@ -239,7 +248,7 @@ async fn run_tree_and_plan(
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
+        Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -261,6 +270,7 @@ async fn run_tree_and_plan(
                     ),
                 ),
                 collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
             });
             Ok(eval)
         })
@@ -287,6 +297,7 @@ async fn run_tree_and_plan(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false, prune_tree_config: None,
     }));
 
     let ctx = SessionContext::new();
@@ -385,5 +396,6 @@ fn wire(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>) {
             out.push(c);
         }
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }

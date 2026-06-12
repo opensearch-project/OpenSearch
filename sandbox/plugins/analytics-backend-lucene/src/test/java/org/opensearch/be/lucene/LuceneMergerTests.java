@@ -30,10 +30,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.merge.LuceneMerger;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.test.OpenSearchTestCase;
@@ -41,7 +43,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -90,25 +91,8 @@ public class LuceneMergerTests extends OpenSearchTestCase {
      * Merge with empty input returns empty result without error.
      */
     public void testMergeWithEmptyInput() throws IOException {
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
         MergeInput input = MergeInput.builder().segments(List.of()).newWriterGeneration(99L).build();
-
-        MergeResult result = merger.merge(input);
-        assertNotNull(result);
-        assertTrue(result.getMergedWriterFileSet().isEmpty());
-    }
-
-    /**
-     * Merge with no matching segments returns empty result and logs warning.
-     */
-    public void testMergeWithNoMatchingSegments() throws IOException {
-        writeSegment(writer, 1L, 0, 3);
-        writer.commit();
-
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
-
-        Segment segment = Segment.builder(99L).build();
-        MergeInput input = MergeInput.builder().addSegment(segment).newWriterGeneration(100L).build();
 
         MergeResult result = merger.merge(input);
         assertNotNull(result);
@@ -145,19 +129,19 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         // position 1: rowId=1 → doc_3 (gen=2, original rowId=0)
         // position 2: rowId=2 → doc_1 (gen=1, original rowId=1)
         // position 3: rowId=3 → doc_4 (gen=2, original rowId=1)
+        // Build a PackedRowIdMapping for the interleaved merge:
+        // gen=1 has 3 rows (offsets 0,1,2), gen=2 has 2 rows (offsets 3,4)
+        // position 0: rowId=0 → doc_0 (gen=1, original rowId=0)
+        // position 1: rowId=1 → doc_a (gen=2, original rowId=0)
+        // position 2: rowId=2 → doc_1 (gen=1, original rowId=1)
+        // position 3: rowId=3 → doc_b (gen=2, original rowId=1)
         // position 4: rowId=4 → doc_2 (gen=1, original rowId=2)
-        Map<Long, Map<Long, Long>> mapping = new HashMap<>();
-        mapping.put(1L, Map.of(0L, 0L, 1L, 2L, 2L, 4L));
-        mapping.put(2L, Map.of(0L, 1L, 1L, 3L));
-        RowIdMapping rowIdMapping = (oldId, oldGeneration) -> {
-            Map<Long, Long> genMap = mapping.get(oldGeneration);
-            if (genMap != null && genMap.containsKey(oldId)) {
-                return genMap.get(oldId);
-            }
-            return oldId;
-        };
+        long[] mappingArray = new long[] { 0, 2, 4, 1, 3 };
+        Map<Long, Integer> genOffsets = Map.of(1L, 0, 2L, 3);
+        Map<Long, Integer> genSizes = Map.of(1L, 3, 2L, 2);
+        RowIdMapping rowIdMapping = new PackedRowIdMapping(mappingArray, genOffsets, genSizes);
 
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
@@ -213,13 +197,16 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writeSegmentWithRichFields(writer, 2L, 3, 2);
         writer.commit();
 
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
         // Identity mapping — writeSegmentWithRichFields already writes globally-unique row IDs
         // (0,1,2 in gen=1 and 3,4 in gen=2), so returning the original row ID is well-formed.
-        RowIdMapping identityMapping = (oldId, oldGeneration) -> oldId;
+        long[] identityArray = new long[] { 0, 1, 2, 3, 4 };
+        Map<Long, Integer> identityOffsets = Map.of(1L, 0, 2L, 3);
+        Map<Long, Integer> identitySizes = Map.of(1L, 3, 2L, 2);
+        RowIdMapping identityMapping = new PackedRowIdMapping(identityArray, identityOffsets, identitySizes);
 
         MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(identityMapping).newWriterGeneration(10L).build();
         merger.merge(input);
@@ -246,7 +233,101 @@ public class LuceneMergerTests extends OpenSearchTestCase {
      * Constructor with null IndexWriter throws IllegalArgumentException.
      */
     public void testConstructorWithNullIndexWriterThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new LuceneMerger(null, new LuceneDataFormat(), Path.of(".")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new LuceneMerger(null, new LuceneDataFormat(), Path.of("."), new LuceneShardStatsTracker())
+        );
+    }
+
+    /**
+     * Regression guard for the {@code writer_generation} stamping path. Verifies two things:
+     * <ol>
+     *   <li>The merged segment carries the {@code writer_generation} attribute in the live
+     *       {@link SegmentInfos} immediately after the merge completes — catches regressions
+     *       where the {@link org.opensearch.be.lucene.merge.RowIdRemappingOneMerge#setMergeInfo}
+     *       override stops running.</li>
+     *   <li>The attribute is <em>persisted</em> to the {@code .si} file and survives a writer
+     *       reopen — catches regressions that would revert to an in-memory-only stamp (e.g.
+     *       moving the {@code putAttribute} call back to {@code LuceneMerger#merge} after
+     *       {@code executeMerge}, which runs too late to influence the codec write).</li>
+     * </ol>
+     */
+    public void testMergedSegmentWriterGenerationIsPersisted() throws IOException {
+        long newGeneration = 99L;
+
+        writeSegment(writer, 1L, 0, 3);
+        writeSegment(writer, 2L, 3, 2);
+        writer.commit();
+
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
+        SegmentInfos infos = getSegmentInfos(writer);
+        List<Segment> segments = buildSegments(infos);
+
+        RowIdMapping identity = new RowIdMapping() {
+            @Override
+            public long getNewRowId(long oldId, long oldGeneration) {
+                return oldId;
+            }
+
+            @Override
+            public long getOldRowId(long newId) {
+                return newId;
+            }
+
+            @Override
+            public boolean isNewToOldSupported() {
+                return true;
+            }
+
+            @Override
+            public int size() {
+                return 0;
+            }
+        };
+        MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(identity).newWriterGeneration(newGeneration).build();
+
+        merger.merge(input);
+
+        // Assertion 1: attribute is set on the live (in-memory) merged SegmentCommitInfo
+        SegmentCommitInfo mergedInMemory = findSegmentWithGeneration(getSegmentInfos(writer), newGeneration);
+        assertNotNull("Merged segment must carry writer_generation=" + newGeneration + " in the live SegmentInfos", mergedInMemory);
+
+        // Persist to disk, close the writer, and reopen against the same directory to verify
+        // the attribute survives — i.e. it was stamped before Lucene wrote the .si file.
+        writer.commit();
+        writer.close();
+
+        SegmentInfos onDisk = SegmentInfos.readLatestCommit(directory);
+        SegmentCommitInfo mergedAfterReopen = findSegmentWithGeneration(onDisk, newGeneration);
+        assertNotNull(
+            "Merged segment must carry writer_generation="
+                + newGeneration
+                + " after reopen — the attribute must be written to the .si file during the merge, "
+                + "not stamped in-memory after executeMerge returns",
+            mergedAfterReopen
+        );
+        assertEquals(
+            "Persisted writer_generation attribute must match the one passed to MergeInput#newWriterGeneration",
+            String.valueOf(newGeneration),
+            mergedAfterReopen.info.getAttribute(WRITER_GENERATION_ATTRIBUTE)
+        );
+
+        // Reopen for the tearDown close() to be a no-op on an already-closed writer.
+        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
+        iwc.setMergeScheduler(new SerialMergeScheduler());
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setIndexSort(new Sort(new SortedNumericSortField(ROW_ID_FIELD, SortField.Type.LONG)));
+        writer = new MergeIndexWriter(directory, iwc);
+    }
+
+    private SegmentCommitInfo findSegmentWithGeneration(SegmentInfos infos, long generation) {
+        String target = String.valueOf(generation);
+        for (SegmentCommitInfo sci : infos.asList()) {
+            if (target.equals(sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE))) {
+                return sci;
+            }
+        }
+        return null;
     }
 
     // ========== Helper Methods ==========

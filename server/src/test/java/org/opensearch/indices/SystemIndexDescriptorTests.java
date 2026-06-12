@@ -74,4 +74,24 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
     }
+
+    public void testEqualsAndHashCode() {
+        UnrestrictedSystemIndexDescriptor descriptor1 = new UnrestrictedSystemIndexDescriptor(".test-index", "desc1");
+        SystemIndexDescriptor descriptor2 = new SystemIndexDescriptor(".test-index", "desc2");
+        SystemIndexDescriptor descriptor3 = new SystemIndexDescriptor(".other-index", "desc1");
+
+        // Same pattern means equal, regardless of description or type
+        assertEquals(descriptor1, descriptor2);
+        assertEquals(descriptor1.hashCode(), descriptor2.hashCode());
+
+        // Different pattern means not equal
+        assertNotEquals(descriptor1, descriptor3);
+    }
+
+    public void testToString() {
+        UnrestrictedSystemIndexDescriptor descriptor = new UnrestrictedSystemIndexDescriptor(".test-index", "test description");
+        String str = descriptor.toString();
+        assertThat(str, containsString(".test-index"));
+        assertThat(str, containsString("test description"));
+    }
 }

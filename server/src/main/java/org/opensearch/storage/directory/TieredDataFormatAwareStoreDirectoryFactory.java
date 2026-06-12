@@ -15,8 +15,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
@@ -25,7 +23,6 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.SubdirectoryAwareDirectory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -71,27 +68,19 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Map<String, FormatChecksumStrategy> checksumStrategies,
-        Map<DataFormat, StoreStrategy> storeStrategies,
-        NativeStoreRepository nativeStore,
-        boolean isWarm,
+        StoreStrategyRegistry strategies,
         RemoteSegmentStoreDirectory remoteDirectory,
         FileCache fileCache,
         ThreadPool threadPool
     ) throws IOException {
-        logger.debug(
-            "Creating warm+format directory stack for shard [{}] with {} strategies",
-            shardId,
-            storeStrategies == null ? 0 : storeStrategies.size()
-        );
+        logger.debug("Creating warm+format directory stack for shard [{}]", shardId);
 
         Directory localDir = localDirectoryFactory.newDirectory(indexSettings, shardPath);
         SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(localDir, shardPath);
 
-        StoreStrategyRegistry strategies = null;
         TieredSubdirectoryAwareDirectory tieredSubdir = null;
         boolean success = false;
         try {
-            strategies = StoreStrategyRegistry.open(shardPath, isWarm, nativeStore, storeStrategies, remoteDirectory);
             tieredSubdir = new TieredSubdirectoryAwareDirectory(
                 subdirAware,
                 remoteDirectory,
@@ -113,7 +102,7 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
             if (success == false) {
                 if (tieredSubdir != null) {
                     IOUtils.closeWhileHandlingException(tieredSubdir);
-                } else if (strategies != null) {
+                } else {
                     IOUtils.closeWhileHandlingException(strategies);
                 }
             }

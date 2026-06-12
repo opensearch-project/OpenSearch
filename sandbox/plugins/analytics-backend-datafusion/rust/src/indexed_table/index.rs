@@ -58,8 +58,8 @@ pub trait ShardSearcher: Send + Sync + Debug {
     /// Number of segments in this shard.
     fn segment_count(&self) -> usize;
 
-    /// Max doc ID for a specific segment.
-    fn segment_max_doc(&self, segment_ord: usize) -> Result<i64, String>;
+    /// Max doc ID for a specific segment, identified by writer generation.
+    fn segment_max_doc(&self, writer_generation: i64) -> Result<i64, String>;
 
     /// Create a collector for a specific segment and doc ID range.
     ///
@@ -68,7 +68,7 @@ pub trait ShardSearcher: Send + Sync + Debug {
     /// compiled query this searcher represents.
     fn collector(
         &self,
-        segment_ord: usize,
+        writer_generation: i64,
         doc_min: i32,
         doc_max: i32,
     ) -> Result<Arc<dyn RowGroupDocsCollector>, String>;
