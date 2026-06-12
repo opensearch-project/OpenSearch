@@ -469,7 +469,7 @@ async unsafe fn execute_indexed_with_context_inner(
         let plan_schema = crate::schema_coerce::coerce_inferred_schema(plan_schema);
         let empty_exec = EmptyExec::new(Arc::clone(&plan_schema));
         let df_stream = empty_exec.execute(0, handle.ctx.task_ctx())?;
-        let (cross_rt_stream, abort_handle) =
+        let (cross_rt_stream, abort_handle, _task_done) =
             CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
         if let Some(h) = abort_handle {
             crate::query_tracker::set_abort_handle(context_id_early, h);
@@ -914,7 +914,7 @@ async unsafe fn execute_indexed_with_context_inner(
     let df_stream = execute_stream(physical_plan.clone(), ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, _task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
 
     if let Some(h) = abort_handle {

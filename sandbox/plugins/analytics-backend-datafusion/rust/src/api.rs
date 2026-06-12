@@ -87,6 +87,9 @@ pub struct QueryStreamHandle {
     /// Physical plan reference for post-execution metrics extraction.
     /// Available after execution completes; read via `df_stream_get_metrics`.
     physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+    /// Fires when the spawned CPU task has fully dropped; `stream_close` waits on it so borrowed
+    /// input batches are released before the per-query allocator closes. `None` outside coordinator-reduce.
+    task_done: Option<tokio::sync::oneshot::Receiver<()>>,
 }
 
 impl QueryStreamHandle {
@@ -109,7 +112,14 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
         }
+    }
+
+    /// Attaches the task-completion signal `stream_close` joins on before the allocator closes.
+    pub fn with_task_done(mut self, task_done: tokio::sync::oneshot::Receiver<()>) -> Self {
+        self.task_done = Some(task_done);
+        self
     }
 
     pub fn with_session_context(
@@ -126,6 +136,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: None,
+            task_done: None,
         }
     }
 
@@ -144,6 +155,7 @@ impl QueryStreamHandle {
             has_views,
             _concurrency_permit: permit,
             physical_plan: Some(plan),
+            task_done: None,
         }
     }
 
@@ -1264,8 +1276,31 @@ fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
 /// # Safety
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
 pub unsafe fn stream_close(stream_ptr: i64) {
-    if stream_ptr != 0 {
-        let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    if stream_ptr == 0 {
+        return;
+    }
+    let mut handle = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
+    // Dropping the handle aborts the CPU task but does not wait for it; on the coordinator-reduce
+    // path that task still holds Java-borrowed input batches. Wait for it to fully unwind (signal
+    // fires once its batches drop) before returning, so the caller's allocator close is safe.
+    let task_done = handle.task_done.take();
+    drop(handle);
+    if let Some(rx) = task_done {
+        if let Some(mgr) = crate::ffm::try_get_rt_manager() {
+            // Already aborted, so this resolves as soon as the task unwinds; 30s is a backstop
+            // against a wedged task hanging the reduce thread. If it fires we proceed anyway and
+            // may leak the borrow — log it so a recurring timeout is visible rather than silent.
+            let timed_out = mgr
+                .io_runtime
+                .block_on(async { tokio::time::timeout(std::time::Duration::from_secs(30), rx).await })
+                .is_err();
+            if timed_out {
+                native_bridge_common::log_error!(
+                    "stream_close: timed out after 30s waiting for the reduce CPU task to release \
+                     borrowed buffers; proceeding with allocator close (possible leak)"
+                );
+            }
+        }
     }
 }
 
@@ -1736,14 +1771,15 @@ pub async unsafe fn execute_local_plan(
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged. Use the cancellable variant so the CPU
     // task can be aborted mid-execution when cancel_query fires.
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Attach the teardown signal so stream_close releases borrowed input batches before allocator close.
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1779,14 +1815,15 @@ pub unsafe fn execute_local_prepared_plan(
     let _guard = manager.io_runtime.enter();
     let df_stream = session.execute_prepared()?;
 
-    let (cross_rt_stream, abort_handle) =
+    let (cross_rt_stream, abort_handle, task_done) =
         CrossRtStream::new_with_df_error_stream_cancellable(df_stream, manager.cpu_executor());
     if let Some(h) = abort_handle {
         query_tracker::set_abort_handle(context_id, h);
     }
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
+    // Same teardown signal as execute_local_plan.
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit).with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1833,9 +1870,10 @@ pub unsafe fn sender_send(
     array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
-    let batch = RecordBatch::from(struct_array);
-
-    Ok(sender.send_blocking(Ok(batch), io_handle))
+    // Zero-copy: from_ffi BORROWS the Java buffers, keeping them alive until DataFusion drops the
+    // batch. stream_close's teardown barrier releases that borrow before the allocator closes.
+    let borrowed_batch = RecordBatch::from(struct_array);
+    Ok(sender.send_blocking(Ok(borrowed_batch), io_handle))
 }
 
 /// Closes a partition stream sender. Dropping the sender closes the mpsc,

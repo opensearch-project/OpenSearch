@@ -73,6 +73,11 @@ fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
         .ok_or_else(|| "Runtime manager not initialized".to_string())
 }
 
+/// Non-erroring accessor; `None` before init / after shutdown.
+pub(crate) fn try_get_rt_manager() -> Option<Arc<RuntimeManager>> {
+    TOKIO_RUNTIME_MANAGER.read().clone()
+}
+
 
 #[no_mangle]
 pub extern "C" fn df_init_runtime_manager(cpu_threads: i32, datanode_multiplier: f64, coordinator_multiplier: f64) {

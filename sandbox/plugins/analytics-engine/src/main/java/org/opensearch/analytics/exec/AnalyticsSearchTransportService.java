@@ -162,7 +162,19 @@ public class AnalyticsSearchTransportService {
                     batchSchema = root.getSchema();
                     batchAllocator = root.getFieldVectors().getFirst().getAllocator();
                 }
-                channel.sendResponseBatch(new FragmentExecutionArrowResponse(root));
+                // On success Flight takes ownership of root. If sendResponseBatch throws (e.g. the
+                // stream already closed after a mid-stream failure), Flight never took ownership, so
+                // close root here to avoid leaking the imported batch.
+                try {
+                    channel.sendResponseBatch(new FragmentExecutionArrowResponse(root));
+                } catch (Exception e) {
+                    try {
+                        root.close();
+                    } catch (Exception ce) {
+                        e.addSuppressed(ce);
+                    }
+                    throw e;
+                }
             }
 
             @Override
@@ -194,6 +206,16 @@ public class AnalyticsSearchTransportService {
                 }
             }
         };
+    }
+
+    /** Closes a response's claimed Arrow root if present, swallowing close failures. */
+    private static void closeResponseQuietly(FragmentExecutionArrowResponse response) {
+        if (response == null || response.getRoot() == null) {
+            return;
+        }
+        try {
+            response.getRoot().close();
+        } catch (Exception ignore) {}
     }
 
     Transport.Connection getConnection(String clusterAlias, String nodeId) {
@@ -260,17 +282,24 @@ public class AnalyticsSearchTransportService {
 
             @Override
             public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+                // We own each claimed response root until it's handed to the consumer. `last`/`next`
+                // hold what the loop still owns; null each the instant ownership transfers so the
+                // finally can release any undelivered prefetch on failure (stream.close() frees only
+                // the cursor, not claimed roots).
+                FragmentExecutionArrowResponse last = null;
+                FragmentExecutionArrowResponse next = null;
                 try {
-                    FragmentExecutionArrowResponse last = stream.nextResponse();
+                    last = stream.nextResponse();
                     while (last != null) {
                         // Profiling sentinel: 0 rows with metadata attached. Deliver metrics and exit.
                         if (last.getRoot() != null && last.getRoot().getRowCount() == 0 && last.getMetadata() != null) {
                             listener.onStreamComplete(last.getMetadata());
                             last.getRoot().close();
+                            last = null;
                             return;
                         }
 
-                        FragmentExecutionArrowResponse next = stream.nextResponse();
+                        next = stream.nextResponse();
                         // Treat sentinel as end-of-stream: the current batch is the last real data batch.
                         boolean nextIsSentinel = next != null
                             && next.getRoot() != null
@@ -283,21 +312,31 @@ public class AnalyticsSearchTransportService {
                         if (nextIsSentinel) {
                             listener.onStreamComplete(next.getMetadata());
                             next.getRoot().close();
+                            next = null;
                         }
 
-                        boolean keepReading = listener.onStreamResponse(last, isLast);
+                        // Consumer takes ownership of `last` (it closes the root on all its paths).
+                        // Null our ref before the call so a throw can't make finally double-close it.
+                        FragmentExecutionArrowResponse delivering = last;
+                        last = null;
+                        boolean keepReading = listener.onStreamResponse(delivering, isLast);
                         if (!keepReading || nextIsSentinel) {
                             if (!isLast && next != null) {
                                 if (next.getRoot() != null) next.getRoot().close();
+                                next = null;
                                 stream.cancel("reduce input satisfied (downstream consumer finished)", null);
                             }
                             return;
                         }
                         last = next;
+                        next = null;
                     }
                 } catch (Exception e) {
                     listener.onFailure(e);
                 } finally {
+                    // Release any batches the loop still owns and never delivered.
+                    closeResponseQuietly(last);
+                    closeResponseQuietly(next);
                     try {
                         stream.close();
                     } catch (Exception ignore) {}
