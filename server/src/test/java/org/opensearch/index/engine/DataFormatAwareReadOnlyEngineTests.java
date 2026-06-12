@@ -64,6 +64,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
@@ -190,6 +191,15 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
     }
 
     private EngineConfig buildConfig(Store store, IndexSettings indexSettings, Engine.EventListener listener) {
+        return buildConfig(store, indexSettings, listener, config -> new InMemoryCommitter(store));
+    }
+
+    private EngineConfig buildConfig(
+        Store store,
+        IndexSettings indexSettings,
+        Engine.EventListener listener,
+        CommitterFactory committerFactory
+    ) {
         Path translogPath = createTempDir().resolve("translog");
         TranslogConfig translogConfig = new TranslogConfig(
             shardId,
@@ -200,7 +210,6 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
             false
         );
         DataFormatRegistry registry = createMockRegistry();
-        CommitterFactory committerFactory = config -> new InMemoryCommitter(store);
         EngineConfig.Builder builder = new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -742,6 +751,80 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
         } finally {
             engine.close();
             config.getStore().close();
+        }
+    }
+
+    // ---------- commitStats Tests ----------
+
+    /**
+     * commitStats() must delegate to the committer's (cached) stats and NOT re-read the store on
+     * each call. Proven two ways: the committer's getCommitStats() is invoked once per call, and the
+     * exact instance it returns is propagated unchanged through the engine.
+     */
+    public void testCommitStatsDelegatesToCommitter() throws IOException {
+        String translogUUID = UUID.randomUUID().toString();
+        String historyUUID = UUID.randomUUID().toString();
+        bootstrapStoreWithMetadata(store, translogUUID, historyUUID);
+        RecordingCommitter recordingCommitter = new RecordingCommitter(store);
+        try (
+            DataFormatAwareReadOnlyEngine engine = new DataFormatAwareReadOnlyEngine(
+                buildConfig(store, warmIndexSettings(), null, config -> recordingCommitter)
+            )
+        ) {
+            int before = recordingCommitter.getCommitStatsCalls.get();
+
+            CommitStats first = engine.commitStats();
+            CommitStats second = engine.commitStats();
+
+            assertNotNull("commitStats must not be null", first);
+            assertEquals(
+                "commitStats() must call committer.getCommitStats() exactly once per invocation",
+                before + 2,
+                recordingCommitter.getCommitStatsCalls.get()
+            );
+            assertSame("engine must return the committer's cached CommitStats instance unchanged", first, second);
+            assertSame("engine must return the committer's cached CommitStats instance", recordingCommitter.cached, first);
+        }
+    }
+
+    /** commitStats() must surface the committer's actual commit point (correct generation). */
+    public void testCommitStatsReturnsExpectedGeneration() throws IOException {
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            long expectedGeneration = store.readLastCommittedSegmentsInfo().getGeneration();
+            CommitStats commitStats = engine.commitStats();
+            assertNotNull(commitStats);
+            assertEquals("commitStats must report the committed generation", expectedGeneration, commitStats.getGeneration());
+            assertNotNull("commitStats must carry a commit id", commitStats.getId());
+        }
+    }
+
+    /** commitStats() must honor engine lifecycle — after close it must throw, not read the store. */
+    public void testCommitStatsAfterCloseThrowsAlreadyClosed() throws IOException {
+        DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine();
+        engine.close();
+        expectThrows(AlreadyClosedException.class, engine::commitStats);
+    }
+
+    /**
+     * Test committer that records how many times getCommitStats() is called and always returns the
+     * same cached instance — mirroring the production committer, which caches SegmentInfos so stats
+     * calls do no I/O.
+     */
+    private static class RecordingCommitter extends InMemoryCommitter {
+        final AtomicInteger getCommitStatsCalls = new AtomicInteger();
+        final CommitStats cached;
+
+        RecordingCommitter(Store store) throws IOException {
+            super(store);
+            // Build the cached value once via the base (store-reading) implementation, then serve it
+            // from memory on every subsequent call — no further store reads.
+            this.cached = super.getCommitStats();
+        }
+
+        @Override
+        public CommitStats getCommitStats() {
+            getCommitStatsCalls.incrementAndGet();
+            return cached;
         }
     }
 
