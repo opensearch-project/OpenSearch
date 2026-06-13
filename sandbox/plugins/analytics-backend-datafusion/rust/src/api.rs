@@ -935,9 +935,11 @@ pub async unsafe fn fetch_by_row_ids(
     let runtime_env = build_query_runtime_env(runtime, &shard_view.table_path, shard_view.object_metas.as_ref())?;
 
     // Register shard-specific object store on file:// scheme for this query.
+    // Wrap in SpawnIoStore so every object-store read this query issues is
+    // dispatched onto the dedicated IO runtime (no-op if no IO runtime is set).
     runtime_env.register_object_store(
         &url::Url::parse("file://").unwrap(),
-        Arc::clone(&shard_view.store),
+        crate::spawn_io_store::SpawnIoStore::wrap(Arc::clone(&shard_view.store)),
     );
 
     let mut config = SessionConfig::new();

@@ -77,9 +77,11 @@ pub async fn execute_query(
 
     // Register shard-specific object store on file:// scheme for this query.
     // Routes reads through TieredObjectStore (local + remote) or default LocalFileSystem.
+    // Wrap in SpawnIoStore so every object-store read this query issues is
+    // dispatched onto the dedicated IO runtime (no-op if no IO runtime is set).
     runtime_env.register_object_store(
         &url::Url::parse("file://").unwrap(),
-        shard_store,
+        crate::spawn_io_store::SpawnIoStore::wrap(shard_store),
     );
 
     // Build a fresh session state per query. TODO : Tune this during planning per query

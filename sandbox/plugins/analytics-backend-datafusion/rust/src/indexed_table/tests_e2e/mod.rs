@@ -39,6 +39,7 @@ use super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFil
 
 mod boolean_algebra;
 mod constant_predicate;
+mod io_runtime_dispatch;
 mod dynamic_filter_pushdown;
 mod fuzz;
 mod metrics;
@@ -199,6 +200,56 @@ async fn run_tree_and_plan(
     Vec<(String, i32, String, String)>,
     std::sync::Arc<dyn datafusion::physical_plan::ExecutionPlan>,
 ) {
+    let (schema, segment, factory, _tmp) = build_fixture_segment_and_factory(tree);
+
+    let store: Arc<dyn object_store::ObjectStore> =
+        Arc::new(object_store::local::LocalFileSystem::new());
+    let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let provider = build_indexed_provider(schema.clone(), segment, factory, store, store_url);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", provider).unwrap();
+    let df = ctx
+        .sql("SELECT brand, price, status, category FROM t")
+        .await
+        .unwrap();
+    let plan = df.create_physical_plan().await.unwrap();
+    let task_ctx = ctx.task_ctx();
+    let mut stream =
+        datafusion::physical_plan::execute_stream(std::sync::Arc::clone(&plan), task_ctx).unwrap();
+    let mut rows: Vec<(String, i32, String, String)> = Vec::new();
+    while let Some(batch) = stream.next().await {
+        let b = batch.unwrap();
+        let brand = b.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        let price = b.column(1).as_any().downcast_ref::<Int32Array>().unwrap();
+        let status = b.column(2).as_any().downcast_ref::<StringArray>().unwrap();
+        let cat = b.column(3).as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..b.num_rows() {
+            rows.push((
+                brand.value(i).to_string(),
+                price.value(i),
+                status.value(i).to_string(),
+                cat.value(i).to_string(),
+            ));
+        }
+    }
+    (rows, plan)
+}
+
+/// Write the fixture parquet and build the (schema, segment, evaluator-factory)
+/// triple used by the e2e runner. Returns the backing `NamedTempFile` so the
+/// caller keeps the parquet file alive for the duration of the query.
+///
+/// Extracted from [`run_tree_and_plan`] so the io-runtime e2e test reuses the
+/// identical fixture and collector wiring with a substituted object store.
+fn build_fixture_segment_and_factory(
+    tree: BoolNode,
+) -> (
+    SchemaRef,
+    SegmentFileInfo,
+    super::table_provider::EvaluatorFactory,
+    NamedTempFile,
+) {
     let tmp = write_fixture_parquet();
     let path = tmp.path().to_path_buf();
     let size = std::fs::metadata(&path).unwrap().len();
@@ -229,7 +280,7 @@ async fn run_tree_and_plan(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-            global_base: 0,
+        global_base: 0,
             sort_min: None,
         sort_max: None,
 };
@@ -278,9 +329,21 @@ async fn run_tree_and_plan(
         })
     };
 
-    let store: Arc<dyn object_store::ObjectStore> =
-        Arc::new(object_store::local::LocalFileSystem::new());
-    let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    (schema, segment, factory, tmp)
+}
+
+/// Build an `IndexedTableProvider` over a single segment with an injectable store.
+///
+/// Extracted from [`run_tree_and_plan`] so the io-runtime e2e test can substitute
+/// a latency-injecting object store while reusing the identical provider/query
+/// configuration the other e2e tests exercise.
+fn build_indexed_provider(
+    schema: SchemaRef,
+    segment: SegmentFileInfo,
+    factory: super::table_provider::EvaluatorFactory,
+    store: Arc<dyn object_store::ObjectStore>,
+    store_url: datafusion::execution::object_store::ObjectStoreUrl,
+) -> Arc<IndexedTableProvider> {
     // Force BooleanMask so batches contain the entire RG and batch_offset
     // equals the row-index-within-RG. Phase 2 bitmap_to_batch_mask
     // relies on this alignment. RowSelection would still work for Path B
@@ -290,8 +353,8 @@ async fn run_tree_and_plan(
         .force_strategy(Some(FilterStrategy::BooleanMask))
         .force_pushdown(Some(false))
         .build();
-    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
-        schema: schema.clone(),
+    Arc::new(IndexedTableProvider::new(IndexedTableConfig {
+        schema,
         segments: vec![segment],
         store,
         store_url,
@@ -303,35 +366,7 @@ async fn run_tree_and_plan(
         prune_tree_config: None,
         sort_fields: vec![],
         sort_orders: vec![],
-    }));
-
-    let ctx = SessionContext::new();
-    ctx.register_table("t", provider).unwrap();
-    let df = ctx
-        .sql("SELECT brand, price, status, category FROM t")
-        .await
-        .unwrap();
-    let plan = df.create_physical_plan().await.unwrap();
-    let task_ctx = ctx.task_ctx();
-    let mut stream =
-        datafusion::physical_plan::execute_stream(std::sync::Arc::clone(&plan), task_ctx).unwrap();
-    let mut rows: Vec<(String, i32, String, String)> = Vec::new();
-    while let Some(batch) = stream.next().await {
-        let b = batch.unwrap();
-        let brand = b.column(0).as_any().downcast_ref::<StringArray>().unwrap();
-        let price = b.column(1).as_any().downcast_ref::<Int32Array>().unwrap();
-        let status = b.column(2).as_any().downcast_ref::<StringArray>().unwrap();
-        let cat = b.column(3).as_any().downcast_ref::<StringArray>().unwrap();
-        for i in 0..b.num_rows() {
-            rows.push((
-                brand.value(i).to_string(),
-                price.value(i),
-                status.value(i).to_string(),
-                cat.value(i).to_string(),
-            ));
-        }
-    }
-    (rows, plan)
+    }))
 }
 
 // ── Tree-building helpers ──────────────────────────────────────────

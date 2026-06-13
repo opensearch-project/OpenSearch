@@ -38,6 +38,9 @@ impl RuntimeManager {
         );
 
         register_io_runtime(Some(io_runtime.handle().clone()));
+        // Install the process-global IO handle so SpawnIoStore can dispatch reads
+        // onto the IO runtime from any thread (including bare Java/FFM threads).
+        crate::io::set_global_io_handle(io_runtime.handle().clone());
 
         let io_monitor = RuntimeMonitor::new(&io_runtime.handle());
 
@@ -46,14 +49,20 @@ impl RuntimeManager {
         cpu_runtime_builder
             .worker_threads(cpu_threads)
             .thread_name("datafusion-cpu")
-            .enable_all()
-            .on_thread_start(move || {
-                register_io_runtime(Some(io_handle.clone()));
-            });
+            .enable_all();
+        // NOTE: do NOT set `on_thread_start` here to register the IO runtime.
+        // `DedicatedExecutor::new` sets its own `on_thread_start`, and tokio's
+        // builder *replaces* (not chains) the callback, so any registration set
+        // here would be silently clobbered. Pass the handle explicitly instead.
 
         // Fragment executor concurrency gate: limits concurrent partition tasks from shard scans.
         let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;
-        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, datanode_max_concurrent);
+        let cpu_executor = DedicatedExecutor::new_with_io_handle(
+            "datafusion-cpu",
+            cpu_runtime_builder,
+            datanode_max_concurrent,
+            Some(io_handle),
+        );
 
         let cpu_monitor = cpu_executor
             .handle()
@@ -137,6 +146,43 @@ mod tests {
             .await
             .unwrap();
         assert!(has_io);
+        mgr.cpu_executor.shutdown();
+        std::mem::forget(mgr);
+    }
+
+    // Regression test for the IO-runtime wiring: a `spawn_io` call issued from a
+    // CPU worker thread MUST execute on the dedicated `datafusion-io` runtime,
+    // never inline on the CPU runtime.
+    //
+    // This is a *plain* (non-tokio) test on purpose: it mimics the FFM entrypoint
+    // (`df_init_runtime_manager`), which runs on a bare Java thread with no
+    // ambient tokio runtime. Under that condition `Handle::try_current()` is
+    // `None`, so the previous wiring (which captured the ambient handle inside
+    // `DedicatedExecutor::new` and let tokio's builder *replace* RuntimeManager's
+    // own `on_thread_start`) registered `IO_RUNTIME = None` on every CPU worker —
+    // making `spawn_io` panic. We now pass the IO handle explicitly; this asserts
+    // the read actually lands on a `datafusion-io` worker.
+    #[test]
+    fn test_spawn_io_dispatches_to_io_runtime_from_cpu_worker() {
+        let mgr = RuntimeManager::new(2, 1.5, 1.5);
+
+        // Issue spawn_io from a CPU worker and capture the thread it ran on.
+        let task = mgr.cpu_executor().spawn(async {
+            crate::io::spawn_io(async {
+                std::thread::current().name().map(|s| s.to_owned())
+            })
+            .await
+        });
+        // We're off any runtime here; drive the task to completion on the IO runtime.
+        let thread_name = mgr.io_runtime.block_on(task).unwrap();
+
+        assert_eq!(
+            thread_name.as_deref().map(|n| n.starts_with("datafusion-io")),
+            Some(true),
+            "spawn_io executed on thread {:?}, expected a `datafusion-io` worker",
+            thread_name,
+        );
+
         mgr.cpu_executor.shutdown();
         std::mem::forget(mgr);
     }

@@ -9,6 +9,7 @@ use futures::FutureExt;
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
@@ -22,6 +23,26 @@ thread_local! {
 
 pub fn register_io_runtime(handle: Option<Handle>) {
     IO_RUNTIME.set(handle)
+}
+
+/// Process-global IO runtime handle.
+///
+/// Unlike [`IO_RUNTIME`] (thread-local, only set on runtime worker threads),
+/// this is reachable from ANY thread — including the bare Java/FFM threads that
+/// register object stores and plan queries. [`SpawnIoStore`](crate::spawn_io_store)
+/// uses it to dispatch every object-store read onto the IO runtime regardless of
+/// which thread polls the store.
+static GLOBAL_IO_HANDLE: OnceLock<Handle> = OnceLock::new();
+
+/// Install the process-global IO runtime handle. Idempotent — the first set
+/// wins; later calls (e.g. a second `RuntimeManager` in tests) are ignored.
+pub fn set_global_io_handle(handle: Handle) {
+    let _ = GLOBAL_IO_HANDLE.set(handle);
+}
+
+/// Returns the process-global IO runtime handle, if one has been installed.
+pub fn global_io_handle() -> Option<Handle> {
+    GLOBAL_IO_HANDLE.get().cloned()
 }
 
 /// Runs `fut` on the IO runtime registered for this thread.
