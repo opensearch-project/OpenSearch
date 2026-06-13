@@ -361,9 +361,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         ActionListener<ProfiledResult> listener
     ) {
         return ActionListener.wrap(rows -> {
-            ExecutionGraph graph = execRef.get().getGraph();
+            // A fast query can fire this terminal inline (on the calling thread, inside
+            // scheduler.execute) BEFORE execRef.set runs — so execRef may still be null. Guard it
+            // like the failure path below: skip graph-based profiling rather than NPE on getGraph().
+            QueryExecution exec = execRef.get();
+            ExecutionGraph graph = exec != null ? exec.getGraph() : null;
             statsCollector.recordExecution(graph, context.dag(), planningTimeMs);
-            QueryProfile qp = includeProfileInResponse ? QueryProfileBuilder.snapshot(graph, context, fullPlan, planningTimeMs) : null;
+            QueryProfile qp = includeProfileInResponse && graph != null
+                ? QueryProfileBuilder.snapshot(graph, context, fullPlan, planningTimeMs)
+                : null;
             listener.onResponse(new ProfiledResult(rows, null, qp));
         }, e -> {
             QueryExecution exec = execRef.get();
