@@ -97,6 +97,8 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         return List.of(
             FoyerBlockCacheSettings.CACHE_SIZE_SETTING,
             FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
+            FoyerBlockCacheSettings.BUFFER_POOL_SIZE_SETTING,
+            FoyerBlockCacheSettings.SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING,
             FoyerBlockCacheSettings.IO_ENGINE_SETTING,
             FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING,
             FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING,
@@ -165,6 +167,8 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             return List.of();
         }
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
+        final long bufferPoolSizeBytes = FoyerBlockCacheSettings.BUFFER_POOL_SIZE_SETTING.get(settings).getBytes();
+        final long submitQueueSizeThresholdBytes = FoyerBlockCacheSettings.SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING.get(settings).getBytes();
         final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
         final long sweepIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING.get(settings);
         final double sweepThresholdRatio = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(settings);
@@ -203,6 +207,8 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
                 diskCapacityBytes,
                 diskDir,
                 blockSizeBytes,
+                bufferPoolSizeBytes,
+                submitQueueSizeThresholdBytes,
                 ioEngine,
                 sweepIntervalSecs,
                 sweepThresholdRatio,

@@ -158,9 +158,17 @@ public abstract class TwoShardReduceTestCase extends AnalyticsRestTestCase {
             Map<String, Object> golden = loadGolden(queryDir + "/expected/" + name + ".json");
             if (golden != null) {
                 normalizeArrayCells(golden);
-                String pin = ResponseValidator.compareData(golden, r2, name + " [2-shard vs golden]");
-                if (pin != null) {
-                    return pin;
+                // Pin BOTH shard counts to the golden. The differential above already proves
+                // r1 == r2, so 2-shard-vs-golden alone would catch a regression transitively — but
+                // pinning 1-shard directly guards the baseline even if the differential is ever
+                // relaxed, and a baseline-vs-coordinator regression surfaces on the right side.
+                String pin1 = ResponseValidator.compareData(golden, r1, name + " [1-shard vs golden]");
+                if (pin1 != null) {
+                    return pin1;
+                }
+                String pin2 = ResponseValidator.compareData(golden, r2, name + " [2-shard vs golden]");
+                if (pin2 != null) {
+                    return pin2;
                 }
             }
             return null;

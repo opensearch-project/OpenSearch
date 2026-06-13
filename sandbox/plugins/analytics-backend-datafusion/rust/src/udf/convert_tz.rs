@@ -35,7 +35,6 @@
 //! * Any null input → null output (null propagation).
 //! * Unparseable column-valued timezone → null output.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use chrono::{DateTime, NaiveDateTime, Offset, TimeZone, Utc};
@@ -83,9 +82,6 @@ impl Default for ConvertTzUdf {
 }
 
 impl ScalarUDFImpl for ConvertTzUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "convert_tz"
     }

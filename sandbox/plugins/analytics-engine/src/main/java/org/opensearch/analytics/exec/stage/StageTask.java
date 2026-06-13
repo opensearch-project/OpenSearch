@@ -33,6 +33,7 @@ public abstract class StageTask {
     private final AtomicReference<StageTaskState> state = new AtomicReference<>(StageTaskState.CREATED);
     private volatile long startedAtMs;
     private volatile long finishedAtMs;
+    private volatile byte[] dataNodeMetrics;
 
     protected StageTask(StageTaskId id) {
         this.id = id;
@@ -44,6 +45,16 @@ public abstract class StageTask {
 
     public StageTaskState state() {
         return state.get();
+    }
+
+    /** Raw JSON metrics bytes received from the data node, or null if not profiled. */
+    public byte[] dataNodeMetrics() {
+        return dataNodeMetrics;
+    }
+
+    /** Set by the coordinator when metrics arrive from the data node. */
+    public void setDataNodeMetrics(byte[] metrics) {
+        this.dataNodeMetrics = metrics;
     }
 
     /** Wall-clock millis stamped on the first successful transition to {@link StageTaskState#RUNNING}, or 0 if never dispatched. */

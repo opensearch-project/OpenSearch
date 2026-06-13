@@ -89,6 +89,15 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         assertEquals(ScalarFunction.CONCAT, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.CONCAT));
     }
 
+    public void testFromSqlOperatorResolvesVariadicConcatViaReferenceOperator() {
+        // SqlLibraryOperators.CONCAT_FUNCTION shares the name "CONCAT" with the binary `||` enum
+        // constant, so identifier-name fallback resolves to the wrong constant. The
+        // referenceOperator pin disambiguates by singleton identity, routing the variadic
+        // call to its dedicated adapter.
+        assertEquals("CONCAT", SqlLibraryOperators.CONCAT_FUNCTION.getName());
+        assertSame(ScalarFunction.CONCAT_FUNCTION, ScalarFunction.fromSqlOperatorWithFallback(SqlLibraryOperators.CONCAT_FUNCTION));
+    }
+
     // ── fromSqlOperatorWithFallback: identifier-name branch ────────────────────────────────
 
     public void testFromSqlOperatorResolvesViaIdentifierName() {
@@ -223,5 +232,22 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         ScalarFunction resolved = ScalarFunction.fromSqlFunction(upper);
         assertNotNull("fromSqlFunction must resolve known names", resolved);
         assertSame(ScalarFunction.UPPER, resolved);
+    }
+
+    // ── fromToken: case-insensitive token resolution ───────────────────────────────────────
+
+    public void testFromTokenCaseInsensitive() {
+        // fromToken trims surrounding whitespace and upper-cases before valueOf.
+        assertSame(ScalarFunction.LIKE, ScalarFunction.fromToken("like"));
+        assertSame(ScalarFunction.LIKE, ScalarFunction.fromToken("LIKE"));
+        assertSame(ScalarFunction.EQUALS, ScalarFunction.fromToken("  Equals "));
+    }
+
+    public void testFromTokenRejectsUnknown() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ScalarFunction.fromToken("NOPE"));
+        assertTrue(
+            "exception message must mention the failure, got: " + e.getMessage(),
+            e.getMessage().contains("Unknown scalar function")
+        );
     }
 }

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -24,6 +25,7 @@ import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -76,15 +78,28 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
         this.primaryWriter = (Writer<DocumentInput<?>>) primaryDelegate.createWriter(config);
         this.mappingVersion = primaryWriter.mappingVersion();
 
+        // Close already-created writers if a secondary createWriter() fails. LuceneWriter
+        // acquires a NativeFSLock on construction, tracked in a static LOCK_HELD set. If not
+        // closed, the path remains in LOCK_HELD and on engine restart (same JVM) when the
+        // generation counter re-produces the same value, a LockObtainFailedException is thrown.
         Map<DataFormat, Writer<DocumentInput<?>>> secondaries = new IdentityHashMap<>();
-        for (IndexingExecutionEngine<?, ?> delegate : engine.getSecondaryDelegates()) {
-            Writer<DocumentInput<?>> secondary = (Writer<DocumentInput<?>>) delegate.createWriter(config);
-            assert secondary.isSchemaMutable() && secondary.mappingVersion() >= this.mappingVersion : "Secondary writer mapping version ["
-                + secondary.mappingVersion()
-                + "] must match primary ["
-                + this.mappingVersion
-                + "]";
-            secondaries.put(delegate.getDataFormat(), secondary);
+        try {
+            for (IndexingExecutionEngine<?, ?> delegate : engine.getSecondaryDelegates()) {
+                Writer<DocumentInput<?>> secondary = (Writer<DocumentInput<?>>) delegate.createWriter(config);
+                assert secondary.isSchemaMutable() && secondary.mappingVersion() >= this.mappingVersion
+                    : "Secondary writer mapping version ["
+                        + secondary.mappingVersion()
+                        + "] must match primary ["
+                        + this.mappingVersion
+                        + "]";
+                secondaries.put(delegate.getDataFormat(), secondary);
+            }
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(primaryWriter);
+            for (Writer<DocumentInput<?>> w : secondaries.values()) {
+                IOUtils.closeWhileHandlingException(w);
+            }
+            throw e;
         }
         this.secondaryWritersByFormat = Collections.unmodifiableMap(secondaries);
         this.failureHandler = new FailureHandlerStrategy();
@@ -176,14 +191,6 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     }
 
     @Override
-    public void sync() throws IOException {
-        primaryWriter.sync();
-        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
-            writer.sync();
-        }
-    }
-
-    @Override
     public long generation() {
         return getWriterGeneration();
     }
@@ -213,13 +220,17 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
         }
     }
 
+    // Use IOUtils.close to ensure all writers are closed even if one throws. Each
+    // LuceneWriter.close() triggers indexWriter.rollback() → NativeFSLock.close() →
+    // LOCK_HELD.remove(path). Without this, a throwing primary.close() would skip
+    // secondary close, leaking the lock and causing LockObtainFailedException on restart.
     @Override
     public void close() throws IOException {
         try {
-            primaryWriter.close();
-            for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
-                writer.close();
-            }
+            List<Closeable> allWriters = new ArrayList<>(1 + secondaryWritersByFormat.size());
+            allWriters.add(primaryWriter);
+            allWriters.addAll(secondaryWritersByFormat.values());
+            IOUtils.close(allWriters);
         } finally {
             closed = true;
         }

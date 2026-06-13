@@ -115,10 +115,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     /** How much native (off-heap) memory we allow for indexing buffers across all shards.
      *  Accepts either a percentage (of available native memory = total physical - JVM heap) or an absolute byte value.
-     *  Default is 5%. */
+     *  Default is 10%. */
     public static final Setting<ByteSizeValue> NATIVE_INDEX_BUFFER_SIZE_SETTING = Setting.nativeMemorySizeSetting(
         "indices.memory.native_index_buffer_size",
-        "5%",
+        "10%",
         Property.NodeScope
     );
 
@@ -148,7 +148,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     private final ByteSizeValue indexingBuffer;
 
-    private final ByteSizeValue nativeBuffer;
+    private volatile ByteSizeValue nativeBuffer;
 
     private final TimeValue inactiveTime;
     private final TimeValue interval;
@@ -219,6 +219,20 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      */
     ByteSizeValue indexingBufferSize() {
         return indexingBuffer;
+    }
+
+    /**
+     * Updates the native memory budget used for flush/throttle decisions.
+     * Called by the memory pool rebalancer when the indexing group's effective limit changes.
+     */
+    public void setNativeBufferBytes(long bytes) {
+        logger.debug("Updating native buffer size from [{}] to [{}]", this.nativeBuffer, new ByteSizeValue(bytes));
+        this.nativeBuffer = new ByteSizeValue(bytes);
+    }
+
+    /** Returns the current native buffer size in bytes. Package-private for testing. */
+    long nativeBufferSizeInBytes() {
+        return nativeBuffer.getBytes();
     }
 
     protected List<IndexShard> availableShards() {

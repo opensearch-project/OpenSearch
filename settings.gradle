@@ -49,6 +49,7 @@ List projects = [
   'rest-api-spec',
   'docs',
   'client:rest',
+  'client:rest-http-client',
   'client:rest-high-level',
   'client:sniffer',
   'client:test',

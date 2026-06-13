@@ -59,7 +59,13 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         Path dataDir = createTempDir("data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerHandle = new ReaderHandle(dataDir.toString(), List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)), storeHandle);
+        readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            storeHandle,
+            List.of(),
+            List.of()
+        );
 
         configArena = Arena.ofConfined();
         MemorySegment configSegment = configArena.allocate(WireConfigSnapshot.BYTE_SIZE);

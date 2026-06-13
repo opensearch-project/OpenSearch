@@ -58,11 +58,19 @@ public class MinusAdapterTests extends OpenSearchTestCase {
         assertSame(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, ((RexCall) minus.getOperands().get(1)).getOperator());
     }
 
-    public void testDateMinusDateRewritesToUnixSecondsDiff() {
+    public void testDateMinusDateReturnsBigIntDayCount() {
         RexCall call = minusOf(SqlTypeName.DATE, SqlTypeName.DATE);
         RexNode adapted = adapter.adapt(call, List.of(), cluster);
-        // Same shape as TIMESTAMP-TIMESTAMP — DATE is the other gap-shape operand type.
-        assertSame(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, ((RexCall) unwrapCast(adapted)).getOperator());
+
+        // DATE-DATE → integer day-count: DIVIDE(MINUS(to_unixtime(L), to_unixtime(R)), 86400).
+        RexCall divide = (RexCall) adapted;
+        assertSame(SqlStdOperatorTable.DIVIDE, divide.getOperator());
+        assertSame(SqlTypeName.BIGINT, divide.getType().getSqlTypeName());
+
+        RexCall minus = (RexCall) divide.getOperands().get(0);
+        assertSame(SqlStdOperatorTable.MINUS, minus.getOperator());
+        assertSame(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, ((RexCall) minus.getOperands().get(0)).getOperator());
+        assertSame(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, ((RexCall) minus.getOperands().get(1)).getOperator());
     }
 
     public void testNumericMinusPassesThroughUnchanged() {

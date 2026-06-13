@@ -13,7 +13,6 @@
 //! NULL. Output key order is preserved via `serde_json`'s `preserve_order`
 //! feature (see `rust/Cargo.toml`).
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -55,9 +54,6 @@ impl Default for JsonDeleteUdf {
 }
 
 impl ScalarUDFImpl for JsonDeleteUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         NAME
     }

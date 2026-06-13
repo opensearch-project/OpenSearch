@@ -20,8 +20,7 @@ import java.util.Objects;
 /**
  * Top-level stats container for the DataFusion backend.
  *
- * <p>Implements {@link Writeable} for transport serialization,
- * {@link Writeable} for transport serialization, and {@link ToXContentFragment}
+ * <p>Implements {@link Writeable} for transport serialization and {@link ToXContentFragment}
  * for JSON rendering.
  *
  * <p>Composes {@link NativeExecutorsStats} rather than duplicating its fields,
@@ -34,22 +33,51 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
     private final NativeExecutorsStats nativeExecutorsStats; // nullable
     private final PartitionGateStats datanodeGateStats; // nullable
     private final PartitionGateStats coordinatorGateStats; // nullable
+    private final SpillStats spillStats; // nullable
+    private final CacheStats cacheStats; // nullable
+    private final SearchStats searchStats; // nullable
 
     /**
-     * Construct from components.
+     * Construct from all components.
      *
      * @param nativeExecutorsStats  the native executor metrics (nullable)
      * @param datanodeGateStats     the datanode partition gate metrics (nullable)
      * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
+     * @param spillStats            the spill directory stats (nullable)
+     * @param cacheStats            the parquet metadata + statistics cache metrics (nullable)
+     * @param searchStats           the search execution metrics (nullable)
      */
     public DataFusionStats(
         NativeExecutorsStats nativeExecutorsStats,
         PartitionGateStats datanodeGateStats,
-        PartitionGateStats coordinatorGateStats
+        PartitionGateStats coordinatorGateStats,
+        SpillStats spillStats,
+        CacheStats cacheStats,
+        SearchStats searchStats
     ) {
         this.nativeExecutorsStats = nativeExecutorsStats;
         this.datanodeGateStats = datanodeGateStats;
         this.coordinatorGateStats = coordinatorGateStats;
+        this.spillStats = spillStats;
+        this.cacheStats = cacheStats;
+        this.searchStats = searchStats;
+    }
+
+    /**
+     * Construct without cache or search stats. Equivalent to passing {@code null} for both.
+     *
+     * @param nativeExecutorsStats  the native executor metrics (nullable)
+     * @param datanodeGateStats     the datanode partition gate metrics (nullable)
+     * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
+     * @param spillStats            the spill directory stats (nullable)
+     */
+    public DataFusionStats(
+        NativeExecutorsStats nativeExecutorsStats,
+        PartitionGateStats datanodeGateStats,
+        PartitionGateStats coordinatorGateStats,
+        SpillStats spillStats
+    ) {
+        this(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats, spillStats, null, null);
     }
 
     /**
@@ -62,6 +90,9 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         this.nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
         this.datanodeGateStats = in.readOptionalWriteable(PartitionGateStats::new);
         this.coordinatorGateStats = in.readOptionalWriteable(PartitionGateStats::new);
+        this.spillStats = in.readOptionalWriteable(SpillStats::new);
+        this.cacheStats = in.readOptionalWriteable(CacheStats::new);
+        this.searchStats = in.readOptionalWriteable(SearchStats::new);
     }
 
     @Override
@@ -69,6 +100,9 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(nativeExecutorsStats);
         out.writeOptionalWriteable(datanodeGateStats);
         out.writeOptionalWriteable(coordinatorGateStats);
+        out.writeOptionalWriteable(spillStats);
+        out.writeOptionalWriteable(cacheStats);
+        out.writeOptionalWriteable(searchStats);
     }
 
     @Override
@@ -81,6 +115,15 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         }
         if (coordinatorGateStats != null) {
             coordinatorGateStats.toXContent(builder, params);
+        }
+        if (spillStats != null) {
+            spillStats.toXContent(builder, params);
+        }
+        if (cacheStats != null) {
+            cacheStats.toXContent(builder, params);
+        }
+        if (searchStats != null) {
+            searchStats.toXContent(builder, params);
         }
         return builder;
     }
@@ -106,6 +149,27 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         return coordinatorGateStats;
     }
 
+    /**
+     * Returns the spill directory metrics, or {@code null} if absent.
+     */
+    public SpillStats getSpillStats() {
+        return spillStats;
+    }
+
+    /**
+     * Returns the parquet cache metrics, or {@code null} if absent.
+     */
+    public CacheStats getCacheStats() {
+        return cacheStats;
+    }
+
+    /**
+     * Returns the search execution metrics, or {@code null} if absent.
+     */
+    public SearchStats getSearchStats() {
+        return searchStats;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -113,11 +177,14 @@ public class DataFusionStats implements Writeable, ToXContentFragment {
         DataFusionStats that = (DataFusionStats) o;
         return Objects.equals(nativeExecutorsStats, that.nativeExecutorsStats)
             && Objects.equals(datanodeGateStats, that.datanodeGateStats)
-            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats);
+            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats)
+            && Objects.equals(spillStats, that.spillStats)
+            && Objects.equals(cacheStats, that.cacheStats)
+            && Objects.equals(searchStats, that.searchStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats);
+        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats, spillStats, cacheStats, searchStats);
     }
 }

@@ -99,12 +99,6 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
         return delegate.flush(flushInput);
     }
 
-    /** {@inheritDoc} Delegates to the underlying writer. */
-    @Override
-    public void sync() throws IOException {
-        delegate.sync();
-    }
-
     /** {@inheritDoc} Returns the generation of the underlying writer. */
     @Override
     public long generation() {

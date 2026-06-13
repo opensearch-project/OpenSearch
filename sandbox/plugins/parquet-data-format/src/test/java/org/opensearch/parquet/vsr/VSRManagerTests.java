@@ -15,18 +15,21 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -34,11 +37,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
-import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
+public class VSRManagerTests extends ParquetBaseTests {
 
-public class VSRManagerTests extends OpenSearchTestCase {
-
+    private static final DataFormat PARQUET_FORMAT = new ParquetDataFormat();
     private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     /** Minimal schema VSRManager is constructed with; addDocument tests reconcile metadata fields in via {@link #reconcileMetadata}. */
@@ -50,8 +51,8 @@ public class VSRManagerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, null);
         bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
         Settings indexSettingsBuilder = Settings.builder()
@@ -128,6 +129,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(valField, PARQUET_FORMAT);
         ParquetDocumentInput doc = new ParquetDocumentInput();
         populateMetadataFields(doc);
         doc.addField(valField, 42);
@@ -139,20 +141,6 @@ public class VSRManagerTests extends OpenSearchTestCase {
         ParquetFileMetadata metadata = manager.flush();
         assertNotNull(metadata);
         assertEquals(1, metadata.numRows());
-    }
-
-    public void testSyncAfterFlush() throws Exception {
-        String filePath = createTempDir().resolve("sync.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
-
-        ManagedVSR active = manager.getActiveManagedVSR();
-        IntVector vec = (IntVector) active.getVector("val");
-        vec.setSafe(0, 10);
-        active.setRowCount(1);
-
-        manager.flush();
-        manager.sync();
-        assertTrue(java.nio.file.Files.exists(java.nio.file.Path.of(filePath)));
     }
 
     public void testMaybeRotateNoOpBelowThreshold() throws Exception {
@@ -320,6 +308,8 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+        assignTestCapabilities(tagField, PARQUET_FORMAT);
         ParquetDocumentInput doc = new ParquetDocumentInput();
         populateMetadataFields(doc);
         doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
@@ -340,6 +330,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         assertTrue(manager.isSchemaMutable());
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(valField, PARQUET_FORMAT);
         ParquetDocumentInput doc = new ParquetDocumentInput();
         populateMetadataFields(doc);
         doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
@@ -356,6 +347,8 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+        assignTestCapabilities(tagField, PARQUET_FORMAT);
 
         // Reconcile once before any docs — the tag vector must persist across the VSR
         // rotation triggered by maxRowsPerVSR=1.
@@ -408,6 +401,10 @@ public class VSRManagerTests extends OpenSearchTestCase {
         KeywordFieldMapper.KeywordFieldType tag1Field = new KeywordFieldMapper.KeywordFieldType("tag1");
         KeywordFieldMapper.KeywordFieldType tag2Field = new KeywordFieldMapper.KeywordFieldType("tag2");
         KeywordFieldMapper.KeywordFieldType tag3Field = new KeywordFieldMapper.KeywordFieldType("tag3");
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+        assignTestCapabilities(tag1Field, PARQUET_FORMAT);
+        assignTestCapabilities(tag2Field, PARQUET_FORMAT);
+        assignTestCapabilities(tag3Field, PARQUET_FORMAT);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         populateMetadataFields(doc);
@@ -522,7 +519,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         int lowThreshold = randomIntBetween(2, 5);
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, lowThreshold, threadPool, 0L);
 
-        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
 
         // Run multiple rotation cycles — each cycle fills the VSR to threshold,
         // triggers background write, waits for completion, then verifies next addDocument works
@@ -570,7 +567,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         int totalDocs = lowThreshold * randomIntBetween(5, 12);
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, lowThreshold, threadPool, 0L);
 
-        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
 
         // Add all docs in a tight loop — no waiting between rotations
         for (int i = 0; i < totalDocs; i++) {

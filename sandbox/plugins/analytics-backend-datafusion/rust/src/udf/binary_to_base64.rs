@@ -15,7 +15,6 @@
 //! buffer-reinterpreted as Latin-1 by DataFusion's built-in `cast(binary,
 //! utf8)` kernel.
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -69,10 +68,6 @@ impl Hash for BinaryToBase64Udf {
 }
 
 impl ScalarUDFImpl for BinaryToBase64Udf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "binary_to_base64"
     }

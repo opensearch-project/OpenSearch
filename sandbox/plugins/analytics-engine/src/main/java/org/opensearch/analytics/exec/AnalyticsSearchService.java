@@ -42,6 +42,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -176,7 +177,24 @@ public class AnalyticsSearchService implements AutoCloseable {
                         responseHandler.onBatch(batch);
                     }
                     long fragmentTookNanos = System.nanoTime() - startNanos;
-                    responseHandler.onComplete();
+                    // Extract DataFusion execution metrics only when needed
+                    if (request.profile() || LOGGER.isDebugEnabled()) {
+                        byte[] metricsJson = exec.resources().getExecutionMetrics();
+                        if (LOGGER.isDebugEnabled() && metricsJson != null) {
+                            LOGGER.debug(
+                                "[FragmentMetrics] shard={} metrics={}",
+                                shard.shardId(),
+                                new String(metricsJson, StandardCharsets.UTF_8)
+                            );
+                        }
+                        if (request.profile() && metricsJson != null) {
+                            responseHandler.onCompleteWithMetrics(metricsJson);
+                        } else {
+                            responseHandler.onComplete();
+                        }
+                    } else {
+                        responseHandler.onComplete();
+                    }
                     ResolvedFragment resolved = exec.resolved();
                     DelegationDescriptor delegation = resolved.plan().getDelegationDescriptor();
                     boolean usedSecondaryIndex = delegation != null;
@@ -310,7 +328,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                 rowIdVector.set(i, rowIds[i]);
             }
             rowIdVector.setValueCount(rowIds.length);
-            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
             resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
@@ -338,6 +356,11 @@ public class AnalyticsSearchService implements AutoCloseable {
         void onBatch(EngineResultBatch batch) throws Exception;
 
         void onComplete();
+
+        /** Called with execution metrics when profiling is enabled. Default delegates to onComplete(). */
+        default void onCompleteWithMetrics(byte[] metrics) {
+            onComplete();
+        }
 
         void onFailure(Exception e);
     }

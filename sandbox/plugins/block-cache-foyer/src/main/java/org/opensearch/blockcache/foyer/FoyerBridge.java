@@ -50,10 +50,6 @@ public final class FoyerBridge {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
 
-        // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len,
-        // u64 block_size_bytes, *const u8 io_engine_ptr, u64 io_engine_len,
-        // u64 sweep_interval_secs, f64 sweep_threshold_ratio, u64 persist_interval_secs)
-        // Returns Box<Arc<dyn BlockCache>> fat pointer.
         FOYER_CREATE_CACHE = linker.downcallHandle(
             lib.find("foyer_create_cache").orElseThrow(),
             FunctionDescriptor.of(
@@ -62,6 +58,8 @@ public final class FoyerBridge {
                 ValueLayout.ADDRESS,     // dir_ptr: *const u8
                 ValueLayout.JAVA_LONG,   // dir_len: u64
                 ValueLayout.JAVA_LONG,   // block_size_bytes: u64
+                ValueLayout.JAVA_LONG,   // buffer_pool_size_bytes: u64
+                ValueLayout.JAVA_LONG,   // submit_queue_size_threshold_bytes: u64
                 ValueLayout.ADDRESS,     // io_engine_ptr: *const u8
                 ValueLayout.JAVA_LONG,   // io_engine_len: u64
                 ValueLayout.JAVA_LONG,   // sweep_interval_secs: u64 (0 = disabled)
@@ -173,6 +171,8 @@ public final class FoyerBridge {
         long diskBytes,
         String diskDir,
         long blockSizeBytes,
+        long bufferPoolSizeBytes,
+        long submitQueueSizeThresholdBytes,
         String ioEngine,
         long sweepIntervalSecs,
         double sweepThresholdRatio,
@@ -187,6 +187,8 @@ public final class FoyerBridge {
                 dir.segment(),
                 dir.len(),
                 blockSizeBytes,
+                bufferPoolSizeBytes,
+                submitQueueSizeThresholdBytes,
                 engine.segment(),
                 engine.len(),
                 sweepIntervalSecs,
@@ -197,14 +199,12 @@ public final class FoyerBridge {
                 throw new IllegalStateException("foyer_create_cache returned an invalid handle");
             }
             logger.info(
-                "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, "
-                    + "sweepIntervalSecs={}, sweepThresholdRatio={}, persistIntervalSecs={}, dir={}",
+                "Foyer block cache created: diskBytes={}, blockSize={}, bufferPool={}, submitQueueThreshold={}, " + "ioEngine={}, dir={}",
                 diskBytes,
                 blockSizeBytes,
+                bufferPoolSizeBytes,
+                submitQueueSizeThresholdBytes,
                 ioEngine,
-                sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
-                sweepThresholdRatio == 0.0 ? "always-sweep (no threshold)" : sweepThresholdRatio,
-                persistIntervalSecs == 0 ? "disabled" : persistIntervalSecs + "s",
                 diskDir
             );
             return ptr;

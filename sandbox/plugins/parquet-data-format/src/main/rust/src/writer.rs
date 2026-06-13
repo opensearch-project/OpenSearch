@@ -345,8 +345,6 @@ lazy_static! {
     /// Holds both Parquet and IPC writers via the `WriterVariant` enum.
     static ref WRITERS: DashMap<String, WriterState> = DashMap::new();
     pub static ref SETTINGS_STORE: DashMap<String, NativeSettings> = DashMap::new();
-    /// Holds file handles for finalized files pending fsync. Removed after sync.
-    static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
 }
 
 pub struct NativeParquetWriter;
@@ -524,9 +522,6 @@ impl NativeParquetWriter {
 
                             log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
 
-                            let file_for_sync = File::open(&filename)?;
-                            FILE_MANAGER.insert(filename.clone(), file_for_sync);
-
                             let file = File::open(&filename)?;
                             let reader = SerializedFileReader::new(file)?;
                             let parquet_metadata = reader.metadata().clone();
@@ -552,9 +547,6 @@ impl NativeParquetWriter {
                                     std::fs::rename(&temp_filename, &filename)?;
 
                                     log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
-
-                                    let file_for_sync = File::open(&filename)?;
-                                    FILE_MANAGER.insert(filename.clone(), file_for_sync);
 
                                     let file = File::open(&filename)?;
                                     let reader = SerializedFileReader::new(file)?;
@@ -763,20 +755,6 @@ impl NativeParquetWriter {
         Ok(crc32)
     }
 
-    pub fn sync_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
-        log_debug!("sync_to_disk called for file: {}", filename);
-
-        if let Some(file) = FILE_MANAGER.get_mut(&filename) {
-            file.sync_all()?;
-            log_debug!("Successfully fsynced file: {}", filename);
-            drop(file);
-            FILE_MANAGER.remove(&filename);
-            Ok(())
-        } else {
-            log_error!("ERROR: File not found for fsync: {}", filename);
-            Err("File not found".into())
-        }
-    }
 
     pub fn get_filtered_writer_memory_usage(path_prefix: String) -> Result<usize, Box<dyn std::error::Error>> {
         let mut total_memory = 0;

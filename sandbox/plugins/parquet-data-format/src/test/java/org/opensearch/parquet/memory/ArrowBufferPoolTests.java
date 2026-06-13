@@ -24,8 +24,8 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
         super.setUp();
         // Each test gets its own allocator with the standard pools pre-created.
         // Production code receives this via dependency injection; tests build it explicitly.
-        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, null);
     }
 
     @Override
@@ -85,14 +85,49 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
         assertEquals(0, pool.getTotalAllocatedBytes());
     }
 
-    public void testChildAllocatorGetsFullPoolLimit() {
+    /**
+     * Multiple ArrowBufferPool instances backed by the same NativeAllocator must report only
+     * their own memory usage via getTotalAllocatedBytes(), not the pool-wide total.
+     */
+    public void testMultiplePoolInstancesReportOwnUsageNotPoolWideTotal() {
+        ArrowBufferPool pool1 = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
+        ArrowBufferPool pool2 = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
+
+        BufferAllocator child1 = pool1.createChildAllocator("pool-1");
+        BufferAllocator child2 = pool2.createChildAllocator("pool-2");
+
+        ArrowBuf buf1 = child1.buffer(1024);
+        ArrowBuf buf2 = child2.buffer(2048);
+
+        long actualTotal = 1024 + 2048;
+
+        // Sum of individual pool reports must equal the actual total.
+        long sum = pool1.getTotalAllocatedBytes() + pool2.getTotalAllocatedBytes();
+        assertEquals("Sum of per-pool bytes must equal actual total", actualTotal, sum);
+
+        buf1.close();
+        buf2.close();
+        child1.close();
+        child2.close();
+        pool1.close();
+        pool2.close();
+    }
+
+    public void testChildAllocatorEnforcedByParentPoolLimit() {
         // Constrain the framework's ingest pool to a finite limit.
-        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, 1024L * 1024 * 1024);
+        long poolLimit = 1024L * 1024;
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, poolLimit);
 
         ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         BufferAllocator child = pool.createChildAllocator("c-full");
         try {
-            assertEquals(1024L * 1024 * 1024, child.getLimit());
+            // Child can allocate within the parent pool's limit
+            ArrowBuf buf = child.buffer(512 * 1024);
+            assertNotNull(buf);
+            buf.close();
+
+            // Child cannot allocate more than the parent pool's limit
+            expectThrows(org.apache.arrow.memory.OutOfMemoryException.class, () -> child.buffer(poolLimit + 1));
         } finally {
             child.close();
             pool.close();

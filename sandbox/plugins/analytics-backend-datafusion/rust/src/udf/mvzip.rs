@@ -25,7 +25,6 @@
 //! `opensearch_array_functions.yaml` declaration to type the call before
 //! substrait emission.
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
@@ -67,10 +66,6 @@ impl Default for MvzipUdf {
 }
 
 impl ScalarUDFImpl for MvzipUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "mvzip"
     }

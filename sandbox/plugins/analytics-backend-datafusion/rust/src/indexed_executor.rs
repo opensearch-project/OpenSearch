@@ -75,7 +75,7 @@ use crate::api::ShardView;
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
 use crate::indexed_table::metrics::StreamMetrics;
-use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics};
+use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics, StatsPruneTree};
 
 
 /// Execute an indexed query.
@@ -96,6 +96,7 @@ pub async fn execute_indexed_query(
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn MemoryPool>>,
     query_config: Arc<DatafusionQueryConfig>,
+    context_id: i64,
 ) -> Result<i64, DataFusionError> {
     let num_partitions = query_config.target_partitions.max(1);
     // Share caches with the global runtime (same as vanilla path): list-files
@@ -118,7 +119,7 @@ pub async fn execute_indexed_query(
                 .with_metadata_cache_limit(
                     runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
                 )
-                .with_files_statistics_cache(
+                .with_file_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
         );
@@ -175,10 +176,13 @@ pub async fn execute_indexed_query(
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
         writer_generations: shard_view.writer_generations.clone(),
-        query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
+        sort_fields: shard_view.sort_fields.clone(),
+        sort_orders: shard_view.sort_orders.clone(),
+        query_context: crate::query_tracker::QueryTrackingContext::new(context_id, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
+        io_handle: tokio::runtime::Handle::current(),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
         phantom_reservation: None,
@@ -222,7 +226,7 @@ fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Ve
     let mut indices = BTreeSet::new();
     for expr in &exprs {
         let _ = expr.apply(|node| {
-            if let Some(col) = node.as_any().downcast_ref::<Column>() {
+            if let Some(col) = node.downcast_ref::<Column>() {
                 indices.insert(col.index());
             }
             Ok(TreeNodeRecursion::Continue)
@@ -288,9 +292,6 @@ impl fmt::Debug for PlaceholderProvider {
 
 #[async_trait::async_trait]
 impl TableProvider for PlaceholderProvider {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -501,12 +502,16 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let query_config = Arc::new(handle.query_config);
     let num_partitions = query_config.target_partitions.max(1);
+    let aggregate_mode = handle.aggregate_mode;
     let ctx = handle.ctx;
     let table_name = handle.table_name;
     let table_path = handle.table_path;
     let object_metas = handle.object_metas;
     let writer_generations = handle.writer_generations;
+    let sort_fields = handle.sort_fields;
+    let sort_orders = handle.sort_orders;
     let query_context = handle.query_context;
+    let io_handle = handle.io_handle;
     // Extract context_id early so it can be captured by the per-segment closures
     // below. The closures pass it through every FFM upcall so Java can route each
     // callback to the correct per-query FilterDelegationHandle and DelegationThreadTracker.
@@ -531,6 +536,7 @@ async unsafe fn execute_indexed_with_context_inner(
         object_metas.as_ref(),
         writer_generations.as_ref(),
         metadata_cache,
+        &sort_fields,
     )
     .await
     .map_err(DataFusionError::Execution)?;
@@ -596,6 +602,22 @@ async unsafe fn execute_indexed_with_context_inner(
         FilterClass::Tree => None,
     };
 
+    let prune_tree_config = extraction.as_ref().and_then(|e| {
+        let mut leaf_exprs: Vec<Arc<dyn PhysicalExpr>> = Vec::new();
+        collect_predicate_exprs(&e.tree, &mut leaf_exprs);
+        let leaf_predicates: HashMap<usize, Arc<PruningPredicate>> = leaf_exprs
+            .iter()
+            .filter_map(|expr| {
+                build_pruning_predicate(expr, schema.clone())
+                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+            })
+            .collect();
+        if leaf_predicates.is_empty() {
+            return None;
+        }
+        Some((e.tree.clone(), Arc::new(leaf_predicates), schema.clone()))
+    });
+
     let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
 
     let factory: EvaluatorFactory = match classification {
@@ -614,7 +636,7 @@ async unsafe fn execute_indexed_with_context_inner(
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
             Arc::new(
-                move |segment: &SegmentFileInfo, _chunk, stream_metrics: &StreamMetrics| {
+                move |segment: &SegmentFileInfo, _chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
                     let pruner = Arc::new(PagePruner::new(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
@@ -625,6 +647,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             residual_pruning_predicate.clone(),
                             residual_expr.clone(),
                             Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
+                            stats_prune_tree.cloned(),
                         ));
                     Ok(eval)
                 },
@@ -686,8 +709,11 @@ async unsafe fn execute_indexed_with_context_inner(
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
             let call_strategy = query_config.single_collector_strategy;
+            let bloom_store = Arc::clone(&store);
+            let bloom_schema = schema.clone();
+            let bloom_on_read = query_config.bloom_filter_on_read;
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
                     let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
                         Some(provider) => {
                             let collector = FfmSegmentCollector::create(
@@ -716,6 +742,19 @@ async unsafe fn execute_indexed_with_context_inner(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
+                    let bloom_config = if bloom_on_read {
+                        Some(crate::indexed_table::eval::single_collector::BloomConfig {
+                            store: Arc::clone(&bloom_store),
+                            object_path: segment.object_path.clone(),
+                            metadata: Arc::clone(&segment.metadata),
+                            arrow_schema: Arc::clone(&bloom_schema),
+                            io_handle: io_handle.clone(),
+                            rg_bloom_pruned: stream_metrics.rg_bloom_pruned.clone(),
+                            bloom_filter_eval_time: stream_metrics.bloom_filter_eval_time.clone(),
+                        })
+                    } else {
+                        None
+                    };
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
                             collector_opt,
@@ -729,6 +768,8 @@ async unsafe fn execute_indexed_with_context_inner(
                             segment.writer_generation,
                             Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                             context_id,
+                            bloom_config,
+                            stats_prune_tree.cloned(),
                         ));
                     Ok(eval)
                 },
@@ -781,7 +822,7 @@ async unsafe fn execute_indexed_with_context_inner(
             );
 
             Arc::new(
-                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics, stats_prune_tree: Option<&StatsPruneTree>| {
                     // Build one collector per Collector leaf for this chunk.
                     let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
                         Vec::with_capacity(providers.len());
@@ -825,6 +866,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             stream_metrics,
                         )),
                         collector_strategy,
+                        stats_prune_tree: stats_prune_tree.cloned(),
                     });
                     Ok(eval)
                 },
@@ -852,6 +894,9 @@ async unsafe fn execute_indexed_with_context_inner(
         query_config: Arc::clone(&query_config),
         predicate_columns,
         emit_row_ids,
+        prune_tree_config,
+        sort_fields: sort_fields.clone(),
+        sort_orders: sort_orders.clone(),
     }));
     ctx.register_table(&table_name, provider)?;
 
@@ -863,10 +908,17 @@ async unsafe fn execute_indexed_with_context_inner(
     // types. The target is schema_coerce::coerce_inferred_schema(physical_schema) — same
     // narrowing the partition-stream registration uses, so consumer-side StreamingTable
     // and producer-side batches agree by construction (see crate::relabel_exec).
+    // Apply aggregate mode stripping when prepare_partial_plan was called (engine-native-merge).
+    // This makes the indexed executor produce Binary HLL state (Partial) instead of Int64 (Final).
+    let physical_plan = if aggregate_mode != crate::agg_mode::Mode::Default {
+        crate::agg_mode::apply_aggregate_mode(physical_plan, aggregate_mode)?
+    } else {
+        physical_plan
+    };
     let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
     let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
-    let df_stream = execute_stream(physical_plan, ctx.task_ctx())
+    let df_stream = execute_stream(physical_plan.clone(), ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 
     let (cross_rt_stream, abort_handle) =
@@ -878,6 +930,6 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx, Some(permit));
+    let stream_handle = crate::api::QueryStreamHandle::with_physical_plan(wrapped, query_context, ctx, Some(permit), physical_plan);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

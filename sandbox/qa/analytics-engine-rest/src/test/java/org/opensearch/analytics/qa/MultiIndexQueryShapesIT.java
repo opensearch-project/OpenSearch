@@ -384,7 +384,7 @@ public class MultiIndexQueryShapesIT extends AnalyticsRestTestCase {
     }
 
     private void createIndexWithSettings(String name, String mappingJson, boolean withLuceneSecondary, int shards) throws IOException {
-        String secondaryFormats = withLuceneSecondary ? ",\"index.composite.secondary_data_formats\":\"lucene\"" : "";
+        String secondaryFormats = ",\"index.composite.secondary_data_formats\":\"lucene\"";
         Request create = new Request("PUT", "/" + name);
         create.setJsonEntity(
             "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
