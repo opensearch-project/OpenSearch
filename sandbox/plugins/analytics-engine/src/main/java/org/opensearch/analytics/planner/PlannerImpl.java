@@ -34,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
+import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -43,7 +44,6 @@ import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
-import org.opensearch.analytics.planner.rules.OpenSearchPercentileLiteralArgRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
@@ -260,10 +260,10 @@ public class PlannerImpl {
      * {@code computeSelfCost} forces the CBO-inserted ER below it, keeping the literal in the
      * coordinator fragment for the DataFusion substrait converter. Placed after marking so the
      * pre-marking {@code PROJECT_MERGE} cannot re-fuse the two copies. See
-     * {@link OpenSearchPercentileLiteralArgRule}.
+     * {@link OpenSearchAggLiteralArgProjectSplitRule}.
      */
     private static RelNode splitAggLiteralArgProject(RelNode input, RuleProfilingListener listener) {
-        return HepPhase.named("agg-literal-arg-split").addRuleInstance(new OpenSearchPercentileLiteralArgRule()).run(input, listener);
+        return HepPhase.named("agg-literal-arg-split").addRuleInstance(new OpenSearchAggLiteralArgProjectSplitRule()).run(input, listener);
     }
 
     /**

@@ -25,9 +25,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Post-marking rule: when an aggregate's literal CONFIG arg (e.g. percentile's {@code 50}) lives as
- * a column on the input {@link OpenSearchProject}, DUPLICATE that Project into two straddling the
- * (yet-to-be-inserted) ExchangeReducer:
+ * Post-marking rule: duplicates the input {@link OpenSearchProject} when an aggregate's literal CONFIG
+ * arg (percentile's pct, take's N) lives on it as a column, so the literal can't be severed from the
+ * aggregate by projection pushdown:
  *
  * <pre>
  *   Aggregate(percentile_approx($0,$1,$2))
@@ -37,37 +37,27 @@ import java.util.List;
  *           Scan
  * </pre>
  *
- * <p><b>Why.</b> PPL {@code percentile(field, 50)} lowers to {@code percentile_approx($0,$1,$2)}
- * over {@code Project(field, $f1=50, $f2=FLAG)} — the percentile literal {@code 50} (and a
- * type-flag) are materialized as Project columns referenced by ordinal. The ExchangeReducer
- * width-cost pushes that single Project below the gather; the literal then crosses the Exchange as a
- * data column and the DataFusion substrait converter — which recovers the literal from the
- * directly-attached Project — can no longer reach it, so DataFusion errors with
- * "Percentile value ... must be a literal".
+ * <p>The DataFusion converter re-inlines the literal from the directly-attached Project. Without the split,
+ * width-cost pushes the single literal-bearing Project below the gather, the converter can't reach the
+ * literal, and percentile errors "must be a literal" / take returns an empty array. The pinned upper copy
+ * ({@link OpenSearchProject#isPinAboveExchange()}, infinite cost unless input is gathered) keeps the literal
+ * in the coordinator fragment; the unpinned lower copy narrows the scan. {@code argList} is untouched.
  *
- * <p><b>Fix.</b> Keep a copy of the literal-bearing Project directly under the aggregate, flagged
- * {@link OpenSearchProject#isPinAboveExchange()} so its {@code computeSelfCost} forces the ER below
- * it (it stays in the coordinator fragment, literal reachable). A second, unpinned, physical-only
- * Project pushes below the gather and narrows the scan — projection-pushdown preserved. The
- * aggregate's {@code argList} is untouched (literal is still a column on the upper Project), so no
- * operand renumbering and no return-type-inference change.
- *
- * <p><b>Placement.</b> Runs AFTER marking (operates on {@code OpenSearch*} nodes) and before CBO.
- * {@code PROJECT_MERGE} lives in the pre-marking pushdown phase, so it cannot re-fuse the two
- * Projects; the ER inserted by CBO lands between them and the split sticks.
- *
- * <p><b>Scope.</b> Only {@code PERCENTILE_APPROX} (PPL percentile / median / percentile_approx /
- * pNN). Fires only when the percentile call references a literal column AND the Project has a
- * non-literal column to push down — otherwise the split buys nothing.
+ * <p>Runs after marking, before CBO — {@code PROJECT_MERGE} (pre-marking) can't re-fuse the copies, and the
+ * ER lands between them. Scope = {@code PERCENTILE_APPROX} and {@code TAKE}, the only aggregates that
+ * materialize a literal config arg as a Project column (FIRST/LAST drop their optional N; others carry no
+ * literal). Fires only when such a call references a literal column and the Project also has a non-literal
+ * column to push down.
  *
  * @opensearch.internal
  */
-public class OpenSearchPercentileLiteralArgRule extends RelOptRule {
+public class OpenSearchAggLiteralArgProjectSplitRule extends RelOptRule {
 
-    private static final String PERCENTILE_APPROX = "PERCENTILE_APPROX";
+    // Aggregates whose literal config arg the DataFusion converter re-inlines from the attached Project.
+    private static final java.util.Set<String> LITERAL_ARG_AGGS = java.util.Set.of("PERCENTILE_APPROX", "TAKE");
 
-    public OpenSearchPercentileLiteralArgRule() {
-        super(operand(OpenSearchAggregate.class, operand(OpenSearchProject.class, none())), "OpenSearchPercentileLiteralArgRule");
+    public OpenSearchAggLiteralArgProjectSplitRule() {
+        super(operand(OpenSearchAggregate.class, operand(OpenSearchProject.class, none())), "OpenSearchAggLiteralArgProjectSplitRule");
     }
 
     @Override
@@ -85,7 +75,7 @@ public class OpenSearchPercentileLiteralArgRule extends RelOptRule {
         // Does any percentile call reference a literal column on this Project?
         boolean referencesLiteralArg = false;
         for (AggregateCall ac : aggregate.getAggCallList()) {
-            if (!PERCENTILE_APPROX.equalsIgnoreCase(ac.getAggregation().getName())) {
+            if (!LITERAL_ARG_AGGS.contains(ac.getAggregation().getName().toUpperCase(java.util.Locale.ROOT))) {
                 continue;
             }
             for (int arg : ac.getArgList()) {
