@@ -176,6 +176,8 @@ pub async fn execute_indexed_query(
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
         writer_generations: shard_view.writer_generations.clone(),
+        sort_fields: shard_view.sort_fields.clone(),
+        sort_orders: shard_view.sort_orders.clone(),
         query_context: crate::query_tracker::QueryTrackingContext::new(context_id, runtime.runtime_env.memory_pool.clone(), crate::query_tracker::QueryType::Shard),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
@@ -506,6 +508,8 @@ async unsafe fn execute_indexed_with_context_inner(
     let table_path = handle.table_path;
     let object_metas = handle.object_metas;
     let writer_generations = handle.writer_generations;
+    let sort_fields = handle.sort_fields;
+    let sort_orders = handle.sort_orders;
     let query_context = handle.query_context;
     let io_handle = handle.io_handle;
     // Extract context_id early so it can be captured by the per-segment closures
@@ -532,6 +536,7 @@ async unsafe fn execute_indexed_with_context_inner(
         object_metas.as_ref(),
         writer_generations.as_ref(),
         metadata_cache,
+        &sort_fields,
     )
     .await
     .map_err(DataFusionError::Execution)?;
@@ -890,6 +895,8 @@ async unsafe fn execute_indexed_with_context_inner(
         predicate_columns,
         emit_row_ids,
         prune_tree_config,
+        sort_fields: sort_fields.clone(),
+        sort_orders: sort_orders.clone(),
     }));
     ctx.register_table(&table_name, provider)?;
 

@@ -949,6 +949,7 @@ pub async unsafe fn fetch_by_row_ids(
         shard_view.object_metas.as_ref(),
         shard_view.writer_generations.as_ref(),
         metadata_cache,
+        &shard_view.sort_fields,
     )
         .await
         .map_err(DataFusionError::Execution)?;

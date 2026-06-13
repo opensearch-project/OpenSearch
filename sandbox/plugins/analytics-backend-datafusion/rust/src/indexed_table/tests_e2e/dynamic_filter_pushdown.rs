@@ -131,7 +131,9 @@ async fn run_indexed(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let factory: super::super::table_provider::EvaluatorFactory = {
         let schema = schema.clone();
@@ -185,6 +187,8 @@ async fn run_indexed(
         predicate_columns: vec![],
         emit_row_ids: false,
         prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

@@ -217,7 +217,9 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
         row_groups: rgs,
         metadata: parquet_meta,
             global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
     (seg, schema)
 }
 
@@ -395,7 +397,10 @@ async fn execute_and_collect(
         pushdown_predicate: None,
         query_config: Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

@@ -73,7 +73,9 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     // FilterClass::None: no pruning predicate (column-less), constant applied
     // as residual in on_batch_mask.
@@ -110,7 +112,10 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

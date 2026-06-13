@@ -230,7 +230,9 @@ async fn run_tree_and_plan(
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
             global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     // Normalize NOT push-down; build one collector per Collector leaf in DFS order.
     let tree = tree.push_not_down();
@@ -297,7 +299,10 @@ async fn run_tree_and_plan(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
-        emit_row_ids: false, prune_tree_config: None,
+        emit_row_ids: false,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
