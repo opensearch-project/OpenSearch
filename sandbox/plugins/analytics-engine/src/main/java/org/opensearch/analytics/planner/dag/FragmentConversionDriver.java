@@ -261,10 +261,6 @@ public class FragmentConversionDriver {
         return false;
     }
 
-    private static boolean isPureReorderProject(org.apache.calcite.rel.core.Project project) {
-        return project.getProjects().stream().allMatch(e -> e instanceof org.apache.calcite.rex.RexInputRef);
-    }
-
     /**
      * Accumulates serialized delegated query bytes during fragment conversion.
      *
@@ -534,14 +530,10 @@ public class FragmentConversionDriver {
             }
 
             // Single-input operator above the final-fragment boundary — convert child first, then attach.
+            // A pure-reorder Project above an engine-native-merge FINAL is emitted like any other operator;
+            // dropping it would strand operators above it (e.g. Sort) with the post-reorder schema over
+            // un-reordered data, corrupting the final column order.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
-            // Skip pure-reorder Project above engine-native-merge FINAL — DataFusion's substrait
-            // consumer can't bind reordered field names against the FINAL aggregate's state columns.
-            if (node instanceof org.apache.calcite.rel.core.Project p
-                && isPureReorderProject(p)
-                && containsEngineNativeAggregate(node.getInputs().getFirst(), AggregateMode.FINAL)) {
-                return innerBytes;
-            }
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
