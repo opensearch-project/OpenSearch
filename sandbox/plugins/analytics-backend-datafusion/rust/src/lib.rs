@@ -24,6 +24,7 @@ pub(crate) mod agg_mode;
 pub mod api;
 pub mod cache;
 pub mod cancellation;
+pub mod completion;
 pub mod cross_rt_stream;
 pub mod custom_cache_manager;
 pub mod datafusion_query_config;

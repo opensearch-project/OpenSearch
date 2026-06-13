@@ -48,6 +48,9 @@ import io.substrait.extension.SimpleExtension;
  * Mirror of {@link DatafusionReduceSinkTests} for the memtable variant. Same Substrait plan, same
  * batches, same downstream assertion — exercises the buffered-batch handoff path instead of the
  * streaming sender path.
+ *
+ * <p>{@link ThreadLeakScope.Scope#NONE}: the async-completion drain fires upcalls on Tokio
+ * IO-runtime worker threads (process-lifetime singletons) — see {@link DatafusionReduceSinkTests}.
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {

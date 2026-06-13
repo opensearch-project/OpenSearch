@@ -12,17 +12,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.core.action.ActionListener;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Type-safe wrapper around a native {@code PartitionStreamSender} pointer. Closing
  * the sender signals EOF to the DataFusion receiver side.
  *
- * <p>The {@code lifecycle} read-write lock serialises {@link #send} / {@link #close}:
- * native {@code sender_send} holds an immutable borrow of the heap-allocated sender
- * across an {@code mpsc::Sender::send().await}, while {@code sender_close} reclaims
- * the {@code Box} — a use-after-free if these overlap.
+ * <p>The {@code lifecycle} read-write lock serialises {@link #send} / {@link #close}: the
+ * native {@code sender_send_async} read-validates the heap-allocated sender pointer against
+ * {@code sender_close}'s {@code Box} reclaim. The send is now <b>initiated</b> synchronously
+ * under the lock (no native borrow is held across an {@code await}); a full-channel send owns a
+ * <b>cloned</b> {@code mpsc::Sender}, so {@code close()} can never UAF an in-flight send and no
+ * longer waits for one. The park on a pending send happens <b>outside</b> the lock — on a virtual
+ * thread it unmounts the carrier. EOF defers until the pending batch lands (the cloned sender
+ * keeps the channel open until it drops).
  */
 public final class DatafusionPartitionSender extends NativeHandle {
 
@@ -48,16 +54,28 @@ public final class DatafusionPartitionSender extends NativeHandle {
      * receiver (benign — the caller should discard the batch and stop feeding).
      */
     public long send(long arrayAddr, long schemaAddr) {
+        CompletableFuture<Long> done = new CompletableFuture<>();
+        long rc;
         lifecycle.readLock().lock();
         try {
-            long rc = NativeBridge.senderSend(getPointer(), arrayAddr, schemaAddr);
-            if (rc == NativeBridge.SENDER_SEND_RECEIVER_DROPPED) {
-                receiverDropped = true;
-            }
-            return rc;
+            rc = NativeBridge.senderSendAsync(
+                getPointer(),
+                arrayAddr,
+                schemaAddr,
+                ActionListener.wrap(done::complete, done::completeExceptionally)
+            );
         } finally {
             lifecycle.readLock().unlock();
         }
+        if (rc == NativeBridge.SENDER_SEND_PENDING) {
+            // Channel full: park outside the lock until the deferred send completes. On a virtual
+            // thread this unmounts the carrier — no platform thread is held for backpressure.
+            rc = done.join();
+        }
+        if (rc == NativeBridge.SENDER_SEND_RECEIVER_DROPPED) {
+            receiverDropped = true;
+        }
+        return rc;
     }
 
     /** True once the consumer dropped this channel's receiver (see {@link #receiverDropped}). */

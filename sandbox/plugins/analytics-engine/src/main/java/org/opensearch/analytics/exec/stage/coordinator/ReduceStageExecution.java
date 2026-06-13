@@ -26,7 +26,8 @@ import org.opensearch.analytics.spi.ReducingExchangeSink;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Coordinator-side reduce stage execution. Task invokes {@link ReducingExchangeSink#reduce};
@@ -34,9 +35,21 @@ import java.util.concurrent.Executor;
  * cancel-before-reduce paths still release resources. Scheduling mode (eager vs buffered)
  * is delegated to {@link ReducingExchangeSink#supportsEagerScheduling()}.
  *
- * <p>Dispatched on the scheduler pool (lightweight, handles wait/orchestration) which then
- * forks the actual reduce computation to the SEARCH pool. This prevents deadlocking SEARCH
- * (where fragment execution runs) while keeping reduce compute off the scheduler threads.
+ * <p><b>Virtual-thread reduce.</b> The reduce body runs on the per-query virtual-thread
+ * executor ({@link QueryContext#localTaskExecutor()}), the same executor
+ * {@code LateMaterializationStageExecution} uses for LOCAL stage bodies. The drain's
+ * data-flow waits (the native batch pull behind {@code DatafusionResultStream.BatchIterator}
+ * and the input push behind {@code DatafusionPartitionSender}) are now plain Java
+ * {@code CompletableFuture} parks — on a virtual thread each park unmounts its carrier, so no
+ * platform pool thread is held for the duration of a reduce. A {@code cancel()} reaches the
+ * Java-parked drain via the cancellation token → error-completion → unwind path; no thread
+ * interruption is involved.
+ *
+ * <p>{@code localTaskExecutor()} is a raw {@code newThreadPerTaskExecutor} that does not
+ * propagate OpenSearch {@code ThreadContext}. The reduce body and its listener completion do
+ * not read {@code ThreadContext} (no task-header / tracing reads on the transitive
+ * {@code reduce()} path), so no context-preserving wrapper is required — matching
+ * {@code LateMaterializationStageExecution}'s use of the same executor.
  *
  * @opensearch.internal
  */
@@ -46,7 +59,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
 
     private final ReducingExchangeSink backendSink;
     private final ExchangeSink downstream;
-    private final Executor reduceExecutor;
+    private final ExecutorService localTaskExecutor;
     private final BufferAllocator allocator;
     private final boolean profile;
 
@@ -54,7 +67,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         this.backendSink = backendSink;
         this.downstream = downstream;
-        this.reduceExecutor = config.reduceExecutor();
+        this.localTaskExecutor = config.localTaskExecutor();
         this.allocator = config.bufferAllocator();
         this.runner = new LocalTaskRunner(config.schedulerExecutor());
         this.profile = config.profile();
@@ -101,7 +114,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
     protected List<StageTask> materializeTasks() {
         final StageTask[] holder = new StageTask[1];
         holder[0] = new LocalStageTask(new StageTaskId(getStageId(), 0), listener -> {
-            reduceExecutor.execute(() -> {
+            localTaskExecutor.execute(() -> {
                 try {
                     backendSink.reduce(ActionListener.wrap(v -> {
                         if (profile) {

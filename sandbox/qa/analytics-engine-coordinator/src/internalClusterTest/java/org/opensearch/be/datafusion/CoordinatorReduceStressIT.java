@@ -30,14 +30,16 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.test.OpenSearchTestCase;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -46,10 +48,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
+import jdk.jfr.consumer.RecordingStream;
 
 /**
  * Coordinator-side reduce-stage stress + lifecycle hygiene tests for
@@ -86,7 +90,10 @@ import io.substrait.extension.SimpleExtension;
  *
  * @opensearch.internal
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "broken")
+// The async-completion path fires upcalls on Tokio IO-runtime worker threads — process-lifetime
+// singletons that attach to the JVM and persist after the suite. They can't be shut down per-test
+// without breaking other classes that share the runtime; same rationale as DataFusionNativeBridgeTests.
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class CoordinatorReduceStressIT extends OpenSearchTestCase {
 
     /** Default Substrait input id for the single-input case (matches DatafusionReduceSink.INPUT_ID). */
@@ -121,6 +128,28 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
                 super.tearDown();
             }
         }
+    }
+
+    /**
+     * Asserts the native DataFusion memory pool returns to (at most) {@code baseline} bytes within a
+     * grace window. Complements the Java {@code RootAllocator} baseline checks: a leak on the
+     * <b>Rust</b> side (an abandoned pending-send task's batch, an un-dropped FFI array on a
+     * cancel/failure unwind) would never move the Java allocator but WOULD strand native pool bytes.
+     * Native release callbacks fire asynchronously on the tokio runtime, so poll rather than sample
+     * once. {@code slackBytes} tolerates pool bookkeeping that doesn't return to a bit-exact zero.
+     */
+    private void assertNativePoolReturnsToBaseline(long baseline, long slackBytes) throws Exception {
+        long runtimePtr = runtimeHandle.getPointer();
+        long deadline = System.currentTimeMillis() + 10_000;
+        long usage;
+        do {
+            usage = NativeBridge.getMemoryPoolUsage(runtimePtr);
+            if (usage - baseline <= slackBytes) {
+                return;
+            }
+            Thread.sleep(50);
+        } while (System.currentTimeMillis() < deadline);
+        fail("native memory pool did not return to baseline: baseline=" + baseline + " usage=" + usage + " (slack=" + slackBytes + ")");
     }
 
     /**
@@ -196,6 +225,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         );
 
         long allocBefore = alloc.getAllocatedMemory();
+        long poolBefore = NativeBridge.getMemoryPoolUsage(runtimeHandle.getPointer());
 
         DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
         PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
@@ -233,6 +263,9 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             "Java allocator must return to baseline after stub-failure close: before=" + allocBefore + " after=" + allocAfter,
             drift <= 1024 * 1024
         );
+        // Native pool must also return — a Rust-side leak on the failure unwind (un-dropped FFI
+        // array / abandoned batch) would strand pool bytes without moving the Java allocator.
+        assertNativePoolReturnsToBaseline(poolBefore, 1024 * 1024);
     }
 
     /**
@@ -287,6 +320,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         );
 
         long allocBefore = alloc.getAllocatedMemory();
+        long poolBefore = NativeBridge.getMemoryPoolUsage(runtimeHandle.getPointer());
         DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
         // Spawn drain on a VT so the producer's senderSend has somewhere to drain to —
         // matches production where the reduce task body owns reduce().
@@ -361,6 +395,9 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             allocBefore,
             allocAfter
         );
+        // Native pool must also return after cancel + close — guards against a stranded batch in an
+        // abandoned in-flight pull/send on the cancel unwind.
+        assertNativePoolReturnsToBaseline(poolBefore, 1024 * 1024);
     }
 
     /**
@@ -399,6 +436,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         );
 
         long allocBefore = alloc.getAllocatedMemory();
+        long poolBefore = NativeBridge.getMemoryPoolUsage(runtimeHandle.getPointer());
         DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
 
         // NOTE: reduce is intentionally NOT spawned here — this regression
@@ -461,6 +499,9 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             allocBefore,
             allocAfter
         );
+        // Native pool must also return: the parked (PENDING) send's spawned task holds a cloned
+        // Sender + batch; close() must let it resolve and drop the batch, not strand it.
+        assertNativePoolReturnsToBaseline(poolBefore, 1024 * 1024);
     }
 
     /**
@@ -806,6 +847,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
      */
     public void testReduceMultiInputCancelMidFeed() throws Exception {
         long allocatedBefore = alloc.getAllocatedMemory();
+        long poolBefore = NativeBridge.getMemoryPoolUsage(runtimeHandle.getPointer());
         int rowsPerBatch = 2_000;
 
         Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
@@ -880,6 +922,83 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         long drift = allocatedAfter - allocatedBefore;
         logger.info("F2: cancel-mid-fan-in alloc before={} after={} drift={}", allocatedBefore, allocatedAfter, drift);
         assertEquals("Java allocator must return to baseline after multi-input cancel + close", 0, drift);
+        // Native pool must also return — both children's in-flight sends are abandoned on cancel.
+        assertNativePoolReturnsToBaseline(poolBefore, 1024 * 1024);
+    }
+
+    /**
+     * Pinning guard for the real reduce drain. Runs an actual coordinator reduce on a virtual
+     * thread, fed slowly so the drain genuinely parks on {@code stream_next} between batches (the
+     * exact point that, under the old synchronous {@code block_on}, held a native frame on the VT's
+     * stack and pinned its carrier). A JFR recording counts {@code jdk.VirtualThreadPinned} events
+     * raised on the reduce VT during the drain; the async path must produce ZERO.
+     *
+     * <p>Unlike a synthetic {@code CompletableFuture.join} micro-test (which only exercises the JDK),
+     * this drives our production path — {@code DatafusionReduceSink.reduce} →
+     * {@code DatafusionResultStream.BatchIterator} (async) → {@code streamNextAsync}. Reverting that
+     * iterator to the synchronous pull (or reintroducing {@code block_on}) makes the reduce VT pin
+     * and fails this test.
+     */
+    public void testReduceDrainDoesNotPinCarrier() throws Exception {
+        // VT thread-name prefix so we attribute pins to OUR reduce, not unrelated JDK/infra VTs.
+        final String reduceThreadName = "reduce-pin-probe-vt";
+        final AtomicInteger pinsOnReduceVt = new AtomicInteger();
+
+        // JFR is part of the JDK 25 baseline; if it genuinely can't start, failing loudly is correct.
+        try (RecordingStream rs = new RecordingStream()) {
+            rs.enable("jdk.VirtualThreadPinned").withThreshold(Duration.ofNanos(1));
+            rs.onEvent("jdk.VirtualThreadPinned", e -> {
+                // The event's own thread is the pinned virtual thread.
+                var et = e.getThread();
+                if (et != null && et.getJavaName() != null && et.getJavaName().startsWith(reduceThreadName)) {
+                    pinsOnReduceVt.incrementAndGet();
+                }
+            });
+            rs.startAsync();
+
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildSumSubstrait();
+            CapturingSink downstream = new CapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-pin",
+                0,
+                0L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
+            // Run reduce on a NAMED virtual thread (matches QueryContext.localTaskExecutor's VT model)
+            // so the JFR filter can attribute any pin to this drain specifically.
+            Thread.ofVirtual().name(reduceThreadName).start(() -> sink.reduce(drainDone));
+
+            try {
+                // Feed slowly (sleep between batches) so the drain repeatedly parks on stream_next
+                // waiting for the next batch — the wait that would pin a carrier under block_on.
+                for (int b = 0; b < 20; b++) {
+                    sink.feed(makeConstantBatch(alloc, inputSchema, 1_000, 7L));
+                    Thread.sleep(25);
+                }
+                sink.sinkForChild(0).close();
+                drainDone.actionGet(30, TimeUnit.SECONDS);
+            } finally {
+                sink.close();
+            }
+
+            assertEquals("SUM across 20 × 1k constant-7 rows", 20L * 1_000L * 7L, downstream.total);
+            // Flush the async JFR event stream before sampling the counter (still inside the
+            // try-with-resources so the recording is live during the flush).
+            Thread.sleep(300);
+        }
+
+        assertEquals(
+            "reduce drain on a virtual thread must not pin its carrier (block_on would); pins=" + pinsOnReduceVt.get(),
+            0,
+            pinsOnReduceVt.get()
+        );
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

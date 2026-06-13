@@ -107,10 +107,6 @@ public class QueryContext {
         return threadPool != null ? threadPool.executor(AnalyticsPlugin.SCHEDULER_THREAD_POOL_NAME) : Runnable::run;
     }
 
-    public Executor reduceExecutor() {
-        return threadPool != null ? threadPool.executor(AnalyticsPlugin.REDUCE_THREAD_POOL_NAME) : Runnable::run;
-    }
-
     public AnalyticsQueryTask parentTask() {
         return parentTask;
     }

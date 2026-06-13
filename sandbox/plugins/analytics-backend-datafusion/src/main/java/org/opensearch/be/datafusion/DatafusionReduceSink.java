@@ -230,18 +230,20 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             } finally {
                 batch.close();
             }
-            // sender.send acquires its read lock so the native borrow outlives concurrent
-            // close — see DatafusionPartitionSender. Throws IllegalStateException via
-            // NativeHandle.getPointer() if the sender was closed (the close-race path).
+            // sender.send initiates under its read lock so the pointer can't be reclaimed by a
+            // concurrent close mid-initiation — see DatafusionPartitionSender. A full channel parks
+            // the feeder outside the lock (on a virtual thread, the carrier unmounts). Throws
+            // IllegalStateException via NativeHandle.getPointer() if the sender was closed before
+            // initiation (the close-race path).
             try {
                 long rc = sender.send(array.memoryAddress(), arrowSchema.memoryAddress());
                 if (rc == NativeBridge.SENDER_SEND_RECEIVER_DROPPED) {
                     // Consumer finished first (e.g. a LimitExec satisfied its fetch) and dropped the
-                    // receiver while shards were still feeding. api::sender_send already consumed the
-                    // FFI structs via from_raw, so the buffers are Rust's to drop — do NOT release()
-                    // here (double-free). The sender latched the drop (see DatafusionPartitionSender),
-                    // so subsequent feeds for this input short-circuit and the producer stream is
-                    // cancelled by the shard listener via isConsumerDone().
+                    // receiver while shards were still feeding. sender_send_async already consumed the
+                    // FFI structs via from_raw at initiation, so the buffers are Rust's to drop — do NOT
+                    // release() here (double-free). The sender latched the drop (see
+                    // DatafusionPartitionSender), so subsequent feeds for this input short-circuit and
+                    // the producer stream is cancelled by the shard listener via isConsumerDone().
                     logger.debug("[ReduceSink] receiver dropped before send (consumer finished), discarding batch");
                     return;
                 }
@@ -369,9 +371,11 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
         }
         Exception failure = null;
         try {
-            // Close outStream first: drops the native receiver, which unblocks any sender
-            // parked in send_blocking (waiting for channel capacity). This releases the
-            // sender's read lock so session.close() can acquire the write lock without deadlock.
+            // Close outStream first: dropping the native receiver promptly resolves any pending
+            // send (a Full send parked on capacity completes as ReceiverDropped once the receiver
+            // is gone). The sender no longer holds a native borrow across an await — initiation is
+            // synchronous and a pending send owns a cloned mpsc::Sender — so this ordering is about
+            // resolving in-flight sends quickly, not defusing a read/write-lock conflict.
             outStream.close();
         } catch (Exception t) {
             failure = accumulate(failure, t);

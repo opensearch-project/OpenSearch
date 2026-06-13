@@ -126,7 +126,7 @@ impl LocalSession {
     /// [`Self::execute_substrait`] resolve table references named `name` to
     /// this streaming table. The caller pushes `RecordBatch`es into the
     /// returned [`PartitionStreamSender`] via
-    /// [`PartitionStreamSender::send_blocking`].
+    /// [`PartitionStreamSender::try_send`] (or its cloned `mpsc::Sender`).
     pub fn register_partition(
         &mut self,
         name: &str,
@@ -336,9 +336,11 @@ mod tests {
         let producer_schema = Arc::clone(&schema);
         let handle = Handle::current();
         let producer = std::thread::spawn(move || {
+            let tx = sender.clone_tx();
             for chunk in &[vec![1i64, 2, 3], vec![4, 5, 6], vec![7, 8, 9]] {
-                let outcome = sender.send_blocking(Ok(i64_batch(&producer_schema, chunk)), &handle);
-                assert!(matches!(outcome, crate::partition_stream::SendOutcome::Sent));
+                handle
+                    .block_on(tx.send(Ok(i64_batch(&producer_schema, chunk))))
+                    .expect("receiver live");
             }
             drop(sender); // EOF
         });
