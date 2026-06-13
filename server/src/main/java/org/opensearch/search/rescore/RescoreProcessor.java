@@ -32,13 +32,18 @@
 
 package org.opensearch.search.rescore;
 
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * RescoreProcessor of a search request, used to run potentially expensive scoring models against the top matching documents.
@@ -47,10 +52,29 @@ import java.io.IOException;
  */
 public class RescoreProcessor {
 
+    /** Collapse information needed to rebuild a {@link CollapseTopFieldDocs} after rescoring. */
+    private record CollapseSnapShot(String field, SortField[] sortFields, Map<Integer, Object> docIdToCollapseValue) {
+        static CollapseSnapShot capture(CollapseTopFieldDocs docs) {
+            Map<Integer, Object> map = new HashMap<>();
+            for (int i = 0; i < docs.scoreDocs.length; i++) {
+                map.put(
+                    docs.scoreDocs[i].doc,
+                    docs.collapseValues[i]
+                );
+            }
+            return new CollapseSnapShot(docs.field, docs.fields, map);
+        }
+    }
+
     public void process(SearchContext context) {
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;
+        }
+        // Capture the collapse information before rescoring reorders the score docs in place.
+        CollapseSnapShot collapseSnapShot = null;
+        if (topDocs instanceof CollapseTopFieldDocs docs) {
+            collapseSnapShot = CollapseSnapShot.capture(docs);
         }
         try {
             for (RescoreContext ctx : context.rescore()) {
@@ -58,6 +82,13 @@ public class RescoreProcessor {
                 // It is the responsibility of the rescorer to sort the resulted top docs,
                 // here we only assert that this condition is met.
                 assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
+            }
+            // Rescoring drops the collapse information, so reconstruct the CollapseTopFieldDocs from the snapshot.
+            if (collapseSnapShot != null) {
+                topDocs = reconstructCollapseTopFieldDocs(
+                    collapseSnapShot,
+                    topDocs
+                );
             }
             context.queryResult()
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
@@ -82,5 +113,31 @@ public class RescoreProcessor {
             lastScore = doc.score;
         }
         return true;
+    }
+
+    private static CollapseTopFieldDocs reconstructCollapseTopFieldDocs(
+        CollapseSnapShot snapShot,
+        TopDocs rescoredTopDocs
+    ) {
+        // collapse + rescore is always score-sorted (rescore cannot be combined with sort), so the sort value
+        // built below is a single score. This assertion guards that precondition.
+        assert snapShot.sortFields().length == 1 && SortField.FIELD_SCORE.equals(snapShot.sortFields()[0])
+            : "rescore must always sort by score descending";
+        Object[] newCollapseValues = new Object[rescoredTopDocs.scoreDocs.length];
+        FieldDoc[] newFieldDocs = new FieldDoc[rescoredTopDocs.scoreDocs.length];
+        for (int i = 0; i < rescoredTopDocs.scoreDocs.length; i++) {
+            ScoreDoc scoreDoc = rescoredTopDocs.scoreDocs[i];
+            assert snapShot.docIdToCollapseValue().containsKey(scoreDoc.doc) : "rescore must not introduce new docs";
+            newCollapseValues[i] = snapShot.docIdToCollapseValue().get(scoreDoc.doc);
+            // Carry the rescored score in the sort value: CollapseTopFieldDocs.merge orders by FieldDoc.fields.
+            newFieldDocs[i] = new FieldDoc(scoreDoc.doc, scoreDoc.score, new Object[] { scoreDoc.score });
+        }
+        return new CollapseTopFieldDocs(
+            snapShot.field(),
+            rescoredTopDocs.totalHits,
+            newFieldDocs,
+            snapShot.sortFields(),
+            newCollapseValues
+        );
     }
 }
