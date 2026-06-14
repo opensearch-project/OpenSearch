@@ -10,13 +10,15 @@ use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use arrow::compute::{concat_batches, take};
 use arrow::row::{RowConverter, SortField};
-use arrow_ipc::writer::FileWriter as IpcFileWriter;
-use arrow_ipc::reader::FileReader as IpcFileReader;
+use arrow_ipc::writer::{FileWriter as IpcFileWriter, StreamWriter as IpcStreamWriter};
+use arrow_ipc::reader::{FileReader as IpcFileReader, StreamReader as IpcStreamReader};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
+use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::fs::File;
+use std::io::BufReader;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -297,10 +299,9 @@ impl SortingChunkedWriter {
         // Write sorted chunk
         let chunk_path = self.sorted_chunk_path(self.chunk_idx);
         let crc32 = if self.ipc_sorted_chunks {
-            // IPC: fast write, no encoding overhead. Parquet encoding deferred to finalize.
-            // Write in batch_size slices so the cursor yields small batches at merge time,
-            // keeping per-cursor memory bounded (same profile as Parquet reader streaming).
-            // CRC32 is computed over the raw IPC bytes for integrity verification at merge.
+            // IPC + LZ4: fast write with ~3-4x compression. Parquet encoding deferred to finalize.
+            // Write in batch_size slices so the cursor yields small batches at merge time.
+            // CRC32 is computed over the compressed bytes on disk for integrity verification.
             let config = SETTINGS_STORE
                 .get(&self.index_name)
                 .map(|r| r.clone())
@@ -308,7 +309,8 @@ impl SortingChunkedWriter {
             let batch_size = config.get_merge_batch_size();
             let chunk_file = File::create(&chunk_path)?;
             let (crc_file, crc_handle) = CrcWriter::new(chunk_file);
-            let mut ipc_out = IpcFileWriter::try_new(crc_file, &self.schema)?;
+            let lz4_encoder = FrameEncoder::new(crc_file);
+            let mut ipc_out = IpcStreamWriter::try_new(lz4_encoder, &self.schema)?;
             let num_rows = final_batch.num_rows();
             let mut offset = 0;
             while offset < num_rows {
@@ -316,7 +318,8 @@ impl SortingChunkedWriter {
                 ipc_out.write(&final_batch.slice(offset, len))?;
                 offset += len;
             }
-            ipc_out.finish()?;
+            let lz4_encoder = ipc_out.into_inner()?;
+            lz4_encoder.finish().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
             crc_handle.crc32()
         } else {
             // Parquet: original behavior
@@ -723,7 +726,8 @@ impl NativeParquetWriter {
             let mut parquet_writer = ArrowWriter::try_new(crc_writer, schema.clone(), Some(props))?;
 
             let ipc_file = File::open(&chunk_paths[0])?;
-            let reader = IpcFileReader::try_new(ipc_file, None)?;
+            let lz4_reader = FrameDecoder::new(BufReader::new(ipc_file));
+            let reader = IpcStreamReader::try_new(lz4_reader, None)?;
             for batch_result in reader {
                 parquet_writer.write(&batch_result?)?;
             }

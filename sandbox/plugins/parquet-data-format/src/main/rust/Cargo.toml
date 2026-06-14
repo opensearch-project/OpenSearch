@@ -23,6 +23,7 @@ native-bridge-common = { workspace = true }
 rayon = { workspace = true }
 tokio = { workspace = true }
 crc32fast = { workspace = true }
+lz4_flex = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]

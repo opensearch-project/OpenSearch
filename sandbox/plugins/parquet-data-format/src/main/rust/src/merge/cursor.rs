@@ -7,11 +7,13 @@
  */
 
 use std::fs::File;
+use std::io::BufReader;
 use std::sync::{Arc, Mutex};
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
-use arrow_ipc::reader::FileReader as IpcFileReader;
+use arrow_ipc::reader::{FileReader as IpcFileReader, StreamReader as IpcStreamReader};
+use lz4_flex::frame::FrameDecoder;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::schema::types::SchemaDescriptor;
 
@@ -195,7 +197,8 @@ impl FileCursor {
                     return;
                 }
             };
-            let ipc_reader = match IpcFileReader::try_new(file, None) {
+            let lz4_reader = FrameDecoder::new(BufReader::new(file));
+            let ipc_reader = match IpcStreamReader::try_new(lz4_reader, None) {
                 Ok(r) => r,
                 Err(e) => {
                     let _ = batch_tx.send(Some(Err(e)));
