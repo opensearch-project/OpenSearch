@@ -179,6 +179,44 @@ public class ReaderContextStoreTests extends OpenSearchTestCase {
         assertTrue("Reader closed once the last phase finishes", closed.get());
     }
 
+    /**
+     * A query-phase failure releases the query's use-reference but leaves the context registered;
+     * the refcount returns to the base ref, so the reaper closes it once keepAlive elapses.
+     */
+    public void testReaperClosesContextAfterQueryPhaseFailure() throws Exception {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool, 50); // 50ms keepAlive
+
+        // Query phase started (createContext marks in-use), then failed -> release without fetch.
+        store.createContext("q1", SHARD_0, mockGatedReader(closed));
+        store.releaseContext("q1", SHARD_0);
+
+        assertBusy(() -> {
+            assertTrue("Reaper must close the reader after a query-phase failure", closed.get());
+            assertEquals(0, store.activeCount());
+        });
+    }
+
+    /**
+     * A fetch-phase failure that releases both the fetch and the base reference (eager free) closes
+     * the reader immediately rather than leaking it to the reaper.
+     */
+    public void testFetchPhaseFailureFreesReaderImmediately() {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        ReaderContextStore store = new ReaderContextStore(threadPool);
+
+        store.createContext("q1", SHARD_0, mockGatedReader(closed)); // query phase
+        store.releaseContext("q1", SHARD_0);                         // query done
+        assertNotNull(store.acquireContext("q1", SHARD_0));          // fetch acquires
+
+        // Fetch fails: release this acquire, then free the base ref (mirrors drainFetchByRowIds error paths).
+        store.releaseContext("q1", SHARD_0);
+        store.freeContext("q1", SHARD_0);
+
+        assertTrue("Reader must be closed immediately on fetch-phase failure", closed.get());
+        assertEquals(0, store.activeCount());
+    }
+
     public void testMultipleContexts() {
         AtomicBoolean closed1 = new AtomicBoolean(false);
         AtomicBoolean closed2 = new AtomicBoolean(false);

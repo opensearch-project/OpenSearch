@@ -227,6 +227,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                         stats
                     );
                 } catch (Exception e) {
+                    // Query phase failed: no fetch will follow, so free the reader eagerly (no-op if already freed).
+                    readerContextStore.freeContext(request.getQueryId(), shard.shardId());
                     responseHandler.onFailure(e);
                 }
             });
@@ -308,7 +310,9 @@ public class AnalyticsSearchService implements AutoCloseable {
         assert assertFetchInvariants(readerContext, request.getQueryId());
         AnalyticsSearchBackendPlugin backend = backends.get(request.getBackendId());
         if (backend == null) {
+            // Fetch is terminal: free the reader eagerly (release this acquire, then free the base ref).
             readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            readerContextStore.freeContext(request.getQueryId(), shard.shardId());
             responseHandler.onFailure(
                 new IllegalStateException(
                     "No backend registered for backendId="
@@ -345,7 +349,9 @@ public class AnalyticsSearchService implements AutoCloseable {
             return;
         } catch (Exception e) {
             if (rowIdVector != null) rowIdVector.close();
+            // Fetch is terminal: free the reader eagerly (release this acquire, then free the base ref).
             readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            readerContextStore.freeContext(request.getQueryId(), shard.shardId());
             responseHandler.onFailure(new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e));
             return;
         }
