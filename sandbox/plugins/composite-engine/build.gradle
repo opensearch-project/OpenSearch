@@ -28,7 +28,7 @@ tasks.named('compileInternalClusterTestJava').configure {
 
 tasks.named('internalClusterTest').configure {
   jvmArgs += [
-    '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED',
+    '--add-opens=java.base/java.nio=ALL-UNNAMED',
     '--enable-native-access=ALL-UNNAMED'
   ]
 }
