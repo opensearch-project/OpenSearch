@@ -17,9 +17,12 @@ import org.opensearch.analytics.backend.ShardScanExecutionContext;
  * Holds the per-fragment resources (reader context, engine, result stream) kept alive for
  * the duration of a streaming fragment execution, and releases them in reverse order on close.
  *
- * <p>The reader is owned by {@link ReaderContextStore}, not by this class — close releases
- * (does not free) the context, so the reader stays alive across the QTF query→fetch
- * boundary. The store's reaper closes the underlying reader after keepAlive elapses.
+ * <p>The reader is owned by {@link ReaderContextStore}, not by this class. For a multi-session
+ * reader (QTF query phase, whose fetch phase reuses the reader), close only releases the context
+ * so the reader stays alive across the query→fetch boundary, and the store's reaper closes it
+ * after keepAlive. For a single-session reader (non-QTF query, or the terminal fetch phase
+ * itself), close frees the context immediately so the reader is not pinned in the store until the
+ * reaper sweeps it.
  *
  * @opensearch.internal
  */
@@ -37,15 +40,18 @@ public final class FragmentResources implements AutoCloseable {
      * pull memory out from under the FFM call.
      */
     private final BigIntVector rowIdVector;
+    /** True when this reader serves a single phase; close frees it eagerly instead of keeping it for a fetch. */
+    private final boolean singleSession;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
         ReaderContext readerContext,
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
-        Runnable onClose
+        Runnable onClose,
+        boolean singleSession
     ) {
-        this(readerContextStore, readerContext, engine, stream, onClose, null);
+        this(readerContextStore, readerContext, engine, stream, onClose, null, singleSession);
     }
 
     public FragmentResources(
@@ -54,7 +60,8 @@ public final class FragmentResources implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream,
         Runnable onClose,
-        BigIntVector rowIdVector
+        BigIntVector rowIdVector,
+        boolean singleSession
     ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
         this.readerContextStore = readerContextStore;
@@ -63,6 +70,7 @@ public final class FragmentResources implements AutoCloseable {
         this.stream = stream;
         this.onClose = onClose;
         this.rowIdVector = rowIdVector;
+        this.singleSession = singleSession;
     }
 
     private static boolean assertCtorInvariants(ReaderContextStore store, ReaderContext ctx) {
@@ -110,11 +118,17 @@ public final class FragmentResources implements AutoCloseable {
                 else first.addSuppressed(e);
             }
         }
-        // Release (not close) — the store's reaper closes after keepAlive, and the QTF
-        // fetch phase may still need this reader before then.
+        // Drop this phase's use-reference. For a multi-session reader (QTF query phase), only
+        // release so the reader stays alive for the fetch and the reaper closes after keepAlive.
+        // For a single-session reader, free immediately: release this phase's reference, then free
+        // the store's base reference so the reader is closed now instead of being pinned until the
+        // reaper sweeps it.
         if (readerContext != null) {
             try {
                 readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
+                if (singleSession) {
+                    readerContextStore.freeContext(readerContext.getQueryId(), readerContext.getShardId());
+                }
             } catch (Exception e) {
                 if (first == null) first = e;
                 else first.addSuppressed(e);

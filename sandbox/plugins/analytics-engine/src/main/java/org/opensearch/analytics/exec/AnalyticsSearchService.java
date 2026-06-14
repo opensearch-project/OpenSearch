@@ -30,6 +30,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -335,7 +336,8 @@ public class AnalyticsSearchService implements AutoCloseable {
             EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
-            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
+            // Fetch is the terminal phase: single-session here, so close() frees the reader eagerly.
+            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector, true);
         } catch (OpenSearchException e) {
             if (rowIdVector != null) rowIdVector.close();
             readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
@@ -378,8 +380,16 @@ public class AnalyticsSearchService implements AutoCloseable {
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
         // QTF: hand the reader to the store so the fetch phase can reuse it without re-opening.
-        // FragmentResources holds a reference to the ReaderContext; close() releases it back
-        // to the store, the reaper closes after keepAlive.
+        // FragmentResources holds a reference to the ReaderContext; for a multi-session (QTF) query
+        // phase close() releases it back to the store (the reaper closes after keepAlive); for a
+        // single-session query close() frees it immediately so the reader is not pinned until the
+        // reaper sweeps it. A query is multi-session only for QTF, which we detect from the
+        // ShardScan instruction's requestsRowIds flag (the same signal that tells the backend to
+        // emit __row_id__).
+        // TODO: ideally the coordinator (which knows the query shape) should tell us explicitly
+        // whether this is a single-session query or a QTF query, rather than us inferring it from
+        // the row-id signal here.
+        boolean singleSession = !requestsRowIds(resolved.plan.getInstructions());
         ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), shard.shardId(), gatedReader);
         assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
@@ -437,7 +447,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup);
+            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, singleSession);
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -449,7 +459,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                 e
             );
             try {
-                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup).close();
+                // Query phase failed: no fetch will follow, so free the reader eagerly (singleSession=true).
+                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, true).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -472,6 +483,20 @@ public class AnalyticsSearchService implements AutoCloseable {
      * {@link BackendExecutionContext} and returns the next one. Returns {@code null} when the
      * instruction list is empty.
      */
+    /**
+     * Whether the query phase emits shard-global {@code __row_id__} values — i.e. a QTF query whose
+     * fetch phase will reuse this reader. Derived from the {@link ShardScanInstructionNode} the
+     * coordinator put in the plan (the same flag that makes the backend emit row ids).
+     */
+    private static boolean requestsRowIds(List<InstructionNode> instructions) {
+        for (InstructionNode node : instructions) {
+            if (node instanceof ShardScanInstructionNode scan) {
+                return scan.requestsRowIds();
+            }
+        }
+        return false;
+    }
+
     private static BackendExecutionContext applyInstructionHandlers(
         AnalyticsSearchBackendPlugin backend,
         List<InstructionNode> instructions,
