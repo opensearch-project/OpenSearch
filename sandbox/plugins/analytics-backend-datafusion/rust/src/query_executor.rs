@@ -105,6 +105,17 @@ pub async fn execute_query(
     // therefore matters only for distinguishing the ShardTableProvider rewrite
     // (ListingTable) from the plain ListingTable scan (None / IndexedPredicateOnly).
     use crate::datafusion_query_config::QueryStrategy;
+
+    // Pre-seed the shared metadata cache footer-only so the upcoming
+    // `infer_schema` / `ListingTable` scan get cache hits instead of forcing a
+    // full page-index decode into the shared cache. See
+    // `preseed_footer_only_metadata`.
+    {
+        let store = ctx.state().runtime_env().object_store(&table_path)?;
+        let metadata_cache = ctx.state().runtime_env().cache_manager.get_file_metadata_cache();
+        preseed_footer_only_metadata(&store, metadata_cache, object_metas.as_ref()).await;
+    }
+
     match query_config.query_strategy {
         QueryStrategy::ListingTable => {
             use crate::shard_table_provider::{ShardTableConfig, ShardTableProvider};
@@ -254,6 +265,19 @@ pub async fn execute_with_context(
         handle.ctx.deregister_table(&handle.table_name)?;
 
         let store = handle.ctx.state().runtime_env().object_store(&handle.table_path)?;
+
+        // Pre-seed the shared metadata cache footer-only so `infer_schema` and the
+        // scan opener hit the cache instead of force-decoding the full page index.
+        // See `preseed_footer_only_metadata`.
+        {
+            let metadata_cache = handle
+                .ctx
+                .state()
+                .runtime_env()
+                .cache_manager
+                .get_file_metadata_cache();
+            preseed_footer_only_metadata(&store, metadata_cache, handle.object_metas.as_ref()).await;
+        }
 
         // Infer schema from existing files
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
@@ -450,6 +474,46 @@ pub async fn build_shard_file_infos(
         cumulative_rows += num_rows;
     }
     Ok(files)
+}
+
+/// Pre-seed the shared file-metadata cache with **footer-only** entries for the
+/// vanilla `ListingTable` path, BEFORE `infer_schema` / `ListingTable` run.
+///
+/// # Why
+///
+/// DataFusion's `ParquetFormat` (via `infer_schema` and the scan opener) hands
+/// the session's `file_metadata_cache` to `DFParquetMetadata::fetch_metadata`,
+/// which forces a full page-index decode (`PageIndexPolicy::Optional`) and
+/// stores that bloated entry in the shared cache
+/// (`datafusion-datasource-parquet/src/metadata.rs:156`). On wide schemas the
+/// decoded page index dominates the native heap, and because the cache is a
+/// shared LRU keyed by path, those large entries also evict the footer-only
+/// entries the indexed path relies on.
+///
+/// `fetch_metadata` checks the cache *before* decoding (`metadata.rs:134`), so
+/// if we publish a footer-only entry first, DataFusion gets a cache hit and
+/// never force-decodes. The vanilla scan still does page-level pruning when it
+/// needs it: the opener re-reads the page index on demand, transiently, without
+/// pinning it in the shared cache (`opener/mod.rs::load_page_index`).
+///
+/// Best-effort: a per-file failure is logged and skipped (DataFusion will then
+/// fall back to its own decode for that file) rather than failing the query.
+async fn preseed_footer_only_metadata(
+    store: &Arc<dyn object_store::ObjectStore>,
+    metadata_cache: Arc<dyn datafusion::execution::cache::cache_manager::FileMetadataCache>,
+    object_metas: &[ObjectMeta],
+) {
+    for meta in object_metas {
+        if let Err(e) = crate::indexed_table::parquet_bridge::load_parquet_metadata(
+            Arc::clone(store),
+            &meta.location,
+            Arc::clone(&metadata_cache),
+        )
+        .await
+        {
+            log_debug!("preseed footer-only metadata for {}: {}", meta.location, e);
+        }
+    }
 }
 
 /// Parse a ListingTableUrl into an ObjectStoreUrl (scheme + authority).

@@ -812,7 +812,7 @@ async unsafe fn execute_indexed_with_context_inner(
     let state = ctx.state();
     let metadata_cache = state.runtime_env().cache_manager.get_file_metadata_cache();
 
-    let (segments, schema) = build_segments(
+    let (mut segments, schema) = build_segments(
         &state,
         Arc::clone(&store),
         object_metas.as_ref(),
@@ -920,6 +920,61 @@ async unsafe fn execute_indexed_with_context_inner(
     });
 
     let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
+
+    // Restore page-level pruning, scoped to predicate columns only.
+    //
+    // `build_segments` loads footer-only metadata (no page index) to keep the
+    // native heap bounded. The page pruner needs `ColumnIndex`/`OffsetIndex`,
+    // but only for the columns the predicate references. Here — once we know
+    // those columns — we lazily fetch+decode just their page index per segment
+    // and swap in the augmented metadata. On any failure each segment keeps its
+    // footer-only metadata and the pruner conservatively scans the whole RG
+    // (correct, just less pruning). Skipped entirely when there's no predicate.
+    if !predicate_columns.is_empty() {
+        let predicate_column_names: Vec<String> = predicate_columns
+            .iter()
+            .filter_map(|&i| schema.fields().get(i).map(|f| f.name().clone()))
+            .collect();
+        if !predicate_column_names.is_empty() {
+            // Keep the scoped page-index cache's byte budget in step with the
+            // runtime's configured metadata-cache limit (same tuning knob the
+            // footer cache uses). Cheap + idempotent.
+            crate::indexed_table::page_index_loader::set_scoped_cache_limit(
+                state.runtime_env().cache_manager.get_metadata_cache_limit(),
+            );
+            // Fetch each segment's scoped page index concurrently — these are
+            // independent small range-reads that funnel onto the IO runtime via
+            // the SpawnIoStore-wrapped object store. Serializing them would add
+            // ~num_segments round-trips to query setup.
+            use futures::future::join_all;
+            let futures = segments.iter().map(|segment| {
+                let parquet_cols =
+                    crate::indexed_table::page_index_loader::resolve_predicate_parquet_columns(
+                        &schema,
+                        &segment.metadata,
+                        &predicate_column_names,
+                    );
+                let store = Arc::clone(&store);
+                let object_path = segment.object_path.clone();
+                let footer = Arc::clone(&segment.metadata);
+                async move {
+                    crate::indexed_table::page_index_loader::load_scoped_page_index(
+                        &store,
+                        &object_path,
+                        &footer,
+                        &parquet_cols,
+                    )
+                    .await
+                }
+            });
+            let augmented = join_all(futures).await;
+            for (segment, maybe_aug) in segments.iter_mut().zip(augmented) {
+                if let Some(aug) = maybe_aug {
+                    segment.metadata = aug;
+                }
+            }
+        }
+    }
 
     let factory: EvaluatorFactory = match classification {
         FilterClass::None => {

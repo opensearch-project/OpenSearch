@@ -15,7 +15,6 @@ use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
 use object_store::path::Path;
 use object_store::ObjectMeta;
-use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use log::{debug, error};
 
 /// Create ObjectMeta from a local file path.
@@ -86,10 +85,26 @@ impl CustomCacheManager {
     pub fn build_cache_manager_config(&self) -> CacheManagerConfig {
         let mut config = CacheManagerConfig::default();
 
-        // Add file metadata cache if available
+        // Add file metadata cache. If one was explicitly configured, use it.
+        // Otherwise install our own `MutexFileMetadataCache` wrapping a default
+        // rather than letting DataFusion auto-install a bare
+        // `DefaultFilesMetadataCache`. This matters because
+        // `MutexFileMetadataCache::put` enforces the footer-only invariant
+        // (strips the page index DataFusion force-decodes); a bare default cache
+        // would retain the full page index and reintroduce the heap blowup. See
+        // `crate::cache::strip_page_index`.
         if let Some(cache) = self.get_file_metadata_cache_for_datafusion() {
             config = config.with_file_metadata_cache(Some(cache.clone()))
                 .with_metadata_cache_limit(cache.cache_limit());
+        } else {
+            // Mirror the default limit DataFusion would have used.
+            let default_limit = CacheManagerConfig::default().metadata_cache_limit;
+            let wrapped = Arc::new(crate::cache::MutexFileMetadataCache::new(
+                datafusion::execution::cache::DefaultFilesMetadataCache::new(default_limit),
+            )) as Arc<dyn FileMetadataCache>;
+            config = config
+                .with_file_metadata_cache(Some(wrapped))
+                .with_metadata_cache_limit(default_limit);
         }
 
         // Add statistics cache if available - use CustomStatisticsCache directly
@@ -351,7 +366,8 @@ impl CustomCacheManager {
         let object_meta = object_metas.first()
             .ok_or_else(|| "No object metadata returned".to_string())?;
 
-        let store = Arc::new(object_store::local::LocalFileSystem::new());
+        let store: Arc<dyn object_store::ObjectStore> =
+            Arc::new(object_store::local::LocalFileSystem::new());
 
         // Get cache reference for DataFusion metadata loading
         let cache_ref = self.file_metadata_cache.as_ref()
@@ -359,19 +375,30 @@ impl CustomCacheManager {
 
         let metadata_cache = cache_ref.clone() as Arc<dyn FileMetadataCache>;
 
-        // Use DataFusion's metadata loading by passing reference to file_metadata_cache to get complete metadata
-        // IMPORTANT: When a cache is provided to DFParquetMetadata, fetch_metadata() will:
-        // 1. Enable page index loading (with_page_indexes(true))
-        // 2. Load the complete metadata including column and offset indexes
-        // 3. Automatically put the metadata into the cache (lines 155-160 in datafusion's metadata.rs)
-        // This ensures we cache exactly what DataFusion would cache during query execution
-        let _parquet_metadata = rt_handle.block_on(async {
-            let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
-                .with_file_metadata_cache(Some(metadata_cache));
-
-            // fetch_metadata() performs the cache put operation internally
-            df_metadata.fetch_metadata().await
-                .map_err(|e| format!("Failed to fetch metadata: {}", e))
+        // Warm the cache with FOOTER-ONLY metadata (row-group stats, schema), NOT
+        // the full page index.
+        //
+        // The previous implementation handed the cache to `DFParquetMetadata` and
+        // let `fetch_metadata` populate it — which forces a full page-index decode
+        // (`PageIndexPolicy::Optional`) for every column of every row group
+        // (`datafusion-datasource-parquet/src/metadata.rs:156`). On wide schemas
+        // that decoded index dominates the native heap, so pre-warming it here was
+        // pinning the worst case into the shared cache at startup.
+        //
+        // `parquet_bridge::load_parquet_metadata` decodes footer-only and publishes
+        // that entry to this same shared cache. Page-level pruning is restored
+        // per-query, scoped to predicate columns (see
+        // `indexed_table::page_index_loader`), so warming the full index here buys
+        // nothing but heap.
+        rt_handle.block_on(async {
+            crate::indexed_table::parquet_bridge::load_parquet_metadata(
+                Arc::clone(&store),
+                &object_meta.location,
+                Arc::clone(&metadata_cache),
+            )
+            .await
+            .map(|_| ())
+            .map_err(|e| format!("Failed to fetch metadata: {}", e))
         })?;
 
         // Verify the metadata was cached properly
