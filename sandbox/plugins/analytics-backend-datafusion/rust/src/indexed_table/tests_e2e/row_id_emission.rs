@@ -52,7 +52,9 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -113,7 +115,10 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true, prune_tree_config: None,
+        emit_row_ids: true,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -217,7 +222,9 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -278,7 +285,10 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true, prune_tree_config: None,
+        emit_row_ids: true,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -479,7 +489,9 @@ async fn test_row_id_with_data_columns() {
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     // Filter: brand = "amazon" (rows 0,1,2,3,12)
     let tree = BoolNode::And(vec![index_leaf(0)]).push_not_down();
@@ -541,7 +553,10 @@ async fn test_row_id_with_data_columns() {
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true, prune_tree_config: None,
+        emit_row_ids: true,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -719,7 +734,9 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs1,
         metadata: Arc::clone(&parquet_meta1),
         global_base: 0,
-    };
+            sort_min: None,
+        sort_max: None,
+};
     let segment2 = SegmentFileInfo {
         writer_generation: 1,
         max_doc: 16,
@@ -728,7 +745,9 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
         row_groups: rgs2,
         metadata: Arc::clone(&parquet_meta2),
         global_base: 16,
-    };
+            sort_min: None,
+        sort_max: None,
+};
 
     let tree = tree.push_not_down();
     let collectors = wire_collectors(&tree);
@@ -789,7 +808,10 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
             qc
         }),
         predicate_columns: vec![0, 1, 2, 3],
-        emit_row_ids: true, prune_tree_config: None,
+        emit_row_ids: true,
+        prune_tree_config: None,
+        sort_fields: vec![],
+        sort_orders: vec![],
     }));
 
     let ctx = SessionContext::new();

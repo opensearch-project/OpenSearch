@@ -228,8 +228,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         SpillStats spill = buildSpillStats();
         return new DataFusionStats(
             nativeStats.getNativeExecutorsStats(),
-            nativeStats.getDatanodeGateStats(),
-            nativeStats.getCoordinatorGateStats(),
+            nativeStats.getFragmentExecutorGateStats(),
+            nativeStats.getAdaptiveBudgetStats(),
             spill,
             nativeStats.getCacheStats(),
             nativeStats.getSearchStats()
