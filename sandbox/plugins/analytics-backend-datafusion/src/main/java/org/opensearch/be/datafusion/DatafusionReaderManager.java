@@ -60,7 +60,9 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
      * @param dataformatAwareStoreHandle per-format native store handle for reads (null if not available).
      *                                   Pointer is extracted at reader creation time via {@code getPointer()}.
      *                                   0 means use default local file system.
-     * @param sortFields {@code index.sort.field} values, or empty if no index sort.
+     * @param sortFields {@code index.sort.field} values, or empty if no index sort. Threaded to the native
+     *                   reader so the indexed scan path can decide whether to iterate segments in reverse
+     *                   catalog-snapshot order to feed a {@code TopK} above us.
      * @param sortOrders {@code index.sort.order} values ("asc"/"desc"), parallel to {@code sortFields}.
      */
     public DatafusionReaderManager(
@@ -75,8 +77,8 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name()).toString();
         this.dataFusionService = dataFusionService;
         this.dataformatAwareStoreHandle = dataformatAwareStoreHandle;
-        this.sortFields = sortFields == null ? List.of() : sortFields;
-        this.sortOrders = sortOrders == null ? List.of() : sortOrders;
+        this.sortFields = sortFields == null ? List.of() : List.copyOf(sortFields);
+        this.sortOrders = sortOrders == null ? List.of() : List.copyOf(sortOrders);
     }
 
     @Override

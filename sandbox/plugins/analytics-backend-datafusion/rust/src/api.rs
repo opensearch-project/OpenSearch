@@ -346,9 +346,14 @@ pub struct ShardView {
     /// Index sort fields, in priority order. Sourced from the index's
     /// `index.sort.field` setting on the Java side. Empty when the index has
     /// no `index.sort.field` configured. Parallel to `sort_orders`.
-    /// Used to build `ListingOptions.with_file_sort_order(...)` so DataFusion
-    /// advertises `output_ordering` from the scan and enables the
-    /// `sort_prefix` optimization on TopK / SortPreservingMerge.
+    ///
+    /// Two consumers today:
+    ///   - Vanilla path: `ListingOptions.with_file_sort_order(...)` so DataFusion advertises
+    ///     `output_ordering` from the scan and the `sort_prefix` optimization fires on
+    ///     TopK / SortPreservingMerge.
+    ///   - Indexed path (`indexed_executor`): when the query's leading ORDER BY runs counter
+    ///     to catalog-snapshot order, the per-shard segment iteration is reversed so a TopK
+    ///     above us can prune via parquet page statistics.
     pub sort_fields: Vec<String>,
     /// Index sort directions per field — values: `"asc"` or `"desc"`.
     /// Parallel to `sort_fields`. Sourced from `index.sort.order`.
