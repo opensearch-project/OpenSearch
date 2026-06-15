@@ -765,6 +765,7 @@ pub unsafe extern "C" fn df_create_cache(
     size_limit: i64,
     eviction_type_ptr: *const u8,
     eviction_type_len: i64,
+    enabled: i64,
 ) -> i64 {
     if cache_manager_ptr == 0 {
         return Err("df_create_cache: null cache manager pointer".to_string());
@@ -785,20 +786,25 @@ pub unsafe extern "C" fn df_create_cache(
         }
     };
 
+    // The cache is always constructed so it can be toggled on at runtime later; the
+    // `enabled` flag seeds its initial state (a disabled cache serves misses + drops writes).
+    let enabled = enabled != 0;
+
     // Safety: cache_manager_ptr must be a valid pointer from df_create_custom_cache_manager
     let manager = &mut *(cache_manager_ptr as *mut CustomCacheManager);
 
     match cache_type {
         cache::CACHE_TYPE_METADATA => {
             let inner_cache = DefaultFilesMetadataCache::new(size_limit as usize);
-            let metadata_cache = Arc::new(cache::MutexFileMetadataCache::new(inner_cache));
+            let metadata_cache = Arc::new(cache::MutexFileMetadataCache::with_enabled(inner_cache, enabled));
             manager.set_file_metadata_cache(metadata_cache);
         }
         cache::CACHE_TYPE_STATS => {
-            let stats_cache = Arc::new(CustomStatisticsCache::new(
+            let stats_cache = Arc::new(CustomStatisticsCache::with_enabled(
                 policy_type,
                 size_limit as usize,
                 0.8,
+                enabled,
             ));
             manager.set_statistics_cache(stats_cache);
         }
@@ -1011,6 +1017,59 @@ pub unsafe extern "C" fn df_cache_manager_clear_by_type(
     manager
         .clear_cache_type(cache_type)
         .map_err(|e| format!("df_cache_manager_clear_by_type: {}", e))?;
+    Ok(0)
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_update_size_limit(
+    runtime_ptr: i64,
+    cache_type_ptr: *const u8,
+    cache_type_len: i64,
+    new_limit: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_update_size_limit: null runtime pointer".to_string());
+    }
+    if new_limit < 0 {
+        return Err(format!(
+            "df_cache_manager_update_size_limit: negative size limit: {}",
+            new_limit
+        ));
+    }
+    let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_update_size_limit: no cache manager configured".to_string()
+    })?;
+    manager
+        .update_size_limit_by_type(cache_type, new_limit as usize)
+        .map_err(|e| format!("df_cache_manager_update_size_limit: {}", e))?;
+    Ok(0)
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_cache_manager_set_enabled(
+    runtime_ptr: i64,
+    cache_type_ptr: *const u8,
+    cache_type_len: i64,
+    enabled: i64,
+) -> i64 {
+    if runtime_ptr == 0 {
+        return Err("df_cache_manager_set_enabled: null runtime pointer".to_string());
+    }
+    let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
+        .map_err(|e| format!("df_cache_manager_set_enabled: {}", e))?;
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
+        .ok_or_else(|| "df_cache_manager_set_enabled: no cache manager configured".to_string())?;
+    manager
+        .set_enabled_by_type(cache_type, enabled != 0)
+        .map_err(|e| format!("df_cache_manager_set_enabled: {}", e))?;
     Ok(0)
 }
 
@@ -1439,5 +1498,181 @@ mod tests {
 
         // ── Cleanup ──
         shutdown_test_runtime();
+    }
+
+    // ── df_cache_manager_update_size_limit (runtime cache resize) ──
+    //
+    // These drive the exported FFM symbol end-to-end against a real
+    // DataFusionRuntime built via the same entry points Java uses
+    // (df_create_custom_cache_manager -> df_create_cache -> df_create_global_runtime),
+    // and verify both the happy path (the live manager's limit changes) and the
+    // negative-pointer error contract.
+
+    /// Build a runtime whose cache manager has METADATA + STATISTICS caches at the
+    /// given limits. Returns the runtime pointer (owns the consumed cache manager).
+    unsafe fn runtime_with_caches(metadata_limit: i64, stats_limit: i64) -> i64 {
+        let mgr_ptr = df_create_custom_cache_manager();
+        let lru = "LRU";
+        for (ty, limit) in [(cache::CACHE_TYPE_METADATA, metadata_limit), (cache::CACHE_TYPE_STATS, stats_limit)] {
+            let rc = df_create_cache(mgr_ptr, ty.as_ptr(), ty.len() as i64, limit, lru.as_ptr(), lru.len() as i64, 1);
+            assert!(rc >= 0, "df_create_cache({}) failed: {}", ty, rc);
+        }
+        // create_global_runtime consumes mgr_ptr (Box::from_raw). Empty (non-null)
+        // spill_dir is the "spill disabled" sentinel.
+        let spill = "";
+        let rt = df_create_global_runtime(256 * 1024 * 1024, mgr_ptr, spill.as_ptr(), spill.len() as i64, 0);
+        assert!(rt >= 0, "df_create_global_runtime failed: {}", rt);
+        rt
+    }
+
+    /// Read back an FFM error message from a negative return code, then free it.
+    unsafe fn take_error_message(neg_code: i64) -> String {
+        assert!(neg_code < 0, "expected an error (negative) code, got {}", neg_code);
+        let ptr = -neg_code;
+        let c = native_bridge_common::error::native_error_message(ptr);
+        let msg = std::ffi::CStr::from_ptr(c).to_string_lossy().into_owned();
+        native_bridge_common::error::native_error_free(ptr);
+        msg
+    }
+
+    unsafe fn call_update(runtime_ptr: i64, cache_type: &str, new_limit: i64) -> i64 {
+        df_cache_manager_update_size_limit(runtime_ptr, cache_type.as_ptr(), cache_type.len() as i64, new_limit)
+    }
+
+    #[test]
+    fn test_df_update_size_limit_metadata_resizes_live_manager() {
+        unsafe {
+            let rt = runtime_with_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+
+            let rc = call_update(rt, cache::CACHE_TYPE_METADATA, 2 * 1024 * 1024 * 1024);
+            assert_eq!(rc, 0, "metadata resize should succeed");
+
+            let runtime = &*(rt as *const DataFusionRuntime);
+            let mgr = runtime.custom_cache_manager.as_ref().expect("cache manager present");
+            assert_eq!(mgr.metadata_cache_size_limit(), 2 * 1024 * 1024 * 1024);
+            // STATISTICS limit untouched by a METADATA-typed resize.
+            assert_eq!(mgr.get_statistics_cache().unwrap().current_size_limit(), 100 * 1024 * 1024);
+
+            api::close_global_runtime(rt);
+        }
+    }
+
+    #[test]
+    fn test_df_update_size_limit_statistics_resizes_live_manager() {
+        unsafe {
+            let rt = runtime_with_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+
+            let rc = call_update(rt, cache::CACHE_TYPE_STATS, 256 * 1024 * 1024);
+            assert_eq!(rc, 0, "statistics resize should succeed");
+
+            let runtime = &*(rt as *const DataFusionRuntime);
+            let mgr = runtime.custom_cache_manager.as_ref().expect("cache manager present");
+            assert_eq!(mgr.get_statistics_cache().unwrap().current_size_limit(), 256 * 1024 * 1024);
+            assert_eq!(mgr.metadata_cache_size_limit(), 250 * 1024 * 1024);
+
+            api::close_global_runtime(rt);
+        }
+    }
+
+    #[test]
+    fn test_configured_statistics_limit_survives_runtime_build() {
+        // Regression: CacheManager::try_new calls update_cache_limit with
+        // config.file_statistics_cache_limit, which defaults to 20MiB. If
+        // build_cache_manager_config doesn't propagate the configured statistics limit,
+        // the user's datafusion.statistics.cache.size.limit is silently clobbered at
+        // startup. Here we configure 100MB and expect it to survive runtime construction.
+        unsafe {
+            let rt = runtime_with_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+            let runtime = &*(rt as *const DataFusionRuntime);
+            let mgr = runtime.custom_cache_manager.as_ref().expect("cache manager present");
+            assert_eq!(
+                mgr.get_statistics_cache().unwrap().current_size_limit(),
+                100 * 1024 * 1024,
+                "configured statistics cache limit must survive runtime build (not be reset to the 20MiB DataFusion default)"
+            );
+            assert_eq!(mgr.metadata_cache_size_limit(), 250 * 1024 * 1024);
+            api::close_global_runtime(rt);
+        }
+    }
+
+    #[test]
+    fn test_df_set_enabled_toggles_live_manager() {
+        unsafe {
+            let rt = runtime_with_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+            let stats = "STATISTICS";
+
+            // Disable statistics cache.
+            let rc = df_cache_manager_set_enabled(rt, stats.as_ptr(), stats.len() as i64, 0);
+            assert_eq!(rc, 0, "disable should succeed");
+
+            let runtime = &*(rt as *const DataFusionRuntime);
+            let mgr = runtime.custom_cache_manager.as_ref().unwrap();
+            assert!(!mgr.get_statistics_cache().unwrap().is_enabled(), "statistics cache should be disabled");
+
+            // Re-enable.
+            let rc = df_cache_manager_set_enabled(rt, stats.as_ptr(), stats.len() as i64, 1);
+            assert_eq!(rc, 0, "enable should succeed");
+            assert!(mgr.get_statistics_cache().unwrap().is_enabled());
+
+            api::close_global_runtime(rt);
+        }
+    }
+
+    #[test]
+    fn test_df_set_enabled_unknown_type_errors() {
+        unsafe {
+            let rt = runtime_with_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+            let bogus = "BOGUS";
+            let rc = df_cache_manager_set_enabled(rt, bogus.as_ptr(), bogus.len() as i64, 0);
+            let msg = take_error_message(rc);
+            assert!(msg.contains("Unknown cache type"), "got: {}", msg);
+            api::close_global_runtime(rt);
+        }
+    }
+
+    #[test]
+    fn test_df_update_size_limit_null_runtime_errors() {
+        unsafe {
+            let rc = call_update(0, cache::CACHE_TYPE_METADATA, 1024);
+            let msg = take_error_message(rc);
+            assert!(msg.contains("null runtime pointer"), "got: {}", msg);
+        }
+    }
+
+    #[test]
+    fn test_df_update_size_limit_negative_limit_errors() {
+        unsafe {
+            let rt = runtime_with_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+            let rc = call_update(rt, cache::CACHE_TYPE_METADATA, -1);
+            let msg = take_error_message(rc);
+            assert!(msg.contains("negative size limit"), "got: {}", msg);
+            api::close_global_runtime(rt);
+        }
+    }
+
+    #[test]
+    fn test_df_update_size_limit_unknown_type_errors() {
+        unsafe {
+            let rt = runtime_with_caches(250 * 1024 * 1024, 100 * 1024 * 1024);
+            let bogus = "BOGUS";
+            let rc = df_cache_manager_update_size_limit(rt, bogus.as_ptr(), bogus.len() as i64, 1024);
+            let msg = take_error_message(rc);
+            assert!(msg.contains("Unknown cache type"), "got: {}", msg);
+            api::close_global_runtime(rt);
+        }
+    }
+
+    #[test]
+    fn test_df_update_size_limit_unconfigured_cache_errors() {
+        unsafe {
+            // Runtime with NO cache manager attached (cache_manager_ptr = 0).
+            let spill = "";
+            let rt = df_create_global_runtime(256 * 1024 * 1024, 0, spill.as_ptr(), spill.len() as i64, 0);
+            assert!(rt >= 0);
+            let rc = call_update(rt, cache::CACHE_TYPE_METADATA, 1024);
+            let msg = take_error_message(rc);
+            assert!(msg.contains("no cache manager configured"), "got: {}", msg);
+            api::close_global_runtime(rt);
+        }
     }
 }

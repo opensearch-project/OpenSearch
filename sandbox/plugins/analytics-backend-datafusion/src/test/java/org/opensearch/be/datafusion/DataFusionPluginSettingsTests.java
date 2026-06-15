@@ -8,8 +8,11 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;
@@ -54,6 +57,82 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
     public void testUpdateSpillMemoryLimitBeforeServiceStartDoesNotThrow() {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             plugin.updateSpillMemoryLimit(32L * 1024 * 1024);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testMetadataCacheSizeLimitIsDynamic() {
+        assertTrue(
+            "datafusion.metadata.cache.size.limit must be dynamic so cluster-state updates are accepted; "
+                + "live propagation depends on the loaded native library",
+            CacheSettings.METADATA_CACHE_SIZE_LIMIT.isDynamic()
+        );
+        assertTrue("datafusion.metadata.cache.size.limit must have node scope", CacheSettings.METADATA_CACHE_SIZE_LIMIT.hasNodeScope());
+    }
+
+    public void testStatisticsCacheSizeLimitIsDynamic() {
+        assertTrue(
+            "datafusion.statistics.cache.size.limit must be dynamic so cluster-state updates are accepted; "
+                + "live propagation depends on the loaded native library",
+            CacheSettings.STATISTICS_CACHE_SIZE_LIMIT.isDynamic()
+        );
+        assertTrue("datafusion.statistics.cache.size.limit must have node scope", CacheSettings.STATISTICS_CACHE_SIZE_LIMIT.hasNodeScope());
+    }
+
+    /**
+     * Mirrors {@link #testUpdateSpillMemoryLimitBeforeServiceStartDoesNotThrow}: the cache
+     * size-limit listener can fire before {@link DataFusionPlugin#createComponents} runs (service
+     * field still null) or after shutdown. {@code updateCacheSizeLimit} must swallow this quietly
+     * so cluster-state application does not log a spurious failure.
+     */
+    public void testUpdateCacheSizeLimitBeforeServiceStartDoesNotThrow() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            plugin.updateCacheSizeLimit(CacheUtils.CacheType.METADATA, new ByteSizeValue(2L * 1024 * 1024 * 1024));
+            plugin.updateCacheSizeLimit(CacheUtils.CacheType.STATISTICS, new ByteSizeValue(256L * 1024 * 1024));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testPluginRegistersCacheSizeLimitSettings() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            List<Setting<?>> settings = plugin.getSettings();
+            assertTrue(
+                "Plugin must register METADATA_CACHE_SIZE_LIMIT via getSettings()",
+                settings.contains(CacheSettings.METADATA_CACHE_SIZE_LIMIT)
+            );
+            assertTrue(
+                "Plugin must register STATISTICS_CACHE_SIZE_LIMIT via getSettings()",
+                settings.contains(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT)
+            );
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testCacheEnabledSettingsAreDynamic() {
+        assertTrue(
+            "datafusion.metadata.cache.enabled must be dynamic for runtime enable/disable",
+            CacheSettings.METADATA_CACHE_ENABLED.isDynamic()
+        );
+        assertTrue(
+            "datafusion.statistics.cache.enabled must be dynamic for runtime enable/disable",
+            CacheSettings.STATISTICS_CACHE_ENABLED.isDynamic()
+        );
+        assertTrue(CacheSettings.METADATA_CACHE_ENABLED.hasNodeScope());
+        assertTrue(CacheSettings.STATISTICS_CACHE_ENABLED.hasNodeScope());
+    }
+
+    /**
+     * Mirrors {@link #testUpdateCacheSizeLimitBeforeServiceStartDoesNotThrow}: the enable/disable
+     * listener can fire before {@link DataFusionPlugin#createComponents} runs (service field still
+     * null) or after shutdown. {@code updateCacheEnabled} must swallow this quietly.
+     */
+    public void testUpdateCacheEnabledBeforeServiceStartDoesNotThrow() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            plugin.updateCacheEnabled(CacheUtils.CacheType.METADATA, false);
+            plugin.updateCacheEnabled(CacheUtils.CacheType.STATISTICS, true);
         } catch (Exception e) {
             throw new AssertionError(e);
         }

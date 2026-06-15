@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use datafusion::execution::cache::cache_manager::{
@@ -31,14 +31,36 @@ pub struct MutexFileMetadataCache {
     pub inner: Mutex<DefaultFilesMetadataCache>,
     hit_count: AtomicUsize,
     miss_count: AtomicUsize,
+    /// When false, the cache serves every lookup as a miss and drops all writes.
+    /// Toggled at runtime via the datafusion.metadata.cache.enabled setting; disabling
+    /// also clears existing entries (see `set_enabled`) so memory is freed.
+    enabled: AtomicBool,
 }
 
 impl MutexFileMetadataCache {
     pub fn new(cache: DefaultFilesMetadataCache) -> Self {
+        Self::with_enabled(cache, true)
+    }
+
+    pub fn with_enabled(cache: DefaultFilesMetadataCache, enabled: bool) -> Self {
         Self {
             inner: Mutex::new(cache),
             hit_count: AtomicUsize::new(0),
             miss_count: AtomicUsize::new(0),
+            enabled: AtomicBool::new(enabled),
+        }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.load(Ordering::Relaxed)
+    }
+
+    /// Enable or disable the cache at runtime. Disabling also clears existing entries
+    /// so the memory is released immediately; enabling starts caching again from cold.
+    pub fn set_enabled(&self, enabled: bool) {
+        self.enabled.store(enabled, Ordering::Relaxed);
+        if !enabled {
+            self.clear_cache();
         }
     }
 
@@ -78,6 +100,11 @@ impl MutexFileMetadataCache {
 
 impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
     fn get(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
+        // Disabled cache holds nothing (put drops writes); skip hit/miss accounting since
+        // the cache isn't participating.
+        if !self.is_enabled() {
+            return None;
+        }
         match self.inner.lock() {
             Ok(cache) => {
                 let result = cache.get(k);
@@ -96,6 +123,10 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
     }
 
     fn put(&self, k: &Path, v: CachedFileMetadataEntry) -> Option<CachedFileMetadataEntry> {
+        // Drop writes while disabled so the cache stays empty / frees nothing to track.
+        if !self.is_enabled() {
+            return None;
+        }
         match self.inner.lock() {
             Ok(cache) => cache.put(k, v),
             Err(e) => {

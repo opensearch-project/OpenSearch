@@ -86,12 +86,29 @@ public class CacheManager {
         }
     }
 
+    /**
+     * Resizes the native cache for {@code cacheType} to {@code sizeLimit} bytes at runtime.
+     * Takes effect immediately; shrinking below current usage triggers eviction on the native side.
+     */
     public void updateSizeLimit(CacheUtils.CacheType cacheType, long sizeLimit) {
         try {
-            // TODO: Add updateSizeLimitForCacheType FFM function when needed
-            logger.warn("updateSizeLimit not yet implemented for FFM bridge");
+            NativeBridge.cacheManagerUpdateSizeLimit(runtimeHandle.get(), cacheType.getCacheTypeName(), sizeLimit);
+            logger.info("Updated {} cache size limit to {} bytes", cacheType.getCacheTypeName(), sizeLimit);
         } catch (Exception e) {
             logger.error("Error updating size limit", e);
+        }
+    }
+
+    /**
+     * Enables or disables the native cache for {@code cacheType} at runtime. Disabling clears the
+     * cache so its memory is freed immediately; re-enabling starts caching again from cold.
+     */
+    public void setEnabled(CacheUtils.CacheType cacheType, boolean enabled) {
+        try {
+            NativeBridge.cacheManagerSetEnabled(runtimeHandle.get(), cacheType.getCacheTypeName(), enabled);
+            logger.info("{} {} cache", enabled ? "Enabled" : "Disabled", cacheType.getCacheTypeName());
+        } catch (Exception e) {
+            logger.error("Error toggling cache enabled state", e);
         }
     }
 
