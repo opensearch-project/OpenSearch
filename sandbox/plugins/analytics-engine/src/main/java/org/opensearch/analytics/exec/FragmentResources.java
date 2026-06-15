@@ -47,9 +47,9 @@ public final class FragmentResources implements AutoCloseable {
      * Whether this reader serves a single request rather than living across many (scroll/PIT style).
      * Always true today — analytics-engine has no scroll/PIT-equivalent that outlives one request.
      * TODO: the coordinator (which knows the query shape) should set this per request rather than it
-     *  being hardcoded; a future multi-session reader would not be freed on close here.
+     *  defaulting to true; a future multi-session reader would not be freed on close here.
      */
-    private static final boolean SINGLE_SESSION = true;
+    private final boolean singleSession = true;
 
     public FragmentResources(
         ReaderContextStore readerContextStore,
@@ -134,7 +134,7 @@ public final class FragmentResources implements AutoCloseable {
         if (readerContext != null) {
             try {
                 readerContextStore.releaseContext(readerContext.getQueryId(), readerContext.getShardId());
-                if (SINGLE_SESSION && !fetchFollows) {
+                if (singleSession && !fetchFollows) {
                     readerContextStore.freeContext(readerContext.getQueryId(), readerContext.getShardId());
                 }
             } catch (Exception e) {

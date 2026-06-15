@@ -385,15 +385,11 @@ public class AnalyticsSearchService implements AutoCloseable {
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
-        // QTF: hand the reader to the store so the fetch phase can reuse it without re-opening.
-        // FragmentResources holds a reference to the ReaderContext; when a fetch phase will follow
-        // (QTF query phase) close() releases it back to the store so it stays alive for the fetch
-        // (the reaper closes after keepAlive); otherwise close() frees it immediately so the reader
-        // is not pinned until the reaper sweeps it. A fetch follows only for QTF, which we detect
-        // from the ShardScan instruction's requestsRowIds flag (the same signal that tells the
-        // backend to emit __row_id__).
-        // TODO: ideally the coordinator (which knows the query shape) should tell us explicitly
-        // whether a fetch phase will follow, rather than us inferring it from the row-id signal here.
+        // A fetch phase follows only for QTF, detected from the ShardScan instruction's
+        // requestsRowIds flag. When it does, close() keeps the reader in the store for the fetch;
+        // otherwise close() frees it immediately instead of waiting for the reaper.
+        // TODO: the coordinator (which knows the query shape) should tell us whether a fetch
+        // follows, rather than us inferring it from the row-id signal here.
         boolean fetchFollows = requestsRowIds(resolved.plan.getInstructions());
         ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), shard.shardId(), gatedReader);
         assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
