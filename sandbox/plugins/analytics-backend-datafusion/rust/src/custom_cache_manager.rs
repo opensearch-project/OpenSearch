@@ -172,17 +172,10 @@ impl CustomCacheManager {
             {
                 let path = Path::from(file_path.clone());
                 if let Some(cache) = &self.file_metadata_cache {
-                    match cache.inner.lock() {
-                        Ok(cache_guard) => {
-                            if cache_guard.remove(&path).is_some() {
-                                any_removed = true;
-                            } else {
-                                debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
-                            }
-                        }
-                        Err(e) => {
-                            errors.push(format!("Metadata cache: Cache remove failed: {}", e));
-                        }
+                    if CacheAccessor::remove(cache.as_ref(), &path).is_some() {
+                        any_removed = true;
+                    } else {
+                        debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                     }
                 } else {
                     errors.push("No metadata cache configured".to_string());
@@ -325,9 +318,7 @@ impl CustomCacheManager {
 
         // Add metadata cache memory
         if let Some(cache) = &self.file_metadata_cache {
-            if let Ok(cache_guard) = cache.inner.lock() {
-                total += cache_guard.memory_used();
-            }
+            total += cache.memory_used();
         }
 
         // Add statistics cache memory
@@ -376,11 +367,7 @@ impl CustomCacheManager {
         match cache_type {
             crate::cache::CACHE_TYPE_METADATA => {
                 if let Some(cache) = &self.file_metadata_cache {
-                    if let Ok(cache_guard) = cache.inner.lock() {
-                        Ok(cache_guard.memory_used())
-                    } else {
-                        Err("Failed to lock metadata cache".to_string())
-                    }
+                    Ok(cache.memory_used())
                 } else {
                     Err("No metadata cache configured".to_string())
                 }
@@ -432,17 +419,12 @@ impl CustomCacheManager {
         })?;
 
         // Verify the metadata was cached properly
-        match cache_ref.inner.lock() {
-            Ok(cache_guard) => {
-                let path = Path::from(file_path.to_string());
-                if cache_guard.contains_key(&path) {
-                    Ok(true)
-                } else {
-                    debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
-                    Ok(false)
-                }
-            }
-            Err(e) => Err(format!("Failed to verify cache: {}", e))
+        let path = Path::from(file_path.to_string());
+        if CacheAccessor::contains_key(cache_ref.as_ref(), &path) {
+            Ok(true)
+        } else {
+            debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
+            Ok(false)
         }
     }
 
@@ -627,7 +609,7 @@ mod tests {
 
     fn manager_with_both_caches(metadata_limit: usize, stats_limit: usize) -> CustomCacheManager {
         let mut mgr = CustomCacheManager::new();
-        let metadata = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(metadata_limit)));
+        let metadata = Arc::new(MutexFileMetadataCache::new(PolicyType::Lru, metadata_limit));
         mgr.set_file_metadata_cache(metadata);
         let stats = Arc::new(CustomStatisticsCache::new(PolicyType::Lru, stats_limit, 0.8));
         mgr.set_statistics_cache(stats);
@@ -682,7 +664,7 @@ mod tests {
     #[test]
     fn test_set_enabled_by_type_unknown_and_unconfigured_error() {
         let mut mgr = CustomCacheManager::new();
-        let metadata = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(250 * 1024 * 1024)));
+        let metadata = Arc::new(MutexFileMetadataCache::new(PolicyType::Lru, 250 * 1024 * 1024));
         mgr.set_file_metadata_cache(metadata);
 
         let unknown = mgr.set_enabled_by_type("BOGUS", false).expect_err("unknown type must error");
@@ -708,7 +690,7 @@ mod tests {
         // Manager with only the metadata cache set — resizing STATISTICS must error,
         // not panic, so the FFM layer can surface it to Java.
         let mut mgr = CustomCacheManager::new();
-        let metadata = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(250 * 1024 * 1024)));
+        let metadata = Arc::new(MutexFileMetadataCache::new(PolicyType::Lru, 250 * 1024 * 1024));
         mgr.set_file_metadata_cache(metadata);
 
         let err = mgr

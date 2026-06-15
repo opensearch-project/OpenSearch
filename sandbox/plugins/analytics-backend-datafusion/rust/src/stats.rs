@@ -437,7 +437,6 @@ mod tests {
     fn test_pack_cache_stats_reflects_underlying_counters() {
         use std::sync::Arc;
 
-        use datafusion::execution::cache::DefaultFilesMetadataCache;
         use datafusion::execution::cache::CacheAccessor;
         use object_store::path::Path;
 
@@ -446,9 +445,7 @@ mod tests {
         use crate::eviction_policy::PolicyType;
         use crate::statistics_cache::CustomStatisticsCache;
 
-        let metadata_cache = Arc::new(MutexFileMetadataCache::new(
-            DefaultFilesMetadataCache::new(50 * 1024 * 1024),
-        ));
+        let metadata_cache = Arc::new(MutexFileMetadataCache::new(PolicyType::Lru, 50 * 1024 * 1024));
         let stats_cache = Arc::new(CustomStatisticsCache::new(
             PolicyType::Lru,
             10 * 1024 * 1024,

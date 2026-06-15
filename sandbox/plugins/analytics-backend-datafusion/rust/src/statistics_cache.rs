@@ -950,4 +950,99 @@ mod tests {
         assert_eq!(cache.memory_consumed(), 0, "a 0-byte limit must evict everything");
         assert_eq!(cache.len(), 0);
     }
+
+    // ── End-to-end: S3-FIFO scan resistance through the real cache ──
+    //
+    // These drive CustomStatisticsCache configured with PolicyType::S3Fifo via its
+    // public put/get path (not the policy in isolation), exercising the same flow a
+    // query takes, and assert the headline property: a one-off wide scan does not
+    // evict the repeatedly-queried hot working set.
+
+    /// Per-entry byte size as charged by the cache (statistics.memory_size()).
+    fn stat_entry_bytes() -> usize {
+        Arc::new(create_test_statistics()).memory_size()
+    }
+
+    #[test]
+    fn test_e2e_s3fifo_hot_set_survives_scan() {
+        // Size the cache so the hot set comfortably fits but a scan would, under LRU,
+        // churn the whole thing: ~10 entries' worth of bytes.
+        let per = stat_entry_bytes();
+        let cache = CustomStatisticsCache::new(PolicyType::S3Fifo, per * 10, 0.8);
+
+        // Warm a small hot set and query each entry repeatedly (earns frequency).
+        let hot: Vec<Path> = (0..3).map(|i| create_test_path(&format!("hot{i}"))).collect();
+        for p in &hot {
+            cache.put_statistics(p, Arc::new(create_test_statistics()), &create_test_meta(p));
+        }
+        for _ in 0..5 {
+            for p in &hot {
+                assert!(cache.get(p).is_some(), "hot entry should be present during warmup");
+            }
+        }
+
+        // A wide one-off scan streams many cold keys, each touched once.
+        for i in 0..100 {
+            let p = create_test_path(&format!("scan{i}"));
+            cache.put_statistics(&p, Arc::new(create_test_statistics()), &create_test_meta(&p));
+        }
+
+        // The hot set must largely survive the scan — the headline scan-resistance
+        // property. With the SLRU-like 50% probation default, a hot entry that has not
+        // yet been promoted to `main` is more exposed than at the paper's ~10%, so we
+        // assert the *majority* survive rather than all (still far better than LRU,
+        // which would evict the entire hot set under this workload). The larger
+        // probation is the recency-vs-scan-resistance tradeoff of the 50% split.
+        let survivors = hot.iter().filter(|p| cache.get(p).is_some()).count();
+        assert!(
+            survivors >= 2,
+            "S3-FIFO must keep most of the {} hot entries after a 100-key scan; survived {}",
+            hot.len(), survivors
+        );
+        // And the cache stayed within its byte budget.
+        assert!(cache.memory_consumed() <= per * 10, "cache must honor its byte limit");
+    }
+
+    #[test]
+    fn test_e2e_lru_pollutes_baseline_contrast() {
+        // Contrast control: with LRU and the same workload, the hot set is NOT
+        // guaranteed to survive (LRU has no scan resistance). We only assert the cache
+        // stays within budget — this documents the difference rather than over-claiming
+        // a deterministic LRU eviction of a specific key.
+        let per = stat_entry_bytes();
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, per * 10, 0.8);
+        let hot = create_test_path("hot");
+        cache.put_statistics(&hot, Arc::new(create_test_statistics()), &create_test_meta(&hot));
+        for _ in 0..5 {
+            cache.get(&hot);
+        }
+        for i in 0..100 {
+            let p = create_test_path(&format!("scan{i}"));
+            cache.put_statistics(&p, Arc::new(create_test_statistics()), &create_test_meta(&p));
+        }
+        assert!(cache.memory_consumed() <= per * 10, "LRU cache must also honor its byte limit");
+    }
+
+    #[test]
+    fn test_e2e_s3fifo_set_policy_switch() {
+        // Switching an existing cache to S3-FIFO at runtime preserves entries and the
+        // policy then governs subsequent eviction.
+        let per = stat_entry_bytes();
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, per * 10, 0.8);
+        let hot = create_test_path("hot");
+        cache.put_statistics(&hot, Arc::new(create_test_statistics()), &create_test_meta(&hot));
+        for _ in 0..5 {
+            cache.get(&hot);
+        }
+
+        cache.set_policy(PolicyType::S3Fifo).unwrap();
+        assert_eq!(cache.policy_name().unwrap(), "s3fifo");
+        assert!(cache.get(&hot).is_some(), "switching policy must not drop existing entries");
+
+        for i in 0..100 {
+            let p = create_test_path(&format!("scan{i}"));
+            cache.put_statistics(&p, Arc::new(create_test_statistics()), &create_test_meta(&p));
+        }
+        assert!(cache.memory_consumed() <= per * 10);
+    }
 }

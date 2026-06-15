@@ -778,6 +778,7 @@ pub unsafe extern "C" fn df_create_cache(
     let policy_type = match eviction_type.to_uppercase().as_str() {
         "LRU" => PolicyType::Lru,
         "LFU" => PolicyType::Lfu,
+        "S3FIFO" => PolicyType::S3Fifo,
         _ => {
             return Err(format!(
                 "df_create_cache: unsupported eviction type: {}",
@@ -795,8 +796,14 @@ pub unsafe extern "C" fn df_create_cache(
 
     match cache_type {
         cache::CACHE_TYPE_METADATA => {
-            let inner_cache = DefaultFilesMetadataCache::new(size_limit as usize);
-            let metadata_cache = Arc::new(cache::MutexFileMetadataCache::with_enabled(inner_cache, enabled));
+            // MutexFileMetadataCache now owns its store and drives the pluggable eviction
+            // policy (DataFusion's DefaultFilesMetadataCache is hardcoded LRU, so wrapping
+            // it could not honor `eviction.type`). Pass the policy + byte limit through.
+            let metadata_cache = Arc::new(cache::MutexFileMetadataCache::with_enabled(
+                policy_type,
+                size_limit as usize,
+                enabled,
+            ));
             manager.set_file_metadata_cache(metadata_cache);
         }
         cache::CACHE_TYPE_STATS => {

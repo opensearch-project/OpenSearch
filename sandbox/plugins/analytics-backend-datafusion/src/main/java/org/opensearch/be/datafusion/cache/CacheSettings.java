@@ -36,9 +36,12 @@ public class CacheSettings {
         Setting.Property.Dynamic
     );
 
+    // Default to S3FIFO: scan-resistant eviction so a one-off wide query does not evict
+    // the hot footer/statistics working set (plain LRU is not scan-resistant). LRU/LFU
+    // remain selectable.
     public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<String>(
         "datafusion.metadata.cache.eviction.type",
-        "LRU",
+        "S3FIFO",
         CacheSettings::validateEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -46,7 +49,7 @@ public class CacheSettings {
 
     public static final Setting<String> STATISTICS_CACHE_EVICTION_TYPE = new Setting<String>(
         "datafusion.statistics.cache.eviction.type",
-        "LRU",
+        "S3FIFO",
         CacheSettings::validateEvictionType,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -79,8 +82,8 @@ public class CacheSettings {
 
     private static String validateEvictionType(String value) {
         String upper = value.toUpperCase(Locale.ROOT);
-        if (!upper.equals("LRU") && !upper.equals("LFU")) {
-            throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU' or 'LFU'.");
+        if (!upper.equals("LRU") && !upper.equals("LFU") && !upper.equals("S3FIFO")) {
+            throw new IllegalArgumentException("Invalid eviction type '" + value + "'. Must be 'LRU', 'LFU', or 'S3FIFO'.");
         }
         return upper;
     }
