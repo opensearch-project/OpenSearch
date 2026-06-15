@@ -1,14 +1,14 @@
 name: (5.x) Check changelog
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    types: [opened, synchronize, ready_for_review]
 
 permissions:
   contents: read
 jobs:
   # Enforces the update of a changelog file on every pull request
   verify-changelog:
-    if: github.repository == 'wazuh/wazuh-indexer'
+    if: ${{ !github.event.pull_request.draft && github.repository == 'wazuh/wazuh-indexer' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6

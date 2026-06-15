@@ -5,6 +5,7 @@ name: (4.x) Build packages (on push)
 
 on:
   pull_request:
+    types: [opened, synchronize, ready_for_review]
     branches:
       - 4.1[3-9].*
     paths-ignore:
@@ -16,6 +17,7 @@ concurrency:
 
 jobs:
   call-build-workflow:
+    if: ${{ !github.event.pull_request.draft }}
     permissions:
       actions: read
       contents: read
