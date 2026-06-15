@@ -193,6 +193,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAllAdapter.LOCAL_JSON_EXTRACT_ALL_OP, "json_extract_all"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonValidAdapter.LOCAL_JSON_VALID_OP, "json_valid"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),

@@ -182,4 +182,38 @@ final class JsonFunctionAdapters {
             super(LOCAL_JSON_EXTEND_OP, List.of(), List.of());
         }
     }
+
+    /**
+     * {@code JSON_VALID(str)} → boolean; TRUE iff the input parses as JSON,
+     * FALSE on malformed input, NULL on NULL input.
+     *
+     * <p>Source PPL call uses {@code SqlStdOperatorTable.IS_JSON_VALUE} — a
+     * {@link org.apache.calcite.sql.SqlPostfixOperator} named {@code "IS JSON VALUE"},
+     * which isthmus cannot serialise (no Substrait mapping) and DataFusion does
+     * not recognise. The adapter rewrites it to a locally-declared {@code json_valid}
+     * {@link SqlFunction} whose name matches the Rust UDF at {@code rust/src/udf/json_valid.rs}.
+     *
+     * <p>Null-propagating, matching Calcite {@code JsonFunctions.isJsonValue}
+     * ({@code if (input == null) return null}) and the official PPL doc
+     * (sql/docs/user/ppl/functions/json.md — "NULL input returns NULL"). This
+     * is the SQL:2016 scalar-UDF convention and the majority industry contract
+     * (MySQL, SQL Server, Snowflake, Trino, DuckDB). Return type
+     * {@link ReturnTypes#BOOLEAN_NULLABLE} matches the postfix operator's declared
+     * type so {@link AbstractNameMappingAdapter#adapt} preserves it unchanged.
+     */
+    static class JsonValidAdapter extends AbstractNameMappingAdapter {
+
+        static final SqlOperator LOCAL_JSON_VALID_OP = new SqlFunction(
+            "json_valid",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.BOOLEAN_NULLABLE,
+            null,
+            OperandTypes.STRING,
+            SqlFunctionCategory.STRING
+        );
+
+        JsonValidAdapter() {
+            super(LOCAL_JSON_VALID_OP, List.of(), List.of());
+        }
+    }
 }

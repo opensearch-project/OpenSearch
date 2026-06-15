@@ -833,6 +833,12 @@ scalar_functions:
         variadic: { min: 1 }
         return: string
 
+  - name: "json_valid"
+    description: "TRUE if the input parses as JSON, FALSE on malformed input, NULL on NULL input (parity with legacy JsonUtils.isValidJson / Jackson readTree — empty/whitespace input is valid)."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: boolean
+
   - name: "opensearch_extract"
     description: >-
       Pull a MySQL-style calendar component out of a timestamp. Returns BIGINT.

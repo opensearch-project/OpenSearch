@@ -355,6 +355,18 @@ public enum ScalarFunction {
     JSON_EXTRACT_ALL(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code json_valid(str)} — resolves through the SQL plugin's
+     * {@code PPLFuncImpTable} to {@link SqlStdOperatorTable#IS_JSON_VALUE}, which is
+     * a {@link org.apache.calcite.sql.SqlPostfixOperator} named {@code "IS JSON VALUE"}
+     * with {@link SqlKind#OTHER}. Neither name-based {@link #valueOf(String)} nor
+     * {@link SqlKind}-based resolution matches. The {@link SqlKind#OTHER_FUNCTION}
+     * declaration opts out of the {@link #fromSqlKind(SqlKind)} scan (which would
+     * otherwise break {@code testFromSqlKindReturnsNullForOtherKind} by claiming
+     * {@code SqlKind.OTHER}); resolution happens via the {@code referenceOperator}
+     * singleton-identity match — same pattern as {@link #CONCAT}.
+     */
+    JSON_VALID(Category.SCALAR, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.IS_JSON_VALUE),
 
     PATTERN_PARSER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
