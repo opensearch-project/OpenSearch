@@ -43,6 +43,12 @@ fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, data
     Ok(vec![object_meta])
 }
 
+/// Cache utilization threshold (0-100) above which proactive metadata population
+/// is skipped. Below this threshold, refresh proactively populates the cache.
+/// Above it, only query-driven cache population occurs (via DataFusion's
+/// fetch_metadata which handles its own LRU eviction).
+const METADATA_CACHE_POPULATE_THRESHOLD_PERCENT: usize = 80;
+
 /// Custom CacheManager that holds cache references directly
 pub struct CustomCacheManager {
     /// Direct reference to the file metadata cache
@@ -359,29 +365,49 @@ impl CustomCacheManager {
 
         let metadata_cache = cache_ref.clone() as Arc<dyn FileMetadataCache>;
 
-        // Use DataFusion's metadata loading by passing reference to file_metadata_cache to get complete metadata
-        // IMPORTANT: When a cache is provided to DFParquetMetadata, fetch_metadata() will:
-        // 1. Enable page index loading (with_page_indexes(true))
-        // 2. Load the complete metadata including column and offset indexes
-        // 3. Automatically put the metadata into the cache (lines 155-160 in datafusion's metadata.rs)
-        // This ensures we cache exactly what DataFusion would cache during query execution
+        // Proactive populate: only when cache is below utilization threshold.
+        // Above threshold, skip and let queries drive cache population via
+        // DataFusion's fetch_metadata() — which handles LRU eviction naturally.
+        // This ensures:
+        // - Hot files (actually queried) get full metadata in cache
+        // - Cold files (never queried after refresh) don't waste cache space
+        // - No partial/stripped entries — cache always has valid full metadata
+        let should_populate = cache_ref.inner.lock()
+            .map(|guard| {
+                let limit = cache_ref.get_cache_limit();
+                if limit == 0 { return true; }
+                let current_entries = guard.len();
+                // Estimate: each full entry ~ metadata.memory_size() bytes (or 1MB fallback)
+                let estimated_capacity = limit / (1024 * 1024);
+                current_entries < (estimated_capacity * METADATA_CACHE_POPULATE_THRESHOLD_PERCENT / 100)
+            })
+            .unwrap_or(true);
+
+        if !should_populate {
+            debug!(
+                "[CACHE INFO] Skipping proactive metadata populate for {} (cache above {}% threshold)",
+                file_path, METADATA_CACHE_POPULATE_THRESHOLD_PERCENT
+            );
+            return Ok(false);
+        }
+
+        // Load full metadata with page index — DataFusion caches it internally
         let _parquet_metadata = rt_handle.block_on(async {
             let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
                 .with_file_metadata_cache(Some(metadata_cache));
 
-            // fetch_metadata() performs the cache put operation internally
             df_metadata.fetch_metadata().await
                 .map_err(|e| format!("Failed to fetch metadata: {}", e))
         })?;
 
-        // Verify the metadata was cached properly
+        // Verify the metadata was cached
+        let path = Path::from(file_path.to_string());
         match cache_ref.inner.lock() {
             Ok(cache_guard) => {
-                let path = Path::from(file_path.to_string());
                 if cache_guard.contains_key(&path) {
                     Ok(true)
                 } else {
-                    debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
+                    debug!("[CACHE INFO] Metadata not cached for: {}", file_path);
                     Ok(false)
                 }
             }
@@ -560,3 +586,4 @@ impl CustomCacheManager {
         }
     }
 }
+
